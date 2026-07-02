@@ -1,7 +1,7 @@
 # kurodo 功能規格（最終形）
 
 > **沒有里程碑柵欄**（decisions D15）：這份文件定義「做完長什麼樣」，不定義「先做哪個」。每個功能面各有規格與驗收標準，實作順序由使用中的痛決定。唯一排序建議（非圍欄）：先打通「讀完→認證」那一鍵（D10）。
-> 四道牆（`CLAUDE.md`）凌駕本文件一切內容。狀態：**待 Koopa 認證**。
+> 四道牆（`CLAUDE.md`）凌駕本文件一切內容。狀態：**已認證（2026-07-02，含審查修訂：§0.1 依賴邊界、§4 fail-closed 與審計邊界、D16=(a)）**。
 
 ## 0. 目標
 
@@ -13,6 +13,12 @@
 3. kura 的四條管線跑在 `kurodo check` 上——kura 憑退役閘退役。
 4. vault 側 agent 把 kurodo 當工具箱（`check` / `exists` / `coverage` 及後續擴展）。
 
+### 0.1 依賴邊界（全域不變量）
+
+- **檔案是真相，DB 只加速。閱讀面不得依賴 DB**：PostgreSQL 不在場 → 讀照常，只有 ⌘K 明示降級（§3）。「每天讀書」這個習慣不得繼承任何 daemon 依賴——否則工具吸收法則會殺掉它。
+- **`check` / `exists` / `coverage` 是無狀態檔案掃描，不碰 DB**：四條管線與 vault 側 agent 消費的必須是零依賴 binary（kura 的部署形狀）。判官面若要求 PG 在場＝部署性倒退＝退役閘變相加嚴，禁止。
+- **schema 唯一來源＝`~/obsidian/System/schemas/vault-schema.toml`（牆 3），且容錯方向不對稱**：讀面對 schema 問題 fail-open（照渲染＋診斷——lint 少報無害）；**寫入面 fail-closed**（schema 讀不到或壞掉 → 不顯示任何轉移鍵、POST 一律拒絕——讀壞了少報，寫壞了毀檔）。
+
 ---
 
 ## 1. 閱讀面
@@ -22,9 +28,9 @@
 - 容錯鐵則：壞 YAML／未知 callout／斷鏈 → 照渲染＋診斷，永不 crash、永不修（牆 4）。
 - TOC：CJK-safe slug（照 yomihon `Slug()` 語意：`\p{L}\p{N}` 保留、撞名 `-2` 後綴、fallback `section`）。
 - 診斷欄：壞 YAML、unresolved／ambiguous link、corrections ledger——只顯示。
-- Reports：`System/reports/` 含 daily-briefing HTML 以 sandboxed iframe 原樣呈現。
+- Reports：`System/reports/` 含 daily-briefing HTML 以 sandboxed iframe 原樣呈現。sandbox 政策：**不帶 `allow-same-origin`**——即使帶 scripts 也落在 opaque origin，與同源防護形成雙層防禦。
 - `.base`／`.canvas` 連回 Obsidian 開啟；D2 不渲染（koopa0.dev 已決策）。
-- 程式碼高亮 server-side（chroma），零 JS 依賴原則不變。
+- 程式碼高亮 server-side（chroma）。JS 原則：**零框架、零外部 JS 依賴；手寫 vanilla 允許**（yomihon 的五互動即 ~207 行手寫 JS 的先例）。
 
 **驗收**：
 - dialect conformance 測試全過（結構斷言模式承 yomihon `testdata/lesson.md`）。
@@ -41,12 +47,19 @@
 
 **規格**：
 - 確定性全文：pg_trgm substring/phrase ＋ 結構化過濾（type / domain / status / topics / 資料夾）；⌘K 面板。
-- 索引全派生（`note` / `link` / `note_text`，見 `design.md` §6）：drop 後 `kurodo reindex` 完整重建；fsnotify 增量更新。
+- 索引全派生（`note` / `link` / `note_text`，見 `design.md` §6）：drop 後 `kurodo reindex` 完整重建；fsnotify 增量更新。darwin/kqueue 會漏事件——加週期性 mtime 對帳（分鐘級全量掃描）自癒。
+- PG 不可用：搜尋明示「索引離線」，其餘功能照常（§0.1 不變量）。
 - 語意／向量：未排程，升級走三關（D05）。
 
-**驗收**：2 字 CJK 查詢正確返回（允許 seq scan）；抽查與 `rg` 結果一致；drop DB → reindex → 結果不變；vault 檔案變更後 ≤2s 反映進索引。
+**驗收**：2 字 CJK 查詢正確返回（允許 seq scan）；抽查與 `rg` 結果一致；drop DB → reindex → 結果不變；vault 檔案變更後 ≤2s 反映（fsnotify 路徑），漏事件由對帳掃描保證最終一致；停掉 PG → 讀照常、搜尋明示降級。
 
 ## 4. 裁決面（唯一的寫）
+
+**前提（牆 3）**：狀態機唯一來源＝`internal/schema` 於 runtime 從 vault-schema.toml 載入，repo 內零硬編碼。schema 載入失敗 → 寫入面 **fail-closed**：不顯示任何轉移鍵、`POST /status` 一律拒絕；閱讀面照常（§0.1 的不對稱容錯）。
+
+**審計邊界（明文）**：`author=Koopa` 的審計聲明以**本機信任邊界**為限——同帳號下的本機程序（瀏覽器、curl、agent）在密碼學上不可區分，kurodo 不以 token 過度工程。CrossOriginProtection 擋的是瀏覽器跨站 form POST，不是本機程序。治理補強：vault 側 agent-guides 立硬規則「agent 永不呼叫 kurodo 寫入端點」（已列入 `obsidian-cc-questions.md` §5）。
+
+**已裁決**：flip **不動 `updated` 欄位**（D16=(a)）——`updated` 的語意是內容鮮度，認證不修訂理解。
 
 **規格——寫入路徑正式演算法**：
 
@@ -72,7 +85,9 @@ POST /status (path, from, to)
  8. 302 → 閱讀頁（PRG）
 ```
 
-**規格——UI**：status 面板列出**當前合法**轉移（`schema` 以 actor=`koopa` 計算；只顯示合法鍵，不顯示 disabled）；全部合法轉移開放、`ready` 唯一 primary 樣式（D13）；每顆鍵一個 form，無 JS；無 frontmatter（drills）→「無 frontmatter（合法）」無鍵；壞 YAML → 只顯診斷無鍵（讀不可靠就不寫）。
+**規格——UI**：status 面板列出**當前合法**轉移（`schema` 以 actor=`koopa` 計算；只顯示合法鍵，不顯示 disabled）；全部合法轉移開放、`ready` 唯一 primary 樣式（D13）；每顆鍵一個 form，無 JS；無 frontmatter（drills）→「無 frontmatter（合法）」無鍵；壞 YAML → 只顯診斷無鍵（讀不可靠就不寫）；schema 載入失敗 → 顯示「契約不可用」診斷、無鍵（fail-closed）。
+
+**已知取捨**：dirty-file 中止會擋住「讀到一半在 Obsidian 修個 typo → flip」的真實流程。v0 先出貨，「先 commit 手改再 flip」的兩段式按 D15 由痛決定。
 
 **規格——錯誤語彙**：
 
@@ -100,17 +115,18 @@ POST /status (path, from, to)
 
 ## 5. 判官與 agent 工具箱（kura 繼承面）
 
-**規格**：`kurodo check`（15 規則）／`exists`（dedup oracle）／`coverage`（MOC 覆蓋）。對外介面 byte-compatible：JSONL 欄位形狀、排序 `path→line→rule_id`、fingerprint（FNV-1a，`0x1f` 分隔，16 位小寫 hex）、exit code 0/1/2、`--deny <severity|rule>`、`--format json|human|md`、掃描邊界（System/Diagrams/Views 預設排除、`--all`）。後續擴展（backlinks、frontmatter query、MCP server）依 vault 側真實需求進院子（D14；需求清單見 `obsidian-cc-questions.md` §1）。
+**規格**：`kurodo check`（15 規則）／`exists`（dedup oracle）／`coverage`（MOC 覆蓋）。**部署形狀＝kura：單一 binary、無狀態檔案掃描、不碰 DB、無 daemon 依賴（§0.1）**。對外介面 byte-compatible：JSONL 欄位形狀、排序 `path→line→rule_id`、fingerprint（FNV-1a，`0x1f` 分隔，16 位小寫 hex）、exit code 0/1/2、`--deny <severity|rule>`、`--format json|human|md`、掃描邊界（System/Diagrams/Views 預設排除、`--all`）。後續擴展（backlinks、frontmatter query、MCP server）依 vault 側真實需求進院子（D14；需求清單見 `obsidian-cc-questions.md` §1）。
 
 **驗收（＝kura 退役閘）**：
 1. kura conformance snapshots byte-exact（`conformance__jsonl_output.snap`、`conformance__coverage_report.snap`）。
 2. 對真實 vault：`kurodo check` 與 `kura check` JSONL 逐位元組一致。
 3. schema.* 類依 vault-guard-spec §8 粒度：(path, rule-class, field/value) 集合等價。
 4. 四條管線切換（CI pre-merge、hermes cron ×2、health-check）＋ obsidian CC 用法切換。達成前 kura 一行不動。
+5. 判官三指令在無 PG 的環境可跑（CI 環境即為證）。
 
 ## 6. 匯出面（yomihon 繼承面）
 
-**規格**：`kurodo export` ＝ SSG 靜態輸出（`dist/`），涵蓋日文課文＋課綱 index＋五互動（furigana visibility 切換、原生 details 摺疊、TTS `data-tts` build 期剝 `<rt>/<rp>`、slot sidecar、concept `<dialog>`）。PWA／Service Worker 去留在實作時裁。
+**規格**：`kurodo export` ＝ SSG 靜態輸出（`dist/`），涵蓋日文課文＋課綱 index＋五互動（furigana visibility 切換、原生 details 摺疊、TTS `data-tts` build 期剝 `<rt>/<rp>`、slot sidecar、concept `<dialog>`）。PWA／Service Worker：**裁掉，不繼承**——yomihon 的 SW 因 HTTP-only 從未真正註冊，是已驗證的死重。export 輸出＝純靜態檔案。
 
 **驗收（＝yomihon 退役閘）**：
 1. 五種互動獨立重現，fixtures 全過（yomihon testdata 斷言模式＋`slots/L01–L20.yaml` 直接消費）。
@@ -122,9 +138,6 @@ POST /status (path, from, to)
 - `make verify`（fmt→vet→lint→test→build）全過；lint 0 issues；`go test -race -shuffle` 全綠；`make verify-spec` 全綠。
 - 四道牆有測試鎖：loopback-only、path escape 拒絕、寫入面僅 status 行、渲染永不修檔（診斷型別唯讀）。
 
-## 8. 待認證決定
+## 8. 已裁決
 
-**D16 候選：flip 時是否同步 `updated` 欄位？**
-- (a) 嚴格牆 1：只改 status 一行；`updated` 不動（git commit 時間戳已是審計）。代價：Obsidian Bases 按 `updated` 排序時 flip 不浮上來。
-- (b) status＋`updated` 同改：視為同一次裁決的內生副作用，不算第二欄位；牆 1 定義補一句。
-- 推薦 **(b)**，但動到牆的定義，必須 Koopa 裁。
+**D16＝(a)：flip 不動 `updated`**（Koopa 裁定，2026-07-02，否決了原推薦的 (b)）。理由：在 provenance 紀律的 vault 裡，`updated` 意謂「這篇筆記的理解上次被修訂於何時」——認證恰恰沒有修訂理解；(b) 會把「內容鮮度」這個真訊號污染成「任何觸碰」，而 stale/superseded 類視圖靠的正是鮮度。flip 的可見性本來就有家：git log，以及按 status 分組的 pipeline.base。牆 1 維持零註解。
