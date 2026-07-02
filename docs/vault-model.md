@@ -121,7 +121,7 @@ toml 的 `[[lifecycle]]` 表對每個 status 宣告 `from`（合法前態）與 
 
 ### slug
 
-只有 lesson 需要。pattern `^[a-z0-9]+(-[a-z0-9]+)*$`（toml 內建）；namespace 前綴：日文 `jp-minna-lNN` / `jp-kana-pNN`，Go 課用 plain slug。**slug 一經定稿不改；檔名可變**。
+只有 lesson 需要。pattern `^[a-z0-9]+(-[a-z0-9]+)*$`（toml 內建）；namespace 前綴：日文 `jp-minna-lNN` / `jp-kana-pNN`，Go 課 plain，rust 一課 `rust-ownership`。**slug 一經定稿不改；檔名可變**。政策專文：`System/schemas/Slug-Policy.md`——前綴是鑄造慣例屬文件層，toml 只驗 pattern；若 kurodo 日後要機械消費前綴，屆時提案加進 toml。現況 147 課全帶 slug、全合規（2026-07-02 verified）。
 
 ### 課綱（study-path）是機器可解析的
 
@@ -154,11 +154,15 @@ toml 的 `[[lifecycle]]` 表對每個 status 宣告 `from`（合法前態）與 
 
 kurodo 看到壞東西：**照渲染＋標記診斷，不修、不擋、不越權**（牆 4）。
 
-### 管線（kurodo 的 `check` 未來要接的四條）
+### 管線（`check` 的真實消費者，2026-07-02 vault 側 verified）
 
-- pre-merge / CI：`kura check --deny error`
-- hermes cron ×2：`cron-vault-wrapper.sh`、`cron-translator-wrapper.sh`（絕對路徑 `~/.cargo/bin/kura`）
-- `/health-check` slash command
+- `cron-vault-wrapper.sh:132`——`kura check --root "$WT" --deny error`（worktree 自檢）
+- `cron-translator-wrapper.sh:91`——`kura check "${FILES[@]}" --root "$VAULT" --deny error`（顯式檔案引數）
+- `cron-grinder-wrapper.sh:47`——`--format json` 後接 `grep '"severity":"warn"'`（**JSONL 欄名與 severity 字串值因此是外部契約**）
+- `cron-vault-qa-wrapper.sh`——`--format md` 落檔覆寫 `System/reports/kura-vault-check.md`
+- 手動閘：QA-Gate 層 0、capture-source skill 第 6 步、share-rewrite 終審前全綠、每次改課文後的快閘（kura-field-log:32）
+- `kura exists`＝建概念前的 dedup oracle（exit 0/1 即答案）；`kura coverage`＝orphan／路由看門狗（`Maps/研究 Brief 索引.md:15` 明文依賴）
+- `--baseline` 與 `--all`：**零真實消費者**（verified absent）——byte-compat 照搬，非熱路徑
 
 JSONL 契約（退役閘黃金比對目標，欄位形狀）：`rule_id, severity, path, line?, field?, message, evidence, suggested_action, source_rule, target?, resolved_to?, collision_members?, fingerprint`。排序 `path → line → rule_id`；fingerprint＝FNV-1a over（rule_id, path, target），各段後接 `0x1f` 分隔位元組，16 位小寫 hex；exit code 0 / 1 / 2。byte-exact 目標：`kura/tests/snapshots/conformance__jsonl_output.snap` 與 `conformance__coverage_report.snap`。
 
@@ -174,9 +178,12 @@ vault 是 git repo。kurodo 每次 status 轉移一個 commit（牆 1）——�
 
 hermes 走 worktree branch → QA-Gate 三層（kura → Codex → Claude）→ 只有 Claude merge → **只有 Koopa 按 ready**。kurodo 的 status-flip 是這條鏈的人類終端介面，不是旁路。
 
-### 隱私線（現況：尚無專文）
+### 隱私線（專文已起草：`System/agent-guides/Privacy-Boundary.md`，待 Koopa 終審）
 
-vault 目前**沒有** privacy / outbound 政策文件，也還沒有 diary type——這兩項是 vault 側的待辦（在 hermes Kimi lane 開動前要定）。對 kurodo 的含義：索引裡遲早會有永不出站的內容，牆 2 因此是**前置條件**而非附加功能。
+- 線＝**folder**：頂層 `Diary/` 永不出站（folder 是 fail-closed，frontmatter flag 是 fail-open，所以用 folder）。
+- 對 kurodo：local-only 渲染給 Koopa 本人**合法**；一切出站面（export、check findings、快照、餵 agent）無條件排除 `Diary/`——連 `--all` 也不含，因為 findings 落報告會被 agent 讀。
+- 機械來源：toml 將加 `[privacy] never_egress_dirs = ["Diary"]`——kura、kurodo、hermes 三方讀同一份（牆 3），不硬編碼。
+- `type: diary` 草案：落 `Diary/`、domain 豁免、不要求 status。邊界判斷句只有一句：**要 agent 幫你看的就不是 diary**（日語日記練習不是 diary）。
 
 ---
 
@@ -184,7 +191,7 @@ vault 目前**沒有** privacy / outbound 政策文件，也還沒有 diary type
 
 1. **資料模型**：`System/schemas/vault-schema.toml` → `System/schemas/Note-Schema.md` → `System/schemas/Vault-Architecture.md`
 2. **系統哲學與判官規格**：`System/Vault-Index.md` → `System/Koopa-Knowledge-Compiler.md` → `System/vault-guard-spec.md`（注意：spec 檔名仍是舊名，工具已改名 kura）＋ `System/kura-field-log.md`
-3. **人、分工、閘**：`System/agent-guides/about-koopa.md` → `collaboration-charter.md` → `QA-Gate.md` → `Japanese-Companion-Guide.md`
+3. **人、分工、閘**：`System/agent-guides/about-koopa.md` → `collaboration-charter.md` → `QA-Gate.md` → `Japanese-Companion-Guide.md` → `Privacy-Boundary.md`（草案）＋ `System/schemas/Slug-Policy.md`
 4. **參考實作三件套**：`~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go`（方言處理）＋ `kura/src/graph.rs`、`src/wikilink.rs`（連結解析 spec）＋ `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts`（既有 component；untrusted 前提，情境不同）
 5. **真內容抽樣（先讀真檔再寫第一行渲染碼）**：
    - `Writing/lessons/japanese/L20 普通形と常体.md`（HTML-ruby 課文）

@@ -18,6 +18,7 @@
 - **檔案是真相，DB 只加速。閱讀面不得依賴 DB**：PostgreSQL 不在場 → 讀照常，只有 ⌘K 明示降級（§3）。「每天讀書」這個習慣不得繼承任何 daemon 依賴——否則工具吸收法則會殺掉它。
 - **`check` / `exists` / `coverage` 是無狀態檔案掃描，不碰 DB**：四條管線與 vault 側 agent 消費的必須是零依賴 binary（kura 的部署形狀）。判官面若要求 PG 在場＝部署性倒退＝退役閘變相加嚴，禁止。
 - **schema 唯一來源＝`~/obsidian/System/schemas/vault-schema.toml`（牆 3），且容錯方向不對稱**：讀面對 schema 問題 fail-open（照渲染＋診斷——lint 少報無害）；**寫入面 fail-closed**（schema 讀不到或壞掉 → 不顯示任何轉移鍵、POST 一律拒絕——讀壞了少報，寫壞了毀檔）。
+- **隱私邊界**（`System/agent-guides/Privacy-Boundary.md`，草案待 Koopa 終審）：頂層 `Diary/` 永不出站。kurodo 是 local-only，**渲染給 Koopa 本人合法**；但一切出站面——`export`、`check`（findings 落報告會被 agent 讀）、任何快照——無條件排除 `Diary/`（連 `--all` 也不含，鏡射 kura）。機械來源：toml `[privacy] never_egress_dirs` 落地後從 toml 讀，不硬編碼（牆 3）。
 
 ---
 
@@ -41,7 +42,9 @@
 
 ## 2. 導航面
 
-**規格**：側欄＝lifecycle 資料夾（vault 順序，頂層 ≤9）＋課綱樹＋ Reports 區。首頁沿用 `Vault-Index.md` 的入口分區（細節等 obsidian CC 回覆，見 `obsidian-cc-questions.md` §2）。
+**規格**：側欄＝lifecycle 資料夾（vault 順序，頂層 ≤9）＋課綱樹＋ Reports 區。
+
+**首頁規格**（vault 側 2026-07-02 回覆定案）：四個穩定區塊——五個 domain MOC 入口、四張跨 domain 看板（沿用看板回答的**問題**，不寫死戰役味標籤）、機械閘清單、規範文件指針。**兩層 IA 不攤平**：跨 domain 看板在首頁；domain 工作區視圖（如 `日本語課程.base`）掛在該 domain 的 MOC 區塊下。status 詞彙的事實永遠回 toml（Vault-Index 該節是人類複本）。`.base` 的 v0 分工（連回 Obsidian）vault 側已確認——重實作＝第二個 query engine 且繼承 .base 內 hardcode schema 的 drift；若日後 frontmatter query 落地，看板可從 toml 派生原生渲染，屆時再議。
 
 **課綱樹解析規格**（機械可判）：
 - 課綱的判定靠 frontmatter `type: study-path`（toml enum），**不硬編碼檔名**。
@@ -128,18 +131,26 @@ POST /status (path, from, to)
 
 **規格**：`kurodo check`（15 規則）／`exists`（dedup oracle）／`coverage`（MOC 覆蓋）。**部署形狀＝kura：單一 binary、無狀態檔案掃描、不碰 DB、無 daemon 依賴（§0.1）**。
 
-**指令語意照 kura，不重新發明**：`check [PATHS...]` 的位置參數只過濾輸出、graph 永遠整樹建；`--root` 預設 cwd；`exists` 的匹配面刻意比 resolver 寬（resolver keys ＋ `title`／`title_en`），exit 0/1；`coverage` 輸出是單一 pretty JSON object（非 JSONL），shape 以 `conformance__coverage_report.snap` 為準。對外介面 byte-compatible：JSONL 欄位形狀、排序 `path→line→rule_id`、fingerprint（FNV-1a，`0x1f` 分隔，16 位小寫 hex）、exit code 0/1/2、`--deny <severity|rule>`、`--format json|human|md`、掃描邊界（System/Diagrams/Views 預設排除、`--all`）。後續擴展（backlinks、frontmatter query、MCP server）依 vault 側真實需求進院子（D14；需求清單見 `obsidian-cc-questions.md` §1）。
+**指令語意照 kura，不重新發明**：`check [PATHS...]` 的位置參數只過濾輸出、graph 永遠整樹建；`--root` 預設 cwd；`exists` 的匹配面刻意比 resolver 寬（resolver keys ＋ `title`／`title_en`），exit 0/1；`coverage` 輸出是單一 pretty JSON object（非 JSONL），shape 以 `conformance__coverage_report.snap` 為準。對外介面 byte-compatible：JSONL 欄位形狀、排序 `path→line→rule_id`、fingerprint（FNV-1a，`0x1f` 分隔，16 位小寫 hex）、exit code 0/1/2、`--deny <severity|rule>`、`--format json|human|md`、掃描邊界（System/Diagrams/Views 預設排除、`--all`）。**承重點（真實消費者，vault 側 2026-07-02 verified）**：grinder cron 用 `grep '"severity":"warn"'` 直接消費 JSONL——欄名與 severity 字串值是外部契約；`--deny error` 的 exit code 被兩個 cron 當 BAD 旗標；`--format md` 的報告體被 vault QA cron 落檔覆寫 `System/reports/kura-vault-check.md`；`exists` 的 exit 0/1 即 dedup 答案。`--baseline` 與 `--all` 現況**零真實消費者**（verified absent）——照樣 byte-compat，但非熱路徑。
+
+**出站排除**：`check` 無條件排除 `Diary/`（連 `--all` 也不含——findings 落報告會被 agent 讀；§0.1 隱私邊界，落地後從 toml `[privacy]` 讀）。
+
+**第一批擴展（vault 側 verified，三關已過；byte-compat 閘達成後做）**：
+1. **frontmatter query**——結構化查詢（如 `type=lesson status=imported domain=golang`）。現況靠 `rg '^status:'` 手舞＋人工交集，多個 vault skill 各自 hand-roll 同一件事。
+2. **`backlinks <note>`**——反向連結／blast radius。rg 對 alias-mediated link（`[[Title|顯示]]`）是瞎的，resolver 的 alias table 正是價值所在；退役／改名前的反覆場景。
+
+**不建清單**（kura field log 已判 WATCH，kurodo 不接）：ruby-pairing 檢查（零真實失敗）、stray-tag 檢查（根因在 hermes 生成管線，修源頭）、向量／語意搜索（D05 三關未過）。orphans 不缺——`coverage` 的三層分類（mounted / pending_mount / orphan）已涵蓋，不另開命令。
 
 **驗收（＝kura 退役閘）**：
 1. kura conformance snapshots byte-exact（`conformance__jsonl_output.snap`、`conformance__coverage_report.snap`）。
 2. 對真實 vault：`kurodo check` 與 `kura check` JSONL 逐位元組一致。
 3. schema.* 類依 vault-guard-spec §8 粒度：(path, rule-class, field/value) 集合等價。
-4. 四條管線切換（CI pre-merge、hermes cron ×2、health-check）＋ obsidian CC 用法切換。達成前 kura 一行不動。
+4. **全部真實消費者切換**——現況 verified（2026-07-02）：4 個 cron wrapper（`cron-vault-wrapper.sh:132`、`cron-translator-wrapper.sh:91`、`cron-grinder-wrapper.sh:47`、`cron-vault-qa-wrapper.sh`）＋手動閘（QA-Gate 層 0、capture-source、share-rewrite、kura-field-log 記載的改檔快閘）＋ obsidian CC 用法。切換當日以重新盤點為準。達成前 kura 一行不動。
 5. 判官三指令在無 PG 的環境可跑（CI 環境即為證）。
 
 ## 6. 匯出面（yomihon 繼承面）
 
-**規格**：`kurodo export` ＝ SSG 靜態輸出（`dist/`），涵蓋日文課文＋課綱 index＋五互動（furigana visibility 切換、原生 details 摺疊、TTS `data-tts` build 期剝 `<rt>/<rp>`、slot sidecar、concept `<dialog>`）。PWA／Service Worker：**裁掉，不繼承**——yomihon 的 SW 因 HTTP-only 從未真正註冊，是已驗證的死重。export 輸出＝純靜態檔案。
+**規格**：`kurodo export` ＝ SSG 靜態輸出（`dist/`），涵蓋日文課文＋課綱 index＋五互動（furigana visibility 切換、原生 details 摺疊、TTS `data-tts` build 期剝 `<rt>/<rp>`、slot sidecar、concept `<dialog>`）。出站面：無條件排除 `Diary/`（§0.1 隱私邊界）。PWA／Service Worker：**裁掉，不繼承**——yomihon 的 SW 因 HTTP-only 從未真正註冊，是已驗證的死重。export 輸出＝純靜態檔案。
 
 **驗收（＝yomihon 退役閘）**：
 1. 五種互動獨立重現，fixtures 全過（yomihon testdata 斷言模式＋`slots/L01–L20.yaml` 直接消費）。
