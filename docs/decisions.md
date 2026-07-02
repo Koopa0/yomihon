@@ -74,3 +74,7 @@ Koopa 裁定（2026-07-02，否決 spec 原推薦的「同步 updated」）：`u
 2. **判官面（check/exists/coverage）＝無狀態檔案掃描**，不碰 DB——四條管線消費的必須是 kura 形狀的零依賴 binary，否則退役閘變相加嚴。
 3. **牆 3 容錯不對稱**：讀 fail-open（照渲染＋診斷）、寫 fail-closed（schema 不可用 → 無轉移鍵、POST 拒絕）。
 4. **審計邊界明文**：`author=Koopa` 以本機信任邊界為限；同帳號本機程序密碼學上不可區分，不以 token 過度工程，以治理修（agent 永不呼叫寫入端點——入 vault 側 agent-guides）。
+
+## D18 隱私邊界：Diary 渲染可、出站面無條件排除
+
+vault 側 2026-07-02 起草 `Privacy-Boundary.md`（待 Koopa 終審）：線＝頂層 `Diary/` folder（fail-closed）。對 kurodo 的含義：local-only 渲染給 Koopa 本人合法；`export`、`check` findings（會落報告被 agent 讀）、一切快照與出站路徑無條件排除 `Diary/`——連 `--all` 也不含，鏡射 kura。機械來源：toml `[privacy] never_egress_dirs` 落地後從 toml 讀（牆 3），不硬編碼。
