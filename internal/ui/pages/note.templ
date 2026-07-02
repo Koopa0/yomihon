@@ -1,0 +1,36 @@
+// Package pages holds one templ component per served page.
+package pages
+
+import "github.com/koopa0/kurodo/internal/ui/layouts"
+
+// NoteView is everything the reading page needs. Diagnostic is display-only:
+// kurodo reports, kura judges, humans edit (wall 4).
+type NoteView struct {
+	Title      string
+	RelPath    string
+	Type       string
+	Status     string
+	Diagnostic string
+	BodyHTML   string
+}
+
+templ Note(v NoteView) {
+	@layouts.Base(v.Title) {
+		<article>
+			<h1>{ v.Title }</h1>
+			<p class="meta">
+				{ v.RelPath }
+				if v.Type != "" {
+					&middot; type: { v.Type }
+				}
+				if v.Status != "" {
+					&middot; status: { v.Status }
+				}
+			</p>
+			if v.Diagnostic != "" {
+				<p class="diag">診斷：{ v.Diagnostic }</p>
+			}
+			@templ.Raw(v.BodyHTML)
+		</article>
+	}
+}

@@ -1,0 +1,34 @@
+// Package layouts holds the outer HTML shells. Visual identity lands later
+// as Tailwind v4 @theme tokens (Claude design); M0 ships a minimal inline
+// style so the walking skeleton is readable.
+package layouts
+
+templ Base(title string) {
+	<!DOCTYPE html>
+	<html lang="zh-Hant">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } — 蔵人</title>
+			<style>
+				body { max-width: 46rem; margin: 2rem auto; padding: 0 1rem;
+				       font-family: system-ui, "Hiragino Sans", "Noto Sans TC", sans-serif;
+				       line-height: 1.9; }
+				header { color: #666; border-bottom: 1px solid #ddd;
+				         padding-bottom: .5rem; margin-bottom: 2rem; }
+				.meta { color: #888; font-size: .85rem; }
+				.diag { background: #fef3c7; border-left: 3px solid #d97706;
+				        padding: .5rem .75rem; }
+				table { border-collapse: collapse; }
+				td, th { border: 1px solid #ccc; padding: .3rem .6rem; }
+				pre { background: #f6f6f6; padding: .75rem; overflow-x: auto; }
+			</style>
+		</head>
+		<body>
+			<header>蔵人 kurodo</header>
+			<main>
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
