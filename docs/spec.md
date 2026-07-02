@@ -32,21 +32,32 @@
 - `.base`／`.canvas` 連回 Obsidian 開啟；D2 不渲染（koopa0.dev 已決策）。
 - 程式碼高亮 server-side（chroma）。JS 原則：**零框架、零外部 JS 依賴；手寫 vanilla 允許**（yomihon 的五互動即 ~207 行手寫 JS 的先例）。
 
+**Body 首 H1 政策**：頁標題來自 frontmatter `title`；body 開頭的 H1 移除不重複顯示（照 yomihon 已驗證行為）。
+
 **驗收**：
-- dialect conformance 測試全過（結構斷言模式承 yomihon `testdata/lesson.md`）。
+- dialect conformance 測試全過（結構斷言模式承 yomihon `testdata/lesson.md`）。fixture 至少覆蓋：ruby/`<br>` 原樣通過；callout 全型別＋`[!x]-`/`[!x]+` 摺疊＋未知型別降級 blockquote；wikilink 四態＋alias 顯示＋ambiguous 標記；`![[embed]]`；`==highlight==`；task list；GFM 表格（含跳脫 `\|`）；fence 內方言不處理＋一次性警告；壞 YAML 單診斷不 cascade；body 首 H1 移除；CJK slug 與 TOC anchor 對齊（含撞名 `-2` 後綴）。
 - 真實 vault 全部 `.md` 可開：0 個 500、0 個空白頁（fault-tolerance 的機械定義）。
 - 日文課文（L01–L20＋P 系列）與 yomihon 視覺 parity：`m1-review/` 14 張截圖為基準。
 
 ## 2. 導航面
 
-**規格**：側欄＝lifecycle 資料夾（vault 順序，頂層 ≤9）＋課綱樹（兩份 study-path，各自結構：Go 課綱 H2 部/H3 模組 pipe 格式；大家的日本語 H3＝階段）＋ Reports 區。首頁沿用 `Vault-Index.md` 的入口分區（細節等 obsidian CC 回覆，見 `obsidian-cc-questions.md` §2）。
+**規格**：側欄＝lifecycle 資料夾（vault 順序，頂層 ≤9）＋課綱樹＋ Reports 區。首頁沿用 `Vault-Index.md` 的入口分區（細節等 obsidian CC 回覆，見 `obsidian-cc-questions.md` §2）。
 
-**驗收**：任一 vault 檔案 ≤3 次點擊可達；課綱頁順序＝檔內列序；status badge 隨處可見。
+**課綱樹解析規格**（機械可判）：
+- 課綱的判定靠 frontmatter `type: study-path`（toml enum），**不硬編碼檔名**。
+- Go 課綱形態：H2＝部、H3＝模組，皆為 pipe 格式 `slug | English | 中文`（切三段、trim）；清單項＝課。
+- 大家的日本語形態：只有「課程序列」該個 H2 之下是導航樹（H3＝學習階段）；其餘 H2（每日 loop、學習階段、缺口）不是導航，不解析。
+- 課的連結＝清單項中**第一個 wikilink**，以 graph 語意解析（vault-model 第一層）；unresolved／ambiguous 的課**照列＋診斷樣式**，不掉項（讀面 fail-open）。
+- 課節點帶 status badge。
+
+**驗收**：任一 vault 檔案 ≤3 次點擊可達；課綱頁順序＝檔內列序；兩份真實課綱各自渲染成樹且課數與檔內清單項數一致；故意寫一個斷鏈課 → 照列＋標記。
 
 ## 3. 搜尋面
 
 **規格**：
-- 確定性全文：pg_trgm substring/phrase ＋ 結構化過濾（type / domain / status / topics / 資料夾）；⌘K 面板。
+- 確定性全文：pg_trgm substring/phrase ＋ 結構化過濾；⌘K 面板。
+- **Query 語意**（確定性、可重現）：空白分詞；裸詞＝case-insensitive、NFC 正規化後的 substring 匹配（與 wikilink 同一套 normalize）；多詞＝AND。過濾詞六個固定 key：`type:` `status:` `domain:` `topic:` `folder:`（rel_path 前綴）`slug:`，值為字面等值不驗 enum。無魔法語法，就這些。
+- **結果與排序**（確定性）：title 命中排 body 命中之前，同組內 rel_path 字典序；每筆＝路徑＋title＋status badge＋首個命中的上下文 snippet。
 - 索引全派生（`note` / `link` / `note_text`，見 `design.md` §6）：drop 後 `kurodo reindex` 完整重建；fsnotify 增量更新。darwin/kqueue 會漏事件——加週期性 mtime 對帳（分鐘級全量掃描）自癒。
 - PG 不可用：搜尋明示「索引離線」，其餘功能照常（§0.1 不變量）。
 - 語意／向量：未排程，升級走三關（D05）。
@@ -115,7 +126,9 @@ POST /status (path, from, to)
 
 ## 5. 判官與 agent 工具箱（kura 繼承面）
 
-**規格**：`kurodo check`（15 規則）／`exists`（dedup oracle）／`coverage`（MOC 覆蓋）。**部署形狀＝kura：單一 binary、無狀態檔案掃描、不碰 DB、無 daemon 依賴（§0.1）**。對外介面 byte-compatible：JSONL 欄位形狀、排序 `path→line→rule_id`、fingerprint（FNV-1a，`0x1f` 分隔，16 位小寫 hex）、exit code 0/1/2、`--deny <severity|rule>`、`--format json|human|md`、掃描邊界（System/Diagrams/Views 預設排除、`--all`）。後續擴展（backlinks、frontmatter query、MCP server）依 vault 側真實需求進院子（D14；需求清單見 `obsidian-cc-questions.md` §1）。
+**規格**：`kurodo check`（15 規則）／`exists`（dedup oracle）／`coverage`（MOC 覆蓋）。**部署形狀＝kura：單一 binary、無狀態檔案掃描、不碰 DB、無 daemon 依賴（§0.1）**。
+
+**指令語意照 kura，不重新發明**：`check [PATHS...]` 的位置參數只過濾輸出、graph 永遠整樹建；`--root` 預設 cwd；`exists` 的匹配面刻意比 resolver 寬（resolver keys ＋ `title`／`title_en`），exit 0/1；`coverage` 輸出是單一 pretty JSON object（非 JSONL），shape 以 `conformance__coverage_report.snap` 為準。對外介面 byte-compatible：JSONL 欄位形狀、排序 `path→line→rule_id`、fingerprint（FNV-1a，`0x1f` 分隔，16 位小寫 hex）、exit code 0/1/2、`--deny <severity|rule>`、`--format json|human|md`、掃描邊界（System/Diagrams/Views 預設排除、`--all`）。後續擴展（backlinks、frontmatter query、MCP server）依 vault 側真實需求進院子（D14；需求清單見 `obsidian-cc-questions.md` §1）。
 
 **驗收（＝kura 退役閘）**：
 1. kura conformance snapshots byte-exact（`conformance__jsonl_output.snap`、`conformance__coverage_report.snap`）。
