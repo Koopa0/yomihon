@@ -80,7 +80,7 @@ link      (src_path, target_raw, resolved_path?, kind wikilink|embed|pathref, am
 note_text (rel_path PK, plain_text)   -- GIN (plain_text gin_trgm_ops)
 ```
 
-沒有 status 歷史表：`git log` 就是歷史（vault-model §3）。
+沒有 status 歷史表：`git log` 就是歷史（vault-model §3）。**閱讀面與判官面都不依賴本表**（spec §0.1 不變量）——PG 只服務搜尋面；不在場時讀照常、`check` 照跑。
 
 ## 7. 搜尋
 

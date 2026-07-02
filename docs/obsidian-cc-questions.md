@@ -31,3 +31,7 @@ kurodo 是 local-only（loopback 寫死），會索引**整座 vault**——所�
 Koopa 已點頭的四句收斂：**只有 lessons 需要 slug；格式＝namespace 前綴＋編號（`jp-minna-lNN` / `jp-kana-pNN`，Go 課用 plain slug）；一經定稿永不改；其他筆記一律不需要 slug。**
 
 請落成一頁文件，並確認 `vault-schema.toml` 是否需要同步（目前 toml 只有 `slug_pattern`，namespace 前綴慣例還在文件層）。
+
+## 5. 硬規則：agent 永不呼叫 kurodo 寫入端點（請入 agent-guides 與 hermes 的指導文件）
+
+kurodo 的 status flip 會以 Koopa 的 git identity auto-commit。本機信任邊界內，任何同帳號程序（含 agent）`POST /status` 都會被記成一筆 Koopa-authored 的裁決——技術上不可區分（curl 沒有 Sec-Fetch-Site，同源防護只擋瀏覽器跨站），所以用治理修：請加一行硬規則——**「agent 永不呼叫 kurodo 的寫入端點（POST /status）；agent 的 status 提案一律走檔案改動＋review 管線」**。這與既有的「任何 agent 寫 ready 即違規」（vault-schema.toml lifecycle owner）同一條線的機械面。

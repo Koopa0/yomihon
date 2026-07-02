@@ -63,3 +63,14 @@ obsidian 側的 Claude Code（與 hermes 管線）是 `check` / `exists` / `cove
 ## D15 不設里程碑柵欄
 
 Koopa 裁定（2026-07-02）：規格以「目標＋最終功能規格＋證據閘」表達（`spec.md`），不排 M1/M2 序列——預先限縮反而綁手綁腳。實作順序由使用中的痛決定；退役閘照舊憑證據（D11），與時程無關。唯一保留的排序建議（非圍欄）：先打通「讀完→認證」那一鍵（D10）。
+
+## D16 flip 不動 `updated` 欄位
+
+Koopa 裁定（2026-07-02，否決 spec 原推薦的「同步 updated」）：`updated` 的語意是**內容鮮度**（理解上次被修訂於何時），認證不修訂理解——三週前寫完的筆記今天按 ready，內容鮮度就是三週前，這是真話。同步 updated 會用 UI 便利污染語意真值，而 stale/superseded 類視圖靠的正是鮮度。flip 可見性的家：git log ＋ 按 status 分組的 pipeline.base。牆 1 維持零註解。
+
+## D17 依賴邊界與審計邊界（2026-07-02 spec 審查釘住的三件）
+
+1. **閱讀面不依賴 DB**：檔案是真相，PG 只加速搜尋；PG 不在 → 讀照常、⌘K 明示降級。「每天讀書」不得繼承 daemon 依賴。
+2. **判官面（check/exists/coverage）＝無狀態檔案掃描**，不碰 DB——四條管線消費的必須是 kura 形狀的零依賴 binary，否則退役閘變相加嚴。
+3. **牆 3 容錯不對稱**：讀 fail-open（照渲染＋診斷）、寫 fail-closed（schema 不可用 → 無轉移鍵、POST 拒絕）。
+4. **審計邊界明文**：`author=Koopa` 以本機信任邊界為限；同帳號本機程序密碼學上不可區分，不以 token 過度工程，以治理修（agent 永不呼叫寫入端點——入 vault 側 agent-guides）。
