@@ -1,6 +1,6 @@
-# fuzukue（文机）
+# yomihon v2（読本）
 
-私有知識的本地閱讀與裁決介面。local-only、單人、永不對外。讀 `~/obsidian` 全部，寫恰好一個欄位（`status`）。
+私有知識的本地閱讀與裁決介面。local-only、單人、永不對外。讀 `~/obsidian` 全部，寫恰好一個欄位（`status`）。本 repo 是 v2；v1（`~/go/src/github.com/koopa0/yomihon`）凍結服役至退役閘，是參考實作不是依賴。
 
 ## 四道牆（違反＝停下來找 Koopa，不是繞過去）
 
@@ -12,6 +12,7 @@
 ## 事實
 
 - Stack：Go 1.26 / templ / Tailwind v4（standalone CLI，無 Node）/ PostgreSQL + pgx + sqlc / goldmark
+- Module：`github.com/koopa0/yomihon`（與 v1 同名；folder 暫名 `yomihon-v2`，見 decisions D01）
 - DB 全是派生資料：可隨時 drop 重建，真相永遠是 vault 檔案 + git
 - Migrations：pre-release 階段一切 schema 變更直接改 `001_initial`，不開 002+
 - 生成碼（`internal/db/`、`*_templ.go`）永不手改
@@ -30,8 +31,8 @@
 
 | 範圍 | 位置 |
 |---|---|
-| Obsidian 方言渲染的參考實作 | `~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go` |
+| Obsidian 方言渲染的參考實作 | `~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go`（v1） |
 | wikilink 解析語意的參考 spec | `~/rust/github.com/koopa0/kura/src/graph.rs`、`src/wikilink.rs` |
-| 既有 markdown component | `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts`（注意：它有 untrusted-body 前提，fuzukue 是 trusted corpus，情境不同） |
+| 既有 markdown component | `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts`（注意：它有 untrusted-body 前提，v2 是 trusted corpus，情境不同） |
 | templ UI blocks | `~/go/src/github.com/koopa0/goilerplate/blocks/`（只拿 UI 塊；它的 boilerplate 分層結構與 go-spec 教義相反，不拿） |
 | 閱讀介面樣式參照 | `~/Downloads/tailwind-plus-syntax/syntax-ts/` |
