@@ -1,4 +1,4 @@
-# yomihon v2 — agent 入口
+# kurodo — agent 入口
 
 本 repo 採薄 harness：repo 特有事實全部在 `CLAUDE.md`（一頁），先讀它。
 
