@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(go *)",
+      "Bash(golangci-lint *)",
+      "Bash(sqlc *)",
+      "Bash(make *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(migrate *)",
+      "Bash(docker build*)",
+      "Bash(docker compose*)",
+      "Bash(docker ps*)",
+      "Bash(docker logs*)",
+      "Bash(goimports *)",
+      "Bash(gofmt *)",
+      "Bash(govulncheck *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(awk *)",
+      "Bash(sed *)",
+      "Bash(diff *)",
+      "Bash(echo *)",
+      "Bash(cd *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(mkdir *)",
+      "Bash(touch *)",
+      "Bash(chmod +x *)",
+      "Bash(which *)",
+      "Bash(* --version)",
+      "Bash(* --help)",
+      "Bash(curl -s *)",
+      "Bash(jq *)",
+      "Bash(claude *)",
+      "Bash(pwd)",
+      "Bash(date)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "defaultMode": "auto",
+    "ask": [
+      "Edit(/CLAUDE.md)",
+      "Write(/CLAUDE.md)",
+      "Edit(/AGENTS.md)",
+      "Write(/AGENTS.md)",
+      "Edit(/.claude/rules/**)",
+      "Write(/.claude/rules/**)",
+      "Edit(/.claude/hooks/**)",
+      "Write(/.claude/hooks/**)",
+      "Edit(/.claude/settings.json)",
+      "Write(/.claude/settings.json)"
+    ],
+    "deny": [
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "Bash(rm -rf*)",
+      "Bash(docker rm*)",
+      "Bash(docker rmi*)",
+      "Bash(docker system prune*)",
+      "Bash(migrate drop*)",
+      "Bash(migrate force*)",
+      "Bash(sudo *)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.git-credentials)",
+      "Read(~/.docker/config.json)"
+    ]
+  },
+  "includeGitInstructions": false,
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "skillOverrides": {
+    "go-types": "name-only",
+    "go-interfaces": "name-only",
+    "go-generics": "name-only",
+    "go-iteration": "name-only",
+    "go-stdlib-patterns": "name-only",
+    "go-doc": "name-only",
+    "go-slog": "name-only",
+    "go-middleware": "name-only",
+    "go-modules": "name-only",
+    "go-performance": "name-only",
+    "go-concurrency": "name-only",
+    "error-patterns": "name-only",
+    "http-server": "name-only",
+    "pgx-patterns": "name-only",
+    "sqlc-guide": "name-only",
+    "postgres-patterns": "name-only",
+    "migrations": "name-only",
+    "testcontainers": "name-only",
+    "config-management": "name-only",
+    "graceful-shutdown": "name-only"
+  },
+  "worktree": {
+    "symlinkDirectories": [
+      "vendor"
+    ],
+    "sparsePaths": [
+      "internal/",
+      "cmd/",
+      "migrations/"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "InstructionsLoaded": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "command": ".claude/hooks/log-instructions-loaded.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-before-stop.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "go-reviewer|security-reviewer|db-reviewer|review-code",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-agent-output.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "planner",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/validate-planner-output.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "continueOnBlock": true,
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/format-go.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-interface-creation.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-test-interface.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-naming-conventions.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "continueOnBlock": true,
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit *)",
+            "command": ".claude/hooks/verify-commit-message.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/on-error-handler.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-anti-patterns.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-generated-code.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-migration-safety.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/security-sensitive-gate.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/on-user-prompt.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
