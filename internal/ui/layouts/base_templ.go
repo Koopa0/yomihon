@@ -11,10 +11,8 @@ package layouts
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"github.com/a-h/templ"
-	templruntime "github.com/a-h/templ/runtime"
-)
+import "github.com/a-h/templ"
+import templruntime "github.com/a-h/templ/runtime"
 
 func Base(title string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -50,7 +48,7 @@ func Base(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " — 蔵人</title><style>\n\t\t\t\tbody { max-width: 46rem; margin: 2rem auto; padding: 0 1rem;\n\t\t\t\t       font-family: system-ui, \"Hiragino Sans\", \"Noto Sans TC\", sans-serif;\n\t\t\t\t       line-height: 1.9; }\n\t\t\t\theader { color: #666; border-bottom: 1px solid #ddd;\n\t\t\t\t         padding-bottom: .5rem; margin-bottom: 2rem; }\n\t\t\t\t.meta { color: #888; font-size: .85rem; }\n\t\t\t\t.diag { background: #fef3c7; border-left: 3px solid #d97706;\n\t\t\t\t        padding: .5rem .75rem; }\n\t\t\t\ttable { border-collapse: collapse; }\n\t\t\t\ttd, th { border: 1px solid #ccc; padding: .3rem .6rem; }\n\t\t\t\tpre { background: #f6f6f6; padding: .75rem; overflow-x: auto; }\n\t\t\t</style></head><body><header>蔵人 kurodo</header><main>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " — 蔵人</title><link rel=\"stylesheet\" href=\"/static/chroma.css\"><style>\n\t\t\t\tbody {\n\t\t\t\t\tmax-width: 46rem;\n\t\t\t\t\tmargin: 2rem auto;\n\t\t\t\t\tpadding: 0 1rem;\n\t\t\t\t\tfont-family: system-ui, \"Hiragino Sans\", \"Noto Sans TC\", sans-serif;\n\t\t\t\t\tline-height: 1.9;\n\t\t\t\t}\n\t\t\t\theader {\n\t\t\t\t\tcolor: #666;\n\t\t\t\t\tborder-bottom: 1px solid #ddd;\n\t\t\t\t\tpadding-bottom: 0.5rem;\n\t\t\t\t\tmargin-bottom: 2rem;\n\t\t\t\t}\n\t\t\t\t.meta {\n\t\t\t\t\tcolor: #888;\n\t\t\t\t\tfont-size: 0.85rem;\n\t\t\t\t}\n\t\t\t\t.diag {\n\t\t\t\t\tbackground: #fef3c7;\n\t\t\t\t\tborder-left: 3px solid #d97706;\n\t\t\t\t\tpadding: 0.5rem 0.75rem;\n\t\t\t\t}\n\t\t\t\ttable {\n\t\t\t\t\tborder-collapse: collapse;\n\t\t\t\t}\n\t\t\t\ttd,\n\t\t\t\tth {\n\t\t\t\t\tborder: 1px solid #ccc;\n\t\t\t\t\tpadding: 0.3rem 0.6rem;\n\t\t\t\t}\n\t\t\t\tpre {\n\t\t\t\t\tbackground: #f6f6f6;\n\t\t\t\t\tpadding: 0.75rem;\n\t\t\t\t\toverflow-x: auto;\n\t\t\t\t}\n\n\t\t\t\t/* Wikilinks (internal/render/wikilink.go) */\n\t\t\t\ta.wikilink {\n\t\t\t\t\tcolor: #0969da;\n\t\t\t\t}\n\t\t\t\t.wikilink-broken,\n\t\t\t\t.wikilink-ambiguous {\n\t\t\t\t\tborder-bottom: 1px dashed #d97706;\n\t\t\t\t\tcursor: help;\n\t\t\t\t}\n\t\t\t\t.wikilink-ambiguous {\n\t\t\t\t\tborder-bottom-color: #b91c1c;\n\t\t\t\t}\n\n\t\t\t\t/* Embeds (internal/render/wikilink.go's renderEmbed) */\n\t\t\t\t.embed {\n\t\t\t\t\tborder-left: 3px solid #d0d7de;\n\t\t\t\t\tmargin: 1rem 0;\n\t\t\t\t\tpadding: 0.1rem 1rem;\n\t\t\t\t}\n\t\t\t\t.embed-media {\n\t\t\t\t\tbackground: #f6f6f6;\n\t\t\t\t\tborder: 1px dashed #ccc;\n\t\t\t\t\tpadding: 0.5rem 0.75rem;\n\t\t\t\t\tcolor: #666;\n\t\t\t\t}\n\n\t\t\t\t/* Callouts (internal/render/callout.go) — two buckets, two\n\t\t\t\t\t   tints (docs/vault-model.md's 兩桶配色 requirement). */\n\t\t\t\t.callout {\n\t\t\t\t\tborder-radius: 0.5rem;\n\t\t\t\t\tborder: 1px solid;\n\t\t\t\t\tmargin: 1rem 0;\n\t\t\t\t\tpadding: 0.1rem 1rem;\n\t\t\t\t}\n\t\t\t\t.callout-note {\n\t\t\t\t\tbackground: #f0f9ff;\n\t\t\t\t\tborder-color: #7dd3fc;\n\t\t\t\t}\n\t\t\t\t.callout-warning {\n\t\t\t\t\tbackground: #fffbeb;\n\t\t\t\t\tborder-color: #fbbf24;\n\t\t\t\t}\n\t\t\t\t.callout-title {\n\t\t\t\t\tfont-weight: 600;\n\t\t\t\t}\n\t\t\t\t.callout-icon {\n\t\t\t\t\tmargin-right: 0.4rem;\n\t\t\t\t}\n\n\t\t\t\t/* Highlight (internal/render/highlight.go) */\n\t\t\t\tmark {\n\t\t\t\t\tbackground: #fef08a;\n\t\t\t\t\tpadding: 0 0.15rem;\n\t\t\t\t}\n\n\t\t\t\t/* Mermaid (internal/render/wikilink.go's consumeMermaid,\n\t\t\t\t\t   assets/js/kurodo.js). The raw source, preformatted, is\n\t\t\t\t\t   both the no-JS/SSR fallback presentation and what\n\t\t\t\t\t   stays visible if a diagram fails to parse client-side;\n\t\t\t\t\t   kurodo.js replaces it with a rendered SVG in place\n\t\t\t\t\t   when a diagram is present and the vendored mermaid\n\t\t\t\t\t   runtime (/static/mermaid.esm.min.mjs) loads\n\t\t\t\t\t   successfully. Mirrors koopa0.dev's editorial.css\n\t\t\t\t\t   .mermaid-diagram fallback styling. */\n\t\t\t\t.mermaid-diagram {\n\t\t\t\t\tmargin: 1rem 0;\n\t\t\t\t\tpadding: 0.75rem;\n\t\t\t\t\toverflow-x: auto;\n\t\t\t\t\ttext-align: center;\n\t\t\t\t\tfont-family: ui-monospace, SFMono-Regular, Consolas, monospace;\n\t\t\t\t\tfont-size: 0.85rem;\n\t\t\t\t\tcolor: #57606a;\n\t\t\t\t\twhite-space: pre-wrap;\n\t\t\t\t\tbackground: #fafafa;\n\t\t\t\t\tborder: 1px dashed #ccc;\n\t\t\t\t}\n\t\t\t\t.mermaid-diagram svg {\n\t\t\t\t\tmax-width: 100%;\n\t\t\t\t\theight: auto;\n\t\t\t\t}\n\n\t\t\t\t/* TOC (internal/ui/pages/note.templ's plain nav) */\n\t\t\t\tnav.toc ul {\n\t\t\t\t\tpadding-left: 1.2rem;\n\t\t\t\t}\n\t\t\t\tnav.toc li[data-level=\"3\"] {\n\t\t\t\t\tmargin-left: 1rem;\n\t\t\t\t}\n\t\t\t\tnav.toc li[data-level=\"4\"],\n\t\t\t\tnav.toc li[data-level=\"5\"],\n\t\t\t\tnav.toc li[data-level=\"6\"] {\n\t\t\t\t\tmargin-left: 2rem;\n\t\t\t\t}\n\n\t\t\t\t.render-diagnostics {\n\t\t\t\t\tlist-style: none;\n\t\t\t\t\tpadding: 0;\n\t\t\t\t}\n\t\t\t\t.render-diagnostics .diag {\n\t\t\t\t\tmargin-bottom: 0.3rem;\n\t\t\t\t}\n\t\t\t</style></head><body><header>蔵人 kurodo</header><main>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -58,7 +56,7 @@ func Base(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</main></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</main><script src=\"/static/kurodo.js\" defer></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
