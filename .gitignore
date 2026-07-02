@@ -3,3 +3,6 @@ tmp/
 dist/
 .env
 .DS_Store
+.claude/rule-load.log
+.claude/session-learnings.log
+.claude/settings.local.json

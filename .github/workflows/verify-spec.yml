@@ -1,0 +1,30 @@
+name: verify-spec
+
+# The harness's own quality gate: hook tests (mutation-proven), skill/agent
+# format conformance, consistency tests, build chain, lint, vulnerability scan.
+# Deterministic — no agent/API dependency. Intended as a required check so
+# changes to hooks/rules/skills cannot merge unverified.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install golangci-lint v2 (pinned)
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run verify-spec
+        run: make verify-spec
