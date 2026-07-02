@@ -1,0 +1,68 @@
+# Loader fixture only — the runtime contract is the real vault's
+# System/schemas/vault-schema.toml (wall 3). Shape mirrors schema_version 1.
+schema_version = "1"
+
+[enums]
+type = ["inbox", "transcript", "source-note", "concept", "writing", "lesson", "system", "guide", "template"]
+domain = ["golang", "japanese", "meta"]
+
+[enums.status]
+note   = ["captured", "cleaned", "seedling", "growing", "evergreen", "imported", "draft", "ready", "archived"]
+system = ["active", "archived"]
+lesson = ["imported", "draft", "ready", "archived"]
+
+[fields]
+required = ["title", "type", "domain", "status", "created", "updated"]
+required_inbox = ["title", "type", "status", "created", "updated"]
+domain_exempt_types = ["system", "guide", "template"]
+known = ["title", "aliases", "type", "domain", "topics", "status", "created", "updated"]
+lesson_only = ["slug", "title_en"]
+
+[fields.status_group]
+system = ["system", "template", "guide"]
+lesson = ["lesson"]
+
+[rules]
+slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+forbid_tag_with_slash = true
+
+[scan]
+knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]
+skip_basenames = ["README.md"]
+no_frontmatter_is_legal = true
+
+[[lifecycle]]
+status = "captured"
+applies_to = ["inbox", "transcript", "source-note"]
+from = []
+owner = ["hermes", "capture", "claude"]
+
+[[lifecycle]]
+status = "cleaned"
+applies_to = ["source-note"]
+from = ["captured"]
+owner = ["hermes", "claude"]
+
+[[lifecycle]]
+status = "seedling"
+applies_to = ["concept"]
+from = ["cleaned"]
+owner = ["hermes", "claude"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["writing", "lesson"]
+from = ["imported"]
+owner = ["claude", "koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["writing", "lesson"]
+from = ["draft"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["claude", "koopa"]

@@ -1,0 +1,94 @@
+package vault_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/koopa0/kurodo/internal/vault"
+)
+
+func writeNote(t *testing.T, root, rel, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+}
+
+func TestReadNote(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		content    string
+		wantTitle  string
+		wantStatus string
+		wantDiag   bool
+		wantInBody string
+	}{
+		{
+			name:       "frontmatter and body",
+			content:    "---\ntitle: 數量詞の位置\ntype: concept\nstatus: seedling\n---\n\n# 本文\n",
+			wantTitle:  "數量詞の位置",
+			wantStatus: "seedling",
+			wantInBody: "# 本文",
+		},
+		{
+			name:       "no frontmatter is legal",
+			content:    "# 假名 quiz\n",
+			wantTitle:  "note",
+			wantInBody: "# 假名 quiz",
+		},
+		{
+			name:       "broken yaml yields diagnostic not error",
+			content:    "---\ntitle: [broken\n---\nbody\n",
+			wantTitle:  "note",
+			wantDiag:   true,
+			wantInBody: "body",
+		},
+		{
+			name:       "wikilink value survives the split",
+			content:    "---\ntitle: t\nbased_on: \"[[大家的日本語 第11課]]\"\n---\nbody\n",
+			wantTitle:  "t",
+			wantInBody: "body",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeNote(t, root, "Concepts/note.md", tt.content)
+
+			n, err := vault.ReadNote(root, "Concepts/note.md")
+			if err != nil {
+				t.Fatalf("ReadNote() = %v", err)
+			}
+			if got := n.Title(); got != tt.wantTitle {
+				t.Errorf("Title() = %q, want %q", got, tt.wantTitle)
+			}
+			if got := n.Status(); got != tt.wantStatus {
+				t.Errorf("Status() = %q, want %q", got, tt.wantStatus)
+			}
+			if (n.FMDiagnostic != "") != tt.wantDiag {
+				t.Errorf("FMDiagnostic = %q, want diagnostic: %v", n.FMDiagnostic, tt.wantDiag)
+			}
+			if !strings.Contains(n.Body, tt.wantInBody) {
+				t.Errorf("Body does not contain %q:\n%s", tt.wantInBody, n.Body)
+			}
+		})
+	}
+}
+
+func TestReadNoteRejectsEscape(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	if _, err := vault.ReadNote(root, "../outside.md"); err == nil {
+		t.Error("ReadNote(../outside.md) = nil error, want path escape error")
+	}
+}
