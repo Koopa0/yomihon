@@ -1,0 +1,307 @@
+version: "2"
+
+# ============================================================
+# Evaluated and REJECTED linters — do not re-enable without a new
+# observed failure case (2026-06 audit; see project memory):
+#   testpackage   — white-box same-package unit tests are doctrine
+#                   (handlers are unexported closures; rules/testing.md)
+#   godot         — comment-period style nagging, no correctness value
+#   dupword       — prose linting, false positives in doc comments
+#   mnd           — magic-number nagging fights table-driven tests
+#   err113        — demands static errors everywhere; fights
+#                   sentinel-only doctrine (rules/error-handling.md)
+#   exhaustruct   — forces zero-value fields to be spelled out; fights
+#                   "make the zero value useful"
+#   funcorder     — declaration-order style nagging
+#   contextcheck  — false positives on intentional context detachment
+#   paralleltest  — t.Parallel() is a judgment call, not a default
+#   revive        — overlaps staticcheck/gocritic; config burden > value
+#   ireturn       — superseded by iface (identical/unused/opaque)
+#   gomodguard    — superseded by depguard
+# ============================================================
+
+linters:
+  enable:
+    # Error handling
+    - errcheck          # Detect unchecked errors
+    - errorlint         # Error wrapping and comparison
+    - errname           # Sentinel error naming
+    - nilnesserr        # nil-check on the wrong error variable
+
+    # Static analysis
+    - staticcheck       # Comprehensive static analysis (SA*, S*, ST*, QF*)
+    - govet             # Official go vet
+    - gocritic          # Additional code checks
+
+    # Security
+    - gosec             # Security vulnerability scan
+
+    # Code quality
+    - ineffassign       # Ineffectual assignments
+    - unused            # Unused variables/functions
+    - unconvert         # Unnecessary type conversions
+    - unparam           # Unused function parameters
+    - wastedassign      # Wasted assignments
+
+    # Style
+    - misspell          # Spelling errors
+    - whitespace        # Whitespace issues
+    - recvcheck         # Receiver type consistency (no value/pointer mix)
+
+    # Go version specific
+    - copyloopvar       # Go 1.22+ loop variable copy
+    - intrange          # Go 1.22+ integer range
+    - usestdlibvars     # http.MethodGet etc. over string literals
+    - perfsprint        # fmt.Sprintf → faster stdlib equivalents
+
+    # Forbidden imports / calls — mechanizes the rules/go-version.md
+    # blacklist and the rules/testing.md mock ban (was rule prose only)
+    - depguard          # forbidden packages (deprecated stdlib, mocks, frameworks)
+    - forbidigo         # forbidden calls (sort.Slice, errors.As, log.Print*, ...)
+
+    # Complexity
+    - gocyclo           # Cyclomatic complexity
+    - gocognit          # Cognitive complexity
+    - nestif            # Nested if depth
+
+    # Context
+    - containedctx      # context.Context stored in struct field
+    - fatcontext        # context rebuilt inside loop
+    - noctx             # HTTP/SQL calls without context
+
+    # HTTP / SQL resource hygiene
+    - bodyclose         # resp.Body must be closed
+    - sqlclosecheck     # Rows/Stmt closed
+    - rowserrcheck      # Rows.Err() checked (exit condition: remove if
+                        # proven database/sql-only and useless for pgx)
+
+    # Observability
+    - sloglint          # slog call hygiene (key naming, arg style)
+    - spancheck         # OTel span End/RecordError/SetStatus
+
+    # Testing
+    - thelper           # t.Helper() in test helpers (rules/testing.md)
+    - tparallel         # t.Parallel() misuse
+    - usetesting        # t.Context()/t.TempDir()/t.Setenv() over os/context
+
+    # Interfaces
+    - iface             # identical/unused/opaque interface detection
+
+    # Concurrency
+    - embeddedstructfieldcheck  # forbid embedded sync.Mutex
+
+    # Returns
+    - nakedret          # Naked returns in long functions
+
+    # Other
+    - exhaustive        # Switch exhaustiveness
+    - prealloc          # Slice pre-allocation suggestions
+    - nolintlint        # nolint directive format
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - (io.Closer).Close
+        - (net/http.ResponseWriter).Write
+
+    staticcheck:
+      checks:
+        # SA1019 (deprecated APIs) intentionally ENABLED: a portable
+        # harness ships strict defaults. Brownfield consumers may add
+        # "-SA1019" locally and record the waiver in their CLAUDE.md.
+        - "all"
+        # Package-comment and doc-comment enforcement. Already covered by
+        # "all", but listed explicitly so the requirement survives any
+        # future narrowing of the check set.
+        - "ST1000" # missing or malformed package comment
+        - "ST1020" # exported function doc comment format
+        - "ST1021" # exported type doc comment format
+        - "ST1022" # exported var/const doc comment format
+
+    govet:
+      enable-all: true
+      disable:
+        # fieldalignment fights the project's readable-struct convention
+        # (fields ordered logically, not by size — go-types skill) and every
+        # table-driven test struct (name/input/want/wantErr). Memory packing
+        # is a manual go-performance call for proven-hot structs, not a gate.
+        - fieldalignment
+
+    gosec:
+      excludes:
+        - G104  # Handled by errcheck
+      config:
+        G306: "0644"  # File permissions
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+      disabled-checks:
+        - whyNoLint  # Handled by nolintlint
+
+    depguard:
+      rules:
+        main:
+          deny:
+            # Deprecated stdlib / pre-1.21 x/exp (rules/go-version.md)
+            - pkg: io/ioutil
+              desc: deprecated since Go 1.16 — use io + os (rules/go-version.md)
+            - pkg: golang.org/x/exp/slices
+              desc: use stdlib slices (Go 1.21+, rules/go-version.md)
+            - pkg: golang.org/x/exp/maps
+              desc: use stdlib maps (Go 1.21+, rules/go-version.md)
+            # Test doubles (rules/testing.md — Real First, Fakes Last, Mocks Never)
+            - pkg: github.com/stretchr/testify
+              desc: testify forbidden — std testing + go-cmp (rules/testing.md)
+            - pkg: github.com/golang/mock
+              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+            - pkg: go.uber.org/mock
+              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+            - pkg: github.com/vektra/mockery
+              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+            - pkg: github.com/matryer/moq
+              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+            - pkg: github.com/maxbrunsfeld/counterfeiter
+              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+            - pkg: github.com/DATA-DOG/go-sqlmock
+              desc: NEVER mock the database — testcontainers-go (rules/testing.md)
+            # Database (rules/database.md)
+            - pkg: database/sql
+              desc: use pgx/v5 native API (rules/database.md)
+            # HTTP frameworks (go-philosophy — std net/http only)
+            - pkg: github.com/go-chi/chi
+              desc: no HTTP frameworks — net/http Go 1.22+ routing
+            - pkg: github.com/gin-gonic/gin
+              desc: no HTTP frameworks — net/http Go 1.22+ routing
+            - pkg: github.com/labstack/echo
+              desc: no HTTP frameworks — net/http Go 1.22+ routing
+            # ORMs (go-philosophy — pgx/v5 + sqlc only)
+            - pkg: gorm.io
+              desc: no ORM — pgx/v5 + sqlc
+            - pkg: entgo.io
+              desc: no ORM — pgx/v5 + sqlc
+            - pkg: github.com/uptrace/bun
+              desc: no ORM — pgx/v5 + sqlc
+            # Logging (go-philosophy — log/slog only)
+            - pkg: go.uber.org/zap
+              desc: log/slog only
+            - pkg: github.com/rs/zerolog
+              desc: log/slog only
+            - pkg: github.com/sirupsen/logrus
+              desc: log/slog only
+            # Config / DI (std lib config, manual wiring in cmd/app)
+            - pkg: github.com/spf13/viper
+              desc: config via env vars + std lib (config-management skill)
+            - pkg: github.com/google/wire
+              desc: manual wiring in cmd/app — no DI frameworks
+            - pkg: go.uber.org/dig
+              desc: manual wiring in cmd/app — no DI frameworks
+            - pkg: go.uber.org/fx
+              desc: manual wiring in cmd/app — no DI frameworks
+
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^fmt\.Print(f|ln)?$
+          msg: use log/slog (go-philosophy § Observability)
+        - pattern: ^log\.(Print(f|ln)?|Fatal(f|ln)?|Panic(f|ln)?)$
+          msg: use log/slog; exit paths belong in main (rules/go-version.md)
+        - pattern: ^sort\.Slice(Stable)?$
+          msg: use slices.SortFunc / slices.SortStableFunc (Go 1.21+)
+        - pattern: ^http\.ListenAndServe(TLS)?$
+          msg: use http.Server + graceful shutdown (graceful-shutdown skill)
+        - pattern: ^errors\.As$
+          msg: use errors.AsType[T] (Go 1.26, rules/go-version.md)
+
+    sloglint:
+      no-mixed-args: true
+      key-naming-case: snake
+
+    usetesting:
+      os-create-temp: true
+      os-mkdir-temp: true
+      os-setenv: true
+      os-chdir: true
+      os-temp-dir: true
+      context-background: true
+      context-todo: true
+
+    iface:
+      enable:
+        - identical
+        - unused
+        - opaque   # mechanizes "NEVER return an interface" (rules/interfaces.md);
+                   # rare factory exceptions: nolint with reason (nolintlint enforced)
+
+    spancheck:
+      checks:
+        - end
+        - record-error
+        - set-status
+
+    rowserrcheck:
+      packages:
+        - github.com/jackc/pgx/v5
+
+    embeddedstructfieldcheck:
+      forbid-mutex: true
+
+    gocyclo:
+      min-complexity: 15
+
+    gocognit:
+      min-complexity: 20
+
+    nestif:
+      min-complexity: 4
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    nakedret:
+      max-func-lines: 5  # Named results in functions >5 lines must not use naked return
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    generated: lax
+    paths:
+      - ^vendor/
+      - ^internal/db/   # sqlc-generated — never hand-edited, never linted
+    rules:
+      # Test files allow higher complexity
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - gocognit
+          - errcheck
+      # main() may use log.Fatal at startup
+      - path: ^cmd/
+        linters:
+          - forbidigo
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: interface{}
+          replacement: any
+    goimports:
+      local-prefixes:
+        # Consumer projects: replace with your module path
+        # (/go-project-init bootstrap mode rewrites this)
+        - github.com/koopa0/fuzukue
+  exclusions:
+    paths:
+      - ^vendor/
+      - ^internal/db/
