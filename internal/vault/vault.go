@@ -37,20 +37,29 @@ func ReadNote(root, rel string) (*Note, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read note %s: %w", rel, err)
 	}
+	return Parse(filepath.ToSlash(rel), data), nil
+}
 
-	n := &Note{RelPath: filepath.ToSlash(rel)}
-	fm, body := splitFrontmatter(data)
+// Parse splits raw file bytes into frontmatter and body and decodes the
+// frontmatter. rel is stored on the returned Note as-is (callers pass a
+// slash-form vault-relative path). This is the one place that decides what
+// a note's frontmatter means; both ReadNote and the status package's write
+// path (which must never disagree with a reader about the current status)
+// call it.
+func Parse(rel string, data []byte) *Note {
+	n := &Note{RelPath: rel}
+	fm, body := SplitFrontmatter(data)
 	n.Body = string(body)
 	if fm == nil {
-		return n, nil
+		return n
 	}
 	var fields map[string]any
 	if err := yaml.Unmarshal(fm, &fields); err != nil {
 		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
-		return n, nil
+		return n
 	}
 	n.Frontmatter = fields
-	return n, nil
+	return n
 }
 
 // Title is the frontmatter title, falling back to the filename stem.
@@ -79,11 +88,14 @@ func (n *Note) Type() string {
 	return ""
 }
 
-// splitFrontmatter separates a leading ----fenced YAML block from the body.
+// SplitFrontmatter separates a leading ----fenced YAML block from the body.
 // It returns a nil frontmatter slice when the file has no block. Splitting
 // happens before any body preprocessing so that wikilink-looking values
 // (e.g. based_on: "[[...]]") are never corrupted by later passes.
-func splitFrontmatter(data []byte) (fm, body []byte) {
+//
+// Exported so the status package can locate the raw frontmatter block for
+// its surgical status-line rewrite without re-implementing this split.
+func SplitFrontmatter(data []byte) (fm, body []byte) {
 	rest, found := bytes.CutPrefix(data, []byte("---\n"))
 	if !found {
 		return nil, data

@@ -3,8 +3,12 @@ package vault_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/kurodo/internal/vault"
 )
@@ -90,5 +94,63 @@ func TestReadNoteRejectsEscape(t *testing.T) {
 
 	if _, err := vault.ReadNote(root, "../outside.md"); err == nil {
 		t.Error("ReadNote(../outside.md) = nil error, want path escape error")
+	}
+}
+
+func TestList(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	writeNote(t, root, "Concepts/A.md", "a\n")
+	writeNote(t, root, "Diagrams/x.canvas", "{}\n")
+	writeNote(t, root, ".obsidian/workspace.json", "{}\n")
+	writeNote(t, root, ".git/HEAD", "ref: refs/heads/main\n")
+
+	got, err := vault.List(root)
+	if err != nil {
+		t.Fatalf("List(%q) = %v", root, err)
+	}
+
+	want := []string{"Concepts/A.md", "Diagrams/x.canvas"}
+	slices.Sort(got)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("List(%q) mismatch (-want +got):\n%s", root, diff)
+	}
+}
+
+// TestListNormalizesToNFC guards docs/vault-model.md:18 and
+// docs/design.md's requirement that internal/vault NFC-normalize every
+// walked path, mirroring kura's vault.rs::relative_key (.nfc().collect()
+// at walk time). macOS filesystems can hold a filename as raw NFD bytes
+// regardless of how it was typed or how the filesystem otherwise
+// preserves names; a walker that hands back those bytes untouched would
+// leak them into graph.Index's stored path values, rendered <a href>
+// targets, and diagnostic candidate lists — silently diverging from
+// kura's canonical NFC path representation.
+func TestListNormalizesToNFC(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	// だ (U+3060) decomposes to た (U+305F) + the combining voiced sound
+	// mark (U+3099) — the real failure mode this vault hits in
+	// Writing/lessons/japanese/, where dakuten kana are common in
+	// filenames (docs/vault-model.md's 163-file lessons folder).
+	const composed = "だ体.md"
+	decomposed := norm.NFD.String(composed)
+	if decomposed == composed {
+		t.Fatalf("test setup invalid: NFD form of %q did not change", composed)
+	}
+	writeNote(t, root, decomposed, "body\n")
+
+	got, err := vault.List(root)
+	if err != nil {
+		t.Fatalf("List(%q) = %v", root, err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("List(%q) = %v, want exactly one entry", root, got)
+	}
+	if got[0] != composed {
+		t.Errorf("List(%q)[0] = %q (% x), want NFC-normalized %q (% x)",
+			root, got[0], []byte(got[0]), composed, []byte(composed))
 	}
 }
