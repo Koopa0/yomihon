@@ -300,7 +300,7 @@ formatters:
       local-prefixes:
         # Consumer projects: replace with your module path
         # (/go-project-init bootstrap mode rewrites this)
-        - github.com/koopa0/yomihon
+        - github.com/koopa0/kurodo
   exclusions:
     paths:
       - ^vendor/

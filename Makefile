@@ -1,12 +1,12 @@
-MODULE := github.com/koopa0/yomihon
+MODULE := github.com/koopa0/kurodo
 
 .PHONY: build run test lint fmt vet gen css sqlc verify clean
 
 build: gen
-	go build -o bin/yomihon ./cmd/yomihon
+	go build -o bin/kurodo ./cmd/kurodo
 
 run: gen
-	go run ./cmd/yomihon serve
+	go run ./cmd/kurodo serve
 
 test:
 	go test -race -count=1 -shuffle=on ./...
