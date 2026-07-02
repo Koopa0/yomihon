@@ -1,3 +1,3 @@
-module github.com/koopa0/fuzukue
+module github.com/koopa0/yomihon
 
 go 1.26.4
