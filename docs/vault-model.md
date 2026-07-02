@@ -160,11 +160,11 @@ kurodo 看到壞東西：**照渲染＋標記診斷，不修、不擋、不越�
 - hermes cron ×2：`cron-vault-wrapper.sh`、`cron-translator-wrapper.sh`（絕對路徑 `~/.cargo/bin/kura`）
 - `/health-check` slash command
 
-JSONL 契約（M4 黃金比對目標，欄位形狀）：`rule_id, severity, path, line?, field?, message, evidence, suggested_action, source_rule, target?, resolved_to?, collision_members?, fingerprint`。排序 `path → line → rule_id`；fingerprint＝FNV-1a over（rule_id, path, target），各段後接 `0x1f` 分隔位元組，16 位小寫 hex；exit code 0 / 1 / 2。byte-exact 目標：`kura/tests/snapshots/conformance__jsonl_output.snap` 與 `conformance__coverage_report.snap`。
+JSONL 契約（退役閘黃金比對目標，欄位形狀）：`rule_id, severity, path, line?, field?, message, evidence, suggested_action, source_rule, target?, resolved_to?, collision_members?, fingerprint`。排序 `path → line → rule_id`；fingerprint＝FNV-1a over（rule_id, path, target），各段後接 `0x1f` 分隔位元組，16 位小寫 hex；exit code 0 / 1 / 2。byte-exact 目標：`kura/tests/snapshots/conformance__jsonl_output.snap` 與 `conformance__coverage_report.snap`。
 
 ### 掃描邊界 ≠ 渲染邊界
 
-kura 預設**不掃** `System/`、`Diagrams/`、`Views/`（`--all` 才掃）。kurodo 的渲染面比 kura 掃描面大（報告、簡報都要讀）；但 M4 做 `kurodo check` 對齊時，必須複製 kura 的掃描邊界，否則 JSONL 比不齊。
+kura 預設**不掃** `System/`、`Diagrams/`、`Views/`（`--all` 才掃）。kurodo 的渲染面比 kura 掃描面大（報告、簡報都要讀）；但做 `kurodo check` 對齊時，必須複製 kura 的掃描邊界，否則 JSONL 比不齊。
 
 ### git 是審計層
 
