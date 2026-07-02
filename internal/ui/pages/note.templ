@@ -1,10 +1,25 @@
 // Package pages holds one templ component per served page.
 package pages
 
-import "github.com/koopa0/kurodo/internal/ui/layouts"
+import (
+	"strconv"
 
-// NoteView is everything the reading page needs. Diagnostic is display-only:
-// kurodo reports, kura judges, humans edit (wall 4).
+	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/kurodo/internal/ui/layouts"
+)
+
+// NoteView is everything the reading page needs. Diagnostic (frontmatter
+// YAML) and RenderDiagnostics (dialect passes: broken/ambiguous links,
+// unknown callouts, risky fences) are both display-only: kurodo reports,
+// kura judges, humans edit (wall 4). They are independent — a note can
+// have a frontmatter Diagnostic, zero or more RenderDiagnostics, or both;
+// RenderDiagnostics is shown regardless of whether Diagnostic is set.
+//
+// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the
+// write face's only UI, spec.md §4): at most one of WriteClosed,
+// NoFrontmatter, or a non-empty Transitions applies for any note that has a
+// usable status; a diagnostic (bad YAML) note gets none of the three and
+// shows no panel at all.
 type NoteView struct {
 	Title      string
 	RelPath    string
@@ -12,6 +27,17 @@ type NoteView struct {
 	Status     string
 	Diagnostic string
 	BodyHTML   string
+
+	// RenderDiagnostics and TOC are display-only feedback from the
+	// rendering pipeline (internal/render) — never affects the status
+	// panel below. TOC is a plain, unstyled nav (functional, not
+	// polished; the real navigation-face layout is a later round).
+	RenderDiagnostics []render.Diagnostic
+	TOC               []render.TOCEntry
+
+	Transitions   []string
+	WriteClosed   bool
+	NoFrontmatter bool
 }
 
 templ Note(v NoteView) {
@@ -29,8 +55,81 @@ templ Note(v NoteView) {
 			</p>
 			if v.Diagnostic != "" {
 				<p class="diag">診斷：{ v.Diagnostic }</p>
+			} else {
+				@statusPanel(v)
 			}
+			@renderDiagnostics(v.RenderDiagnostics)
+			@toc(v.TOC)
 			@templ.Raw(v.BodyHTML)
 		</article>
 	}
+}
+
+// renderDiagnostics lists rendering-time diagnostics (broken/ambiguous
+// wikilinks, unknown callout types, risky fence content) — display-only,
+// shown whenever there is at least one, independent of the frontmatter
+// Diagnostic above (wall 4).
+templ renderDiagnostics(diags []render.Diagnostic) {
+	if len(diags) > 0 {
+		<ul class="render-diagnostics">
+			for _, d := range diags {
+				<li class="diag">
+					診斷（{ string(d.Kind) }）：
+					if d.Target != "" {
+						{ d.Target } —
+					}
+					{ d.Message }
+				</li>
+			}
+		</ul>
+	}
+}
+
+// toc is a plain, unstyled list of links to each heading's assigned id —
+// functional, not polished (a real sidebar TOC waits for the design
+// tokens / navigation-face round). Its point here is to make the
+// slug/id correctness in internal/render actually visible and exercised
+// end to end.
+templ toc(entries []render.TOCEntry) {
+	if len(entries) > 0 {
+		<nav class="toc">
+			<ul>
+				for _, h := range entries {
+					<li data-level={ strconv.Itoa(h.Level) }>
+						<a href={ templ.URL("#" + h.ID) }>{ h.Text }</a>
+					</li>
+				}
+			</ul>
+		</nav>
+	}
+}
+
+// statusPanel is the write face's entire UI: no JavaScript, one form per
+// legal transition (the PRG pattern — every flip is a genuine page-reload
+// form submission). Called only when the note has no frontmatter
+// diagnostic (wall 4: read isn't reliable enough to write).
+templ statusPanel(v NoteView) {
+	<section class="status-panel">
+		switch {
+			case v.WriteClosed:
+				<p class="status-notice">契約不可用：寫入面已關閉（fail-closed）。</p>
+			case v.NoFrontmatter:
+				<p class="status-notice">無 frontmatter（合法）。</p>
+			case len(v.Transitions) == 0:
+				<p class="status-notice">無合法轉移。</p>
+			default:
+				for _, to := range v.Transitions {
+					<form method="post" action="/status" class="status-form">
+						<input type="hidden" name="path" value={ v.RelPath }/>
+						<input type="hidden" name="from" value={ v.Status }/>
+						<input type="hidden" name="to" value={ to }/>
+						if to == "ready" {
+							<button type="submit" class="status-btn status-btn-primary">{ to }</button>
+						} else {
+							<button type="submit" class="status-btn">{ to }</button>
+						}
+					</form>
+				}
+		}
+	</section>
 }

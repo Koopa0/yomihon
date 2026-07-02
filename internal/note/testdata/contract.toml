@@ -1,0 +1,54 @@
+# Loader fixture only — the runtime contract is the real vault's
+# System/schemas/vault-schema.toml (wall 3). A lesson-only slice of the
+# real shape, just enough to give handler_test.go a non-nil contract so
+# WriteClosed is false and the NoFrontmatter/Transitions branch selection
+# in handler.go's show() can actually be exercised (schema.LoadFile is
+# reused as-is; this is not a second schema loader). Mirrors
+# internal/status/testdata/contract.toml.
+schema_version = "1"
+
+[enums]
+type = ["lesson", "writing"]
+domain = ["japanese"]
+
+[enums.status]
+lesson = ["imported", "draft", "ready", "archived"]
+
+[fields]
+required = ["title", "type", "domain", "status", "created", "updated"]
+known = ["title", "aliases", "type", "domain", "topics", "status", "created", "updated", "based_on"]
+
+[fields.status_group]
+lesson = ["lesson"]
+
+[rules]
+slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+
+[scan]
+knowledge_dirs = ["Writing"]
+skip_basenames = ["README.md"]
+no_frontmatter_is_legal = true
+
+[[lifecycle]]
+status = "imported"
+applies_to = ["lesson", "writing"]
+from = []
+owner = ["claude", "koopa"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["lesson", "writing"]
+from = ["imported"]
+owner = ["claude", "koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["lesson", "writing"]
+from = ["draft"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["claude", "koopa"]
