@@ -42,7 +42,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 
 ## 2. The navigation face
 
-**Spec**: sidebar = lifecycle folders (vault order, top level ≤9) + the syllabus tree + a Reports section.
+**Spec** (status-first, D26): the sidebar leads with a **Lifecycle** list — the schema's `note`-group statuses in toml array order, each with a live snapshot count and a link to the pure-filter browse page (`/search?q=status:<name>`) — then the syllabus tree, then Reports (daily-briefing HTML), then a **collapsed** Folders tree (the lifecycle folder browse, vault order, top level ≤9). Grouping, labels, and counts trace to the toml and the snapshot, never hardcoded (wall 3). The ≤3-click acceptance below is preserved by the Folders tree.
 
 **Home-page spec** (finalized by the vault side's 2026-07-02 reply): four stable blocks — five domain MOC entry points, four cross-domain boards (reusing the **questions** the boards answer, not hardcoding campaign-flavored labels), the mechanical-gate list, and pointers to the governing documents. **The two-layer IA is not flattened**: cross-domain boards live on the home page; domain workspace views (e.g. `日本語課程.base`) hang under that domain's MOC block. The facts of the status vocabulary always trace back to the toml (that section of Vault-Index is a human copy). The v0 division of labor for `.base` (linking back to Obsidian) is confirmed on the vault side — reimplementing it = a second query engine that also inherits the drift of the hardcoded schema inside `.base`; if a frontmatter query lands later, the boards could derive a native rendering from the toml, to be revisited then.
 
@@ -102,7 +102,7 @@ POST /status (path, from, to)
  8. 302 → the reading page (PRG)
 ```
 
-**Spec — UI**: the status panel lists the **currently legal** transitions (`schema` computes them with actor=`koopa`; show only the legal keys, never a disabled one); all legal transitions are open, and `ready` is the only primary style (D13); one form per key, no JS; no frontmatter (drills) → "No frontmatter (valid)" with no keys; broken YAML → show only a diagnostic and no keys (if the read is unreliable, don't write); schema load failure → show a "Contract unavailable" diagnostic and no keys (fail-closed).
+**Spec — UI**: the status panel lists the **currently legal** transitions (`schema` computes them with actor=`koopa`; show only the legal keys, never a disabled one); all legal transitions are open, and `ready` is the only primary style (D13); one form per key; the write path has zero JS dependency (D27 — JS may only add the seal's ~430 ms hold ceremony on top of a working plain form, and calls `form.requestSubmit()`, never `fetch`); no frontmatter (drills) → "No frontmatter (valid)" with no keys; broken YAML → show only a diagnostic and no keys (if the read is unreliable, don't write); schema load failure → show a "Contract unavailable" diagnostic and no keys (fail-closed).
 
 **Known trade-off**: the dirty-file abort blocks the real flow of "halfway through reading, fix a typo in Obsidian → flip." v0 ships first; the two-step "commit the manual edit first, then flip" is decided by pain per D15.
 
