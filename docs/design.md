@@ -20,13 +20,13 @@ kurodo reads everything, writes one field, never edits notes, and never overstep
 
 ## 2. Tech stack (every dependency justifies itself)
 
-| Dependency | Rationale |
-|---|---|
-| goldmark + frontmatter ext | The pipeline foundation yomihon validated against real lessons |
-| a-h/templ | Server-rendered HTML; existing muscle memory (yomihon, goilerplate) |
-| Tailwind v4 standalone CLI | No Node dependency; the typography plugin handles prose |
-| `os/exec` git | The audit layer must share exactly the same semantics as hand-run git; no go-git |
-| vanilla JS (single file) | Inherits from yomihon: native elements first (details/dialog), no framework |
+| Dependency                 | Rationale                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| goldmark + frontmatter ext | The pipeline foundation yomihon validated against real lessons                   |
+| a-h/templ                  | Server-rendered HTML; existing muscle memory (yomihon, goilerplate)              |
+| Tailwind v4 standalone CLI | No Node dependency; the typography plugin handles prose                          |
+| `os/exec` git              | The audit layer must share exactly the same semantics as hand-run git; no go-git |
+| vanilla JS (single file)   | Inherits from yomihon: native elements first (details/dialog), no framework      |
 
 The search index is **in-memory** (D24), so there is no database and no new dependency for it — see §6.
 
@@ -36,12 +36,12 @@ The search index is **in-memory** (D24), so there is no database and no new depe
 
 A single binary `kurodo`; `cmd/kurodo` does wiring only (go-spec doctrine). It is at once **a human interface (serve) and an agent interface (check/exists/coverage)** — the Claude Code on the obsidian side is a direct consumer of the CLI surface, so the output formats must align with kura (JSONL / human / md):
 
-| Command | Purpose (spec in spec.md) |
-|---|---|
-| `kurodo serve` | The workbench itself, `127.0.0.1:9610` (9610 is goroawase for ku-ro-do; only the port is configurable) |
-| `kurodo check` | A Go rewrite of kura check, JSONL golden comparison (yomihon SPEC §13's check plan is retired; lint moves here) |
-| `kurodo exists` / `coverage` | Absorbed in sync from kura's agent toolbox; further extensions enter the yard per real vault-side needs |
-| `kurodo export` | Absorbs yomihon's SSG export mode |
+| Command                      | Purpose (spec in spec.md)                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `kurodo serve`               | The workbench itself, `127.0.0.1:9610` (9610 is goroawase for ku-ro-do; only the port is configurable)          |
+| `kurodo check`               | A Go rewrite of kura check, JSONL golden comparison (yomihon SPEC §13's check plan is retired; lint moves here) |
+| `kurodo exists` / `coverage` | Absorbed in sync from kura's agent toolbox; further extensions enter the yard per real vault-side needs         |
+| `kurodo export`              | Absorbs yomihon's SSG export mode                                                                               |
 
 Configuration (the config struct follows go-spec config-management): `KURODO_ROOT` (vault path, default `~/obsidian`), `KURODO_PORT` (default 9610). There is no `KURODO_DB` (the index is in-memory, D24) and **no `KURODO_ADDR`** — hard-wiring loopback is what wall 2 looks like once it has grown into code.
 
@@ -99,7 +99,7 @@ the whole thing rebuilds from the vault.
 
 No status history: `git log` is the history (vault-model §3). The reading and
 judge faces never depend on any persistent store (spec §0.1); search is as
-available as reading, because the index *is* memory sourced from the
+available as reading, because the index _is_ memory sourced from the
 always-present vault. The recorded future persistence path is SQLite, not
 PostgreSQL (D24), and only when a frequently-invoked search CLI makes the
 per-invocation rescan painful.
@@ -128,6 +128,7 @@ PostgreSQL (D24).
 The goals (the four end-state points) are in `spec.md` §0. **No milestone fences (D15)** — implementation order is free; the only ordering suggestion (not a fence): first wire up the single "finish reading → certify" keypress (D10, the v0 shipping gate), which attacks the system's real current bottleneck — Koopa's adjudication friction.
 
 The two retirements are **evidence-based gates, not dates** (D11):
+
 - **yomihon's retirement gate** = `spec.md` §1 (visual parity) + §6 (five interactions + fixtures + two weeks of practical use). Until it is met, yomihon is frozen in service (tag `v1.0.0`, bug fixes only).
 - **kura's retirement gate** = `spec.md` §5 (JSONL byte-compat + snapshots + scan boundary + four-pipeline switchover). Until it is met, not a line of kura changes.
 
