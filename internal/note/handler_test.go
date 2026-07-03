@@ -126,6 +126,50 @@ func TestShow(t *testing.T) {
 	}
 }
 
+// TestShowTTSGatedToLessons is the landmine guard for the TTS lesson gate: a
+// lesson note's ruby paragraphs get a speak button, but a non-lesson note that
+// contains the identical ruby does NOT — render.HTML is generic and the gate
+// lives in the handler's type branch, so TTS must never leak into other note
+// types. The ruby markup itself must survive in both (only the wrapper is gated).
+func TestShowTTSGatedToLessons(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const body = "<ruby>今日<rt>きょう</rt></ruby>は晴れ。\n"
+
+	lessonDir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir lesson: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(lessonDir, "L00.md"),
+		[]byte("---\ntitle: L00\ntype: lesson\nstatus: draft\n---\n\n"+body), 0o644); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+
+	srcDir := filepath.Join(root, "Sources")
+	if err := os.MkdirAll(srcDir, 0o750); err != nil {
+		t.Fatalf("mkdir source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "S00.md"),
+		[]byte("---\ntitle: S00\ntype: source-note\nstatus: draft\n---\n\n"+body), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	srv := newServer(t, root)
+
+	_, lessonBody := get(t, srv.URL+"/notes/Writing/lessons/japanese/L00.md")
+	if !strings.Contains(lessonBody, `data-tts="今日は晴れ。"`) {
+		t.Errorf("lesson page missing the TTS button with reading-stripped data-tts; body = %q", lessonBody)
+	}
+
+	_, sourceBody := get(t, srv.URL+"/notes/Sources/S00.md")
+	if strings.Contains(sourceBody, "data-tts") || strings.Contains(sourceBody, "k-tts") {
+		t.Errorf("non-lesson (source-note) page leaked a TTS button — the lesson gate failed; body = %q", sourceBody)
+	}
+	if !strings.Contains(sourceBody, "<ruby>今日<rt>きょう</rt></ruby>") {
+		t.Errorf("non-lesson page lost its ruby (render must stay generic); body = %q", sourceBody)
+	}
+}
+
 func TestShowNotFound(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, t.TempDir())

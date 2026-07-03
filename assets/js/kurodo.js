@@ -14,7 +14,11 @@
      - ⌘K search: opens the native <dialog>; the header link to /search is the
        no-JS fallback.
      - mermaid: renders ```mermaid fences into SVG, lazily, only on pages that
-       have one. Unchanged from the original runtime. */
+       have one. Unchanged from the original runtime.
+     - TTS: lesson sentences carry a server-rendered speak button (data-tts, the
+       reading already stripped); click reads it via the Web Speech API. Buttons
+       stay hidden unless a speech engine exists, so no-JS / no-engine degrades
+       to silent absence and the sentence still reads. */
 (() => {
   'use strict';
 
@@ -186,6 +190,28 @@
     }
   }
 
+  // ---- TTS: read a lesson sentence aloud (Web Speech) ----------------------
+  // The speak buttons are server-rendered (internal/render.InjectTTS) with the
+  // reading-stripped text already in data-tts — this never crawls the DOM for
+  // <rt>. Buttons stay hidden until a speech engine is confirmed, so with no JS
+  // or no engine the affordance is simply absent and the sentence still reads.
+  function initTTS() {
+    if (!('speechSynthesis' in window)) return;
+    const buttons = document.querySelectorAll('[data-tts]');
+    if (buttons.length === 0) return;
+    root.dataset.speech = 'on'; // CSS reveals .k-tts only once speech is available
+    buttons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const text = btn.getAttribute('data-tts');
+        if (!text) return;
+        speechSynthesis.cancel(); // stop any in-flight utterance first
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ja-JP';
+        speechSynthesis.speak(u);
+      });
+    });
+  }
+
   // ---- boot ----------------------------------------------------------------
   function init() {
     initToggles();
@@ -194,6 +220,7 @@
     stripSealSignal();
     initSearch();
     initKeys();
+    initTTS();
     renderMermaidDiagrams();
   }
   if (document.readyState === 'loading') {

@@ -20,6 +20,15 @@ import (
 // one-shot seal signal on this value; it duplicates no schema enum.
 const sealStatus = "ready"
 
+// typeLesson is the one note type the reading page enriches with lesson-body
+// interactions (the TTS speak buttons today; the slot machine and concept
+// drawer next). Like sealStatus, it names in one place the single spot the
+// handler treats a type specially, and it duplicates no enum: the type
+// vocabulary lives in the schema contract's enums.type (vault-schema.toml),
+// wall 3's source of truth. render.HTML stays generic — the lesson decision is
+// made here, so a non-lesson note never grows lesson affordances.
+const typeLesson = "lesson"
+
 // StatusPolicy is the subset of the write face's state the reading page needs:
 // whether the face is closed (Closed), which transition keys, if any, to offer
 // (Transitions), and the stable note-status axis the Lifecycle rail lists
@@ -108,6 +117,15 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// render.Renderer.HTML never fails the whole render (wall 4): a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := h.deps.Renderer.HTML(n.Body)
+
+	// Lesson bodies get the read-aloud affordance: wrap each ruby-bearing
+	// sentence with a speak button whose text has the furigana stripped
+	// server-side (render.InjectTTS). The gate is here, not in render, so
+	// render.HTML stays a generic note renderer — a diary or concept note that
+	// contains <ruby> never grows speaker buttons.
+	if n.Type() == typeLesson {
+		result.HTML = render.InjectTTS(result.HTML)
+	}
 
 	view := pages.NoteView{
 		Title:             n.Title(),
