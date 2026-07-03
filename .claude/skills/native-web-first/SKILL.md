@@ -1,28 +1,28 @@
 ---
 name: native-web-first
 description: >-
-  HTML-first / CSS-first / Baseline-Web-API discipline for server-rendered
-  templ + vanilla-JS UIs. The decision ladder (semantic HTML → CSS → Baseline
-  API → JS-as-enhancement) before writing any interactive behavior, a catalog
-  of native elements (details/summary, dialog, popover, forms+PRG) and Baseline
-  CSS/JS APIs with when-and-how, the progressive-enhancement contract
-  (server-render state as data-* attributes, mandatory no-JS fallback for write
-  paths), and the "never build a framework" anti-patterns. Ends with the
-  kurodo-specific pins (the four walls, D27 zero-JS write path, D28 English
-  chrome, the design bundle as the single UI reference).
+   HTML-first / CSS-first / Baseline-Web-API discipline for server-rendered
+   templ + vanilla-JS UIs. The decision ladder (semantic HTML → CSS → Baseline
+   API → JS-as-enhancement) before writing any interactive behavior, a catalog
+   of native elements (details/summary, dialog, popover, forms+PRG) and Baseline
+   CSS/JS APIs with when-and-how, the progressive-enhancement contract
+   (server-render state as data-* attributes, mandatory no-JS fallback for write
+   paths), and the "never build a framework" anti-patterns. Ends with the
+   kurodo-specific pins (the four walls, D27 zero-JS write path, D28 English
+   chrome, the design bundle as the single UI reference).
 when_to_use: >-
-  Use before building or modifying any UI behavior in a server-rendered templ
-  project — deciding whether an interaction needs HTML, CSS, a Baseline Web
-  API, or JS; adding a toggle, dialog, disclosure, drawer, form flow, or
-  keyboard affordance; writing the single vanilla-JS enhancement file; or
-  whenever a requirement seems to want htmx / Alpine / React / any client
-  library (that is a STOP-and-surface, not an implementation choice). Read it
-  before the first line of markup or script, not after.
+   Use before building or modifying any UI behavior in a server-rendered templ
+   project — deciding whether an interaction needs HTML, CSS, a Baseline Web
+   API, or JS; adding a toggle, dialog, disclosure, drawer, form flow, or
+   keyboard affordance; writing the single vanilla-JS enhancement file; or
+   whenever a requirement seems to want htmx / Alpine / React / any client
+   library (that is a STOP-and-surface, not an implementation choice). Read it
+   before the first line of markup or script, not after.
 user_invocable: true
 metadata:
-  author: koopa
-  version: "1.0"
-  surface: "templ + vanilla web"
+   author: koopa
+   version: "1.0"
+   surface: "templ + vanilla web"
 ---
 
 # Native-Web-First — build with the platform, not on top of it
@@ -54,7 +54,7 @@ answer is a real "no", not an "it'd be easier in JS".
    `element.closest`/`matches`, `IntersectionObserver`, View Transitions. If
    the platform already solves it and it is Baseline, use it directly.
 4. **What is the no-JS fallback?** — every enhancement must degrade. For a
-   *write* path (anything that mutates server state) a working no-JS fallback
+   _write_ path (anything that mutates server state) a working no-JS fallback
    is **mandatory, not "where practical"**: the plain `<form method="post">`
    must do the whole job before a line of JS is written. JS may only make it
    nicer.
@@ -84,7 +84,7 @@ one small vanilla JS file reads data-* and adds ceremony  →  enhancement only
   state (theme, a furigana toggle, a collapsed section) is a cookie the server
   reads and stamps onto the root element as a `data-*` attribute or class, so
   the correct state paints on first byte (no flash-of-wrong-theme). JS toggles
-  the attribute *and* the cookie; CSS does the visual switch by attribute
+  the attribute _and_ the cookie; CSS does the visual switch by attribute
   selector.
 - **`data-*` attributes are the ONLY contract between HTML and JS.** JS never
   hardcodes structure; it finds elements by `data-*` hooks and reads/writes
@@ -138,12 +138,12 @@ everything above.
   existing files under `internal/ui/`.
 - **Write face (D27)**: one `<form method="post" action="/status">` per legal
   transition, and the legal set is **only** what `schema.Transitions(type,
-  current)` returns — never fabricate a key. `ready` gets the hold-to-seal
+current)` returns — never fabricate a key. `ready` gets the hold-to-seal
   ceremony (JS `requestSubmit` on completion); every other legal transition is
   a quiet one-click form; zero transitions → "No legal transitions". The
   post-seal animation fires from a one-shot PRG signal (`?sealed=1`, stripped
   by `history.replaceState`). The git short hash is a read-only `git log -1
-  --format=%h` in `internal/status` only.
+--format=%h` in `internal/status` only.
 - **Sidebar (D26)**: Lifecycle groups/labels/statuses come from the schema
   contract + snapshot counts — zero hardcoded status lists (wall 3). Reports =
   daily-briefing HTML; Folders = the existing tree in a collapsed `<details>`.
@@ -151,7 +151,7 @@ everything above.
   `aria-label`s); CJK appears only as single-glyph seals (済/印/振) or the
   `CJK · English` paired pattern where English alone carries the meaning. Note
   content is vault material — untouched.
-- **Reading column**: style the renderer's *existing* emitted classes with CSS;
+- **Reading column**: style the renderer's _existing_ emitted classes with CSS;
   never reshape renderer HTML — dialect fixtures lock it.
 - **State mechanism**: one dark-mode signal and one ruby signal, consistent
   everywhere — kurodo uses root `data-theme` / `data-ruby` / `data-nav`
@@ -159,8 +159,8 @@ everything above.
 
 ## Navigation
 
-| Topic | File | When to read |
-|-------|------|--------------|
-| Native elements catalog — `<details>`, `<dialog>`, `popover`, forms + PRG, buttons/links/labels, semantic sectioning; each with when-to-use, keyboard/focus behavior, and gotchas | `references/native-elements.md` | Before implementing any disclosure, modal, menu, or form flow |
-| Baseline CSS + JS APIs — attribute-driven theming, `:has()`, container queries, `color-mix`/`oklch`, `text-wrap`, reduced-motion, `requestSubmit`, `showModal`, View Transitions, `history.replaceState` | `references/baseline-apis.md` | When choosing the CSS or Baseline-API rung of the ladder |
-| Progressive-enhancement recipes — SSR state as data-* + cookie (no FOUC), the hold-to-submit gesture over a plain form, one-shot PRG signals, the single-file JS structure | `references/progressive-enhancement.md` | When writing the vanilla JS enhancement layer or wiring server-rendered state |
+| Topic                                                                                                                                                                                                    | File                                    | When to read                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------- |
+| Native elements catalog — `<details>`, `<dialog>`, `popover`, forms + PRG, buttons/links/labels, semantic sectioning; each with when-to-use, keyboard/focus behavior, and gotchas                        | `references/native-elements.md`         | Before implementing any disclosure, modal, menu, or form flow                 |
+| Baseline CSS + JS APIs — attribute-driven theming, `:has()`, container queries, `color-mix`/`oklch`, `text-wrap`, reduced-motion, `requestSubmit`, `showModal`, View Transitions, `history.replaceState` | `references/baseline-apis.md`           | When choosing the CSS or Baseline-API rung of the ladder                      |
+| Progressive-enhancement recipes — SSR state as data-* + cookie (no FOUC), the hold-to-submit gesture over a plain form, one-shot PRG signals, the single-file JS structure                               | `references/progressive-enhancement.md` | When writing the vanilla JS enhancement layer or wiring server-rendered state |

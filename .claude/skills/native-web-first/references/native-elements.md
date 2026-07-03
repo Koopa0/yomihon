@@ -10,19 +10,28 @@ browser toggles it on summary click/Enter/Space.
 
 ```html
 <details open>
-  <summary>Lifecycle</summary>
-  …content…
+   <summary>Lifecycle</summary>
+   …content…
 </details>
 ```
 
 - **Server-render the default state** by emitting (or omitting) `open`.
 - **Style the marker away** and supply your own chevron:
-  ```css
-  summary { list-style: none; cursor: pointer; }
-  summary::-webkit-details-marker { display: none; }
-  .chevron { transition: transform 120ms; }
-  details:not([open]) .chevron { transform: rotate(-90deg); }  /* CSS, not JS */
-  ```
+   ```css
+   summary {
+      list-style: none;
+      cursor: pointer;
+   }
+   summary::-webkit-details-marker {
+      display: none;
+   }
+   .chevron {
+      transition: transform 120ms;
+   }
+   details:not([open]) .chevron {
+      transform: rotate(-90deg);
+   } /* CSS, not JS */
+   ```
 - **Collapsible callout / accordion**: a `<details class="callout">` with a
   `<summary class="callout-title">` is a complete, accessible, no-JS accordion.
 - Gotcha: `<summary>` must be the **first child**. Content after it is the body.
@@ -36,12 +45,16 @@ focus trapped inside, `Escape` to close, and focus returned to the opener — al
 free. Use it for command palettes (⌘K), confirmations, detail panels.
 
 ```html
-<dialog id="search"> … <form method="dialog">…</form> </dialog>
+<dialog id="search">
+   …
+   <form method="dialog">…</form>
+</dialog>
 ```
+
 ```js
-document.getElementById('search').showModal();   // modal (backdrop + focus trap + Esc)
+document.getElementById("search").showModal(); // modal (backdrop + focus trap + Esc)
 // dialog.show()   — non-modal (no backdrop, no trap)
-dialog.close(returnValue);                         // sets dialog.returnValue
+dialog.close(returnValue); // sets dialog.returnValue
 ```
 
 - `::backdrop` is the scrim — style it, don't build a scrim div.
@@ -80,10 +93,10 @@ the backbone of every write.
 
 ```html
 <form method="post" action="/status">
-  <input type="hidden" name="path" value="…">
-  <input type="hidden" name="from" value="draft">
-  <input type="hidden" name="to"   value="ready">
-  <button type="submit">Certify ready</button>
+   <input type="hidden" name="path" value="…" />
+   <input type="hidden" name="from" value="draft" />
+   <input type="hidden" name="to" value="ready" />
+   <button type="submit">Certify ready</button>
 </form>
 ```
 

@@ -8,6 +8,7 @@
 Let Koopa read the whole vault in one place, and complete adjudication right where he finishes reading; at the same time take over kura's judge and agent-toolbox responsibilities, becoming the vault ecosystem's human terminal + CLI interface.
 
 **What the end state looks like (the definition of system success)**:
+
 1. Koopa reads in kurodo every day — yomihon retires by its retirement gate.
 2. The draft queue is flipped the moment reading finishes — adjudication friction disappears.
 3. kura's four pipelines run on `kurodo check` — kura retires by its retirement gate.
@@ -25,6 +26,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 ## 1. The reading face
 
 **Spec**:
+
 - Full-vault rendering: the complete dialect table = `vault-model.md` layer 1 (the four wikilink states, embed, callouts (two buckets + English default titles), `==highlight==`, tasks, raw-HTML ruby passed through verbatim, mermaid; including the highlight and embed that yomihon lacks).
 - The fault-tolerance rule: broken YAML / unknown callout / broken link → render anyway + diagnostic, never crash, never fix (wall 4).
 - TOC: CJK-safe slug (following yomihon's `Slug()` semantics: keep `\p{L}\p{N}`, `-2` suffix on collision, `section` fallback).
@@ -36,6 +38,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 **Body leading-H1 policy**: the page title comes from frontmatter `title`; a leading H1 in the body is removed so it isn't shown twice (following yomihon's already-verified behavior).
 
 **Acceptance**:
+
 - All dialect conformance tests pass (the structural-assertion pattern inherited from yomihon's `testdata/lesson.md`). Fixtures cover at least: ruby / `<br>` passed through verbatim; all callout types + `[!x]-` / `[!x]+` folding + unknown types degraded to blockquote; the four wikilink states + alias display + ambiguous marking; `![[embed]]`; `==highlight==`; task list; GFM tables (including escaped `\|`); dialect not processed inside a fence + a one-time warning; a broken-YAML single diagnostic that does not cascade; body leading-H1 removal; CJK slug aligned with the TOC anchor (including the `-2` collision suffix).
 - Every `.md` in the real vault opens: zero 500s, zero blank pages (the mechanical definition of fault tolerance).
 - Japanese lessons (L01–L20 + the P series) at visual parity with yomihon: the 14 screenshots in `m1-review/` are the baseline.
@@ -47,6 +50,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 **Home-page spec** (finalized by the vault side's 2026-07-02 reply): four stable blocks — five domain MOC entry points, four cross-domain boards (reusing the **questions** the boards answer, not hardcoding campaign-flavored labels), the mechanical-gate list, and pointers to the governing documents. **The two-layer IA is not flattened**: cross-domain boards live on the home page; domain workspace views (e.g. `日本語課程.base`) hang under that domain's MOC block. The facts of the status vocabulary always trace back to the toml (that section of Vault-Index is a human copy). The v0 division of labor for `.base` (linking back to Obsidian) is confirmed on the vault side — reimplementing it = a second query engine that also inherits the drift of the hardcoded schema inside `.base`; if a frontmatter query lands later, the boards could derive a native rendering from the toml, to be revisited then.
 
 **Syllabus-tree parsing spec** (mechanically decidable):
+
 - A syllabus is identified by frontmatter `type: study-path` (a toml enum), **not by hardcoding filenames**.
 - Go syllabus shape: H2 = part, H3 = module, both in the pipe format `slug | English | Chinese` (split into three, trimmed); a list item = a lesson.
 - 大家的日本語 shape: only the "課程序列" H2 has a navigation tree beneath it (H3 = learning stage); the other H2s (每日 loop, 學習階段, 缺口) are not navigation and are not parsed.
@@ -58,13 +62,14 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 ## 3. The search face
 
 **Spec**:
+
 - Deterministic substring over an **in-memory index** (no database, D24) + structured filters; a ⌘K panel.
 - **Query semantics** (deterministic, reproducible): whitespace tokenization; a bare word matches by substring after `fold(s) = strings.ToLower(nfc(s))` — the single match definer, applied to both the stored text and the query; multiple words = AND. Six fixed filter keys: `type:` `status:` `domain:` `topic:` (single-value containment on `topics`) `folder:` (rel_path prefix, `/`-boundary — `folder:Writing` does not match `Writing-old/`) `slug:`, values compared by literal equality, no enum validation. A pure-filter query (no bare word) is legal — it is structured browsing; an empty query (no word, no filter) returns nothing. No magic syntax, no quoted phrases (a whitespace-free CJK run is inherently one token, i.e. a contiguous substring).
 - **Results and ordering** (deterministic): title hits (all tokens match the title) rank before body hits; within a group, rel_path lexicographic order — guaranteed by keeping the index entries sorted by rel_path, not by a sort call. Each entry = path + title + status badge + a context snippet around the earliest matched-token offset. No result limit in v0 (the corpus is small; any truncation is the panel's concern).
 - The index is fully derived and in-memory (see `design.md` §6): it is rebuilt from the vault, and a ~2s mtime scan applies incremental updates (D21) — no fsnotify, no persistent store. Change detection is by mtime: the scan compares the current `{path → mtime}` set to the previous one and, on any change, rebuilds; it handles create/delete/rename uniformly. There is no content hash — at this scale a full rebuild is ~100 ms, and mtime avoids reading every file on every scan (reconsider past ~10k files).
 - Semantic / vector: not scheduled; upgrading goes through the three gates (D05), and would be SQLite / sqlite-vec, not PostgreSQL (D24).
 
-**Acceptance**: a 2-character CJK query returns correctly; spot checks match `rg`'s results *on the note body* (one-directional: what `rg` finds in the body text, kurodo finds too — `rg` also matching raw markup that `plain_text` strips is by design, not a bug); a literal `%` in a query matches a literal `%` (substring is literal, no wildcards); NFD-form content is found by an NFC-typed query; rebuild the index twice → byte-identical results; a concurrent read during an index swap is race-free (`-race`); a vault file change is reflected within one scan cycle — ≤3s worst case (a ~2s cadence plus the ~100 ms rebuild), so the bound is stably decidable.
+**Acceptance**: a 2-character CJK query returns correctly; spot checks match `rg`'s results _on the note body_ (one-directional: what `rg` finds in the body text, kurodo finds too — `rg` also matching raw markup that `plain_text` strips is by design, not a bug); a literal `%` in a query matches a literal `%` (substring is literal, no wildcards); NFD-form content is found by an NFC-typed query; rebuild the index twice → byte-identical results; a concurrent read during an index swap is race-free (`-race`); a vault file change is reflected within one scan cycle — ≤3s worst case (a ~2s cadence plus the ~100 ms rebuild), so the bound is stably decidable.
 
 ## 4. The adjudication face (the only write)
 
@@ -108,16 +113,17 @@ POST /status (path, from, to)
 
 **Spec — error vocabulary**:
 
-| Scenario | HTTP | Presentation |
-|---|---|---|
-| form.from ≠ current | 409 | Page out of date — reload and press again |
-| illegal transition / owner-forbidden | 422 | The schema's rejection reason, verbatim |
-| file dirty | 409 | Has uncommitted changes; a flip would pollute the audit |
-| status line zero or multiple | 422 | Schema violation, left to kura / a human |
-| mtime changed | 409 | The file was modified between read and write |
-| git commit failed | 500 | File changed + the raw git text + manual-remediation instructions |
+| Scenario                             | HTTP | Presentation                                                      |
+| ------------------------------------ | ---- | ----------------------------------------------------------------- |
+| form.from ≠ current                  | 409  | Page out of date — reload and press again                         |
+| illegal transition / owner-forbidden | 422  | The schema's rejection reason, verbatim                           |
+| file dirty                           | 409  | Has uncommitted changes; a flip would pollute the audit           |
+| status line zero or multiple         | 422  | Schema violation, left to kura / a human                          |
+| mtime changed                        | 409  | The file was modified between read and write                      |
+| git commit failed                    | 500  | File changed + the raw git text + manual-remediation instructions |
 
 **Acceptance (automated)**:
+
 1. Surgical precision: frontmatter with quoted values, comments, trailing whitespace, and `based_on: "[[...]]"` is, after rewriting, **byte-identical** except for the status line (golden comparison).
 2. State-machine table-driven: full coverage of legal / illegal from→to / owner.
 3. dirty file → abort and no write.
@@ -126,9 +132,7 @@ POST /status (path, from, to)
 6. Real git verification (temp git repo): the commit exists, the message format is correct, the author is taken from the repo git config, and the diff is exactly one line.
 7. A cross-origin POST (`Sec-Fetch-Site: cross-site`) is rejected.
 
-**Acceptance (manual, = the v0 shipping gate D10)**:
-8. Koopa finishes a real long piece in `Writing/` and presses a legal transition; `git -C ~/obsidian log -1 --stat` shows that commit (author = Koopa, one file, one line); Obsidian confirms only the status changed.
-9. A `ready` file's panel has no keys (no-legal-transition presentation is correct); drills show "No frontmatter (valid)".
+**Acceptance (manual, = the v0 shipping gate D10)**: 8. Koopa finishes a real long piece in `Writing/` and presses a legal transition; `git -C ~/obsidian log -1 --stat` shows that commit (author = Koopa, one file, one line); Obsidian confirms only the status changed. 9. A `ready` file's panel has no keys (no-legal-transition presentation is correct); drills show "No frontmatter (valid)".
 
 ## 5. The judge and agent toolbox (kura inheritance face)
 
@@ -139,12 +143,14 @@ POST /status (path, from, to)
 **Egress exclusion**: `check` unconditionally excludes `Diary/` (not even `--all` includes it — findings written to a report will be read by agents; §0.1 privacy boundary, read from toml `[privacy]` once it lands).
 
 **First batch of extensions (verified on the vault side, the three gates passed; to be done after the byte-compat gate is met)**:
+
 1. **frontmatter query** — structured queries (e.g. `type=lesson status=imported domain=golang`). Today this relies on `rg '^status:'` by hand plus manual intersection, with multiple vault skills each hand-rolling the same thing.
 2. **`backlinks <note>`** — backlinks / blast radius. rg is blind to alias-mediated links (`[[Title|display]]`), and the resolver's alias table is exactly where the value is; a recurring scenario before retiring / renaming.
 
 **Do-not-build list** (kura's field log has ruled these WATCH; kurodo does not take them on): the ruby-pairing check (zero real failures), the stray-tag check (root cause is in the hermes generation pipeline, fix it at the source), vector / semantic search (D05's three gates not passed). orphans are not missing — `coverage`'s three-tier classification (mounted / pending_mount / orphan) already covers it, no separate command.
 
 **Acceptance (= the kura retirement gate)**:
+
 1. kura conformance snapshots are byte-exact (`conformance__jsonl_output.snap`, `conformance__coverage_report.snap`).
 2. Against the real vault: `kurodo check` and `kura check` produce byte-for-byte identical JSONL.
 3. schema.* rules follow vault-guard-spec §8 granularity: the (path, rule-class, field/value) sets are equivalent.
@@ -156,6 +162,7 @@ POST /status (path, from, to)
 **Spec**: `kurodo export` = SSG static output (`dist/`), covering the Japanese lessons + the syllabus index + the five interactions (furigana visibility toggle, native details folding, TTS `data-tts` stripping `<rt>/<rp>` at build time, slot sidecar, concept `<dialog>`). Egress face: unconditionally excludes `Diary/` (§0.1 privacy boundary). PWA / Service Worker: **cut, not inherited** — yomihon's SW, being HTTP-only, never actually registered and is verified dead weight. export output = pure static files.
 
 **Acceptance (= the yomihon retirement gate)**:
+
 1. The five interactions are independently reproduced and all fixtures pass (yomihon's testdata assertion pattern + direct consumption of `slots/L01–L20.yaml`).
 2. `m1-review/` screenshots at visual parity.
 3. Koopa actually studies with kurodo for two weeks. Until then, yomihon is frozen in service (tag `v1.0.0`).
