@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/koopa-dev-design-system-5c9a2936-603f-476f-a541-2706db516827/styles.css">
+<link rel="stylesheet" href="kurodo-theme.css">
+<script src="_ds/koopa-dev-design-system-5c9a2936-603f-476f-a541-2706db516827/_ds_bundle.js"></script>
+</helmet>
+<div class="kurodo" lang="zh-Hant" data-theme="{{ theme }}" data-ruby="{{ ruby }}" data-nav="{{ nav }}" style="min-height:100vh; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:var(--font-sans); font-size:var(--fs-14); line-height:var(--lh-normal);">
+
+  <!-- ============ HEADER ============ -->
+  <header style="position:sticky; top:0; z-index:30; height:56px; flex:none; display:flex; align-items:center; gap:16px; padding:0 20px; background:color-mix(in oklch, var(--panel) 82%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--border);">
+    <button class="k-hamburger" onClick="{{ toggleNav }}" aria-label="Toggle navigation" title="Navigation" style="align-items:center; justify-content:center; width:32px; height:32px; background:transparent; border:1px solid var(--border); border-radius:var(--r-sm); cursor:pointer; color:var(--fg-muted);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg></button>
+    <div style="display:flex; align-items:baseline; gap:11px;">
+      <a href="Syllabus Page.dc.html" style="font-family:var(--font-display); font-weight:var(--fw-semibold); font-size:var(--fs-18); letter-spacing:var(--track-snug); color:var(--fg);">kurodo</a>
+      <span style="width:5px; height:5px; border-radius:1px; background:var(--accent); align-self:center;"></span>
+      <span style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--fg-faint); letter-spacing:.11em;">SYLLABUS</span>
+    </div>
+    <div style="flex:1;"></div>
+    <button class="k-searchbtn" onClick="{{ openSearch }}" style="display:flex; align-items:center; gap:10px; height:32px; padding:0 10px 0 11px; background:var(--elevated); border:1px solid var(--border); border-radius:var(--r-sm); color:var(--fg-subtle); font-family:var(--font-sans); font-size:var(--fs-13); cursor:pointer; min-width:214px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <span class="k-searchbtn__label" style="flex:1; text-align:left;">Search notes…</span>
+      <span class="ui-kbd">⌘K</span>
+    </button>
+    <button onClick="{{ toggleTheme }}" title="Toggle theme" style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; background:transparent; border:1px solid var(--border); border-radius:var(--r-sm); cursor:pointer; color:var(--fg-muted);">
+      <sc-if value="{{ isLight }}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg></sc-if>
+      <sc-if value="{{ isDark }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></sc-if>
+    </button>
+  </header>
+
+  <div class="k-nav-scrim" onClick="{{ closeNav }}"></div>
+
+  <!-- ============ BODY GRID ============ -->
+  <div class="k-shell2" style="flex:1;">
+
+    <!-- ---------- LEFT: path switcher + part jump-nav ---------- -->
+    <aside class="k-rail-left" style="border-right:1px solid var(--border); background:var(--panel); overflow-y:auto; padding:18px 12px 48px; max-height:calc(100vh - 56px); position:sticky; top:56px;">
+      <div class="ui-side__label" style="padding:0 8px 6px;">Study paths</div>
+      <a class="ui-navitem is-active" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path></svg>日本語 · N4<span class="ui-navitem__count">48</span></a>
+      <a class="ui-navitem" style="color:var(--fg-subtle);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path></svg>Go 工程實務<span class="ui-navitem__count">32</span></a>
+      <a class="ui-navitem" style="color:var(--fg-subtle);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path></svg>系統設計<span class="ui-navitem__count">18</span></a>
+
+      <div class="ui-side__label" style="padding:20px 8px 6px;">On this path</div>
+      <a class="ui-navitem" style="justify-content:space-between;">I · 基礎文体<span style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--sage);">12/12</span></a>
+      <a class="ui-navitem" style="justify-content:space-between;">II · 動作と時制<span style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--sage);">14/14</span></a>
+      <a class="ui-navitem is-active" style="justify-content:space-between;">III · 文体と語法<span style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--fg-faint);">7/13</span></a>
+      <a class="ui-navitem" style="justify-content:space-between; color:var(--fg-subtle);">IV · 待遇表現<span style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--fg-faint);">0/9</span></a>
+
+      <div style="margin:22px 8px 0; padding-top:16px; border-top:1px solid var(--border-faint);">
+        <div style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--fg-faint); letter-spacing:.04em;">33 / 48 ready</div>
+        <div style="margin-top:8px; height:4px; border-radius:2px; background:var(--elevated); overflow:hidden;"><div style="width:69%; height:100%; background:var(--accent); opacity:.8;"></div></div>
+      </div>
+    </aside>
+
+    <!-- ---------- MAIN: the path ---------- -->
+    <main style="overflow-y:auto; max-height:calc(100vh - 56px);">
+      <div style="max-width:800px; margin:0 auto; padding:44px 56px 120px;">
+
+        <div style="font-family:var(--font-mono); font-size:var(--fs-11); letter-spacing:.06em; color:var(--fg-faint);">SYLLABUS · 学習パス</div>
+        <h1 lang="ja" style="font-family:var(--font-kai); font-weight:400; font-size:var(--fs-ed-38); line-height:1.2; color:var(--fg); margin:12px 0 0;">日本語 <span style="color:var(--fg-faint); font-size:.7em;">/</span> N4</h1>
+        <p style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-ed-20); line-height:1.5; color:var(--fg-subtle); margin:8px 0 0; max-width:52ch;">四つの部、十二の課群、四十八のレッスン——文法を積み上げ、文体で締める。</p>
+
+        <div class="k-metarow" style="display:flex; align-items:center; flex-wrap:wrap; gap:8px 18px; margin:20px 0 0; font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint);">
+          <span>4 parts</span><span>·</span><span>12 modules</span><span>·</span><span>48 lessons</span>
+          <span style="flex:1;"></span>
+          <span style="display:inline-flex; align-items:center; gap:6px; color:var(--accent);"><span style="width:6px;height:6px;border-radius:1px;background:var(--accent);"></span>33 ready</span>
+        </div>
+
+        <div class="k-seam" style="margin:22px 0 0;"></div>
+
+        <!-- PART I — complete; the row jumps to the part (no fake disclosure) -->
+        <a href="Reading Page.dc.html" class="k-part" style="display:flex; align-items:baseline; gap:14px; padding:12px 0; margin:30px 0 0; border-bottom:1px solid var(--border);">
+          <span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint); width:24px;">I</span>
+          <span lang="ja" style="font-family:var(--font-kai); font-size:var(--fs-ed-24); color:var(--fg); flex:1;">基礎文体</span>
+          <span class="ui-status" style="color:var(--sage); background:var(--sage-bg); border-color:transparent;">12/12 ready</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-faint)" stroke-width="2" stroke-linecap="round" style="align-self:center; flex:none;"><path d="m9 6 6 6-6 6"></path></svg>
+        </a>
+
+        <!-- PART II — complete -->
+        <a href="Reading Page.dc.html" class="k-part" style="display:flex; align-items:baseline; gap:14px; padding:12px 0; border-bottom:1px solid var(--border);">
+          <span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint); width:24px;">II</span>
+          <span lang="ja" style="font-family:var(--font-kai); font-size:var(--fs-ed-24); color:var(--fg); flex:1;">動作と時制</span>
+          <span class="ui-status" style="color:var(--sage); background:var(--sage-bg); border-color:transparent;">14/14 ready</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-faint)" stroke-width="2" stroke-linecap="round" style="align-self:center; flex:none;"><path d="m9 6 6 6-6 6"></path></svg>
+        </a>
+
+        <!-- PART III — current, expanded inline (real content, not a disclosure) -->
+        <div style="margin:0;">
+          <div style="display:flex; align-items:baseline; gap:14px; padding:12px 0; border-bottom:1.5px solid var(--fg-muted);">
+            <span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--accent); width:24px;">III</span>
+            <span lang="ja" style="font-family:var(--font-kai); font-size:var(--fs-ed-24); color:var(--fg); flex:1;">文体と語法</span>
+            <span class="ui-status" style="color:var(--fg-subtle); background:var(--elevated); border-color:var(--border-faint);">7/13</span>
+          </div>
+
+          <!-- Module 3 -->
+          <div style="padding:22px 0 0 38px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+              <span style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--fg-faint); letter-spacing:.05em;">MODULE 3</span>
+              <span style="font-family:var(--font-sans); font-size:var(--fs-13); font-weight:var(--fw-medium); color:var(--fg-muted);">条件表現</span>
+              <span style="flex:1; height:1px; background:var(--border-faint);"></span>
+            </div>
+            <div class="k-lessons" style="display:flex; flex-direction:column;">
+              <a href="Reading Page.dc.html" style="display:grid; grid-template-columns:20px 40px 1fr auto; align-items:center; gap:14px; padding:11px 6px; border-bottom:1px solid var(--border-faint);"><span style="width:7px;height:7px;border-radius:1px;background:var(--accent);justify-self:center;"></span><span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint);">L16</span><span class="k-lrow" lang="ja" style="display:flex; align-items:baseline; gap:12px; min-width:0;"><span style="font-family:var(--font-kai); font-size:var(--fs-ed-20); color:var(--fg); white-space:nowrap;">と・ば・たら・なら</span><span style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-13); color:var(--fg-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">四つの条件形の使い分け</span></span><span class="ui-status" style="color:var(--accent); background:var(--accent-muted); border-color:transparent;">ready</span></a>
+              <a href="Reading Page.dc.html" style="display:grid; grid-template-columns:20px 40px 1fr auto; align-items:center; gap:14px; padding:11px 6px; border-bottom:1px solid var(--border-faint);"><span style="width:7px;height:7px;border-radius:1px;background:var(--accent);justify-self:center;"></span><span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint);">L17</span><span class="k-lrow" lang="ja" style="display:flex; align-items:baseline; gap:12px; min-width:0;"><span style="font-family:var(--font-kai); font-size:var(--fs-ed-20); color:var(--fg); white-space:nowrap;">仮定と事実</span><span style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-13); color:var(--fg-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">反実仮想の「たら」</span></span><span class="ui-status" style="color:var(--accent); background:var(--accent-muted); border-color:transparent;">ready</span></a>
+              <a href="Reading Page.dc.html" style="display:grid; grid-template-columns:20px 40px 1fr auto; align-items:center; gap:14px; padding:11px 6px; border-bottom:1px solid var(--border-faint);"><span style="width:7px;height:7px;border-radius:50%;background:var(--sage);justify-self:center;"></span><span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint);">L18</span><span class="k-lrow" lang="ja" style="display:flex; align-items:baseline; gap:12px; min-width:0;"><span style="font-family:var(--font-kai); font-size:var(--fs-ed-20); color:var(--fg); white-space:nowrap;">「のに」と逆接</span><span style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-13); color:var(--fg-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">期待に反する結果</span></span><span class="ui-status" style="color:var(--sage); background:var(--sage-bg); border-color:transparent;">evergreen</span></a>
+            </div>
+          </div>
+
+          <!-- Module 4 (current) -->
+          <div style="padding:26px 0 0 38px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+              <span style="font-family:var(--font-mono); font-size:var(--fs-11); color:var(--accent); letter-spacing:.05em;">MODULE 4</span>
+              <span style="font-family:var(--font-sans); font-size:var(--fs-13); font-weight:var(--fw-medium); color:var(--fg-muted);">文体</span>
+              <span style="flex:1; height:1px; background:var(--border-faint);"></span>
+            </div>
+            <div class="k-lessons" style="display:flex; flex-direction:column;">
+              <a href="Reading Page.dc.html" style="display:grid; grid-template-columns:20px 40px 1fr auto; align-items:center; gap:14px; padding:11px 6px; border-bottom:1px solid var(--border-faint);"><span style="width:7px;height:7px;border-radius:1px;background:var(--accent);justify-self:center;"></span><span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint);">L19</span><span class="k-lrow" lang="ja" style="display:flex; align-items:baseline; gap:12px; min-width:0;"><span style="font-family:var(--font-kai); font-size:var(--fs-ed-20); color:var(--fg); white-space:nowrap;">て形の復習</span><span style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-13); color:var(--fg-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">接続の総まとめ</span></span><span class="ui-status" style="color:var(--accent); background:var(--accent-muted); border-color:transparent;">ready</span></a>
+
+              <!-- CURRENT lesson -->
+              <a href="Reading Page.dc.html" style="display:grid; grid-template-columns:20px 40px 1fr auto; align-items:center; gap:14px; padding:13px 6px 13px 10px; border-bottom:1px solid var(--border-faint); background:var(--overlay); position:relative;"><span style="position:absolute; left:-2px; top:6px; bottom:6px; width:2.5px; background:var(--fg); border-radius:2px;"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--fg-muted);justify-self:center;"></span><span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-muted);">L20</span><span class="k-lrow" lang="ja" style="display:flex; align-items:baseline; gap:12px; min-width:0;"><span style="font-family:var(--font-kai); font-size:var(--fs-ed-20); color:var(--fg); white-space:nowrap;">普通形と常体</span><span style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-13); color:var(--fg-subtle); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">敬体から常体へ</span></span><span class="ui-status" style="color:var(--fg-muted); background:var(--elevated); border-color:var(--border);">draft</span></a>
+
+              <a href="Reading Page.dc.html" style="display:grid; grid-template-columns:20px 40px 1fr auto; align-items:center; gap:14px; padding:11px 6px; border-bottom:1px solid var(--border-faint);"><span style="width:7px;height:7px;border-radius:50%;background:var(--fg-faint);justify-self:center;"></span><span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint);">L21</span><span class="k-lrow" lang="ja" style="display:flex; align-items:baseline; gap:12px; min-width:0;"><span style="font-family:var(--font-kai); font-size:var(--fs-ed-20); color:var(--fg-muted); white-space:nowrap;">名詞修飾</span><span style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-13); color:var(--fg-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">連体修飾節の作り方</span></span><span class="ui-status" style="color:var(--fg-subtle); background:var(--elevated); border-color:var(--border-faint);">imported</span></a>
+              <a href="Reading Page.dc.html" style="display:grid; grid-template-columns:20px 40px 1fr auto; align-items:center; gap:14px; padding:11px 6px; border-bottom:1px solid var(--border-faint);"><span style="width:7px;height:7px;border-radius:50%;background:var(--fg-faint);justify-self:center;"></span><span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint);">L22</span><span class="k-lrow" lang="ja" style="display:flex; align-items:baseline; gap:12px; min-width:0;"><span style="font-family:var(--font-kai); font-size:var(--fs-ed-20); color:var(--fg-muted); white-space:nowrap;">普通形の接続</span><span style="font-family:var(--font-serif); font-style:italic; font-size:var(--fs-13); color:var(--fg-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">「〜と思う」「〜と言う」</span></span><span class="ui-status" style="color:var(--fg-subtle); background:var(--elevated); border-color:var(--border-faint);">imported</span></a>
+            </div>
+          </div>
+        </div>
+
+        <!-- PART IV — not started; row jumps to the part -->
+        <a href="Reading Page.dc.html" class="k-part" style="display:flex; align-items:baseline; gap:14px; padding:12px 0; border-bottom:1px solid var(--border); opacity:.7;">
+          <span style="font-family:var(--font-mono); font-size:var(--fs-12); color:var(--fg-faint); width:24px;">IV</span>
+          <span lang="ja" style="font-family:var(--font-kai); font-size:var(--fs-ed-24); color:var(--fg-muted); flex:1;">待遇表現</span>
+          <span class="ui-status" style="color:var(--fg-faint); background:var(--panel); border-color:var(--border-faint);">9 imported</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-faint)" stroke-width="2" stroke-linecap="round" style="align-self:center; flex:none;"><path d="m9 6 6 6-6 6"></path></svg>
+        </a>
+
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'light', ruby: true, nav: 'closed' };
+  componentDidMount() {
+    this._kd = (e) => { if (e.key === 'Escape' && this.state.nav === 'open') this.setState({ nav: 'closed' }); };
+    window.addEventListener('keydown', this._kd);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this._kd); }
+  renderVals() {
+    return {
+      theme: this.state.theme,
+      ruby: this.state.ruby ? 'on' : 'off',
+      rubyOn: this.state.ruby,
+      rubyOff: !this.state.ruby,
+      isLight: this.state.theme === 'light',
+      isDark: this.state.theme === 'dark',
+      nav: this.state.nav,
+      toggleNav: () => this.setState((s) => ({ nav: s.nav === 'open' ? 'closed' : 'open' })),
+      closeNav: () => this.setState({ nav: 'closed' }),
+      toggleTheme: () => this.setState((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
+      toggleRuby: () => this.setState((s) => ({ ruby: !s.ruby })),
+      openSearch: () => { window.location.href = 'Search Panel.dc.html'; },
+    };
+  }
+}
+</script>
+</body>
+</html>
