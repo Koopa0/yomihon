@@ -61,7 +61,7 @@ if (form) {
       firing = false;
    const start = (e) => {
       if (firing) return;
-      e.preventDefault(); // suppress the instant click; the hold is the gesture
+      e.preventDefault(); // touch: suppress the synthesized mouse events
       fill(btn, true); // CSS-driven wipe animation
       timer = setTimeout(() => {
          firing = true;
@@ -72,6 +72,7 @@ if (form) {
       clearTimeout(timer);
       if (!firing) fill(btn, false);
    };
+   btn.addEventListener("click", (e) => e.preventDefault()); // mouse: kill the native submit (see note below)
    btn.addEventListener("pointerdown", start);
    btn.addEventListener("pointerup", cancel);
    btn.addEventListener("pointerleave", cancel);
@@ -88,6 +89,12 @@ if (form) {
   one-press submit — still correct, just without the ritual.
 - The fill/wipe is a CSS animation toggled by a class; JS only adds/removes it.
 - Only `ready` gets the hold; every other transition is a bare one-click form.
+- **The `type=submit` + native-click gotcha.** The button stays `type=submit` so
+  it works with JS off. With JS on you must cancel the native `click` too:
+  `preventDefault` on `pointerdown` suppresses only the compat mouse events, **not
+  `click`**, so on a mouse a quick click would still fire the button's native
+  submit and defeat the hold. `requestSubmit` (the hold's path) never fires
+  `click`, so cancelling `click` doesn't block the real seal.
 
 ## 3. One-shot post-action signal (animate once, survive refresh)
 
