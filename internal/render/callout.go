@@ -35,21 +35,21 @@ const (
 )
 
 // calloutBucketOf maps a callout type (already lowercased) to its bucket
-// and default Chinese title, exactly per docs/vault-model.md's table.
+// and default English title, exactly per docs/vault-model.md's table.
 // bucketUnknown means the type is not recognized — the caller falls back
 // to a plain blockquote and records a Diagnostic.
 func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 	switch typ {
 	case "info", "note", "tip", "hint", "abstract", "summary", "todo":
-		return bucketNote, "提示"
+		return bucketNote, "Note"
 	case "question", "help", "faq":
-		return bucketNote, "問題"
+		return bucketNote, "Question"
 	case "example", "quote", "cite":
-		return bucketNote, "範例"
+		return bucketNote, "Example"
 	case "warning", "caution", "attention":
-		return bucketWarning, "注意"
+		return bucketWarning, "Warning"
 	case "danger", "error", "bug", "fail", "failure", "missing":
-		return bucketWarning, "警告"
+		return bucketWarning, "Danger"
 	default:
 		return bucketUnknown, ""
 	}

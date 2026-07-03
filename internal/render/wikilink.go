@@ -66,7 +66,7 @@ func fenceCloses(line string, marker byte) bool {
 // looksRisky reports whether line contains one of the dialect patterns
 // (wikilink, callout, GFM table row) the preprocessing passes would
 // otherwise convert — worth a single warning when found inside a fence
-// (docs/vault-model.md's Code fence 安全 section), never acted on.
+// (docs/vault-model.md's Code-fence safety section), never acted on.
 func looksRisky(line string) bool {
 	if strings.Contains(line, "[[") {
 		return true
@@ -84,7 +84,7 @@ func looksRisky(line string) bool {
 // Obsidian %%...%% comment state as it scans, and treats neither as
 // syntax to convert; %% state is line-spanning, carried in inComment
 // across the whole call (see convertLine). At most one risky-fence
-// diagnostic is recorded per call (docs/vault-model.md's "一次 build
+// diagnostic is recorded per call (docs/vault-model.md's "one build
 // warning", not one per occurrence) — this dedup is scoped to a single
 // preprocess call, not threaded across the recursive calls render makes
 // for a callout body or a transcluded embed, so a note with risky fences
@@ -368,7 +368,7 @@ func (r *Renderer) renderEmbed(target string, allowEmbed embedPolicy, diags *[]D
 			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(target))
 	case graph.Unique:
 		if !strings.HasSuffix(res.Path, ".md") {
-			return fmt.Sprintf(`<div class="embed-media">［嵌入媒體：<span>%s</span>，尚未支援直接顯示］</div>`,
+			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <span>%s</span> — inline display not yet supported]</div>`,
 				html.EscapeString(path.Base(res.Path)))
 		}
 		n, err := vault.ReadNote(r.root, res.Path)

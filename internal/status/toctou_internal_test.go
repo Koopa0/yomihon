@@ -6,7 +6,7 @@ package status
 // os.Stat and its pre-write recheck) that no exported API can trigger from
 // outside the package without a real, inherently flaky filesystem race.
 // Extracting it and testing it directly here is the only way to exercise
-// docs/spec.md §4's "mtime 變動" row deterministically.
+// docs/spec.md §4's "mtime changed" row deterministically.
 
 import (
 	"errors"

@@ -5,11 +5,11 @@ package layouts
 
 templ Base(title string) {
 	<!DOCTYPE html>
-	<html lang="zh-Hant">
+	<html lang="en">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ title } — 蔵人</title>
+			<title>{ title } — kurodo</title>
 			<link rel="stylesheet" href="/static/chroma.css"/>
 			<style>
 				body {
@@ -75,7 +75,7 @@ templ Base(title string) {
 				}
 
 				/* Callouts (internal/render/callout.go) — two buckets, two
-					   tints (docs/vault-model.md's 兩桶配色 requirement). */
+					   tints (docs/vault-model.md's two-bucket color scheme requirement). */
 				.callout {
 					border-radius: 0.5rem;
 					border: 1px solid;
@@ -152,7 +152,7 @@ templ Base(title string) {
 			</style>
 		</head>
 		<body>
-			<header>蔵人 kurodo</header>
+			<header>kurodo</header>
 			<main>
 				{ children... }
 			</main>

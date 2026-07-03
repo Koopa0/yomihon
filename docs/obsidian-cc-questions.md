@@ -1,37 +1,37 @@
-# 給 obsidian Claude Code 的四件事
+# Items for the obsidian Claude Code session
 
-> 用途：Koopa 帶去 vault repo 的 session 貼給 obsidian CC。回覆請落檔（vault 側自定落點），Koopa 會帶回來。
+> Purpose: Koopa brings this into a session in the vault repo and pastes it to the obsidian CC. Please write replies to a file (the vault side picks where); Koopa will bring them back.
 >
-> 請求方脈絡（兩行）：蔵人 kurodo（`~/go/src/github.com/koopa0/kurodo`）是 vault 的本地閱讀＋裁決介面，也是 yomihon 與 kura 的繼承者——kura 退役閘（M4）達成前 kura 一行不動。kurodo 的 schema 理解唯一來源是 `System/schemas/vault-schema.toml`，不硬編碼。
+> Requester context (two lines): kurodo (`~/go/src/github.com/koopa0/kurodo`) is the vault's local reading + adjudication interface, and the successor to yomihon and kura — until kura's retirement gate (M4) is reached, not one line of kura changes. kurodo's single source of schema understanding is `System/schemas/vault-schema.toml`; it is never hardcoded.
 
-## 1. CLI 需求清單（對 M4 介面設計最有價值）
+## 1. CLI requirements list (most valuable for the M4 interface design)
 
-kurodo M4 會吸收 kura 的 `check` / `exists` / `coverage`，JSONL 契約、`--format`、exit code 與掃描邊界維持 byte-compatible。想知道 vault 側的**真實用法**：
+kurodo's M4 will absorb kura's `check` / `exists` / `coverage`, keeping the JSONL contract, `--format`, exit codes, and scan boundary byte-compatible. We want to know the **real-world usage** on the vault side:
 
-- 你（與 hermes 管線之外的手動場景）實際用哪些指令與 flags？頻率？（`check --deny`、`exists` 當 dedup oracle、`coverage`、`--format md`、`--all`…）
-- 有沒有「每次都要繞路」的缺口？候選：`backlinks <note>`（反向連結／blast radius）、orphans 查詢、frontmatter query（如「列出所有 status=draft 的 lesson」）、其他。
-- 只收集需求排優先序，不是承諾清單；擴展走 kurodo 的院子排程。
+- Which commands and flags do you (and the manual scenarios outside the hermes pipeline) actually use? How often? (`check --deny`, `exists` as a dedup oracle, `coverage`, `--format md`, `--all`, …)
+- Are there gaps where "you always have to work around it"? Candidates: `backlinks <note>` (backlinks / blast radius), an orphans query, a frontmatter query (e.g., "list every lesson with status=draft"), and others.
+- This only gathers requirements and prioritizes them; it is not a commitment list. Any expansion is scheduled through kurodo's yard.
 
-## 2. Vault-Index 的入口語意
+## 2. The entry semantics of Vault-Index
 
-kurodo 的首頁（M2）想直接沿用 `System/Vault-Index.md` 的分區當資訊架構（四張看板、缺口帳、domain MOC 入口），而不是發明自己的首頁。請指出：
+kurodo's homepage (M2) wants to reuse the sections of `System/Vault-Index.md` directly as its information architecture (the four boards, the gap ledger, the domain MOC entries) rather than inventing its own homepage. Please point out:
 
-- 哪些分區是**穩定入口**（值得做成 kurodo 首頁區塊）、哪些是暫時性的？
-- `Views/` 五個 `.base` 檔的角色定位——kurodo v0 對 Bases 只做「連回 Obsidian 開啟」，這樣分工對嗎？
+- Which sections are **stable entry points** (worth turning into kurodo homepage blocks) and which are temporary?
+- The role of the five `.base` files in `Views/` — for v0, kurodo does only "link back to open in Obsidian" for Bases; is that division of labor right?
 
-## 3. diary type ＋ 隱私出站線（vault 側 pending，請起草）
+## 3. The diary type + the privacy egress line (pending on the vault side — please draft)
 
-kurodo 是 local-only（loopback 寫死），會索引**整座 vault**——所以「哪些內容永不出站、永不進 agent context」需要在 hermes 的雲端 lane 開動之前有專文。請 vault 側起草：
+kurodo is local-only (loopback is hardcoded) and will index **the entire vault** — so "which content never egresses and never enters agent context" needs a dedicated document before hermes's cloud lane starts up. Please have the vault side draft:
 
-- `type: diary` 的 schema 決定：落點 folder、status 組、是否進 `[scan]` 範圍。
-- 隱私線專文（建議落 `System/agent-guides/`）：哪些 type/folder 允許送雲端腦、哪些永不；kura/kurodo 是否要一條機械可判的規則。
+- The schema decision for `type: diary`: which folder it lands in, its status set, and whether it enters `[scan]` scope.
+- The privacy-line document (suggested location: `System/agent-guides/`): which types/folders may be sent to the cloud brain and which never; whether kura/kurodo need a single machine-decidable rule.
 
-## 4. slug 一頁化（方向已定，請落文）
+## 4. Consolidate the slug rules into one page (direction is set — please write it up)
 
-Koopa 已點頭的四句收斂：**只有 lessons 需要 slug；格式＝namespace 前綴＋編號（`jp-minna-lNN` / `jp-kana-pNN`，Go 課用 plain slug）；一經定稿永不改；其他筆記一律不需要 slug。**
+The four converged points Koopa has already nodded to: **only lessons need a slug; the format = namespace prefix + number (`jp-minna-lNN` / `jp-kana-pNN`, with Go lessons using a plain slug); once finalized it never changes; no other note needs a slug at all.**
 
-請落成一頁文件，並確認 `vault-schema.toml` 是否需要同步（目前 toml 只有 `slug_pattern`，namespace 前綴慣例還在文件層）。
+Please write this into a one-page document, and confirm whether `vault-schema.toml` needs to be synced (right now the toml has only `slug_pattern`; the namespace-prefix convention still lives at the document level).
 
-## 5. 硬規則：agent 永不呼叫 kurodo 寫入端點（請入 agent-guides 與 hermes 的指導文件）
+## 5. Hard rule: agents never call kurodo's write endpoint (please add to agent-guides and hermes's guidance docs)
 
-kurodo 的 status flip 會以 Koopa 的 git identity auto-commit。本機信任邊界內，任何同帳號程序（含 agent）`POST /status` 都會被記成一筆 Koopa-authored 的裁決——技術上不可區分（curl 沒有 Sec-Fetch-Site，同源防護只擋瀏覽器跨站），所以用治理修：請加一行硬規則——**「agent 永不呼叫 kurodo 的寫入端點（POST /status）；agent 的 status 提案一律走檔案改動＋review 管線」**。這與既有的「任何 agent 寫 ready 即違規」（vault-schema.toml lifecycle owner）同一條線的機械面。
+kurodo's status flip auto-commits under Koopa's git identity. Within the local trust boundary, any same-account process (including an agent) that calls `POST /status` is recorded as a Koopa-authored adjudication — technically indistinguishable (curl carries no Sec-Fetch-Site header, and same-origin protection only blocks cross-site browser requests). So fix it with governance: please add a one-line hard rule — **"agents never call kurodo's write endpoint (`POST /status`); an agent's status proposals always go through file changes + the review pipeline."** This is the mechanical face of the same rule as the existing "any agent that writes `ready` is a violation" (the vault-schema.toml lifecycle owner).

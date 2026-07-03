@@ -66,7 +66,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrConcurrentWrite):
 		// Distinct from ErrStale above: this is not an old browser tab —
 		// something touched the file in the narrow window between kurodo
-		// reading it and writing it back (docs/spec.md §4's "mtime 變動" row).
+		// reading it and writing it back (docs/spec.md §4's "mtime changed" row).
 		http.Error(w, "the file was modified between read and write; try again", http.StatusConflict)
 	case errors.Is(err, ErrDirty):
 		http.Error(w, "this file has uncommitted changes that a flip would pollute the audit trail with; resolve them first", http.StatusConflict)
@@ -82,8 +82,9 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 	case errors.Is(err, ErrCommitFailed):
 		// Deliberately not the generic 500 branch below: docs/spec.md §4's
-		// error table gives this its own presentation ("檔案已改＋git 原文
-		// ＋手動補救指令") because the fix requires seeing what git said.
+		// error table gives this its own presentation ("file already changed
+		// + raw git output + manual remediation command") because the fix
+		// requires seeing what git said.
 		// This is a loopback-only, single-operator tool (wall 2) — there is
 		// no other party who could read this response.
 		h.log.Error("status commit failed", "path", path, "error", err)

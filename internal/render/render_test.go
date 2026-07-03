@@ -206,7 +206,7 @@ func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {
 }
 
 // TestCalloutTypeTable covers every callout type in
-// docs/vault-model.md's table: correct bucket class and default Chinese
+// docs/vault-model.md's table: correct bucket class and default English
 // title, with no explicit title given.
 func TestCalloutTypeTable(t *testing.T) {
 	t.Parallel()
@@ -215,14 +215,14 @@ func TestCalloutTypeTable(t *testing.T) {
 	tests := []struct {
 		typ, bucketClass, title string
 	}{
-		{"info", "note", "提示"}, {"note", "note", "提示"}, {"tip", "note", "提示"},
-		{"hint", "note", "提示"}, {"abstract", "note", "提示"}, {"summary", "note", "提示"},
-		{"todo", "note", "提示"},
-		{"question", "note", "問題"}, {"help", "note", "問題"}, {"faq", "note", "問題"},
-		{"example", "note", "範例"}, {"quote", "note", "範例"}, {"cite", "note", "範例"},
-		{"warning", "warning", "注意"}, {"caution", "warning", "注意"}, {"attention", "warning", "注意"},
-		{"danger", "warning", "警告"}, {"error", "warning", "警告"}, {"bug", "warning", "警告"},
-		{"fail", "warning", "警告"}, {"failure", "warning", "警告"}, {"missing", "warning", "警告"},
+		{"info", "note", "Note"}, {"note", "note", "Note"}, {"tip", "note", "Note"},
+		{"hint", "note", "Note"}, {"abstract", "note", "Note"}, {"summary", "note", "Note"},
+		{"todo", "note", "Note"},
+		{"question", "note", "Question"}, {"help", "note", "Question"}, {"faq", "note", "Question"},
+		{"example", "note", "Example"}, {"quote", "note", "Example"}, {"cite", "note", "Example"},
+		{"warning", "warning", "Warning"}, {"caution", "warning", "Warning"}, {"attention", "warning", "Warning"},
+		{"danger", "warning", "Danger"}, {"error", "warning", "Danger"}, {"bug", "warning", "Danger"},
+		{"fail", "warning", "Danger"}, {"failure", "warning", "Danger"}, {"missing", "warning", "Danger"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.typ, func(t *testing.T) {
