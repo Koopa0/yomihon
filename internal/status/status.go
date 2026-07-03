@@ -108,7 +108,7 @@ func (s *Service) Transitions(noteType, current string) []string {
 // toml order (schema.Statuses("")) — the stable status axis the reading page's
 // Lifecycle rail lists, independent of any one note. It returns nil when the
 // write face is closed. This is read-only schema vocabulary, not a transition
-// decision, and the enum still traces to the toml (wall 3): nothing is
+// decision, and the enum still traces to the toml: nothing is
 // hardcoded here.
 func (s *Service) Order() []string {
 	if s.Closed() {

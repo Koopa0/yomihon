@@ -132,7 +132,7 @@ POST /status (path, from, to)
 6. Real git verification (temp git repo): the commit exists, the message format is correct, the author is taken from the repo git config, and the diff is exactly one line.
 7. A cross-origin POST (`Sec-Fetch-Site: cross-site`) is rejected.
 
-**Acceptance (manual, = the v0 shipping gate D10)**: 8. Koopa finishes a real long piece in `Writing/` and presses a legal transition; `git -C ~/obsidian log -1 --stat` shows that commit (author = Koopa, one file, one line); Obsidian confirms only the status changed. 9. A `ready` file's panel has no keys (no-legal-transition presentation is correct); drills show "No frontmatter (valid)".
+**Acceptance (manual, = the v0 shipping gate D10)**: 8. Koopa finishes a real long piece in `Writing/` and presses a legal transition; `git -C ~/obsidian log -1 --stat` shows that commit (author = Koopa, one file, one line); Obsidian confirms only the status changed. 9. When the current status has no legal transitions the panel shows no keys (the "No legal transitions" branch). Note: this contract keeps `archived` reachable from every status (`from = ["*"]`), so a valid note always offers at least that key — the no-keys branch is the panel's fail-safe, not a state a live vault file reaches; verify it against the panel logic (or a note whose contract yields an empty set), not against a `ready` file. Drills show "No frontmatter (valid)".
 
 ## 5. The judge and agent toolbox (kura inheritance face)
 

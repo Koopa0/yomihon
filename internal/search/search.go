@@ -158,7 +158,7 @@ func (idx *Index) Len() int {
 // single pass; notes with no status land in the "" bucket. It is the primitive
 // the reading page's Lifecycle rail uses to show a live count beside each schema
 // status, instead of running a full Search per status value. The status
-// vocabulary the caller displays still comes from the schema contract (wall 3);
+// vocabulary the caller displays still comes from the schema contract;
 // this only counts what the index already holds.
 func (idx *Index) CountByStatus() map[string]int {
 	counts := make(map[string]int, len(idx.entries))

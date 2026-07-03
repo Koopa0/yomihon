@@ -20,7 +20,7 @@ import (
 
 // sealStatus is the one primary status — the koopa-only seal (落款／鈐印).
 // Naming it in one place documents the single spot the UI treats a status
-// specially; it duplicates no enum — those live in the schema toml (wall 3).
+// specially; it duplicates no enum — those live in the schema toml.
 const sealStatus = "ready"
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
@@ -122,7 +122,7 @@ func Note(v NoteView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<main class=\"k-main\"><article class=\"k-article\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<main class=\"k-main\"><article class=\"k-article\" lang=\"zh-Hant\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
