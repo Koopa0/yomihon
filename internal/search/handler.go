@@ -41,7 +41,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	results := h.index().Search(Parse(q))
 
 	view := pages.SearchView{Query: q, Results: viewResults(results)}
-	if err := pages.Search(view).Render(r.Context(), w); err != nil {
+	if err := pages.Search(view, pages.ChromeFromRequest(r, "Search")).Render(r.Context(), w); err != nil {
 		h.log.Error("write search page", "query", q, "error", err)
 	}
 }

@@ -104,6 +104,38 @@ func (s *Service) Transitions(noteType, current string) []string {
 	return legal
 }
 
+// Order returns the default note group's statuses in the contract's declared
+// toml order (schema.Statuses("")) — the stable status axis the reading page's
+// Lifecycle rail lists, independent of any one note. It returns nil when the
+// write face is closed. This is read-only schema vocabulary, not a transition
+// decision, and the enum still traces to the toml: nothing is
+// hardcoded here.
+func (s *Service) Order() []string {
+	if s.Closed() {
+		return nil
+	}
+	return s.contract.Statuses("")
+}
+
+// LastCommitHash returns the short hash of the most recent commit that touched
+// rel, via a read-only `git log -1 --format=%h -- <rel>`. It is the provenance
+// line the reading page shows beside a sealed (ready) note. internal/status is
+// the only package permitted to run git (wall 1); a read-only query is no
+// exception to that boundary, which is why it lives here. Returns "" (no error)
+// when rel has no commits yet — an un-committed note simply shows no provenance
+// line.
+func (s *Service) LastCommitHash(ctx context.Context, rel string) (string, error) {
+	rel = filepath.FromSlash(rel)
+	if !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("status: hash %q: path escapes vault root", rel)
+	}
+	out, err := runGit(ctx, s.root, "log", "-1", "--format=%h", "--", rel)
+	if err != nil {
+		return "", fmt.Errorf("status: last commit hash %s: %w", filepath.ToSlash(rel), err)
+	}
+	return string(bytes.TrimSpace(out)), nil
+}
+
 // Flip moves the note at rel from status "from" to status "to": it
 // validates the transition against the contract, rewrites exactly the
 // frontmatter status line, and commits the change under the vault's own

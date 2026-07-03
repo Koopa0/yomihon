@@ -44,13 +44,13 @@ All Go conventions follow go-spec: `~/go/src/github.com/koopa0/go-spec`. Highlig
 
 ## Reference implementations (reference, don't port code; correctness transfers via fixtures, see D04)
 
-| Scope | Location |
-|---|---|
-| Reference implementation for Obsidian dialect rendering | `~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go` |
-| Reference spec for wikilink resolution semantics | `~/rust/github.com/koopa0/kura/src/graph.rs`, `src/wikilink.rs` |
-| An existing markdown component | `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts` (assumes an untrusted body; a different context) |
-| templ UI blocks | `~/go/src/github.com/koopa0/goilerplate/blocks/` (take only the UI blocks, not its layered structure) |
-| Reading-interface style reference | `~/Downloads/tailwind-plus-syntax/syntax-ts/` |
+| Scope                                                   | Location                                                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Reference implementation for Obsidian dialect rendering | `~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go`                                                   |
+| Reference spec for wikilink resolution semantics        | `~/rust/github.com/koopa0/kura/src/graph.rs`, `src/wikilink.rs`                                                    |
+| An existing markdown component                          | `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts` (assumes an untrusted body; a different context) |
+| templ UI blocks                                         | `~/go/src/github.com/koopa0/goilerplate/blocks/` (take only the UI blocks, not its layered structure)              |
+| Reading-interface style reference                       | `~/Downloads/tailwind-plus-syntax/syntax-ts/`                                                                      |
 
 ## Harness (synced from the go-spec bootstrap on 2026-07-02)
 
@@ -58,17 +58,19 @@ Rules live in `.claude/rules/` (path-scoped); the decision tree is in `.claude/Q
 
 ## Available Agents
 
-| Agent | Purpose |
-|---|---|
-| `comprehend` | Understand the codebase before starting work |
-| `planner` | Design a plan before implementing |
-| `scaffold` | Build a feature package skeleton |
-| `go-reviewer` | Go code review |
-| `review-code` | Deep, paranoid review |
-| `db-reviewer` | SQL / schema review |
-| `test-writer` | Test generation |
-| `build-resolver` | Fix build / lint errors |
+| Agent            | Purpose                                      |
+| ---------------- | -------------------------------------------- |
+| `comprehend`     | Understand the codebase before starting work |
+| `planner`        | Design a plan before implementing            |
+| `scaffold`       | Build a feature package skeleton             |
+| `go-reviewer`    | Go code review                               |
+| `review-code`    | Deep, paranoid review                        |
+| `db-reviewer`    | SQL / schema review                          |
+| `test-writer`    | Test generation                              |
+| `build-resolver` | Fix build / lint errors                      |
 
 ## Available Skills
 
 Skills synced from go-spec (see `.claude/skills/` for the list): http-server / testing / debug / lifecycle / verify / checkpoint, and others. Some don't apply (genkit, nats, auth, docker, otel, ristretto, api-design were dropped; the pgx/sqlc/postgres/testcontainers skills remain on disk as shared reference but kurodo has no database — D24).
+
+One skill is **project-local**, not from the go-spec sync: `native-web-first` (HTML-first / CSS-first / Baseline-Web-API discipline for the server-rendered templ + vanilla-JS UI; authored for the 2026-07-03 reading-page redesign, D26–D28). A genericized copy is upstreamed to go-spec, but this repo's copy carries the kurodo-specific pins (the four walls, D27 zero-JS write path, D28 English chrome, the design bundle as sole UI reference).

@@ -1,39 +1,164 @@
-/* kurodo runtime — the first (and so far only) client-side script this
-   repo ships. All vanilla, zero framework, loaded `defer` from
-   internal/ui/layouts/base.templ. Its one job: render ```mermaid fences
-   (internal/render's consumeMermaid leaves each as a
-   <div class="mermaid-diagram" data-mermaid-code="…"> placeholder,
-   already-readable as plain text) into an actual SVG diagram, client-side,
-   lazily — only on pages that have at least one such element, so a note
-   with no diagrams never pulls in the mermaid bundle at all.
+/* kurodo runtime — the one client-side script this repo ships. All vanilla,
+   zero framework, no build step, loaded `defer` from the layout. Every behavior
+   here is progressive enhancement over a page that already works with JS off:
 
-   Mirrors koopa0.dev's frontend/src/app/core/services/markdown.service.ts
-   (processMermaidDiagrams/renderMermaid) DOM/JS convention exactly: the
-   div.mermaid-diagram + data-mermaid-code shape, mermaid.initialize's
-   startOnLoad:false/securityLevel:'strict' options, and DOMParser-based
-   SVG replacement instead of innerHTML (defense in depth kurodo doesn't
-   strictly need today — this corpus is trusted, docs/vault-model.md — but
-   consistency of practice matters since kurodo may eventually gain
-   less-trusted content paths). The one intentional difference is HOW the
-   mermaid runtime is loaded: koopa0.dev's Angular build bundles `mermaid`
-   from npm and resolves `import('mermaid')` itself; kurodo has no
-   bundler, so this imports the vendored ES module straight from
-   internal/asset's static route instead. */
+     - theme / furigana toggles: flip the root data-* attribute + cookie; the
+       server renders the correct state on first byte and CSS does the visual
+       switch, so JS only persists the choice.
+     - nav drawer (narrow screens): open/close via the root data-nav attribute.
+     - the seal: a press-and-hold gesture layered on a plain <form method="post">.
+       On completion it calls form.requestSubmit() — never fetch — so the server
+       sees exactly the no-JS submit; with JS off the button is a one-press seal.
+     - the ?sealed=1 one-shot: the panel already renders its settle animation
+       server-side; JS just strips the param so a refresh does not replay it.
+     - ⌘K search: opens the native <dialog>; the header link to /search is the
+       no-JS fallback.
+     - mermaid: renders ```mermaid fences into SVG, lazily, only on pages that
+       have one. Unchanged from the original runtime. */
 (() => {
   'use strict';
 
+  const root = document.documentElement;
+
+  // ---- persisted toggles (theme, furigana) --------------------------------
+  // Flip the root data-* attribute (CSS reacts instantly) and write the cookie
+  // so the next server render matches. data-* is the whole HTML↔JS contract.
+  function setToggle(name, value) {
+    root.dataset[name] = value;
+    document.cookie = `kurodo_${name}=${value};path=/;max-age=31536000;samesite=lax`;
+  }
+  function initToggles() {
+    document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
+      setToggle('theme', root.dataset.theme === 'dark' ? 'light' : 'dark');
+    });
+    document.querySelector('[data-ruby-toggle]')?.addEventListener('click', () => {
+      setToggle('ruby', root.dataset.ruby === 'off' ? 'on' : 'off');
+    });
+  }
+
+  // ---- nav drawer (≤900) ---------------------------------------------------
+  function initDrawer() {
+    document.querySelector('[data-nav-toggle]')?.addEventListener('click', () => {
+      root.dataset.nav = root.dataset.nav === 'open' ? 'closed' : 'open';
+    });
+    document.querySelector('[data-nav-close]')?.addEventListener('click', () => {
+      root.dataset.nav = 'closed';
+    });
+  }
+
+  // ---- the seal: hold-to-submit over a plain form --------------------------
+  // The write path is a real POST form (no-JS: one press submits + PRG). JS adds
+  // a ~430ms press-and-hold as a misclick guard, then submits the SAME form.
+  const HOLD_MS = 430;
+  let holdTimer = null;
+  let holding = false;
+  let sealing = false;
+  // Every seal fill in the DOM animates together — the right-rail button and the
+  // narrow-screen bar share the class, so whichever is visible fills identically.
+  function sealFills() {
+    return document.querySelectorAll('.k-sealfill');
+  }
+  function holdStart(form) {
+    if (sealing || holding || !form) return;
+    holding = true;
+    sealFills().forEach((f) => {
+      f.style.transition = `width ${HOLD_MS}ms linear`;
+      f.style.width = '100%';
+    });
+    holdTimer = setTimeout(() => {
+      holding = false;
+      sealing = true;
+      form.requestSubmit(); // NOT fetch: the server sees exactly the no-JS submit
+    }, HOLD_MS + 20);
+  }
+  function holdEnd() {
+    if (!holding) return;
+    holding = false;
+    clearTimeout(holdTimer);
+    sealFills().forEach((f) => {
+      f.style.transition = 'width 150ms ease';
+      f.style.width = '0';
+    });
+  }
+  function initSeal() {
+    document.querySelectorAll('[data-seal]').forEach((form) => {
+      const btn = form.querySelector('[data-seal-btn]');
+      if (!btn) return;
+      // The button stays a real type=submit so it seals in one press with JS
+      // off. With JS on, only the completed hold may commit, so the NATIVE
+      // submit must be suppressed. preventDefault on pointerdown is not enough:
+      // for a mouse it cancels only the compat mouse events, not the click, so a
+      // quick click would still submit — defeating the whole misclick guard.
+      // Cancel the click itself; requestSubmit (the hold's path) never fires click.
+      btn.addEventListener('click', (e) => e.preventDefault());
+      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); holdStart(form); });
+      btn.addEventListener('pointerup', holdEnd);
+      btn.addEventListener('pointerleave', holdEnd);
+      btn.addEventListener('pointercancel', holdEnd);
+      btn.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); holdStart(form); }
+      });
+      btn.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') holdEnd(); });
+    });
+    // Losing focus mid-hold (cmd-tab, alt-tab) means the pointerup/keyup that
+    // would cancel never arrives — cancel the hold so the running timer can't
+    // seal unwatched.
+    window.addEventListener('blur', holdEnd);
+  }
+  // The settle animation renders server-side when ?sealed=1 is present; strip the
+  // param (without reloading) so a manual refresh does not replay it.
+  function stripSealSignal() {
+    const u = new URL(location.href);
+    if (u.searchParams.get('sealed') !== '1') return;
+    u.searchParams.delete('sealed');
+    history.replaceState(null, '', u);
+  }
+
+  // ---- ⌘K search dialog + global keys --------------------------------------
+  function initSearch() {
+    const dialog = document.querySelector('[data-search]');
+    if (!dialog) return;
+    document.querySelector('[data-search-open]')?.addEventListener('click', (e) => {
+      e.preventDefault(); // no-JS falls through this link to /search
+      if (!dialog.open) dialog.showModal();
+    });
+  }
+  function initKeys() {
+    const dialog = document.querySelector('[data-search]');
+    const sealForm = document.querySelector('[data-seal]');
+    window.addEventListener('keydown', (e) => {
+      const t = e.target;
+      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        if (dialog) { dialog.open ? dialog.close() : dialog.showModal(); }
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (root.dataset.nav === 'open') root.dataset.nav = 'closed';
+        holdEnd();
+        return; // <dialog> closes itself on Escape
+      }
+      if (typing || (dialog && dialog.open)) return;
+      if ((e.key === 'r' || e.key === 'R') && !e.repeat && sealForm && !sealing) {
+        e.preventDefault();
+        holdStart(sealForm);
+      }
+    });
+    window.addEventListener('keyup', (e) => { if (e.key === 'r' || e.key === 'R') holdEnd(); });
+  }
+
+  // ---- mermaid (unchanged) -------------------------------------------------
   // internal/render's consumeMermaid encodes data-mermaid-code with Go's
-  // net/url.QueryEscape, which — unlike JS's encodeURIComponent — encodes
-  // a literal space as "+", not "%20". decodeURIComponent alone leaves a
-  // stray "+" untouched (it is not one of the %XX escapes it knows), so
-  // every space in the diagram source would otherwise survive as a
-  // literal "+" and break mermaid's parser. Un-doing the "+"-for-space
-  // convention first, exactly like decoding an
-  // application/x-www-form-urlencoded value, keeps the two sides in sync.
+  // net/url.QueryEscape, which — unlike JS's encodeURIComponent — encodes a
+  // literal space as "+", not "%20". decodeURIComponent alone leaves a stray "+"
+  // untouched, so every space in the diagram source would otherwise survive as a
+  // literal "+" and break mermaid's parser. Un-doing the "+"-for-space convention
+  // first, exactly like decoding an application/x-www-form-urlencoded value, keeps
+  // the two sides in sync.
   function decodeMermaidCode(raw) {
     return decodeURIComponent(raw.replace(/\+/g, ' '));
   }
-
   async function renderMermaidDiagrams() {
     const blocks = document.querySelectorAll('.mermaid-diagram');
     if (blocks.length === 0) return; // never fetch the mermaid bundle on a page with no diagrams
@@ -57,14 +182,23 @@
         el.appendChild(document.importNode(svgEl, true));
       } catch (err) {
         console.warn('[kurodo] mermaid diagram failed to render:', err);
-        // Invalid diagram — leave the source text in place as a fallback.
       }
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
-  } else {
+  // ---- boot ----------------------------------------------------------------
+  function init() {
+    initToggles();
+    initDrawer();
+    initSeal();
+    stripSealSignal();
+    initSearch();
+    initKeys();
     renderMermaidDiagrams();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 })();

@@ -154,6 +154,20 @@ func (idx *Index) Len() int {
 	return len(idx.entries)
 }
 
+// CountByStatus tallies indexed notes by their canonical (NFC) status in a
+// single pass; notes with no status land in the "" bucket. It is the primitive
+// the reading page's Lifecycle rail uses to show a live count beside each schema
+// status, instead of running a full Search per status value. The status
+// vocabulary the caller displays still comes from the schema contract;
+// this only counts what the index already holds.
+func (idx *Index) CountByStatus() map[string]int {
+	counts := make(map[string]int, len(idx.entries))
+	for _, e := range idx.entries {
+		counts[e.Status]++
+	}
+	return counts
+}
+
 // stringField reads a string frontmatter value, empty when absent or not a
 // string (wall 4: a malformed field costs that field, never the build).
 func stringField(n *vault.Note, key string) string {
