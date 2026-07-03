@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	jsContentType  = "text/javascript; charset=utf-8"
-	cssContentType = "text/css; charset=utf-8"
+	jsContentType    = "text/javascript; charset=utf-8"
+	cssContentType   = "text/css; charset=utf-8"
+	woff2ContentType = "font/woff2"
 )
 
 // entry is one servable asset: its Content-Type and its body. body is a
@@ -58,8 +59,10 @@ func buildRegistry() map[string]entry {
 			body:        func() []byte { return []byte(render.ChromaCSS()) },
 		},
 	}
-	embedFile(reg, "kurodo.js", "js/kurodo.js")
+	embedFile(reg, "kurodo.js", "js/kurodo.js", jsContentType)
+	embedFile(reg, "app.css", "css/output.css", cssContentType)
 	embedTree(reg, "js/mermaid")
+	embedFonts(reg, "fonts")
 	return reg
 }
 
@@ -69,12 +72,38 @@ func buildRegistry() map[string]entry {
 // apart) — panicking at package init surfaces that immediately, the same
 // way render.New panics on a nil required dependency, rather than letting
 // every request for name silently 404 forever.
-func embedFile(reg map[string]entry, name, embeddedPath string) {
+func embedFile(reg map[string]entry, name, embeddedPath, contentType string) {
 	b, err := assets.Files.ReadFile(embeddedPath)
 	if err != nil {
 		panic(fmt.Sprintf("asset: embedded file missing: %s: %v", embeddedPath, err))
 	}
-	reg[name] = entry{contentType: jsContentType, body: func() []byte { return b }}
+	reg[name] = entry{contentType: contentType, body: func() []byte { return b }}
+}
+
+// embedFonts registers every .woff2 under dir (self-hosted, vendored under
+// assets/fonts/), keyed by its full embedded path — so assets/fonts/Geist-
+// Variable.woff2 becomes the URL-facing name "fonts/Geist-Variable.woff2",
+// exactly the path fonts.css's @font-face src references at /static/fonts/….
+// Only .woff2 is registered; any LICENSE/README dropped beside the fonts is
+// deliberately not servable, the same closed-set discipline as embedTree.
+func embedFonts(reg map[string]entry, dir string) {
+	err := fs.WalkDir(assets.Files, dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(p, ".woff2") {
+			return nil
+		}
+		b, rerr := assets.Files.ReadFile(p)
+		if rerr != nil {
+			return rerr
+		}
+		reg[p] = entry{contentType: woff2ContentType, body: func() []byte { return b }}
+		return nil
+	})
+	if err != nil {
+		panic(fmt.Sprintf("asset: embedding %s: %v", dir, err))
+	}
 }
 
 // embedTree registers every .mjs file under dir (recursively), keyed by its

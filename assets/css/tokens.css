@@ -1,0 +1,184 @@
+/* ============================================================
+   kurodo — design tokens (the shippable @theme contract)
+   ------------------------------------------------------------
+   Consolidates the design bundle: theme.css's @theme values +
+   colors_and_type.css's alias vocabulary, re-skinned to the product
+   accent (vermilion 朱, reserved for `ready`) and the product type
+   stack (Geist + Noto Serif/Sans CJK + Newsreader + LXGW WenKai).
+
+   Dark mode is a class/attribute strategy: [data-theme="dark"] is
+   stamped on <html> server-side from a cookie (no FOUC). Every colour
+   token has a light value and a dark twin; components re-resolve on
+   toggle with zero markup change. AA contrast notes carried from
+   theme.css (the vermilion / warn / sage / gold values are chosen so
+   badge text clears 4.5:1 on its tint in both themes).
+   ============================================================ */
+
+:root,
+[data-theme="light"] {
+  /* ---- Surfaces (warm oatmeal paper) ---- */
+  --bg:            oklch(0.966 0.005 106);
+  --panel:         oklch(0.988 0.003 106);
+  --elevated:      oklch(0.945 0.006 107);
+  --overlay:       oklch(0.915 0.008 107);
+
+  /* ---- Text (sumi inks, 4 tiers) ---- */
+  --fg:            oklch(0.220 0.012 107);
+  --fg-muted:      oklch(0.400 0.020 107);
+  --fg-subtle:     oklch(0.530 0.022 107);
+  --fg-faint:      oklch(0.585 0.018 107); /* darkened from koopa core so mono meta clears AA-large 3:1 */
+
+  /* ---- Lines ---- */
+  --border:        oklch(0.880 0.008 106);
+  --border-strong: oklch(0.800 0.010 106);
+  --border-faint:  oklch(0.930 0.006 106);
+
+  /* ---- The one accent — 朱 seal-ink vermilion, reserved for `ready` ---- */
+  --accent:        oklch(0.470 0.175 33);
+  --accent-strong: oklch(0.400 0.165 33);
+  --accent-muted:  oklch(0.550 0.180 33 / 0.12);
+  --accent-faint:  oklch(0.550 0.180 33 / 0.06);
+  --on-accent:     oklch(0.985 0.003 106);
+  --link:          oklch(0.470 0.150 33);
+
+  /* ---- Honest diagnostics — muted ochre, never angry red (金繼ぎ) ---- */
+  --warn:          oklch(0.470 0.125 70);
+  --warn-bg:       oklch(0.560 0.120 70 / 0.10);
+  --gold:          oklch(0.660 0.098 82);   /* kintsugi seam thread */
+  --gold-ink:      oklch(0.480 0.100 82);   /* corrections (訂正) carry this, never 朱 */
+
+  /* ---- Growth track — muted sage (never out-shouts the seal) ---- */
+  --sage:          oklch(0.450 0.060 145);
+  --sage-bg:       oklch(0.560 0.055 145 / 0.11);
+
+  --success:       oklch(0.520 0.130 155);
+  --success-bg:    oklch(0.520 0.130 155 / 0.10);
+
+  --shadow-1: 0 2px 8px -2px oklch(0.30 0.02 107 / 0.10), 0 1px 2px oklch(0.30 0.02 107 / 0.07);
+  --shadow-2: 0 18px 40px -12px oklch(0.28 0.02 107 / 0.18), 0 4px 12px oklch(0.28 0.02 107 / 0.10);
+
+  color-scheme: light;
+}
+
+/* ---- Dark twin — warm charcoal ink-stone ---- */
+[data-theme="dark"] {
+  --bg:            oklch(0.153 0.006 107);
+  --panel:         oklch(0.210 0.011 107);
+  --elevated:      oklch(0.262 0.013 107);
+  --overlay:       oklch(0.305 0.014 107);
+
+  --fg:            oklch(0.962 0.004 106);
+  --fg-muted:      oklch(0.760 0.010 106);
+  --fg-subtle:     oklch(0.600 0.014 107);
+  --fg-faint:      oklch(0.540 0.012 72);
+
+  --border:        oklch(0.300 0.012 107);
+  --border-strong: oklch(0.400 0.014 107);
+  --border-faint:  oklch(0.235 0.010 107);
+
+  --accent:        oklch(0.820 0.150 34);
+  --accent-strong: oklch(0.880 0.130 34);
+  --accent-muted:  oklch(0.660 0.170 34 / 0.16);
+  --accent-faint:  oklch(0.660 0.170 34 / 0.07);
+  --on-accent:     oklch(0.150 0.010 60);
+  --link:          oklch(0.740 0.150 34);
+
+  --warn:          oklch(0.860 0.120 82);
+  --warn-bg:       oklch(0.800 0.130 80 / 0.14);
+  --gold:          oklch(0.735 0.098 84);
+  --gold-ink:      oklch(0.775 0.098 84);
+
+  --sage:          oklch(0.820 0.065 148);
+  --sage-bg:       oklch(0.680 0.060 148 / 0.13);
+
+  --success:       oklch(0.740 0.120 155);
+  --success-bg:    oklch(0.740 0.120 155 / 0.14);
+
+  --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
+  --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
+
+  color-scheme: dark;
+}
+
+/* ---- Non-colour tokens (theme-independent) ---- */
+:root {
+  /* Type families — Latin (Geist/Newsreader) leads, CJK (Noto/WenKai) follows,
+     system CJK as the last resort until the CJK woff2 are vendored. */
+  --font-display: "Geist", "Noto Sans TC", "Noto Serif JP", system-ui, sans-serif;
+  --font-serif:   "Newsreader", "Noto Serif TC", "Noto Serif JP", Georgia, serif;
+  --font-sans:    "Geist", "Noto Sans TC", "Noto Serif JP", system-ui, sans-serif;
+  --font-mono:    "Geist Mono", ui-monospace, "Noto Sans TC", monospace;
+  --font-kai:     "LXGW WenKai TC", "Noto Serif TC", serif;
+
+  /* UI scale */
+  --fs-11: 0.6875rem;
+  --fs-12: 0.75rem;
+  --fs-13: 0.8125rem;
+  --fs-14: 0.875rem;
+  --fs-16: 1rem;
+  --fs-18: 1.125rem;
+
+  /* Editorial scale */
+  --fs-ed-17: 1.0625rem;
+  --fs-ed-20: 1.25rem;
+  --fs-ed-24: 1.5rem;
+  --fs-ed-30: 1.875rem;
+  --fs-ed-38: 2.375rem;
+
+  /* Weights */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Line heights */
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-normal: 1.5;
+  --lh-read: 1.8;   /* CJK prose floor (spec: ≥1.8) */
+  --lh-cjk: 2;      /* ruby-safe reading measure */
+
+  /* Tracking */
+  --track-tight: -0.02em;
+  --track-snug: -0.01em;
+  --track-normal: 0em;
+  --track-wide: 0.08em;
+
+  /* Radii — bookish, not SaaS */
+  --r-sm: 2px;
+  --r-md: 6px;
+  --r-lg: 12px;
+
+  /* Content measure */
+  --measure-article: 680px;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 60ms;
+  --dur-base: 120ms;
+  --dur-slow: 200ms;
+}
+
+/* ---- Tailwind @theme contract (inline: utilities resolve to the aliases
+   above, so the token vocabulary and any utility use stay in one source). ---- */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-elevated: var(--elevated);
+  --color-overlay: var(--overlay);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-warn: var(--warn);
+  --color-sage: var(--sage);
+  --color-gold: var(--gold);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+}
