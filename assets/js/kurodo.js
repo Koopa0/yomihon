@@ -272,6 +272,33 @@
     });
   }
 
+  // ---- concept sheet: open a grammar note in a native <dialog> -------------
+  // Triggers are real <a> links to the concept note (no-JS: they navigate).
+  // With JS, a click clones the concept's pre-rendered <template> into one
+  // shared <dialog> and opens it, so the reader never leaves the lesson. The
+  // content is inline, so it opens instantly with no fetch.
+  function initConceptSheet() {
+    const dialog = document.querySelector('[data-concept-sheet]');
+    if (!dialog) return;
+    const titleEl = dialog.querySelector('[data-concept-title]');
+    const bodyEl = dialog.querySelector('[data-concept-body]');
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-concept]');
+      if (trigger) {
+        const tpl = document.getElementById('concept-' + trigger.getAttribute('data-concept'));
+        if (!tpl) return; // no template → let the link navigate as the fallback
+        e.preventDefault();
+        titleEl.textContent = tpl.dataset.title || '';
+        bodyEl.replaceChildren(tpl.content.cloneNode(true));
+        bodyEl.scrollTop = 0;
+        if (!dialog.open) dialog.showModal();
+        return;
+      }
+      if (e.target.closest('[data-concept-close]')) { dialog.close(); return; }
+      if (e.target === dialog) dialog.close(); // click on the backdrop
+    });
+  }
+
   // ---- boot ----------------------------------------------------------------
   function init() {
     // Reveal signals for progressive enhancement: [data-js] shows controls that
@@ -288,6 +315,7 @@
     initKeys();
     initTTS();
     initSlots();
+    initConceptSheet();
     renderMermaidDiagrams();
   }
   if (document.readyState === 'loading') {

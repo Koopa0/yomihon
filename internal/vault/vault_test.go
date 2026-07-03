@@ -70,6 +70,21 @@ func TestReadNote(t *testing.T) {
 			wantTitle:  "t",
 			wantInBody: "body",
 		},
+		{
+			// The concept-resolver corruption guard, at the layer where the
+			// guarantee lives (yomihon's TestResolverDoesNotCorruptFrontmatter):
+			// a lesson's frontmatter based_on holds [[wikilinks]]; because the
+			// split happens HERE, before any body preprocessing, a later concept
+			// resolver rewriting [[...]] to a trigger can never reach the YAML and
+			// empty the meta (which would drop status:ready and hide the lesson).
+			// The status must survive intact alongside the wikilink-valued field.
+			name:       "concept resolver cannot corrupt frontmatter status",
+			content:    "---\ntitle: L00 テスト課\ntype: lesson\nstatus: ready\nbased_on: \"[[大家的日本語 第1課]]\"\nslug: jp-minna-l00\n---\n\nSee [[は]] and [[です]].\n",
+			wantTitle:  "L00 テスト課",
+			wantStatus: "ready",
+			wantSlug:   "jp-minna-l00",
+			wantInBody: "[[は]]",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

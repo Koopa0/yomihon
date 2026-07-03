@@ -63,6 +63,11 @@ type Deps struct {
 	// snapshot — they are a separate read path). A nil index is legal: it just
 	// means no lesson carries a slot machine, so it is not a required dependency.
 	Slots lesson.SlotIndex
+	// Concepts indexes the grammar concept notes a lesson may link to, for the
+	// in-app concept sheet. Also static and also optional: a nil index means no
+	// wikilink ever becomes a sheet trigger, so lessons just navigate to concept
+	// notes as usual.
+	Concepts lesson.ConceptIndex
 }
 
 // Handler serves reading pages for a vault rooted at Deps.Root.
@@ -133,10 +138,15 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// server-side (render.InjectTTS). The gate is here, not in render, so
 	// render.HTML stays a generic note renderer — a diary or concept note that
 	// contains <ruby> never grows speaker buttons. A lesson with a slot sidecar
-	// (joined by slug, D29) also gets its sentence-pattern machine spliced in.
+	// (joined by slug, D29) also gets its sentence-pattern machine spliced in,
+	// and its wikilinks to concept notes become in-app sheet triggers.
+	var concepts []lesson.ConceptDoc
 	if n.Type() == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML)
 		result.HTML = h.injectSlotMachine(r.Context(), rel, n.Slug(), result.HTML)
+		var refs []string
+		result.HTML, refs = render.InjectConceptTriggers(result.HTML, h.deps.Concepts.SlugForPath)
+		concepts = h.loadConcepts(refs)
 	}
 
 	view := pages.NoteView{
@@ -151,6 +161,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Nav:               h.deps.Nav(),
 		Lifecycle:         h.lifecycle(n.Status()),
 		WriteClosed:       h.deps.Status.Closed(),
+		Concepts:          concepts,
 	}
 	switch {
 	case n.FMDiagnostic != "":
@@ -202,6 +213,25 @@ func (h *Handler) injectSlotMachine(ctx context.Context, rel, slug, body string)
 		return body[:end] + machine + body[end:]
 	}
 	return body + machine
+}
+
+// loadConcepts renders each referenced concept note into a sheet document. A
+// concept body is rendered through the plain note pipeline (no concept post-pass
+// of its own), so its wikilinks stay ordinary links and the sheet never nests. A
+// concept that fails to load is skipped — its trigger stays a working link to
+// the note, so no dead sheet ships (wall 4: degrade, never break).
+func (h *Handler) loadConcepts(refs []string) []lesson.ConceptDoc {
+	if len(refs) == 0 {
+		return nil
+	}
+	renderBody := func(body string) string { return h.deps.Renderer.HTML(body).HTML }
+	docs := make([]lesson.ConceptDoc, 0, len(refs))
+	for _, rel := range refs {
+		if d, ok := lesson.LoadConcept(renderBody, h.deps.Concepts, h.deps.Root, rel); ok {
+			docs = append(docs, d)
+		}
+	}
+	return docs
 }
 
 // lifecycle assembles the status-first Lifecycle rail: the note group's statuses
