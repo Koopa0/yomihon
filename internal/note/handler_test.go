@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/kurodo/internal/lesson"
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/note"
 	"github.com/koopa0/kurodo/internal/render"
@@ -48,6 +49,19 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	if err != nil {
 		t.Fatalf("nav.Build(%q) = %v", root, err)
 	}
+	// Build the slot index when the temp vault has a System/slots dir; a test
+	// without one leaves Slots nil (the legal "no slot machines" state).
+	var slots lesson.SlotIndex
+	if slotsDir := filepath.Join(root, "System", "slots"); dirExists(slotsDir) {
+		slots, err = lesson.BuildSlotIndex(slotsDir)
+		if err != nil {
+			t.Fatalf("lesson.BuildSlotIndex(%q) = %v", slotsDir, err)
+		}
+	}
+	concepts, err := lesson.BuildConceptIndex(root)
+	if err != nil {
+		t.Fatalf("lesson.BuildConceptIndex(%q) = %v", root, err)
+	}
 	h := note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   render.New(root, idx),
@@ -56,6 +70,8 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 		Counts:     func() map[string]int { return nil },
 		Provenance: func(context.Context, string) (string, error) { return "", nil },
 		Log:        slog.New(slog.DiscardHandler),
+		Slots:      slots,
+		Concepts:   concepts,
 	})
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -96,12 +112,12 @@ func get(t *testing.T, url string) (code int, body string) {
 func TestShow(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lesson := "---\ntitle: L00 テスト課\ntype: lesson\nstatus: draft\n---\n\n<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
+	lessonMD := "---\ntitle: L00 テスト課\ntype: lesson\nstatus: draft\n---\n\n<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "L00 テスト課.md"), []byte(lesson), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "L00 テスト課.md"), []byte(lessonMD), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServer(t, root)
@@ -123,6 +139,208 @@ func TestShow(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("page missing %q", want)
 		}
+	}
+}
+
+// TestShowTTSGatedToLessons is the landmine guard for the TTS lesson gate: a
+// lesson note's ruby paragraphs get a speak button, but a non-lesson note that
+// contains the identical ruby does NOT — render.HTML is generic and the gate
+// lives in the handler's type branch, so TTS must never leak into other note
+// types. The ruby markup itself must survive in both (only the wrapper is gated).
+func TestShowTTSGatedToLessons(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const body = "<ruby>今日<rt>きょう</rt></ruby>は晴れ。\n"
+
+	lessonDir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir lesson: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(lessonDir, "L00.md"),
+		[]byte("---\ntitle: L00\ntype: lesson\nstatus: draft\n---\n\n"+body), 0o644); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+
+	srcDir := filepath.Join(root, "Sources")
+	if err := os.MkdirAll(srcDir, 0o750); err != nil {
+		t.Fatalf("mkdir source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "S00.md"),
+		[]byte("---\ntitle: S00\ntype: source-note\nstatus: draft\n---\n\n"+body), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	srv := newServer(t, root)
+
+	_, lessonBody := get(t, srv.URL+"/notes/Writing/lessons/japanese/L00.md")
+	if !strings.Contains(lessonBody, `data-tts="今日は晴れ。"`) {
+		t.Errorf("lesson page missing the TTS button with reading-stripped data-tts; body = %q", lessonBody)
+	}
+
+	_, sourceBody := get(t, srv.URL+"/notes/Sources/S00.md")
+	if strings.Contains(sourceBody, "data-tts") || strings.Contains(sourceBody, "k-tts") {
+		t.Errorf("non-lesson (source-note) page leaked a TTS button — the lesson gate failed; body = %q", sourceBody)
+	}
+	if !strings.Contains(sourceBody, "<ruby>今日<rt>きょう</rt></ruby>") {
+		t.Errorf("non-lesson page lost its ruby (render must stay generic); body = %q", sourceBody)
+	}
+}
+
+// dirExists reports whether path is an existing directory.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// TestShowSlotMachine is the slot-machine wiring guard: a lesson whose slug
+// joins a slot sidecar (D29) gets its pattern machine spliced into the page,
+// positioned right after the lesson's first table (the 文型骨架 skeleton) and
+// before the body that follows it. A lesson with no matching sidecar gets no
+// machine.
+func TestShowSlotMachine(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	lessonDir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir lesson: %v", err)
+	}
+	// A lesson with a table (the splice anchor) and a paragraph after it.
+	body := "---\ntitle: L01\ntype: lesson\nstatus: draft\nslug: jp-test-l01\n---\n\n" +
+		"| pattern | meaning |\n|---|---|\n| AはBです | A is B |\n\nAFTERTABLEBODY\n"
+	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+
+	slotsDir := filepath.Join(root, "System", "slots")
+	if err := os.MkdirAll(slotsDir, 0o750); err != nil {
+		t.Fatalf("mkdir slots: %v", err)
+	}
+	// The sidecar joins by the slug INSIDE the file, not the filename (D29):
+	// filename S1.yaml, slug jp-test-l01 matching the lesson.
+	sidecar := "lesson: L01\nslug: jp-test-l01\ntitle: t\npatterns:\n" +
+		"  - id: p1\n    template: \"{A}は {B}です\"\n    gloss_zh: \"{A} 是 {B}\"\n    slots:\n" +
+		"      A: {label_zh: \"主題\", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}\n" +
+		"      B: {label_zh: \"述語\", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}]}\n"
+	if err := os.WriteFile(filepath.Join(slotsDir, "S1.yaml"), []byte(sidecar), 0o644); err != nil {
+		t.Fatalf("write sidecar: %v", err)
+	}
+
+	srv := newServer(t, root)
+	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	// The machine rendered, with the first-fill sentence and a coloured slot.
+	for _, want := range []string{`class="k-slotmachine"`, `class="k-slotcard"`, `k-slotdata`, `k-slot-topic`, `わたし`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("lesson page missing slot-machine marker %q", want)
+		}
+	}
+	// Placement: after the table, before the body that follows it.
+	tbl := strings.Index(page, "</table>")
+	machine := strings.Index(page, "k-slotmachine")
+	after := strings.Index(page, "AFTERTABLEBODY")
+	if tbl < 0 || tbl >= machine || machine >= after {
+		t.Errorf("slot machine mis-positioned: </table>@%d, machine@%d, after-body@%d (want table < machine < after)", tbl, machine, after)
+	}
+}
+
+// TestShowLessonWithoutSidecarHasNoMachine confirms the gate: a lesson whose
+// slug matches no sidecar renders with no slot machine.
+func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// A lesson with a slug but no System/slots dir at all (Slots stays nil).
+	body := "---\ntitle: L02\ntype: lesson\nstatus: draft\nslug: jp-orphan\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(dir, "L02.md"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServer(t, root)
+	_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L02.md")
+	if strings.Contains(page, "k-slotmachine") {
+		t.Errorf("lesson with no matching sidecar still rendered a slot machine; body = %q", page)
+	}
+}
+
+// TestShowConceptSheet is the concept-sheet wiring guard: a lesson whose
+// wikilink resolves to a concept note gets that link marked as a trigger, the
+// concept pre-rendered into a hidden <template>, and the shared <dialog>
+// emitted. The trigger stays a real navigable <a> (the no-JS fallback).
+func TestShowConceptSheet(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	// A concept note the lesson will link to.
+	conceptDir := filepath.Join(root, "Concepts", "japanese")
+	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
+		t.Fatalf("mkdir concepts: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"),
+		[]byte("---\ntitle: は (主題助詞)\ntype: concept\n---\n\nMarks the topic of the sentence.\n"), 0o644); err != nil {
+		t.Fatalf("write concept: %v", err)
+	}
+
+	lessonDir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir lesson: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"),
+		[]byte("---\ntitle: L01\ntype: lesson\nstatus: draft\n---\n\nThe particle [[は]] marks the topic.\n"), 0o644); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+
+	srv := newServer(t, root)
+	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	// The wikilink became a trigger but stayed a real navigable link.
+	if !strings.Contains(page, `data-concept=`) || !strings.Contains(page, `class="wikilink concept-link"`) {
+		t.Errorf("concept wikilink not marked as a trigger; body = %q", page)
+	}
+	if !strings.Contains(page, `href="/notes/Concepts/japanese/`) {
+		t.Errorf("concept trigger lost its navigable href (no-JS fallback); body = %q", page)
+	}
+	// The concept was pre-rendered into a hidden template + the shared dialog.
+	for _, want := range []string{`<template id="concept-`, `Marks the topic of the sentence.`, `data-concept-sheet`, `data-concept-body`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("concept sheet missing %q", want)
+		}
+	}
+}
+
+// TestShowNonLessonNoConceptTriggers confirms the gate: a non-lesson note that
+// links to a concept navigates as usual — no trigger, no sheet.
+func TestShowNonLessonNoConceptTriggers(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	conceptDir := filepath.Join(root, "Concepts", "japanese")
+	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
+		t.Fatalf("mkdir concepts: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("topic particle\n"), 0o644); err != nil {
+		t.Fatalf("write concept: %v", err)
+	}
+	srcDir := filepath.Join(root, "Sources")
+	if err := os.MkdirAll(srcDir, 0o750); err != nil {
+		t.Fatalf("mkdir source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "S.md"),
+		[]byte("---\ntitle: S\ntype: source-note\nstatus: draft\n---\n\nMentions [[は]] in passing.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	srv := newServer(t, root)
+	_, page := get(t, srv.URL+"/notes/Sources/S.md")
+	if strings.Contains(page, "data-concept") || strings.Contains(page, "data-concept-sheet") {
+		t.Errorf("non-lesson note grew a concept trigger/sheet — the gate failed; body = %q", page)
 	}
 }
 
@@ -207,12 +425,12 @@ func TestShowNoFrontmatter(t *testing.T) {
 func TestShowTransitions(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lesson := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lesson), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
@@ -305,8 +523,8 @@ func TestShowIncludesSidebar(t *testing.T) {
 	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	lesson := "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
-	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lesson), 0o644); err != nil {
+	lessonMD := "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lessonMD), 0o644); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 

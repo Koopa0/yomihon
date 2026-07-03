@@ -88,6 +88,16 @@ func (n *Note) Type() string {
 	return ""
 }
 
+// Slug is the frontmatter slug, empty when absent. It is a lesson's stable
+// identity (jp-minna-lNN) and the join key to its slot sidecar (D29) — the
+// filename is never that key.
+func (n *Note) Slug() string {
+	if s, ok := n.Frontmatter["slug"].(string); ok {
+		return s
+	}
+	return ""
+}
+
 // SplitFrontmatter separates a leading ----fenced YAML block from the body.
 // It returns a nil frontmatter slice when the file has no block. Splitting
 // happens before any body preprocessing so that wikilink-looking values

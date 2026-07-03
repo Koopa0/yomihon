@@ -163,7 +163,7 @@ POST /status (path, from, to)
 
 **Acceptance (= the yomihon retirement gate)**:
 
-1. The five interactions are independently reproduced and all fixtures pass (yomihon's testdata assertion pattern + direct consumption of `slots/L01–L20.yaml`).
+1. The five interactions are independently reproduced and all fixtures pass (yomihon's testdata assertion pattern + direct consumption of `System/slots/L01–L20.yaml`).
 2. `m1-review/` screenshots at visual parity.
 3. Koopa actually studies with kurodo for two weeks. Until then, yomihon is frozen in service (tag `v1.0.0`).
 

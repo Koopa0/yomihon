@@ -373,6 +373,106 @@ html, body { margin: 0; background: var(--bg); }
 [data-ruby="off"] rt:not([data-keep="1"]) { visibility: hidden; }
 
 /* ============================================================
+   TTS — read-aloud speak button on lesson sentences.
+   Server-rendered (render.InjectTTS) with reading-stripped data-tts; the
+   button hangs in the left gutter and is revealed ONLY once kurodo.js
+   confirms a Web Speech engine (root[data-speech]), so with no JS or no
+   engine the sentence still reads and the affordance is simply absent.
+   ============================================================ */
+.k-prose .k-reading { position: relative; margin: 18px 0 0; }
+.k-prose .k-reading > p { margin: 0; }
+.k-tts {
+  position: absolute; left: -30px; top: 0.35em;
+  display: none; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  border: none; border-radius: var(--r-sm);
+  background: none; color: var(--fg-faint); cursor: pointer;
+  transition: color .12s, background .12s;
+}
+[data-speech] .k-tts { display: inline-flex; }
+.k-tts:hover { color: var(--accent); background: var(--overlay); }
+.k-tts svg { width: 15px; height: 15px; }
+/* A list item's speak button is its first child (a <li> can't be gutter-wrapped
+   without breaking list semantics), so it sits inline before the sentence. */
+.k-prose li > .k-tts { position: static; width: 20px; height: 20px; margin: 0 5px 0 0; vertical-align: -0.15em; }
+.k-prose li > .k-tts svg { width: 14px; height: 14px; }
+/* Narrow screens have no gutter — the paragraph button sits inline too. */
+@media (max-width: 720px) {
+  .k-tts { position: static; margin-right: 6px; vertical-align: -0.15em; }
+}
+
+/* ============================================================
+   Slot machine — interactive sentence-pattern practice (D29).
+   Server-rendered on the first fill so it reads with JS off; the controls
+   (selects, shuffle) show only under [data-js] and the speak button only
+   under [data-speech], so no-JS / no-engine pages hide dead controls.
+   ============================================================ */
+.k-slotmachine { margin: 40px 0 0; }
+.k-slotmachine__intro { margin: 0 0 4px; }
+.k-slotmachine__title { font-family: var(--font-sans); font-size: var(--fs-ed-20); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+.k-slotmachine__sub { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-subtle); margin: 4px 0 0; }
+
+.k-slotcard { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px 20px; margin: 14px 0 0; }
+.k-slotcard__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.k-slotcard__abstract { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); letter-spacing: 0.01em; }
+.k-slotcard__note { font-family: var(--font-sans); font-size: var(--fs-12); color: var(--fg-subtle); }
+
+.k-slotcontrols { display: none; flex-wrap: wrap; gap: 12px; margin: 14px 0 0; }
+[data-js] .k-slotcontrols { display: flex; }
+.k-slotfield { display: flex; flex-direction: column; gap: 4px; }
+.k-slotfield__label { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.04em; color: var(--fg-subtle); }
+.k-slotselect { font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); background: var(--elevated); border: 1px solid var(--border); border-left: 3px solid var(--c, var(--border-strong)); border-radius: var(--r-sm); padding: 6px 10px; cursor: pointer; }
+
+.k-slotoutput { font-family: var(--font-serif); font-size: var(--fs-ed-24); line-height: var(--lh-cjk); color: var(--fg); margin: 18px 0 0; }
+.k-slotout { color: var(--c); background: color-mix(in oklch, var(--c) 12%, transparent); border-radius: 4px; padding: 0 3px; }
+.k-slotout rt { color: var(--c); }
+.k-slotgloss { font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg-muted); margin: 8px 0 0; }
+.k-slotgloss::before { content: "→ "; color: var(--fg-faint); }
+
+.k-slotactions { display: none; gap: 8px; margin: 14px 0 0; }
+[data-js] .k-slotactions { display: flex; }
+.k-slotbtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--elevated); color: var(--fg-subtle); cursor: pointer; transition: color .12s, border-color .12s; }
+.k-slotbtn:hover { color: var(--accent); border-color: var(--accent-muted); }
+.k-slotbtn svg { width: 16px; height: 16px; }
+.k-slotbtn[data-slot-action="speak"] { display: none; }
+[data-speech] .k-slotbtn[data-slot-action="speak"] { display: inline-flex; }
+
+/* The 8 grammatical-role colours: each class only assigns --c (a theme token),
+   so one token tints a slot's select border, its surface, and its ruby. */
+.k-slot-topic { --c: var(--slot-topic); }
+.k-slot-pred  { --c: var(--slot-pred); }
+.k-slot-poss  { --c: var(--slot-poss); }
+.k-slot-obj   { --c: var(--slot-obj); }
+.k-slot-place { --c: var(--slot-place); }
+.k-slot-time  { --c: var(--slot-time); }
+.k-slot-verb  { --c: var(--slot-verb); }
+.k-slot-num   { --c: var(--slot-num); }
+
+/* A concept-link is a real wikilink that also opens the sheet; mark it with a
+   dotted underline so the reader knows a grammar note is one click away. With
+   JS off it is still the plain wikilink that navigates to the note. */
+.k-prose a.concept-link { border-bottom: 1px dashed var(--accent-muted); text-underline-offset: 2px; cursor: help; }
+.k-prose a.concept-link:hover { border-bottom-color: var(--accent); }
+
+/* ============================================================
+   Concept sheet — a grammar note in a native <dialog> drawer.
+   Slides in from the right on wide screens, up from the bottom on narrow.
+   Only present when a lesson references a concept (rendered conditionally).
+   ============================================================ */
+.k-conceptsheet {
+  border: none; padding: 0; margin: 0 0 0 auto; height: 100dvh; max-height: 100dvh;
+  width: min(460px, 92vw); background: var(--panel); border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-2); box-sizing: border-box; display: flex; flex-direction: column;
+}
+.k-conceptsheet::backdrop { background: rgb(0 0 0 / 0.4); }
+.k-conceptsheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: none; }
+.k-conceptsheet__title { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); }
+.k-conceptsheet__body { overflow-y: auto; padding: 18px 20px; }
+@media (max-width: 720px) {
+  .k-conceptsheet { width: 100vw; height: auto; max-height: 82dvh; margin: auto 0 0; border-left: none; border-top: 1px solid var(--border); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+}
+
+/* ============================================================
    Seal ceremony keyframes (落款／鈐印)
    ============================================================ */
 @keyframes k-sealBed  { 0% { transform: scale(1.18); opacity: 0; } 55% { transform: scale(.965); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }

@@ -54,6 +54,20 @@
   --success:       oklch(0.520 0.130 155);
   --success-bg:    oklch(0.520 0.130 155 / 0.10);
 
+  /* ---- Slot-machine colours — the 8 grammatical roles (D29). Each coloured
+     element reads --c; the .k-slot-<token> class only assigns it, so one token
+     tints a slot's select border, its surface, and its ruby together. Muted so
+     a card full of coloured words never out-shouts the reading, and hues avoid
+     the accent's red-orange (reserved for the seal). ---- */
+  --slot-topic: oklch(0.500 0.125 250);
+  --slot-pred:  oklch(0.560 0.120 65);
+  --slot-poss:  oklch(0.615 0.070 250);
+  --slot-obj:   oklch(0.530 0.100 185);
+  --slot-place: oklch(0.510 0.115 305);
+  --slot-time:  oklch(0.560 0.095 45);
+  --slot-verb:  oklch(0.505 0.095 150);
+  --slot-num:   oklch(0.520 0.120 350);
+
   --shadow-1: 0 2px 8px -2px oklch(0.30 0.02 107 / 0.10), 0 1px 2px oklch(0.30 0.02 107 / 0.07);
   --shadow-2: 0 18px 40px -12px oklch(0.28 0.02 107 / 0.18), 0 4px 12px oklch(0.28 0.02 107 / 0.10);
 
@@ -93,6 +107,16 @@
 
   --success:       oklch(0.740 0.120 155);
   --success-bg:    oklch(0.740 0.120 155 / 0.14);
+
+  /* Slot roles, brightened for the dark ink-stone (same hues as light). */
+  --slot-topic: oklch(0.780 0.120 250);
+  --slot-pred:  oklch(0.800 0.115 65);
+  --slot-poss:  oklch(0.820 0.065 250);
+  --slot-obj:   oklch(0.790 0.095 185);
+  --slot-place: oklch(0.790 0.110 305);
+  --slot-time:  oklch(0.810 0.090 45);
+  --slot-verb:  oklch(0.795 0.090 150);
+  --slot-num:   oklch(0.790 0.115 350);
 
   --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
   --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
