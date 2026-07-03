@@ -1,6 +1,6 @@
 MODULE := github.com/koopa0/kurodo
 
-.PHONY: build run test lint fmt vet gen css sqlc verify verify-spec clean
+.PHONY: build run test lint fmt vet gen css verify verify-spec clean
 
 build: gen
 	go build -o bin/kurodo ./cmd/kurodo
@@ -26,9 +26,6 @@ gen:
 
 css:
 	tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
-
-sqlc:
-	sqlc generate
 
 verify: fmt vet lint test build
 

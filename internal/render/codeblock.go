@@ -1,7 +1,7 @@
 package render
 
 // This file implements server-side syntax highlighting (docs/spec.md §1's
-// "程式碼高亮 server-side（chroma）") as a goldmark renderer.NodeRenderer
+// "syntax highlighting server-side (chroma)") as a goldmark renderer.NodeRenderer
 // that intercepts ast.KindFencedCodeBlock directly and formats it via
 // chroma — the same approach Hugo uses internally, rather than depending
 // on github.com/yuin/goldmark-highlighting/v2 (unmaintained since

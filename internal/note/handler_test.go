@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/note"
 	"github.com/koopa0/kurodo/internal/render"
 	"github.com/koopa0/kurodo/internal/schema"
@@ -42,7 +43,11 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	h := note.NewHandler(root, render.New(root, idx), svc, slog.New(slog.DiscardHandler))
+	navModel, err := nav.Build(root, idx)
+	if err != nil {
+		t.Fatalf("nav.Build(%q) = %v", root, err)
+	}
+	h := note.NewHandler(root, render.New(root, idx), svc, func() *nav.Model { return navModel }, slog.New(slog.DiscardHandler))
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -122,9 +127,41 @@ func TestShowNotFound(t *testing.T) {
 	}
 }
 
+// TestHome pins the home route's contract. The navigation sidebar (spec §2)
+// already ships on every /notes page (see TestShowIncludesSidebar); the
+// Vault-Index home page (spec §2's four blocks) is deliberately deferred, so
+// until it lands GET / is a placeholder that redirects (302) to README.md.
+// A regression that changed the target, changed the status code, dropped the
+// route, or "re-implemented" home as something else is caught here.
+func TestHome(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, t.TempDir())
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/", http.NoBody)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	// Assert on the 302 itself — do not let the client follow it.
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("GET / status = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+	if got := resp.Header.Get("Location"); got != "/notes/README.md" {
+		t.Errorf("GET / Location = %q, want %q", got, "/notes/README.md")
+	}
+}
+
 // TestShowNoFrontmatter exercises handler.go's NoFrontmatter branch with a
 // loaded (non-nil) contract, so WriteClosed is false and note.templ's
-// statusPanel cannot fall into the "契約不可用" fail-closed case first —
+// statusPanel cannot fall into the "Contract unavailable" fail-closed case first —
 // the only way to actually observe that show() set view.NoFrontmatter
 // instead of leaving it false.
 func TestShowNoFrontmatter(t *testing.T) {
@@ -145,10 +182,10 @@ func TestShowNoFrontmatter(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "無 frontmatter") {
+	if !strings.Contains(body, "No frontmatter") {
 		t.Errorf("page missing the no-frontmatter notice; body = %q", body)
 	}
-	if strings.Contains(body, "契約不可用") || strings.Contains(body, "fail-closed") {
+	if strings.Contains(body, "Contract unavailable") || strings.Contains(body, "fail-closed") {
 		t.Errorf("page shows the fail-closed notice even though the contract loaded; body = %q", body)
 	}
 }
@@ -183,7 +220,7 @@ func TestShowTransitions(t *testing.T) {
 			t.Errorf("page missing transition key %s; body = %q", want, body)
 		}
 	}
-	if strings.Contains(body, "契約不可用") || strings.Contains(body, "fail-closed") || strings.Contains(body, "無 frontmatter") {
+	if strings.Contains(body, "Contract unavailable") || strings.Contains(body, "fail-closed") || strings.Contains(body, "No frontmatter") {
 		t.Errorf("page shows the wrong status-panel branch; body = %q", body)
 	}
 }
@@ -206,5 +243,74 @@ func TestNewHandlerPanicsOnNilStatusPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	note.NewHandler(root, render.New(root, idx), nil, slog.New(slog.DiscardHandler))
+	note.NewHandler(root, render.New(root, idx), nil, func() *nav.Model { return &nav.Model{} }, slog.New(slog.DiscardHandler))
+}
+
+// TestNewHandlerPanicsOnNilNavigation mirrors the StatusPolicy check: a
+// provider returning an empty *nav.Model is valid (an empty sidebar renders,
+// §0.1), but a nil provider is a wiring bug that must fail at construction, not
+// three calls deep inside the first reading request. Under D25 the sidebar is
+// read live per request through this closure (never a captured startup value),
+// so the guard is on the closure being present, not on the model it returns.
+func TestNewHandlerPanicsOnNilNavigation(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("NewHandler(nil navigation provider) did not panic")
+		}
+	}()
+	root := t.TempDir()
+	idx, err := graph.Build(root)
+	if err != nil {
+		t.Fatalf("graph.Build(%q) = %v", root, err)
+	}
+	note.NewHandler(root, render.New(root, idx), status.NewService(root, nil), nil, slog.New(slog.DiscardHandler))
+}
+
+// TestShowIncludesSidebar is the navigation-face regression: the reading
+// page must still render AND now carry the plain sidebar — a known
+// lifecycle folder, a study-path title, and a resolvable lesson link with
+// its status badge. It builds a tiny vault with one syllabus and one lesson
+// so the assertions are hand-derived, not tautological.
+func TestShowIncludesSidebar(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	lessonDir := filepath.Join(root, "Writing", "lessons", "golang")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	lesson := "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lesson), 0o644); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+
+	mapsDir := filepath.Join(root, "Maps")
+	if err := os.MkdirAll(mapsDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	syllabus := "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" +
+		"## data | Data | 資料\n\n### text | Text | 文字\n\n- [[Slices]]\n"
+	if err := os.WriteFile(filepath.Join(mapsDir, "Go path.md"), []byte(syllabus), 0o644); err != nil {
+		t.Fatalf("write syllabus: %v", err)
+	}
+
+	srv := newServer(t, root)
+
+	code, body := get(t, srv.URL+"/notes/Maps/Go path.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for _, want := range []string{
+		`class="sidebar"`, // the nav rendered at all
+		"Writing",         // a lifecycle folder in the browse tree
+		"Go path",         // the study-path title
+		"Data",            // the pipe-format H2's English label
+		`href="/notes/Writing/lessons/golang/Slices.md"`, // the resolved lesson link
+		"[draft]", // the lesson's status badge
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("reading page sidebar missing %q; body = %q", want, body)
+		}
+	}
 }

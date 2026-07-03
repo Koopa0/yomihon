@@ -34,7 +34,7 @@ check() {
 bold "=== File Structure ==="
 # ============================================================
 
-for dir in cmd/kurodo internal migrations .claude/rules .claude/agents .claude/hooks .claude/skills; do
+for dir in cmd/kurodo internal .claude/rules .claude/agents .claude/hooks .claude/skills; do
     if [[ -d "$dir" ]]; then
         check "directory exists: $dir" "pass"
     else
@@ -42,7 +42,7 @@ for dir in cmd/kurodo internal migrations .claude/rules .claude/agents .claude/h
     fi
 done
 
-for file in go.mod sqlc.yaml Makefile .gitignore .golangci.yml CLAUDE.md cmd/kurodo/main.go .claude/QUICKSTART.md docs/vault-model.md docs/design.md docs/decisions.md; do
+for file in go.mod Makefile .gitignore .golangci.yml CLAUDE.md cmd/kurodo/main.go .claude/QUICKSTART.md docs/vault-model.md docs/design.md docs/decisions.md; do
     if [[ -f "$file" ]]; then
         check "file exists: $file" "pass"
     else
@@ -89,20 +89,10 @@ for skill in verify checkpoint debug pgx-patterns sqlc-guide postgres-patterns m
 done
 
 # ============================================================
-bold "=== sqlc Configuration ==="
-# ============================================================
-
-if grep -q "sql_package: \"pgx/v5\"" sqlc.yaml || grep -q "sql_package: pgx/v5" sqlc.yaml; then
-    check "sqlc sql_package is pgx/v5" "pass"
-else
-    check "sqlc sql_package is pgx/v5" "fail"
-fi
-
-# ============================================================
 bold "=== Makefile Targets ==="
 # ============================================================
 
-for target in build run test lint fmt vet gen css sqlc verify verify-spec clean; do
+for target in build run test lint fmt vet gen css verify verify-spec clean; do
     if grep -q "^${target}:" Makefile; then
         check "Makefile has target: $target" "pass"
     else

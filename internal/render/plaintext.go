@@ -1,0 +1,184 @@
+package render
+
+// This file extracts a note body's searchable plain text (docs/search-plan.md
+// §7) by walking a goldmark AST — reusing the same markdown engine the HTML
+// pipeline uses rather than hand-rolling a second parser (decisions D04's
+// spirit). internal/search consumes PlainText; it lives here because deriving
+// plain text from a body is a rendering-adjacent concern that needs render's
+// dialect helpers (the wikilink and callout preprocessing goldmark has no
+// concept of), and duplicating those in search would be a second copy of
+// exactly what wall-1's predictable-mistake list forbids.
+
+import (
+	"strings"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
+
+	"github.com/koopa0/kurodo/internal/graph"
+)
+
+// plainParser is a minimal goldmark parser used only to walk a note body for
+// PlainText. It enables Table and TaskList so table-cell and task text arrive
+// as clean text nodes, but deliberately NOT Linkify (a bare URL then stays a
+// plain Text node, indexed verbatim, matching what ripgrep sees in the file)
+// and NOT the HTML pipeline's own highlight/chroma renderers (PlainText walks
+// the parsed AST, it never renders HTML). Its Parser is safe for concurrent
+// use — each Parse call builds its own context.
+var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList)).Parser()
+
+// PlainText returns the searchable plain text of a note body, per the
+// docs/search-plan.md §7 extraction table: body text, headings, table cells,
+// task text, code-fence contents, and the base+rt of hand-written <ruby>
+// markup are included; the HTML tags themselves and the callout-marker syntax
+// ("> [!type]") are not. A wikilink [[target|display]] contributes both its
+// target and its display text, so searching a linked note's filename hits even
+// when a display alias is what is shown.
+//
+// The body must already have its frontmatter removed (vault.Parse does this) —
+// PlainText has no frontmatter concept, which is exactly why §7 excludes it.
+// The text keeps its original case and Unicode form; internal/search applies
+// NFC + case folding when it stores and matches.
+func PlainText(body string) string {
+	src := []byte(plainPreprocess(body))
+	doc := plainParser.Parse(text.NewReader(src))
+
+	var b strings.Builder
+	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		return walkPlain(&b, n, entering, src)
+	}); err != nil {
+		// Unreachable: walkPlain never returns a non-nil error. If a future
+		// goldmark change ever makes Walk itself fail, fall back to the raw
+		// body (whitespace-collapsed) so a note is never left unsearchable.
+		return strings.Join(strings.Fields(body), " ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// plainPreprocess rewrites the two Obsidian-dialect constructs goldmark has no
+// concept of into plain text before parsing, so the AST walk sees clean text:
+// each [[wikilink]] / ![[embed]] becomes "target display" (both, so a filename
+// search hits through a display alias), and a callout marker line
+// "> [!type] Title" loses its "[!type]" marker while keeping the title. It is
+// fence-aware — inside a fenced code block every line is preserved verbatim, so
+// a [[link]] written inside a code sample stays literal and is indexed as code
+// content (§7), not resolved.
+func plainPreprocess(body string) string {
+	lines := strings.Split(body, "\n")
+	inFence := false
+	var fenceByte byte
+	for i, line := range lines {
+		switch {
+		case inFence:
+			if fenceCloses(line, fenceByte) {
+				inFence = false
+			}
+		default:
+			if marker, _, ok := fenceOpen(line); ok {
+				inFence, fenceByte = true, marker
+			} else {
+				lines[i] = plainLine(line)
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// plainLine normalizes one non-fence line: it strips a callout marker (keeping
+// the title) and rewrites wikilinks to plain "target display" text.
+func plainLine(line string) string {
+	if m := calloutStartPattern.FindStringSubmatch(line); m != nil {
+		// Drop the "> [!type][+-]" marker; keep only the callout's title text
+		// (m[3]). The marker syntax itself is not searchable content (§7); the
+		// callout body lines that follow keep their "> " and are collected as
+		// ordinary blockquote text.
+		line = m[3]
+	}
+	return replaceWikilinksPlain(line)
+}
+
+// replaceWikilinksPlain replaces every [[...]]/![[...]] token in line with its
+// clean target and display text (deduplicated when they are equal), using the
+// same target/display split the renderer uses (graph.SplitWikilink).
+func replaceWikilinksPlain(line string) string {
+	return wikilinkToken.ReplaceAllStringFunc(line, func(token string) string {
+		inner := strings.TrimPrefix(token, "!")
+		inner = inner[2 : len(inner)-2] // strip the enclosing "[[" and "]]"
+		target, display, ok := graph.SplitWikilink(inner)
+		switch {
+		case !ok:
+			return display // e.g. [[#heading]] — a same-file anchor: display only
+		case target == display:
+			return target
+		default:
+			return target + " " + display
+		}
+	})
+}
+
+// walkPlain appends one AST node's contribution to b. It never returns an
+// error (the ast.Walk error path in PlainText is therefore unreachable).
+func walkPlain(b *strings.Builder, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	switch n.Kind() {
+	case ast.KindRawHTML, ast.KindHTMLBlock:
+		// The HTML tags themselves are not content (§7). Any inline text
+		// between them — e.g. the base and rt of a <ruby>…<rt>… run — are
+		// separate Text nodes collected by the KindText case, not children of
+		// these nodes, so skipping here drops only the tags.
+		return ast.WalkSkipChildren, nil
+	case ast.KindFencedCodeBlock, ast.KindCodeBlock:
+		// Code content lives in the node's line segments, not in child Text
+		// nodes; write it directly and do not descend (§7: code included).
+		writeSeparator(b)
+		writeBlockLines(b, n, source)
+		return ast.WalkSkipChildren, nil
+	case ast.KindText:
+		if t, ok := n.(*ast.Text); ok {
+			b.Write(t.Value(source))
+			if t.SoftLineBreak() || t.HardLineBreak() {
+				b.WriteByte('\n')
+			}
+		}
+	case ast.KindString:
+		if s, ok := n.(*ast.String); ok {
+			b.Write(s.Value)
+		}
+	case ast.KindAutoLink:
+		if a, ok := n.(*ast.AutoLink); ok {
+			b.Write(a.URL(source))
+		}
+	default:
+		if n.Type() == ast.TypeBlock {
+			// Separate block-level text so tokens from adjacent blocks (a
+			// heading then its paragraph) do not run together.
+			writeSeparator(b)
+		}
+	}
+	return ast.WalkContinue, nil
+}
+
+// writeSeparator appends a newline unless b is empty or already ends in one.
+func writeSeparator(b *strings.Builder) {
+	if b.Len() == 0 {
+		return
+	}
+	s := b.String()
+	if s[len(s)-1] != '\n' {
+		b.WriteByte('\n')
+	}
+}
+
+// writeBlockLines appends the raw source of a node's line segments (used for
+// code blocks, whose content is not held as child text nodes).
+func writeBlockLines(b *strings.Builder, n ast.Node, source []byte) {
+	lines := n.Lines()
+	for i := range lines.Len() {
+		seg := lines.At(i)
+		b.Write(seg.Value(source))
+	}
+}
