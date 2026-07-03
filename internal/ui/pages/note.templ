@@ -228,9 +228,12 @@ templ folderNode(f nav.Folder) {
 	}
 }
 
-// syllabus renders one study-path: a link to the map note, then its tree.
+// syllabus renders one study-path: a link to its full study-path page, then
+// its tree. The title points at the purpose-built /syllabus view (which wins
+// over the raw map note); the map note itself stays reachable via the Folders
+// tree, so spec §2's "any vault file <=3 clicks" holds.
 templ syllabus(s nav.Syllabus) {
-	<a class="k-syllabus__title" href={ templ.URL(notesHref(s.RelPath)) }>{ s.Title }</a>
+	<a class="k-syllabus__title" href={ templ.URL(syllabusHref(s.RelPath)) }>{ s.Title }</a>
 	@sectionList(s.Sections)
 }
 
