@@ -6,8 +6,11 @@
 package pages
 
 import (
+	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/koopa0/kurodo/internal/ui/layouts"
 )
 
 // notesHref builds the reading-page URL for a vault-relative path,
@@ -28,4 +31,37 @@ func notesHref(p string) string {
 		segments[i] = url.PathEscape(s)
 	}
 	return "/notes/" + strings.Join(segments, "/")
+}
+
+// statusHref builds the pure-filter browse URL for a status: the Lifecycle rail
+// links each status to the search results filtered to it. url.Values escapes
+// the colon, yielding e.g. /search?q=status%3Adraft.
+func statusHref(status string) string {
+	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
+}
+
+// LifecycleItem is one row of the status-first Lifecycle rail: a schema status
+// (the vocabulary comes from the toml contract, wall 3), its live snapshot
+// count, and whether it is the current note's status.
+type LifecycleItem struct {
+	Name   string
+	Count  int
+	Active bool
+}
+
+// ChromeFromRequest builds the shell Chrome from the request: the page title
+// plus the persisted theme and furigana cookies (default light / on), so the
+// root element renders the correct state on the first byte (no FOUC). Only the
+// two known cookie values are honored; anything else falls to the default —
+// input hygiene, since a cookie is user-controllable.
+func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
+	theme := "light"
+	if c, err := r.Cookie("kurodo_theme"); err == nil && c.Value == "dark" {
+		theme = "dark"
+	}
+	ruby := "on"
+	if c, err := r.Cookie("kurodo_ruby"); err == nil && c.Value == "off" {
+		ruby = "off"
+	}
+	return layouts.Chrome{Title: title, Theme: theme, Ruby: ruby}
 }

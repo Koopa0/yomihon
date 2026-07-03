@@ -4,7 +4,7 @@
    Vendored woff2 live under assets/fonts/ and are served at
    /static/fonts/*.woff2 (internal/asset). The Google Fonts @import
    the HTML mocks used is deleted — nothing here reaches the network
-   (D-brief acceptance: the devtools network panel shows no external
+   (acceptance: the devtools network panel shows no external
    request).
 
    In hand now (OFL / licensed): Geist + Geist Mono (Latin UI/mono),

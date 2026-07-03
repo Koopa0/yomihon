@@ -109,9 +109,18 @@ func run(log *slog.Logger) error {
 	renderer := render.New(cfg.root, store.Resolver())
 	navProvider := func() *nav.Model { return store.Current().Nav }
 	searchProvider := func() *search.Index { return store.Current().Search }
+	countsProvider := func() map[string]int { return store.Current().Search.CountByStatus() }
 
 	mux := http.NewServeMux()
-	note.NewHandler(cfg.root, renderer, statusSvc, navProvider, log).Register(mux)
+	note.NewHandler(note.Deps{
+		Root:       cfg.root,
+		Renderer:   renderer,
+		Status:     statusSvc,
+		Nav:        navProvider,
+		Counts:     countsProvider,
+		Provenance: statusSvc.LastCommitHash,
+		Log:        log,
+	}).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	asset.Register(mux)
