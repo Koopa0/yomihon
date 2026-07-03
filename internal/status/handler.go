@@ -55,10 +55,19 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	err := h.svc.Flip(r.Context(), path, from, to)
 	switch {
 	case err == nil:
+		// On the seal (→ ready) carry a one-shot ?sealed=1 so the reading page
+		// plays the settle animation once and then strips it; every other
+		// transition redirects plainly. The literal "ready" is the one status
+		// that wears the seal (the same one the reading UI styles as primary),
+		// not a copy of the toml state machine — legality still came from schema.
+		target := "/notes/" + path
+		if to == "ready" {
+			target += "?sealed=1"
+		}
 		// #nosec G710 -- Flip already succeeded, meaning path passed
-		// Service.Flip's filepath.IsLocal vault-escape check; "/notes/" is
-		// a fixed same-origin literal, not attacker-controlled.
-		http.Redirect(w, r, "/notes/"+path, http.StatusSeeOther)
+		// Service.Flip's filepath.IsLocal vault-escape check; "/notes/" and the
+		// query are fixed same-origin literals, not attacker-controlled.
+		http.Redirect(w, r, target, http.StatusSeeOther)
 	case errors.Is(err, ErrClosed):
 		http.Error(w, "the vault contract is unavailable; the write face is closed (fail-closed)", http.StatusServiceUnavailable)
 	case errors.Is(err, ErrStale):

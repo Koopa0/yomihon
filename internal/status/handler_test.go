@@ -62,7 +62,9 @@ func TestHandlerSuccess(t *testing.T) {
 	if code != http.StatusSeeOther {
 		t.Errorf("status = %d, want %d", code, http.StatusSeeOther)
 	}
-	if want := "/notes/" + testRel; location != want {
+	// The seal (→ ready) redirects with the one-shot ?sealed=1 the reading page
+	// plays its settle animation from; a non-seal transition would omit it.
+	if want := "/notes/" + testRel + "?sealed=1"; location != want {
 		t.Errorf("Location = %q, want %q", location, want)
 	}
 }

@@ -28,7 +28,7 @@ func TestSearchHandler(t *testing.T) {
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
-		for _, want := range []string{"Kafka Basics", `href="/notes/Writing/Kafka.md"`, "[draft]"} {
+		for _, want := range []string{"Kafka Basics", `href="/notes/Writing/Kafka.md"`, "draft"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("search page missing %q; body = %q", want, body)
 			}

@@ -5,15 +5,14 @@ import "github.com/koopa0/kurodo/internal/ui/layouts"
 // SearchView is everything the search results page needs. Its fields are plain
 // values (not internal/search types) so internal/ui/pages does not import
 // internal/search — the search handler maps its results onto SearchResult,
-// keeping the import one-directional (search → pages), exactly like the reading
-// page (note → pages).
+// keeping the import one-directional (search → pages), like the reading page.
 type SearchView struct {
 	Query   string
 	Results []SearchResult
 }
 
 // SearchResult is one rendered hit: the note's path (linked), display title,
-// status badge, and a context snippet.
+// status, and a context snippet.
 type SearchResult struct {
 	RelPath string
 	Title   string
@@ -21,32 +20,41 @@ type SearchResult struct {
 	Snippet string
 }
 
-// Search is the minimal, unstyled search results page (like the nav sidebar):
-// a plain GET form and a flat list of hits. Koopa's ⌘K panel is a later
-// frontend-design round; this exercises the engine end to end.
-templ Search(v SearchView) {
-	@layouts.Base("Search") {
-		<form method="get" action="/search" class="search-form">
-			<input type="search" name="q" value={ v.Query } placeholder="Search the vault" aria-label="Search the vault"/>
-			<button type="submit">Search</button>
-		</form>
-		if len(v.Results) > 0 {
-			<ul class="search-results">
-				for _, r := range v.Results {
-					<li>
-						<a href={ templ.URL(notesHref(r.RelPath)) }>{ r.Title }</a>
-						if r.Status != "" {
-							<span class="search-status"> [{ r.Status }]</span>
+// Search is the results page: a GET form and a flat list of hits, rendered in
+// the shared shell so it carries the same chrome and theme as the reading page.
+// The incremental ⌘K panel is a later round; this is the pure-filter browse
+// target the Lifecycle rail and the header search link both reach.
+templ Search(v SearchView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<main class="k-main">
+			<div class="k-searchpage">
+				<form class="k-searchpage__form" method="get" action="/search" role="search">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+					<input type="search" name="q" value={ v.Query } placeholder="Search notes" aria-label="Search notes" autofocus/>
+					<button type="submit" class="k-xbtn">Search</button>
+				</form>
+				if len(v.Results) > 0 {
+					<div class="k-results">
+						for _, r := range v.Results {
+							<a class="k-result" href={ templ.URL(notesHref(r.RelPath)) }>
+								<span class="k-result__title">{ r.Title }</span>
+								<span class="k-result__meta">
+									{ r.RelPath }
+									if r.Status != "" {
+										<span class="k-result__sep" aria-hidden="true">·</span>
+										{ r.Status }
+									}
+								</span>
+								if r.Snippet != "" {
+									<span class="k-result__snippet">{ r.Snippet }</span>
+								}
+							</a>
 						}
-						<div class="search-path">{ r.RelPath }</div>
-						if r.Snippet != "" {
-							<p class="search-snippet">{ r.Snippet }</p>
-						}
-					</li>
+					</div>
+				} else if v.Query != "" {
+					<p class="k-searchpage__empty">No results.</p>
 				}
-			</ul>
-		} else if v.Query != "" {
-			<p class="search-empty">No results.</p>
-		}
+			</div>
+		</main>
 	}
 }
