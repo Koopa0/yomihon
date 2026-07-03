@@ -373,6 +373,31 @@ html, body { margin: 0; background: var(--bg); }
 [data-ruby="off"] rt:not([data-keep="1"]) { visibility: hidden; }
 
 /* ============================================================
+   TTS — read-aloud speak button on lesson sentences.
+   Server-rendered (render.InjectTTS) with reading-stripped data-tts; the
+   button hangs in the left gutter and is revealed ONLY once kurodo.js
+   confirms a Web Speech engine (root[data-speech]), so with no JS or no
+   engine the sentence still reads and the affordance is simply absent.
+   ============================================================ */
+.k-prose .k-reading { position: relative; margin: 18px 0 0; }
+.k-prose .k-reading > p { margin: 0; }
+.k-tts {
+  position: absolute; left: -30px; top: 0.35em;
+  display: none; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  border: none; border-radius: var(--r-sm);
+  background: none; color: var(--fg-faint); cursor: pointer;
+  transition: color .12s, background .12s;
+}
+[data-speech] .k-tts { display: inline-flex; }
+.k-tts:hover { color: var(--accent); background: var(--overlay); }
+.k-tts svg { width: 15px; height: 15px; }
+/* Narrow screens have no gutter — the button sits inline before the sentence. */
+@media (max-width: 720px) {
+  .k-tts { position: static; margin-right: 6px; vertical-align: -0.15em; }
+}
+
+/* ============================================================
    Seal ceremony keyframes (落款／鈐印)
    ============================================================ */
 @keyframes k-sealBed  { 0% { transform: scale(1.18); opacity: 0; } 55% { transform: scale(.965); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
