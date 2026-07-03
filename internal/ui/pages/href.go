@@ -33,6 +33,18 @@ func notesHref(p string) string {
 	return "/notes/" + strings.Join(segments, "/")
 }
 
+// syllabusHref builds the study-path page URL for a vault-relative path,
+// percent-escaping each segment exactly as notesHref does — so a study-path
+// whose path carries spaces or CJK (e.g. "Maps/Go 課綱.md") round-trips through
+// GET /syllabus/{path...} and matches the switcher link byte-for-byte.
+func syllabusHref(p string) string {
+	segments := strings.Split(p, "/")
+	for i, s := range segments {
+		segments[i] = url.PathEscape(s)
+	}
+	return "/syllabus/" + strings.Join(segments, "/")
+}
+
 // statusHref builds the pure-filter browse URL for a status: the Lifecycle rail
 // links each status to the search results filtered to it. url.Values escapes
 // the colon, yielding e.g. /search?q=status%3Adraft.

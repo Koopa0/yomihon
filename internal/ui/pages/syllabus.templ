@@ -1,0 +1,186 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/koopa0/kurodo/internal/ui/layouts"
+)
+
+// Syllabus is the study-path page: the whole tree of one study-path rendered on
+// a single fully-expanded page (no per-part page, no disclosure), with a left
+// rail that switches paths and jumps to parts. It is the full-page sibling of
+// note.templ's sidebar `syllabus` component — same nav.Syllabus data, editorial
+// scale. All styling is shipped k-* / ui-* classes; no inline style.
+templ Syllabus(v SyllabusView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="k-nav-scrim" data-nav-close></div>
+		<div class="k-shell2">
+			@syllabusRail(v)
+			<main class="k-main">
+				<div class="k-syl">
+					@syllabusHead(v)
+					for _, sec := range v.Sections {
+						@partBlock(sec)
+					}
+				</div>
+			</main>
+		</div>
+	}
+}
+
+// syllabusHead is the path kicker, title, and the derived metarow (parts /
+// modules / lessons / ready). The italic-serif path dek the mock shows is not
+// rendered: there is no backing field for it (the same "no data → no render"
+// ruling the reading page applies to a note's subtitle).
+templ syllabusHead(v SyllabusView) {
+	<div class="k-syl-kicker">SYLLABUS · 学習パス</div>
+	<h1 class="k-title">{ v.Title }</h1>
+	<div class="k-metarow">
+		<span>{ countLabel(v.Parts, "part") }</span>
+		if v.Modules > 0 {
+			<span aria-hidden="true">·</span>
+			<span>{ countLabel(v.Modules, "module") }</span>
+		}
+		<span aria-hidden="true">·</span>
+		<span>{ countLabel(v.Lessons, "lesson") }</span>
+		<span class="k-syl-metaspacer"></span>
+		if v.Ready > 0 {
+			<span class="k-syl-ready">
+				<span class="k-navdot k-navdot--ready" aria-hidden="true"></span>
+				{ strconv.Itoa(v.Ready) } ready
+			</span>
+		}
+	</div>
+	<div class="k-seam" aria-hidden="true"></div>
+}
+
+// ============================ MAIN — the path ============================
+
+// partBlock renders one top-level section (a part): an anchored editorial
+// heading, then its lessons and modules fully expanded inline. The mock draws a
+// completed part as a row that jumps to a per-part page; there is no per-part
+// page (kurodo has no reading-progress model), so every part expands the same.
+templ partBlock(sec SectionView) {
+	<section class="k-part-block">
+		<div class="k-part" id={ sec.Anchor }>
+			<span class="k-part__num">{ sec.Ordinal }</span>
+			<span class="k-part__name">{ sec.Heading }</span>
+			@sectionCount(sec.Ready, sec.Total, "k-partcount")
+		</div>
+		for _, l := range sec.Lessons {
+			@lessonRow(l)
+		}
+		for _, sub := range sec.Sub {
+			@moduleBlock(sub)
+		}
+	</section>
+}
+
+// moduleBlock renders a nested section (a module). It recurses for any deeper
+// nesting the vault happens to have — the two real syllabi are three levels
+// deep (part → module → lesson), and a deeper one keeps the module style rather
+// than being flattened (nav's tree is rendered as-is, never forced to a shape).
+templ moduleBlock(sec SectionView) {
+	<div class="k-module">
+		<div class="k-module__label">
+			<span class="k-module__tag">MODULE { strconv.Itoa(sec.Num) }</span>
+			<span class="k-module__name">{ sec.Heading }</span>
+			<span class="k-module__rule" aria-hidden="true"></span>
+		</div>
+		for _, l := range sec.Lessons {
+			@lessonRow(l)
+		}
+		for _, sub := range sec.Sub {
+			@moduleBlock(sub)
+		}
+	</div>
+}
+
+// lessonRow renders one lesson. A uniquely-resolved lesson is a link carrying
+// its note status; an ambiguous or unresolved lesson is STILL listed (wall 4)
+// as a non-link row with the same warn mark the sidebar uses.
+templ lessonRow(l LessonView) {
+	if l.Href != "" {
+		<a class="k-lesson" href={ templ.URL(l.Href) }>
+			<span class={ "k-navdot", templ.KV("k-navdot--ready", l.Status == "ready") } aria-hidden="true"></span>
+			<span class="k-lesson__title">{ l.Text }</span>
+			if l.Status != "" {
+				<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
+			}
+		</a>
+	} else {
+		<div class="k-lesson k-lesson--broken">
+			<span class="k-navdot" aria-hidden="true"></span>
+			<span class="k-lesson__title">{ l.Text }</span>
+			<span class="k-navmark k-navmark--warn">{ l.Mark }</span>
+		</div>
+	}
+}
+
+// ============================ LEFT RAIL ============================
+
+// syllabusRail is the left rail: the path switcher (every study-path, the
+// current one active) over the "On this path" part jump-nav and the path-level
+// progress bar.
+templ syllabusRail(v SyllabusView) {
+	<aside class="k-rail-left">
+		<div class="ui-side__label k-syl-raillabel">Study paths</div>
+		for _, p := range v.Paths {
+			@pathSwitch(p)
+		}
+		if len(v.Sections) > 0 {
+			<div class="ui-side__label k-syl-raillabel k-syl-raillabel--gap">On this path</div>
+			for _, sec := range v.Sections {
+				<a class="ui-navitem k-pathitem" href={ templ.URL("#" + sec.Anchor) }>
+					<span class="k-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
+					<span class="k-pathitem__name">{ sec.Heading }</span>
+					@sectionCount(sec.Ready, sec.Total, "k-pathcount")
+				</a>
+			}
+			@pathProgress(v)
+		}
+	</aside>
+}
+
+// pathSwitch is one row of the path switcher: a link to another study-path, or
+// the active (non-link) marker for the one shown.
+templ pathSwitch(p SyllabusLink) {
+	if p.Active {
+		<a class="ui-navitem is-active" aria-current="page">
+			@pathIcon()
+			<span class="k-pathitem__name">{ p.Title }</span>
+			<span class="ui-navitem__count">{ strconv.Itoa(p.Lessons) }</span>
+		</a>
+	} else {
+		<a class="ui-navitem" href={ templ.URL(syllabusHref(p.RelPath)) }>
+			@pathIcon()
+			<span class="k-pathitem__name">{ p.Title }</span>
+			<span class="ui-navitem__count">{ strconv.Itoa(p.Lessons) }</span>
+		</a>
+	}
+}
+
+// pathProgress is the whole-path ready/total figure and its bar. The bar width
+// is a data-fill bucket (nearest 5%) resolved by CSS — no inline style, no JS.
+templ pathProgress(v SyllabusView) {
+	<div class="k-progress">
+		<div class="k-progress__label">{ strconv.Itoa(v.Ready) } / { strconv.Itoa(v.Lessons) } ready</div>
+		<div class="k-progress__track">
+			<div class="k-progress__fill" data-fill={ strconv.Itoa(fillBucket(v.Ready, v.Lessons)) }></div>
+		</div>
+	</div>
+}
+
+// sectionCount is a ready/total badge, sage when a section is fully sealed. cls
+// picks the badge shape (a part badge vs the leaner rail count).
+templ sectionCount(ready, total int, cls string) {
+	if total > 0 && ready == total {
+		<span class={ cls, "is-complete" }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) } ready</span>
+	} else {
+		<span class={ cls }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) }</span>
+	}
+}
+
+templ pathIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path></svg>
+}
