@@ -94,11 +94,16 @@
       btn.addEventListener('pointerdown', (e) => { e.preventDefault(); holdStart(form); });
       btn.addEventListener('pointerup', holdEnd);
       btn.addEventListener('pointerleave', holdEnd);
+      btn.addEventListener('pointercancel', holdEnd);
       btn.addEventListener('keydown', (e) => {
         if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); holdStart(form); }
       });
       btn.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') holdEnd(); });
     });
+    // Losing focus mid-hold (cmd-tab, alt-tab) means the pointerup/keyup that
+    // would cancel never arrives — cancel the hold so the running timer can't
+    // seal unwatched.
+    window.addEventListener('blur', holdEnd);
   }
   // The settle animation renders server-side when ?sealed=1 is present; strip the
   // param (without reloading) so a manual refresh does not replay it.

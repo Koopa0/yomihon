@@ -76,11 +76,13 @@ if (form) {
    btn.addEventListener("pointerdown", start);
    btn.addEventListener("pointerup", cancel);
    btn.addEventListener("pointerleave", cancel);
+   btn.addEventListener("pointercancel", cancel);
    // keyboard parity: hold Enter/Space; and a global key (R) may start it
    btn.addEventListener("keydown", (e) => {
       if ((e.key === "Enter" || e.key === " ") && !e.repeat) start(e);
    });
    btn.addEventListener("keyup", cancel);
+   window.addEventListener("blur", cancel); // focus loss mid-hold: the up/keyup never comes
 }
 ```
 
@@ -95,6 +97,11 @@ if (form) {
   `click`**, so on a mouse a quick click would still fire the button's native
   submit and defeat the hold. `requestSubmit` (the hold's path) never fires
   `click`, so cancelling `click` doesn't block the real seal.
+- **Complete the guard at every exit.** A hold must be cancellable through _every_
+  way it can be interrupted, not just pointerup: bind `pointercancel` (a system
+  gesture steals the pointer) and window `blur` (cmd-tab / alt-tab away) to the
+  same cancel. Miss one and an interrupted hold still fires the timer and commits
+  unwatched — the same defect class as the native-click gap above.
 
 ## 3. One-shot post-action signal (animate once, survive refresh)
 
