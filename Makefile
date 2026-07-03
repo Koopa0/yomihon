@@ -2,10 +2,10 @@ MODULE := github.com/koopa0/kurodo
 
 .PHONY: build run test lint fmt vet gen css verify verify-spec clean
 
-build: gen
+build: gen css
 	go build -o bin/kurodo ./cmd/kurodo
 
-run: gen
+run: gen css
 	go run ./cmd/kurodo serve
 
 test:

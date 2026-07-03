@@ -15,6 +15,7 @@ import "embed"
 //
 //   - js/kurodo.js — kurodo's own hand-written client script (see that
 //     file's doc comment).
+//
 //   - js/mermaid/ — the vendored mermaid@11.15.0 ES-module runtime.
 //     mermaid's published ESM build is itself code-split: dist/mermaid.esm.min.mjs
 //     is a ~28KB facade whose dynamic import() calls pull in
@@ -33,5 +34,14 @@ import "embed"
 //     2026-07-02; update by re-fetching a newer @<version> from the same
 //     path and re-running the same file list).
 //
-//go:embed js/kurodo.js js/mermaid
+//   - css/output.css — the Tailwind v4 stylesheet, built by `make css`
+//     from css/input.css (@import tailwindcss + the design tokens + the
+//     product layer). Served at /static/app.css. Committed like the
+//     generated *_templ.go so `go build ./...` needs no prior css step.
+//
+//   - fonts/ — the self-hosted woff2 (Geist, Geist Mono, Newsreader),
+//     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
+//     request ever leaves the machine (D-brief: zero external requests).
+//
+//go:embed js/kurodo.js js/mermaid css/output.css fonts
 var Files embed.FS

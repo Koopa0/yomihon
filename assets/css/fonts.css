@@ -1,0 +1,59 @@
+/* ============================================================
+   kurodo — self-hosted fonts (zero external requests)
+   ------------------------------------------------------------
+   Vendored woff2 live under assets/fonts/ and are served at
+   /static/fonts/*.woff2 (internal/asset). The Google Fonts @import
+   the HTML mocks used is deleted — nothing here reaches the network
+   (acceptance: the devtools network panel shows no external
+   request).
+
+   In hand now (OFL / licensed): Geist + Geist Mono (Latin UI/mono),
+   Newsreader (Latin editorial serif, roman + italic). The CJK families
+   the token stack names next — Noto Serif/Sans TC/JP and LXGW WenKai TC
+   (楷書) — are large OFL binaries not yet vendored (path b). Until then
+   there is deliberately NO CJK @font-face here, so nothing 404s; the
+   token font stacks (tokens.css) resolve CJK to a matching SYSTEM face
+   of the right class (path a): 明體/Mincho for the reading body and kai
+   titles (Songti TC / Hiragino Mincho ProN), 黑體/Gothic for the UI
+   (PingFang TC / Hiragino Sans). To finish path b: subset the woff2 to
+   the vault's codepoints (fonttools / hb-subset / glyphhanger), drop
+   them into assets/fonts/, append an @font-face block here with a
+   `unicode-range` CJK split, and rebuild `make css`. No selector or
+   markup change is needed — the stacks already prefer Noto when present.
+   ============================================================ */
+
+/* ---------- Latin UI/display: Geist (variable) ---------- */
+@font-face {
+  font-family: "Geist";
+  src: url("/static/fonts/Geist-Variable.woff2") format("woff2-variations");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- Latin mono: Geist Mono (variable) ---------- */
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/static/fonts/GeistMono-Variable.woff2") format("woff2-variations");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- Latin editorial serif: Newsreader (variable) ----------
+   Leads --font-serif so Latin runs inside serif prose/dek are truly
+   serif; CJK falls through to Noto Serif / system serif. */
+@font-face {
+  font-family: "Newsreader";
+  src: url("/static/fonts/Newsreader-Variable.woff2") format("woff2-variations");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Newsreader";
+  src: url("/static/fonts/Newsreader-Italic-Variable.woff2") format("woff2-variations");
+  font-weight: 400 600;
+  font-style: italic;
+  font-display: swap;
+}

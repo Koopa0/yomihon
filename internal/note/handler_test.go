@@ -1,6 +1,7 @@
 package note_test
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -47,7 +48,15 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	if err != nil {
 		t.Fatalf("nav.Build(%q) = %v", root, err)
 	}
-	h := note.NewHandler(root, render.New(root, idx), svc, func() *nav.Model { return navModel }, slog.New(slog.DiscardHandler))
+	h := note.NewHandler(note.Deps{
+		Root:       root,
+		Renderer:   render.New(root, idx),
+		Status:     svc,
+		Nav:        func() *nav.Model { return navModel },
+		Counts:     func() map[string]int { return nil },
+		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Log:        slog.New(slog.DiscardHandler),
+	})
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -103,7 +112,7 @@ func TestShow(t *testing.T) {
 	}
 	for _, want := range []string{
 		"L00 テスト課",
-		"status: draft",
+		"ui-status--draft", // the note's status, rendered as its badge
 		"<ruby>今日<rt>きょう</rt></ruby>",
 		// The status service is wired but fail-closed (nil contract):
 		// the page must still render, with the write face's own notice
@@ -243,7 +252,15 @@ func TestNewHandlerPanicsOnNilStatusPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	note.NewHandler(root, render.New(root, idx), nil, func() *nav.Model { return &nav.Model{} }, slog.New(slog.DiscardHandler))
+	note.NewHandler(note.Deps{
+		Root:       root,
+		Renderer:   render.New(root, idx),
+		Status:     nil, // the nil under test
+		Nav:        func() *nav.Model { return &nav.Model{} },
+		Counts:     func() map[string]int { return nil },
+		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Log:        slog.New(slog.DiscardHandler),
+	})
 }
 
 // TestNewHandlerPanicsOnNilNavigation mirrors the StatusPolicy check: a
@@ -264,7 +281,15 @@ func TestNewHandlerPanicsOnNilNavigation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	note.NewHandler(root, render.New(root, idx), status.NewService(root, nil), nil, slog.New(slog.DiscardHandler))
+	note.NewHandler(note.Deps{
+		Root:       root,
+		Renderer:   render.New(root, idx),
+		Status:     status.NewService(root, nil),
+		Nav:        nil, // the nil under test
+		Counts:     func() map[string]int { return nil },
+		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Log:        slog.New(slog.DiscardHandler),
+	})
 }
 
 // TestShowIncludesSidebar is the navigation-face regression: the reading
@@ -302,12 +327,12 @@ func TestShowIncludesSidebar(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		`class="sidebar"`, // the nav rendered at all
-		"Writing",         // a lifecycle folder in the browse tree
-		"Go path",         // the study-path title
-		"Data",            // the pipe-format H2's English label
+		`class="k-rail-left"`, // the nav rail rendered at all
+		"Writing",             // a lifecycle folder in the collapsed Folders tree
+		"Go path",             // the study-path title
+		"Data",                // the pipe-format H2's English label
 		`href="/notes/Writing/lessons/golang/Slices.md"`, // the resolved lesson link
-		"[draft]", // the lesson's status badge
+		"draft", // the lesson's status badge
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("reading page sidebar missing %q; body = %q", want, body)

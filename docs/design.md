@@ -20,13 +20,13 @@ kurodo reads everything, writes one field, never edits notes, and never overstep
 
 ## 2. Tech stack (every dependency justifies itself)
 
-| Dependency | Rationale |
-|---|---|
-| goldmark + frontmatter ext | The pipeline foundation yomihon validated against real lessons |
-| a-h/templ | Server-rendered HTML; existing muscle memory (yomihon, goilerplate) |
-| Tailwind v4 standalone CLI | No Node dependency; the typography plugin handles prose |
-| `os/exec` git | The audit layer must share exactly the same semantics as hand-run git; no go-git |
-| vanilla JS (single file) | Inherits from yomihon: native elements first (details/dialog), no framework |
+| Dependency                 | Rationale                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| goldmark + frontmatter ext | The pipeline foundation yomihon validated against real lessons                   |
+| a-h/templ                  | Server-rendered HTML; existing muscle memory (yomihon, goilerplate)              |
+| Tailwind v4 standalone CLI | No Node dependency; the typography plugin handles prose                          |
+| `os/exec` git              | The audit layer must share exactly the same semantics as hand-run git; no go-git |
+| vanilla JS (single file)   | Inherits from yomihon: native elements first (details/dialog), no framework      |
 
 The search index is **in-memory** (D24), so there is no database and no new dependency for it — see §6.
 
@@ -36,12 +36,12 @@ The search index is **in-memory** (D24), so there is no database and no new depe
 
 A single binary `kurodo`; `cmd/kurodo` does wiring only (go-spec doctrine). It is at once **a human interface (serve) and an agent interface (check/exists/coverage)** — the Claude Code on the obsidian side is a direct consumer of the CLI surface, so the output formats must align with kura (JSONL / human / md):
 
-| Command | Purpose (spec in spec.md) |
-|---|---|
-| `kurodo serve` | The workbench itself, `127.0.0.1:9610` (9610 is goroawase for ku-ro-do; only the port is configurable) |
-| `kurodo check` | A Go rewrite of kura check, JSONL golden comparison (yomihon SPEC §13's check plan is retired; lint moves here) |
-| `kurodo exists` / `coverage` | Absorbed in sync from kura's agent toolbox; further extensions enter the yard per real vault-side needs |
-| `kurodo export` | Absorbs yomihon's SSG export mode |
+| Command                      | Purpose (spec in spec.md)                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `kurodo serve`               | The workbench itself, `127.0.0.1:9610` (9610 is goroawase for ku-ro-do; only the port is configurable)          |
+| `kurodo check`               | A Go rewrite of kura check, JSONL golden comparison (yomihon SPEC §13's check plan is retired; lint moves here) |
+| `kurodo exists` / `coverage` | Absorbed in sync from kura's agent toolbox; further extensions enter the yard per real vault-side needs         |
+| `kurodo export`              | Absorbs yomihon's SSG export mode                                                                               |
 
 Configuration (the config struct follows go-spec config-management): `KURODO_ROOT` (vault path, default `~/obsidian`), `KURODO_PORT` (default 9610). There is no `KURODO_DB` (the index is in-memory, D24) and **no `KURODO_ADDR`** — hard-wiring loopback is what wall 2 looks like once it has grown into code.
 
@@ -99,7 +99,7 @@ the whole thing rebuilds from the vault.
 
 No status history: `git log` is the history (vault-model §3). The reading and
 judge faces never depend on any persistent store (spec §0.1); search is as
-available as reading, because the index *is* memory sourced from the
+available as reading, because the index _is_ memory sourced from the
 always-present vault. The recorded future persistence path is SQLite, not
 PostgreSQL (D24), and only when a frequently-invoked search CLI makes the
 per-invocation rescan painful.
@@ -117,10 +117,10 @@ PostgreSQL (D24).
 
 ## 8. UI (styling references the Syntax template; the implementation is all server-rendered templ)
 
-- **Shell**: sticky header (search panel ⌘K, theme toggle) + left sidebar + content column + right column. Reference `syntax-ts/src/components/{Layout,Navigation,Prose}.tsx` and the type scale in `src/styles/tailwind.css` — take only the visual language, not React. The visual identity gets applied once Koopa brings back the `@theme` tokens from Claude design (requirements in `claude-design-brief.md`).
-- **Left sidebar**: lifecycle folders (vault order, top level ≤9) + syllabus tree (two study-path notes with different structures) + a Reports area (daily-briefing HTML shown in a sandboxed iframe).
-- **Content column**: typography prose; the two-bucket callout coloring; ruby passes through as-is; mermaid rendered client-side; code highlighting server-side (chroma, no prism/JS).
-- **Right column**: TOC (CJK-safe slug) + frontmatter/status panel (all legal transitions, `ready` highlighted) + diagnostics column (display only, never fixes).
+- **Shell**: sticky 56px header (search ⌘K, furigana toggle 振, theme toggle) + left sidebar + content column + right column, on a 3-column grid that degrades to a drawer (≤900) and a fixed seal bar (≤1280). The `@theme` tokens are landed (Claude design → `internal/ui/styles/*.css`, compiled by the Tailwind v4 standalone CLI into `assets/css/output.css`, served at `/static/app.css`); the visual identity is the 2026-07-03 Reading Page redesign. Fonts are self-hosted woff2 (`assets/fonts/`, zero external requests); theme + furigana persist in a cookie and are rendered server-side onto the root element (no FOUC).
+- **Left sidebar** (status-first, D26): a **Lifecycle** list (the `note` group's ordered statuses, live snapshot counts, each linking to `/search?q=status:<name>`) + the syllabus tree (two study-path notes with different structures) + a Reports area (daily-briefing HTML) + a **collapsed** Folders tree (lifecycle folders, vault order, top level ≤9). All grouping/counts trace to the toml + snapshot, never hardcoded (wall 3).
+- **Content column**: typography prose; the two-bucket callout coloring; ruby passes through as-is (toggled by `visibility`, zero reflow); mermaid rendered client-side; code highlighting server-side (chroma, no prism/JS).
+- **Right column**: TOC (CJK-safe slug) + frontmatter/status panel (all legal transitions, `ready` the only primary — the koopa-only seal, D27: press-and-hold ceremony as progressive enhancement, a read-only `git log -1 --format=%h` provenance line) + diagnostics column (display only, never fixes).
 - **Japanese-lesson interactions**: reproduce yomihon's already-validated mechanisms as-is — furigana uses `visibility`, not `display` (prevents reflow); TTS's `data-tts` strips `<rt>/<rp>` during build/render; slots consume `slots/*.yaml` sidecars; the concept drawer uses a native `<dialog>`.
 
 ## 9. Goals and retirement gates
@@ -128,9 +128,10 @@ PostgreSQL (D24).
 The goals (the four end-state points) are in `spec.md` §0. **No milestone fences (D15)** — implementation order is free; the only ordering suggestion (not a fence): first wire up the single "finish reading → certify" keypress (D10, the v0 shipping gate), which attacks the system's real current bottleneck — Koopa's adjudication friction.
 
 The two retirements are **evidence-based gates, not dates** (D11):
+
 - **yomihon's retirement gate** = `spec.md` §1 (visual parity) + §6 (five interactions + fixtures + two weeks of practical use). Until it is met, yomihon is frozen in service (tag `v1.0.0`, bug fixes only).
 - **kura's retirement gate** = `spec.md` §5 (JSONL byte-compat + snapshots + scan boundary + four-pipeline switchover). Until it is met, not a line of kura changes.
 
 ## 10. Unscheduled (the yard is open, the walls don't block)
 
-graph view, backlinks panel, frontmatter query, reading progress, PDF export, MCP server (a loose thread left in kura's README)… all legal; which one grows first is decided by the pain of actual use and the real needs of vault-side agents.
+graph view, backlinks panel, frontmatter query, reading progress, PDF export, MCP server (a loose thread left in kura's README), a diagnostics index page (the status-bar report-count panel D26 deferred until it has a real landing page)… all legal; which one grows first is decided by the pain of actual use and the real needs of vault-side agents.

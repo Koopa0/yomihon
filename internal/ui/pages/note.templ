@@ -10,18 +10,19 @@ import (
 	"github.com/koopa0/kurodo/internal/ui/layouts"
 )
 
-// NoteView is everything the reading page needs. Diagnostic (frontmatter
-// YAML) and RenderDiagnostics (dialect passes: broken/ambiguous links,
-// unknown callouts, risky fences) are both display-only: kurodo reports,
-// kura judges, humans edit (wall 4). They are independent — a note can
-// have a frontmatter Diagnostic, zero or more RenderDiagnostics, or both;
-// RenderDiagnostics is shown regardless of whether Diagnostic is set.
+// sealStatus is the one primary status — the koopa-only seal (落款／鈐印).
+// Naming it in one place documents the single spot the UI treats a status
+// specially; it duplicates no enum — those live in the schema toml.
+const sealStatus = "ready"
+
+// NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
+// and RenderDiagnostics (dialect passes) are both display-only: kurodo reports,
+// kura judges, humans edit (wall 4).
 //
-// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the
-// write face's only UI, spec.md §4): at most one of WriteClosed,
-// NoFrontmatter, or a non-empty Transitions applies for any note that has a
-// usable status; a diagnostic (bad YAML) note gets none of the three and
-// shows no panel at all.
+// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the write
+// face's only UI, spec.md §4). Lifecycle is the status-first sidebar axis;
+// JustSealed / SealedHash are the seal-provenance signals (only meaningful when
+// Status == "ready").
 type NoteView struct {
 	Title      string
 	RelPath    string
@@ -30,251 +31,431 @@ type NoteView struct {
 	Diagnostic string
 	BodyHTML   string
 
-	// RenderDiagnostics and TOC are display-only feedback from the
-	// rendering pipeline (internal/render) — never affects the status
-	// panel below. TOC is a plain, unstyled nav (functional, not
-	// polished; the real navigation-face layout is a later round).
 	RenderDiagnostics []render.Diagnostic
 	TOC               []render.TOCEntry
 
 	// Nav is the read-only whole-vault sidebar model (folders, syllabi,
-	// reports), read from the current snapshot on each request (D25), so it
-	// reflects the latest vault state rather than a startup-fixed value. It may
-	// be an empty model when navigation was unavailable (§0.1) — the sidebar
-	// then renders empty, reading is unaffected.
+	// reports), read from the current snapshot each request.
 	Nav *nav.Model
+
+	// Lifecycle is the status-first Lifecycle rail: the note group's statuses in
+	// toml order, each with its live snapshot count.
+	Lifecycle []LifecycleItem
 
 	Transitions   []string
 	WriteClosed   bool
 	NoFrontmatter bool
+
+	// JustSealed is set from a one-shot ?sealed=1 PRG signal; SealedHash is the
+	// read-only git short hash of the sealing commit. Both apply only to a ready
+	// note.
+	JustSealed bool
+	SealedHash string
 }
 
-templ Note(v NoteView) {
-	@layouts.Base(v.Title) {
-		@sidebar(v.Nav)
-		<article>
-			<h1>{ v.Title }</h1>
-			<p class="meta">
-				{ v.RelPath }
-				if v.Type != "" {
-					&middot; type: { v.Type }
-				}
-				if v.Status != "" {
-					&middot; status: { v.Status }
-				}
-			</p>
-			if v.Diagnostic != "" {
-				<p class="diag">Diagnostic: { v.Diagnostic }</p>
-			} else {
-				@statusPanel(v)
-			}
-			@renderDiagnostics(v.RenderDiagnostics)
-			@toc(v.TOC)
-			@templ.Raw(v.BodyHTML)
-		</article>
+// diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
+// (0 or 1) plus every render diagnostic.
+func (v NoteView) diagCount() int {
+	n := len(v.RenderDiagnostics)
+	if v.Diagnostic != "" {
+		n++
+	}
+	return n
+}
+
+// breadcrumb is the reading crumb: the note's directory segments (the filename
+// dropped), e.g. "Writing/lessons/japanese/L20.md" → [Writing lessons japanese].
+func breadcrumb(relPath string) []string {
+	segs := strings.Split(relPath, "/")
+	if len(segs) <= 1 {
+		return nil
+	}
+	return segs[:len(segs)-1]
+}
+
+templ Note(v NoteView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="k-nav-scrim" data-nav-close></div>
+		<div class="k-shell">
+			@sidebar(v)
+			<main class="k-main">
+				<article class="k-article" lang="zh-Hant">
+					@articleHead(v)
+					<div class="k-prose">
+						@templ.Raw(v.BodyHTML)
+					</div>
+				</article>
+			</main>
+			@rightRail(v)
+		</div>
+		@sealBar(v)
 	}
 }
 
-// renderDiagnostics lists rendering-time diagnostics (broken/ambiguous
-// wikilinks, unknown callout types, risky fence content) — display-only,
-// shown whenever there is at least one, independent of the frontmatter
-// Diagnostic above (wall 4).
-templ renderDiagnostics(diags []render.Diagnostic) {
-	if len(diags) > 0 {
-		<ul class="render-diagnostics">
-			for _, d := range diags {
-				<li class="diag">
-					Diagnostic ({ string(d.Kind) }):
-					if d.Target != "" {
-						{ d.Target } —
+// articleHead is the breadcrumb + title + type meta + the kintsugi seam above
+// the rendered body.
+templ articleHead(v NoteView) {
+	if crumbs := breadcrumb(v.RelPath); len(crumbs) > 0 {
+		<div class="k-crumbs">
+			for i, seg := range crumbs {
+				if i > 0 {
+					<span class="k-crumbs__sep" aria-hidden="true">·</span>
+				}
+				<span>{ seg }</span>
+			}
+		</div>
+	}
+	<h1 class="k-title">{ v.Title }</h1>
+	if v.Type != "" || v.Status != "" {
+		<div class="k-metarow">
+			if v.Type != "" {
+				<span class="ui-type">{ v.Type }</span>
+			}
+			if v.RelPath != "" {
+				<span>{ v.RelPath }</span>
+			}
+		</div>
+	}
+	<div class="k-seam" aria-hidden="true"></div>
+}
+
+// ============================ LEFT RAIL ============================
+
+// sidebar is the navigation face (spec §2): a status-first Lifecycle list, the
+// syllabus tree, the Reports (daily-briefing HTML), and a collapsed Folders tree
+// (which preserves "any file ≤3 clicks"). A nil model renders nothing.
+templ sidebar(v NoteView) {
+	<aside class="k-rail-left">
+		if len(v.Lifecycle) > 0 {
+			<details open>
+				<summary class="k-railsummary">
+					@chevron()
+					Lifecycle
+				</summary>
+				<div class="k-railgroup">
+					for _, it := range v.Lifecycle {
+						<a class={ "ui-navitem", templ.KV("is-active", it.Active) } href={ templ.URL(statusHref(it.Name)) }>
+							<span class={ "k-navdot", templ.KV("k-navdot--ready", it.Name == sealStatus) } aria-hidden="true"></span>
+							{ it.Name }
+							<span class="ui-navitem__count">{ strconv.Itoa(it.Count) }</span>
+						</a>
 					}
-					{ d.Message }
-				</li>
+				</div>
+			</details>
+		}
+		if v.Nav != nil {
+			if len(v.Nav.Syllabi) > 0 {
+				<div class="k-railsep" aria-hidden="true"></div>
+				<details open>
+					<summary class="k-railsummary">
+						@chevron()
+						Syllabus
+					</summary>
+					<div class="k-railgroup">
+						for _, s := range v.Nav.Syllabi {
+							@syllabus(s)
+						}
+					</div>
+				</details>
 			}
-		</ul>
+			if len(v.Nav.Reports) > 0 {
+				<div class="k-railsep" aria-hidden="true"></div>
+				<details>
+					<summary class="k-railsummary">
+						@chevron()
+						Reports
+					</summary>
+					<div class="k-railgroup">
+						for _, rep := range v.Nav.Reports {
+							<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
+								{ rep.Name }
+								if rep.Latest {
+									<span class="k-navmark">latest</span>
+								}
+							</a>
+						}
+					</div>
+				</details>
+			}
+			<div class="k-railsep" aria-hidden="true"></div>
+			<details>
+				<summary class="k-railsummary">
+					@chevron()
+					Folders
+				</summary>
+				<div class="k-railgroup">
+					@folderList(v.Nav.Folders, v.Nav.RootNotes)
+				</div>
+			</details>
+		}
+	</aside>
+}
+
+templ chevron() {
+	<svg class="k-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
+}
+
+// folderList renders the vault-root notes then the lifecycle-ordered folders.
+templ folderList(folders []nav.Folder, rootNotes []nav.NoteRef) {
+	for _, n := range rootNotes {
+		<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+	}
+	for _, f := range folders {
+		@folderNode(f)
 	}
 }
 
-// toc is a plain, unstyled list of links to each heading's assigned id —
-// functional, not polished (a real sidebar TOC waits for the design
-// tokens / navigation-face round). Its point here is to make the
-// slug/id correctness in internal/render actually visible and exercised
-// end to end.
-templ toc(entries []render.TOCEntry) {
-	if len(entries) > 0 {
-		<nav class="toc">
-			<ul>
-				for _, h := range entries {
-					<li data-level={ strconv.Itoa(h.Level) }>
-						<a href={ templ.URL("#" + h.ID) }>{ h.Text }</a>
-					</li>
+// folderNode renders one folder and recurses — the tree mirrors the real
+// directory structure to whatever depth it has, as a nested native <details>.
+templ folderNode(f nav.Folder) {
+	if len(f.Sub) > 0 || len(f.Notes) > 0 {
+		<details>
+			<summary class="ui-navitem">
+				@chevron()
+				{ f.Name }
+			</summary>
+			<div class="k-tree">
+				for _, sub := range f.Sub {
+					@folderNode(sub)
 				}
-			</ul>
-		</nav>
+				for _, n := range f.Notes {
+					<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+				}
+			</div>
+		</details>
+	} else {
+		<span class="ui-navitem">{ f.Name }</span>
 	}
 }
 
-// statusPanel is the write face's entire UI: no JavaScript, one form per
-// legal transition (the PRG pattern — every flip is a genuine page-reload
-// form submission). Called only when the note has no frontmatter
-// diagnostic (wall 4: read isn't reliable enough to write).
+// syllabus renders one study-path: a link to the map note, then its tree.
+templ syllabus(s nav.Syllabus) {
+	<a class="k-syllabus__title" href={ templ.URL(notesHref(s.RelPath)) }>{ s.Title }</a>
+	@sectionList(s.Sections)
+}
+
+templ sectionList(sections []nav.Section) {
+	if len(sections) > 0 {
+		<div class="k-tree">
+			for _, sec := range sections {
+				<div class="k-tree__label">{ sec.Heading }</div>
+				@sectionList(sec.Sub)
+				for _, l := range sec.Lessons {
+					@lesson(l)
+				}
+			}
+		</div>
+	}
+}
+
+// lesson renders one lesson. A uniquely-resolved lesson is a link; an ambiguous
+// or unresolved lesson is STILL shown (wall 4, reading face is fail-open), as
+// plain text carrying a diagnostic mark instead of a link.
+templ lesson(l nav.Lesson) {
+	switch l.Resolution {
+		case graph.Unique:
+			<a class="ui-navitem" href={ templ.URL(notesHref(l.RelPath)) }>
+				<span class="k-navdot" aria-hidden="true"></span>
+				{ l.Text }
+				if l.Status != "" {
+					<span class="ui-navitem__count">{ l.Status }</span>
+				}
+			</a>
+		case graph.Ambiguous:
+			<span class="ui-navitem">
+				<span class="k-navmark k-navmark--warn" aria-hidden="true">?</span>
+				{ l.Text }
+				<span class="k-navmark k-navmark--warn">ambiguous</span>
+			</span>
+		default:
+			<span class="ui-navitem">
+				<span class="k-navmark k-navmark--warn" aria-hidden="true">!</span>
+				{ l.Text }
+				<span class="k-navmark k-navmark--warn">unresolved</span>
+			</span>
+	}
+}
+
+// ============================ RIGHT RAIL ============================
+
+templ rightRail(v NoteView) {
+	<aside class="k-rail-right">
+		if len(v.TOC) > 0 {
+			<nav aria-label="On this page">
+				<div class="ui-side__label">On this page</div>
+				<div class="k-toc__list">
+					for _, h := range v.TOC {
+						<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
+					}
+				</div>
+			</nav>
+		}
+		if v.Diagnostic == "" {
+			@statusPanel(v)
+		}
+		@diagnostics(v)
+	</aside>
+}
+
+// statusPanel is the write face's entire UI (spec.md §4): one plain form per
+// legal transition (the PRG pattern, no JS dependency). ready is the only
+// primary — the koopa seal, with the press-and-hold ceremony layered on by JS;
+// every other legal transition is a quiet one-click form. The legal set is only
+// what the schema contract returns — never a fabricated key.
 templ statusPanel(v NoteView) {
-	<section class="status-panel">
+	<section class={ "k-statuspanel", templ.KV("k-justsealed", v.JustSealed) } data-seal-panel>
+		<div class="k-statuspanel__head">
+			<div class="k-statuspanel__row">
+				<span class="ui-side__label">Status</span>
+				<span class="k-actor">actor · koopa</span>
+			</div>
+			if v.Status == sealStatus {
+				@sealedBadge(v)
+			} else if v.Status != "" {
+				<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+			}
+		</div>
 		switch {
 			case v.WriteClosed:
-				<p class="status-notice">Contract unavailable — the write face is closed (fail-closed).</p>
+				<p class="k-statuspanel__notice">Contract unavailable — the write face is closed (fail-closed).</p>
 			case v.NoFrontmatter:
-				<p class="status-notice">No frontmatter (valid).</p>
+				<p class="k-statuspanel__notice">No frontmatter (valid).</p>
 			case len(v.Transitions) == 0:
-				<p class="status-notice">No legal transitions.</p>
-			default:
-				for _, to := range v.Transitions {
-					<form method="post" action="/status" class="status-form">
-						<input type="hidden" name="path" value={ v.RelPath }/>
-						<input type="hidden" name="from" value={ v.Status }/>
-						<input type="hidden" name="to" value={ to }/>
-						if to == "ready" {
-							<button type="submit" class="status-btn status-btn-primary">{ to }</button>
-						} else {
-							<button type="submit" class="status-btn">{ to }</button>
-						}
-					</form>
+				if v.Status != sealStatus {
+					<p class="k-statuspanel__notice">No legal transitions.</p>
 				}
+			default:
+				<div class="k-statuspanel__forms">
+					for _, to := range v.Transitions {
+						if to == sealStatus {
+							@sealForm(v)
+						} else {
+							@transitionForm(v, to)
+						}
+					}
+				</div>
 		}
 	</section>
 }
 
-// sidebar is the navigation face (docs/spec.md §2): the lifecycle folder
-// browse tree, the study-path syllabus trees, and the reports list. Like
-// the TOC above it is plain and unstyled — nested <ul>/<li> with
-// <a href="/notes/..."> links and plain text marks for a lesson's status
-// and for broken/ambiguous lessons — functional only. Koopa's frontend
-// design restyles it later; there is deliberately no CSS or JS here. A nil
-// model (never produced by main.go, which passes an empty model instead)
-// simply renders nothing.
-templ sidebar(m *nav.Model) {
-	if m != nil {
-		<nav class="sidebar">
-			<section class="nav-folders">
-				<h2>Vault</h2>
-				@folderList(m.Folders, m.RootNotes)
-			</section>
-			if len(m.Syllabi) > 0 {
-				<section class="nav-syllabi">
-					<h2>Study paths</h2>
-					for _, s := range m.Syllabi {
-						@syllabus(s)
-					}
-				</section>
-			}
-			if len(m.Reports) > 0 {
-				<section class="nav-reports">
-					<h2>Reports</h2>
-					<ul>
-						for _, rep := range m.Reports {
-							<li>
-								<a href={ templ.URL(notesHref(rep.RelPath)) }>{ rep.Name }</a>
-								if rep.Latest {
-									<span class="nav-mark"> (latest)</span>
-								} else if rep.Briefing {
-									<span class="nav-mark"> (briefing)</span>
-								}
-							</li>
-						}
-					</ul>
-				</section>
-			}
-		</nav>
-	}
-}
-
-// folderList renders the top level: the vault-root notes, then the
-// lifecycle-ordered top-level folders.
-templ folderList(folders []nav.Folder, rootNotes []nav.NoteRef) {
-	<ul>
-		for _, n := range rootNotes {
-			<li>@noteLink(n)</li>
-		}
-		for _, f := range folders {
-			<li>@folderNode(f)</li>
-		}
-	</ul>
-}
-
-// folderNode renders one folder and recurses into its subfolders — the
-// tree mirrors the real directory structure to whatever depth it has.
-templ folderNode(f nav.Folder) {
-	<span class="nav-folder">{ f.Name }</span>
-	if len(f.Sub) > 0 || len(f.Notes) > 0 {
-		<ul>
-			for _, sub := range f.Sub {
-				<li>@folderNode(sub)</li>
-			}
-			for _, n := range f.Notes {
-				<li>@noteLink(n)</li>
-			}
-		</ul>
-	}
-}
-
-templ noteLink(n nav.NoteRef) {
-	<a href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
-}
-
-// syllabus renders one study-path: a link to the map note itself, then its
-// pruned heading/lesson tree.
-templ syllabus(s nav.Syllabus) {
-	<div class="nav-syllabus">
-		<a href={ templ.URL(notesHref(s.RelPath)) } class="nav-syllabus-title">{ s.Title }</a>
-		@sectionList(s.Sections)
+// sealedBadge is the 済 seal display for a ready note: the stamp, the kintsugi
+// hairline, and the paired CJK · English provenance line with the read-only git
+// short hash. Its one-shot animation fires from k-justsealed (added when
+// ?sealed=1) via CSS.
+templ sealedBadge(v NoteView) {
+	<div class="k-sealed">
+		<span class="k-sealed__stamp" lang="ja" aria-hidden="true">済</span>
+		<span class="k-sealed__label">ready</span>
 	</div>
-}
-
-// sectionList recurses over a syllabus's headings; each heading shows its
-// label, its nested subsections, then its lessons.
-templ sectionList(sections []nav.Section) {
-	if len(sections) > 0 {
-		<ul>
-			for _, sec := range sections {
-				<li>
-					<span class="nav-section">{ sec.Heading }</span>
-					@sectionList(sec.Sub)
-					@lessonList(sec.Lessons)
-				</li>
-			}
-		</ul>
+	<div class="k-sealline" aria-hidden="true"></div>
+	<div class="k-sealby">
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>
+		鈐印 · sealed by koopa
+		if v.JustSealed {
+			· just now
+		}
+	</div>
+	if v.SealedHash != "" {
+		<div class="k-sealgit">git · commit { v.SealedHash }</div>
 	}
 }
 
-templ lessonList(lessons []nav.Lesson) {
-	if len(lessons) > 0 {
-		<ul>
-			for _, l := range lessons {
-				<li>@lesson(l)</li>
-			}
-		</ul>
+// sealForm is the koopa-only seal (ready): a plain POST form (no-JS: one press
+// submits) that JS upgrades into a press-and-hold. requestSubmit on completion,
+// never fetch — the server sees exactly the no-JS request.
+templ sealForm(v NoteView) {
+	<form class="k-statusform" method="post" action="/status" data-seal>
+		<input type="hidden" name="path" value={ v.RelPath }/>
+		<input type="hidden" name="from" value={ v.Status }/>
+		<input type="hidden" name="to" value={ sealStatus }/>
+		<button class="k-sealbtn" type="submit" data-seal-btn aria-label="Hold to certify ready">
+			<span class="k-sealfill" aria-hidden="true"></span>
+			<span class="k-sealbtn__stamp" lang="ja" aria-hidden="true">印</span>
+			<span>Certify ready</span>
+			<span class="k-sealbtn__hint" aria-hidden="true">hold R</span>
+		</button>
+	</form>
+	<p class="k-sealpoem">The last step is koopa's alone. Hold — once, not withdrawn.</p>
+}
+
+// transitionForm is a quiet, one-click secondary transition (everything that is
+// not the seal): a plain POST form, no ceremony.
+templ transitionForm(v NoteView, to string) {
+	<form class="k-statusform" method="post" action="/status">
+		<input type="hidden" name="path" value={ v.RelPath }/>
+		<input type="hidden" name="from" value={ v.Status }/>
+		<input type="hidden" name="to" value={ to }/>
+		<button class="k-xbtn" type="submit">{ to }</button>
+	</form>
+}
+
+// diagnostics is the read-only diagnostics rail (wall 4): the frontmatter
+// diagnostic and every render diagnostic, amber, stated but never repaired.
+templ diagnostics(v NoteView) {
+	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {
+		<section>
+			<div class="ui-side__label k-diaghead">
+				Diagnostics
+				<span class="k-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
+			</div>
+			<div class="k-diaglist">
+				if v.Diagnostic != "" {
+					<div class="k-diag">
+						<div class="k-diag__label">frontmatter</div>
+						<p class="k-diag__body">{ v.Diagnostic }</p>
+					</div>
+				}
+				for _, d := range v.RenderDiagnostics {
+					<div class="k-diag">
+						<div class="k-diag__label">{ string(d.Kind) }</div>
+						<p class="k-diag__body">
+							if d.Target != "" {
+								<code>{ d.Target }</code>
+							}
+							{ d.Message }
+						</p>
+					</div>
+				}
+			</div>
+			<p class="k-diag__note">States only; never repairs.</p>
+		</section>
 	}
 }
 
-// lesson renders one lesson. A uniquely-resolved lesson is a link with a
-// plain status label; an ambiguous or unresolved lesson is STILL shown
-// (wall 4), as plain text carrying a diagnostic mark instead of a link.
-templ lesson(l nav.Lesson) {
-	switch l.Resolution {
-		case graph.Unique:
-			<a href={ templ.URL(notesHref(l.RelPath)) }>{ l.Text }</a>
-			if l.Status != "" {
-				<span class="nav-status"> [{ l.Status }]</span>
+// ============================ SEAL BAR (≤1280) ============================
+
+// sealBar is the narrow-screen fallback for the hidden right rail: the current
+// status plus, when legal, the same seal form the rail carries (shared data-seal
+// hook, so the hold ceremony behaves identically). Rendered only when there is
+// a status panel to mirror (no frontmatter diagnostic).
+templ sealBar(v NoteView) {
+	if v.Diagnostic == "" && !v.WriteClosed && !v.NoFrontmatter {
+		<div class={ "k-sealbar", templ.KV("k-justsealed", v.JustSealed) } data-seal-panel>
+			if v.Status == sealStatus {
+				<div class="k-sealed">
+					<span class="k-sealed__stamp" lang="ja" aria-hidden="true">済</span>
+					<span class="k-sealed__label">ready</span>
+				</div>
+				<span class="k-actor">鈐印 · sealed</span>
+			} else {
+				if v.Status != "" {
+					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+				}
+				<span class="k-sealbar__spacer"></span>
+				if hasSeal(v.Transitions) {
+					@sealForm(v)
+				}
 			}
-		case graph.Ambiguous:
-			<span class="nav-ambiguous">
-				{ l.Text }
-				&nbsp;&mdash; ambiguous: { strings.Join(l.Candidates, ", ") }
-			</span>
-		default:
-			<span class="nav-broken">
-				{ l.Text }
-				&nbsp;&mdash; unresolved: { l.Target }
-			</span>
+		</div>
 	}
+}
+
+// hasSeal reports whether ready is among the legal transitions.
+func hasSeal(transitions []string) bool {
+	for _, t := range transitions {
+		if t == sealStatus {
+			return true
+		}
+	}
+	return false
 }
