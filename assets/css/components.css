@@ -379,7 +379,14 @@ html, body { margin: 0; background: var(--bg); }
 @keyframes k-inkBloom { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 7px oklch(0.55 0.18 33 / 0); } }
 @keyframes k-hairline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes k-fadeup   { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .kurodo *, .kurodo *::before, .kurodo *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+/* Reduced motion kills decorative animation/transition — but NOT the seal hold-fill.
+   Its width transition is functional progress feedback for the ~430ms press-and-hold
+   misclick guard (a reduced-motion user must still see the hold advancing, or the
+   guard is half-blind — WCAG exempts motion that conveys essential state). So
+   .k-sealfill is excluded here and keeps the duration kurodo.js sets inline. Do not
+   fold it back into the blanket kill (R2-10 — this is the exception it warned about).
+   The post-seal ceremony (k-sealBed/inkBloom/hairline animations) stays killed. */
+@media (prefers-reduced-motion: reduce) { .kurodo *:not(.k-sealfill), .kurodo *::before, .kurodo *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ============================================================
    Responsive
