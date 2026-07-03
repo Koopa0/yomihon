@@ -1,0 +1,18 @@
+/* ============================================================
+   kurodo — Tailwind v4 entry (standalone CLI, no Node)
+   ------------------------------------------------------------
+   Built by `make css` (tailwindcss -i assets/css/input.css
+   -o assets/css/output.css --minify). output.css is embedded by
+   assets/assets.go and served at /static/app.css.
+
+   Order: the framework (Preflight reset + engine) first, then the
+   self-hosted @font-face rules, then the token contract, then the
+   product layer. kurodo styles the page with the DS component
+   classes + product k-* classes (unlayered, so they win over
+   Preflight's @layer base), not utility soup — Tailwind is here for
+   the reset, the @theme contract, and future utilities, per design §2.
+   ============================================================ */
+@import "tailwindcss";
+@import "./fonts.css";
+@import "./tokens.css";
+@import "./components.css";
