@@ -37,10 +37,11 @@ type NoteView struct {
 	RenderDiagnostics []render.Diagnostic
 	TOC               []render.TOCEntry
 
-	// Nav is the prebuilt, read-only whole-vault sidebar model (folders,
-	// syllabi, reports). It is the same value on every page (built once at
-	// startup) and may be an empty model when navigation was unavailable at
-	// startup (§0.1) — the sidebar then renders empty, reading is unaffected.
+	// Nav is the read-only whole-vault sidebar model (folders, syllabi,
+	// reports), read from the current snapshot on each request (D25), so it
+	// reflects the latest vault state rather than a startup-fixed value. It may
+	// be an empty model when navigation was unavailable (§0.1) — the sidebar
+	// then renders empty, reading is unaffected.
 	Nav *nav.Model
 
 	Transitions   []string
