@@ -25,13 +25,29 @@ import (
 	"github.com/koopa0/kurodo/internal/vault"
 )
 
+// NormalizeNFC returns s in Unicode Normalization Form C (NFC) — the single
+// NFC primitive the vault ecosystem shares. This vault's CJK content can
+// arrive NFC or NFD (macOS stores filenames NFD on disk, and note bodies may
+// be typed either way), so any consumer that compares or stores such text must
+// first fold that difference away. graph.normalize composes it with
+// trim+lowercase for wikilink keys; internal/search composes it with lowercase
+// for its case-insensitive match, and uses it alone (case-preserving) for the
+// canonical field values it stores and compares. Exporting this one step keeps
+// exactly one definition of "NFC" in the repo (CLAUDE.md predictable-mistake
+// #2: no second copy of a normalization).
+func NormalizeNFC(s string) string {
+	return norm.NFC.String(s)
+}
+
 // normalize is the one normalization graph.rs performs, applied
 // identically at index-build time and lookup time: trim, Unicode NFC,
-// lowercase. NFC matters because this vault's CJK filenames can arrive
-// NFC or NFD (macOS itself stores filenames NFD on disk, independent of
-// how a note's frontmatter aliases were typed).
+// lowercase. It calls NormalizeNFC for the NFC step so there is exactly one
+// NFC definition in the repo (see NormalizeNFC's doc). NFC matters because
+// this vault's CJK filenames can arrive NFC or NFD (macOS itself stores
+// filenames NFD on disk, independent of how a note's frontmatter aliases were
+// typed).
 func normalize(name string) string {
-	return strings.ToLower(norm.NFC.String(strings.TrimSpace(name)))
+	return strings.ToLower(NormalizeNFC(strings.TrimSpace(name)))
 }
 
 // Kind distinguishes the three possible outcomes of Resolve, mirroring

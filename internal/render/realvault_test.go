@@ -11,8 +11,8 @@ import (
 )
 
 // TestRealVaultRendersWithoutFaults is the mechanical definition of
-// spec.md §1's acceptance criterion: "真實 vault 全部 .md 可開：0 個 500、
-// 0 個空白頁" (every real .md file opens: zero 500s, zero blank pages).
+// spec.md §1's acceptance criterion: "every real .md file opens: zero 500s,
+// zero blank pages".
 // It builds a real graph.Index and render.Renderer against
 // ~/obsidian (or KURODO_ROOT) and renders every single .md file under
 // it, asserting for each: no panic, no error, non-empty HTML. This is a
@@ -70,7 +70,7 @@ func TestRealVaultRendersWithoutFaults(t *testing.T) {
 	// A vault-model.md-documented count (419+ at spec-authoring time,
 	// growing) — this is the "did the sweep actually run against the
 	// real vault, not a near-empty stand-in" guard, not a hardcoded
-	// vault census. See docs/vault-model.md §第二層's 規模 snapshot.
+	// vault census. See docs/vault-model.md's Layer 2 scale snapshot.
 	const minExpectedNotes = 400
 	if mdCount < minExpectedNotes {
 		t.Errorf("swept %d .md files, want at least %d — is %s the real vault?", mdCount, minExpectedNotes, root)
