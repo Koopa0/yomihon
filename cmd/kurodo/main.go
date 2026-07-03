@@ -1,4 +1,4 @@
-// kurodo (蔵人) is the local reading-and-adjudication interface for the
+// kurodo is the local reading-and-adjudication interface for the
 // Obsidian vault: it reads everything, writes exactly one frontmatter field
 // (status), and never leaves 127.0.0.1.
 package main
@@ -17,10 +17,12 @@ import (
 	"time"
 
 	"github.com/koopa0/kurodo/internal/asset"
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/note"
 	"github.com/koopa0/kurodo/internal/render"
 	"github.com/koopa0/kurodo/internal/schema"
+	"github.com/koopa0/kurodo/internal/search"
+	"github.com/koopa0/kurodo/internal/snapshot"
 	"github.com/koopa0/kurodo/internal/status"
 )
 
@@ -86,28 +88,32 @@ func run(log *slog.Logger) error {
 
 	statusSvc := status.NewService(cfg.root, contract)
 
-	// Same asymmetric fault tolerance as the contract load above: building
-	// the wikilink index walks and parses the whole vault, and a single
-	// bad note's frontmatter must not be able to take the reading face
-	// down with it (wall 4). graph.Build itself already tolerates a
-	// per-note read/parse failure (that note just contributes no alias
-	// keys); the only way this returns an error at all is the vault root
-	// itself being unwalkable, which loadConfig already checked — so this
-	// is normally unreachable, but on the off chance it isn't, fall back
-	// to an empty index (every wikilink then resolves as unresolved and
-	// is rendered — and diagnosed — as broken) rather than aborting the
-	// server.
-	idx, err := graph.Build(cfg.root)
-	if err != nil {
-		log.Warn("vault graph unavailable; wikilinks will render as unresolved", "error", err)
-		idx = graph.BuildFromNotes(nil, nil)
-	} else {
-		log.Info("vault graph built")
-	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// The shared vault Snapshot (D25): graph, nav, and search built together
+	// from the vault and held behind an atomic.Pointer. New does the initial
+	// synchronous build (each model degrades to empty on failure, never
+	// aborting the server — the same asymmetric fault tolerance the contract
+	// and graph loads used before, now owned by internal/snapshot). Run drives
+	// the ~2s mtime scanner that rebuilds and swaps on any vault change, so an
+	// edited note stops going stale until restart (the pre-D25 gap). It is
+	// cancellable via ctx for graceful shutdown.
+	store := snapshot.New(cfg.root, log)
+	go store.Run(ctx)
+
+	// The renderer resolves wikilinks against the store's live graph on every
+	// call (store.Resolver reads the current Snapshot), so it is built once yet
+	// always current. The reading and search handlers read the current
+	// Snapshot's Nav / Search per request through provider closures.
+	renderer := render.New(cfg.root, store.Resolver())
+	navProvider := func() *nav.Model { return store.Current().Nav }
+	searchProvider := func() *search.Index { return store.Current().Search }
 
 	mux := http.NewServeMux()
-	note.NewHandler(cfg.root, render.New(cfg.root, idx), statusSvc, log).Register(mux)
+	note.NewHandler(cfg.root, renderer, statusSvc, navProvider, log).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
+	search.NewHandler(searchProvider, log).Register(mux)
 	asset.Register(mux)
 
 	// Browser-only hardening, deepening wall 2: a same-origin form POST
@@ -118,9 +124,6 @@ func run(log *slog.Logger) error {
 	// agent) — that is documented policy, not something to engineer
 	// around (decisions D17).
 	handler := http.NewCrossOriginProtection().Handler(mux)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	// Wall 2: loopback is hardcoded; only the port is configurable.
 	var lc net.ListenConfig

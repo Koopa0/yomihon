@@ -1,200 +1,200 @@
-# Vault Model — 建造者的 Obsidian 理解指南
+# Vault Model — the builder's guide to this Obsidian vault
 
-> 動 renderer / graph / search 前的必修課。這份文件描述的是 `~/obsidian` 這個**特定 vault** 的方言、語意與權威結構——不是泛用 Obsidian 教學。
-> 文中「yomihon」＝凍結服役的舊閱讀器（`~/go/src/github.com/koopa0/yomihon`，參考實作）；「kurodo」＝本專案。
+> Required reading before you touch the renderer / graph / search. This document describes the dialect, semantics, and authority structure of one **specific vault** (`~/obsidian`) — it is not a general Obsidian tutorial.
+> In this document, "yomihon" = the old reader, frozen in service (`~/go/src/github.com/koopa0/yomihon`, a reference implementation); "kurodo" = this project.
 >
-> 事實錨定日期：2026-07-02，全數經實檔查證。vault 是活的：規模數字會變，但契約層（第二、三層）只會透過 vault-schema.toml 演化。
+> Facts anchored on 2026-07-02, all verified against real files. The vault is alive: the scale numbers will change, but the contract layers (layers 2 and 3) evolve only through vault-schema.toml.
 
 ---
 
-## 第一層：Obsidian 方言（任何 md parser 都不會自動給你的東西）
+## Layer 1: The Obsidian dialect (what no Markdown parser gives you for free)
 
-### Wikilink（最重要的一節）
+### Wikilinks (the most important section)
 
-語法四態：`[[名稱]]`、`[[名稱|顯示文字]]`、`[[名稱#標題]]`、`[[名稱^區塊]]`。
+Four syntactic forms: `[[name]]`, `[[name|display text]]`, `[[name#heading]]`, `[[name^block]]`.
 
-解析語意的參考 spec 是 kura 的 `src/graph.rs` + `src/wikilink.rs`，kurodo 必須逐條複製：
+The reference spec for resolution semantics is kura's `src/graph.rs` + `src/wikilink.rs`; kurodo must copy it rule by rule:
 
-- **Normalize**：`trim → Unicode NFC → lowercase`。NFC 是 CJK 必須（macOS 檔名走 NFD，kura 在 walk 時也把路徑 NFC 化，見 `vault.rs`）。
-- **Key 集合**：每則筆記以四種形式為 key——檔名 stem、含 `.md` 全名、vault 相對路徑 stem、完整相對路徑——**加上 frontmatter `aliases`**。
-- **`title` 永不作 key**。這是 kura killer rule `link.title_not_alias` 的存在理由：用 title 寫的連結 Obsidian 會靜默斷掉。
-- **剝離順序**：先 `|`（顯示文字）、再 `#`（標題）、再 `^`（區塊）。表格內的跳脫 `\|` 要處理（pre-pipe 段尾的 `\` 剝掉）。`[[#標題]]` 剝完為空 → 同檔跳轉，直接略過。
-- **Anchor 永不驗證**：`[[X#h]]` 只要 X 存在就算 resolved，不查 heading／block 是否存在。
-- **撞名 → Ambiguous，不猜**：同一 normalized 名稱對到多個路徑時全列出（排序後），永不選一個。不同資料夾的同名檔即撞名。
-- **非 md 資源**（canvas / pdf / 圖片）以「含副檔名」的檔名與路徑為 key——Obsidian 連結非筆記檔需要副檔名。
-- **掃描邊界**：code span / fenced block 與 `%%…%%` Obsidian 註解內的 `[[...]]` 不算連結；wikilink 不跨行。
+- **Normalize**: `trim → Unicode NFC → lowercase`. NFC is mandatory for CJK (macOS filenames use NFD; kura also NFC-normalizes paths as it walks — see `vault.rs`).
+- **Key set**: every note is keyed under four forms — the filename stem, the full name with `.md`, the vault-relative path stem, and the full relative path — **plus its frontmatter `aliases`**.
+- **`title` is never a key.** This is the reason kura's killer rule `link.title_not_alias` exists: a link written against a note's title breaks silently in Obsidian.
+- **Stripping order**: first `|` (display text), then `#` (heading), then `^` (block). Escaped `\|` inside tables must be handled (strip the trailing `\` at the end of the pre-pipe segment). A `[[#heading]]` that strips down to empty → a same-file jump; skip it outright.
+- **Anchors are never validated**: `[[X#h]]` counts as resolved as long as X exists; whether the heading/block exists is not checked.
+- **Name collisions → Ambiguous; no guessing**: when one normalized name maps to multiple paths, list them all (sorted); never pick one. Same-named files in different folders collide.
+- **Non-Markdown resources** (canvas / pdf / images) are keyed by filename and path *with* the extension — Obsidian requires the extension when linking to non-note files.
+- **Scan boundaries**: `[[...]]` inside a code span / fenced block or an `%%…%%` Obsidian comment does not count as a link; a wikilink never spans lines.
 
-### Embed：`![[...]]`
+### Embeds: `![[...]]`
 
-轉錄嵌入，圖片／筆記／PDF 都可能出現。注意：yomihon 的 parser **沒有處理** embed（前導 `!` 會殘留為字面文字）——kurodo 要補上，這是參考實作已知的空隙之一。
+Transclusion embeds; may appear for images, notes, or PDFs. Note: yomihon's parser **does not handle** embeds (the leading `!` survives as literal text) — kurodo must add this; it is one of the known gaps in the reference implementation.
 
-### Callout：`> [!type]`
+### Callouts: `> [!type]`
 
-yomihon 有一套用真課文磨出來的完整轉換，照抄其語意：
+yomihon has a complete conversion honed on real lessons; copy its semantics:
 
-- 摺疊記號：`[!type]-` → 預設**收合**的 `<details>`；`[!type]+` → 展開的 `<details>`；無後綴 → 靜態底色 alert。
-- 型別對照（兩桶配色：`note`＝sky、`warning`＝amber）＋預設中文標題：
+- Fold markers: `[!type]-` → a `<details>` **collapsed** by default; `[!type]+` → an expanded `<details>`; no suffix → a static tinted alert.
+- Type mapping (two color buckets: `note` = sky, `warning` = amber) plus default English titles:
 
-| callout 型別 | 桶 | 預設標題 |
+| Callout type | Bucket | Default title |
 |---|---|---|
-| info / note / tip / hint / abstract / summary / todo | note | 提示 |
-| question / help / faq | note | 問題 |
-| example / quote / cite | note | 範例 |
-| warning / caution / attention | warning | 注意 |
-| danger / error / bug / fail / failure / missing | warning | 警告 |
+| info / note / tip / hint / abstract / summary / todo | note | Note |
+| question / help / faq | note | Question |
+| example / quote / cite | note | Example |
+| warning / caution / attention | warning | Warning |
+| danger / error / bug / fail / failure / missing | warning | Danger |
 
-- **未知型別 → 降級為普通 `<blockquote>` ＋ log warning，永不 crash**（容錯鐵則）。
-- 中譯／解答摺疊用原生 `<details>`：零 JS、離線安全、可及性好。
+- **Unknown type → degrade to a plain `<blockquote>` plus a log warning; never crash** (the fault-tolerance rule).
+- Translation and answer folds use native `<details>`: zero JS, offline-safe, good accessibility.
 
-### Highlight：`==文字==`
+### Highlights: `==text==`
 
-yomihon **沒有處理**——kurodo 要處理（渲染整座 vault 時會遇到）。
+yomihon **does not handle** this — kurodo must, since you'll hit it when rendering the whole vault.
 
-### Tasks：`- [ ]` / `- [x]`
+### Tasks: `- [ ]` / `- [x]`
 
-GFM task list，goldmark `extension.GFM` 涵蓋。
+GFM task list; covered by goldmark `extension.GFM`.
 
 ### YAML frontmatter
 
-結構層而非裝飾（見第二層）。容錯要求：壞 YAML 只發**一則**診斷（對齊 kura 的 `schema.frontmatter`，不 cascade），不能讓一篇筆記毀掉整次渲染。先切出 frontmatter 再跑任何 body 前處理（yomihon 的 `splitFrontmatter` 教訓：否則 `based_on: [[...]]` 這種值會被 wikilink pass 弄壞）。
+A structural layer, not decoration (see layer 2). Fault-tolerance requirement: bad YAML emits exactly **one** diagnostic (aligned with kura's `schema.frontmatter`, no cascade); one note must never wreck the whole render. Split out the frontmatter before running any body preprocessing (yomihon's `splitFrontmatter` lesson: otherwise a value like `based_on: [[...]]` gets mangled by the wikilink pass).
 
-### Body 內 raw HTML
+### Raw HTML in the body
 
-日文課文整段手寫 `<ruby>…<rt>…</rt></ruby>` 與 `<br>`，**必須原樣通過、不消毒**（goldmark `WithUnsafe`）。這成立的前提是 trusted corpus ＋ local-only——也就是牆 2 存在的理由之一。不設自動硬換行，讓顯式 `<br>` 生效。
+Japanese lessons hand-write whole passages of `<ruby>…<rt>…</rt></ruby>` and `<br>`, which **must pass through verbatim, unsanitized** (goldmark `WithUnsafe`). This holds only under a trusted corpus plus local-only — one of the reasons wall 2 exists. Do not set automatic hard line breaks; let explicit `<br>` take effect.
 
-實例：`Writing/lessons/japanese/L20 普通形と常体.md:141`（片假名也上 ruby）；助詞標實際讀音——`<ruby>は<rt>わ</rt></ruby>`、`<ruby>を<rt>お</rt></ruby>`。
+Example: `Writing/lessons/japanese/L20 普通形と常体.md:141` (katakana gets ruby too); particles are annotated with their actual reading — `<ruby>は<rt>わ</rt></ruby>`, `<ruby>を<rt>お</rt></ruby>`.
 
-### Code fence 安全
+### Code-fence safety
 
-行式前處理（callout / wikilink / 表格類 pass）不懂 fence。政策承 yomihon：偵測 fence 內出現 `[[...]]`、`> [!…]`、pipe-table 時發一次 build warning，而不是靜默弄壞輸出。
+Line-oriented preprocessing (the callout / wikilink / table passes) doesn't understand fences. The policy inherited from yomihon: when `[[...]]`, `> [!…]`, or a pipe-table is detected inside a fence, emit a single build warning rather than silently corrupting the output.
 
-### 非 markdown 檔
+### Non-Markdown files
 
-| 種類 | 實況 | 處理 |
+| Kind | Reality | Handling |
 |---|---|---|
-| `.base`（Obsidian Bases） | `Views/` 有 5 個（knowledge-overview、needs-attention、pipeline、share-rewrite、日本語課程） | v0 連回 Obsidian 開啟，**不要實作查詢引擎** |
-| `.canvas` | 恰好 1 個：`Diagrams/canvas/DDIA-Ch1-Overview.canvas`（JSON） | 同上，連回或縮圖 |
-| `.d2` | `Diagrams/d2/` 2 個 | **不渲染**——koopa0.dev 已決策 7.8MB WASM 不值得，別推翻 |
-| mermaid code fence | Writing/ 有使用 | 渲染（client-side，koopa0.dev 已對齊過） |
-| `System/reports/daily-briefing/*.html` | hermes 每日簡報 | 原樣 serve（trusted corpus） |
+| `.base` (Obsidian Bases) | `Views/` has 5 (knowledge-overview, needs-attention, pipeline, share-rewrite, 日本語課程) | v0 links back to open in Obsidian; **do not implement a query engine** |
+| `.canvas` | Exactly 1: `Diagrams/canvas/DDIA-Ch1-Overview.canvas` (JSON) | Same as above — link back or thumbnail |
+| `.d2` | 2 under `Diagrams/d2/` | **Do not render** — koopa0.dev already decided the 7.8 MB WASM isn't worth it; don't overturn that |
+| mermaid code fence | Used in Writing/ | Render (client-side; already aligned with koopa0.dev) |
+| `System/reports/daily-briefing/*.html` | hermes daily briefings | Serve as-is (trusted corpus) |
 
 ---
 
-## 第二層：這個 vault 的語意模型（比方言更重要）
+## Layer 2: This vault's semantic model (more important than the dialect)
 
-### 規模（2026-07-02 快照）
+### Scale (2026-07-02 snapshot)
 
-全 vault 419 個 `.md`：Writing 163、Concepts 120、Sources 88、System 36、Maps 11、Synthesis 1、Inbox 0。搜尋與索引的設計以「低千位、持續被 agent 灌大」為前提。
+419 `.md` files across the vault: Writing 163, Concepts 120, Sources 88, System 36, Maps 11, Synthesis 1, Inbox 0. Search and indexing are designed on the assumption of a low-thousands corpus that agents keep growing.
 
-### 資料夾＝生命週期，不是分類
+### Folders = lifecycle, not classification
 
-主流：`Inbox → Sources → Concepts → Maps / Synthesis → Writing`；`System/`＝治理層、`Views/`＝儀表板、`Diagrams/`＝圖。硬規則（Vault-Architecture.md）：**頂層 ≤ 9 個資料夾、domain 只一層深、無子資料夾**——導航靠 MOC 與 `topics`，不靠樹。kurodo 的側欄應該反映這個模型，而不是發明自己的樹。
+The main flow: `Inbox → Sources → Concepts → Maps / Synthesis → Writing`; `System/` = governance layer, `Views/` = dashboards, `Diagrams/` = diagrams. Hard rule (Vault-Architecture.md): **≤ 9 top-level folders, domains one level deep, no subfolders** — navigation runs through MOCs and `topics`, not a tree. kurodo's sidebar should reflect this model rather than invent a tree of its own.
 
-### 四條鐵則（Note-Schema.md）
+### The four hard rules (Note-Schema.md)
 
-1. Properties 表達結構化資料（type / status / domain / topics / provenance）。
-2. Tags 只做跨域檢索，永不編碼 type / status / domain。
-3. 資料夾表達 artifact lifecycle，不表達完整主題分類。
-4. `type`＝artifact 種類、`status`＝生命週期階段——同一事實永不雙重編碼。
+1. Properties carry structured data (type / status / domain / topics / provenance).
+2. Tags are for cross-domain retrieval only; they never encode type / status / domain.
+3. Folders express artifact lifecycle, not a full topical taxonomy.
+4. `type` = kind of artifact, `status` = lifecycle stage — the same fact is never double-encoded.
 
-### Frontmatter 資料模型
+### The frontmatter data model
 
-- 必填（知識筆記）：`title, aliases, type, domain, topics, status, created, updated`；Inbox 免 `domain`；`system / guide / template / research-brief` 四型免 domain。
-- `type` 共 20 值、`domain` 共 13 值（golang、rust、japanese、meta …）——**enum 一律以 toml 為準，不要抄進程式碼**（牆 3）。
-- Source 類另有 provenance 五欄（`source_kind / source_provider / source_work / source_locator` ＋ `based_on`）；concept 必須有 `based_on` 或 `source_locator` 其一（kura `schema.provenance`）。
-- Lesson 專屬欄位：`slug, title_en, version_sensitive, objectives_count, assessment_item_count, corrections, evolution_predecessor, evolution_successors`。
-- `domain` 值必須等於所在資料夾名（kura `schema.domain_folder`）。
-- schema 是**封閉的**：`fields.known` 之外的 key 即錯誤。
+- Required (knowledge notes): `title, aliases, type, domain, topics, status, created, updated`; Inbox is exempt from `domain`; the four types `system / guide / template / research-brief` are exempt from domain.
+- `type` has 20 values, `domain` has 13 (golang, rust, japanese, meta, …) — **enums are always governed by the toml; never copy them into code** (wall 3).
+- Source-type notes additionally have five provenance fields (`source_kind / source_provider / source_work / source_locator` plus `based_on`); a concept must have either `based_on` or `source_locator` (kura `schema.provenance`).
+- Lesson-specific fields: `slug, title_en, version_sensitive, objectives_count, assessment_item_count, corrections, evolution_predecessor, evolution_successors`.
+- The `domain` value must equal the name of the folder the note lives in (kura `schema.domain_folder`).
+- The schema is **closed**: any key outside `fields.known` is an error.
 
-### status 是分組狀態機（不是一條扁平 enum）
+### status is a grouped state machine (not one flat enum)
 
-toml 的 `[fields.status_group]` 把 type 映到三組：
+The toml's `[fields.status_group]` maps types into three groups:
 
-- **note 組**：captured → cleaned（sources）；seedling → growing → evergreen（concepts）；draft → ready（writing）
-- **lesson 組**：imported → draft → ready
-- **system 組**：active / archived
-- `archived` 可從任意狀態進入（`from = ["*"]`）。
+- **note group**: captured → cleaned (sources); seedling → growing → evergreen (concepts); draft → ready (writing)
+- **lesson group**: imported → draft → ready
+- **system group**: active / archived
+- `archived` can be entered from any state (`from = ["*"]`).
 
-toml 的 `[[lifecycle]]` 表對每個 status 宣告 `from`（合法前態）與 `owner`——**`ready` 的 owner 是 `koopa`，任何 agent 寫 ready 即違規**。kurodo 是單人 local app、操作者即 Koopa，所以 UI 上的 ready 鍵合法；但非法 from→to 轉移要擋。
+The toml's `[[lifecycle]]` table declares, for each status, its `from` (legal prior states) and `owner` — **the owner of `ready` is `koopa`; any agent writing ready is a violation**. kurodo is a single-user local app whose operator *is* Koopa, so a ready button in the UI is legal; but illegal from→to transitions must be blocked.
 
-關鍵事實：toml 註解自承 file-scan 工具（kura）看不到「前一個狀態」，所以只驗 enum + owner，from→to 執行被 deferred。**kurodo 是互動式寫入者，寫入前讀得到現況，天然能執行完整 from→to + owner 驗證**——這是 kurodo 對契約的第一個實質貢獻，不是重複 kura 的工作。
+Key fact: the toml comments admit that a file-scan tool (kura) cannot see the *previous* state, so it validates only enum + owner, and from→to enforcement is deferred. **kurodo is an interactive writer that reads the current state before writing, so it can naturally enforce the full from→to + owner check** — this is kurodo's first substantive contribution to the contract, not a repeat of kura's work.
 
 ### slug
 
-只有 lesson 需要。pattern `^[a-z0-9]+(-[a-z0-9]+)*$`（toml 內建）；namespace 前綴：日文 `jp-minna-lNN` / `jp-kana-pNN`，Go 課 plain，rust 一課 `rust-ownership`。**slug 一經定稿不改；檔名可變**。政策專文：`System/schemas/Slug-Policy.md`——前綴是鑄造慣例屬文件層，toml 只驗 pattern；若 kurodo 日後要機械消費前綴，屆時提案加進 toml。現況 147 課全帶 slug、全合規（2026-07-02 verified）。
+Only lessons need one. Pattern `^[a-z0-9]+(-[a-z0-9]+)*$` (built into the toml); namespace prefixes: Japanese `jp-minna-lNN` / `jp-kana-pNN`, Go lessons plain, one rust lesson `rust-ownership`. **Once a slug is finalized it never changes; the filename may.** Policy note: `System/schemas/Slug-Policy.md` — the prefixes are a minting convention living at the doc layer; the toml only validates the pattern. If kurodo later needs to consume the prefixes mechanically, propose adding them to the toml then. Today all 147 lessons carry a slug and all are compliant (2026-07-02 verified).
 
-### 課綱（study-path）是機器可解析的
+### The syllabus (study-path) is machine-parseable
 
-- `Maps/Go 課綱.md`：H2＝部、H3＝模組，皆為 pipe 格式 `slug | English | 中文`；清單項＝課（wikilink）；列序＝順序。
-- `Maps/大家的日本語 初級I 學習路徑.md`：**結構略不同**——「課程序列」H2 之下 H3＝學習階段（解碼期、動詞入門…），清單項＝課。「清單項＝課、列序＝順序」兩者一致，但別假設兩份課綱同構。
-- 渲染課綱頁時，這個結構就是導航樹。
+- `Maps/Go 課綱.md`: H2 = part, H3 = module, both in the pipe format `slug | English | Chinese`; list items = lessons (wikilinks); row order = sequence.
+- `Maps/大家的日本語 初級I 學習路徑.md`: **the structure differs slightly** — under the H2 「課程序列」, the H3s are learning stages (解碼期, 動詞入門, …) and list items are lessons. The two invariants — list item = lesson, row order = sequence — hold for both, but do not assume the two syllabi are isomorphic.
+- When rendering a syllabus page, this structure *is* the navigation tree.
 
-### 日文教材的特殊事實
+### Japanese-material specifics
 
-- 兩個系列：`L01`–`L20`（文法主課）＋ `P01`–`P07`（假名前置課），皆 `type: lesson, domain: japanese`。
-- **drills（`Writing/lessons/japanese/drills/`，8 檔）無 frontmatter 是故意且合法的**（toml `no_frontmatter_is_legal`；kura 與 Bases 都排除它們）——當附件級內容處理，別要求 schema。
-- 分工線：vault 管**理解**（P 系列、文法課），Kotonoha app 管**反射**（假名/漢字 drill）——drill 型互動永不長進 kurodo。
-- 正字法規則（Japanese-Companion-Guide.md）：furigana 可 fade、**片假名永遠上 ruby 且永不 fade**、助詞標實際讀音、嚴格 level-gating。
+- Two series: `L01`–`L20` (the main grammar lessons) plus `P01`–`P07` (the kana prerequisite lessons), all `type: lesson, domain: japanese`.
+- **The drills (`Writing/lessons/japanese/drills/`, 8 files) having no frontmatter is intentional and legal** (toml `no_frontmatter_is_legal`; both kura and Bases exclude them) — treat them as attachment-level content; don't require a schema.
+- The division of labor: the vault owns **understanding** (the P series, the grammar lessons), the Kotonoha app owns **reflex** (kana/kanji drills) — drill-style interaction never grows into kurodo.
+- Orthography rules (Japanese-Companion-Guide.md): furigana may fade, **katakana always gets ruby and never fades**, particles are annotated with their actual reading, strict level-gating.
 
-### golang 課文的特殊事實
+### golang-lesson specifics
 
-改寫過的課帶 **corrections ledger**：frontmatter `corrections:` 列表，每項 `{claim / fix / source}`（例：`Writing/lessons/golang/Garbage Collection Guide.md`）。渲染時值得呈現——它是「這份教材修過什麼」的審計面。
-
----
-
-## 第三層：權威與治理（kurodo 在生態裡的位置）
-
-### vault-schema.toml 是機器真相源
-
-`System/schemas/vault-schema.toml`（schema_version 1）自我宣告為 SoT，消費者：kura（schema.* 規則）、`gen_fileclasses.py`、Note-Schema.md（人類教義，「改 enum 先改 toml」）、以及 kurodo。kurodo 只讀它，永不硬編碼（牆 3）。
-
-### kura 是 corpus 判官（15 條規則）
-
-7 條 link/graph（`link.title_not_alias`、`link.broken`、`link.broken.path`、`collision.alias`、`provenance.unresolved`、`map.disk_mismatch`、`map.disk_unlisted`）＋ 8 條 schema.*（enum / required / unknown_key / slug / domain_folder / legacy_tag / provenance / frontmatter，全為 error 級）。gate 語意：`--deny error`；info 永不 gate。
-
-kurodo 看到壞東西：**照渲染＋標記診斷，不修、不擋、不越權**（牆 4）。
-
-### 管線（`check` 的真實消費者，2026-07-02 vault 側 verified）
-
-- `cron-vault-wrapper.sh:132`——`kura check --root "$WT" --deny error`（worktree 自檢）
-- `cron-translator-wrapper.sh:91`——`kura check "${FILES[@]}" --root "$VAULT" --deny error`（顯式檔案引數）
-- `cron-grinder-wrapper.sh:47`——`--format json` 後接 `grep '"severity":"warn"'`（**JSONL 欄名與 severity 字串值因此是外部契約**）
-- `cron-vault-qa-wrapper.sh`——`--format md` 落檔覆寫 `System/reports/kura-vault-check.md`
-- 手動閘：QA-Gate 層 0、capture-source skill 第 6 步、share-rewrite 終審前全綠、每次改課文後的快閘（kura-field-log:32）
-- `kura exists`＝建概念前的 dedup oracle（exit 0/1 即答案）；`kura coverage`＝orphan／路由看門狗（`Maps/研究 Brief 索引.md:15` 明文依賴）
-- `--baseline` 與 `--all`：**零真實消費者**（verified absent）——byte-compat 照搬，非熱路徑
-
-JSONL 契約（退役閘黃金比對目標，欄位形狀）：`rule_id, severity, path, line?, field?, message, evidence, suggested_action, source_rule, target?, resolved_to?, collision_members?, fingerprint`。排序 `path → line → rule_id`；fingerprint＝FNV-1a over（rule_id, path, target），各段後接 `0x1f` 分隔位元組，16 位小寫 hex；exit code 0 / 1 / 2。byte-exact 目標：`kura/tests/snapshots/conformance__jsonl_output.snap` 與 `conformance__coverage_report.snap`。
-
-### 掃描邊界 ≠ 渲染邊界
-
-kura 預設**不掃** `System/`、`Diagrams/`、`Views/`（`--all` 才掃）。kurodo 的渲染面比 kura 掃描面大（報告、簡報都要讀）；但做 `kurodo check` 對齊時，必須複製 kura 的掃描邊界，否則 JSONL 比不齊。
-
-### git 是審計層
-
-vault 是 git repo。kurodo 每次 status 轉移一個 commit（牆 1）——這讓一切可逆，也是院子敢開大的前提。**不要另建 status 歷史表：`git log` 就是歷史。**
-
-### 寫入管線全景
-
-hermes 走 worktree branch → QA-Gate 三層（kura → Codex → Claude）→ 只有 Claude merge → **只有 Koopa 按 ready**。kurodo 的 status-flip 是這條鏈的人類終端介面，不是旁路。
-
-### 隱私線（專文已起草：`System/agent-guides/Privacy-Boundary.md`，待 Koopa 終審）
-
-- 線＝**folder**：頂層 `Diary/` 永不出站（folder 是 fail-closed，frontmatter flag 是 fail-open，所以用 folder）。
-- 對 kurodo：local-only 渲染給 Koopa 本人**合法**；一切出站面（export、check findings、快照、餵 agent）無條件排除 `Diary/`——連 `--all` 也不含，因為 findings 落報告會被 agent 讀。
-- 機械來源：toml 將加 `[privacy] never_egress_dirs = ["Diary"]`——kura、kurodo、hermes 三方讀同一份（牆 3），不硬編碼。
-- `type: diary` 草案：落 `Diary/`、domain 豁免、不要求 status。邊界判斷句只有一句：**要 agent 幫你看的就不是 diary**（日語日記練習不是 diary）。
+Revised lessons carry a **corrections ledger**: a frontmatter `corrections:` list, each item `{claim / fix / source}` (e.g. `Writing/lessons/golang/Garbage Collection Guide.md`). Worth surfacing when rendering — it is the audit face of "what this material has had corrected."
 
 ---
 
-## 第四層：建造者的閱讀順序（真檔案，非轉述）
+## Layer 3: Authority and governance (kurodo's place in the ecosystem)
 
-1. **資料模型**：`System/schemas/vault-schema.toml` → `System/schemas/Note-Schema.md` → `System/schemas/Vault-Architecture.md`
-2. **系統哲學與判官規格**：`System/Vault-Index.md` → `System/Koopa-Knowledge-Compiler.md` → `System/vault-guard-spec.md`（注意：spec 檔名仍是舊名，工具已改名 kura）＋ `System/kura-field-log.md`
-3. **人、分工、閘**：`System/agent-guides/about-koopa.md` → `collaboration-charter.md` → `QA-Gate.md` → `Japanese-Companion-Guide.md` → `Privacy-Boundary.md`（草案）＋ `System/schemas/Slug-Policy.md`
-4. **參考實作三件套**：`~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go`（方言處理）＋ `kura/src/graph.rs`、`src/wikilink.rs`（連結解析 spec）＋ `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts`（既有 component；untrusted 前提，情境不同）
-5. **真內容抽樣（先讀真檔再寫第一行渲染碼）**：
-   - `Writing/lessons/japanese/L20 普通形と常体.md`（HTML-ruby 課文）
-   - `Writing/lessons/golang/Garbage Collection Guide.md`（corrections ledger）
-   - `Maps/Go 課綱.md` ＋ `Maps/大家的日本語 初級I 學習路徑.md`（兩種課綱結構）
-   - `System/reports/kura-vault-check.md` ＋ `System/reports/daily-briefing/latest.html`（報告面）
+### vault-schema.toml is the machine source of truth
+
+`System/schemas/vault-schema.toml` (schema_version 1) declares itself the SoT; its consumers are kura (the schema.* rules), `gen_fileclasses.py`, Note-Schema.md (the human doctrine, "change the toml before you change an enum"), and kurodo. kurodo only reads it, never hard-codes (wall 3).
+
+### kura is the corpus judge (15 rules)
+
+7 link/graph rules (`link.title_not_alias`, `link.broken`, `link.broken.path`, `collision.alias`, `provenance.unresolved`, `map.disk_mismatch`, `map.disk_unlisted`) plus 8 schema.* rules (enum / required / unknown_key / slug / domain_folder / legacy_tag / provenance / frontmatter, all at error level). Gate semantics: `--deny error`; info never gates.
+
+When kurodo sees something broken: **render it anyway and flag a diagnostic; don't fix, don't block, don't overstep** (wall 4).
+
+### The pipelines (the real consumers of `check`, verified vault-side 2026-07-02)
+
+- `cron-vault-wrapper.sh:132` — `kura check --root "$WT" --deny error` (worktree self-check)
+- `cron-translator-wrapper.sh:91` — `kura check "${FILES[@]}" --root "$VAULT" --deny error` (explicit file arguments)
+- `cron-grinder-wrapper.sh:47` — `--format json` piped into `grep '"severity":"warn"'` (**the JSONL field names and severity string values are therefore an external contract**)
+- `cron-vault-qa-wrapper.sh` — `--format md` written out, overwriting `System/reports/kura-vault-check.md`
+- Manual gates: QA-Gate layer 0, step 6 of the capture-source skill, all-green before share-rewrite's final review, and a quick gate after every lesson edit (kura-field-log:32)
+- `kura exists` = the dedup oracle before creating a concept (exit 0/1 is the answer); `kura coverage` = the orphan/routing watchdog (`Maps/研究 Brief 索引.md:15` depends on it explicitly)
+- `--baseline` and `--all`: **zero real consumers** (verified absent) — carried over for byte-compat, not a hot path
+
+The JSONL contract (the retirement gate's golden comparison target, field shape): `rule_id, severity, path, line?, field?, message, evidence, suggested_action, source_rule, target?, resolved_to?, collision_members?, fingerprint`. Sorted `path → line → rule_id`; the fingerprint = FNV-1a over (rule_id, path, target), each segment followed by a `0x1f` separator byte, 16-digit lowercase hex; exit codes 0 / 1 / 2. Byte-exact targets: `kura/tests/snapshots/conformance__jsonl_output.snap` and `conformance__coverage_report.snap`.
+
+### Scan boundary ≠ render boundary
+
+By default kura **does not scan** `System/`, `Diagrams/`, `Views/` (only `--all` does). kurodo's render surface is larger than kura's scan surface (it must read reports and briefings); but when aligning a `kurodo check`, it must replicate kura's scan boundary, or the JSONL won't line up.
+
+### git is the audit layer
+
+The vault is a git repo. kurodo makes one commit per status transition (wall 1) — this keeps everything reversible and is the precondition that lets the yard be opened wide. **Do not build a separate status-history table: `git log` is the history.**
+
+### The write pipeline at a glance
+
+hermes goes through a worktree branch → the three QA-Gate layers (kura → Codex → Claude) → only Claude merges → **only Koopa presses ready**. kurodo's status flip is this chain's human-terminal interface, not a bypass.
+
+### The privacy line (a dedicated doc is drafted: `System/agent-guides/Privacy-Boundary.md`, pending Koopa's final review)
+
+- The line is a **folder**: the top-level `Diary/` never egresses (a folder is fail-closed, a frontmatter flag is fail-open, so use the folder).
+- For kurodo: local-only rendering for Koopa himself is **legal**; every egress surface (export, check findings, snapshots, feeding an agent) unconditionally excludes `Diary/` — not even `--all` includes it, because findings written into a report would be read by agents.
+- The mechanical source: the toml will add `[privacy] never_egress_dirs = ["Diary"]` — kura, kurodo, and hermes all read the same one (wall 3); no hard-coding.
+- The `type: diary` draft: lives in `Diary/`, domain-exempt, does not require a status. The boundary test is a single sentence: **if you want an agent to look at it, it isn't a diary** (a Japanese diary-writing exercise is not a diary).
+
+---
+
+## Layer 4: The builder's reading order (real files, not paraphrase)
+
+1. **Data model**: `System/schemas/vault-schema.toml` → `System/schemas/Note-Schema.md` → `System/schemas/Vault-Architecture.md`
+2. **System philosophy and the judge's spec**: `System/Vault-Index.md` → `System/Koopa-Knowledge-Compiler.md` → `System/vault-guard-spec.md` (note: the spec's filename is still the old name; the tool has been renamed kura) plus `System/kura-field-log.md`
+3. **The people, the division of labor, the gates**: `System/agent-guides/about-koopa.md` → `collaboration-charter.md` → `QA-Gate.md` → `Japanese-Companion-Guide.md` → `Privacy-Boundary.md` (draft) plus `System/schemas/Slug-Policy.md`
+4. **The three reference implementations**: `~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go` (dialect handling) plus `kura/src/graph.rs`, `src/wikilink.rs` (the link-resolution spec) plus `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts` (an existing component; untrusted premise, a different context)
+5. **A sampling of real content (read the real files before writing your first line of rendering code)**:
+   - `Writing/lessons/japanese/L20 普通形と常体.md` (an HTML-ruby lesson)
+   - `Writing/lessons/golang/Garbage Collection Guide.md` (a corrections ledger)
+   - `Maps/Go 課綱.md` plus `Maps/大家的日本語 初級I 學習路徑.md` (the two syllabus structures)
+   - `System/reports/kura-vault-check.md` plus `System/reports/daily-briefing/latest.html` (the report surface)

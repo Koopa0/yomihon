@@ -27,12 +27,12 @@ var (
 	ErrClosed = errors.New("status: write face is closed, no contract")
 	// ErrStale means the submitted form's "from" no longer matches the
 	// note's on-disk status: the page was loaded before someone else
-	// changed the file (docs/spec.md §4's "form.from ≠ 現況" row).
+	// changed the file (docs/spec.md §4's "form.from ≠ current state" row).
 	ErrStale = errors.New("status: note is stale, reload and try again")
 	// ErrConcurrentWrite means the file's mtime changed between Flip's
 	// initial read and its pre-write recheck — a live concurrent write
 	// (an external tool such as Obsidian, not a stale page) raced the
-	// flip itself (docs/spec.md §4's "mtime 變動" row). Distinct from
+	// flip itself (docs/spec.md §4's "mtime changed" row). Distinct from
 	// ErrStale: the two rows of the error table carry different
 	// presentations and this sentinel must not satisfy errors.Is(err,
 	// ErrStale).

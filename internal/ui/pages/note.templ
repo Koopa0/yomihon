@@ -1,9 +1,11 @@
-// Package pages holds one templ component per served page.
 package pages
 
 import (
 	"strconv"
+	"strings"
 
+	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/render"
 	"github.com/koopa0/kurodo/internal/ui/layouts"
 )
@@ -35,6 +37,12 @@ type NoteView struct {
 	RenderDiagnostics []render.Diagnostic
 	TOC               []render.TOCEntry
 
+	// Nav is the prebuilt, read-only whole-vault sidebar model (folders,
+	// syllabi, reports). It is the same value on every page (built once at
+	// startup) and may be an empty model when navigation was unavailable at
+	// startup (§0.1) — the sidebar then renders empty, reading is unaffected.
+	Nav *nav.Model
+
 	Transitions   []string
 	WriteClosed   bool
 	NoFrontmatter bool
@@ -42,6 +50,7 @@ type NoteView struct {
 
 templ Note(v NoteView) {
 	@layouts.Base(v.Title) {
+		@sidebar(v.Nav)
 		<article>
 			<h1>{ v.Title }</h1>
 			<p class="meta">
@@ -54,7 +63,7 @@ templ Note(v NoteView) {
 				}
 			</p>
 			if v.Diagnostic != "" {
-				<p class="diag">診斷：{ v.Diagnostic }</p>
+				<p class="diag">Diagnostic: { v.Diagnostic }</p>
 			} else {
 				@statusPanel(v)
 			}
@@ -74,7 +83,7 @@ templ renderDiagnostics(diags []render.Diagnostic) {
 		<ul class="render-diagnostics">
 			for _, d := range diags {
 				<li class="diag">
-					診斷（{ string(d.Kind) }）：
+					Diagnostic ({ string(d.Kind) }):
 					if d.Target != "" {
 						{ d.Target } —
 					}
@@ -112,11 +121,11 @@ templ statusPanel(v NoteView) {
 	<section class="status-panel">
 		switch {
 			case v.WriteClosed:
-				<p class="status-notice">契約不可用：寫入面已關閉（fail-closed）。</p>
+				<p class="status-notice">Contract unavailable — the write face is closed (fail-closed).</p>
 			case v.NoFrontmatter:
-				<p class="status-notice">無 frontmatter（合法）。</p>
+				<p class="status-notice">No frontmatter (valid).</p>
 			case len(v.Transitions) == 0:
-				<p class="status-notice">無合法轉移。</p>
+				<p class="status-notice">No legal transitions.</p>
 			default:
 				for _, to := range v.Transitions {
 					<form method="post" action="/status" class="status-form">
@@ -132,4 +141,139 @@ templ statusPanel(v NoteView) {
 				}
 		}
 	</section>
+}
+
+// sidebar is the navigation face (docs/spec.md §2): the lifecycle folder
+// browse tree, the study-path syllabus trees, and the reports list. Like
+// the TOC above it is plain and unstyled — nested <ul>/<li> with
+// <a href="/notes/..."> links and plain text marks for a lesson's status
+// and for broken/ambiguous lessons — functional only. Koopa's frontend
+// design restyles it later; there is deliberately no CSS or JS here. A nil
+// model (never produced by main.go, which passes an empty model instead)
+// simply renders nothing.
+templ sidebar(m *nav.Model) {
+	if m != nil {
+		<nav class="sidebar">
+			<section class="nav-folders">
+				<h2>Vault</h2>
+				@folderList(m.Folders, m.RootNotes)
+			</section>
+			if len(m.Syllabi) > 0 {
+				<section class="nav-syllabi">
+					<h2>Study paths</h2>
+					for _, s := range m.Syllabi {
+						@syllabus(s)
+					}
+				</section>
+			}
+			if len(m.Reports) > 0 {
+				<section class="nav-reports">
+					<h2>Reports</h2>
+					<ul>
+						for _, rep := range m.Reports {
+							<li>
+								<a href={ templ.URL(notesHref(rep.RelPath)) }>{ rep.Name }</a>
+								if rep.Latest {
+									<span class="nav-mark"> (latest)</span>
+								} else if rep.Briefing {
+									<span class="nav-mark"> (briefing)</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+		</nav>
+	}
+}
+
+// folderList renders the top level: the vault-root notes, then the
+// lifecycle-ordered top-level folders.
+templ folderList(folders []nav.Folder, rootNotes []nav.NoteRef) {
+	<ul>
+		for _, n := range rootNotes {
+			<li>@noteLink(n)</li>
+		}
+		for _, f := range folders {
+			<li>@folderNode(f)</li>
+		}
+	</ul>
+}
+
+// folderNode renders one folder and recurses into its subfolders — the
+// tree mirrors the real directory structure to whatever depth it has.
+templ folderNode(f nav.Folder) {
+	<span class="nav-folder">{ f.Name }</span>
+	if len(f.Sub) > 0 || len(f.Notes) > 0 {
+		<ul>
+			for _, sub := range f.Sub {
+				<li>@folderNode(sub)</li>
+			}
+			for _, n := range f.Notes {
+				<li>@noteLink(n)</li>
+			}
+		</ul>
+	}
+}
+
+templ noteLink(n nav.NoteRef) {
+	<a href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+}
+
+// syllabus renders one study-path: a link to the map note itself, then its
+// pruned heading/lesson tree.
+templ syllabus(s nav.Syllabus) {
+	<div class="nav-syllabus">
+		<a href={ templ.URL(notesHref(s.RelPath)) } class="nav-syllabus-title">{ s.Title }</a>
+		@sectionList(s.Sections)
+	</div>
+}
+
+// sectionList recurses over a syllabus's headings; each heading shows its
+// label, its nested subsections, then its lessons.
+templ sectionList(sections []nav.Section) {
+	if len(sections) > 0 {
+		<ul>
+			for _, sec := range sections {
+				<li>
+					<span class="nav-section">{ sec.Heading }</span>
+					@sectionList(sec.Sub)
+					@lessonList(sec.Lessons)
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ lessonList(lessons []nav.Lesson) {
+	if len(lessons) > 0 {
+		<ul>
+			for _, l := range lessons {
+				<li>@lesson(l)</li>
+			}
+		</ul>
+	}
+}
+
+// lesson renders one lesson. A uniquely-resolved lesson is a link with a
+// plain status label; an ambiguous or unresolved lesson is STILL shown
+// (wall 4), as plain text carrying a diagnostic mark instead of a link.
+templ lesson(l nav.Lesson) {
+	switch l.Resolution {
+		case graph.Unique:
+			<a href={ templ.URL(notesHref(l.RelPath)) }>{ l.Text }</a>
+			if l.Status != "" {
+				<span class="nav-status"> [{ l.Status }]</span>
+			}
+		case graph.Ambiguous:
+			<span class="nav-ambiguous">
+				{ l.Text }
+				&nbsp;&mdash; ambiguous: { strings.Join(l.Candidates, ", ") }
+			</span>
+		default:
+			<span class="nav-broken">
+				{ l.Text }
+				&nbsp;&mdash; unresolved: { l.Target }
+			</span>
+	}
 }
