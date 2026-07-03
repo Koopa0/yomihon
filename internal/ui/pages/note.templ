@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/kurodo/internal/lesson"
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/render"
 	"github.com/koopa0/kurodo/internal/ui/layouts"
@@ -51,6 +52,11 @@ type NoteView struct {
 	// note.
 	JustSealed bool
 	SealedHash string
+
+	// Concepts are the grammar-concept notes this lesson links to, each
+	// pre-rendered for the in-app concept sheet. Empty for a non-lesson note or a
+	// lesson that references none.
+	Concepts []lesson.ConceptDoc
 }
 
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
@@ -89,6 +95,31 @@ templ Note(v NoteView, c layouts.Chrome) {
 			@rightRail(v)
 		</div>
 		@sealBar(v)
+		@conceptSheet(v.Concepts)
+	}
+}
+
+// conceptSheet is the in-app grammar-concept drawer: one hidden <template> of
+// rendered content per concept the lesson links to, plus a single shared native
+// <dialog>. kurodo.js clones the matching template into the dialog on a trigger
+// click and calls showModal(); with JS off the triggers stay ordinary links to
+// the concept notes, so nothing here renders unless a concept is referenced.
+templ conceptSheet(concepts []lesson.ConceptDoc) {
+	if len(concepts) > 0 {
+		for _, c := range concepts {
+			<template id={ "concept-" + c.Slug } data-title={ c.Title }>
+				@templ.Raw(c.HTML)
+			</template>
+		}
+		<dialog class="k-conceptsheet" data-concept-sheet aria-label="Grammar note">
+			<div class="k-conceptsheet__head">
+				<span class="k-conceptsheet__title" data-concept-title></span>
+				<button type="button" class="k-iconbtn" data-concept-close aria-label="Close">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+				</button>
+			</div>
+			<div class="k-conceptsheet__body k-prose" data-concept-body></div>
+		</dialog>
 	}
 }
 
@@ -244,17 +275,17 @@ templ sectionList(sections []nav.Section) {
 				<div class="k-tree__label">{ sec.Heading }</div>
 				@sectionList(sec.Sub)
 				for _, l := range sec.Lessons {
-					@lesson(l)
+					@lessonLink(l)
 				}
 			}
 		</div>
 	}
 }
 
-// lesson renders one lesson. A uniquely-resolved lesson is a link; an ambiguous
-// or unresolved lesson is STILL shown (wall 4, reading face is fail-open), as
-// plain text carrying a diagnostic mark instead of a link.
-templ lesson(l nav.Lesson) {
+// lessonLink renders one syllabus lesson entry. A uniquely-resolved lesson is a
+// link; an ambiguous or unresolved lesson is STILL shown (wall 4, reading face
+// is fail-open), as plain text carrying a diagnostic mark instead of a link.
+templ lessonLink(l nav.Lesson) {
 	switch l.Resolution {
 		case graph.Unique:
 			<a class="ui-navitem" href={ templ.URL(notesHref(l.RelPath)) }>

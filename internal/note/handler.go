@@ -3,12 +3,15 @@
 package note
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 
+	"github.com/koopa0/kurodo/internal/lesson"
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/render"
 	"github.com/koopa0/kurodo/internal/ui/pages"
@@ -19,6 +22,15 @@ import (
 // carries the seal display, so the handler gates its git-provenance read and the
 // one-shot seal signal on this value; it duplicates no schema enum.
 const sealStatus = "ready"
+
+// typeLesson is the one note type the reading page enriches with lesson-body
+// interactions (the TTS speak buttons today; the slot machine and concept
+// drawer next). Like sealStatus, it names in one place the single spot the
+// handler treats a type specially, and it duplicates no enum: the type
+// vocabulary lives in the schema contract's enums.type (vault-schema.toml),
+// wall 3's source of truth. render.HTML stays generic — the lesson decision is
+// made here, so a non-lesson note never grows lesson affordances.
+const typeLesson = "lesson"
 
 // StatusPolicy is the subset of the write face's state the reading page needs:
 // whether the face is closed (Closed), which transition keys, if any, to offer
@@ -46,6 +58,16 @@ type Deps struct {
 	Counts     func() map[string]int
 	Provenance func(ctx context.Context, rel string) (string, error)
 	Log        *slog.Logger
+	// Slots is the lesson slot-machine sidecar index (D29), loaded once at
+	// startup. Unlike the closures above it is static (slots are not in the D25
+	// snapshot — they are a separate read path). A nil index is legal: it just
+	// means no lesson carries a slot machine, so it is not a required dependency.
+	Slots lesson.SlotIndex
+	// Concepts indexes the grammar concept notes a lesson may link to, for the
+	// in-app concept sheet. Also static and also optional: a nil index means no
+	// wikilink ever becomes a sheet trigger, so lessons just navigate to concept
+	// notes as usual.
+	Concepts lesson.ConceptIndex
 }
 
 // Handler serves reading pages for a vault rooted at Deps.Root.
@@ -57,6 +79,8 @@ type Handler struct {
 // is a wiring bug that must fail here, not on the first request three calls deep
 // inside show(). A fail-closed write face is still a non-nil Status whose Closed
 // reports true, not a missing one.
+//
+//nolint:gocritic // hugeParam: Deps (80B) is composed once at startup wiring and passed by value to match the sibling constructor (syllabus.NewHandler); by-value keeps the single call site a literal struct composite, and this is not a hot path.
 func NewHandler(d Deps) *Handler {
 	if d.Renderer == nil {
 		panic("note: NewHandler requires a non-nil Renderer")
@@ -109,6 +133,22 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := h.deps.Renderer.HTML(n.Body)
 
+	// Lesson bodies get the read-aloud affordance: wrap each ruby-bearing
+	// sentence with a speak button whose text has the furigana stripped
+	// server-side (render.InjectTTS). The gate is here, not in render, so
+	// render.HTML stays a generic note renderer — a diary or concept note that
+	// contains <ruby> never grows speaker buttons. A lesson with a slot sidecar
+	// (joined by slug, D29) also gets its sentence-pattern machine spliced in,
+	// and its wikilinks to concept notes become in-app sheet triggers.
+	var concepts []lesson.ConceptDoc
+	if n.Type() == typeLesson {
+		result.HTML = render.InjectTTS(result.HTML)
+		result.HTML = h.injectSlotMachine(r.Context(), rel, n.Slug(), result.HTML)
+		var refs []string
+		result.HTML, refs = render.InjectConceptTriggers(result.HTML, h.deps.Concepts.SlugForPath)
+		concepts = h.loadConcepts(refs)
+	}
+
 	view := pages.NoteView{
 		Title:             n.Title(),
 		RelPath:           n.RelPath,
@@ -121,6 +161,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Nav:               h.deps.Nav(),
 		Lifecycle:         h.lifecycle(n.Status()),
 		WriteClosed:       h.deps.Status.Closed(),
+		Concepts:          concepts,
 	}
 	switch {
 	case n.FMDiagnostic != "":
@@ -147,6 +188,50 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if err := pages.Note(view, pages.ChromeFromRequest(r, n.Title())).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}
+}
+
+// injectSlotMachine splices this lesson's slot-pattern machine into its rendered
+// body when a sidecar joins by slug (D29). It renders the templ component to a
+// string and inserts it after the lesson's first table — the 文型骨架 pattern
+// skeleton — matching the lesson's own pedagogy (practise the patterns before
+// the reading passages), falling back to appending when a lesson has no table.
+// A render failure is logged and the body returned unchanged: a broken machine
+// must never blank the page (wall 4).
+func (h *Handler) injectSlotMachine(ctx context.Context, rel, slug, body string) string {
+	sc, ok := h.deps.Slots.Lookup(slug)
+	if !ok {
+		return body
+	}
+	var buf bytes.Buffer
+	if err := pages.SlotMachine(sc).Render(ctx, &buf); err != nil {
+		h.deps.Log.Error("render slot machine", "path", rel, "slug", slug, "error", err)
+		return body
+	}
+	machine := buf.String()
+	if i := strings.Index(body, "</table>"); i >= 0 {
+		end := i + len("</table>")
+		return body[:end] + machine + body[end:]
+	}
+	return body + machine
+}
+
+// loadConcepts renders each referenced concept note into a sheet document. A
+// concept body is rendered through the plain note pipeline (no concept post-pass
+// of its own), so its wikilinks stay ordinary links and the sheet never nests. A
+// concept that fails to load is skipped — its trigger stays a working link to
+// the note, so no dead sheet ships (wall 4: degrade, never break).
+func (h *Handler) loadConcepts(refs []string) []lesson.ConceptDoc {
+	if len(refs) == 0 {
+		return nil
+	}
+	renderBody := func(body string) string { return h.deps.Renderer.HTML(body).HTML }
+	docs := make([]lesson.ConceptDoc, 0, len(refs))
+	for _, rel := range refs {
+		if d, ok := lesson.LoadConcept(renderBody, h.deps.Concepts, h.deps.Root, rel); ok {
+			docs = append(docs, d)
+		}
+	}
+	return docs
 }
 
 // lifecycle assembles the status-first Lifecycle rail: the note group's statuses
