@@ -190,30 +190,96 @@
     }
   }
 
-  // ---- TTS: read a lesson sentence aloud (Web Speech) ----------------------
+  // ---- speech (Web Speech), shared by TTS sentences + the slot machine -----
+  // No-op when there is no engine; the UI is gated on the data-speech signal
+  // (set at boot) so speak controls never appear when they could not work.
+  function speakJa(text) {
+    if (!text || !('speechSynthesis' in window)) return;
+    speechSynthesis.cancel(); // stop any in-flight utterance first
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    speechSynthesis.speak(u);
+  }
+
+  // ---- TTS: read a lesson sentence aloud -----------------------------------
   // The speak buttons are server-rendered (internal/render.InjectTTS) with the
   // reading-stripped text already in data-tts — this never crawls the DOM for
-  // <rt>. Buttons stay hidden until a speech engine is confirmed, so with no JS
-  // or no engine the affordance is simply absent and the sentence still reads.
+  // <rt>. CSS reveals them only under [data-speech], so with no JS or no engine
+  // the affordance is simply absent and the sentence still reads.
   function initTTS() {
-    if (!('speechSynthesis' in window)) return;
-    const buttons = document.querySelectorAll('[data-tts]');
-    if (buttons.length === 0) return;
-    root.dataset.speech = 'on'; // CSS reveals .k-tts only once speech is available
-    buttons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const text = btn.getAttribute('data-tts');
-        if (!text) return;
-        speechSynthesis.cancel(); // stop any in-flight utterance first
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'ja-JP';
-        speechSynthesis.speak(u);
+    document.querySelectorAll('[data-tts]').forEach((btn) => {
+      btn.addEventListener('click', () => speakJa(btn.getAttribute('data-tts')));
+    });
+  }
+
+  // ---- slot machine: swap fills, recolour, shuffle, speak ------------------
+  // Each card carries its data in a <script class="k-slotdata"> JSON blob; the
+  // sentence is already server-rendered on the first fill, so the card reads
+  // with JS off. This upgrades it: a <select> change (or shuffle) rewrites every
+  // matching output span's base (ruby>span) and reading (rt) and re-substitutes
+  // the gloss. data-* names are the whole HTML<->JS contract.
+  function initSlots() {
+    document.querySelectorAll('.k-slotcard').forEach(initSlotCard);
+  }
+  function initSlotCard(card) {
+    const dataEl = card.querySelector('script.k-slotdata');
+    if (!dataEl) return;
+    let data;
+    try { data = JSON.parse(dataEl.textContent); } catch { return; } // keep server state
+    const keys = data.keys || [];
+    const sel = {};
+    keys.forEach((k) => { sel[k] = 0; });
+    const fill = (k) => {
+      const s = data.slots[k];
+      if (!s || !s.fills.length) return null;
+      return s.fills[sel[k]] || s.fills[0];
+    };
+    function render() {
+      keys.forEach((k) => {
+        const f = fill(k);
+        if (!f) return;
+        card.querySelectorAll(`.k-slotout[data-slot-key="${k}"]`).forEach((out) => {
+          const base = out.querySelector('ruby > span');
+          const rt = out.querySelector('rt');
+          if (base) base.textContent = f.jp;
+          if (rt) rt.textContent = f.reading;
+        });
       });
+      const g = card.querySelector('.k-slotgloss');
+      if (g) g.textContent = data.gloss.replace(/\{([A-Za-z0-9]+)\}/g, (_, k) => {
+        const f = fill(k);
+        return f ? f.zh : '{' + k + '}';
+      });
+    }
+    card.querySelectorAll('select[data-slot-key]').forEach((s) => {
+      s.addEventListener('change', () => {
+        sel[s.getAttribute('data-slot-key')] = Number(s.value) || 0;
+        render();
+      });
+    });
+    card.querySelector('[data-slot-action="speak"]')?.addEventListener('click', () => {
+      speakJa(data.template.replace(/\{([A-Za-z0-9]+)\}/g, (_, k) => { const f = fill(k); return f ? f.jp : ''; }));
+    });
+    card.querySelector('[data-slot-action="shuffle"]')?.addEventListener('click', () => {
+      keys.forEach((k) => {
+        const n = (data.slots[k] && data.slots[k].fills.length) || 0;
+        if (!n) return;
+        sel[k] = Math.floor(Math.random() * n);
+        const s = card.querySelector(`select[data-slot-key="${k}"]`);
+        if (s) s.value = String(sel[k]);
+      });
+      render();
     });
   }
 
   // ---- boot ----------------------------------------------------------------
   function init() {
+    // Reveal signals for progressive enhancement: [data-js] shows controls that
+    // only work with JS (slot selects, shuffle); [data-speech] shows the speak
+    // controls only when an engine exists. CSS keys on these; the server never
+    // sets them, so no-JS pages hide the controls and still read.
+    root.dataset.js = 'on';
+    if ('speechSynthesis' in window) root.dataset.speech = 'on';
     initToggles();
     initDrawer();
     initSeal();
@@ -221,6 +287,7 @@
     initSearch();
     initKeys();
     initTTS();
+    initSlots();
     renderMermaidDiagrams();
   }
   if (document.readyState === 'loading') {

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/kurodo/internal/lesson"
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/note"
 	"github.com/koopa0/kurodo/internal/render"
@@ -48,6 +49,15 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	if err != nil {
 		t.Fatalf("nav.Build(%q) = %v", root, err)
 	}
+	// Build the slot index when the temp vault has a System/slots dir; a test
+	// without one leaves Slots nil (the legal "no slot machines" state).
+	var slots lesson.SlotIndex
+	if slotsDir := filepath.Join(root, "System", "slots"); dirExists(slotsDir) {
+		slots, err = lesson.BuildSlotIndex(slotsDir)
+		if err != nil {
+			t.Fatalf("lesson.BuildSlotIndex(%q) = %v", slotsDir, err)
+		}
+	}
 	h := note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   render.New(root, idx),
@@ -56,6 +66,7 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 		Counts:     func() map[string]int { return nil },
 		Provenance: func(context.Context, string) (string, error) { return "", nil },
 		Log:        slog.New(slog.DiscardHandler),
+		Slots:      slots,
 	})
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -96,12 +107,12 @@ func get(t *testing.T, url string) (code int, body string) {
 func TestShow(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lesson := "---\ntitle: L00 テスト課\ntype: lesson\nstatus: draft\n---\n\n<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
+	lessonMD := "---\ntitle: L00 テスト課\ntype: lesson\nstatus: draft\n---\n\n<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "L00 テスト課.md"), []byte(lesson), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "L00 テスト課.md"), []byte(lessonMD), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServer(t, root)
@@ -167,6 +178,88 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 	}
 	if !strings.Contains(sourceBody, "<ruby>今日<rt>きょう</rt></ruby>") {
 		t.Errorf("non-lesson page lost its ruby (render must stay generic); body = %q", sourceBody)
+	}
+}
+
+// dirExists reports whether path is an existing directory.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// TestShowSlotMachine is the slot-machine wiring guard: a lesson whose slug
+// joins a slot sidecar (D29) gets its pattern machine spliced into the page,
+// positioned right after the lesson's first table (the 文型骨架 skeleton) and
+// before the body that follows it. A lesson with no matching sidecar gets no
+// machine.
+func TestShowSlotMachine(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	lessonDir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir lesson: %v", err)
+	}
+	// A lesson with a table (the splice anchor) and a paragraph after it.
+	body := "---\ntitle: L01\ntype: lesson\nstatus: draft\nslug: jp-test-l01\n---\n\n" +
+		"| pattern | meaning |\n|---|---|\n| AはBです | A is B |\n\nAFTERTABLEBODY\n"
+	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+
+	slotsDir := filepath.Join(root, "System", "slots")
+	if err := os.MkdirAll(slotsDir, 0o750); err != nil {
+		t.Fatalf("mkdir slots: %v", err)
+	}
+	// The sidecar joins by the slug INSIDE the file, not the filename (D29):
+	// filename S1.yaml, slug jp-test-l01 matching the lesson.
+	sidecar := "lesson: L01\nslug: jp-test-l01\ntitle: t\npatterns:\n" +
+		"  - id: p1\n    template: \"{A}は {B}です\"\n    gloss_zh: \"{A} 是 {B}\"\n    slots:\n" +
+		"      A: {label_zh: \"主題\", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}\n" +
+		"      B: {label_zh: \"述語\", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}]}\n"
+	if err := os.WriteFile(filepath.Join(slotsDir, "S1.yaml"), []byte(sidecar), 0o644); err != nil {
+		t.Fatalf("write sidecar: %v", err)
+	}
+
+	srv := newServer(t, root)
+	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	// The machine rendered, with the first-fill sentence and a coloured slot.
+	for _, want := range []string{`class="k-slotmachine"`, `class="k-slotcard"`, `k-slotdata`, `k-slot-topic`, `わたし`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("lesson page missing slot-machine marker %q", want)
+		}
+	}
+	// Placement: after the table, before the body that follows it.
+	tbl := strings.Index(page, "</table>")
+	machine := strings.Index(page, "k-slotmachine")
+	after := strings.Index(page, "AFTERTABLEBODY")
+	if tbl < 0 || tbl >= machine || machine >= after {
+		t.Errorf("slot machine mis-positioned: </table>@%d, machine@%d, after-body@%d (want table < machine < after)", tbl, machine, after)
+	}
+}
+
+// TestShowLessonWithoutSidecarHasNoMachine confirms the gate: a lesson whose
+// slug matches no sidecar renders with no slot machine.
+func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// A lesson with a slug but no System/slots dir at all (Slots stays nil).
+	body := "---\ntitle: L02\ntype: lesson\nstatus: draft\nslug: jp-orphan\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(dir, "L02.md"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServer(t, root)
+	_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L02.md")
+	if strings.Contains(page, "k-slotmachine") {
+		t.Errorf("lesson with no matching sidecar still rendered a slot machine; body = %q", page)
 	}
 }
 
@@ -251,12 +344,12 @@ func TestShowNoFrontmatter(t *testing.T) {
 func TestShowTransitions(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lesson := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lesson), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
@@ -349,8 +442,8 @@ func TestShowIncludesSidebar(t *testing.T) {
 	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	lesson := "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
-	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lesson), 0o644); err != nil {
+	lessonMD := "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lessonMD), 0o644); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/koopa0/kurodo/internal/asset"
+	"github.com/koopa0/kurodo/internal/lesson"
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/note"
 	"github.com/koopa0/kurodo/internal/render"
@@ -89,6 +90,18 @@ func run(log *slog.Logger) error {
 
 	statusSvc := status.NewService(cfg.root, contract)
 
+	// Lesson slot sidecars (D29) load once from System/slots/, a separate read
+	// path from the vault scanner (slots are never indexed as notes). Fail-open
+	// like the contract: a missing or broken slots dir just means lessons render
+	// without the pattern machine, never a server abort.
+	slots, err := lesson.BuildSlotIndex(filepath.Join(cfg.root, "System", "slots"))
+	if err != nil {
+		log.Warn("slot sidecars unavailable; lessons render without the pattern machine", "error", err)
+		slots = nil
+	} else {
+		log.Info("slot sidecars loaded", "lessons", len(slots))
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -121,6 +134,7 @@ func run(log *slog.Logger) error {
 		Counts:     countsProvider,
 		Provenance: statusSvc.LastCommitHash,
 		Log:        log,
+		Slots:      slots,
 	}).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)

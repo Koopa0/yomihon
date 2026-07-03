@@ -32,9 +32,18 @@ func TestReadNote(t *testing.T) {
 		content    string
 		wantTitle  string
 		wantStatus string
+		wantSlug   string
 		wantDiag   bool
 		wantInBody string
 	}{
+		{
+			name:       "lesson slug is read as the join key",
+			content:    "---\ntitle: L01\ntype: lesson\nstatus: draft\nslug: jp-minna-l01\n---\n\nbody\n",
+			wantTitle:  "L01",
+			wantStatus: "draft",
+			wantSlug:   "jp-minna-l01",
+			wantInBody: "body",
+		},
 		{
 			name:       "frontmatter and body",
 			content:    "---\ntitle: 數量詞の位置\ntype: concept\nstatus: seedling\n---\n\n# 本文\n",
@@ -77,6 +86,9 @@ func TestReadNote(t *testing.T) {
 			}
 			if got := n.Status(); got != tt.wantStatus {
 				t.Errorf("Status() = %q, want %q", got, tt.wantStatus)
+			}
+			if got := n.Slug(); got != tt.wantSlug {
+				t.Errorf("Slug() = %q, want %q", got, tt.wantSlug)
 			}
 			if (n.FMDiagnostic != "") != tt.wantDiag {
 				t.Errorf("FMDiagnostic = %q, want diagnostic: %v", n.FMDiagnostic, tt.wantDiag)

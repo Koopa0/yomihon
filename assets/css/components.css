@@ -402,6 +402,53 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ============================================================
+   Slot machine — interactive sentence-pattern practice (D29).
+   Server-rendered on the first fill so it reads with JS off; the controls
+   (selects, shuffle) show only under [data-js] and the speak button only
+   under [data-speech], so no-JS / no-engine pages hide dead controls.
+   ============================================================ */
+.k-slotmachine { margin: 40px 0 0; }
+.k-slotmachine__intro { margin: 0 0 4px; }
+.k-slotmachine__title { font-family: var(--font-sans); font-size: var(--fs-ed-20); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+.k-slotmachine__sub { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-subtle); margin: 4px 0 0; }
+
+.k-slotcard { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px 20px; margin: 14px 0 0; }
+.k-slotcard__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.k-slotcard__abstract { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); letter-spacing: 0.01em; }
+.k-slotcard__note { font-family: var(--font-sans); font-size: var(--fs-12); color: var(--fg-subtle); }
+
+.k-slotcontrols { display: none; flex-wrap: wrap; gap: 12px; margin: 14px 0 0; }
+[data-js] .k-slotcontrols { display: flex; }
+.k-slotfield { display: flex; flex-direction: column; gap: 4px; }
+.k-slotfield__label { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.04em; color: var(--fg-subtle); }
+.k-slotselect { font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); background: var(--elevated); border: 1px solid var(--border); border-left: 3px solid var(--c, var(--border-strong)); border-radius: var(--r-sm); padding: 6px 10px; cursor: pointer; }
+
+.k-slotoutput { font-family: var(--font-serif); font-size: var(--fs-ed-24); line-height: var(--lh-cjk); color: var(--fg); margin: 18px 0 0; }
+.k-slotout { color: var(--c); background: color-mix(in oklch, var(--c) 12%, transparent); border-radius: 4px; padding: 0 3px; }
+.k-slotout rt { color: var(--c); }
+.k-slotgloss { font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg-muted); margin: 8px 0 0; }
+.k-slotgloss::before { content: "→ "; color: var(--fg-faint); }
+
+.k-slotactions { display: none; gap: 8px; margin: 14px 0 0; }
+[data-js] .k-slotactions { display: flex; }
+.k-slotbtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--elevated); color: var(--fg-subtle); cursor: pointer; transition: color .12s, border-color .12s; }
+.k-slotbtn:hover { color: var(--accent); border-color: var(--accent-muted); }
+.k-slotbtn svg { width: 16px; height: 16px; }
+.k-slotbtn[data-slot-action="speak"] { display: none; }
+[data-speech] .k-slotbtn[data-slot-action="speak"] { display: inline-flex; }
+
+/* The 8 grammatical-role colours: each class only assigns --c (a theme token),
+   so one token tints a slot's select border, its surface, and its ruby. */
+.k-slot-topic { --c: var(--slot-topic); }
+.k-slot-pred  { --c: var(--slot-pred); }
+.k-slot-poss  { --c: var(--slot-poss); }
+.k-slot-obj   { --c: var(--slot-obj); }
+.k-slot-place { --c: var(--slot-place); }
+.k-slot-time  { --c: var(--slot-time); }
+.k-slot-verb  { --c: var(--slot-verb); }
+.k-slot-num   { --c: var(--slot-num); }
+
+/* ============================================================
    Seal ceremony keyframes (落款／鈐印)
    ============================================================ */
 @keyframes k-sealBed  { 0% { transform: scale(1.18); opacity: 0; } 55% { transform: scale(.965); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
