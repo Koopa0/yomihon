@@ -117,10 +117,10 @@ PostgreSQL (D24).
 
 ## 8. UI (styling references the Syntax template; the implementation is all server-rendered templ)
 
-- **Shell**: sticky header (search panel ⌘K, theme toggle) + left sidebar + content column + right column. Reference `syntax-ts/src/components/{Layout,Navigation,Prose}.tsx` and the type scale in `src/styles/tailwind.css` — take only the visual language, not React. The visual identity gets applied once Koopa brings back the `@theme` tokens from Claude design (requirements in `claude-design-brief.md`).
-- **Left sidebar**: lifecycle folders (vault order, top level ≤9) + syllabus tree (two study-path notes with different structures) + a Reports area (daily-briefing HTML shown in a sandboxed iframe).
-- **Content column**: typography prose; the two-bucket callout coloring; ruby passes through as-is; mermaid rendered client-side; code highlighting server-side (chroma, no prism/JS).
-- **Right column**: TOC (CJK-safe slug) + frontmatter/status panel (all legal transitions, `ready` highlighted) + diagnostics column (display only, never fixes).
+- **Shell**: sticky 56px header (search ⌘K, furigana toggle 振, theme toggle) + left sidebar + content column + right column, on a 3-column grid that degrades to a drawer (≤900) and a fixed seal bar (≤1280). The `@theme` tokens are landed (Claude design → `internal/ui/styles/*.css`, compiled by the Tailwind v4 standalone CLI into `assets/css/output.css`, served at `/static/app.css`); the visual identity is the 2026-07-03 Reading Page redesign. Fonts are self-hosted woff2 (`assets/fonts/`, zero external requests); theme + furigana persist in a cookie and are rendered server-side onto the root element (no FOUC).
+- **Left sidebar** (status-first, D26): a **Lifecycle** list (the `note` group's ordered statuses, live snapshot counts, each linking to `/search?q=status:<name>`) + the syllabus tree (two study-path notes with different structures) + a Reports area (daily-briefing HTML) + a **collapsed** Folders tree (lifecycle folders, vault order, top level ≤9). All grouping/counts trace to the toml + snapshot, never hardcoded (wall 3).
+- **Content column**: typography prose; the two-bucket callout coloring; ruby passes through as-is (toggled by `visibility`, zero reflow); mermaid rendered client-side; code highlighting server-side (chroma, no prism/JS).
+- **Right column**: TOC (CJK-safe slug) + frontmatter/status panel (all legal transitions, `ready` the only primary — the koopa-only seal, D27: press-and-hold ceremony as progressive enhancement, a read-only `git log -1 --format=%h` provenance line) + diagnostics column (display only, never fixes).
 - **Japanese-lesson interactions**: reproduce yomihon's already-validated mechanisms as-is — furigana uses `visibility`, not `display` (prevents reflow); TTS's `data-tts` strips `<rt>/<rp>` during build/render; slots consume `slots/*.yaml` sidecars; the concept drawer uses a native `<dialog>`.
 
 ## 9. Goals and retirement gates
@@ -133,4 +133,4 @@ The two retirements are **evidence-based gates, not dates** (D11):
 
 ## 10. Unscheduled (the yard is open, the walls don't block)
 
-graph view, backlinks panel, frontmatter query, reading progress, PDF export, MCP server (a loose thread left in kura's README)… all legal; which one grows first is decided by the pain of actual use and the real needs of vault-side agents.
+graph view, backlinks panel, frontmatter query, reading progress, PDF export, MCP server (a loose thread left in kura's README), a diagnostics index page (the status-bar report-count panel D26 deferred until it has a real landing page)… all legal; which one grows first is decided by the pain of actual use and the real needs of vault-side agents.
