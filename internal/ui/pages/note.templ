@@ -244,17 +244,17 @@ templ sectionList(sections []nav.Section) {
 				<div class="k-tree__label">{ sec.Heading }</div>
 				@sectionList(sec.Sub)
 				for _, l := range sec.Lessons {
-					@lesson(l)
+					@lessonLink(l)
 				}
 			}
 		</div>
 	}
 }
 
-// lesson renders one lesson. A uniquely-resolved lesson is a link; an ambiguous
-// or unresolved lesson is STILL shown (wall 4, reading face is fail-open), as
-// plain text carrying a diagnostic mark instead of a link.
-templ lesson(l nav.Lesson) {
+// lessonLink renders one syllabus lesson entry. A uniquely-resolved lesson is a
+// link; an ambiguous or unresolved lesson is STILL shown (wall 4, reading face
+// is fail-open), as plain text carrying a diagnostic mark instead of a link.
+templ lessonLink(l nav.Lesson) {
 	switch l.Resolution {
 		case graph.Unique:
 			<a class="ui-navitem" href={ templ.URL(notesHref(l.RelPath)) }>

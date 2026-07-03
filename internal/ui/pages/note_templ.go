@@ -861,7 +861,7 @@ func sectionList(sections []nav.Section) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				for _, l := range sec.Lessons {
-					templ_7745c5c3_Err = lesson(l).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = lessonLink(l).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -876,10 +876,10 @@ func sectionList(sections []nav.Section) templ.Component {
 	})
 }
 
-// lesson renders one lesson. A uniquely-resolved lesson is a link; an ambiguous
-// or unresolved lesson is STILL shown (wall 4, reading face is fail-open), as
-// plain text carrying a diagnostic mark instead of a link.
-func lesson(l nav.Lesson) templ.Component {
+// lessonLink renders one syllabus lesson entry. A uniquely-resolved lesson is a
+// link; an ambiguous or unresolved lesson is STILL shown (wall 4, reading face
+// is fail-open), as plain text carrying a diagnostic mark instead of a link.
+func lessonLink(l nav.Lesson) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
