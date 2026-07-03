@@ -58,6 +58,10 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 			t.Fatalf("lesson.BuildSlotIndex(%q) = %v", slotsDir, err)
 		}
 	}
+	concepts, err := lesson.BuildConceptIndex(root)
+	if err != nil {
+		t.Fatalf("lesson.BuildConceptIndex(%q) = %v", root, err)
+	}
 	h := note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   render.New(root, idx),
@@ -67,6 +71,7 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 		Provenance: func(context.Context, string) (string, error) { return "", nil },
 		Log:        slog.New(slog.DiscardHandler),
 		Slots:      slots,
+		Concepts:   concepts,
 	})
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -260,6 +265,82 @@ func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
 	_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L02.md")
 	if strings.Contains(page, "k-slotmachine") {
 		t.Errorf("lesson with no matching sidecar still rendered a slot machine; body = %q", page)
+	}
+}
+
+// TestShowConceptSheet is the concept-sheet wiring guard: a lesson whose
+// wikilink resolves to a concept note gets that link marked as a trigger, the
+// concept pre-rendered into a hidden <template>, and the shared <dialog>
+// emitted. The trigger stays a real navigable <a> (the no-JS fallback).
+func TestShowConceptSheet(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	// A concept note the lesson will link to.
+	conceptDir := filepath.Join(root, "Concepts", "japanese")
+	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
+		t.Fatalf("mkdir concepts: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"),
+		[]byte("---\ntitle: は (主題助詞)\ntype: concept\n---\n\nMarks the topic of the sentence.\n"), 0o644); err != nil {
+		t.Fatalf("write concept: %v", err)
+	}
+
+	lessonDir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir lesson: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"),
+		[]byte("---\ntitle: L01\ntype: lesson\nstatus: draft\n---\n\nThe particle [[は]] marks the topic.\n"), 0o644); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+
+	srv := newServer(t, root)
+	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	// The wikilink became a trigger but stayed a real navigable link.
+	if !strings.Contains(page, `data-concept=`) || !strings.Contains(page, `class="wikilink concept-link"`) {
+		t.Errorf("concept wikilink not marked as a trigger; body = %q", page)
+	}
+	if !strings.Contains(page, `href="/notes/Concepts/japanese/`) {
+		t.Errorf("concept trigger lost its navigable href (no-JS fallback); body = %q", page)
+	}
+	// The concept was pre-rendered into a hidden template + the shared dialog.
+	for _, want := range []string{`<template id="concept-`, `Marks the topic of the sentence.`, `data-concept-sheet`, `data-concept-body`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("concept sheet missing %q", want)
+		}
+	}
+}
+
+// TestShowNonLessonNoConceptTriggers confirms the gate: a non-lesson note that
+// links to a concept navigates as usual — no trigger, no sheet.
+func TestShowNonLessonNoConceptTriggers(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	conceptDir := filepath.Join(root, "Concepts", "japanese")
+	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
+		t.Fatalf("mkdir concepts: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("topic particle\n"), 0o644); err != nil {
+		t.Fatalf("write concept: %v", err)
+	}
+	srcDir := filepath.Join(root, "Sources")
+	if err := os.MkdirAll(srcDir, 0o750); err != nil {
+		t.Fatalf("mkdir source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "S.md"),
+		[]byte("---\ntitle: S\ntype: source-note\nstatus: draft\n---\n\nMentions [[は]] in passing.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	srv := newServer(t, root)
+	_, page := get(t, srv.URL+"/notes/Sources/S.md")
+	if strings.Contains(page, "data-concept") || strings.Contains(page, "data-concept-sheet") {
+		t.Errorf("non-lesson note grew a concept trigger/sheet — the gate failed; body = %q", page)
 	}
 }
 

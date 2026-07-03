@@ -102,6 +102,17 @@ func run(log *slog.Logger) error {
 		log.Info("slot sidecars loaded", "lessons", len(slots))
 	}
 
+	// The concept index (also a separate, fail-open read path): the grammar notes
+	// a lesson links to, for the in-app concept sheet. Absent dir → empty index →
+	// wikilinks just navigate to the concept notes.
+	concepts, err := lesson.BuildConceptIndex(cfg.root)
+	if err != nil {
+		log.Warn("concept index unavailable; lesson wikilinks navigate instead of opening a sheet", "error", err)
+		concepts = nil
+	} else {
+		log.Info("concept index built", "concepts", len(concepts))
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -135,6 +146,7 @@ func run(log *slog.Logger) error {
 		Provenance: statusSvc.LastCommitHash,
 		Log:        log,
 		Slots:      slots,
+		Concepts:   concepts,
 	}).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)

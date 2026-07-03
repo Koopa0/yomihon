@@ -448,6 +448,30 @@ html, body { margin: 0; background: var(--bg); }
 .k-slot-verb  { --c: var(--slot-verb); }
 .k-slot-num   { --c: var(--slot-num); }
 
+/* A concept-link is a real wikilink that also opens the sheet; mark it with a
+   dotted underline so the reader knows a grammar note is one click away. With
+   JS off it is still the plain wikilink that navigates to the note. */
+.k-prose a.concept-link { border-bottom: 1px dashed var(--accent-muted); text-underline-offset: 2px; cursor: help; }
+.k-prose a.concept-link:hover { border-bottom-color: var(--accent); }
+
+/* ============================================================
+   Concept sheet — a grammar note in a native <dialog> drawer.
+   Slides in from the right on wide screens, up from the bottom on narrow.
+   Only present when a lesson references a concept (rendered conditionally).
+   ============================================================ */
+.k-conceptsheet {
+  border: none; padding: 0; margin: 0 0 0 auto; height: 100dvh; max-height: 100dvh;
+  width: min(460px, 92vw); background: var(--panel); border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-2); box-sizing: border-box; display: flex; flex-direction: column;
+}
+.k-conceptsheet::backdrop { background: rgb(0 0 0 / 0.4); }
+.k-conceptsheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: none; }
+.k-conceptsheet__title { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); }
+.k-conceptsheet__body { overflow-y: auto; padding: 18px 20px; }
+@media (max-width: 720px) {
+  .k-conceptsheet { width: 100vw; height: auto; max-height: 82dvh; margin: auto 0 0; border-left: none; border-top: 1px solid var(--border); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+}
+
 /* ============================================================
    Seal ceremony keyframes (落款／鈐印)
    ============================================================ */
