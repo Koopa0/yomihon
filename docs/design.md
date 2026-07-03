@@ -121,7 +121,7 @@ PostgreSQL (D24).
 - **Left sidebar** (status-first, D26): a **Lifecycle** list (the `note` group's ordered statuses, live snapshot counts, each linking to `/search?q=status:<name>`) + the syllabus tree (two study-path notes with different structures) + a Reports area (daily-briefing HTML) + a **collapsed** Folders tree (lifecycle folders, vault order, top level ≤9). All grouping/counts trace to the toml + snapshot, never hardcoded (wall 3).
 - **Content column**: typography prose; the two-bucket callout coloring; ruby passes through as-is (toggled by `visibility`, zero reflow); mermaid rendered client-side; code highlighting server-side (chroma, no prism/JS).
 - **Right column**: TOC (CJK-safe slug) + frontmatter/status panel (all legal transitions, `ready` the only primary — the koopa-only seal, D27: press-and-hold ceremony as progressive enhancement, a read-only `git log -1 --format=%h` provenance line) + diagnostics column (display only, never fixes).
-- **Japanese-lesson interactions**: reproduce yomihon's already-validated mechanisms as-is — furigana uses `visibility`, not `display` (prevents reflow); TTS's `data-tts` strips `<rt>/<rp>` during build/render; slots consume `slots/*.yaml` sidecars; the concept drawer uses a native `<dialog>`.
+- **Japanese-lesson interactions**: reproduce yomihon's already-validated mechanisms as-is — furigana uses `visibility`, not `display` (prevents reflow); TTS's `data-tts` strips `<rt>/<rp>` during build/render; slots consume `System/slots/*.yaml` sidecars; the concept drawer uses a native `<dialog>`.
 
 ## 9. Goals and retirement gates
 
