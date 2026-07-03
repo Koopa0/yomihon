@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/kurodo/internal/search"
 	"github.com/koopa0/kurodo/internal/snapshot"
 	"github.com/koopa0/kurodo/internal/status"
+	"github.com/koopa0/kurodo/internal/syllabus"
 )
 
 func main() {
@@ -123,6 +124,7 @@ func run(log *slog.Logger) error {
 	}).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
+	syllabus.NewHandler(syllabus.Deps{Nav: navProvider, Log: log}).Register(mux)
 	asset.Register(mux)
 
 	// Browser-only hardening, deepening wall 2: a same-origin form POST
