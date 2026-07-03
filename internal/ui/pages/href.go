@@ -41,7 +41,7 @@ func statusHref(status string) string {
 }
 
 // LifecycleItem is one row of the status-first Lifecycle rail: a schema status
-// (the vocabulary comes from the toml contract, wall 3), its live snapshot
+// (the vocabulary comes from the toml contract), its live snapshot
 // count, and whether it is the current note's status.
 type LifecycleItem struct {
 	Name   string

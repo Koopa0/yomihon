@@ -12,7 +12,7 @@ import (
 
 // sealStatus is the one primary status — the koopa-only seal (落款／鈐印).
 // Naming it in one place documents the single spot the UI treats a status
-// specially; it duplicates no enum — those live in the schema toml (wall 3).
+// specially; it duplicates no enum — those live in the schema toml.
 const sealStatus = "ready"
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
@@ -79,7 +79,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="k-shell">
 			@sidebar(v)
 			<main class="k-main">
-				<article class="k-article">
+				<article class="k-article" lang="zh-Hant">
 					@articleHead(v)
 					<div class="k-prose">
 						@templ.Raw(v.BodyHTML)
