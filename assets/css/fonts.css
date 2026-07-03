@@ -8,14 +8,18 @@
    request).
 
    In hand now (OFL / licensed): Geist + Geist Mono (Latin UI/mono),
-   Newsreader (Latin editorial serif, roman + italic). The CJK
-   families the token stack names next — Noto Serif/Sans TC/JP and
-   LXGW WenKai TC (楷書) — are large OFL binaries not yet vendored;
-   until their woff2 are dropped into assets/fonts/, CJK text falls
-   through the font stacks to the system CJK faces (PingFang / Hiragino),
-   which render cleanly. To vendor them: add the woff2, append an
-   @font-face block here with a `unicode-range` CJK split, and rebuild
-   `make css`. No selector or markup changes are needed.
+   Newsreader (Latin editorial serif, roman + italic). The CJK families
+   the token stack names next — Noto Serif/Sans TC/JP and LXGW WenKai TC
+   (楷書) — are large OFL binaries not yet vendored (path b). Until then
+   there is deliberately NO CJK @font-face here, so nothing 404s; the
+   token font stacks (tokens.css) resolve CJK to a matching SYSTEM face
+   of the right class (path a): 明體/Mincho for the reading body and kai
+   titles (Songti TC / Hiragino Mincho ProN), 黑體/Gothic for the UI
+   (PingFang TC / Hiragino Sans). To finish path b: subset the woff2 to
+   the vault's codepoints (fonttools / hb-subset / glyphhanger), drop
+   them into assets/fonts/, append an @font-face block here with a
+   `unicode-range` CJK split, and rebuild `make css`. No selector or
+   markup change is needed — the stacks already prefer Noto when present.
    ============================================================ */
 
 /* ---------- Latin UI/display: Geist (variable) ---------- */

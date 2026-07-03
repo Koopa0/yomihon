@@ -102,13 +102,18 @@
 
 /* ---- Non-colour tokens (theme-independent) ---- */
 :root {
-  /* Type families — Latin (Geist/Newsreader) leads, CJK (Noto/WenKai) follows,
-     system CJK as the last resort until the CJK woff2 are vendored. */
-  --font-display: "Geist", "Noto Sans TC", "Noto Serif JP", system-ui, sans-serif;
-  --font-serif:   "Newsreader", "Noto Serif TC", "Noto Serif JP", Georgia, serif;
-  --font-sans:    "Geist", "Noto Sans TC", "Noto Serif JP", system-ui, sans-serif;
+  /* Type families — Latin (Geist/Newsreader) leads; CJK resolves to Noto when
+     the woff2 are vendored (path b), else to a SYSTEM CJK face of the right
+     class (path a, 2026-07-03): the reading body must stay 明體/Mincho, not
+     collapse to PingFang 黑體 — serif-becoming-sans would break visual parity
+     with review/*.png. So the serif/kai stacks name macOS Mincho/Kai
+     explicitly before the generic serif, and the sans/display stacks name a
+     system Gothic. Zero bytes, no @font-face, no request. */
+  --font-display: "Geist", "Noto Sans TC", "PingFang TC", "Hiragino Sans", system-ui, sans-serif;
+  --font-serif:   "Newsreader", "Noto Serif TC", "Noto Serif JP", "Songti TC", "Hiragino Mincho ProN", Georgia, serif;
+  --font-sans:    "Geist", "Noto Sans TC", "PingFang TC", "Hiragino Sans", system-ui, sans-serif;
   --font-mono:    "Geist Mono", ui-monospace, "Noto Sans TC", monospace;
-  --font-kai:     "LXGW WenKai TC", "Noto Serif TC", serif;
+  --font-kai:     "LXGW WenKai TC", "Kaiti TC", "Kaiti SC", "Noto Serif TC", "Songti TC", "Hiragino Mincho ProN", serif;
 
   /* UI scale */
   --fs-11: 0.6875rem;
