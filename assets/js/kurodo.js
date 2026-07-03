@@ -84,8 +84,14 @@
     document.querySelectorAll('[data-seal]').forEach((form) => {
       const btn = form.querySelector('[data-seal-btn]');
       if (!btn) return;
-      const start = (e) => { e.preventDefault(); holdStart(form); };
-      btn.addEventListener('pointerdown', start);
+      // The button stays a real type=submit so it seals in one press with JS
+      // off. With JS on, only the completed hold may commit, so the NATIVE
+      // submit must be suppressed. preventDefault on pointerdown is not enough:
+      // for a mouse it cancels only the compat mouse events, not the click, so a
+      // quick click would still submit — defeating the whole misclick guard.
+      // Cancel the click itself; requestSubmit (the hold's path) never fires click.
+      btn.addEventListener('click', (e) => e.preventDefault());
+      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); holdStart(form); });
       btn.addEventListener('pointerup', holdEnd);
       btn.addEventListener('pointerleave', holdEnd);
       btn.addEventListener('keydown', (e) => {

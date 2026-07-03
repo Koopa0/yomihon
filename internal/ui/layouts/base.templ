@@ -42,8 +42,11 @@ templ Base(c Chrome) {
 // right icon); kurodo.js only flips the attribute + cookie on click. The search
 // entry is a real link to /search (the no-JS fallback) that JS upgrades into
 // opening the dialog.
+// The header is entirely English chrome, so it carries lang="en" against the
+// root's content-language (zh-Hant) — a screen reader announces "Toggle
+// navigation" / "Search notes" in an English voice, not a Chinese one.
 templ header() {
-	<header class="k-header">
+	<header class="k-header" lang="en">
 		<button class="k-iconbtn k-hamburger" type="button" data-nav-toggle aria-label="Toggle navigation">
 			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
 		</button>

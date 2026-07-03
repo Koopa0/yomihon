@@ -53,10 +53,14 @@ type Handler struct {
 	deps Deps
 }
 
-// NewHandler wires the reading feature. Every provider must be non-nil: a nil is
-// a wiring bug, and a fail-closed write face is still a non-nil Status whose
-// Closed reports true, not a missing one.
+// NewHandler wires the reading feature. Every dependency must be non-nil: a nil
+// is a wiring bug that must fail here, not on the first request three calls deep
+// inside show(). A fail-closed write face is still a non-nil Status whose Closed
+// reports true, not a missing one.
 func NewHandler(d Deps) *Handler {
+	if d.Renderer == nil {
+		panic("note: NewHandler requires a non-nil Renderer")
+	}
 	if d.Status == nil {
 		panic("note: NewHandler requires a non-nil Status")
 	}
@@ -68,6 +72,9 @@ func NewHandler(d Deps) *Handler {
 	}
 	if d.Provenance == nil {
 		panic("note: NewHandler requires a non-nil Provenance provider")
+	}
+	if d.Log == nil {
+		panic("note: NewHandler requires a non-nil Log")
 	}
 	return &Handler{deps: d}
 }
