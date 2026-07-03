@@ -68,6 +68,7 @@ Multiple skills can apply simultaneously. Read them BEFORE writing code.
 | Adding/validating skills, rules, hooks | `/manage-spec` |
 | Researching external libraries/APIs | `/research` |
 | Reviewing session learnings | `/reflect` |
+| Building/modifying server-rendered UI (templ, HTML/CSS-first, Baseline Web APIs, vanilla JS) | `/native-web-first` |
 
 ## Rules (always loaded, no action needed)
 These are rules, not skills — they load automatically for `.go` files:
