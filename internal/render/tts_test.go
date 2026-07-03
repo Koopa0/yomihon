@@ -72,6 +72,56 @@ func TestInjectTTSEscapesAttribute(t *testing.T) {
 	}
 }
 
+func TestInjectTTSWrapsRubyListItem(t *testing.T) {
+	t.Parallel()
+	// A tight list item (goldmark emits inline content, no inner <p>) — the
+	// practice/example sentences. The button is injected as the li's first
+	// child, the original inner content survives, and data-tts is reading-free.
+	in := `<ul><li><ruby>私<rt>わたし</rt></ruby>は学生です。</li></ul>`
+	got := render.InjectTTS(in)
+	if !strings.Contains(got, `data-tts="私は学生です。"`) {
+		t.Errorf("InjectTTS did not add a reading-stripped button to the list item; got:\n%s", got)
+	}
+	// The button is the li's first child, before the sentence content.
+	if !strings.Contains(got, `<li><button class="k-tts"`) {
+		t.Errorf("InjectTTS did not inject the button as the list item's first child; got:\n%s", got)
+	}
+	if !strings.Contains(got, `<ruby>私<rt>わたし</rt></ruby>は学生です。</li>`) {
+		t.Errorf("InjectTTS reshaped the list item's content; got:\n%s", got)
+	}
+}
+
+func TestInjectTTSSkipsRubylessListItem(t *testing.T) {
+	t.Parallel()
+	in := `<ul><li>plain list item</li></ul>`
+	if got := render.InjectTTS(in); got != in {
+		t.Errorf("InjectTTS touched a ruby-less list item:\nwant %q\ngot  %q", in, got)
+	}
+}
+
+func TestInjectTTSDoesNotDoubleWrapLooseListItem(t *testing.T) {
+	t.Parallel()
+	// A loose list item wraps its content in <p> (goldmark). The paragraph pass
+	// gives that <p> a button; the list pass must NOT add a second one, or the
+	// item would carry two speak buttons for one sentence.
+	in := `<ul><li><p><ruby>猫<rt>ねこ</rt></ruby>です。</p></li></ul>`
+	got := render.InjectTTS(in)
+	if n := strings.Count(got, "data-tts"); n != 1 {
+		t.Errorf("loose list item produced %d speak buttons, want exactly 1; got:\n%s", n, got)
+	}
+}
+
+func TestInjectTTSSkipsListItemWithNestedList(t *testing.T) {
+	t.Parallel()
+	// An item that opens a nested list: the non-greedy <li> match would stop at
+	// the inner </li>. Leave the whole structure byte-identical (the outer item
+	// gets no button; the ruby-less inner item gets none either).
+	in := `<ul><li><ruby>親<rt>おや</rt></ruby><ul><li>child</li></ul></li></ul>`
+	if got := render.InjectTTS(in); got != in {
+		t.Errorf("InjectTTS corrupted a list item with a nested list:\nwant %q\ngot  %q", in, got)
+	}
+}
+
 func TestInjectTTSSkipsParagraphWithNestedRawParagraph(t *testing.T) {
 	t.Parallel()
 	// A ruby sentence interrupted by a raw inline <p> (an authoring accident):

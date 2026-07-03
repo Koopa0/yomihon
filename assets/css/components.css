@@ -392,7 +392,11 @@ html, body { margin: 0; background: var(--bg); }
 [data-speech] .k-tts { display: inline-flex; }
 .k-tts:hover { color: var(--accent); background: var(--overlay); }
 .k-tts svg { width: 15px; height: 15px; }
-/* Narrow screens have no gutter — the button sits inline before the sentence. */
+/* A list item's speak button is its first child (a <li> can't be gutter-wrapped
+   without breaking list semantics), so it sits inline before the sentence. */
+.k-prose li > .k-tts { position: static; width: 20px; height: 20px; margin: 0 5px 0 0; vertical-align: -0.15em; }
+.k-prose li > .k-tts svg { width: 14px; height: 14px; }
+/* Narrow screens have no gutter — the paragraph button sits inline too. */
 @media (max-width: 720px) {
   .k-tts { position: static; margin-right: 6px; vertical-align: -0.15em; }
 }
