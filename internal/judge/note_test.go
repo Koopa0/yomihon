@@ -113,11 +113,20 @@ func TestCollectNotesScanBoundary(t *testing.T) {
 		"notes/keep.md",
 		"secret.md",
 	}
-	// A note whose filename is stored decomposed must come back composed.
+	// A note whose filename is stored decomposed must come back composed. This
+	// holds only on a filesystem that folds NFC and NFD on lookup, as macOS
+	// does and as the reader relies on to open a note by its normalized path; a
+	// byte-exact filesystem stores and returns the decomposed name unchanged, so
+	// the case does not apply there and the file is removed rather than left to
+	// fail an open by its composed path.
 	const composed = "だ.md"
 	if decomposed := norm.NFD.String(composed); decomposed != composed {
 		write(t, root, "notes/"+decomposed, "---\ntype: x\n---\n")
-		want = append(want, "notes/"+composed)
+		if _, err := os.Stat(filepath.Join(root, "notes", composed)); err == nil {
+			want = append(want, "notes/"+composed)
+		} else if err := os.Remove(filepath.Join(root, "notes", decomposed)); err != nil {
+			t.Fatalf("remove decomposed probe file: %v", err)
+		}
 	}
 
 	notes, err := collectNotes(root)
