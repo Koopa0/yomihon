@@ -11,6 +11,13 @@ var (
 	headingTag = regexp.MustCompile(`(?s)<h([1-6])>(.*?)</h[1-6]>`)
 	slugDrop   = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 	tagStrip   = regexp.MustCompile(`<[^>]+>`)
+
+	// nestedHeadingOpen detects a raw inline <h1-6> inside a heading's own inner
+	// HTML. goldmark never nests block headings, so this only fires on a raw
+	// inline <hN> pasted mid-heading — the one input that makes headingTag's
+	// non-greedy match stop at the wrong </hN>, truncating the heading. The
+	// `[>\s]` guard keeps <h1-6> from matching <hr>/<header>/<hgroup>.
+	nestedHeadingOpen = regexp.MustCompile(`<h[1-6][>\s]`)
 )
 
 // slugify makes a CJK-safe fragment/DOM id from heading text: lowercase,
@@ -42,6 +49,14 @@ func assignHeadingSlugs(htmlOut string) (string, []TOCEntry) {
 		m := headingTag.FindStringSubmatch(tag)
 		level := int(m[1][0] - '0') // headingTag guarantees a single 1-6 digit
 		inner := m[2]
+
+		// A raw inline <hN> inside this heading would have made the non-greedy
+		// match stop at the inner </hN> — truncating the heading and unbalancing
+		// tags. Leave it byte-identical (no id, no TOC entry): degrade, never
+		// corrupt (mirrors tts.go's nested-<p> guard; wall 4).
+		if nestedHeadingOpen.MatchString(inner) {
+			return tag
+		}
 		text := strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
 
 		id := slugify(text)
