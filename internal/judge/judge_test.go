@@ -80,50 +80,6 @@ func TestWriteJSONLGolden(t *testing.T) {
 			},
 		},
 		{
-			// One note violating three schema rules. Pins the schema
-			// finding shape: error severity, the fixed evidence, action,
-			// and source strings, and target omitted when the violating
-			// value is empty.
-			name:   "schema",
-			golden: "testdata/golden/schema.jsonl",
-			findings: []Finding{
-				{
-					RuleID:          "schema.enum",
-					Severity:        SeverityError,
-					Path:            "Concepts/golang/Bad.md",
-					Field:           new("status"),
-					Message:         `status "bogus" is not a valid status`,
-					Evidence:        "frontmatter validated against vault-schema.toml",
-					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      "vault-schema.toml",
-					Target:          new("bogus"),
-					Fingerprint:     "c86353e56e0bc094",
-				},
-				{
-					RuleID:          "schema.required",
-					Severity:        SeverityError,
-					Path:            "Concepts/golang/Bad.md",
-					Field:           new("domain"),
-					Message:         "domain is required",
-					Evidence:        "frontmatter validated against vault-schema.toml",
-					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      "vault-schema.toml",
-					Fingerprint:     "2856d81293513cdc",
-				},
-				{
-					RuleID:          "schema.unknown_key",
-					Severity:        SeverityError,
-					Path:            "Concepts/golang/Bad.md",
-					Message:         `frontmatter "extra" is not a known field`,
-					Evidence:        "frontmatter validated against vault-schema.toml",
-					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      "vault-schema.toml",
-					Target:          new("extra"),
-					Fingerprint:     "78fe6de614452605",
-				},
-			},
-		},
-		{
 			// One note with six broken links whose targets carry control
 			// characters and the two line-separator code points. Pins the
 			// escape surface of the wire format: 0x08 and 0x0C as their

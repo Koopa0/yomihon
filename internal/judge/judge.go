@@ -17,10 +17,13 @@ package judge
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 // Severity classifies one diagnostic. The order is significant: gating
@@ -115,6 +118,29 @@ func WriteJSONL(w io.Writer, findings []Finding) error {
 		}
 	}
 	return nil
+}
+
+// sortFindings orders findings into the deterministic total order the wire
+// format is emitted in: by path, then by line (a line-less finding sorts as
+// line zero, before line one of the same path), then by rule id. Comparison
+// is bytewise on the UTF-8 of path and rule id, and the sort is stable, so
+// findings that tie on all three keep the order the checks produced them in.
+func sortFindings(findings []Finding) {
+	line := func(f *Finding) int {
+		if f.Line != nil {
+			return *f.Line
+		}
+		return 0
+	}
+	slices.SortStableFunc(findings, func(a, b Finding) int {
+		if c := strings.Compare(a.Path, b.Path); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(line(&a), line(&b)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.RuleID, b.RuleID)
+	})
 }
 
 // unescapeLineSeparators rewrites the escape sequences the encoder
