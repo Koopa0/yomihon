@@ -13,9 +13,9 @@ import (
 // t.Skipf-when-absent pattern, so it runs whenever the vault is present and is
 // skipped loudly (not vacuously green) when it is not.
 //
-// slug:jp-minna-l01 is a spec-anchored, stable key: docs/vault-model.md states
-// slugs never change and are unique, and the Japanese prefix is jp-minna-lNN,
-// so L01 is jp-minna-l01, living under Writing/lessons/japanese.
+// slug:jp-minna-l01 is a stable key: slugs in this vault never change and
+// are unique, and the Japanese prefix is jp-minna-lNN, so L01 is
+// jp-minna-l01, living under Writing/lessons/japanese.
 func TestBuildRealVault(t *testing.T) {
 	t.Parallel()
 	root := realVaultRoot(t)

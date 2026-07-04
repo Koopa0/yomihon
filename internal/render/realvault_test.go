@@ -10,9 +10,9 @@ import (
 	"github.com/koopa0/kurodo/internal/vault"
 )
 
-// TestRealVaultRendersWithoutFaults is the mechanical definition of
-// spec.md §1's acceptance criterion: "every real .md file opens: zero 500s,
-// zero blank pages".
+// TestRealVaultRendersWithoutFaults is the mechanical definition of the
+// acceptance criterion "every real .md file opens: zero 500s, zero blank
+// pages".
 // It builds a real graph.Index and render.Renderer against
 // ~/obsidian (or KURODO_ROOT) and renders every single .md file under
 // it, asserting for each: no panic, no error, non-empty HTML. This is a
@@ -67,10 +67,10 @@ func TestRealVaultRendersWithoutFaults(t *testing.T) {
 		})
 	}
 
-	// A vault-model.md-documented count (419+ at spec-authoring time,
-	// growing) — this is the "did the sweep actually run against the
+	// The real vault held 419 .md files when this guard was written,
+	// and grows — this is the "did the sweep actually run against the
 	// real vault, not a near-empty stand-in" guard, not a hardcoded
-	// vault census. See docs/vault-model.md's Layer 2 scale snapshot.
+	// vault census.
 	const minExpectedNotes = 400
 	if mdCount < minExpectedNotes {
 		t.Errorf("swept %d .md files, want at least %d — is %s the real vault?", mdCount, minExpectedNotes, root)

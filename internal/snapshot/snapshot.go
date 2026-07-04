@@ -1,4 +1,4 @@
-// Package snapshot owns vault freshness (D25). It holds one Snapshot —
+// Package snapshot owns vault freshness. It holds one Snapshot —
 // {Graph, Nav, Search}, the three derived models — behind an atomic.Pointer,
 // and runs a single scanner that, about every 2 seconds, stat-walks the vault
 // and, on any mtime or file-set change, rebuilds all three and swaps the
@@ -7,14 +7,15 @@
 // ~100 ms rebuild) and the three models are never torn against one another
 // (they are published together, atomically).
 //
-// This closes the pre-D25 gap where graph and nav were built once at startup
-// and never refreshed. Change detection is by mtime alone — no content hash: a
-// full rebuild is ~100 ms at this scale, and hashing would force reading every
-// file on every scan (docs/search-plan.md §8; reconsider past ~10k files).
+// This replaces the earlier arrangement where graph and nav were built once at
+// startup and never refreshed, leaving them stale until a restart. Change
+// detection is by mtime alone — no content hash: a full rebuild is ~100 ms at
+// this scale, and hashing would force reading every file on every scan
+// (reconsider past ~10k files).
 //
 // The scanner is fault-tolerant by the same asymmetry as the rest of kurodo
-// (§0.1): a failed build logs and publishes an empty/partial snapshot, and
-// reading never depends on the build succeeding.
+// (reading is fail-open): a failed build logs and publishes an empty/partial
+// snapshot, and reading never depends on the build succeeding.
 package snapshot
 
 import (
@@ -32,20 +33,20 @@ import (
 	"github.com/koopa0/kurodo/internal/vault"
 )
 
-// scanInterval is the reconciliation cadence (D21): a full mtime stat over
-// ~420 files is millisecond-scale, so running it every 2 seconds is cheap and
-// satisfies spec §3's freshness bound with margin.
+// scanInterval is the reconciliation cadence: a full mtime stat over ~420
+// files is millisecond-scale, so running it every 2 seconds is cheap and keeps
+// an edited note's staleness bounded (≤3s worst case) with margin.
 const scanInterval = 2 * time.Second
 
 // Snapshot is one view of the vault's three derived models, built by three
-// independent walks (D25 accepts this over a shared pass) and published together
-// via one atomic pointer swap. Because the walks read the filesystem at three
+// independent walks (simpler than a shared pass, and cheap at this scale) and
+// published together via one atomic pointer swap. Because the walks read the filesystem at three
 // moments, a note edited mid-rebuild can leave the models momentarily
 // inconsistent about that note — but rescan captures the mtime set BEFORE the
 // rebuild (see rescan), so the edit is not recorded in s.prev and the next scan
 // detects it and rebuilds: the skew self-heals within one scan cycle. Any field
 // may be an empty (never nil) model when its build failed — reading tolerates
-// that (§0.1).
+// that (fail-open).
 type Snapshot struct {
 	Graph  *graph.Index
 	Nav    *nav.Model
@@ -116,8 +117,8 @@ func (s *Store) rescan() {
 }
 
 // Resolver returns a wikilink resolver bound to this store's live graph, so a
-// renderer built once at startup always resolves against the current snapshot
-// (D25). Returned concrete (never an interface, rules/interfaces.md);
+// renderer built once at startup always resolves against the current snapshot.
+// Returned concrete (never an interface — consumers define what they need);
 // render.New / nav.Build accept it structurally.
 func (s *Store) Resolver() *Resolver {
 	return &Resolver{store: s}
@@ -138,7 +139,7 @@ func (r *Resolver) Resolve(name string) graph.Resolution {
 // buildSnapshot rebuilds all three models from the vault in dependency order
 // (graph, then nav against that graph, then search). Each build failure is
 // tolerated independently: it logs and substitutes an empty model, so a single
-// failing model never takes the others — or reading — down (§0.1, wall 4).
+// failing model never takes the others — or reading — down.
 func buildSnapshot(root string, log *slog.Logger) *Snapshot {
 	idx, err := graph.Build(root)
 	if err != nil {

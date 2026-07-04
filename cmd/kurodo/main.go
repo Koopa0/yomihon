@@ -74,12 +74,13 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
-	// §0.1's asymmetric fault tolerance: a missing/broken contract must
-	// never abort the server. Reading has no dependency on it at all;
+	// Fault tolerance is asymmetric by direction: a missing/broken contract
+	// must never abort the server. Reading has no dependency on it at all;
 	// only the write face (internal/status) does, and it fails closed on
 	// a nil contract — no transition keys shown, every POST /status
-	// rejected. Do not turn this back into a fatal error (wall 3, and see
-	// CLAUDE.md's predictable-mistake list for this repo).
+	// rejected. Do not turn this back into a fatal error: a closed write
+	// face is harmless, but losing the reading face over a schema problem
+	// is not.
 	contract, err := schema.Load(cfg.root)
 	if err != nil {
 		log.Warn("vault contract unavailable; write face is closed (fail-closed)", "error", err)
@@ -91,7 +92,7 @@ func run(log *slog.Logger) error {
 
 	statusSvc := status.NewService(cfg.root, contract)
 
-	// Lesson slot sidecars (D29) load once from System/slots/, a separate read
+	// Lesson slot sidecars load once from System/slots/, a separate read
 	// path from the vault scanner (slots are never indexed as notes). Fail-open
 	// like the contract: a missing or broken slots dir just means lessons render
 	// without the pattern machine, never a server abort.
@@ -117,13 +118,14 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// The shared vault Snapshot (D25): graph, nav, and search built together
-	// from the vault and held behind an atomic.Pointer. New does the initial
-	// synchronous build (each model degrades to empty on failure, never
-	// aborting the server — the same asymmetric fault tolerance the contract
-	// and graph loads used before, now owned by internal/snapshot). Run drives
+	// The shared vault Snapshot: graph, nav, and search built together
+	// from the vault and held behind an atomic.Pointer — rebuilt and swapped
+	// as one so a fresh graph is never paired with a stale nav. New does the
+	// initial synchronous build (each model degrades to empty on failure,
+	// never aborting the server — the same asymmetric fault tolerance as the
+	// contract load above, owned by internal/snapshot). Run drives
 	// the ~2s mtime scanner that rebuilds and swaps on any vault change, so an
-	// edited note stops going stale until restart (the pre-D25 gap). It is
+	// edited note stops going stale until restart. It is
 	// cancellable via ctx for graceful shutdown.
 	store := snapshot.New(cfg.root, log)
 	go store.Run(ctx)
@@ -155,16 +157,19 @@ func run(log *slog.Logger) error {
 	report.NewHandler(report.Deps{Root: cfg.root, Nav: navProvider, Log: log}).Register(mux)
 	asset.Register(mux)
 
-	// Browser-only hardening, deepening wall 2: a same-origin form POST
+	// Browser-only hardening: a same-origin form POST
 	// triggers no CORS preflight, so any website can otherwise fire a
 	// cross-site POST at 127.0.0.1's /status. CrossOriginProtection blocks
-	// that class of request. It does NOT and cannot address the
-	// audit-boundary limit for local, non-browser processes (curl, an
-	// agent) — that is documented policy, not something to engineer
-	// around (decisions D17).
+	// that class of request. It does NOT and cannot address
+	// local, non-browser processes (curl, an
+	// agent) — same-account local processes are cryptographically
+	// indistinguishable, so that limit is accepted policy, not something
+	// to engineer around with tokens.
 	handler := http.NewCrossOriginProtection().Handler(mux)
 
-	// Wall 2: loopback is hardcoded; only the port is configurable.
+	// Loopback is hardcoded; only the port is configurable — kurodo and
+	// everything it derives from the vault must never be reachable from
+	// another machine.
 	var lc net.ListenConfig
 	listener, err := lc.Listen(ctx, "tcp", net.JoinHostPort("127.0.0.1", cfg.port))
 	if err != nil {

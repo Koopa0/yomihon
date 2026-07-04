@@ -18,8 +18,9 @@ type ReportView struct {
 // Report is the report shell page: the shared header and navigation sidebar (a
 // nil Lifecycle — a report carries no status axis), a title, and one iframe that
 // fills the reading column. The iframe is sandboxed allow-scripts and never
-// allow-same-origin (spec §1, D26); its src is this report's verbatim /raw
-// endpoint, so the briefing renders exactly as authored inside an opaque origin.
+// allow-same-origin — even with scripts running, the content lands in an opaque
+// origin that cannot reach kurodo's pages or endpoints; its src is this report's
+// verbatim /raw endpoint, so the briefing renders exactly as authored.
 templ Report(v ReportView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="k-nav-scrim" data-nav-close></div>

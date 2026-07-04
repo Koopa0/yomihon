@@ -72,12 +72,12 @@ func TestReadNote(t *testing.T) {
 		},
 		{
 			// The concept-resolver corruption guard, at the layer where the
-			// guarantee lives (yomihon's TestResolverDoesNotCorruptFrontmatter):
-			// a lesson's frontmatter based_on holds [[wikilinks]]; because the
-			// split happens HERE, before any body preprocessing, a later concept
-			// resolver rewriting [[...]] to a trigger can never reach the YAML and
-			// empty the meta (which would drop status:ready and hide the lesson).
-			// The status must survive intact alongside the wikilink-valued field.
+			// guarantee lives: a lesson's frontmatter based_on holds
+			// [[wikilinks]]; because the split happens here, before any body
+			// preprocessing, a later concept resolver rewriting [[...]] to a
+			// trigger can never reach the YAML and empty the meta (which would
+			// drop status:ready and hide the lesson). The status must survive
+			// intact alongside the wikilink-valued field.
 			name:       "concept resolver cannot corrupt frontmatter status",
 			content:    "---\ntitle: L00 テスト課\ntype: lesson\nstatus: ready\nbased_on: \"[[大家的日本語 第1課]]\"\nslug: jp-minna-l00\n---\n\nSee [[は]] and [[です]].\n",
 			wantTitle:  "L00 テスト課",
@@ -145,15 +145,13 @@ func TestList(t *testing.T) {
 	}
 }
 
-// TestListNormalizesToNFC guards docs/vault-model.md:18 and
-// docs/design.md's requirement that internal/vault NFC-normalize every
-// walked path, mirroring kura's vault.rs::relative_key (.nfc().collect()
-// at walk time). macOS filesystems can hold a filename as raw NFD bytes
-// regardless of how it was typed or how the filesystem otherwise
-// preserves names; a walker that hands back those bytes untouched would
-// leak them into graph.Index's stored path values, rendered <a href>
-// targets, and diagnostic candidate lists — silently diverging from
-// kura's canonical NFC path representation.
+// TestListNormalizesToNFC guards the requirement that List NFC-normalize
+// every walked path at walk time. macOS filesystems can hold a filename
+// as raw NFD bytes regardless of how it was typed or how the filesystem
+// otherwise preserves names; a walker that hands back those bytes
+// untouched would leak them into graph.Index's stored path values,
+// rendered <a href> targets, and diagnostic candidate lists — silently
+// diverging from Obsidian's canonical NFC path representation.
 func TestListNormalizesToNFC(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -161,7 +159,7 @@ func TestListNormalizesToNFC(t *testing.T) {
 	// だ (U+3060) decomposes to た (U+305F) + the combining voiced sound
 	// mark (U+3099) — the real failure mode this vault hits in
 	// Writing/lessons/japanese/, where dakuten kana are common in
-	// filenames (docs/vault-model.md's 163-file lessons folder).
+	// filenames.
 	const composed = "だ体.md"
 	decomposed := norm.NFD.String(composed)
 	if decomposed == composed {

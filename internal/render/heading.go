@@ -23,8 +23,9 @@ var (
 // slugify makes a CJK-safe fragment/DOM id from heading text: lowercase,
 // keep only Unicode letters and digits (\p{L}, \p{N}), collapse every run
 // of anything else to a single hyphen, trim leading/trailing hyphens, and
-// fall back to "section" when nothing is left — yomihon's Slug()
-// semantics (docs/spec.md §1's TOC requirement), translated fresh here.
+// fall back to "section" when nothing is left. Keeping every Unicode
+// letter, not just ASCII, is what lets a CJK heading produce a usable id
+// instead of an empty string.
 func slugify(s string) string {
 	s = slugDrop.ReplaceAllString(strings.ToLower(s), "-")
 	s = strings.Trim(s, "-")
@@ -39,9 +40,8 @@ func slugify(s string) string {
 // producing the same base slug are disambiguated by bumping a numeric
 // suffix until it lands on an id not already assigned anywhere earlier
 // in the document — not merely counted per base slug — so a heading whose
-// OWN natural text happens to collide with a generated "-2" form can
-// never silently duplicate an id (yomihon's rewriteHeadings dedup
-// algorithm, translated fresh here).
+// own natural text happens to collide with a generated "-2" form can
+// never silently duplicate an id.
 func assignHeadingSlugs(htmlOut string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
@@ -53,7 +53,7 @@ func assignHeadingSlugs(htmlOut string) (string, []TOCEntry) {
 		// A raw inline <hN> inside this heading would have made the non-greedy
 		// match stop at the inner </hN> — truncating the heading and unbalancing
 		// tags. Leave it byte-identical (no id, no TOC entry): degrade, never
-		// corrupt (mirrors tts.go's nested-<p> guard; wall 4).
+		// corrupt (mirrors tts.go's nested-<p> guard).
 		if nestedHeadingOpen.MatchString(inner) {
 			return tag
 		}

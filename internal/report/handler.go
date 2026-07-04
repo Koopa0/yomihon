@@ -42,7 +42,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // discipline) with nosniff; the bytes are never sniffed or transcoded. A file
 // that vanished or cannot be read between the ~2s snapshot and this request is a
 // 404, not a 500: the report list is a snapshot, so a gone file is a not-found,
-// fail-open (wall 4: degrade, never break).
+// fail-open — degrade, never break.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	rep, ok := resolveReport(h.deps.Nav(), r.PathValue("name"))
 	if !ok {
@@ -52,12 +52,13 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 
 	// rep.RelPath is scanner-produced, so the allowlist above already confines it
 	// to System/reports/daily-briefing/. Re-assert two independent properties at
-	// this raw-file boundary as defense-in-depth (security.md: verify the result
-	// stays within the allowed directory): IsLocal keeps it within the vault root
-	// (the §7 path-escape wall), and the prefix keeps it under System/reports/ —
-	// so even a future scanner bug that set Briefing on a note elsewhere in the
-	// vault could never be served here, in particular never a Diary/ file (a hard
-	// never-egress, D18). reportsRoot mirrors nav.buildReports' own scan root.
+	// this raw-file boundary as defense-in-depth (verify the served path stays
+	// within the allowed directory): IsLocal keeps it within the vault root
+	// (no served path may escape the vault), and the prefix keeps it under
+	// System/reports/ — so even a future scanner bug that set Briefing on a note
+	// elsewhere in the vault could never be served here, in particular never a
+	// Diary/ file (private; unconditionally excluded from every egress path).
+	// reportsRoot mirrors nav.buildReports' own scan root.
 	const reportsRoot = "System/reports/"
 	if !filepath.IsLocal(rep.RelPath) || !strings.HasPrefix(rep.RelPath, reportsRoot) {
 		http.NotFound(w, r)
@@ -83,9 +84,9 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	// containment would depend on the embedder, so a hostile briefing (a
 	// prompt-injected brief, or a compromised CDN script it loads) opened outside
 	// the shell would run same-origin to the whole vault-reading surface and
-	// could read and exfiltrate it — including Diary/, a hard never-egress (D18).
-	// allow-scripts, never allow-same-origin, mirrors the shell iframe exactly
-	// (spec §1, D26), so the briefing still renders; frame-ancestors 'self' also
+	// could read and exfiltrate it — including Diary/, a hard never-egress.
+	// allow-scripts, never allow-same-origin, mirrors the shell iframe exactly,
+	// so the briefing still renders; frame-ancestors 'self' also
 	// refuses cross-origin framing of raw vault HTML — kurodo's own shell is the
 	// only legitimate embedder.
 	w.Header().Set("Content-Security-Policy", "sandbox allow-scripts; frame-ancestors 'self'")

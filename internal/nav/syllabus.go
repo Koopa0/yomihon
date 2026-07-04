@@ -35,9 +35,9 @@ type Section struct {
 
 // Lesson is one lesson list-item: the wikilink's display text, its raw
 // target, and how that target resolved. An unresolved or ambiguous lesson
-// is still a Lesson (never dropped, wall 4); RelPath and Status are set
-// only when the target resolves uniquely, and Candidates only when it is
-// ambiguous.
+// is still a Lesson (surfaced with its problem, never silently dropped);
+// RelPath and Status are set only when the target resolves uniquely, and
+// Candidates only when it is ambiguous.
 type Lesson struct {
 	Text       string
 	Target     string
@@ -68,7 +68,7 @@ type sectionNode struct {
 }
 
 // parseSections is the one mechanical rule that produces the correct tree
-// for BOTH real syllabus shapes without hardcoding filenames or section
+// for both real syllabus shapes without hardcoding filenames or section
 // titles:
 //
 //   - Walk the body line by line. A heading at level >= 2 opens a section
@@ -76,7 +76,7 @@ type sectionNode struct {
 //     document title) is ignored, mirroring the reading page's leading-H1
 //     removal.
 //   - A lesson list-item attaches to the currently open heading. A lesson
-//     list-item is an UNORDERED bullet ("- ", "* ", "+ "), NOT a GFM task
+//     list-item is an unordered bullet ("- ", "* ", "+ "), not a GFM task
 //     checkbox ("- [ ]" / "- [x]"), that contains at least one [[wikilink]].
 //     Its link is that first wikilink, resolved by graph semantics.
 //   - Finally, prune every heading that has no lesson anywhere beneath it.
@@ -85,12 +85,12 @@ type sectionNode struct {
 // sections without naming them: the Go syllabus's parts/modules hold plain
 // "- [[Lesson]]" bullets (all kept); the 大家 syllabus's course-sequence
 // stages hold "- **L1** ... · [[L01 ...]]" bullets (kept), while its
-// daily-loop section uses an ORDERED list (excluded — not a bullet), its
+// daily-loop section uses an ordered list (excluded — not a bullet), its
 // learning-stages section is a table (no list items), and its gaps section
-// uses TASK checkboxes (excluded — even the one carrying a [[wikilink]]),
+// uses task checkboxes (excluded — even the one carrying a [[wikilink]]),
 // so all three prune away for having no lessons. A "待建" bullet with no
-// wikilink is not counted (there is no lesson to link to), matching the
-// spec's "lesson count = number of wikilink list-items".
+// wikilink is not counted (there is no lesson to link to) — the lesson
+// count is exactly the number of wikilink-bearing list-items.
 func parseSections(body string, idx Resolver, statusByPath map[string]string) []Section {
 	var roots []*sectionNode
 	var stack []*sectionNode
@@ -239,10 +239,11 @@ func firstWikilink(s string) (inner string, ok bool) {
 
 // makeLesson resolves a wikilink's inner text into a Lesson. It reuses
 // graph.SplitWikilink (the same target/display extraction the renderer
-// uses) and idx.Resolve (the same normalization and ambiguity rules kura
-// uses), so a sidebar lesson link and the in-body wikilink to the same note
-// agree exactly. ok is false only when the wikilink strips to an empty
-// target (a same-file anchor such as [[#heading]]), which is not a lesson.
+// uses) and idx.Resolve (the same normalization and ambiguity rules applied
+// to in-body wikilinks), so a sidebar lesson link and the in-body wikilink
+// to the same note agree exactly. ok is false only when the wikilink strips
+// to an empty target (a same-file anchor such as [[#heading]]), which is not
+// a lesson.
 func makeLesson(inner string, idx Resolver, statusByPath map[string]string) (Lesson, bool) {
 	target, display, ok := graph.SplitWikilink(inner)
 	if !ok {
@@ -258,7 +259,7 @@ func makeLesson(inner string, idx Resolver, statusByPath map[string]string) (Les
 	case graph.Ambiguous:
 		l.Candidates = res.Candidates
 	case graph.Unresolved:
-		// Still listed, carrying only its target for the diagnostic (wall 4).
+		// Still listed, carrying only its target for the diagnostic — never dropped.
 	default:
 		panic(fmt.Sprintf("nav: unknown graph.Kind %d", res.Kind))
 	}

@@ -12,16 +12,16 @@ type Filter struct {
 	Value string
 }
 
-// Query is a parsed search query (docs/search-plan.md §5a): folded bare tokens
-// and structured filters, each in input order. A repeated filter key is an AND
-// at the match layer, not last-wins.
+// Query is a parsed search query: folded bare tokens and structured filters,
+// each in input order. A repeated filter key is an AND at the match layer,
+// not last-wins.
 type Query struct {
 	Tokens  []string
 	Filters []Filter
 }
 
 // isFilterKey reports whether key is exactly one of the six lowercase filter
-// keys. The check is on the raw, pre-fold text (R1): "Type:" or "TOPIC:" have
+// keys. The check is on the raw, pre-fold text: "Type:" or "TOPIC:" have
 // a key outside this set, so the whole token is a bare token instead.
 func isFilterKey(key string) bool {
 	switch key {
@@ -32,15 +32,14 @@ func isFilterKey(key string) bool {
 	}
 }
 
-// Parse turns a raw query string into a Query, per docs/search-plan.md §5a's
-// pinned R1-R4 rules:
+// Parse turns a raw query string into a Query under four rules:
 //
-//   - R1 classify before folding: a token is a filter only if its pre-fold key
+//   - classify before folding: a token is a filter only if its pre-fold key
 //     is exactly one of the six lowercase keys; otherwise it is a bare token,
 //     folded afterward.
-//   - R2 split on the first colon ("slug:a:b" → key "slug", value "a:b").
-//   - R3 filter values are NFC only (not case-folded); bare tokens are fold()ed.
-//   - R4 a "folder:" value drops one trailing slash.
+//   - split on the first colon ("slug:a:b" → key "slug", value "a:b").
+//   - filter values are NFC only (not case-folded); bare tokens are fold()ed.
+//   - a "folder:" value drops one trailing slash.
 //
 // Whitespace tokenizes; a whitespace-only or empty query yields an empty Query
 // (nil slices), which the match layer treats as "return nothing".
@@ -56,10 +55,10 @@ func Parse(q string) Query {
 	return out
 }
 
-// splitFilter classifies one raw token: on the first colon it splits key/value
-// (R2), and returns a filter only when the key is one of the six (R1). The
-// value is NFC-normalized (R3), and a "folder:" value drops one trailing slash
-// (R4). A non-filter token returns ok=false so the caller folds it as a bare
+// splitFilter classifies one raw token: on the first colon it splits
+// key/value, and returns a filter only when the key is one of the six. The
+// value is NFC-normalized, and a "folder:" value drops one trailing slash.
+// A non-filter token returns ok=false so the caller folds it as a bare
 // token.
 func splitFilter(raw string) (key, value string, ok bool) {
 	key, rest, found := strings.Cut(raw, ":")

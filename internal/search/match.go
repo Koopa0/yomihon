@@ -23,7 +23,7 @@ const (
 )
 
 // Search runs a parsed query against the index and returns results in the final
-// deterministic order (docs/search-plan.md §5/§6): title hits (every token in
+// deterministic order: title hits (every token in
 // TitleFold) first, then body hits (every token in PlainFold, not already a
 // title hit). Because entries are kept sorted by RelPath, each bucket is
 // already rel_path-ordered, so concatenation is the whole order — no sort call.

@@ -1,11 +1,10 @@
 package render
 
-// This file implements server-side syntax highlighting (docs/spec.md §1's
-// "syntax highlighting server-side (chroma)") as a goldmark renderer.NodeRenderer
-// that intercepts ast.KindFencedCodeBlock directly and formats it via
-// chroma — the same approach Hugo uses internally, rather than depending
-// on github.com/yuin/goldmark-highlighting/v2 (unmaintained since
-// 2023-10; wall 7 leans toward fewer dependencies, not more). Its
+// This file implements server-side syntax highlighting as a goldmark
+// renderer.NodeRenderer that intercepts ast.KindFencedCodeBlock directly
+// and formats it via chroma — the same approach Hugo uses internally,
+// rather than depending on github.com/yuin/goldmark-highlighting/v2
+// (unmaintained since 2023-10, and one more dependency than needed). Its
 // structural registration mechanism (a lower util.Prioritized number wins
 // goldmark's map-of-NodeKind "last Register call for this kind wins" rule
 // — see goldmark's renderer.renderer.Render: NodeRenderers are sorted
@@ -36,9 +35,8 @@ import (
 
 // chromaStyleName is kurodo's single fixed highlighting theme: a
 // light-background style consistent with base.templ's current minimal
-// light UI, which has no dark-mode toggle yet (that lands once Claude's
-// design tokens do — dark-mode-aware highlighting is deliberately out of
-// scope until then).
+// light UI. Dark-mode-aware highlighting is deliberately out of scope
+// while the UI itself has no dark mode.
 const chromaStyleName = "github"
 
 // chromaFormatter emits class-based HTML (html.WithClasses(true)) rather
@@ -58,9 +56,8 @@ func chromaStyle() *chroma.Style {
 }
 
 // ChromaCSS is chroma's class-based stylesheet for chromaStyleName,
-// computed once (sync.OnceValue, go-version.md's modern replacement for a
-// package-level sync.Once) and cached for the process's lifetime — simpler
-// than a dev-time go:generate step that could drift stale.
+// computed once and cached for the process's lifetime — simpler than a
+// dev-time go:generate step that could drift stale.
 var ChromaCSS = sync.OnceValue(func() string {
 	var buf strings.Builder
 	if err := chromaFormatter.WriteCSS(&buf, chromaStyle()); err != nil {
@@ -94,8 +91,9 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 	if !ok {
 		// ast.KindFencedCodeBlock guarantees this in practice (goldmark
 		// never dispatches a different concrete type to a KindFencedCodeBlock
-		// renderer); treat a mismatch as wall-4 graceful degradation
-		// (skip this node) rather than a panic.
+		// renderer); degrade gracefully on a mismatch (skip this node)
+		// rather than panic — one odd node must never fail the whole
+		// render.
 		return ast.WalkContinue, nil
 	}
 
@@ -115,7 +113,7 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 
 	iterator, err := chroma.Coalesce(lexer).Tokenise(nil, src.String())
 	if err != nil {
-		// wall 4: never fail the whole render over one bad fence — fall
+		// Never fail the whole render over one bad fence — fall
 		// back to plain, unhighlighted, still-escaped output.
 		_, werr := fmt.Fprintf(w, "<pre><code>%s</code></pre>\n", html.EscapeString(src.String()))
 		return ast.WalkContinue, werr

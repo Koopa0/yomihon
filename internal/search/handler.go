@@ -9,7 +9,7 @@ import (
 
 // Handler serves the search face: GET /search?q=... . It reads the CURRENT
 // index each request through the provider closure (main wires it to the live
-// Snapshot's Search, D25), so an edited note is reflected within one scan
+// Snapshot's Search), so an edited note is reflected within one scan
 // cycle. All business logic stays in this package (Parse + Index.Search); the
 // handler only parses the query, calls, and renders.
 type Handler struct {

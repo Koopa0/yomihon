@@ -21,7 +21,7 @@ import (
 const testRel = "Writing/lessons/japanese/L05.md"
 
 // The testdata contract is a loader fixture, not a second schema: runtime
-// code only ever reads the real vault contract (wall 3). schema.LoadFile is
+// code only ever reads the real vault contract. schema.LoadFile is
 // reused as-is — there is no second schema-loading path in this package.
 func loadContract(t *testing.T) *schema.Schema {
 	t.Helper()
@@ -34,8 +34,8 @@ func loadContract(t *testing.T) *schema.Schema {
 
 // newVault creates a temp git repo standing in for the vault, with a fake
 // local git identity scoped to that repo only. The flip's commit author
-// must come from this config — never anything kurodo hardcodes (D07, D17)
-// — so tests exercise the real git behavior instead of mocking it.
+// must come from this config — never anything kurodo hardcodes —
+// so tests exercise the real git behavior instead of mocking it.
 // commit.gpgsign is forced off so the test does not depend on whatever the
 // host's global git config or GPG agent happens to be set up to do.
 func newVault(t *testing.T) string {
@@ -419,7 +419,7 @@ func TestFlipByteIdentical(t *testing.T) {
 // TestFlipGitAddFailureWrapsErrCommitFailed guards against the file being
 // rewritten on disk while a failing `git add` (staging, not just the final
 // `git commit`) is reported as a plain error instead of ErrCommitFailed —
-// which would route callers to a generic 500 instead of docs/spec.md §4's
+// which would route callers to a generic 500 instead of the
 // "file already changed, here is the git error" presentation. A held
 // `.git/index.lock` is a realistic, deterministic stand-in for the
 // concurrent-git-process contention this guards against (another Flip, an
@@ -453,9 +453,9 @@ func TestFlipGitAddFailureWrapsErrCommitFailed(t *testing.T) {
 }
 
 // TestFlipConcurrentNeverLiesInTheCommitMessage reproduces the double-tab /
-// double-click race (D13 makes multiple legal transition keys visible at
-// once): two goroutines flip the SAME note to two different target
-// statuses concurrently. Without Service serializing Flip, the loser's
+// double-click race (the UI offers every legal transition as its own
+// pressable key, so two can be in flight at once): two goroutines flip
+// the SAME note to two different target statuses concurrently. Without Service serializing Flip, the loser's
 // writeAtomic can be silently overwritten by the winner and the loser's
 // commit() then stages and commits whatever the winner left on disk under
 // the loser's own from→to commit message — a false audit-trail entry that

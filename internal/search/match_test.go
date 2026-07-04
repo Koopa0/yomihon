@@ -56,7 +56,7 @@ func TestSearchFilters(t *testing.T) {
 }
 
 // TestSearchFolderBoundary pins the "/"-boundary rule: folder:Writing must not
-// match Writing-old/, and a trailing slash (R4) is equivalent.
+// match Writing-old/, and a trailing slash is equivalent.
 func TestSearchFolderBoundary(t *testing.T) {
 	t.Parallel()
 	idx := filterFixture()
@@ -163,7 +163,8 @@ func TestBuildFromDocsDeterministic(t *testing.T) {
 	}
 }
 
-// TestFrontmatterExcludedFromPlainText pins §7's frontmatter rule end to end:
+// TestFrontmatterExcludedFromPlainText pins the frontmatter-exclusion rule
+// end to end:
 // a value that lives only in frontmatter (a created date) is not in plain_text
 // and is not an indexed field, so a bare-token search for it hits nothing —
 // while the body text and the structured fields still match.

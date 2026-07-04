@@ -100,7 +100,7 @@ func TestShow(t *testing.T) {
 		"Text",             // the module heading
 		`href="/notes/Writing/lessons/golang/Slices.md"`, // the resolved lesson is a link
 		"Ghost Lesson", // the broken lesson is STILL listed
-		"unresolved",   // ...and marked (wall 4, spec §2)
+		"unresolved",   // ...and marked, never silently dropped
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("study-path page missing %q; body = %q", want, body)

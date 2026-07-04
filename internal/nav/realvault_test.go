@@ -11,8 +11,8 @@ import (
 )
 
 // TestBuildRealVault builds the navigation model against the real vault
-// (~/obsidian, or KURODO_ROOT) and asserts the acceptance criteria of
-// docs/spec.md §2 against the two real study-path files, the lifecycle
+// (~/obsidian, or KURODO_ROOT) and asserts the navigation acceptance
+// criteria against the two real study-path files, the lifecycle
 // folder tree, and the reports list. It follows the same
 // t.Skipf-when-vault-absent pattern as internal/render's realvault_test and
 // internal/schema's TestLoadRealContract, so it runs whenever the vault is
@@ -67,7 +67,7 @@ func TestBuildRealVault(t *testing.T) {
 		}
 	}
 
-	// --- order matches file order (spec §2) ---
+	// --- order matches file order (the sidebar must mirror the file's own listing order) ---
 	goLessons := flattenLessons(goSyl.Sections)
 	wantGoHead := []string{
 		"Slices- Strings and Slices", "Arrays- Mechanical Sympathy",
@@ -180,10 +180,9 @@ func assertLifecycleFolders(t *testing.T, m *Model) {
 	}
 
 	// The folder tree is files-driven, so an empty lifecycle directory
-	// (currently Inbox and Drafts, both 0 files — vault-model.md's Layer 2
-	// snapshot lists Inbox at 0) has nothing to browse and is omitted; it
-	// reappears the moment it holds a file. So assert two things rather than
-	// "all nine present":
+	// (currently Inbox and Drafts, both holding 0 files) has nothing to
+	// browse and is omitted; it reappears the moment it holds a file. So
+	// assert two things rather than "all nine present":
 	//   1. every lifecycle folder that IS present appears in lifecycle order
 	//      (a subsequence of lifecycleOrder), and
 	//   2. the content-bearing lifecycle folders are all present.

@@ -1,13 +1,14 @@
 // Package lesson loads the hand-authored sidecar data that enriches a
 // Japanese lesson's reading page. Today that is the slot-machine sentence
-// patterns kept at System/slots/*.yaml (D29); the concept-note index the
+// patterns kept at System/slots/*.yaml; the concept-note index the
 // lessons link to joins this package when that interaction lands.
 //
 // Everything here is read-only: the vault owns the data, this package only
 // parses and validates it. The slot sidecar's shape — patterns, slots, fills,
 // and the closed colour set — is kurodo's own vocabulary expressed as a Go
-// struct and checked here, NOT the note frontmatter contract: wall 3's single
-// source of schema truth governs notes, not this machine-owned sidecar (D29).
+// struct and checked here, NOT the note frontmatter contract: vault-schema.toml
+// is the single source of schema truth for notes, but this machine-owned
+// sidecar sits outside that schema.
 package lesson
 
 import (
@@ -20,8 +21,9 @@ import (
 // slotColors is the closed set of slot colour tokens; each maps to a
 // light/dark pair in the stylesheet. Validate rejects any other value so an
 // authoring typo surfaces at load rather than shipping a miscoloured card.
-// This is kurodo's own vocabulary for the slot sidecar (D29), deliberately not
-// a vault-schema.toml enum — wall 3 governs note frontmatter, not this file.
+// This is kurodo's own vocabulary for the slot sidecar, deliberately not a
+// vault-schema.toml enum — that schema governs note frontmatter, not this
+// machine-owned file.
 var slotColors = map[string]bool{
 	"topic": true, "pred": true, "poss": true, "obj": true,
 	"place": true, "time": true, "verb": true, "num": true,
@@ -57,7 +59,7 @@ type Pattern struct {
 
 // Sidecar is the slot-machine data for one lesson — the contents of one
 // System/slots/Lxx.yaml file. It joins to a lesson note by Slug, never by
-// filename (D29): the note carries slug "jp-minna-l01", this file's Slug field
+// filename: the note carries slug "jp-minna-l01", this file's Slug field
 // matches it, and the two filenames (the note's Japanese title, the sidecar's
 // Lxx.yaml) deliberately do not.
 type Sidecar struct {
@@ -84,7 +86,7 @@ func Load(path string) (*Sidecar, error) {
 // problem; an empty result means valid. It is the load-time guard against
 // freezing wrong content as truth — a template key with no slot, a slot with no
 // fills, an unknown colour, or a gloss key absent from the template. It reports
-// only, never repairs (wall 4's spirit: kurodo surfaces, a human edits).
+// only, never repairs: kurodo surfaces problems, a human edits the file.
 func (s *Sidecar) Validate() []string {
 	var problems []string
 	for _, p := range s.Patterns {

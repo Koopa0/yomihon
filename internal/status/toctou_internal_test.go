@@ -6,7 +6,7 @@ package status
 // os.Stat and its pre-write recheck) that no exported API can trigger from
 // outside the package without a real, inherently flaky filesystem race.
 // Extracting it and testing it directly here is the only way to exercise
-// docs/spec.md §4's "mtime changed" row deterministically.
+// the concurrent-write (mtime changed) refusal deterministically.
 
 import (
 	"errors"
@@ -40,7 +40,7 @@ func TestCheckUnmodifiedSinceDetectsConcurrentWrite(t *testing.T) {
 	if !errors.Is(err, ErrConcurrentWrite) {
 		t.Fatalf("checkUnmodifiedSince() = %v, want an error wrapping %v", err, ErrConcurrentWrite)
 	}
-	// The two error-table rows (docs/spec.md §4) are spec-distinguished:
+	// The two refusals are deliberately distinct sentinels:
 	// this must NOT also satisfy the unrelated "stale form" sentinel, or
 	// handler.go's switch collapses back to one indistinguishable message.
 	if errors.Is(err, ErrStale) {

@@ -1,25 +1,24 @@
 // Package render turns Obsidian-dialect markdown into HTML.
 //
-// Fault-tolerant by contract (wall 4): it renders what it can and reports
+// Fault-tolerant by contract: it renders what it can and reports
 // what it can't via Diagnostics — it never fixes a note, never fails the
 // whole render, and never returns a blank page. Raw HTML passes through
-// unsanitized because the vault is a trusted, local-only corpus (wall 2);
+// unsanitized because the vault is a trusted, local-only corpus;
 // Japanese lesson bodies are hand-written <ruby> markup that must
 // survive.
 //
 // Wikilinks, embeds, and callouts are not CommonMark syntax, so they are
 // handled as string/line-based passes over the markdown source before
-// goldmark ever parses it — the same proven approach as the reference
-// implementation (yomihon's internal/markdown/parser.go), and the only
-// one that can see raw "[[" / "> [!" text goldmark's own parser has no
-// concept of. ==highlight== is the exception: it is implemented as a
+// goldmark ever parses it — the only approach that can see the raw
+// "[[" / "> [!" text goldmark's own parser has no concept of.
+// ==highlight== is the exception: it is implemented as a
 // real goldmark inline extension (see highlight.go) because goldmark's
 // own trigger-based inline dispatch already skips code spans for free,
 // which a blind regex pass would not.
 //
 // Wikilink/embed resolution semantics are internal/graph's job, not
-// this package's: graph decides what a name resolves to (and reproduces
-// kura's exact normalization and ambiguity rules); render decides what
+// this package's: graph decides what a name resolves to (matching
+// Obsidian's observed resolution behavior); render decides what
 // to draw for each of graph's three outcomes.
 package render
 
@@ -38,8 +37,7 @@ import (
 )
 
 // Resolver is the minimal wikilink-resolution capability render needs.
-// Defined here, the consumer, per rules/interfaces.md's cross-feature
-// pattern (the OrderReader shape): internal/graph's concrete *Index
+// Defined here, in the consumer: internal/graph's concrete *Index
 // satisfies this structurally, with no explicit binding needed.
 type Resolver interface {
 	Resolve(name string) graph.Resolution
@@ -55,8 +53,8 @@ const (
 	// DiagWikilinkAmbiguous means a target resolves to more than one
 	// file; the candidates are listed, never guessed at.
 	DiagWikilinkAmbiguous DiagnosticKind = "wikilink-ambiguous"
-	// DiagUnknownCallout means a "> [!type]" callout's type is not in
-	// docs/vault-model.md's table; it was rendered as a plain
+	// DiagUnknownCallout means a "> [!type]" callout's type is not one
+	// of the recognized callout types; it was rendered as a plain
 	// blockquote instead of being dropped.
 	DiagUnknownCallout DiagnosticKind = "unknown-callout"
 	// DiagRiskyFence means a fenced code block's content looks like
@@ -72,7 +70,7 @@ const (
 )
 
 // Diagnostic is one rendering-time note about content the dialect passes
-// couldn't cleanly handle. Display-only (wall 4): kurodo reports, it
+// couldn't cleanly handle. Display-only: kurodo reports, it
 // never fixes or rejects. It lives in this package rather than
 // internal/graph because a diagnostic is fundamentally a rendering-time
 // decision — it is render, not graph, that decides an unresolved link,
@@ -145,7 +143,7 @@ func New(root string, idx Resolver) *Renderer {
 // body-first-H1 removal (the page's own title comes from frontmatter, a
 // duplicate leading H1 in the body would show it twice) and CJK-safe
 // heading slug assignment + TOC collection, which must run over the
-// FINAL, fully-assembled HTML (embeds and callouts already spliced in)
+// final, fully-assembled HTML (embeds and callouts already spliced in)
 // so heading ids stay unique across the whole page in one pass, rather
 // than colliding across independently-slugged sub-renders.
 func (r *Renderer) HTML(body string) Result {
@@ -171,7 +169,7 @@ func (r *Renderer) render(body string, allowEmbed embedPolicy) Result {
 
 	var buf bytes.Buffer
 	if err := r.md.Convert([]byte(source), &buf); err != nil {
-		// wall 4: never fail the whole render. This is normally
+		// Never fail the whole render. This is normally
 		// unreachable — goldmark's Convert only errors if a configured
 		// renderer returns one, and the default HTML renderer writing to
 		// a bytes.Buffer never fails — but the fallback keeps the page

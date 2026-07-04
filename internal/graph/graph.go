@@ -1,16 +1,15 @@
 // Package graph builds the wikilink resolution index: every markdown
-// note's filename, path, and alias forms, normalized identically to
-// kura's (~/rust/github.com/koopa0/kura) graph.rs and wikilink.rs — the
-// validated reference for exactly how Obsidian resolves [[wikilinks]] in
-// this vault. kurodo reimplements the OBSERVABLE BEHAVIOR of that
-// reference, not its code (decisions D04): trim -> NFC -> lowercase
+// note's filename, path, and alias forms, normalized identically at
+// index-build time and lookup time. What it implements is Obsidian's
+// observed resolution behavior for [[wikilinks]] in this vault, pinned
+// case by case by this package's tests: trim -> Unicode NFC -> lowercase
 // normalization, four key forms per note (filename stem, filename, path
 // stem, path) plus frontmatter aliases, and never the frontmatter title —
 // the single most important correctness property of this package. A link
 // written against a note's title, not its filename or an alias, silently
 // fails to resolve in real Obsidian, and this resolver must reproduce
 // that exact failure mode rather than paper over it by being more lenient
-// than Obsidian actually is (this is kura's link.title_not_alias rule).
+// than Obsidian actually is.
 // Ambiguous names (two files sharing a normalized key) are reported in
 // full and sorted, never guessed at.
 package graph
@@ -33,15 +32,15 @@ import (
 // trim+lowercase for wikilink keys; internal/search composes it with lowercase
 // for its case-insensitive match, and uses it alone (case-preserving) for the
 // canonical field values it stores and compares. Exporting this one step keeps
-// exactly one definition of "NFC" in the repo (CLAUDE.md predictable-mistake
-// #2: no second copy of a normalization).
+// exactly one definition of "NFC" in the repo — a second copy would be free to
+// drift.
 func NormalizeNFC(s string) string {
 	return norm.NFC.String(s)
 }
 
-// normalize is the one normalization graph.rs performs, applied
-// identically at index-build time and lookup time: trim, Unicode NFC,
-// lowercase. It calls NormalizeNFC for the NFC step so there is exactly one
+// normalize is the single normalization every resolution key passes
+// through, applied identically at index-build time and lookup time: trim,
+// Unicode NFC, lowercase. It calls NormalizeNFC for the NFC step so there is exactly one
 // NFC definition in the repo (see NormalizeNFC's doc). NFC matters because
 // this vault's CJK filenames can arrive NFC or NFD (macOS itself stores
 // filenames NFD on disk, independent of how a note's frontmatter aliases were
@@ -50,8 +49,7 @@ func normalize(name string) string {
 	return strings.ToLower(NormalizeNFC(strings.TrimSpace(name)))
 }
 
-// Kind distinguishes the three possible outcomes of Resolve, mirroring
-// kura's Resolution enum.
+// Kind distinguishes the three possible outcomes of Resolve.
 type Kind int
 
 const (
@@ -88,8 +86,8 @@ type NoteInput struct {
 // Build walks root (via vault.List) and indexes every markdown note and
 // every other regular file. A note whose frontmatter fails to parse
 // contributes no alias keys but is still indexed by its path-derived keys
-// (wall 4: one bad file must not narrow what the rest of the index can
-// resolve). Building the index walks and parses the entire vault; it
+// — one bad file must not narrow what the rest of the index can
+// resolve. Building the index walks and parses the entire vault; it
 // runs once at process startup, not per request, so this favors
 // simplicity over speed.
 func Build(root string) (*Index, error) {
@@ -123,9 +121,9 @@ func Build(root string) (*Index, error) {
 
 // BuildFromNotes builds an Index directly from already-loaded note and
 // resource data, with no disk access — the pure indexing logic Build (the
-// disk-walking entry point) delegates to. Mirrors kura's
-// SymbolTable::build(notes, resources), which is likewise disk-agnostic
-// (kura::vault::load walks the disk separately).
+// disk-walking entry point) delegates to. Keeping the indexing logic
+// disk-agnostic lets tests build an index from in-memory data without a
+// filesystem.
 func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 	idx := &Index{names: make(map[string][]string)}
 	for _, n := range notes {
@@ -164,9 +162,9 @@ func (idx *Index) Resolve(name string) Resolution {
 }
 
 // add inserts key (normalized) -> path, skipping an empty key and
-// deduplicating per path. Extra keys only ever ADD resolutions, never
-// remove one — preserving kura's documented false-positive-over-false-
-// negative bias (better to flag a resolvable-but-uncertain link than
+// deduplicating per path. Extra keys only ever add resolutions, never
+// remove one — the index deliberately prefers false positives over false
+// negatives (better to flag a resolvable-but-uncertain link than to
 // silently miss a real one).
 func (idx *Index) add(key, path string) {
 	normKey := normalize(key)
@@ -209,8 +207,8 @@ func pathStem(path string) string {
 }
 
 // aliases extracts a note's frontmatter aliases list, tolerating any
-// shape that isn't a plain list of strings (wall 4: a malformed aliases
-// field costs that note its alias keys, not the whole index build).
+// shape that isn't a plain list of strings — a malformed aliases
+// field costs that note its alias keys, not the whole index build.
 func aliases(n *vault.Note) []string {
 	raw, ok := n.Frontmatter["aliases"]
 	if !ok {

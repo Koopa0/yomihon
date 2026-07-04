@@ -11,7 +11,7 @@ import (
 )
 
 // maxFormBytes bounds the POST /status body: three short form fields never
-// need more than this (security.md — request size limits).
+// need more than this.
 const maxFormBytes = 4096
 
 // Handler serves the write face's single HTTP endpoint.
@@ -35,8 +35,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /status", h.flip)
 }
 
-// flip handles POST /status (path, from, to) — see docs/spec.md §4 for the
-// full write-path algorithm and error vocabulary this implements.
+// flip handles POST /status (path, from, to): it applies one status
+// transition and maps each distinct failure mode to its own HTTP status
+// and message.
 func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 	if err := r.ParseForm(); err != nil {
@@ -75,26 +76,26 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrConcurrentWrite):
 		// Distinct from ErrStale above: this is not an old browser tab —
 		// something touched the file in the narrow window between kurodo
-		// reading it and writing it back (docs/spec.md §4's "mtime changed" row).
+		// reading it and writing it back.
 		http.Error(w, "the file was modified between read and write; try again", http.StatusConflict)
 	case errors.Is(err, ErrDirty):
 		http.Error(w, "this file has uncommitted changes that a flip would pollute the audit trail with; resolve them first", http.StatusConflict)
 	case errors.Is(err, ErrStatusLine):
-		http.Error(w, "the frontmatter status field is a schema violation; hand this file to kura or a human", http.StatusUnprocessableEntity)
+		http.Error(w, "the frontmatter status field is a schema violation; a human must edit the file", http.StatusUnprocessableEntity)
 	case errors.Is(err, schema.ErrUnknownStatus), errors.Is(err, schema.ErrIllegalTransition), errors.Is(err, schema.ErrOwnerForbidden):
-		// docs/spec.md §4's error table mandates the schema's own rejection
-		// reason verbatim, not a generic message — err already carries it
+		// The response carries the schema's own rejection reason verbatim,
+		// not a generic message — err already carries it
 		// (schema.Transition's wrapped sentinel text). Logged like every
 		// other rejection branch so a 422 is diagnosable without asking
 		// Koopa to reproduce it.
 		h.log.Error("status transition rejected", "path", path, "from", from, "to", to, "error", err)
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 	case errors.Is(err, ErrCommitFailed):
-		// Deliberately not the generic 500 branch below: docs/spec.md §4's
-		// error table gives this its own presentation ("file already changed
-		// + raw git output + manual remediation command") because the fix
-		// requires seeing what git said.
-		// This is a loopback-only, single-operator tool (wall 2) — there is
+		// Deliberately not the generic 500 branch below: this failure gets
+		// its own presentation ("file already changed + raw git output +
+		// manual remediation command") because the fix requires seeing what
+		// git said.
+		// This is a loopback-only, single-operator tool — there is
 		// no other party who could read this response.
 		h.log.Error("status commit failed", "path", path, "error", err)
 		http.Error(w, fmt.Sprintf("the note was rewritten but the git commit failed; fix manually in the vault: %v", err), http.StatusInternalServerError)

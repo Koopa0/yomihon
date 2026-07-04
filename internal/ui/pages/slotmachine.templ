@@ -10,8 +10,8 @@ import (
 // card per pattern. Everything visible is server-rendered from each slot's
 // first fill, so the sentences read correctly with JS off; kurodo.js upgrades
 // the cards to swap fills, recolour, shuffle, and speak. The section chrome is
-// English (D28); the slot labels, the abstract frame, and the gloss are lesson
-// content, shown as authored.
+// English (functional UI text stays English); the slot labels, the abstract
+// frame, and the gloss are lesson content, shown as authored.
 templ SlotMachine(s *lesson.Sidecar) {
 	<section class="k-slotmachine" aria-label="Sentence patterns">
 		<div class="k-slotmachine__intro">

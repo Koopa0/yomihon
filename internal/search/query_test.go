@@ -6,9 +6,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// TestParse reproduces every row of docs/search-plan.md §5a's parser case
-// table with its hand-computed expected Tokens/Filters — the acceptance basis
-// for the R1-R4 parse rules. NFD fixtures use explicit code points so the
+// TestParse pins the parse rules documented on Parse, row by row, with
+// hand-computed expected Tokens/Filters. NFD fixtures use explicit code
+// points so the
 // input's Unicode form is unambiguous: "が" is NFD が (か + combining
 // dakuten), whose NFC form is "が" (が).
 func TestParse(t *testing.T) {
@@ -64,7 +64,8 @@ func TestParse(t *testing.T) {
 	}
 }
 
-// TestParseFilterValueNFD proves R3 on a filter value with a genuine NFD form
+// TestParseFilterValueNFD proves a filter value is NFC-normalized (but not
+// case-folded) using a genuine NFD form
 // (row 18's 日本語 has no canonical decomposition, so it cannot). "domain:" +
 // NFD が ("が") must store the NFC form "が", un-case-folded.
 func TestParseFilterValueNFD(t *testing.T) {

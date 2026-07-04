@@ -18,8 +18,9 @@ var (
 	// <rp>…</rp>, each closed by its OWN tag — so the spoken text keeps the base
 	// characters and never the furigana. Two alternations (not a single [tp]
 	// class) so an <rt> can never pair with a stray </rp> on malformed markup.
-	// <rp> does not appear in current content, but the spec requires stripping
-	// it too, defensively.
+	// <rp> does not appear in current content, but it is stripped too,
+	// defensively — its fallback parentheses are furigana apparatus, not
+	// spoken text.
 	ttsReading = regexp.MustCompile(`(?s)<rt>.*?</rt>|<rp>.*?</rp>`)
 	// ttsListItem matches one goldmark-emitted list item — a TIGHT one, whose
 	// content is inline (a sentence), which is where the practice/example
@@ -56,11 +57,11 @@ const ttsSpeaker = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 // It ADDS a control to such segments; it does not reshape the locked dialect
 // constructs (wikilinks, callouts, embeds, ==highlight==, or the <ruby>
 // itself), which the render fixtures pin as substrings and which survive
-// untouched. This is read-path enrichment, not a content edit — wall 4 governs
-// edits to a note's own bytes, not derived HTML.
+// untouched. This is read-path enrichment, not a content edit — the
+// never-edit-a-note contract governs a note's own bytes, not derived HTML.
 //
-// It is deliberately GENERIC: it keys only on <ruby>, never on note type. The
-// note handler calls it for lesson notes ONLY, so a diary or concept note that
+// It is deliberately generic: it keys only on <ruby>, never on note type. The
+// note handler calls it for lesson notes alone, so a diary or concept note that
 // happens to contain <ruby> never grows a speaker button. Keeping the type
 // decision in the handler, not here, is what keeps render unaware that "lesson"
 // exists at all.
@@ -83,7 +84,7 @@ func injectParagraphTTS(htmlOut string) string {
 		// tags. Leave such a paragraph unwrapped (no speak button): the match
 		// consumed only up to the inner </p>, so returning it unchanged passes
 		// the whole paragraph through byte-for-byte, and the sentence still
-		// reads (wall 4: degrade, never corrupt).
+		// reads (degrade, never corrupt).
 		if nestedParaOpen.MatchString(inner) {
 			return para
 		}

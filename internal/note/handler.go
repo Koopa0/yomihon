@@ -28,15 +28,16 @@ const sealStatus = "ready"
 // drawer next). Like sealStatus, it names in one place the single spot the
 // handler treats a type specially, and it duplicates no enum: the type
 // vocabulary lives in the schema contract's enums.type (vault-schema.toml),
-// wall 3's source of truth. render.HTML stays generic — the lesson decision is
+// the single source of schema truth. render.HTML stays generic — the lesson decision is
 // made here, so a non-lesson note never grows lesson affordances.
 const typeLesson = "lesson"
 
 // StatusPolicy is the subset of the write face's state the reading page needs:
 // whether the face is closed (Closed), which transition keys, if any, to offer
 // (Transitions), and the stable note-status axis the Lifecycle rail lists
-// (Order). It is a genuine slice of *status.Service — never its write path, Flip
-// is wall 1's alone. *status.Service satisfies this.
+// (Order). It is a genuine slice of *status.Service — never its write path:
+// Flip, the single status write, stays out of the reading page's reach.
+// *status.Service satisfies this.
 type StatusPolicy interface {
 	Closed() bool
 	Transitions(noteType, current string) []string
@@ -58,9 +59,10 @@ type Deps struct {
 	Counts     func() map[string]int
 	Provenance func(ctx context.Context, rel string) (string, error)
 	Log        *slog.Logger
-	// Slots is the lesson slot-machine sidecar index (D29), loaded once at
-	// startup. Unlike the closures above it is static (slots are not in the D25
-	// snapshot — they are a separate read path). A nil index is legal: it just
+	// Slots is the lesson slot-machine sidecar index, loaded once at
+	// startup. Unlike the closures above it is static (slot sidecars are never
+	// indexed as notes and never enter the scanner's rebuilt-on-change snapshot
+	// — they are a separate read path). A nil index is legal: it just
 	// means no lesson carries a slot machine, so it is not a required dependency.
 	Slots lesson.SlotIndex
 	// Concepts indexes the grammar concept notes a lesson may link to, for the
@@ -142,7 +144,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// render.Renderer.HTML never fails the whole render (wall 4): a content-level
+	// render.Renderer.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := h.deps.Renderer.HTML(n.Body)
 
@@ -151,7 +153,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// server-side (render.InjectTTS). The gate is here, not in render, so
 	// render.HTML stays a generic note renderer — a diary or concept note that
 	// contains <ruby> never grows speaker buttons. A lesson with a slot sidecar
-	// (joined by slug, D29) also gets its sentence-pattern machine spliced in,
+	// (joined by slug, never filename) also gets its sentence-pattern machine spliced in,
 	// and its wikilinks to concept notes become in-app sheet triggers.
 	var concepts []lesson.ConceptDoc
 	if n.Type() == typeLesson {
@@ -179,7 +181,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case n.FMDiagnostic != "":
 		// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
-		// write (wall 4).
+		// write.
 	case n.Frontmatter == nil:
 		// Legally no frontmatter (e.g. drills): no keys either.
 		view.NoFrontmatter = true
@@ -204,12 +206,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 }
 
 // injectSlotMachine splices this lesson's slot-pattern machine into its rendered
-// body when a sidecar joins by slug (D29). It renders the templ component to a
+// body when a sidecar joins by slug. It renders the templ component to a
 // string and inserts it after the lesson's first table — the 文型骨架 pattern
 // skeleton — matching the lesson's own pedagogy (practise the patterns before
 // the reading passages), falling back to appending when a lesson has no table.
 // A render failure is logged and the body returned unchanged: a broken machine
-// must never blank the page (wall 4).
+// must never blank the page.
 func (h *Handler) injectSlotMachine(ctx context.Context, rel, slug, body string) string {
 	sc, ok := h.deps.Slots.Lookup(slug)
 	if !ok {
@@ -232,7 +234,7 @@ func (h *Handler) injectSlotMachine(ctx context.Context, rel, slug, body string)
 // concept body is rendered through the plain note pipeline (no concept post-pass
 // of its own), so its wikilinks stay ordinary links and the sheet never nests. A
 // concept that fails to load is skipped — its trigger stays a working link to
-// the note, so no dead sheet ships (wall 4: degrade, never break).
+// the note, so no dead sheet ships: degrade, never break.
 func (h *Handler) loadConcepts(refs []string) []lesson.ConceptDoc {
 	if len(refs) == 0 {
 		return nil
