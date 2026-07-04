@@ -497,6 +497,14 @@ html, body { margin: 0; background: var(--bg); }
    ============================================================ */
 .k-shell2 { display: grid; grid-template-columns: 264px minmax(0, 1fr); flex: 1; min-height: 0; }
 
+/* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
+   that fills the reading column. The briefing HTML is served verbatim from
+   /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
+   kurodo styles only the frame, never the content inside it. */
+.k-reportmain { display: flex; flex-direction: column; gap: 14px; padding: 22px 26px; overflow: hidden; }
+.k-reporttitle { font-family: var(--font-serif); font-weight: 600; font-size: var(--fs-ed-20); letter-spacing: 0.01em; color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
+.k-reportframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
+
 .k-syl { max-width: 800px; margin: 0 auto; padding: 44px 56px 120px; }
 .k-syl-kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
 .k-syl .k-title { margin-top: 12px; }
