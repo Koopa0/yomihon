@@ -166,7 +166,62 @@ func scalarText(n *yaml.Node) string {
 	if !isPlain(n) {
 		return n.Value
 	}
+	if n.Style&yaml.TaggedStyle != 0 {
+		return resolveTaggedScalar(n.Tag, n.Value)
+	}
 	return resolvePlainScalar(n.Value)
+}
+
+// resolveTaggedScalar maps an unquoted scalar carrying an explicit core-schema
+// tag to the string the wire format carries for it. The tag directs the
+// reading: a boolean tag admits only the six boolean words and drops anything
+// else; an integer tag reads a plain decimal integer and drops the rest; a
+// float tag keeps a valid real number as written; a null tag is always empty;
+// a string tag (and any tag outside the core schema) keeps the text verbatim.
+// A value the tag cannot read collapses to an empty string, which the checks
+// treat as absent.
+func resolveTaggedScalar(tag, v string) string {
+	switch tag {
+	case "!!bool":
+		switch v {
+		case "true", "True", "TRUE":
+			return "true"
+		case "false", "False", "FALSE":
+			return "false"
+		default:
+			return ""
+		}
+	case "!!int":
+		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return strconv.FormatInt(i, 10)
+		}
+		return ""
+	case "!!float":
+		if isCoreFloat(v) {
+			return v
+		}
+		return ""
+	case "!!null":
+		return ""
+	default:
+		return v
+	}
+}
+
+// isCoreFloat reports whether v is a real number under the YAML core schema:
+// one of the infinity or not-a-number spellings, or a token that carries a
+// digit and parses as a float.
+func isCoreFloat(v string) bool {
+	switch v {
+	case ".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF",
+		"-.inf", "-.Inf", "-.INF", ".nan", ".NaN", ".NAN":
+		return true
+	}
+	if !strings.ContainsFunc(v, func(r rune) bool { return r >= '0' && r <= '9' }) {
+		return false
+	}
+	_, err := strconv.ParseFloat(v, 64)
+	return err == nil
 }
 
 // isPlain reports whether a scalar was written unquoted and unblocked; a
