@@ -140,6 +140,9 @@ func TestRawServesVerbatim(t *testing.T) {
 	if ns := rr.Header().Get("X-Content-Type-Options"); ns != "nosniff" {
 		t.Errorf("X-Content-Type-Options = %q, want nosniff", ns)
 	}
+	if cc := rr.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store (never cache the mutable latest briefing)", cc)
+	}
 	if got := rr.Body.String(); got != briefingFixture {
 		t.Errorf("raw body is not byte-identical to the source file:\nwant %q\ngot  %q", briefingFixture, got)
 	}
@@ -198,6 +201,31 @@ func TestTraversalNeverServesAFile(t *testing.T) {
 		if rr := get(t, h, target); rr.Code == http.StatusOK {
 			t.Errorf("GET %s served a 200 (must never escape the allowlist):\n%s", target, rr.Body.String())
 		}
+	}
+}
+
+// TestRawConfinesToSystemReports is defense-in-depth: even if a scanner bug ever
+// listed a Briefing whose path is outside System/reports/ (here a Diary note, a
+// hard never-egress), /raw refuses to serve it — the allowlist is not the only
+// thing between a request and an arbitrary in-vault file.
+func TestRawConfinesToSystemReports(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dir := filepath.Join(root, "Diary")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "secret.md"), []byte("private\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A malformed allowlist that (wrongly) marks the Diary note as a briefing.
+	model := &nav.Model{Reports: []nav.Report{
+		{Name: "secret.md", RelPath: "Diary/secret.md", Briefing: true},
+	}}
+	h := newHandler(t, root, model)
+
+	if rr := get(t, h, "/reports/secret.md/raw"); rr.Code != http.StatusNotFound {
+		t.Errorf("a Briefing outside System/reports/ must not be served; got %d", rr.Code)
 	}
 }
 
