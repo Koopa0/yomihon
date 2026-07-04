@@ -25,11 +25,11 @@ import (
 const sealStatus = "ready"
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
-// and RenderDiagnostics (dialect passes) are both display-only: kurodo reports,
-// kura judges, humans edit (wall 4).
+// and RenderDiagnostics (dialect passes) are both display-only: kurodo reports
+// what it found, and a human edits the file.
 //
-// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the write
-// face's only UI, spec.md §4). Lifecycle is the status-first sidebar axis;
+// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the only
+// UI through which the vault is written). Lifecycle is the status-first sidebar axis;
 // JustSealed / SealedHash are the seal-provenance signals (only meaningful when
 // Status == "ready").
 type NoteView struct {
@@ -387,7 +387,7 @@ func articleHead(v NoteView) templ.Component {
 
 // ============================ LEFT RAIL ============================
 
-// sidebar is the navigation face (spec §2): a status-first Lifecycle list, the
+// sidebar is the navigation face: a status-first Lifecycle list, the
 // syllabus tree, the Reports section (daily-briefing HTML → the sandboxed
 // /reports shell, .md reports → the ordinary /notes reading page), and a
 // collapsed Folders tree (which preserves "any file ≤3 clicks"). It takes the
@@ -880,7 +880,7 @@ func folderNode(f nav.Folder) templ.Component {
 // syllabus renders one study-path: a link to its full study-path page, then
 // its tree. The title points at the purpose-built /syllabus view (which wins
 // over the raw map note); the map note itself stays reachable via the Folders
-// tree, so spec §2's "any vault file <=3 clicks" holds.
+// tree, so "any vault file <=3 clicks" still holds.
 func syllabus(s nav.Syllabus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -1005,8 +1005,8 @@ func sectionList(sections []nav.Section) templ.Component {
 }
 
 // lessonLink renders one syllabus lesson entry. A uniquely-resolved lesson is a
-// link; an ambiguous or unresolved lesson is STILL shown (wall 4, reading face
-// is fail-open), as plain text carrying a diagnostic mark instead of a link.
+// link; an ambiguous or unresolved lesson is still shown (the reading face is
+// fail-open), as plain text carrying a diagnostic mark instead of a link.
 func lessonLink(l nav.Lesson) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -1223,7 +1223,7 @@ func rightRail(v NoteView) templ.Component {
 	})
 }
 
-// statusPanel is the write face's entire UI (spec.md §4): one plain form per
+// statusPanel is the write face's entire UI: one plain form per
 // legal transition (the PRG pattern, no JS dependency). ready is the only
 // primary — the koopa seal, with the press-and-hold ceremony layered on by JS;
 // every other legal transition is a quiet one-click form. The legal set is only
@@ -1582,7 +1582,7 @@ func transitionForm(v NoteView, to string) templ.Component {
 	})
 }
 
-// diagnostics is the read-only diagnostics rail (wall 4): the frontmatter
+// diagnostics is the read-only diagnostics rail: the frontmatter
 // diagnostic and every render diagnostic, amber, stated but never repaired.
 func diagnostics(v NoteView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

@@ -17,15 +17,14 @@ import (
 // build is the first caller); it does not distinguish markdown from
 // other files, that is the caller's job.
 //
-// NFC normalization happens here, at walk time, mirroring kura's
-// vault.rs::relative_key (docs/vault-model.md, docs/design.md): macOS
+// NFC normalization happens here, at walk time: macOS
 // stores filenames on disk as NFD regardless of how they were typed, so
 // without this every downstream consumer — graph.Index's stored path
 // values, rendered <a href> targets, diagnostic candidate lists — would
 // silently carry raw NFD bytes instead of Obsidian's canonical NFC form.
 //
 // A single unreadable entry (permissions, a mid-walk race) does not abort
-// the whole walk (wall 4): it is skipped and the walk continues. Only a
+// the whole walk: it is skipped and the walk continues. Only a
 // failure to walk root itself is a real error.
 func List(root string) ([]string, error) {
 	var paths []string

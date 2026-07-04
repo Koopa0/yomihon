@@ -42,7 +42,7 @@ func TestResolveNFCAndNFDAreEquivalent(t *testing.T) {
 
 // TestBuildResolvedPathIsNFCEvenWhenDiskFilenameIsNFD guards the property
 // normalize()'s own doc comment claims but earlier only held for lookup
-// KEYS, not the stored path VALUE: a note whose filename arrived on disk
+// keys, not the stored path value: a note whose filename arrived on disk
 // as raw NFD bytes (macOS filesystems can hold either form regardless of
 // how it was typed) must still resolve to an NFC Resolution.Path.
 // normalize() alone cannot fix this — it only normalizes at lookup time —
@@ -94,9 +94,9 @@ func TestResolveAliasSameAsFilename(t *testing.T) {
 }
 
 // TestTitleIsNotAResolutionKey is the single most important negative test
-// in this package: kura's link.title_not_alias killer rule exists because
-// a link written against a note's frontmatter title (not its filename or
-// an alias) silently fails to resolve in real Obsidian. This goes through
+// in this package: a link written against a note's frontmatter title (not
+// its filename or an alias) silently fails to resolve in real Obsidian,
+// and the resolver must reproduce that failure mode. This goes through
 // the real disk-reading path (graph.Build), not BuildFromNotes, because
 // the property under test is that Build's frontmatter handling never
 // promotes "title" into a key — BuildFromNotes has no title concept to
@@ -208,7 +208,7 @@ func TestSplitWikilink(t *testing.T) {
 		},
 		{
 			name: "escaped table-cell pipe is not the display separator's naive split point " +
-				"(kura's algorithm still finds the same target)",
+				"(the escaped and unescaped pipe yield the same target)",
 			inner: `Go Slice\|see`, wantTarget: "Go Slice", wantDisplay: "see", wantOK: true,
 		},
 		{

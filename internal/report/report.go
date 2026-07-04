@@ -1,4 +1,4 @@
-// Package report serves the reports face (spec §1): the daily-briefing HTML
+// Package report serves the reports face: the daily-briefing HTML
 // under System/reports/, presented verbatim inside a sandboxed iframe. It is the
 // first route in kurodo that serves a raw vault file, so its safety rests on one
 // invariant — a requested <name> is only ever looked up against the snapshot's
@@ -12,12 +12,12 @@
 // correct charset), so a briefing round-trips byte-for-byte. The iframe is
 // sandboxed allow-scripts and never allow-same-origin: even with scripts running
 // it lands in an opaque origin, the double-layer defense the loopback listener's
-// same-origin property pairs with (spec §1, D26). That sandbox is enforced on
+// same-origin property pairs with. That sandbox is enforced on
 // the /raw resource itself with a Content-Security-Policy sandbox header — not
 // only through the shell's iframe attribute — so the containment holds however a
 // briefing is loaded (framed by the shell, framed cross-origin, or opened
 // top-level), never depending on the embedder. kurodo styles only the frame —
-// the renderer never touches the content inside it (wall 4).
+// the renderer never touches the content inside it.
 package report
 
 import (
@@ -27,8 +27,9 @@ import (
 )
 
 // Deps is everything the reports feature reads from: the current navigation
-// model (read fresh per request, since the report allowlist lives behind the D25
-// snapshot), the vault root the /raw endpoint reads briefing files from, and a
+// model (read fresh per request, since the report allowlist lives behind the
+// scanner's atomic snapshot and is rebuilt when the vault changes), the vault
+// root the /raw endpoint reads briefing files from, and a
 // logger. Nav is a plain closure because "give me the current model" is a
 // closure, not a method set — mirroring the reading and syllabus features.
 type Deps struct {

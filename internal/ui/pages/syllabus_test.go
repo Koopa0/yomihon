@@ -9,11 +9,11 @@ import (
 	"github.com/koopa0/kurodo/internal/nav"
 )
 
-// TestBuildSyllabusView pins the pure transform that spec §2's acceptance
-// rests on: a section's lesson count equals the number of resolved lesson
+// TestBuildSyllabusView pins the pure transform's contract: a section's
+// lesson count equals the number of resolved lesson
 // list-items beneath it, document order is preserved at every level, and an
 // unresolved lesson is STILL present, carrying its mark instead of a link
-// (wall 4) — never dropped. The fixture is two parts, one with a module and a
+// — never dropped. The fixture is two parts, one with a module and a
 // broken lesson, one with a lesson attached directly (no module), so the
 // tallies and the modules count are hand-derivable and non-tautological.
 func TestBuildSyllabusView(t *testing.T) {
@@ -87,7 +87,7 @@ func TestBuildSyllabusView(t *testing.T) {
 	}
 }
 
-// TestBuildSyllabusViewAmbiguous pins the other wall-4 branch: an ambiguous
+// TestBuildSyllabusViewAmbiguous pins the other never-drop branch: an ambiguous
 // lesson is listed too, marked "ambiguous" and unlinked (a link would silently
 // pick one of the collision's targets).
 func TestBuildSyllabusViewAmbiguous(t *testing.T) {

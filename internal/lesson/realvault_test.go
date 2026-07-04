@@ -14,11 +14,11 @@ import (
 // key stays well-formed against the real files.
 var slotSlug = regexp.MustCompile(`^jp-minna-l\d+$`)
 
-// TestRealVaultSlotsLoadAndValidate is the mechanical form of spec §6's slot
-// acceptance: "direct consumption of System/slots/L01–L20.yaml". It builds the
-// slug index from the real vault's System/slots/ directory (D29) and asserts
-// every sidecar parses, validates clean (they are byte-identical from yomihon,
-// so any Validate problem is a real regression), declares a well-formed
+// TestRealVaultSlotsLoadAndValidate exercises the slot loader directly against
+// the actual lesson sidecars, not fixtures: it builds the slug index from the
+// real vault's System/slots/ directory and asserts
+// every sidecar parses, validates clean (the sidecars are known-good curated
+// data, so any Validate problem is a real regression), declares a well-formed
 // jp-minna-lNN slug, and round-trips through the index by that slug. It follows
 // the same t.Skipf-when-vault-absent pattern as render's real-vault guard, so
 // it runs loudly whenever the vault is present and is skipped — never vacuously
@@ -44,7 +44,7 @@ func TestRealVaultSlotsLoadAndValidate(t *testing.T) {
 		t.Fatalf("BuildSlotIndex(%q) = %v", slotsDir, err)
 	}
 
-	// The lesson set is L01–L20 at spec-authoring time and grows as lessons are
+	// The lesson set spans L01–L20 today and grows as lessons are
 	// added; 20 is the floor that proves the sweep ran against the real
 	// directory rather than a near-empty stand-in.
 	const minExpectedSidecars = 20
@@ -63,7 +63,7 @@ func TestRealVaultSlotsLoadAndValidate(t *testing.T) {
 	}
 
 	// Round-trip the canonical join: L01's note carries slug jp-minna-l01, and
-	// that slug must resolve to L01's sidecar through the index (D29's join).
+	// that slug must resolve to L01's sidecar through the index.
 	if got, ok := idx.Lookup("jp-minna-l01"); !ok {
 		t.Error("Lookup(jp-minna-l01) not found — the L01 slot sidecar is missing or mis-slugged")
 	} else if got.Lesson != "L01" {

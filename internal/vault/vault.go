@@ -1,7 +1,7 @@
 // Package vault reads notes from the Obsidian vault on disk. The vault is
 // the single source of truth; nothing in this package ever writes to it.
 //
-// Reading is fault-tolerant by contract (wall 4): a broken frontmatter block
+// Reading is fault-tolerant by contract: a broken frontmatter block
 // yields a note with a diagnostic attached, never an error that would stop
 // rendering.
 package vault
@@ -21,7 +21,7 @@ type Note struct {
 	RelPath     string
 	Frontmatter map[string]any
 	// FMDiagnostic is non-empty when the frontmatter block exists but is not
-	// valid YAML. Display-only: kurodo reports, kura judges, humans edit.
+	// valid YAML. Display-only: kurodo reports the fault; a human edits the file.
 	FMDiagnostic string
 	Body         string
 }
@@ -89,8 +89,9 @@ func (n *Note) Type() string {
 }
 
 // Slug is the frontmatter slug, empty when absent. It is a lesson's stable
-// identity (jp-minna-lNN) and the join key to its slot sidecar (D29) — the
-// filename is never that key.
+// identity (jp-minna-lNN) and the join key to its slot sidecar — the
+// filename is never that key (lesson filenames carry a human title and are
+// not derivable from the sidecar's name).
 func (n *Note) Slug() string {
 	if s, ok := n.Frontmatter["slug"].(string); ok {
 		return s

@@ -13,8 +13,8 @@ import (
 	"github.com/koopa0/kurodo/internal/render"
 )
 
-// newRenderer builds a Renderer over a real (not faked — testing.md's
-// "real first") *graph.Index built from in-memory note/resource data, no
+// newRenderer builds a Renderer over a real (not faked)
+// *graph.Index built from in-memory note/resource data, no
 // disk access required unless the test itself writes files under root
 // (embed transclusion needs the target's actual body on disk; a plain
 // wikilink never reads the file, so most tests pass an empty root).
@@ -230,9 +230,8 @@ func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {
 	})
 }
 
-// TestCalloutTypeTable covers every callout type in
-// docs/vault-model.md's table: correct bucket class and default English
-// title, with no explicit title given.
+// TestCalloutTypeTable covers every recognized callout type: correct
+// bucket class and default English title, with no explicit title given.
 func TestCalloutTypeTable(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, t.TempDir(), nil, nil)

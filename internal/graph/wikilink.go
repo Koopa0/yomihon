@@ -6,22 +6,20 @@ import "strings"
 // enclosing "[[" and "]]" — into the resolution target and the display
 // text a renderer shows for it.
 //
-// The target-extraction order mirrors kura's wikilink.rs::strip_target
-// exactly: first '|' (display separator), then '#' (heading fragment),
-// then '^' (block fragment); '#' and '^' are always discarded from the
+// Target extraction strips delimiters in a fixed order: first '|'
+// (display separator), then '#' (heading fragment), then '^' (block
+// fragment); '#' and '^' are always discarded from the
 // target — anchors are never verified against the target file's actual
-// contents, only the file's existence matters (docs/vault-model.md's
-// wikilink table).
+// contents, only the file's existence matters.
 //
 // A markdown table cell escapes a literal '|' as '\|' so the GFM table
-// syntax doesn't split the cell on it. kura's approach treats an escaped
-// and unescaped pipe identically: split on the first literal '|'
+// syntax doesn't split the cell on it. This function treats an escaped
+// and an unescaped pipe identically: split on the first literal '|'
 // regardless of a preceding backslash, then trim any trailing backslash
-// off the left side. That yields the same target either way, so kurodo
-// mirrors it exactly here to keep target extraction byte-for-byte
-// agreement with kura's resolver. Display text is a kurodo-specific
-// extension beyond kura (which has no rendering concept, only a target to
-// resolve): the text after the same split point, or — when there is no
+// off the left side. That yields the same target either way, so the
+// escape never changes which file a link resolves to. Display text
+// serves rendering rather than resolution: it is the text after the same
+// split point, or — when there is no
 // pipe at all — the original trimmed inner text, kept intact with any
 // '#'/'^' suffix still visible (it is literal display text, not a
 // resolution target).

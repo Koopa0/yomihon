@@ -10,8 +10,7 @@ the source of truth — any derived data is disposable.
 
 ## Status
 
-Pre-release. The design is finalized (`docs/spec.md`); the skeleton is up and
-real lesson notes render end to end.
+Pre-release. The skeleton is up and real lesson notes render end to end.
 
 Working today:
 
@@ -25,8 +24,9 @@ Working today:
 Not built yet:
 
 - Full-text search (an in-memory index; no database).
-- The judge CLI — `check` / `exists` / `coverage`, inherited from kura.
-- Static export, inherited from yomihon.
+- The judge CLI — `check` / `exists` / `coverage`: vault diagnostics whose
+  JSONL bytes and exit codes external pipelines already depend on.
+- Static export.
 
 ## Etymology
 
@@ -85,22 +85,10 @@ Package-by-feature under `internal/`; `cmd/kurodo/` is wiring only.
 | Package | Responsibility |
 |---|---|
 | `vault` | Walks the vault; splits and fault-tolerantly parses frontmatter |
-| `schema` | Loads `vault-schema.toml` — the only reader of the contract (wall 3) |
+| `schema` | Loads `vault-schema.toml` — the only reader of the contract |
 | `render` | Renders the Obsidian dialect to HTML with goldmark: callouts, wikilinks, embeds, highlights, headings, code blocks |
 | `graph` | Resolves wikilinks, builds the link index, reports link diagnostics |
 | `note` | The reading face: loads a note, renders it, builds the TOC and diagnostics panel |
-| `status` | The write face: state-machine validation, surgical single-line rewrite, git commit (wall 1) |
+| `status` | The write face: state-machine validation, surgical single-line rewrite, git commit |
 | `ui` | templ layouts, pages, and blocks |
 | `asset` | Serves static JS and CSS |
-
-## Ecosystem
-
-kurodo succeeds two tools, each frozen in service until its retirement gate is met:
-
-- **yomihon** — the Japanese-lesson reader; kurodo inherits its dialect rendering
-  and static export.
-- **kura** — the corpus judge; kurodo inherits its `check` / `exists` / `coverage`
-  CLI and the byte-compatible output four vault pipelines depend on.
-
-**koopa0.dev** is the public-facing sibling. kurodo is the private, local-only
-human terminal of the same ecosystem.

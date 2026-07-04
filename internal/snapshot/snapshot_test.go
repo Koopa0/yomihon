@@ -52,9 +52,9 @@ func TestNewBuildsSnapshot(t *testing.T) {
 	}
 }
 
-// TestRescanDetectsChange pins the D25 gap-fix: a vault change (here, an added
-// note) is reflected after one scan — the mechanism the scanner runs on its
-// ticker, exercised directly so the test is deterministic and fast.
+// TestRescanDetectsChange pins the freshness contract: a vault change (here,
+// an added note) is reflected after one scan — the mechanism the scanner runs
+// on its ticker, exercised directly so the test is deterministic and fast.
 func TestRescanDetectsChange(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -69,7 +69,7 @@ func TestRescanDetectsChange(t *testing.T) {
 	store.rescan()
 
 	if got := store.Current().Search.Search(search.Parse("widgets")); len(got) == 0 {
-		t.Error("rescan did not pick up the added note (the pre-D25 staleness gap)")
+		t.Error("rescan did not pick up the added note")
 	}
 }
 

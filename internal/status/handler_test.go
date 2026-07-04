@@ -176,8 +176,8 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
 	}
-	// docs/spec.md §4 mandates schema's own rejection reason verbatim, not
-	// a generic message: schema.Transition's actual wrapped text
+	// The response must carry the schema's own rejection reason verbatim,
+	// not a generic message: schema.Transition's actual wrapped text
 	// ("transition not allowed by lifecycle: imported → ready for type
 	// \"lesson\"") must survive to the response, not just a fixed string
 	// that would be identical for every 422 regardless of cause.
@@ -208,7 +208,7 @@ func TestHandlerGenericFailure(t *testing.T) {
 // TestHandlerCommitFailedRoutesGitAddFailure guards handler.go's switch: a
 // failing `git add` inside commit() must route to the same informative
 // ErrCommitFailed branch as a failing `git commit`, not fall through to the
-// generic "cannot flip status" 500 — docs/spec.md §4 promises the
+// generic "cannot flip status" 500 — the operator is owed the
 // file-already-changed warning and raw git error for either staging or
 // committing failing.
 func TestHandlerCommitFailedRoutesGitAddFailure(t *testing.T) {

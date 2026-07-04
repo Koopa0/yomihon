@@ -20,10 +20,11 @@ import (
 	"github.com/koopa0/kurodo/internal/status"
 )
 
-// newServer wires the reading page against a real (not faked — testing.md's
-// "real first") status.Service, with a nil contract (fail-closed). Good
+// newServer wires the reading page against a real (not faked)
+// status.Service, with a nil contract (fail-closed). Good
 // enough for tests whose point is that the page renders regardless of
-// whether the write face is available (§0.1) — NOT for exercising
+// whether the write face is available (reading stays fail-open even when
+// the write face is fail-closed) — NOT for exercising
 // handler.go's NoFrontmatter/Transitions branch selection, since a
 // fail-closed Service makes WriteClosed true and note.templ's statusPanel
 // switches on WriteClosed first, before either of those ever matters. Use
@@ -79,7 +80,7 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	return srv
 }
 
-// loadContract is a loader fixture, not a second schema (wall 3): it reuses
+// loadContract is a loader fixture, not a second schema: it reuses
 // schema.LoadFile as-is against a lesson-only slice of the real contract
 // shape (testdata/contract.toml), mirroring internal/status/status_test.go.
 func loadContract(t *testing.T) *schema.Schema {
@@ -132,8 +133,8 @@ func TestShow(t *testing.T) {
 		"<ruby>今日<rt>きょう</rt></ruby>",
 		// The status service is wired but fail-closed (nil contract):
 		// the page must still render, with the write face's own notice
-		// instead of any transition form (§0.1 asymmetric fault
-		// tolerance — a missing contract never breaks reading).
+		// instead of any transition form (asymmetric fault tolerance —
+		// a missing contract never breaks reading).
 		"fail-closed",
 	} {
 		if !strings.Contains(body, want) {
@@ -235,7 +236,7 @@ func dirExists(path string) bool {
 }
 
 // TestShowSlotMachine is the slot-machine wiring guard: a lesson whose slug
-// joins a slot sidecar (D29) gets its pattern machine spliced into the page,
+// joins a slot sidecar gets its pattern machine spliced into the page,
 // positioned right after the lesson's first table (the 文型骨架 skeleton) and
 // before the body that follows it. A lesson with no matching sidecar gets no
 // machine.
@@ -258,7 +259,7 @@ func TestShowSlotMachine(t *testing.T) {
 	if err := os.MkdirAll(slotsDir, 0o750); err != nil {
 		t.Fatalf("mkdir slots: %v", err)
 	}
-	// The sidecar joins by the slug INSIDE the file, not the filename (D29):
+	// The sidecar joins by the slug INSIDE the file, not the filename:
 	// filename S1.yaml, slug jp-test-l01 matching the lesson.
 	sidecar := "lesson: L01\nslug: jp-test-l01\ntitle: t\npatterns:\n" +
 		"  - id: p1\n    template: \"{A}は {B}です\"\n    gloss_zh: \"{A} 是 {B}\"\n    slots:\n" +
@@ -396,9 +397,10 @@ func TestShowNotFound(t *testing.T) {
 	}
 }
 
-// TestHome pins the home route's contract. The navigation sidebar (spec §2)
+// TestHome pins the home route's contract. The navigation sidebar
 // already ships on every /notes page (see TestShowIncludesSidebar); the
-// Vault-Index home page (spec §2's four blocks) is deliberately deferred, so
+// Vault-Index home page (domain MOC entry points, cross-domain boards, the
+// mechanical-gate list) is deliberately deferred, so
 // until it lands GET / is a placeholder that redirects (302) to README.md.
 // A regression that changed the target, changed the status code, dropped the
 // route, or "re-implemented" home as something else is caught here.
@@ -524,11 +526,12 @@ func TestNewHandlerPanicsOnNilStatusPolicy(t *testing.T) {
 }
 
 // TestNewHandlerPanicsOnNilNavigation mirrors the StatusPolicy check: a
-// provider returning an empty *nav.Model is valid (an empty sidebar renders,
-// §0.1), but a nil provider is a wiring bug that must fail at construction, not
-// three calls deep inside the first reading request. Under D25 the sidebar is
+// provider returning an empty *nav.Model is valid (an empty sidebar renders —
+// reading is fail-open), but a nil provider is a wiring bug that must fail at
+// construction, not three calls deep inside the first reading request. The nav
+// model lives behind the scanner's atomic snapshot, so the sidebar is
 // read live per request through this closure (never a captured startup value),
-// so the guard is on the closure being present, not on the model it returns.
+// and the guard is on the closure being present, not on the model it returns.
 func TestNewHandlerPanicsOnNilNavigation(t *testing.T) {
 	t.Parallel()
 	defer func() {

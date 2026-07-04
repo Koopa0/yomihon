@@ -152,10 +152,9 @@ func TestValidate(t *testing.T) {
 		t.Errorf("Validate(bad) = %d problems, want 4: %v", len(problems), problems)
 	}
 
-	// An empty color is a neutral (uncoloured) slot, not a fault: kurodo keeps
-	// yomihon's validation contract here (D04 — correctness may not be
-	// reinvented), where only a non-empty unknown token is rejected. This pins
-	// that behaviour so a future tightening is a conscious decision, not a drift.
+	// An empty color is a neutral (uncoloured) slot, not a fault: only a
+	// non-empty unknown token is rejected. This pins that behaviour so a
+	// future tightening is a conscious decision, not a drift.
 	neutral := lesson.Pattern{
 		ID:       "neutral",
 		Template: "{A}です",
@@ -180,7 +179,7 @@ func writeSidecar(t *testing.T, dir, name, slug string) {
 func TestBuildSlotIndexJoinsBySlug(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	// Filename and slug deliberately disagree (D29): the index must key on the
+	// Filename and slug deliberately disagree: the index must key on the
 	// in-file slug, not the L01/L02 filename.
 	writeSidecar(t, dir, "L01.yaml", "jp-minna-l01")
 	writeSidecar(t, dir, "L02.yaml", "jp-minna-l02")

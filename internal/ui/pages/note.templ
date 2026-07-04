@@ -17,11 +17,11 @@ import (
 const sealStatus = "ready"
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
-// and RenderDiagnostics (dialect passes) are both display-only: kurodo reports,
-// kura judges, humans edit (wall 4).
+// and RenderDiagnostics (dialect passes) are both display-only: kurodo reports
+// what it found, and a human edits the file.
 //
-// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the write
-// face's only UI, spec.md §4). Lifecycle is the status-first sidebar axis;
+// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the only
+// UI through which the vault is written). Lifecycle is the status-first sidebar axis;
 // JustSealed / SealedHash are the seal-provenance signals (only meaningful when
 // Status == "ready").
 type NoteView struct {
@@ -152,7 +152,7 @@ templ articleHead(v NoteView) {
 
 // ============================ LEFT RAIL ============================
 
-// sidebar is the navigation face (spec §2): a status-first Lifecycle list, the
+// sidebar is the navigation face: a status-first Lifecycle list, the
 // syllabus tree, the Reports section (daily-briefing HTML → the sandboxed
 // /reports shell, .md reports → the ordinary /notes reading page), and a
 // collapsed Folders tree (which preserves "any file ≤3 clicks"). It takes the
@@ -273,7 +273,7 @@ templ folderNode(f nav.Folder) {
 // syllabus renders one study-path: a link to its full study-path page, then
 // its tree. The title points at the purpose-built /syllabus view (which wins
 // over the raw map note); the map note itself stays reachable via the Folders
-// tree, so spec §2's "any vault file <=3 clicks" holds.
+// tree, so "any vault file <=3 clicks" still holds.
 templ syllabus(s nav.Syllabus) {
 	<a class="k-syllabus__title" href={ templ.URL(syllabusHref(s.RelPath)) }>{ s.Title }</a>
 	@sectionList(s.Sections)
@@ -294,8 +294,8 @@ templ sectionList(sections []nav.Section) {
 }
 
 // lessonLink renders one syllabus lesson entry. A uniquely-resolved lesson is a
-// link; an ambiguous or unresolved lesson is STILL shown (wall 4, reading face
-// is fail-open), as plain text carrying a diagnostic mark instead of a link.
+// link; an ambiguous or unresolved lesson is still shown (the reading face is
+// fail-open), as plain text carrying a diagnostic mark instead of a link.
 templ lessonLink(l nav.Lesson) {
 	switch l.Resolution {
 		case graph.Unique:
@@ -342,7 +342,7 @@ templ rightRail(v NoteView) {
 	</aside>
 }
 
-// statusPanel is the write face's entire UI (spec.md §4): one plain form per
+// statusPanel is the write face's entire UI: one plain form per
 // legal transition (the PRG pattern, no JS dependency). ready is the only
 // primary — the koopa seal, with the press-and-hold ceremony layered on by JS;
 // every other legal transition is a quiet one-click form. The legal set is only
@@ -434,7 +434,7 @@ templ transitionForm(v NoteView, to string) {
 	</form>
 }
 
-// diagnostics is the read-only diagnostics rail (wall 4): the frontmatter
+// diagnostics is the read-only diagnostics rail: the frontmatter
 // diagnostic and every render diagnostic, amber, stated but never repaired.
 templ diagnostics(v NoteView) {
 	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {

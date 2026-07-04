@@ -2,7 +2,7 @@
 // (System/schemas/vault-schema.toml) and answers status state-machine
 // questions.
 //
-// It is the only package in this repo allowed to read the contract (wall 3):
+// It is the only package in this repo allowed to read the contract:
 // no other package may hardcode a second copy of any enum, field list, or
 // lifecycle rule.
 package schema

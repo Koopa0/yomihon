@@ -2,7 +2,7 @@
 // parsed study-path tree, with a switcher across every study-path in the vault.
 // It reads only the navigation model (internal/nav's already-parsed Syllabi,
 // held behind the atomic snapshot); it never parses notes or touches the schema
-// contract, so it renders whether or not the write face is available (§0.1).
+// contract, so it renders whether or not the write face is available.
 package syllabus
 
 import (

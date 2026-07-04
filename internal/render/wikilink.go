@@ -65,8 +65,8 @@ func fenceCloses(line string, marker byte) bool {
 
 // looksRisky reports whether line contains one of the dialect patterns
 // (wikilink, callout, GFM table row) the preprocessing passes would
-// otherwise convert — worth a single warning when found inside a fence
-// (docs/vault-model.md's Code-fence safety section), never acted on.
+// otherwise convert — worth a single warning when found inside a fence,
+// never acted on.
 func looksRisky(line string) bool {
 	if strings.Contains(line, "[[") {
 		return true
@@ -84,8 +84,8 @@ func looksRisky(line string) bool {
 // Obsidian %%...%% comment state as it scans, and treats neither as
 // syntax to convert; %% state is line-spanning, carried in inComment
 // across the whole call (see convertLine). At most one risky-fence
-// diagnostic is recorded per call (docs/vault-model.md's "one build
-// warning", not one per occurrence) — this dedup is scoped to a single
+// diagnostic is recorded per call (one warning, not one per
+// occurrence) — this dedup is scoped to a single
 // preprocess call, not threaded across the recursive calls render makes
 // for a callout body or a transcluded embed, so a note with risky fences
 // in more than one such structurally-separate region can produce more

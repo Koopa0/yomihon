@@ -1,13 +1,13 @@
 package render
 
-// This file extracts a note body's searchable plain text (docs/search-plan.md
-// §7) by walking a goldmark AST — reusing the same markdown engine the HTML
-// pipeline uses rather than hand-rolling a second parser (decisions D04's
-// spirit). internal/search consumes PlainText; it lives here because deriving
+// This file extracts a note body's searchable plain text by walking a
+// goldmark AST — reusing the same markdown engine the HTML pipeline uses
+// rather than hand-rolling a second parser that could drift from it.
+// internal/search consumes PlainText; it lives here because deriving
 // plain text from a body is a rendering-adjacent concern that needs render's
 // dialect helpers (the wikilink and callout preprocessing goldmark has no
-// concept of), and duplicating those in search would be a second copy of
-// exactly what wall-1's predictable-mistake list forbids.
+// concept of), and duplicating those in search would be a second
+// implementation of the dialect, free to disagree with the renderer.
 
 import (
 	"strings"
@@ -29,8 +29,8 @@ import (
 // use — each Parse call builds its own context.
 var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList)).Parser()
 
-// PlainText returns the searchable plain text of a note body, per the
-// docs/search-plan.md §7 extraction table: body text, headings, table cells,
+// PlainText returns the searchable plain text of a note body: body
+// text, headings, table cells,
 // task text, code-fence contents, and the base+rt of hand-written <ruby>
 // markup are included; the HTML tags themselves and the callout-marker syntax
 // ("> [!type]") are not. A wikilink [[target|display]] contributes both its
@@ -38,7 +38,8 @@ var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extensio
 // when a display alias is what is shown.
 //
 // The body must already have its frontmatter removed (vault.Parse does this) —
-// PlainText has no frontmatter concept, which is exactly why §7 excludes it.
+// PlainText has no frontmatter concept; frontmatter's structured fields are
+// indexed separately, not as body text.
 // The text keeps its original case and Unicode form; internal/search applies
 // NFC + case folding when it stores and matches.
 func PlainText(body string) string {
@@ -64,7 +65,7 @@ func PlainText(body string) string {
 // "> [!type] Title" loses its "[!type]" marker while keeping the title. It is
 // fence-aware — inside a fenced code block every line is preserved verbatim, so
 // a [[link]] written inside a code sample stays literal and is indexed as code
-// content (§7), not resolved.
+// content, not resolved.
 func plainPreprocess(body string) string {
 	lines := strings.Split(body, "\n")
 	inFence := false
@@ -91,7 +92,7 @@ func plainPreprocess(body string) string {
 func plainLine(line string) string {
 	if m := calloutStartPattern.FindStringSubmatch(line); m != nil {
 		// Drop the "> [!type][+-]" marker; keep only the callout's title text
-		// (m[3]). The marker syntax itself is not searchable content (§7); the
+		// (m[3]). The marker syntax itself is not searchable content; the
 		// callout body lines that follow keep their "> " and are collected as
 		// ordinary blockquote text.
 		line = m[3]
@@ -126,14 +127,15 @@ func walkPlain(b *strings.Builder, n ast.Node, entering bool, source []byte) (as
 	}
 	switch n.Kind() {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
-		// The HTML tags themselves are not content (§7). Any inline text
+		// The HTML tags themselves are not content. Any inline text
 		// between them — e.g. the base and rt of a <ruby>…<rt>… run — are
 		// separate Text nodes collected by the KindText case, not children of
 		// these nodes, so skipping here drops only the tags.
 		return ast.WalkSkipChildren, nil
 	case ast.KindFencedCodeBlock, ast.KindCodeBlock:
 		// Code content lives in the node's line segments, not in child Text
-		// nodes; write it directly and do not descend (§7: code included).
+		// nodes; write it directly and do not descend — code contents are
+		// searchable (people search for code snippets).
 		writeSeparator(b)
 		writeBlockLines(b, n, source)
 		return ast.WalkSkipChildren, nil

@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/kurodo/internal/render"
 )
 
-// TestPlainText is the table-driven acceptance for the docs/search-plan.md §7
+// TestPlainText is the table-driven acceptance for the plain-text
 // extraction rules: what a note body contributes to the search index. Each row
 // asserts substrings that must be present and, where a rule is exclusionary,
 // substrings that must be absent.

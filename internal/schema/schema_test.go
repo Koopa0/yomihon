@@ -12,7 +12,7 @@ import (
 )
 
 // The testdata contract is a loader fixture, not a second schema: runtime
-// code only ever reads the real vault contract (wall 3).
+// code only ever reads the real vault contract.
 func loadFixture(t *testing.T) *schema.Schema {
 	t.Helper()
 	s, err := schema.LoadFile(filepath.Join("testdata", "contract.toml"))

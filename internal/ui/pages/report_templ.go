@@ -26,8 +26,9 @@ type ReportView struct {
 // Report is the report shell page: the shared header and navigation sidebar (a
 // nil Lifecycle — a report carries no status axis), a title, and one iframe that
 // fills the reading column. The iframe is sandboxed allow-scripts and never
-// allow-same-origin (spec §1, D26); its src is this report's verbatim /raw
-// endpoint, so the briefing renders exactly as authored inside an opaque origin.
+// allow-same-origin — even with scripts running, the content lands in an opaque
+// origin that cannot reach kurodo's pages or endpoints; its src is this report's
+// verbatim /raw endpoint, so the briefing renders exactly as authored.
 func Report(v ReportView, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -76,7 +77,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/report.templ`, Line: 29, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/report.templ`, Line: 30, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -89,7 +90,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(templ.URL(reportRawHref(v.Name)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/report.templ`, Line: 32, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/report.templ`, Line: 33, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -102,7 +103,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(v.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/report.templ`, Line: 34, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/report.templ`, Line: 35, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {

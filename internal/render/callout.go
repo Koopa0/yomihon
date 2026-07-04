@@ -14,8 +14,8 @@ var (
 
 // calloutStart reports whether line opens an Obsidian callout block
 // ("> [!type]", optionally followed by "-"/"+" for a foldable
-// <details>, docs/vault-model.md's callout table) and, if so, its type
-// (lowercased), fold suffix, and any inline title text.
+// <details>) and, if so, its type (lowercased), fold suffix, and any
+// inline title text.
 func calloutStart(line string) (typ, fold, title string, ok bool) {
 	m := calloutStartPattern.FindStringSubmatch(line)
 	if m == nil {
@@ -24,8 +24,8 @@ func calloutStart(line string) (typ, fold, title string, ok bool) {
 	return strings.ToLower(m[1]), m[2], strings.TrimSpace(m[3]), true
 }
 
-// calloutBucket is one of the two visual/semantic groups
-// docs/vault-model.md's callout table sorts every known type into.
+// calloutBucket is one of the two visual/semantic groups every known
+// callout type sorts into.
 type calloutBucket int
 
 const (
@@ -35,7 +35,7 @@ const (
 )
 
 // calloutBucketOf maps a callout type (already lowercased) to its bucket
-// and default English title, exactly per docs/vault-model.md's table.
+// and default English title.
 // bucketUnknown means the type is not recognized — the caller falls back
 // to a plain blockquote and records a Diagnostic.
 func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
@@ -56,8 +56,7 @@ func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 }
 
 // calloutIcon is a small, dependency-free (no icon font, no SVG asset)
-// glyph per bucket. Functional, not polished — real iconography waits
-// for the design-tokens round.
+// glyph per bucket.
 func calloutIcon(bucket calloutBucket) string {
 	if bucket == bucketWarning {
 		return "⚠"

@@ -18,8 +18,8 @@ import (
 // card per pattern. Everything visible is server-rendered from each slot's
 // first fill, so the sentences read correctly with JS off; kurodo.js upgrades
 // the cards to swap fills, recolour, shuffle, and speak. The section chrome is
-// English (D28); the slot labels, the abstract frame, and the gloss are lesson
-// content, shown as authored.
+// English (functional UI text stays English); the slot labels, the abstract
+// frame, and the gloss are lesson content, shown as authored.
 func SlotMachine(s *lesson.Sidecar) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

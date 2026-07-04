@@ -73,8 +73,8 @@ func get(t *testing.T, h http.Handler, target string) *httptest.ResponseRecorder
 // TestResolveReportIsTheOnlyGate pins the security model: the requested name is
 // only ever looked up against the allowlist, never joined onto a path. A name
 // that is not an enumerated briefing — a .md report, an unknown file, or a
-// traversal-shaped string ("../../Diary/x", the §7 path-escape wall on this
-// face) — never resolves, so no file outside the allowlist can be reached.
+// traversal-shaped string ("../../Diary/x") — never resolves, so no file
+// outside the allowlist can be reached.
 func TestResolveReportIsTheOnlyGate(t *testing.T) {
 	t.Parallel()
 	model := fixtureModel()
@@ -100,8 +100,8 @@ func TestResolveReportIsTheOnlyGate(t *testing.T) {
 	}
 }
 
-// TestShowRendersSandboxedIframe is the literal sandbox acceptance (spec §1,
-// D26): the rendered iframe is exactly sandbox="allow-scripts" and never grants
+// TestShowRendersSandboxedIframe pins the sandbox contract: the rendered
+// iframe is exactly sandbox="allow-scripts" and never grants
 // allow-same-origin, and its src is this report's verbatim /raw endpoint.
 func TestShowRendersSandboxedIframe(t *testing.T) {
 	t.Parallel()
@@ -189,7 +189,7 @@ func TestNotFoundCases(t *testing.T) {
 // TestTraversalNeverServesAFile drives a traversal-shaped request through the
 // full HTTP path. However the router cleans or decodes the path, the allowlist
 // is the only gate, so the response is never a 200 serving out-of-allowlist
-// content — the §7 path-escape wall, landed on this face.
+// content — the path-escape rejection this face must uphold.
 func TestTraversalNeverServesAFile(t *testing.T) {
 	t.Parallel()
 	h := newHandler(t, vaultWithBriefing(t), fixtureModel())
@@ -230,7 +230,7 @@ func TestRawConfinesToSystemReports(t *testing.T) {
 }
 
 // TestRawFailsOpenWhenFileVanishes: the allowlist still lists a briefing (a ~2s
-// snapshot) but its file is gone. That is a not-found, fail-open (wall 4) — a
+// snapshot) but its file is gone. That is a not-found, fail-open — a
 // 404, never a 500 that would leak a filesystem path.
 func TestRawFailsOpenWhenFileVanishes(t *testing.T) {
 	t.Parallel()

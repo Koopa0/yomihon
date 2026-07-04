@@ -4,7 +4,8 @@
 //
 //  1. a lifecycle folder tree (browse every note without typing a URL),
 //  2. the parsed study-path syllabus trees (part -> module/stage -> lesson,
-//     in document order — order is significant, docs/spec.md §2), and
+//     in document order — the rendered order must match the file's own
+//     listing order), and
 //  3. a flat list of the reports under System/reports/.
 //
 // The Model is built once at process startup and never mutated afterward
@@ -14,11 +15,11 @@
 //
 // Two invariants shape every decision here:
 //
-//   - Fault-tolerant (wall 4). A malformed syllabus, a broken lesson link,
+//   - Fault-tolerant. A malformed syllabus, a broken lesson link,
 //     an unreadable note, an odd folder — none may panic or drop the rest.
 //     A lesson whose wikilink does not resolve (or is ambiguous) is STILL
 //     listed, carrying its resolution state, never silently dropped.
-//   - DB-independent (docs/spec.md §0.1). nav reads only files (vault.List /
+//   - DB-independent. nav reads only files (vault.List /
 //     vault.ReadNote) and the wikilink index; it never touches PostgreSQL
 //     or the schema contract, so the sidebar renders whether or not those
 //     are available.
@@ -37,17 +38,18 @@ import (
 // typeStudyPath is the single frontmatter `type` value nav keys on to find
 // syllabus notes. It is one member of the schema's `type` enum, referenced
 // by its stable value — NOT a copy of the enum list or the state machine,
-// which is what wall 3 forbids. nav deliberately does not load the schema
-// contract to check it: the reading/navigation face must keep working even
-// when the contract cannot be read (§0.1's asymmetric fault tolerance), and
+// which must never be duplicated outside vault-schema.toml. nav deliberately
+// does not load the schema contract to check it: the reading/navigation face
+// must keep working even when the contract cannot be read (reading is
+// fail-open; only the write face is fail-closed), and
 // the status.go write face already carries the same shape (its `actor`
 // constant and note.templ's literal "ready").
 const typeStudyPath = "study-path"
 
 // Resolver is the minimal wikilink-resolution capability nav needs to turn
 // a lesson's [[wikilink]] into a note path (and to distinguish unique /
-// ambiguous / unresolved). Defined here, the consumer, per
-// rules/interfaces.md's cross-feature pattern — the same shape as
+// ambiguous / unresolved). Defined here, in the consumer, as the subset of
+// the producer's surface nav actually uses — the same shape as
 // render.Resolver; internal/graph's concrete *Index satisfies it with no
 // explicit binding.
 type Resolver interface {
@@ -99,16 +101,16 @@ type Report struct {
 }
 
 // lifecycleOrder is the vault's documented artifact-lifecycle order for the
-// top-level folders (CLAUDE.md's canonical workflow, docs/vault-model.md
-// Layer 2: Inbox -> Sources -> Concepts -> Maps / Synthesis -> Writing,
-// then System = governance, Views = dashboards, Diagrams = diagrams). It is
-// an architectural ordering, not a schema enum — the toml has no
-// display-order field (its [scan] knowledge_dirs is a checker scan policy
-// in a different order and omitting System/Views/Diagrams), so there is
-// nothing to read it from (this is not a wall-3 copy of a governed enum). A
-// top-level folder not in this list (a future Diary/, the current Drafts/)
-// sorts after all known ones, in lexical order, so it stays reachable
-// rather than silently vanishing from the sidebar.
+// top-level folders: the main flow Inbox -> Sources -> Concepts -> Maps /
+// Synthesis -> Writing, then System = governance, Views = dashboards,
+// Diagrams = diagrams. It is an architectural ordering, not a schema enum —
+// the toml has no display-order field (its [scan] knowledge_dirs is a
+// checker scan policy in a different order and omitting
+// System/Views/Diagrams), so there is nothing to read it from: this list is
+// not a forbidden second copy of a vault-schema.toml enum. A top-level
+// folder not in this list (a future Diary/, the current Drafts/) sorts
+// after all known ones, in lexical order, so it stays reachable rather than
+// silently vanishing from the sidebar.
 var lifecycleOrder = []string{
 	"Inbox", "Sources", "Concepts", "Maps", "Synthesis", "Writing",
 	"System", "Views", "Diagrams",
@@ -128,7 +130,7 @@ func lifecycleRank(name string) int {
 // same as render.New's nil Resolver). The returned error is reserved for a
 // failure to even list the vault; every finer-grained problem (an
 // unreadable note, a broken lesson link, a malformed syllabus) is tolerated
-// and surfaced in the model rather than returned (wall 4). cmd/kurodo/main.go
+// and surfaced in the model rather than returned. cmd/kurodo/main.go
 // treats a returned error the same asymmetric way it treats a graph build
 // failure: log and serve an empty model, never abort the server.
 func Build(root string, idx Resolver) (*Model, error) {
@@ -146,7 +148,7 @@ func Build(root string, idx Resolver) (*Model, error) {
 
 	// One read pass over every markdown note: record each note's status
 	// (for lesson badges) and collect the study-path notes to parse. An
-	// unreadable note is skipped, not fatal (wall 4).
+	// unreadable note is skipped, not fatal.
 	statusByPath := make(map[string]string)
 	var studyPaths []*vault.Note
 	for _, p := range paths {
@@ -220,8 +222,8 @@ type folderBuilder struct {
 // directory structure exactly, to whatever depth the vault actually has
 // (Concepts is one domain level deep, Writing/lessons/<domain> is two) —
 // it never invents levels the vault does not have, and never caps them, so
-// every file stays a single click away in the rendered tree (spec §2's
-// "any vault file reachable in <=3 clicks"). Only the top level is reordered
+// every file stays a single click away in the rendered tree, keeping any
+// vault file reachable in at most three clicks. Only the top level is reordered
 // into lifecycle order; deeper folders keep vault.List's lexical order.
 func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}

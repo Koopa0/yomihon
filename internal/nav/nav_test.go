@@ -166,7 +166,7 @@ func TestParseSectionsMinnaShape(t *testing.T) {
 }
 
 // TestParseSectionsFaultTolerance proves an unresolved or ambiguous lesson
-// is still listed with the right resolution state (never dropped, wall 4),
+// is still listed with the right resolution state, never silently dropped,
 // and that malformed heading/list lines are ignored without panicking.
 func TestParseSectionsFaultTolerance(t *testing.T) {
 	t.Parallel()
@@ -327,13 +327,13 @@ func TestBuildReports(t *testing.T) {
 		"System/reports/daily-briefing/README.md",
 		"System/reports/daily-briefing/koopa0-briefing-2026-07-02.html",
 		"System/reports/daily-briefing/latest.html",
-		"System/reports/kura-vault-check.md",
+		"System/reports/vault-check.md",
 		"System/reports/notes.txt",
 	}
 
 	want := []Report{
 		{Name: "Run-Report.md", RelPath: "System/reports/Run-Report.md"},
-		{Name: "kura-vault-check.md", RelPath: "System/reports/kura-vault-check.md"},
+		{Name: "vault-check.md", RelPath: "System/reports/vault-check.md"},
 		{Name: "koopa0-briefing-2026-07-02.html", RelPath: "System/reports/daily-briefing/koopa0-briefing-2026-07-02.html", Briefing: true},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 	}
