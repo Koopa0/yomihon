@@ -20,7 +20,11 @@ import (
 // parse (which yields exactly one fault). The coercion fixture pins how an
 // unquoted scalar's value reaches a finding: booleans lowercased, integers in
 // decimal, nulls dropped, and everything else — quoted text, the 1.1 boolean
-// words, out-of-range numbers, reals, aliases — left as written. Each golden
+// words, out-of-range numbers, reals, aliases — left as written. The strictness
+// fixture pins the parse boundary: a repeated key (nested, in a list, flow or
+// block), a tab indent, an invalid escape, and an unterminated quote each
+// become a single parse fault, while a merge key is read as an ordinary key.
+// Each golden
 // holds the schema subset of the reference tool's sorted output over that same
 // fixture.
 func TestCheckSchemaGolden(t *testing.T) {
@@ -32,6 +36,7 @@ func TestCheckSchemaGolden(t *testing.T) {
 	}{
 		{name: "rules", fixture: "testdata/vault-schema", golden: "testdata/golden/schema.jsonl"},
 		{name: "scalar coercion", fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
+		{name: "parser strictness", fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,14 +65,14 @@ func TestCheckSchemaMatchesReferenceOnRealVault(t *testing.T) {
 	t.Parallel()
 	tool := referenceTool()
 	if tool == "" {
-		t.Skip("reference tool not found; set KURA_BIN or install it to ~/.cargo/bin")
+		t.Skip("set KURODO_REFERENCE_BIN to the conformance reference binary to run this check")
 	}
 	vaultRoot := referenceVault()
 	if vaultRoot == "" {
 		t.Skip("vault not found; set KURODO_VAULT to a root holding " + schema.ContractRelPath)
 	}
 
-	// #nosec G204 -- tool is resolved from a trusted env var or a fixed local install path, not user input
+	// #nosec G204 -- tool is resolved from a trusted environment variable set by the operator, not from user input
 	out, err := exec.CommandContext(t.Context(), tool, "check", "--root", vaultRoot, "--format", "json").Output()
 	if err != nil {
 		// With no deny flag the tool always exits zero, so a non-nil error
@@ -120,21 +125,13 @@ func schemaLines(jsonl string) []byte {
 	return buf.Bytes()
 }
 
-// referenceTool locates the reference binary: KURA_BIN, else the default cargo
-// install path, else the PATH. Returns "" when none is usable.
+// referenceTool returns the path to the conformance reference binary named by
+// the KURODO_REFERENCE_BIN environment variable, or "" when it is unset or not
+// executable. The binary is named only by that variable, so this scaffold
+// carries no path or name of its own; the conformance run is opt-in and the
+// test skips when the variable is not set.
 func referenceTool() string {
-	if bin := os.Getenv("KURA_BIN"); bin != "" {
-		if isExecutable(bin) {
-			return bin
-		}
-		return ""
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		if bin := filepath.Join(home, ".cargo", "bin", "kura"); isExecutable(bin) {
-			return bin
-		}
-	}
-	if bin, err := exec.LookPath("kura"); err == nil {
+	if bin := os.Getenv("KURODO_REFERENCE_BIN"); bin != "" && isExecutable(bin) {
 		return bin
 	}
 	return ""

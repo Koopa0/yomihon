@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -80,10 +81,11 @@ func collectNotes(root string) ([]note, error) {
 
 // parseNote splits a file's leading frontmatter and reads it into the note
 // model. A file with no frontmatter block is legal (a raw transcript, scanned
-// but never faulted). A block that is present but does not parse yields a note
-// flagged bad, which the frontmatter check reports as a single fault rather
-// than a cascade of "field missing" for fields that may sit above a syntax
-// error.
+// but never faulted). A block that is present but does not parse — or that a
+// stricter reading rejects, such as a mapping with a repeated key, which is
+// ill-formed even though this parser tolerates it — yields a note flagged bad,
+// which the frontmatter check reports as a single fault rather than a cascade
+// of "field missing" for fields that may sit above the fault.
 func parseNote(rel string, data []byte) note {
 	fm, _ := vault.SplitFrontmatter(data)
 	if fm == nil {
@@ -93,13 +95,39 @@ func parseNote(rel string, data []byte) note {
 	if err := yaml.Unmarshal(fm, &doc); err != nil {
 		return note{path: rel, badFrontmatter: true}
 	}
+	if hasDuplicateKey(&doc) {
+		return note{path: rel, badFrontmatter: true}
+	}
 	return note{path: rel, frontmatter: buildFrontmatter(&doc)}
 }
 
+// hasDuplicateKey reports whether any mapping anywhere in the document repeats a
+// key. A repeated key is ill-formed YAML that the stricter reference reading
+// rejects outright, so it is treated as a parse fault rather than silently
+// resolved to the last value. Every mapping is checked — nested in a value, an
+// item of a sequence, or the top level alike — to match where the reference
+// reading raises the fault.
+func hasDuplicateKey(n *yaml.Node) bool {
+	if n.Kind == yaml.MappingNode {
+		seen := make(map[string]bool, len(n.Content)/2)
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			if key := n.Content[i]; key.Kind == yaml.ScalarNode {
+				if seen[key.Value] {
+					return true
+				}
+				seen[key.Value] = true
+			}
+		}
+	}
+	return slices.ContainsFunc(n.Content, hasDuplicateKey)
+}
+
 // buildFrontmatter reads a parsed frontmatter document into the flat key/value
-// map the checks consume. Only string keys are kept, matching how the author's
-// mapping is read; a non-mapping document (a bare scalar or list at the top)
-// contributes no keys.
+// map the checks consume. Only keys that read as strings are kept, matching how
+// the author's mapping is read: a key the core schema would resolve to a
+// number, boolean, or null is dropped, while an ordinary word or a token like
+// the merge indicator is kept as itself. A non-mapping document (a bare scalar
+// or list at the top) contributes no keys.
 func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 	m := make(map[string]fmValue)
 	root := doc
@@ -113,13 +141,67 @@ func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 		return m
 	}
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		key := root.Content[i]
-		if key.Kind != yaml.ScalarNode || key.Tag != "!!str" {
-			continue
+		if key, ok := keyText(root.Content[i]); ok {
+			m[key] = nodeValue(root.Content[i+1])
 		}
-		m[key.Value] = nodeValue(root.Content[i+1])
 	}
 	return m
+}
+
+// keyText reports a mapping key's text when it reads as a string, and false
+// when the core schema would resolve it to a number, boolean, or null (which
+// the reference reading does not admit as a key). A quoted key is always a
+// string; an unquoted key is a string unless it resolves to one of those other
+// scalar types.
+func keyText(n *yaml.Node) (string, bool) {
+	n = resolveAlias(n)
+	if n.Kind != yaml.ScalarNode {
+		return "", false
+	}
+	if !isPlain(n) {
+		return n.Value, true
+	}
+	if n.Style&yaml.TaggedStyle != 0 {
+		switch n.Tag {
+		case "!!bool", "!!int", "!!float", "!!null":
+			return "", false
+		default:
+			return n.Value, true
+		}
+	}
+	if plainIsString(n.Value) {
+		return n.Value, true
+	}
+	return "", false
+}
+
+// plainIsString reports whether an unquoted, untagged scalar reads as a string
+// under the core schema — that is, it is none of an integer (in any of the
+// hexadecimal, octal, signed, or decimal spellings), a boolean word, a null
+// word, or a real number.
+func plainIsString(v string) bool {
+	switch {
+	case strings.HasPrefix(v, "0x"):
+		if _, err := strconv.ParseInt(v[2:], 16, 64); err == nil {
+			return false
+		}
+	case strings.HasPrefix(v, "0o"):
+		if _, err := strconv.ParseInt(v[2:], 8, 64); err == nil {
+			return false
+		}
+	case strings.HasPrefix(v, "+"):
+		if _, err := strconv.ParseInt(v[1:], 10, 64); err == nil {
+			return false
+		}
+	}
+	switch v {
+	case "", "~", "null", "true", "True", "TRUE", "false", "False", "FALSE":
+		return false
+	}
+	if _, err := strconv.ParseInt(v, 10, 64); err == nil {
+		return false
+	}
+	return !isCoreFloat(v)
 }
 
 // nodeValue converts one frontmatter value node into an fmValue: a sequence
