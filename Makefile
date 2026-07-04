@@ -1,6 +1,6 @@
 MODULE := github.com/koopa0/kurodo
 
-.PHONY: build run test lint fmt vet gen css verify verify-spec clean
+.PHONY: build run test lint fmt vet gen css verify clean
 
 build: gen css
 	go build -o bin/kurodo ./cmd/kurodo
@@ -31,13 +31,3 @@ verify: fmt vet lint test build
 
 clean:
 	rm -rf bin tmp
-
-verify-spec:
-	@echo "=== Hook Tests ==="
-	@bash tests/test-hooks.sh
-	@echo ""
-	@echo "=== Skill/Agent Format Tests ==="
-	@bash tests/test-skill-format.sh
-	@echo ""
-	@echo "=== Consistency Tests ==="
-	@bash tests/test-consistency.sh
