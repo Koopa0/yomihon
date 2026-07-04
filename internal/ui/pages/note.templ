@@ -83,7 +83,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="k-nav-scrim" data-nav-close></div>
 		<div class="k-shell">
-			@sidebar(v)
+			@sidebar(v.Nav, v.Lifecycle)
 			<main class="k-main">
 				<article class="k-article" lang="zh-Hant">
 					@articleHead(v)
@@ -153,18 +153,23 @@ templ articleHead(v NoteView) {
 // ============================ LEFT RAIL ============================
 
 // sidebar is the navigation face (spec §2): a status-first Lifecycle list, the
-// syllabus tree, the Reports (daily-briefing HTML), and a collapsed Folders tree
-// (which preserves "any file ≤3 clicks"). A nil model renders nothing.
-templ sidebar(v NoteView) {
+// syllabus tree, the Reports section (daily-briefing HTML → the sandboxed
+// /reports shell, .md reports → the ordinary /notes reading page), and a
+// collapsed Folders tree (which preserves "any file ≤3 clicks"). It takes the
+// two things it renders — the whole-vault nav model and the Lifecycle rail —
+// directly, so both the reading page and the report shell mount the same
+// navigation; the report passes a nil Lifecycle (it is not a note, so it carries
+// no status axis). A nil model renders nothing.
+templ sidebar(model *nav.Model, lifecycle []LifecycleItem) {
 	<aside class="k-rail-left">
-		if len(v.Lifecycle) > 0 {
+		if len(lifecycle) > 0 {
 			<details open>
 				<summary class="k-railsummary">
 					@chevron()
 					Lifecycle
 				</summary>
 				<div class="k-railgroup">
-					for _, it := range v.Lifecycle {
+					for _, it := range lifecycle {
 						<a class={ "ui-navitem", templ.KV("is-active", it.Active) } href={ templ.URL(statusHref(it.Name)) }>
 							<span class={ "k-navdot", templ.KV("k-navdot--ready", it.Name == sealStatus) } aria-hidden="true"></span>
 							{ it.Name }
@@ -174,8 +179,8 @@ templ sidebar(v NoteView) {
 				</div>
 			</details>
 		}
-		if v.Nav != nil {
-			if len(v.Nav.Syllabi) > 0 {
+		if model != nil {
+			if len(model.Syllabi) > 0 {
 				<div class="k-railsep" aria-hidden="true"></div>
 				<details open>
 					<summary class="k-railsummary">
@@ -183,13 +188,13 @@ templ sidebar(v NoteView) {
 						Syllabus
 					</summary>
 					<div class="k-railgroup">
-						for _, s := range v.Nav.Syllabi {
+						for _, s := range model.Syllabi {
 							@syllabus(s)
 						}
 					</div>
 				</details>
 			}
-			if len(v.Nav.Reports) > 0 {
+			if len(model.Reports) > 0 {
 				<div class="k-railsep" aria-hidden="true"></div>
 				<details>
 					<summary class="k-railsummary">
@@ -197,13 +202,19 @@ templ sidebar(v NoteView) {
 						Reports
 					</summary>
 					<div class="k-railgroup">
-						for _, rep := range v.Nav.Reports {
-							<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
-								{ rep.Name }
-								if rep.Latest {
-									<span class="k-navmark">latest</span>
-								}
-							</a>
+						for _, rep := range model.Reports {
+							if rep.Briefing {
+								<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
+									{ rep.Name }
+									if rep.Latest {
+										<span class="k-navmark">latest</span>
+									}
+								</a>
+							} else {
+								<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
+									{ rep.Name }
+								</a>
+							}
 						}
 					</div>
 				</details>
@@ -215,7 +226,7 @@ templ sidebar(v NoteView) {
 					Folders
 				</summary>
 				<div class="k-railgroup">
-					@folderList(v.Nav.Folders, v.Nav.RootNotes)
+					@folderList(model.Folders, model.RootNotes)
 				</div>
 			</details>
 		}

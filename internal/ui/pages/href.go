@@ -52,6 +52,23 @@ func statusHref(status string) string {
 	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
 }
 
+// reportHref builds the report shell URL for a briefing's filename. Unlike a
+// note, a report is addressed by its bare filename (unique within
+// System/reports/daily-briefing/), never a vault path: the handler resolves the
+// name against the snapshot's report allowlist, so request input never reaches a
+// filesystem join. The name is a single path segment, so one PathEscape suffices
+// (any "/" in it would escape to %2F and stay one segment).
+func reportHref(name string) string {
+	return "/reports/" + url.PathEscape(name)
+}
+
+// reportRawHref builds the verbatim-serving endpoint the report iframe points
+// at: the same name-keyed allowlist lookup as reportHref, plus the /raw suffix
+// that writes the briefing HTML byte-for-byte inside the sandboxed frame.
+func reportRawHref(name string) string {
+	return "/reports/" + url.PathEscape(name) + "/raw"
+}
+
 // LifecycleItem is one row of the status-first Lifecycle rail: a schema status
 // (the vocabulary comes from the toml contract), its live snapshot
 // count, and whether it is the current note's status.
