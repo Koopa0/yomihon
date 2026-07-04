@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,8 +88,8 @@ func collectNotes(root string) ([]note, error) {
 // which the frontmatter check reports as a single fault rather than a cascade
 // of "field missing" for fields that may sit above the fault.
 func parseNote(rel string, data []byte) note {
-	fm, _ := vault.SplitFrontmatter(data)
-	if fm == nil {
+	fm, found := splitFrontmatter(data)
+	if !found {
 		return note{path: rel, noFrontmatter: true}
 	}
 	var doc yaml.Node
@@ -99,6 +100,38 @@ func parseNote(rel string, data []byte) note {
 		return note{path: rel, badFrontmatter: true}
 	}
 	return note{path: rel, frontmatter: buildFrontmatter(&doc)}
+}
+
+// splitFrontmatter returns the bytes of a leading frontmatter block and whether
+// one was present. A block is recognized only at the very start of the file,
+// opened by a "---" line and closed by the next "---" or "..." line; without a
+// closing fence there is no frontmatter and the whole file is body. Both line
+// endings are accepted. The returned block keeps the newline that ends its last
+// line — the byte before the closing fence — because a trailing newline is part
+// of a block scalar's value, and dropping it would change what the author
+// wrote. This reads the block on the diagnostics' own terms rather than reusing
+// the renderer's split, whose fence handling is shaped for display, not for the
+// frozen wire format.
+func splitFrontmatter(data []byte) (fm []byte, found bool) {
+	rest, ok := bytes.CutPrefix(data, []byte("---\n"))
+	if !ok {
+		if rest, ok = bytes.CutPrefix(data, []byte("---\r\n")); !ok {
+			return nil, false
+		}
+	}
+	for offset := 0; offset < len(rest); {
+		line := rest[offset:]
+		advance := len(line)
+		if nl := bytes.IndexByte(line, '\n'); nl >= 0 {
+			line, advance = line[:nl], nl+1
+		}
+		switch string(bytes.TrimRight(line, "\r")) {
+		case "---", "...":
+			return rest[:offset], true
+		}
+		offset += advance
+	}
+	return nil, false
 }
 
 // hasDuplicateKey reports whether any mapping anywhere in the document repeats a

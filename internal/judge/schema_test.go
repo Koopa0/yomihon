@@ -20,13 +20,15 @@ import (
 // parse (which yields exactly one fault). The coercion fixture pins how an
 // unquoted scalar's value reaches a finding: booleans lowercased, integers in
 // decimal, nulls dropped, and everything else — quoted text, the 1.1 boolean
-// words, out-of-range numbers, reals, aliases — left as written. The strictness
-// fixture pins the parse boundary: a repeated key (nested, in a list, flow or
-// block), a tab indent, an invalid escape, and an unterminated quote each
-// become a single parse fault, while a merge key is read as an ordinary key.
-// Each golden
-// holds the schema subset of the reference tool's sorted output over that same
-// fixture.
+// words, out-of-range numbers, reals, aliases, custom-tagged and block scalars
+// (whose trailing newline is kept or stripped by their chomping) — left as the
+// reference reads them. The strictness fixture pins the parse boundary: a
+// repeated key (nested, in a list, flow or block), a tab indent, an invalid
+// escape, and an unterminated quote each become a single parse fault; a merge
+// key is read as an ordinary key; and the fence handling matches — an empty
+// block reads as present-but-empty, a "..." close and a closing fence at end of
+// file are both honored. Each golden holds the schema subset of the reference
+// tool's sorted output over that same fixture.
 func TestCheckSchemaGolden(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
