@@ -251,7 +251,7 @@ func ensureFolder(root *folderBuilder, dir string) *folderBuilder {
 	}
 	cur := root
 	var prefix string
-	for _, seg := range strings.Split(dir, "/") {
+	for seg := range strings.SplitSeq(dir, "/") {
 		if prefix == "" {
 			prefix = seg
 		} else {

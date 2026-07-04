@@ -117,10 +117,7 @@ func (e *entry) result(tokens []string) Result {
 // İ, etc.) could shift a boundary, so every bound below is clamped to a valid
 // rune boundary rather than trusted.
 func snippet(plain, plainFold string, tokens []string) string {
-	off := earliestOffset(plainFold, tokens)
-	if off > len(plain) {
-		off = len(plain)
-	}
+	off := min(earliestOffset(plainFold, tokens), len(plain))
 	start := clampRuneStart(plain, off-snippetBefore)
 	end := clampRuneEnd(plain, off+snippetAfter)
 
