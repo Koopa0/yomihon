@@ -2,18 +2,18 @@ package lesson
 
 import (
 	"log/slog"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/koopa0/kurodo/internal/vault"
 )
 
-// ConceptSubdir is where a vault keeps the grammar concept notes a lesson links
-// to (the same convention as the reference vault). It is a path constant, not a
+// ConceptSubdir is the root of the vault's grammar-concept notes; the vault
+// organizes them one level down by domain (Concepts/japanese, Concepts/golang,
+// Concepts/rust, …), and a lesson of any domain links to its own concepts — so
+// the index scans the whole tree, not one language. It is a path constant, not a
 // schema fact: the concept sheet reads these notes, it never validates them.
-const ConceptSubdir = "Concepts/japanese"
+const ConceptSubdir = "Concepts"
 
 // ConceptIndex maps a vault-relative concept-note path to its stable sheet slug
 // (a DOM id shared between a trigger's data-concept and its <template>'s id).
@@ -26,50 +26,71 @@ type ConceptIndex map[string]string
 // kana/kanji, survive; punctuation and spaces fold to '-').
 var slugDrop = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 
-// conceptSlug is the sheet id for a concept basename: lowercase, keep Unicode
-// letters and digits, collapse the rest to hyphens, trim, fall back to
-// "concept". It need only be stable and collision-checked within this index —
-// it is not the note's slug field.
-func conceptSlug(base string) string {
-	s := strings.Trim(slugDrop.ReplaceAllString(strings.ToLower(base), "-"), "-")
+// conceptSlug is the sheet id for a concept, derived from its path under
+// ConceptSubdir (e.g. "golang/Go Array" → "golang-go-array"): lowercase, keep
+// Unicode letters and digits, collapse the rest — including the domain
+// separator — to hyphens, trim, fall back to "concept". Deriving it from the
+// full sub-path rather than the bare basename keeps the id unique across domains,
+// so two same-named concepts in different domains never share a <template> id. It
+// is an opaque DOM join key (a trigger's data-concept ↔ its template's id), not
+// the note's slug field.
+func conceptSlug(subPath string) string {
+	s := strings.Trim(slugDrop.ReplaceAllString(strings.ToLower(subPath), "-"), "-")
 	if s == "" {
 		return "concept"
 	}
 	return s
 }
 
-// BuildConceptIndex scans the vault's concept directory and indexes each note by
-// its vault-relative path. A missing directory yields an empty index, not an
-// error: a vault with no concept notes simply has no sheets (fail-open, like the
-// slot loader). Two basenames that slug to the same id are reported (the sheet
+// BuildConceptIndex indexes every concept note (Concepts/<domain>/…) by its
+// vault-relative path — the shape a rendered wikilink href decodes to. It reads
+// the vault through vault.List, the same NFC-normalizing walk graph/nav/search
+// use, so a concept key is byte-identical to the resolver path the render
+// post-pass looks it up by even when the filesystem stores the name NFD (macOS);
+// a bespoke walk here would be the one reader that drops the fold (predictable
+// mistakes #2/#6 — one NFC definition, one way to be correct). A vault with no
+// concept notes yields an empty index, not an error (fail-open, like the slot
+// loader). Two notes whose sub-paths slug to the same id are reported (the sheet
 // would open the wrong note), never guessed — the vault dialect's rule.
 func BuildConceptIndex(root string) (ConceptIndex, error) {
-	dir := filepath.Join(root, filepath.FromSlash(ConceptSubdir))
-	entries, err := os.ReadDir(dir)
+	paths, err := vault.List(root)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return ConceptIndex{}, nil
-		}
 		return nil, err
 	}
-	idx := make(ConceptIndex, len(entries))
-	bySlug := make(map[string]string, len(entries))
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".md") {
+	idx := ConceptIndex{}
+	bySlug := map[string]string{}
+	for _, relPath := range paths {
+		subPath, ok := conceptSubPath(relPath)
+		if !ok {
 			continue
 		}
-		base := strings.TrimSuffix(name, ".md")
-		relPath := ConceptSubdir + "/" + base + ".md"
-		slug := conceptSlug(base)
+		slug := conceptSlug(subPath)
 		if prev, dup := bySlug[slug]; dup {
 			slog.Warn("concept slug collision; the sheet may open the wrong note",
-				"slug", slug, "a", prev, "b", base)
+				"slug", slug, "a", prev, "b", relPath)
 		}
-		bySlug[slug] = base
+		bySlug[slug] = relPath
 		idx[relPath] = slug
 	}
 	return idx, nil
+}
+
+// conceptSubPath reports the domain-scoped sub-path of a concept note
+// ("Concepts/golang/Go Array.md" → "golang/Go Array", ok), or ok=false when the
+// path is not a concept: not under Concepts/, not a .md, or sitting directly at
+// the Concepts/ root. Every real concept lives one level down under its domain,
+// so a bare Concepts/README.md (the folder's own index) is not a grammar concept
+// and must not become a sheet.
+func conceptSubPath(relPath string) (string, bool) {
+	sub, ok := strings.CutPrefix(relPath, ConceptSubdir+"/")
+	if !ok || !strings.HasSuffix(sub, ".md") {
+		return "", false
+	}
+	sub = strings.TrimSuffix(sub, ".md")
+	if !strings.Contains(sub, "/") {
+		return "", false // directly under Concepts/, not inside a domain
+	}
+	return sub, true
 }
 
 // SlugForPath reports the sheet slug for a vault-relative path, and whether it
