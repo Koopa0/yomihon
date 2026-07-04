@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/koopa0/kurodo/internal/ui/pages"
 )
@@ -49,11 +50,16 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// rep.RelPath is scanner-produced and confined to System/reports/; IsLocal
-	// re-asserts that at the serve boundary, so this raw-file route can never
-	// read above the vault root even if a snapshot were wrong (§7 path-escape
-	// wall lock, landed on this face).
-	if !filepath.IsLocal(rep.RelPath) {
+	// rep.RelPath is scanner-produced, so the allowlist above already confines it
+	// to System/reports/daily-briefing/. Re-assert two independent properties at
+	// this raw-file boundary as defense-in-depth (security.md: verify the result
+	// stays within the allowed directory): IsLocal keeps it within the vault root
+	// (the §7 path-escape wall), and the prefix keeps it under System/reports/ —
+	// so even a future scanner bug that set Briefing on a note elsewhere in the
+	// vault could never be served here, in particular never a Diary/ file (a hard
+	// never-egress, D18). reportsRoot mirrors nav.buildReports' own scan root.
+	const reportsRoot = "System/reports/"
+	if !filepath.IsLocal(rep.RelPath) || !strings.HasPrefix(rep.RelPath, reportsRoot) {
 		http.NotFound(w, r)
 		return
 	}
@@ -66,6 +72,10 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// Never cached: the file is re-read from disk each request, so the mutable
+	// latest.html always serves the newest briefing — the "always the latest"
+	// this route promises must hold in the browser too, not only server-side.
+	w.Header().Set("Cache-Control", "no-store")
 	// Enforce the sandbox on the resource itself, not only through the shell's
 	// iframe attribute: a CSP sandbox lands this script-bearing briefing in a
 	// unique opaque origin however it is loaded — inside kurodo's shell, framed
