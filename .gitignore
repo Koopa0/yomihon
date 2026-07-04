@@ -3,6 +3,9 @@ tmp/
 dist/
 .env
 .DS_Store
-.claude/rule-load.log
-.claude/session-learnings.log
-.claude/settings.local.json
+# Harness (go-spec bootstrap): lives on disk, never tracked in this repo.
+.claude/
+CLAUDE.md
+AGENTS.md
+tests/test-skill-format.sh
+tests/test-hooks.sh
