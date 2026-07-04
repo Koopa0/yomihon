@@ -118,6 +118,19 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	rel := r.PathValue("path")
 
+	// The reading page renders notes, and a note is a .md file. Any other vault
+	// resource served here would go through the markdown pipeline with WithUnsafe,
+	// which passes raw HTML — including <script> — straight into this first-party,
+	// kurodo-origin page: a .html briefing would then run its scripts same-origin
+	// to the whole vault-reading surface, the very execution the reports face
+	// sandboxes. Non-note resources are not read here — briefings have their own
+	// sandboxed /reports route, and .canvas/.base are not markdown — so serve only
+	// .md and 404 the rest (.md is the scanner's own note test, internal/nav).
+	if !strings.HasSuffix(rel, ".md") {
+		http.NotFound(w, r)
+		return
+	}
+
 	n, err := vault.ReadNote(h.deps.Root, rel)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):

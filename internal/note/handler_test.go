@@ -187,6 +187,48 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 }
 
 // dirExists reports whether path is an existing directory.
+// TestReadingPageServesOnlyMarkdownNotes pins that /notes serves only .md notes.
+// A non-note resource rendered here would pass through WithUnsafe into this
+// first-party, kurodo-origin page — a .html briefing would run its <script>
+// same-origin to the whole vault, the execution the reports face sandboxes; it
+// has its own sandboxed /reports route instead. The .html and .canvas below
+// exist on disk, so their 404 is the extension gate, not a missing file.
+func TestReadingPageServesOnlyMarkdownNotes(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	write("Notes/keep.md", "# kept\n\nbody\n")
+	write("System/reports/daily-briefing/x.html",
+		`<!doctype html><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><body>hi</body>`)
+	write("Diagrams/x.canvas", "{\"nodes\":[]}\n")
+	srv := newServer(t, root)
+
+	if code, _ := get(t, srv.URL+"/notes/Notes/keep.md"); code != http.StatusOK {
+		t.Errorf("a .md note must still be served; GET keep.md = %d, want 200", code)
+	}
+	for _, rel := range []string{
+		"System/reports/daily-briefing/x.html",
+		"Diagrams/x.canvas",
+	} {
+		code, body := get(t, srv.URL+"/notes/"+rel)
+		if code != http.StatusNotFound {
+			t.Errorf("GET /notes/%s = %d, want 404 (only .md notes are served here)", rel, code)
+		}
+		if strings.Contains(body, "cdn.jsdelivr") {
+			t.Errorf("GET /notes/%s leaked raw resource bytes into a first-party page:\n%s", rel, body)
+		}
+	}
+}
+
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
