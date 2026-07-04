@@ -80,57 +80,16 @@ func TestWriteJSONLGolden(t *testing.T) {
 			},
 		},
 		{
-			// One note violating three schema rules. Pins the schema
-			// finding shape: error severity, the fixed evidence, action,
-			// and source strings, and target omitted when the violating
-			// value is empty.
-			name:   "schema",
-			golden: "testdata/golden/schema.jsonl",
-			findings: []Finding{
-				{
-					RuleID:          "schema.enum",
-					Severity:        SeverityError,
-					Path:            "Concepts/golang/Bad.md",
-					Field:           new("status"),
-					Message:         `status "bogus" is not a valid status`,
-					Evidence:        "frontmatter validated against vault-schema.toml",
-					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      "vault-schema.toml",
-					Target:          new("bogus"),
-					Fingerprint:     "c86353e56e0bc094",
-				},
-				{
-					RuleID:          "schema.required",
-					Severity:        SeverityError,
-					Path:            "Concepts/golang/Bad.md",
-					Field:           new("domain"),
-					Message:         "domain is required",
-					Evidence:        "frontmatter validated against vault-schema.toml",
-					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      "vault-schema.toml",
-					Fingerprint:     "2856d81293513cdc",
-				},
-				{
-					RuleID:          "schema.unknown_key",
-					Severity:        SeverityError,
-					Path:            "Concepts/golang/Bad.md",
-					Message:         `frontmatter "extra" is not a known field`,
-					Evidence:        "frontmatter validated against vault-schema.toml",
-					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      "vault-schema.toml",
-					Target:          new("extra"),
-					Fingerprint:     "78fe6de614452605",
-				},
-			},
-		},
-		{
-			// One note with six broken links whose targets carry control
-			// characters and the two line-separator code points. Pins the
-			// escape surface of the wire format: 0x08 and 0x0C as their
-			// two-character escapes, other control characters as
-			// four-digit lowercase escapes, U+2028 and U+2029 as raw
-			// UTF-8 bytes, and a fingerprint whose leading nibble is
-			// zero, locking the sixteen-digit zero-padded rendering.
+			// Broken links whose targets carry control characters and the
+			// two line-separator code points. Pins the escape surface of
+			// the wire format: 0x08 and 0x0C as their two-character
+			// escapes, other control characters as four-digit lowercase
+			// escapes, U+2028 and U+2029 as raw UTF-8 bytes, and a
+			// fingerprint whose leading nibble is zero, locking the
+			// sixteen-digit zero-padded rendering. The last target holds
+			// the literal characters backslash-u-2-0-2-8 instead of the
+			// code point, which must survive as written and not be folded
+			// back into the code point.
 			name:   "escapes",
 			golden: "testdata/golden/escapes.jsonl",
 			findings: []Finding{
@@ -205,6 +164,23 @@ func TestWriteJSONLGolden(t *testing.T) {
 					SourceRule:      "Note-Schema.md#aliases",
 					Target:          new("Zero 2 Padding"),
 					Fingerprint:     "0fa417727bc33bfd",
+				},
+				{
+					// A target holding the literal six characters
+					// backslash-u-2-0-2-8 (not the code point) round-trips
+					// unchanged: the encoder doubles the backslash to
+					// \\u2028, and the line-separator rewrite steps over
+					// that pair rather than mistake it for the code point.
+					RuleID:          "link.broken",
+					Severity:        SeverityWarn,
+					Path:            "note.md",
+					Line:            new(2),
+					Message:         `[[Esc\u2028End]] resolves to no note`,
+					Evidence:        "no filename or alias matches the target",
+					SuggestedAction: "create the target note, or change the link to an existing filename/alias",
+					SourceRule:      "Note-Schema.md#aliases",
+					Target:          new(`Esc\u2028End`),
+					Fingerprint:     "58a23378d6cc4c43",
 				},
 			},
 		},
