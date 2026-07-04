@@ -12,26 +12,40 @@ import (
 	"github.com/koopa0/kurodo/internal/schema"
 )
 
-// TestCheckSchemaGolden drives the frontmatter engine over a fixture vault and
-// asserts the emitted bytes equal the golden. The fixture triggers every
-// schema rule at least once and exercises the four scope behaviors that must
-// produce nothing: a skipped basename, a note outside the knowledge
+// TestCheckSchemaGolden drives the frontmatter engine over fixture vaults and
+// asserts the emitted bytes equal each golden. The rules fixture triggers
+// every schema rule at least once and exercises the four scope behaviors that
+// must produce nothing: a skipped basename, a note outside the knowledge
 // directories, a note with no frontmatter, and a note whose block does not
-// parse (which yields exactly one fault). The golden holds the schema subset
-// of the reference tool's sorted output over this same fixture.
+// parse (which yields exactly one fault). The coercion fixture pins how an
+// unquoted scalar's value reaches a finding: booleans lowercased, integers in
+// decimal, nulls dropped, and everything else — quoted text, the 1.1 boolean
+// words, out-of-range numbers, reals, aliases — left as written. Each golden
+// holds the schema subset of the reference tool's sorted output over that same
+// fixture.
 func TestCheckSchemaGolden(t *testing.T) {
 	t.Parallel()
-	const fixture = "testdata/vault-schema"
-
-	want, err := os.ReadFile("testdata/golden/schema.jsonl")
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
+	tests := []struct {
+		name    string
+		fixture string
+		golden  string
+	}{
+		{name: "rules", fixture: "testdata/vault-schema", golden: "testdata/golden/schema.jsonl"},
+		{name: "scalar coercion", fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
 	}
-
-	got := runSchema(t, fixture)
-	if !bytes.Equal(got, want) {
-		t.Errorf("schema findings differ from golden\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
-			got, want, hex.Dump(got), hex.Dump(want))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			want, err := os.ReadFile(tt.golden)
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			got := runSchema(t, tt.fixture)
+			if !bytes.Equal(got, want) {
+				t.Errorf("schema findings differ from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
+					tt.golden, got, want, hex.Dump(got), hex.Dump(want))
+			}
+		})
 	}
 }
 

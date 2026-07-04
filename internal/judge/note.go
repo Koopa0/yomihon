@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -121,10 +123,11 @@ func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 }
 
 // nodeValue converts one frontmatter value node into an fmValue: a sequence
-// becomes a list, a scalar keeps its text, and any other shape (a nested
-// mapping) collapses to an empty scalar, so the checks see the same shape the
-// resolver does.
+// becomes a list, a scalar keeps its resolved text, and any other shape (a
+// nested mapping) collapses to an empty scalar, so the checks see the same
+// shape the resolver does. An alias is followed to the value it points at.
 func nodeValue(n *yaml.Node) fmValue {
+	n = resolveAlias(n)
 	switch n.Kind {
 	case yaml.SequenceNode:
 		items := make([]string, 0, len(n.Content))
@@ -139,12 +142,72 @@ func nodeValue(n *yaml.Node) fmValue {
 	}
 }
 
-// scalarText is the raw text of a scalar node, with an explicit null read as
-// empty: an author's bare `field:` (or `field: null`) is an absent value, not
-// the literal word "null".
+// resolveAlias follows an alias node to the node it refers to, so an aliased
+// value reads as the value it points at.
+func resolveAlias(n *yaml.Node) *yaml.Node {
+	if n.Kind == yaml.AliasNode && n.Alias != nil {
+		return n.Alias
+	}
+	return n
+}
+
+// scalarText is a scalar value's text as the frontmatter checks read it. A
+// quoted or block scalar is taken verbatim. An unquoted scalar is resolved
+// under the YAML core schema — independent of how the parser happens to tag
+// the token — so a boolean normalizes to lowercase, an integer to its decimal
+// form, and a null (empty, "~", or "null") to an empty string, while every
+// other token (including the 1.1 boolean words yes/no/on/off, an out-of-range
+// number, and any real number) keeps exactly what the author wrote.
 func scalarText(n *yaml.Node) string {
-	if n.Kind != yaml.ScalarNode || n.Tag == "!!null" {
+	n = resolveAlias(n)
+	if n.Kind != yaml.ScalarNode {
 		return ""
 	}
-	return n.Value
+	if !isPlain(n) {
+		return n.Value
+	}
+	return resolvePlainScalar(n.Value)
+}
+
+// isPlain reports whether a scalar was written unquoted and unblocked; a
+// quoted or block scalar is always its literal text.
+func isPlain(n *yaml.Node) bool {
+	const quotedOrBlock = yaml.DoubleQuotedStyle | yaml.SingleQuotedStyle | yaml.LiteralStyle | yaml.FoldedStyle
+	return n.Style&quotedOrBlock == 0
+}
+
+// resolvePlainScalar maps an unquoted scalar's text to the string the wire
+// format carries for it under the YAML core schema: a hexadecimal (0x…),
+// octal (0o…), explicitly-signed, or plain decimal integer collapses to its
+// decimal form; the null and boolean words collapse as noted; anything the
+// core schema does not read as an integer, boolean, or null — a real number,
+// a number too large for a signed 64-bit integer, or plain text — is kept
+// exactly as written.
+func resolvePlainScalar(v string) string {
+	switch {
+	case strings.HasPrefix(v, "0x"):
+		if i, err := strconv.ParseInt(v[2:], 16, 64); err == nil {
+			return strconv.FormatInt(i, 10)
+		}
+	case strings.HasPrefix(v, "0o"):
+		if i, err := strconv.ParseInt(v[2:], 8, 64); err == nil {
+			return strconv.FormatInt(i, 10)
+		}
+	case strings.HasPrefix(v, "+"):
+		if i, err := strconv.ParseInt(v[1:], 10, 64); err == nil {
+			return strconv.FormatInt(i, 10)
+		}
+	}
+	switch v {
+	case "", "~", "null":
+		return ""
+	case "true", "True", "TRUE":
+		return "true"
+	case "false", "False", "FALSE":
+		return "false"
+	}
+	if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+		return strconv.FormatInt(i, 10)
+	}
+	return v
 }
