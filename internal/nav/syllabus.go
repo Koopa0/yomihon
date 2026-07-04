@@ -95,7 +95,7 @@ func parseSections(body string, idx Resolver, statusByPath map[string]string) []
 	var roots []*sectionNode
 	var stack []*sectionNode
 
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		if text, level, ok := parseHeading(line); ok {
 			node := &sectionNode{heading: headingLabel(text), level: level}
 			for len(stack) > 0 && stack[len(stack)-1].level >= level {
@@ -226,16 +226,15 @@ func isTaskMarker(s string) bool {
 
 // firstWikilink returns the inner text of the first "[[...]]" in s.
 func firstWikilink(s string) (inner string, ok bool) {
-	i := strings.Index(s, "[[")
-	if i < 0 {
+	_, rest, found := strings.Cut(s, "[[")
+	if !found {
 		return "", false
 	}
-	rest := s[i+2:]
-	j := strings.Index(rest, "]]")
-	if j < 0 {
+	inner, _, found = strings.Cut(rest, "]]")
+	if !found {
 		return "", false
 	}
-	return rest[:j], true
+	return inner, true
 }
 
 // makeLesson resolves a wikilink's inner text into a Lesson. It reuses

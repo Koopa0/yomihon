@@ -46,7 +46,7 @@ func isFilterKey(key string) bool {
 // (nil slices), which the match layer treats as "return nothing".
 func Parse(q string) Query {
 	var out Query
-	for _, raw := range strings.Fields(q) {
+	for raw := range strings.FieldsSeq(q) {
 		if key, value, ok := splitFilter(raw); ok {
 			out.Filters = append(out.Filters, Filter{Key: key, Value: value})
 			continue
@@ -62,15 +62,14 @@ func Parse(q string) Query {
 // (R4). A non-filter token returns ok=false so the caller folds it as a bare
 // token.
 func splitFilter(raw string) (key, value string, ok bool) {
-	i := strings.IndexByte(raw, ':')
-	if i < 0 {
+	key, rest, found := strings.Cut(raw, ":")
+	if !found {
 		return "", "", false
 	}
-	key = raw[:i]
 	if !isFilterKey(key) {
 		return "", "", false
 	}
-	value = graph.NormalizeNFC(raw[i+1:])
+	value = graph.NormalizeNFC(rest)
 	if key == "folder" {
 		value = strings.TrimSuffix(value, "/")
 	}

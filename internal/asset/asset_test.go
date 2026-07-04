@@ -116,11 +116,11 @@ func indexOfImportChunk(src []byte) string {
 		return ""
 	}
 	rest := src[i+2:] // drop "./"
-	end := bytes.IndexByte(rest, '"')
-	if end < 0 {
+	before, _, found := bytes.Cut(rest, []byte{'"'})
+	if !found {
 		return ""
 	}
-	return string(rest[:end])
+	return string(before)
 }
 
 // TestUnknownAssetsAre404 is the single most important test in this

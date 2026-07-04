@@ -32,9 +32,9 @@ func SplitWikilink(inner string) (target, display string, ok bool) {
 	trimmed := strings.TrimSpace(inner)
 	beforePipe := inner
 	display = trimmed
-	if i := strings.IndexByte(inner, '|'); i >= 0 {
-		beforePipe = strings.TrimRight(inner[:i], `\`)
-		display = strings.TrimSpace(inner[i+1:])
+	if before, after, found := strings.Cut(inner, "|"); found {
+		beforePipe = strings.TrimRight(before, `\`)
+		display = strings.TrimSpace(after)
 	}
 	beforeHeading, _, _ := strings.Cut(beforePipe, "#")
 	beforeBlock, _, _ := strings.Cut(beforeHeading, "^")
