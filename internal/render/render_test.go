@@ -64,6 +64,31 @@ func TestHTMLExistingDialectRegressions(t *testing.T) {
 	}
 }
 
+// TestHeadingSlugsSkipNestedRawHeading pins the graceful-skip: a heading with a
+// raw inline <hN> in it (an authoring accident goldmark+WithUnsafe passes
+// through verbatim) is left byte-identical — no id assigned, absent from the
+// TOC — instead of being truncated by the <h1-6> pass's non-greedy match
+// stopping at the inner </hN>. Mirrors the TTS nested-<p> guard.
+func TestHeadingSlugsSkipNestedRawHeading(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, t.TempDir(), nil, nil)
+
+	got := r.HTML("## foo <h3>bar</h3> baz\n")
+
+	// Without the guard the match stops at the inner </h3>, re-emitting
+	// `<h2 id="foo-bar">foo <h3>bar</h2> baz</h2>` — a corrupted, unbalanced
+	// heading carrying an id and a TOC entry. The guard leaves it untouched.
+	if strings.Contains(got.HTML, "id=") {
+		t.Errorf("a heading with a nested raw <hN> must not get an id:\n%s", got.HTML)
+	}
+	if !strings.Contains(got.HTML, "<h3>bar</h3>") {
+		t.Errorf("the nested <h3> must survive intact (not truncated to <h3>bar</h2>):\n%s", got.HTML)
+	}
+	if len(got.TOC) != 0 {
+		t.Errorf("a skipped heading must not appear in the TOC; got %d entries: %#v", len(got.TOC), got.TOC)
+	}
+}
+
 func TestWikilinkUnique(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, t.TempDir(), []graph.NoteInput{{Path: "Target.md"}}, nil)
