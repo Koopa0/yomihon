@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/note"
 	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/kurodo/internal/report"
 	"github.com/koopa0/kurodo/internal/schema"
 	"github.com/koopa0/kurodo/internal/search"
 	"github.com/koopa0/kurodo/internal/snapshot"
@@ -151,6 +152,7 @@ func run(log *slog.Logger) error {
 	status.NewHandler(statusSvc, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.NewHandler(syllabus.Deps{Nav: navProvider, Log: log}).Register(mux)
+	report.NewHandler(report.Deps{Root: cfg.root, Nav: navProvider, Log: log}).Register(mux)
 	asset.Register(mux)
 
 	// Browser-only hardening, deepening wall 2: a same-origin form POST
