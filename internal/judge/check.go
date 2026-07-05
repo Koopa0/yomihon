@@ -103,11 +103,10 @@ func touchesOutsideSystem(f *Finding) bool {
 	})
 }
 
-// dropDiaryScoped removes every finding that touches the private daily journal:
-// a finding is dropped when its citing path or any collision member begins with
-// Diary/. The journal is still scanned so its links resolve for other notes,
-// but its contents never surface in a finding a reader would see, and the drop
-// holds even when the full, unfiltered set is requested.
+// dropDiaryScoped removes every finding whose resolution touches the private
+// daily journal. The journal is still scanned so its links resolve for other
+// notes, but its path never surfaces in a finding a reader would see, and the
+// drop holds even when the full, unfiltered set is requested.
 func dropDiaryScoped(findings []Finding) []Finding {
 	out := findings[:0]
 	for i := range findings {
@@ -118,12 +117,23 @@ func dropDiaryScoped(findings []Finding) []Finding {
 	return out
 }
 
-// touchesDiary reports whether a finding touches the private daily journal —
-// its citing path or any collision member beginning with Diary/.
+// underDiary reports whether a vault-relative path lies within the private
+// daily journal.
+func underDiary(p string) bool {
+	return strings.HasPrefix(p, "Diary/")
+}
+
+// touchesDiary reports whether a finding's resolution touches the private daily
+// journal: the note it cites, a collision member, or the note a link resolved
+// to. A public note whose link resolves into the journal must not surface the
+// journal's path, so the resolved target counts as well. The link's own target
+// text is the citing author's words and is deliberately not counted — a public
+// note whose link merely reads like a journal name is not a journal reference.
 func touchesDiary(f *Finding) bool {
-	return anyTouchedPath(f, func(p string) bool {
-		return strings.HasPrefix(p, "Diary/")
-	})
+	if anyTouchedPath(f, underDiary) {
+		return true
+	}
+	return f.ResolvedTo != nil && underDiary(*f.ResolvedTo)
 }
 
 // filterByPaths keeps only findings that touch one of the given path prefixes.

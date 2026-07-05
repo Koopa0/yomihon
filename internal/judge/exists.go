@@ -43,27 +43,13 @@ func existsLookup(notes []note, query string) existsReport {
 	matches := []existsMatch{}
 	for i := range notes {
 		n := &notes[i]
-		stem := filenameStem(n.path)
-		if normalizeKey(stem) == key {
-			matches = append(matches, existsMatch{Path: n.path, Field: "filename", Value: stem})
+		if underDiary(n.path) {
+			// The private daily journal never surfaces through the existence
+			// oracle: a dedup query must not learn a journal note's name, path,
+			// or alias.
+			continue
 		}
-		// A full filename also matches, so a caller that built a candidate
-		// filename (with its extension) never gets a false "not found".
-		full := filename(n.path)
-		if full != stem && normalizeKey(full) == key {
-			matches = append(matches, existsMatch{Path: n.path, Field: "filename", Value: full})
-		}
-		if n.title != "" && normalizeKey(n.title) == key {
-			matches = append(matches, existsMatch{Path: n.path, Field: "title", Value: n.title})
-		}
-		for _, alias := range n.aliases {
-			if normalizeKey(alias) == key {
-				matches = append(matches, existsMatch{Path: n.path, Field: "alias", Value: alias})
-			}
-		}
-		if n.titleEn != "" && normalizeKey(n.titleEn) == key {
-			matches = append(matches, existsMatch{Path: n.path, Field: "title_en", Value: n.titleEn})
-		}
+		matches = append(matches, noteMatches(n, key)...)
 	}
 	slices.SortStableFunc(matches, func(a, b existsMatch) int {
 		if c := strings.Compare(a.Path, b.Path); c != 0 {
@@ -72,6 +58,34 @@ func existsLookup(notes []note, query string) existsReport {
 		return strings.Compare(a.Field, b.Field)
 	})
 	return existsReport{Query: query, Matches: matches}
+}
+
+// noteMatches returns every field of n that exposes the normalized key: its
+// filename stem, full filename, title, each alias, and English title.
+func noteMatches(n *note, key string) []existsMatch {
+	var matches []existsMatch
+	stem := filenameStem(n.path)
+	if normalizeKey(stem) == key {
+		matches = append(matches, existsMatch{Path: n.path, Field: "filename", Value: stem})
+	}
+	// A full filename also matches, so a caller that built a candidate filename
+	// (with its extension) never gets a false "not found".
+	full := filename(n.path)
+	if full != stem && normalizeKey(full) == key {
+		matches = append(matches, existsMatch{Path: n.path, Field: "filename", Value: full})
+	}
+	if n.title != "" && normalizeKey(n.title) == key {
+		matches = append(matches, existsMatch{Path: n.path, Field: "title", Value: n.title})
+	}
+	for _, alias := range n.aliases {
+		if normalizeKey(alias) == key {
+			matches = append(matches, existsMatch{Path: n.path, Field: "alias", Value: alias})
+		}
+	}
+	if n.titleEn != "" && normalizeKey(n.titleEn) == key {
+		matches = append(matches, existsMatch{Path: n.path, Field: "title_en", Value: n.titleEn})
+	}
+	return matches
 }
 
 // filename is the last path segment of a vault-relative, forward-slash path.

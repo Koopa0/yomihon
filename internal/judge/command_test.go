@@ -84,6 +84,40 @@ func TestRunExistsGolden(t *testing.T) {
 	}
 }
 
+// TestExistsSkipsDiary pins that the existence oracle never surfaces a note in
+// the private daily journal. An agent's dedup query must not learn a journal
+// note's name, path, or alias, so a query that would match only a journal note
+// returns no match, while a public note still matches — the skip is scoped, not
+// a blanket empty.
+func TestExistsSkipsDiary(t *testing.T) {
+	t.Parallel()
+	notes, err := collectNotes("testdata/vault-diary")
+	if err != nil {
+		t.Fatalf("collectNotes: %v", err)
+	}
+	if r := existsLookup(notes, "Private Session Note"); r.found() {
+		t.Errorf("exists(%q) = %d match(es), want 0 — a journal note's title must not surface", "Private Session Note", len(r.Matches))
+	}
+	if r := existsLookup(notes, "keep"); !r.found() {
+		t.Errorf("exists(%q) found nothing, want the public note matched by filename", "keep")
+	}
+}
+
+// TestCoverageExcludesDiary pins that the coverage report names no note in the
+// private daily journal. Coverage is scoped to the concept corpus and the
+// routable types, so a journal entry falls out by construction; this asserts
+// that holds and expects no code change to keep it.
+func TestCoverageExcludesDiary(t *testing.T) {
+	t.Parallel()
+	got, _, err := RunCoverage(&CoverageOptions{Root: "testdata/vault-diary", Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunCoverage: %v", err)
+	}
+	if bytes.Contains(got, []byte("Diary")) {
+		t.Errorf("coverage output names the private daily journal:\n%s", got)
+	}
+}
+
 // TestCronPayloads pins the four bytes the pipelines depend on: the exit code
 // under --deny error, the two literals the log grinder greps for in the JSONL,
 // the markdown report body, and the human summary's first line. The report
