@@ -7,8 +7,6 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
-
-	"github.com/koopa0/kurodo/internal/graph"
 )
 
 // The diagnostics extract [[wikilinks]] and file references from a note body
@@ -112,13 +110,13 @@ func extractPathRefs(body string, bodyStartLine int) []pathRef {
 		switch node := n.(type) {
 		case *ast.Link:
 			if target, ok := fileLink(string(node.Destination)); ok {
-				if off, ok := nodeStartOffset(node); ok {
+				if off, ok := inlineOffset(node); ok {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
 				}
 			}
 		case *ast.CodeSpan:
 			if target, ok := backtickPath(codeSpanText(node, src)); ok {
-				if off, ok := nodeStartOffset(node); ok {
+				if off, ok := inlineOffset(node); ok {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: true})
 				}
 			}
@@ -288,12 +286,19 @@ func rawWikilinks(body string) []rawLink {
 }
 
 // stripTarget reduces a wikilink's inner text to its resolution target,
-// discarding a |display, #heading, or ^block suffix. ok is false for a bare
-// same-file anchor that leaves no target. It shares the linker's splitter so a
-// body link and a frontmatter reference strip identically.
+// discarding a |display, #heading, or ^block suffix. It takes the text before
+// the first pipe, strips a trailing backslash — a table cell escapes the
+// display pipe as \| and the backslash is not part of the name — then drops the
+// heading and block fragments and trims. ok is false for a bare same-file anchor
+// that leaves no target. The same stripping runs on a frontmatter provenance
+// reference, so a body link and a provenance value resolve identically.
 func stripTarget(inner string) (string, bool) {
-	target, _, ok := graph.SplitWikilink(inner)
-	return target, ok
+	beforePipe, _, _ := strings.Cut(inner, "|")
+	beforePipe = strings.TrimRight(beforePipe, `\`)
+	beforeHeading, _, _ := strings.Cut(beforePipe, "#")
+	beforeBlock, _, _ := strings.Cut(beforeHeading, "^")
+	target := strings.TrimSpace(beforeBlock)
+	return target, target != ""
 }
 
 // inGapSection reports whether offset falls in a section opened by a gap heading
@@ -361,23 +366,26 @@ func headingIsGap(n *ast.Heading, src []byte) bool {
 	return false
 }
 
-// headingText is a heading's source text, from its line segments when present
-// and its inline text children otherwise.
+// headingText is a heading's plain text — the text of its inline content with
+// the markup removed. The contents of an inline code span are excluded, because
+// a gap mark inside code is quoted rather than written, and the source text a
+// heading marks itself as a gap only by its prose.
 func headingText(n *ast.Heading, src []byte) string {
-	if ls := n.Lines(); ls != nil && ls.Len() > 0 {
-		var b strings.Builder
-		for i := range ls.Len() {
-			s := ls.At(i)
-			b.Write(src[s.Start:s.Stop])
-		}
-		return b.String()
-	}
 	var b strings.Builder
-	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-		if t, ok := c.(*ast.Text); ok {
-			b.Write(src[t.Segment.Start:t.Segment.Stop])
+	var walk func(ast.Node)
+	walk = func(node ast.Node) {
+		for c := node.FirstChild(); c != nil; c = c.NextSibling() {
+			switch t := c.(type) {
+			case *ast.Text:
+				b.Write(src[t.Segment.Start:t.Segment.Stop])
+			case *ast.CodeSpan:
+				// A code span's content is quoted, not heading prose.
+			default:
+				walk(c)
+			}
 		}
 	}
+	walk(n)
 	return b.String()
 }
 
@@ -414,19 +422,49 @@ func inlineRange(n ast.Node) (byteRange, bool) {
 	return byteRange{start, stop}, true
 }
 
-// nodeStartOffset is the earliest source offset an inline or block node covers:
-// its first text child's start, or a block's first line start.
-func nodeStartOffset(n ast.Node) (int, bool) {
+// inlineOffset is a source offset on the line an inline node sits on, for
+// numbering a file reference. It prefers the node's own text, which pins the
+// exact line; an empty-text link (like a markdown link with no label) carries
+// no text, so it falls back to a sibling on the same line, then to the line the
+// enclosing block starts on. It never asks an inline node for its line segments,
+// which only block nodes carry.
+func inlineOffset(n ast.Node) (int, bool) {
+	if off, ok := textDescendantStart(n); ok {
+		return off, true
+	}
+	// An empty-text node lands between its siblings on the same line: the next
+	// sibling's text follows it on that line, and when the node ends the line a
+	// preceding sibling's text shares it.
+	if next := n.NextSibling(); next != nil {
+		if off, ok := textDescendantStart(next); ok {
+			return off, true
+		}
+	}
+	if prev := n.PreviousSibling(); prev != nil {
+		if off, ok := textDescendantStart(prev); ok {
+			return off, true
+		}
+	}
+	// A node alone in its block has no sibling text: the block's first line
+	// holds it.
+	for a := n.Parent(); a != nil; a = a.Parent() {
+		if r, ok := linesRange(a); ok {
+			return r.start, true
+		}
+	}
+	return 0, false
+}
+
+// textDescendantStart is the source start of a node's first text descendant in
+// document order, or false when it has none.
+func textDescendantStart(n ast.Node) (int, bool) {
 	if t, ok := n.(*ast.Text); ok {
 		return t.Segment.Start, true
 	}
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-		if off, ok := nodeStartOffset(c); ok {
+		if off, ok := textDescendantStart(c); ok {
 			return off, true
 		}
-	}
-	if r, ok := linesRange(n); ok {
-		return r.start, true
 	}
 	return 0, false
 }

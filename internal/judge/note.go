@@ -202,8 +202,10 @@ func listField(m *yaml.Node, key string) []string {
 
 // asString reports a scalar's text when it reads as a genuine string, and false
 // otherwise. A quoted or block scalar is always a string; an explicitly tagged
-// scalar is a string only under the string tag; an unquoted scalar is a string
-// unless the core schema resolves it to a number, boolean, or null.
+// scalar is a string unless its tag is one of the non-string core tags
+// (boolean, integer, float, null), which is how a mapping key is read too; an
+// unquoted scalar is a string unless the core schema resolves it to a number,
+// boolean, or null.
 func asString(n *yaml.Node) (string, bool) {
 	n = resolveAlias(n)
 	if n.Kind != yaml.ScalarNode {
@@ -213,10 +215,12 @@ func asString(n *yaml.Node) (string, bool) {
 		return n.Value, true
 	}
 	if n.Style&yaml.TaggedStyle != 0 {
-		if n.Tag == "!!str" {
+		switch n.Tag {
+		case "!!bool", "!!int", "!!float", "!!null":
+			return "", false
+		default:
 			return n.Value, true
 		}
-		return "", false
 	}
 	if plainIsString(n.Value) {
 		return n.Value, true
@@ -451,15 +455,29 @@ func resolveTaggedScalar(tag, v string) string {
 }
 
 // isCoreFloat reports whether v is a real number under the YAML core schema:
-// one of the infinity or not-a-number spellings, or a token that carries a
-// digit and parses as a float.
+// one of the infinity or not-a-number spellings, or a decimal real. The core
+// schema's real is decimal only — digits, a point, an e-exponent, and a sign —
+// so a token carrying any other character is text, even though Go's float
+// parser would accept its own extensions such as digit-separating underscores
+// (1_000) and hexadecimal floats (0x1p4).
 func isCoreFloat(v string) bool {
 	switch v {
 	case ".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF",
 		"-.inf", "-.Inf", "-.INF", ".nan", ".NaN", ".NAN":
 		return true
 	}
-	if !strings.ContainsFunc(v, func(r rune) bool { return r >= '0' && r <= '9' }) {
+	hasDigit := false
+	for _, r := range v {
+		switch {
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		case r == '.' || r == 'e' || r == 'E' || r == '+' || r == '-':
+			// A decimal-real character.
+		default:
+			return false
+		}
+	}
+	if !hasDigit {
 		return false
 	}
 	_, err := strconv.ParseFloat(v, 64)
