@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/koopa0/kurodo/internal/graph"
@@ -22,6 +23,16 @@ import (
 // missing schema contract skips the frontmatter checks; a malformed one is an
 // error.
 func Check(root string) ([]Finding, error) {
+	return check(root, nil, false)
+}
+
+// check is the whole-engine scan behind the check command. The graph is always
+// built from the entire vault; paths and all only decide which findings are
+// kept. Without all, findings that touch only System/ are dropped, since those
+// files cite reference material rather than carry live links. When paths are
+// given, a finding is kept only if one of the paths it touches lies at or below
+// one of them. The findings are returned in the deterministic wire order.
+func check(root string, paths []string, all bool) ([]Finding, error) {
 	notes, resources, err := collectVault(root)
 	if err != nil {
 		return nil, err
@@ -43,7 +54,12 @@ func Check(root string) ([]Finding, error) {
 		return nil, fmt.Errorf("load contract: %w", serr)
 	}
 
-	findings = dropSystemScoped(findings)
+	if !all {
+		findings = dropSystemScoped(findings)
+	}
+	if len(paths) > 0 {
+		findings = filterByPaths(findings, paths)
+	}
 	sortFindings(findings)
 	return findings, nil
 }
@@ -74,15 +90,47 @@ func dropSystemScoped(findings []Finding) []Finding {
 // touchesOutsideSystem reports whether a finding touches any path outside
 // System/, counting its citing path and every collision member.
 func touchesOutsideSystem(f *Finding) bool {
-	if !strings.HasPrefix(f.Path, "System/") {
-		return true
+	return anyTouchedPath(f, func(p string) bool {
+		return !strings.HasPrefix(p, "System/")
+	})
+}
+
+// filterByPaths keeps only findings that touch one of the given path prefixes.
+// A finding is kept when its citing path or any collision member equals a
+// prefix or lies beneath it. Each prefix is normalized to forward slashes with
+// trailing slashes trimmed, matching how a path argument is given on the
+// command line.
+func filterByPaths(findings []Finding, paths []string) []Finding {
+	prefixes := make([]string, len(paths))
+	for i, p := range paths {
+		prefixes[i] = strings.TrimRight(strings.ReplaceAll(p, `\`, "/"), "/")
 	}
-	for _, m := range f.CollisionMembers {
-		if !strings.HasPrefix(m, "System/") {
+	out := findings[:0]
+	for i := range findings {
+		if anyTouchedPath(&findings[i], func(p string) bool { return underAnyPrefix(p, prefixes) }) {
+			out = append(out, findings[i])
+		}
+	}
+	return out
+}
+
+// underAnyPrefix reports whether p equals one of the prefixes or lies directly
+// beneath it (the character after the prefix is a slash), so a prefix of
+// "Concepts/go" matches "Concepts/go" and "Concepts/go/x.md" but not
+// "Concepts/golang".
+func underAnyPrefix(p string, prefixes []string) bool {
+	for _, w := range prefixes {
+		if p == w || (strings.HasPrefix(p, w) && p[len(w)] == '/') {
 			return true
 		}
 	}
 	return false
+}
+
+// anyTouchedPath reports whether pred holds for any path the finding touches:
+// its citing path or any collision member.
+func anyTouchedPath(f *Finding, pred func(string) bool) bool {
+	return pred(f.Path) || slices.ContainsFunc(f.CollisionMembers, pred)
 }
 
 // collectVault walks the vault once, parsing every markdown file into a note

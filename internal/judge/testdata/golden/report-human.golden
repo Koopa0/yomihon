@@ -1,0 +1,20 @@
+11 findings: 3 error, 6 warn, 2 hidden (1 planned forward-refs, 1 external paths)
+
+debt by domain:
+  golang               3 error · 5 warn
+  japanese             0 error · 1 warn
+
+most leveraged (create one, resolve many):
+  ×2 [[Bar]] (broken) — golang, japanese
+  ×2 [[Foo]] (broken) — golang
+
+▌ golang
+  [error] ×2 frontmatter "aliases" is not a known field  (Concepts/golang/Map.md)
+  [error] status "bogus" is not a valid status  (Concepts/golang/Bad.md)
+  [warn] ×2 [[Foo]] resolves to no note  (Concepts/golang/Map.md)
+  [warn] ×2 alias "shared" is declared by 2 notes, so [[shared]] cannot resolve deterministically  (Concepts/golang/Map.md)
+  [warn] [[Bar]] resolves to no note  (Concepts/golang/Slice.md)
+  [warn] based_on -> [[Missing]] resolves to nothing  (Concepts/golang/Map.md)
+
+▌ japanese
+  [warn] [[Bar]] resolves to no note  (Concepts/japanese/Kana.md)

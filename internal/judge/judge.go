@@ -43,20 +43,27 @@ const (
 	SeverityError
 )
 
-// MarshalText returns the wire name of the severity: "info", "warn", or
-// "error". A value outside the three constants is a programming error,
-// so it panics rather than emitting bytes consumers cannot parse.
-func (s Severity) MarshalText() ([]byte, error) {
+// name returns the wire name of the severity: "info", "warn", or "error". It
+// is the single source for that spelling, shared by the JSONL encoder and the
+// human and markdown reports. A value outside the three constants is a
+// programming error, so it panics rather than yielding bytes consumers cannot
+// parse.
+func (s Severity) name() string {
 	switch s {
 	case SeverityInfo:
-		return []byte("info"), nil
+		return "info"
 	case SeverityWarn:
-		return []byte("warn"), nil
+		return "warn"
 	case SeverityError:
-		return []byte("error"), nil
+		return "error"
 	default:
 		panic("judge: unknown Severity: " + strconv.Itoa(int(s)))
 	}
+}
+
+// MarshalText returns the wire name of the severity for the JSONL encoder.
+func (s Severity) MarshalText() ([]byte, error) {
+	return []byte(s.name()), nil
 }
 
 // Finding is one diagnostic, serialized as one JSONL line. The struct
