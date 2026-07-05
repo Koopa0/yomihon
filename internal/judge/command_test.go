@@ -104,9 +104,9 @@ func TestExistsSkipsDiary(t *testing.T) {
 }
 
 // TestCoverageExcludesDiary pins that the coverage report names no note in the
-// private daily journal. Coverage is scoped to the concept corpus and the
-// routable types, so a journal entry falls out by construction; this asserts
-// that holds and expects no code change to keep it.
+// private daily journal, even a journal note mistyped as a concept. The fixture
+// includes such a note; coverage drops every path under Diary/, so it never
+// reaches the report, and this asserts that unconditional exclusion holds.
 func TestCoverageExcludesDiary(t *testing.T) {
 	t.Parallel()
 	got, _, err := RunCoverage(&CoverageOptions{Root: "testdata/vault-diary", Format: FormatJSON})

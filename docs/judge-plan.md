@@ -303,5 +303,6 @@ on this list that diffs is a bug.
    of — and the reference matches journal notes like any other). The real
    vault's fixed exists queries name no journal note, so the sandwich holds; a
    dedicated test pins the drop and that a public note still matches. Coverage
-   is scoped to the concept corpus and routable types, so a journal entry falls
-   out by construction; a test pins that too.
+   also drops every concept or routable note under Diary/, so a journal note
+   mistyped as a concept never reaches that report either; a fixture with such a
+   note and a test pin it.
