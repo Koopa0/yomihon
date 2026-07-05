@@ -104,6 +104,12 @@ func linkHealth(notes []note, idx *graph.Index, titles map[string][]string, plan
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
+				if slices.ContainsFunc(targetNotes, underDiary) {
+					// A link resolving to a journal note's title would surface
+					// that note's path in the finding's evidence; the journal is
+					// excluded from every report, so drop it at the source.
+					continue
+				}
 				out = append(out, titleNotAlias(n, link, targetNotes))
 			} else {
 				out = append(out, brokenLink(n, link, planned))

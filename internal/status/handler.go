@@ -14,6 +14,11 @@ import (
 // need more than this.
 const maxFormBytes = 4096
 
+// sealStatus is the one status that wears the seal — the same value the reading
+// UI styles as primary. It names that single distinguished value in one place;
+// which transitions are legal still comes from the contract, not this constant.
+const sealStatus = "ready"
+
 // Handler serves the write face's single HTTP endpoint.
 type Handler struct {
 	svc *Service
@@ -58,11 +63,9 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		// On the seal (→ ready) carry a one-shot ?sealed=1 so the reading page
 		// plays the settle animation once and then strips it; every other
-		// transition redirects plainly. The literal "ready" is the one status
-		// that wears the seal (the same one the reading UI styles as primary),
-		// not a copy of the toml state machine — legality still came from schema.
+		// transition redirects plainly.
 		target := "/notes/" + path
-		if to == "ready" {
+		if to == sealStatus {
 			target += "?sealed=1"
 		}
 		// #nosec G710 -- Flip already succeeded, meaning path passed

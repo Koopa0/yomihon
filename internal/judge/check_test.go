@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -81,13 +82,96 @@ func TestCheckSkipsFileReferencesInComments(t *testing.T) {
 	}
 }
 
+// TestCheckDropsDiaryFindings pins the drop that keeps the private daily
+// journal out of check output, across every channel a journal path could reach
+// a report through. A finding is removed when a path it touches — its citing
+// path, a collision member, or the note a link resolved to — is under Diary/;
+// and a link that resolves to a journal note's title is dropped at its source,
+// so the journal's path never lands in the finding's evidence text. The journal
+// is still scanned (see TestCollectNotesScanBoundary), so its links resolve for
+// other notes; only the reporting is suppressed. The golden is written from
+// this engine, not the reference, because the drop is exactly where the two
+// differ. The fixture pairs a broken link inside the journal and a public note
+// whose title-link resolves into the journal (both dropped) with a broken link
+// outside it (kept), so a blanket drop would fail the kept-link assertion while
+// every "no Diary/" assertion also covers the evidence-text channel.
+func TestCheckDropsDiaryFindings(t *testing.T) {
+	t.Parallel()
+	got := runCheck(t, "testdata/vault-diary")
+	want, err := os.ReadFile("testdata/golden/diary.jsonl")
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("diary findings differ from golden\ngot:\n%s\nwant:\n%s", got, want)
+	}
+	// The intent, asserted directly so reverting the drop fails loudly: the
+	// journal entry's finding is gone, the note's is kept.
+	if bytes.Contains(got, []byte("Diary/")) {
+		t.Error("a finding touching the private daily journal must not be reported")
+	}
+	if !bytes.Contains(got, []byte("Notes/keep.md")) {
+		t.Error("a broken link outside the journal must still be reported")
+	}
+	// The drop holds even when the full, unfiltered set is requested, checked
+	// against the raw paths rather than the engine's own helper.
+	all, err := check("testdata/vault-diary", nil, true)
+	if err != nil {
+		t.Fatalf("check(--all): %v", err)
+	}
+	for i := range all {
+		if strings.HasPrefix(all[i].Path, "Diary/") {
+			t.Errorf("the full set still reported journal path %q (%s)", all[i].Path, all[i].RuleID)
+		}
+		for _, m := range all[i].CollisionMembers {
+			if strings.HasPrefix(m, "Diary/") {
+				t.Errorf("the full set still reported journal collision member %q (%s)", m, all[i].RuleID)
+			}
+		}
+		if all[i].ResolvedTo != nil && strings.HasPrefix(*all[i].ResolvedTo, "Diary/") {
+			t.Errorf("the full set still resolved a finding to journal path %q (%s)", *all[i].ResolvedTo, all[i].RuleID)
+		}
+	}
+}
+
+// TestTouchesDiary pins which fields make a finding count as touching the
+// private daily journal: the citing path, a collision member, and the note a
+// link resolved to all count, but the link's own target text does not — it is
+// the citing author's words, so a public note whose link merely reads like a
+// journal name is not a journal reference.
+func TestTouchesDiary(t *testing.T) {
+	t.Parallel()
+	diary := "Diary/2026-07-01.md"
+	public := "Notes/other.md"
+	tests := []struct {
+		name string
+		f    Finding
+		want bool
+	}{
+		{name: "citing path in journal", f: Finding{Path: diary}, want: true},
+		{name: "collision member in journal", f: Finding{Path: public, CollisionMembers: []string{public, diary}}, want: true},
+		{name: "resolved into journal", f: Finding{Path: public, ResolvedTo: &diary}, want: true},
+		{name: "target text is not counted", f: Finding{Path: public, Target: &diary}, want: false},
+		{name: "wholly public", f: Finding{Path: public, ResolvedTo: &public}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := touchesDiary(&tt.f); got != tt.want {
+				t.Errorf("touchesDiary(path=%q) = %v, want %v", tt.f.Path, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestCheckMatchesReferenceOnRealVault runs the reference tool and this engine
 // over the same live vault and asserts the whole check output is byte-identical
 // — every rule, not just the frontmatter subset. It is skipped when the
 // reference tool or the vault is absent, so it never blocks a build elsewhere.
-// One rule departs from the reference (see TestCheckSkipsFileReferencesInComments);
-// the real vault holds no input that triggers it, so the whole-vault bytes stay
-// identical.
+// Two behaviors depart from the reference (see TestCheckSkipsFileReferencesInComments
+// and TestCheckDropsDiaryFindings); the real vault holds no input that triggers
+// either — no file reference inside a comment, no finding touching the private
+// daily journal — so the whole-vault bytes stay identical.
 func TestCheckMatchesReferenceOnRealVault(t *testing.T) {
 	t.Parallel()
 	tool := referenceTool()

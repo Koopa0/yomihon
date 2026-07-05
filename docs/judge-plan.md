@@ -282,3 +282,27 @@ on this list that diffs is a bug.
    Unreachable from the four pipelines (their invocations are fixed strings);
    guard: the property only manifests on a malformed call nothing makes, and
    the dedicated flag tests pin it.
+8. **Findings whose resolution touches the private daily journal are dropped
+   from check output** (deliberate, Koopa 2026-07-05; a finding is dropped when
+   a path it touches — its citing path, a collision member, or the note a link
+   resolved to — begins with Diary/, unconditionally, the full unfiltered set
+   included; and a link resolving to a journal note's title is dropped at its
+   source, so the journal path never reaches the finding's evidence text. The
+   link's own target text is the citing author's words and is deliberately not
+   counted. The reference reports a journal note's findings like any other's;
+   this fail-closed drop is the divergence). The journal is still scanned, so
+   its links resolve for other notes. Fixture + dedicated test pin the intent
+   (the drop holds under the full set and across the citing, collision,
+   resolved-to, and title-owner channels; a broken link outside the journal is
+   still reported); the real vault currently emits no journal-touching finding,
+   so the sandwich also holds.
+9. **The existence oracle never reports a note in the private daily journal**
+   (deliberate, Koopa 2026-07-05; exists drops every match whose path is under
+   Diary/, so a dedup query cannot learn a journal note's name, path, or alias.
+   The oracle is a read by an agent — an egress path the journal must stay out
+   of — and the reference matches journal notes like any other). The real
+   vault's fixed exists queries name no journal note, so the sandwich holds; a
+   dedicated test pins the drop and that a public note still matches. Coverage
+   also drops every concept or routable note under Diary/, so a journal note
+   mistyped as a concept never reaches that report either; a fixture with such a
+   note and a test pin it.

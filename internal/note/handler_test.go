@@ -110,6 +110,63 @@ func get(t *testing.T, url string) (code int, body string) {
 	return resp.StatusCode, string(b)
 }
 
+// TestReadingPageRejectsPathTraversal fires traversal-shaped requests at the
+// reading route and asserts none escapes the vault root: no request is served
+// (never 200) and no byte of a file outside the vault ever reaches the body.
+// The defense is layered — the mux cleans dot segments, the handler serves only
+// .md, and vault.ReadNote rejects any non-local path — so this pins the
+// observable contract rather than one layer; a regression in any of them that
+// let an escape through would surface here as a 200 or a leaked sentinel.
+func TestReadingPageRejectsPathTraversal(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	root := filepath.Join(parent, "vault")
+	if err := os.MkdirAll(filepath.Join(root, "Notes"), 0o750); err != nil {
+		t.Fatalf("mkdir vault: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Notes", "real.md"), []byte("a real note body\n"), 0o644); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	// A decoy one level above the vault root, reachable by traversal only if a
+	// layer fails. Its sentinel must never appear in any response body.
+	const sentinel = "kurodo-outside-vault-sentinel-never-serve-this"
+	if err := os.WriteFile(filepath.Join(parent, "secret.md"), []byte(sentinel+"\n"), 0o644); err != nil {
+		t.Fatalf("write decoy: %v", err)
+	}
+	srv := newServer(t, root)
+
+	// Positive control: a genuine note is served, so a blanket 404 is not what
+	// makes the traversal cases pass.
+	if code, body := get(t, srv.URL+"/notes/Notes/real.md"); code != http.StatusOK || !strings.Contains(body, "a real note") {
+		t.Fatalf("GET a genuine note = %d, want 200 with the note body", code)
+	}
+
+	payloads := []struct {
+		name string
+		path string
+	}{
+		{name: "encoded dot-dot", path: "%2e%2e%2fsecret.md"},
+		{name: "encoded dot-dot twice", path: "%2e%2e%2f%2e%2e%2fsecret.md"},
+		{name: "mixed dot-dot", path: "..%2fsecret.md"},
+		{name: "raw dot-dot", path: "../secret.md"},
+		{name: "double-encoded dot-dot", path: "%252e%252e%2fsecret.md"},
+		{name: "slash-injected absolute", path: "%2fetc%2fhostname"},
+		{name: "nul byte", path: "real%00.md"},
+	}
+	for _, p := range payloads {
+		t.Run(p.name, func(t *testing.T) {
+			t.Parallel()
+			code, body := get(t, srv.URL+"/notes/"+p.path)
+			if code == http.StatusOK {
+				t.Errorf("GET /notes/%s = 200, want the request refused", p.path)
+			}
+			if strings.Contains(body, sentinel) {
+				t.Errorf("GET /notes/%s leaked a file from outside the vault root", p.path)
+			}
+		})
+	}
+}
+
 func TestShow(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

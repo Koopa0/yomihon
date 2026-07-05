@@ -2,8 +2,15 @@ package schema_test
 
 import (
 	"errors"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -20,6 +27,102 @@ func loadFixture(t *testing.T) *schema.Schema {
 		t.Fatalf("LoadFile(testdata/contract.toml) = %v", err)
 	}
 	return s
+}
+
+// TestStatusValuesAreNeverHardcodedOutsideSchema guards the single-source rule
+// for the status state machine. The legal status values are defined once, in
+// the vault contract that this package alone reads; no other package under
+// internal/ may pin one of those values as a string literal in its logic.
+// Naming the value as a const, at any scope, is allowed — that is a single
+// named reference, not a second copy of the value set — so only literals used
+// directly in expressions are flagged. The judge package is exempt: it
+// reproduces, byte for byte, a frozen external contract whose rule constants
+// happen to be status values, pinned by its golden files rather than derived
+// from this contract. The forbidden set is loaded from the fixture contract, so
+// the test behaves the same on every machine, with or without the real vault.
+// The set is the bare status words, so an unrelated literal equal to one — a
+// log line, a class name — would also trip this guard; that trade-off is
+// accepted, since restricting the match to literals compared against a
+// status-typed value is far harder to express and the words rarely collide.
+func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
+	t.Parallel()
+	s := loadFixture(t)
+	forbidden := map[string]bool{}
+	for _, group := range s.Enums.Status {
+		for _, value := range group {
+			forbidden[value] = true
+		}
+	}
+
+	const root = ".." // this test runs in internal/schema, so .. is internal/
+	fset := token.NewFileSet()
+	var violations []string
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			// schema owns the contract; judge reproduces a frozen external one
+			// whose rule constants happen to be status values.
+			if path == filepath.Join(root, "schema") || path == filepath.Join(root, "judge") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, perr := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.SkipObjectResolution)
+		if perr != nil {
+			return fmt.Errorf("parse %s: %w", path, perr)
+		}
+		if ast.IsGenerated(f) {
+			return nil
+		}
+		// A status value on the right of a const declaration names the value in
+		// one place; that is the allowed form, at any scope. A single pre-order
+		// walk records each const's literal positions before it reaches them as
+		// children, so a package-level or function-local const is exempt while
+		// every other literal is flagged.
+		named := map[token.Pos]bool{}
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.GenDecl:
+				if node.Tok != token.CONST {
+					return true
+				}
+				for _, spec := range node.Specs {
+					vs, ok := spec.(*ast.ValueSpec)
+					if !ok {
+						continue
+					}
+					for _, value := range vs.Values {
+						if lit, ok := value.(*ast.BasicLit); ok {
+							named[lit.ValuePos] = true
+						}
+					}
+				}
+			case *ast.BasicLit:
+				if node.Kind != token.STRING || named[node.ValuePos] {
+					return true
+				}
+				value, uerr := strconv.Unquote(node.Value)
+				if uerr != nil || !forbidden[value] {
+					return true
+				}
+				violations = append(violations, fmt.Sprintf("%s: %q", fset.Position(node.ValuePos), value))
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk internal/: %v", walkErr)
+	}
+	if len(violations) > 0 {
+		t.Errorf("a status value is defined only in the vault contract, but these string literals hardcode one outside internal/schema — name it as a const or move the decision behind this package:\n%s",
+			strings.Join(violations, "\n"))
+	}
 }
 
 func TestStatusGroup(t *testing.T) {

@@ -55,7 +55,8 @@ type Unrouted struct {
 // reverse edges to learn which concepts are reached and whether by a map, then
 // tallies each concept, then runs the all-type routing watchdog. The System/
 // tree holds templates and reference notes, not knowledge content, so it is out
-// of scope throughout.
+// of scope throughout; the private daily journal is excluded from every report,
+// so a journal note never appears here even when mistyped as a concept.
 func computeCoverage(notes []note, idx *graph.Index) Coverage {
 	mapped, referenced := mountEdges(notes, idx)
 
@@ -65,7 +66,7 @@ func computeCoverage(notes []note, idx *graph.Index) Coverage {
 	total := 0
 	for i := range notes {
 		n := &notes[i]
-		if n.noteType != "concept" || strings.HasPrefix(n.path, "System/") {
+		if n.noteType != "concept" || strings.HasPrefix(n.path, "System/") || underDiary(n.path) {
 			continue
 		}
 		total++
@@ -137,7 +138,7 @@ func unroutedNotes(notes []note, mapped map[string]bool) []Unrouted {
 	unrouted := []Unrouted{}
 	for i := range notes {
 		n := &notes[i]
-		if strings.HasPrefix(n.path, "System/") {
+		if strings.HasPrefix(n.path, "System/") || underDiary(n.path) {
 			continue
 		}
 		if route, ok := routeFor(n.noteType); ok && !mapped[n.path] {
