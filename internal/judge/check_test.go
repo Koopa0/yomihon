@@ -12,7 +12,9 @@ import (
 // graph rules, the disk-reference rule, and the frontmatter checks — over
 // fixture vaults and asserts the emitted bytes equal each golden. Each golden
 // is the reference tool's sorted output over that same fixture, so a byte
-// difference is a divergence from the frozen wire format.
+// difference is a divergence from the frozen wire format. The one deliberate
+// departure from the reference lives in its own test below, keeping every
+// golden here a faithful copy of the reference's bytes.
 func TestCheckGolden(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -46,10 +48,45 @@ func TestCheckGolden(t *testing.T) {
 	}
 }
 
+// TestCheckSkipsFileReferencesInComments pins the one place this engine
+// deliberately departs from the reference. The reference checks a wikilink
+// inside an Obsidian %%...%% comment as commented-out (it is not reported) but
+// still checks a markdown or backticked file reference in the same comment — an
+// inconsistency. Commented-out content is not a live reference, so this engine
+// skips file references in comments too, matching how it already treats
+// wikilinks. The golden is written by hand rather than copied from the
+// reference, because it is exactly the output that should differ; regenerating
+// it from the reference would reintroduce the finding this rule drops. The real
+// vault carries no file reference inside a comment, so the whole-vault
+// comparison stays byte-identical; this divergence surfaces only on the fixture.
+func TestCheckSkipsFileReferencesInComments(t *testing.T) {
+	t.Parallel()
+	got := runCheck(t, "testdata/vault-comment-scope")
+	want, err := os.ReadFile("testdata/golden/comment-scope.jsonl")
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("comment-scope findings differ from golden\ngot:\n%s\nwant:\n%s", got, want)
+	}
+	// The intent, asserted directly so a revert to the reference's behavior
+	// fails loudly: the reference in a comment is dropped, the one outside is
+	// kept.
+	if bytes.Contains(got, []byte("in-comment.md")) {
+		t.Error("a file reference inside a comment must not be reported")
+	}
+	if !bytes.Contains(got, []byte("out-of-comment.md")) {
+		t.Error("a file reference outside a comment must still be reported")
+	}
+}
+
 // TestCheckMatchesReferenceOnRealVault runs the reference tool and this engine
 // over the same live vault and asserts the whole check output is byte-identical
 // — every rule, not just the frontmatter subset. It is skipped when the
 // reference tool or the vault is absent, so it never blocks a build elsewhere.
+// One rule departs from the reference (see TestCheckSkipsFileReferencesInComments);
+// the real vault holds no input that triggers it, so the whole-vault bytes stay
+// identical.
 func TestCheckMatchesReferenceOnRealVault(t *testing.T) {
 	t.Parallel()
 	tool := referenceTool()

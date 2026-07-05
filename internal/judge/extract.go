@@ -101,22 +101,26 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 // extractPathRefs returns every checkable file reference in body: markdown
 // [text](path.md) links and backticked path.md tokens. URLs, anchors, and
 // percent-encoded or glob paths are left out, so only plain in-vault file
-// references remain.
+// references remain. A reference inside an Obsidian %%...%% comment is skipped,
+// the same way a commented-out wikilink is: commented-out content is not a live
+// reference, so it is not checked.
 func extractPathRefs(body string, bodyStartLine int) []pathRef {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
+	codeZones, _ := structure(body)
+	comments := commentZones(body, codeZones)
 	var refs []pathRef
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
 		case *ast.Link:
 			if target, ok := fileLink(string(node.Destination)); ok {
-				if off, ok := inlineOffset(node); ok {
+				if off, ok := inlineOffset(node); ok && !inAnyZone(comments, off) {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
 				}
 			}
 		case *ast.CodeSpan:
 			if target, ok := backtickPath(codeSpanText(node, src)); ok {
-				if off, ok := inlineOffset(node); ok {
+				if off, ok := inlineOffset(node); ok && !inAnyZone(comments, off) {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: true})
 				}
 			}
