@@ -371,3 +371,16 @@ func TestCheckPathFilter(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckPathFilterRejectsEmpty asserts a path filter that normalizes to
+// nothing — an empty argument, or one that is only slashes — is a tool error
+// rather than a silent scan of nothing, so a caller cannot mistake an empty
+// filter for a clean corpus.
+func TestCheckPathFilterRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	for _, p := range []string{"", "/", "///"} {
+		if _, err := check("testdata/vault-report", []string{p}, false); err == nil {
+			t.Errorf("check with path filter %q = nil error, want a tool error", p)
+		}
+	}
+}

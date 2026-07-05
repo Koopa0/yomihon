@@ -58,7 +58,11 @@ func check(root string, paths []string, all bool) ([]Finding, error) {
 		findings = dropSystemScoped(findings)
 	}
 	if len(paths) > 0 {
-		findings = filterByPaths(findings, paths)
+		filtered, ferr := filterByPaths(findings, paths)
+		if ferr != nil {
+			return nil, ferr
+		}
+		findings = filtered
 	}
 	sortFindings(findings)
 	return findings, nil
@@ -99,11 +103,16 @@ func touchesOutsideSystem(f *Finding) bool {
 // A finding is kept when its citing path or any collision member equals a
 // prefix or lies beneath it. Each prefix is normalized to forward slashes with
 // trailing slashes trimmed, matching how a path argument is given on the
-// command line.
-func filterByPaths(findings []Finding, paths []string) []Finding {
+// command line. A prefix that normalizes to nothing — an empty argument, or one
+// that is only slashes — is rejected rather than silently matching nothing,
+// so a caller cannot mistake an empty filter for a clean scan.
+func filterByPaths(findings []Finding, paths []string) ([]Finding, error) {
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
 		prefixes[i] = strings.TrimRight(strings.ReplaceAll(p, `\`, "/"), "/")
+		if prefixes[i] == "" {
+			return nil, fmt.Errorf("path filter %q resolves to no path; give a vault-relative path", p)
+		}
 	}
 	out := findings[:0]
 	for i := range findings {
@@ -111,7 +120,7 @@ func filterByPaths(findings []Finding, paths []string) []Finding {
 			out = append(out, findings[i])
 		}
 	}
-	return out
+	return out, nil
 }
 
 // underAnyPrefix reports whether p equals one of the prefixes or lies directly
