@@ -31,6 +31,7 @@ type note struct {
 	frontmatter    map[string]fmValue
 
 	title                string
+	titleEn              string
 	aliases              []string
 	noteType             string
 	domain               string
@@ -136,6 +137,7 @@ func readTypedFields(n *note, doc *yaml.Node) {
 		return
 	}
 	n.title = strField(root, "title")
+	n.titleEn = strField(root, "title_en")
 	n.aliases = listField(root, "aliases")
 	n.noteType = strField(root, "type")
 	n.domain = strField(root, "domain")

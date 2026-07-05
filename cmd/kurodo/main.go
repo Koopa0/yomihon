@@ -13,10 +13,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/koopa0/kurodo/internal/asset"
+	"github.com/koopa0/kurodo/internal/judge"
 	"github.com/koopa0/kurodo/internal/lesson"
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/note"
@@ -30,16 +32,175 @@ import (
 )
 
 func main() {
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-
-	if len(os.Args) < 2 || os.Args[1] != "serve" {
-		log.Error("usage: kurodo serve")
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "kurodo: usage: kurodo <serve|check|coverage|exists> [options]")
 		os.Exit(2)
 	}
-	if err := run(log); err != nil {
-		log.Error("kurodo exited", "error", err)
-		os.Exit(1)
+	switch os.Args[1] {
+	case "serve":
+		log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+		if err := run(log); err != nil {
+			log.Error("kurodo exited", "error", err)
+			os.Exit(1)
+		}
+	case "check", "coverage", "exists":
+		os.Exit(runJudge(os.Args[1], os.Args[2:]))
+	default:
+		fmt.Fprintf(os.Stderr, "kurodo: unknown command %q; use serve, check, coverage, or exists\n", os.Args[1])
+		os.Exit(2)
 	}
+}
+
+// judgeArgs holds the flags parsed off a check, coverage, or exists invocation:
+// the global root and format, check's own all/deny/baseline, and the positional
+// arguments (check's paths or exists's name).
+type judgeArgs struct {
+	root        string
+	format      *judge.Format
+	all         bool
+	deny        []string
+	baseline    string
+	positionals []string
+}
+
+// runJudge parses one judge subcommand's arguments, runs it, prints its output,
+// and returns the process exit code. A parse or tool error prints to stderr with
+// the kurodo prefix and exits 2, distinct from a gate hit or a "does not exist",
+// which come back as exit 1 from the command itself.
+func runJudge(command string, args []string) int {
+	p, err := parseJudgeArgs(args)
+	if err != nil {
+		return judgeError(err)
+	}
+	root := p.root
+	if root == "" {
+		wd, werr := os.Getwd()
+		if werr != nil {
+			return judgeError(fmt.Errorf("resolve working directory: %w", werr))
+		}
+		root = wd
+	}
+	format := judge.ResolveFormat(p.format, stdoutIsTerminal())
+
+	var stdout []byte
+	var exit int
+	switch command {
+	case "check":
+		stdout, exit, err = judge.RunCheck(&judge.CheckOptions{
+			Root:     root,
+			Paths:    p.positionals,
+			All:      p.all,
+			Deny:     p.deny,
+			Baseline: p.baseline,
+			Format:   format,
+		})
+	case "coverage":
+		stdout, exit, err = judge.RunCoverage(&judge.CoverageOptions{Root: root, Format: format})
+	case "exists":
+		if len(p.positionals) != 1 {
+			return judgeError(errors.New("exists takes exactly one name argument"))
+		}
+		stdout, exit, err = judge.RunExists(&judge.ExistsOptions{Root: root, Name: p.positionals[0], Format: format})
+	}
+	if err != nil {
+		return judgeError(err)
+	}
+	if _, werr := os.Stdout.Write(stdout); werr != nil {
+		return judgeError(fmt.Errorf("write output: %w", werr))
+	}
+	return exit
+}
+
+// parseJudgeArgs reads the global root and format flags, check's all, deny
+// (repeatable), and baseline flags, and the positional arguments, accepting
+// both the "--flag value" and "--flag=value" spellings. An unknown flag or a
+// flag missing its value is an error.
+func parseJudgeArgs(args []string) (judgeArgs, error) {
+	var p judgeArgs
+	for len(args) > 0 {
+		arg := args[0]
+		args = args[1:]
+		name, inline, hasInline := strings.Cut(arg, "=")
+		switch name {
+		case "--all":
+			if hasInline {
+				return p, fmt.Errorf("flag %s takes no value", name)
+			}
+			p.all = true
+		case "--root", "--baseline", "--deny", "--format":
+			value, rest, err := takeValue(name, inline, hasInline, args)
+			if err != nil {
+				return p, err
+			}
+			args = rest
+			if err := p.setFlag(name, value); err != nil {
+				return p, err
+			}
+		default:
+			if strings.HasPrefix(arg, "-") {
+				return p, fmt.Errorf("unknown flag %q", arg)
+			}
+			p.positionals = append(p.positionals, arg)
+		}
+	}
+	return p, nil
+}
+
+// takeValue returns a value flag's value and the arguments left after it: the
+// text after "=" when given inline, otherwise the next argument. A flag that
+// ends the argument list with no value is an error.
+func takeValue(name, inline string, hasInline bool, rest []string) (value string, remaining []string, err error) {
+	switch {
+	case hasInline:
+		value, remaining = inline, rest
+	case len(rest) == 0:
+		return "", rest, fmt.Errorf("flag %s needs a value", name)
+	default:
+		value, remaining = rest[0], rest[1:]
+	}
+	// An empty value — from --flag= or --flag "" — is never meaningful for
+	// these flags, and silently accepting it would let an unset variable in a
+	// caller's --root=$VAR quietly scan the working directory instead of failing.
+	if value == "" {
+		return "", remaining, fmt.Errorf("flag %s needs a non-empty value", name)
+	}
+	return value, remaining, nil
+}
+
+// setFlag records one value flag on the parsed arguments, validating the output
+// format.
+func (p *judgeArgs) setFlag(name, value string) error {
+	switch name {
+	case "--root":
+		p.root = value
+	case "--baseline":
+		p.baseline = value
+	case "--deny":
+		p.deny = append(p.deny, value)
+	case "--format":
+		f, ok := judge.ParseFormat(value)
+		if !ok {
+			return fmt.Errorf("invalid --format %q; use json, human, or md", value)
+		}
+		p.format = &f
+	}
+	return nil
+}
+
+// judgeError reports a tool error on stderr with the kurodo prefix and returns
+// the tool-error exit code. Stderr is the one surface that names kurodo rather
+// than reproducing the reference tool's bytes, since no pipeline reads it.
+func judgeError(err error) int {
+	fmt.Fprintf(os.Stderr, "kurodo: %v\n", err)
+	return 2
+}
+
+// stdoutIsTerminal reports whether stdout is a terminal rather than a pipe or a
+// file, so the output format can default to the human view for a person and the
+// machine view for an agent reading a pipe.
+func stdoutIsTerminal() bool {
+	info, err := os.Stdout.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 type config struct {

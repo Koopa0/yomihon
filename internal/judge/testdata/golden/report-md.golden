@@ -1,0 +1,40 @@
+---
+type: report
+tool: kurodo
+---
+
+# kurodo check
+
+11 findings — **3 error**, **6 warn**, 2 hidden.
+
+## Debt by domain
+
+| domain | error | warn |
+|---|--:|--:|
+| golang | 3 | 5 |
+| japanese | 0 | 1 |
+
+## Most leveraged (create one, resolve many)
+
+- **×2** `[[Bar]]` (broken) — golang, japanese
+- **×2** `[[Foo]]` (broken) — golang
+
+## golang
+
+- `error` ×2 frontmatter "aliases" is not a known field — Concepts/golang/Map.md
+- `error` status "bogus" is not a valid status — Concepts/golang/Bad.md
+- `warn` ×2 [\[Foo]\] resolves to no note — Concepts/golang/Map.md
+- `warn` ×2 alias "shared" is declared by 2 notes, so [\[shared]\] cannot resolve deterministically — Concepts/golang/Map.md
+- `warn` [\[Bar]\] resolves to no note — Concepts/golang/Slice.md
+- `warn` based_on -&gt; [\[Missing]\] resolves to nothing — Concepts/golang/Map.md
+
+## japanese
+
+- `warn` [\[Bar]\] resolves to no note — Concepts/japanese/Kana.md
+
+<details><summary>1 tracked forward-references · 1 external paths (info)</summary>
+
+- `link.broken` [\[Planned]\] resolves to no note — Writing/lessons/golang/L1.md
+- `link.broken.path` link to ../../../../outside/ext.md points outside the vault root — Writing/lessons/golang/L1.md
+
+</details>
