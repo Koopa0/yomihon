@@ -1,7 +1,7 @@
 # kurodo functional spec (final form)
 
-> **No milestone fences** (decisions D15): this document defines "what done looks like," not "what to build first." Each feature face has its own spec and acceptance criteria; implementation order is decided by the pain of use. The only ordering suggestion (not a fence): first wire up the single "finish reading → certify" keystroke (D10).
-> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a))**.
+> **No milestone fences** (decisions D15): this document defines "what done looks like," not "what to build first." Each feature face has its own spec and acceptance criteria; every remaining face ships (D37), ordered by dependency and leverage — the sequencing view and the plan-doc obligations for faces not yet specified here live in `roadmap.md`.
+> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a)); amended 2026-07-05 (D31/D32/D37: semantic search committed, scope ruling, dead-rule cleanup)**.
 
 ## 0. Goals
 
@@ -41,13 +41,13 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 
 - All dialect conformance tests pass (the structural-assertion pattern inherited from yomihon's `testdata/lesson.md`). Fixtures cover at least: ruby / `<br>` passed through verbatim; all callout types + `[!x]-` / `[!x]+` folding + unknown types degraded to blockquote; the four wikilink states + alias display + ambiguous marking; `![[embed]]`; `==highlight==`; task list; GFM tables (including escaped `\|`); dialect not processed inside a fence + a one-time warning; a broken-YAML single diagnostic that does not cascade; body leading-H1 removal; CJK slug aligned with the TOC anchor (including the `-2` collision suffix).
 - Every `.md` in the real vault opens: zero 500s, zero blank pages (the mechanical definition of fault tolerance).
-- Japanese lessons (L01–L20 + the P series) at visual parity with yomihon: the 14 screenshots in `m1-review/` are the baseline.
+- Japanese lessons (L01–L20 + the P series) at visual parity with yomihon: the 14 screenshots in `m1-review/` (in the yomihon repo, `~/go/src/github.com/koopa0/yomihon/m1-review/`) are the baseline.
 
 ## 2. The navigation face
 
 **Spec** (status-first, D26): the sidebar leads with a **Lifecycle** list — the schema's `note`-group statuses in toml array order, each with a live snapshot count and a link to the pure-filter browse page (`/search?q=status:<name>`) — then the syllabus tree, then Reports (daily-briefing HTML), then a **collapsed** Folders tree (the lifecycle folder browse, vault order, top level ≤9). Grouping, labels, and counts trace to the toml and the snapshot, never hardcoded (wall 3). The ≤3-click acceptance below is preserved by the Folders tree.
 
-**Home-page spec** (finalized by the vault side's 2026-07-02 reply): four stable blocks — five domain MOC entry points, four cross-domain boards (reusing the **questions** the boards answer, not hardcoding campaign-flavored labels), the mechanical-gate list, and pointers to the governing documents. **The two-layer IA is not flattened**: cross-domain boards live on the home page; domain workspace views (e.g. `日本語課程.base`) hang under that domain's MOC block. The facts of the status vocabulary always trace back to the toml (that section of Vault-Index is a human copy). The v0 division of labor for `.base` (linking back to Obsidian) is confirmed on the vault side — reimplementing it = a second query engine that also inherits the drift of the hardcoded schema inside `.base`; if a frontmatter query lands later, the boards could derive a native rendering from the toml, to be revisited then.
+**Home-page spec** (finalized by the vault side's 2026-07-02 reply; **layout superseded 2026-07-05**: the D face lands the adjudication cockpit as the landing surface — status queues lead, and the four blocks below survive as cockpit content; the reconciliation is the D plan doc's job, `roadmap.md` §3): four stable blocks — five domain MOC entry points, four cross-domain boards (reusing the **questions** the boards answer, not hardcoding campaign-flavored labels), the mechanical-gate list, and pointers to the governing documents. **The two-layer IA is not flattened**: cross-domain boards live on the home page; domain workspace views (e.g. `日本語課程.base`) hang under that domain's MOC block. The facts of the status vocabulary always trace back to the toml (that section of Vault-Index is a human copy). The v0 division of labor for `.base` (linking back to Obsidian) is confirmed on the vault side — reimplementing it = a second query engine that also inherits the drift of the hardcoded schema inside `.base`; if a frontmatter query lands later, the boards could derive a native rendering from the toml, to be revisited then.
 
 **Syllabus-tree parsing spec** (mechanically decidable):
 
@@ -67,7 +67,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 - **Query semantics** (deterministic, reproducible): whitespace tokenization; a bare word matches by substring after `fold(s) = strings.ToLower(nfc(s))` — the single match definer, applied to both the stored text and the query; multiple words = AND. Six fixed filter keys: `type:` `status:` `domain:` `topic:` (single-value containment on `topics`) `folder:` (rel_path prefix, `/`-boundary — `folder:Writing` does not match `Writing-old/`) `slug:`, values compared by literal equality, no enum validation. A pure-filter query (no bare word) is legal — it is structured browsing; an empty query (no word, no filter) returns nothing. No magic syntax, no quoted phrases (a whitespace-free CJK run is inherently one token, i.e. a contiguous substring).
 - **Results and ordering** (deterministic): title hits (all tokens match the title) rank before body hits; within a group, rel_path lexicographic order — guaranteed by keeping the index entries sorted by rel_path, not by a sort call. Each entry = path + title + status badge + a context snippet around the earliest matched-token offset. No result limit in v0 (the corpus is small; any truncation is the panel's concern).
 - The index is fully derived and in-memory (see `design.md` §6): it is rebuilt from the vault, and a ~2s mtime scan applies incremental updates (D21) — no fsnotify, no persistent store. Change detection is by mtime: the scan compares the current `{path → mtime}` set to the previous one and, on any change, rebuilds; it handles create/delete/rename uniformly. There is no content hash — at this scale a full rebuild is ~100 ms, and mtime avoids reading every file on every scan (reconsider past ~10k files).
-- Semantic / vector: not scheduled; upgrading goes through the three gates (D05), and would be SQLite / sqlite-vec, not PostgreSQL (D24).
+- Semantic / vector: committed scope (D32) — Gemini embeddings + RRF fusion with the deterministic layer above; it composes with, never replaces, the lexical semantics of this section. Design, storage shape, and escalation ladders in `roadmap.md`.
 
 **Acceptance**: a 2-character CJK query returns correctly; spot checks match `rg`'s results _on the note body_ (one-directional: what `rg` finds in the body text, kurodo finds too — `rg` also matching raw markup that `plain_text` strips is by design, not a bug); a literal `%` in a query matches a literal `%` (substring is literal, no wildcards); NFD-form content is found by an NFC-typed query; rebuild the index twice → byte-identical results; a concurrent read during an index swap is race-free (`-race`); a vault file change is reflected within one scan cycle — ≤3s worst case (a ~2s cadence plus the ~100 ms rebuild), so the bound is stably decidable.
 
@@ -142,18 +142,18 @@ POST /status (path, from, to)
 
 **Egress exclusion**: `check` unconditionally excludes `Diary/` (not even `--all` includes it — findings written to a report will be read by agents; §0.1 privacy boundary, read from toml `[privacy]` once it lands).
 
-**First batch of extensions (verified on the vault side, the three gates passed; to be done after the byte-compat gate is met)**:
+**First batch of extensions (verified on the vault side; to be done after the byte-compat gate is met — the H face, expanded with graph relation verbs and whole-graph export per D33 / `roadmap.md`)**:
 
 1. **frontmatter query** — structured queries (e.g. `type=lesson status=imported domain=golang`). Today this relies on `rg '^status:'` by hand plus manual intersection, with multiple vault skills each hand-rolling the same thing.
 2. **`backlinks <note>`** — backlinks / blast radius. rg is blind to alias-mediated links (`[[Title|display]]`), and the resolver's alias table is exactly where the value is; a recurring scenario before retiring / renaming.
 
-**Do-not-build list** (kura's field log has ruled these WATCH; kurodo does not take them on): the ruby-pairing check (zero real failures), the stray-tag check (root cause is in the hermes generation pipeline, fix it at the source), vector / semantic search (D05's three gates not passed). orphans are not missing — `coverage`'s three-tier classification (mounted / pending_mount / orphan) already covers it, no separate command.
+**Do-not-build list** (kura's field log has ruled these WATCH; kurodo does not take them on): the ruby-pairing check (zero real failures), the stray-tag check (root cause is in the hermes generation pipeline, fix it at the source). orphans are not missing — `coverage`'s three-tier classification (mounted / pending_mount / orphan) already covers it, no separate command.
 
 **Acceptance (= the kura retirement gate)**:
 
 1. kura conformance snapshots are byte-exact (`conformance__jsonl_output.snap`, `conformance__coverage_report.snap`).
 2. Against the real vault: `kurodo check` and `kura check` produce byte-for-byte identical JSONL.
-3. schema.* rules follow vault-guard-spec §8 granularity: the (path, rule-class, field/value) sets are equivalent.
+3. schema.* rules follow vault-guard-spec §8 granularity (a vault-side document, under `~/obsidian/System/`): the (path, rule-class, field/value) sets are equivalent.
 4. **All real consumers switched over** — current state verified (2026-07-02): 4 cron wrappers (`cron-vault-wrapper.sh:132`, `cron-translator-wrapper.sh:91`, `cron-grinder-wrapper.sh:47`, `cron-vault-qa-wrapper.sh`) + the manual gates (QA-Gate tier 0, capture-source, share-rewrite, the file-editing quick gate recorded in kura-field-log) + obsidian CC usage. On the switchover day, a re-inventory is authoritative. Until then, not one line of kura changes.
 5. The judge's three commands run in an environment without PG (the CI environment is the proof).
 
@@ -161,11 +161,13 @@ POST /status (path, from, to)
 
 **Spec**: `kurodo export` = SSG static output (`dist/`), covering the Japanese lessons + the syllabus index + the five interactions (furigana visibility toggle, native details folding, TTS `data-tts` stripping `<rt>/<rp>` at build time, slot sidecar, concept `<dialog>`). Egress face: unconditionally excludes `Diary/` (§0.1 privacy boundary). PWA / Service Worker: **cut, not inherited** — yomihon's SW, being HTTP-only, never actually registered and is verified dead weight. export output = pure static files.
 
-**Acceptance (= the yomihon retirement gate)**:
+**The yomihon retirement gate** (D38: the gate is these three reading-face items — the export face does not block the retirement declaration, because nothing consumes yomihon's SSG output):
 
 1. The five interactions are independently reproduced and all fixtures pass (yomihon's testdata assertion pattern + direct consumption of `System/slots/L01–L20.yaml`).
 2. `m1-review/` screenshots at visual parity.
 3. Koopa actually studies with kurodo for two weeks. Until then, yomihon is frozen in service (tag `v1.0.0`).
+
+**Acceptance of the export face itself** (own schedule, `roadmap.md` §1): the five interactions function in the static output, and `Diary/` is absent from `dist/`.
 
 ## 7. Global quality gates
 

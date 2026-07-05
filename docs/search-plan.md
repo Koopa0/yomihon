@@ -1,6 +1,6 @@
 # Search face — implementation plan (spec §3)
 
-> Status: **awaiting Koopa's review of this in-memory revision.** Not yet built.
+> Status: **built and merged** (the lexical engine, /search page, and ⌘K shell are on main); kept as the record of the plan. The hybrid extension is D32 / roadmap.md, not this document.
 > This refines `spec.md` §3 and `design.md` §6–7 into a concrete plan. The
 > engine is **in-memory, no database** (D24); the index is one of three models
 > in a shared vault Snapshot (D25); incremental freshness is a ~2s mtime scan
@@ -228,8 +228,9 @@ Removed so a future session cannot reinstate PG from stale config: `sqlc.yaml`,
 the Makefile `sqlc` target, the empty `migrations/`, `KURODO_DB` (D12), and the
 PG lines in `CLAUDE.md` Facts / `design.md` §2 stack. The go-spec harness rules
 under `.claude/rules/` still describe pgx/sqlc generically (they are shared
-reference, not a kurodo claim); `CLAUDE.md` Facts is the kurodo-specific guard and
-now says "no database, do not reintroduce PostgreSQL."
+reference, not a kurodo claim). Database posture has since moved on: adoption
+is a per-feature engineering call (D31), with escalation ladders in
+`roadmap.md` §4.
 
 ## 13. Open decisions — resolved
 
