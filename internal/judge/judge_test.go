@@ -7,10 +7,14 @@ import (
 	"testing"
 )
 
-// The golden files under testdata/golden/ hold the frozen wire bytes
-// for the fixture vaults under testdata/. Every Finding below is a hand
-// transcription of one golden line, and every expected value in this
-// file is a literal, never computed by the code under test.
+// TestWriteJSONLGolden pins the serializer's escape surface in isolation from
+// the engine: every Finding below is a hand transcription, so the bytes come
+// only from WriteJSONL, not from extraction. The full-engine conformance —
+// which fixture produces which finding — lives in TestCheckGolden. Keeping a
+// hand-authored escape case guards the serializer even if extraction is later
+// reworked, since the custom serializer exists precisely to keep the two
+// line-separator code points as raw UTF-8 and to leave HTML characters
+// unescaped.
 func TestWriteJSONLGolden(t *testing.T) {
 	tests := []struct {
 		name string
@@ -18,67 +22,6 @@ func TestWriteJSONLGolden(t *testing.T) {
 		golden   string
 		findings []Finding
 	}{
-		{
-			// Three notes exercising the link resolver: a duplicated
-			// alias, a broken link, a link written against a note's
-			// title, and an unresolved provenance reference. Covers CJK
-			// as raw UTF-8, "->" left unescaped, escaped quotes, and the
-			// presence and absence of line, field, target, and
-			// collision_members.
-			name:   "conformance",
-			golden: "testdata/golden/check.jsonl",
-			findings: []Finding{
-				{
-					RuleID:           "collision.alias",
-					Severity:         SeverityWarn,
-					Path:             "Concepts/golang/A.md",
-					Field:            new("aliases"),
-					Message:          `alias "shared" is declared by 2 notes, so [[shared]] cannot resolve deterministically`,
-					Evidence:         "shared alias across: Concepts/golang/A.md, Concepts/golang/B.md",
-					SuggestedAction:  "give the alias a single owner note, or qualify the duplicates",
-					SourceRule:       "vault-schema.toml#rules",
-					Target:           new("shared"),
-					CollisionMembers: []string{"Concepts/golang/A.md", "Concepts/golang/B.md"},
-					Fingerprint:      "c6a289a5d2524c77",
-				},
-				{
-					RuleID:          "link.broken",
-					Severity:        SeverityWarn,
-					Path:            "Concepts/golang/A.md",
-					Line:            new(6),
-					Message:         "[[Ghost]] resolves to no note",
-					Evidence:        "no filename or alias matches the target",
-					SuggestedAction: "create the target note, or change the link to an existing filename/alias",
-					SourceRule:      "Note-Schema.md#aliases",
-					Target:          new("Ghost"),
-					Fingerprint:     "1e6dec2ff85a905f",
-				},
-				{
-					RuleID:          "link.title_not_alias",
-					Severity:        SeverityWarn,
-					Path:            "Concepts/golang/A.md",
-					Line:            new(6),
-					Message:         "[[Go Slice 內部結構]] resolves to no filename or alias",
-					Evidence:        "the target is the title of Concepts/golang/Go Slice.md but not one of its aliases",
-					SuggestedAction: "add the title to Concepts/golang/Go Slice.md's aliases, or link an existing filename/alias",
-					SourceRule:      "Note-Schema.md#aliases",
-					Target:          new("Go Slice 內部結構"),
-					Fingerprint:     "f4980b309f407345",
-				},
-				{
-					RuleID:          "provenance.unresolved",
-					Severity:        SeverityWarn,
-					Path:            "Concepts/golang/B.md",
-					Field:           new("based_on"),
-					Message:         "based_on -> [[Missing]] resolves to nothing",
-					Evidence:        "no note, alias, or lesson slug matches the reference",
-					SuggestedAction: "fix the reference, or create the target note",
-					SourceRule:      "vault-schema.toml#provenance",
-					Target:          new("[[Missing]]"),
-					Fingerprint:     "9c0a72924642edb4",
-				},
-			},
-		},
 		{
 			// Broken links whose targets carry control characters and the
 			// two line-separator code points. Pins the escape surface of
@@ -181,27 +124,6 @@ func TestWriteJSONLGolden(t *testing.T) {
 					SourceRule:      "Note-Schema.md#aliases",
 					Target:          new(`Esc\u2028End`),
 					Fingerprint:     "58a23378d6cc4c43",
-				},
-			},
-		},
-		{
-			// A study path plus a lesson it does not list. The resulting
-			// finding is the only shape that sets resolved_to, which no
-			// other fixture exercises.
-			name:   "maps",
-			golden: "testdata/golden/maps.jsonl",
-			findings: []Finding{
-				{
-					RuleID:          "map.disk_unlisted",
-					Severity:        SeverityWarn,
-					Path:            "Writing/lessons/golang/L1.md",
-					Message:         "lesson is on disk but not listed in syllabus Maps/paths/Go Path.md",
-					Evidence:        "the lesson exists but the study-path for its domain does not list it",
-					SuggestedAction: "add the lesson to the syllabus, or confirm it is intentionally excluded",
-					SourceRule:      "vault-schema.toml#rules",
-					Target:          new("Writing/lessons/golang/L1.md"),
-					ResolvedTo:      new("Maps/paths/Go Path.md"),
-					Fingerprint:     "184c0b31f8c4aaeb",
 				},
 			},
 		},

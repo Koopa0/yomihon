@@ -2,16 +2,11 @@ package judge
 
 import (
 	"bytes"
-	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
-
-	"github.com/koopa0/kurodo/internal/vault"
 )
 
 // note is one markdown file as the diagnostics see it: its vault-relative
@@ -20,11 +15,36 @@ import (
 // frontmatter key with its raw value. The frontmatter checks need the whole
 // key set to flag unknown fields and the raw scalar text to validate enums,
 // beyond the handful of typed fields the reader surfaces.
+//
+// The typed fields below and the extracted body references drive the graph
+// rules. Unlike the frontmatter map — which keeps a coerced scalar for every
+// key so the schema checks can read a value written as a number or boolean —
+// the typed fields keep only genuine string values, dropping a title or alias
+// that reads as a number, boolean, or null, because a graph reference is a name
+// and a name is a string. The body references are extracted whatever the
+// frontmatter's state, so a note with broken frontmatter still contributes its
+// links.
 type note struct {
 	path           string
 	noFrontmatter  bool
 	badFrontmatter bool
 	frontmatter    map[string]fmValue
+
+	title                string
+	aliases              []string
+	noteType             string
+	domain               string
+	status               string
+	sourceKind           string
+	slug                 string
+	basedOn              []string
+	related              []string
+	evolutionPredecessor string
+	evolutionSuccessors  []string
+
+	wikilinks    []wikiLink
+	pathRefs     []pathRef
+	plannedNames []string
 }
 
 // fmValue is a raw frontmatter value: either a scalar kept as the exact text
@@ -55,29 +75,14 @@ func (v fmValue) present() bool {
 	return v.scalar != ""
 }
 
-// collectNotes walks the vault and parses every markdown file into a note.
-// It reuses the shared walk, so the scan boundary is identical to the
-// resolver's: dot-prefixed directories are skipped, a .gitignore is never
-// consulted (a gitignored attachment is still a live link target), and every
-// path is NFC-normalized. A ".md" extension is the boundary between a note
-// and a linkable resource; only notes are returned.
+// collectNotes walks the vault and parses every markdown file into a note,
+// discarding the non-note resources the full walk also finds. A ".md" extension
+// is the boundary between a note and a linkable resource; only notes are
+// returned. It shares collectVault's single walk, so the scan boundary is the
+// resolver's.
 func collectNotes(root string) ([]note, error) {
-	paths, err := vault.List(root)
-	if err != nil {
-		return nil, err
-	}
-	notes := make([]note, 0, len(paths))
-	for _, rel := range paths {
-		if filepath.Ext(rel) != ".md" {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- rel is a vault-relative path from the shared walk over the operator's own local vault, not untrusted input
-		if err != nil {
-			return nil, fmt.Errorf("read note %s: %w", rel, err)
-		}
-		notes = append(notes, parseNote(rel, data))
-	}
-	return notes, nil
+	notes, _, err := collectVault(root)
+	return notes, err
 }
 
 // parseNote splits a file's leading frontmatter and reads it into the note
@@ -88,50 +93,172 @@ func collectNotes(root string) ([]note, error) {
 // which the frontmatter check reports as a single fault rather than a cascade
 // of "field missing" for fields that may sit above the fault.
 func parseNote(rel string, data []byte) note {
-	fm, found := splitFrontmatter(data)
+	fm, bodyBytes, bodyLine, found := splitFrontmatter(data)
+	body := string(bodyBytes)
+	n := note{
+		path:         rel,
+		wikilinks:    extractWikilinks(body, bodyLine),
+		pathRefs:     extractPathRefs(body, bodyLine),
+		plannedNames: extractPlannedNames(body),
+	}
 	if !found {
-		return note{path: rel, noFrontmatter: true}
+		n.noFrontmatter = true
+		return n
 	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(fm, &doc); err != nil {
-		return note{path: rel, badFrontmatter: true}
+		n.badFrontmatter = true
+		return n
 	}
 	if hasDuplicateKey(&doc) {
-		return note{path: rel, badFrontmatter: true}
+		n.badFrontmatter = true
+		return n
 	}
-	return note{path: rel, frontmatter: buildFrontmatter(&doc)}
+	n.frontmatter = buildFrontmatter(&doc)
+	readTypedFields(&n, &doc)
+	return n
 }
 
-// splitFrontmatter returns the bytes of a leading frontmatter block and whether
-// one was present. A block is recognized only at the very start of the file,
-// opened by a "---" line and closed by the next "---" or "..." line; without a
-// closing fence there is no frontmatter and the whole file is body. Both line
-// endings are accepted. The returned block keeps the newline that ends its last
-// line — the byte before the closing fence — because a trailing newline is part
-// of a block scalar's value, and dropping it would change what the author
-// wrote. This reads the block on the diagnostics' own terms rather than reusing
-// the renderer's split, whose fence handling is shaped for display, not for the
-// frozen wire format.
-func splitFrontmatter(data []byte) (fm []byte, found bool) {
+// readTypedFields fills the note's typed graph fields from the parsed
+// frontmatter. Each reads only a genuine string value (or list of them),
+// matching how the vault's linker reads a reference: a title, alias, or slug
+// that the core schema would resolve to a number, boolean, or null is dropped,
+// because a name is a string.
+func readTypedFields(n *note, doc *yaml.Node) {
+	root := doc
+	if doc.Kind == yaml.DocumentNode {
+		if len(doc.Content) == 0 {
+			return
+		}
+		root = doc.Content[0]
+	}
+	if root.Kind != yaml.MappingNode {
+		return
+	}
+	n.title = strField(root, "title")
+	n.aliases = listField(root, "aliases")
+	n.noteType = strField(root, "type")
+	n.domain = strField(root, "domain")
+	n.status = strField(root, "status")
+	n.sourceKind = strField(root, "source_kind")
+	n.slug = strField(root, "slug")
+	n.basedOn = listField(root, "based_on")
+	n.related = listField(root, "related")
+	n.evolutionPredecessor = strField(root, "evolution_predecessor")
+	n.evolutionSuccessors = listField(root, "evolution_successors")
+}
+
+// mappingValue returns the value node for a top-level key, or false when the
+// mapping has no such key. Duplicate keys never reach here — they flag the
+// frontmatter bad before the typed fields are read — so the first match is the
+// only match.
+func mappingValue(m *yaml.Node, key string) (*yaml.Node, bool) {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if k := m.Content[i]; k.Kind == yaml.ScalarNode && k.Value == key {
+			return m.Content[i+1], true
+		}
+	}
+	return nil, false
+}
+
+// strField reads a key as a single genuine string, returning "" when the key is
+// absent or its value is not a string.
+func strField(m *yaml.Node, key string) string {
+	if v, ok := mappingValue(m, key); ok {
+		if s, ok := asString(v); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// listField reads a key as a list of genuine strings: a sequence keeps its
+// string items and drops the rest; a lone string is a one-element list;
+// anything else is empty.
+func listField(m *yaml.Node, key string) []string {
+	v, ok := mappingValue(m, key)
+	if !ok {
+		return nil
+	}
+	v = resolveAlias(v)
+	switch v.Kind {
+	case yaml.SequenceNode:
+		out := make([]string, 0, len(v.Content))
+		for _, item := range v.Content {
+			if s, ok := asString(item); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	case yaml.ScalarNode:
+		if s, ok := asString(v); ok {
+			return []string{s}
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+// asString reports a scalar's text when it reads as a genuine string, and false
+// otherwise. A quoted or block scalar is always a string; an explicitly tagged
+// scalar is a string only under the string tag; an unquoted scalar is a string
+// unless the core schema resolves it to a number, boolean, or null.
+func asString(n *yaml.Node) (string, bool) {
+	n = resolveAlias(n)
+	if n.Kind != yaml.ScalarNode {
+		return "", false
+	}
+	if !isPlain(n) {
+		return n.Value, true
+	}
+	if n.Style&yaml.TaggedStyle != 0 {
+		if n.Tag == "!!str" {
+			return n.Value, true
+		}
+		return "", false
+	}
+	if plainIsString(n.Value) {
+		return n.Value, true
+	}
+	return "", false
+}
+
+// splitFrontmatter separates a leading frontmatter block from the body. It
+// returns the block's bytes, the body's bytes, the 1-based file line the body
+// starts on, and whether a block was present. A block is recognized only at the
+// very start of the file, opened by a "---" line and closed by the next "---"
+// or "..." line; without a closing fence there is no frontmatter and the whole
+// file is the body starting at line 1. Both line endings are accepted. The
+// returned block keeps the newline that ends its last line — the byte before
+// the closing fence — because a trailing newline is part of a block scalar's
+// value, and dropping it would change what the author wrote. Line numbers count
+// the opening and closing fence lines, so the body of an N-line block starts on
+// line N+1. This reads the block on the diagnostics' own terms rather than
+// reusing the renderer's split, whose fence handling is shaped for display, not
+// for the frozen wire format.
+func splitFrontmatter(data []byte) (fm, body []byte, bodyStartLine int, found bool) {
 	rest, ok := bytes.CutPrefix(data, []byte("---\n"))
 	if !ok {
 		if rest, ok = bytes.CutPrefix(data, []byte("---\r\n")); !ok {
-			return nil, false
+			return nil, data, 1, false
 		}
 	}
+	line := 1 // the opening "---"
 	for offset := 0; offset < len(rest); {
-		line := rest[offset:]
-		advance := len(line)
-		if nl := bytes.IndexByte(line, '\n'); nl >= 0 {
-			line, advance = line[:nl], nl+1
+		raw := rest[offset:]
+		advance := len(raw)
+		if nl := bytes.IndexByte(raw, '\n'); nl >= 0 {
+			advance = nl + 1
 		}
-		switch string(bytes.TrimRight(line, "\r")) {
+		line++
+		switch string(bytes.TrimRight(raw[:advance], "\r\n")) {
 		case "---", "...":
-			return rest[:offset], true
+			return rest[:offset], rest[offset+advance:], line + 1, true
 		}
 		offset += advance
 	}
-	return nil, false
+	return nil, data, 1, false
 }
 
 // hasDuplicateKey reports whether any mapping anywhere in the document repeats a
