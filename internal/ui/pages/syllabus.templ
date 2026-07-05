@@ -103,7 +103,7 @@ templ moduleBlock(sec SectionView) {
 templ lessonRow(l LessonView) {
 	if l.Href != "" {
 		<a class="k-lesson" href={ templ.URL(l.Href) }>
-			<span class={ "k-navdot", templ.KV("k-navdot--ready", l.Status == "ready") } aria-hidden="true"></span>
+			<span class={ "k-navdot", templ.KV("k-navdot--ready", l.Status == sealStatus) } aria-hidden="true"></span>
 			<span class="k-lesson__title">{ l.Text }</span>
 			if l.Status != "" {
 				<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
@@ -147,11 +147,11 @@ templ syllabusRail(v SyllabusView) {
 // the active (non-link) marker for the one shown.
 templ pathSwitch(p SyllabusLink) {
 	if p.Active {
-		<a class="ui-navitem is-active" aria-current="page">
+		<span class="ui-navitem is-active" aria-current="page">
 			@pathIcon()
 			<span class="k-pathitem__name">{ p.Title }</span>
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Lessons) }</span>
-		</a>
+		</span>
 	} else {
 		<a class="ui-navitem" href={ templ.URL(syllabusHref(p.RelPath)) }>
 			@pathIcon()
