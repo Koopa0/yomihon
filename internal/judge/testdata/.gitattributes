@@ -1,0 +1,4 @@
+# The line-ending fixture must keep its carriage returns: it exists to prove a
+# link on a CRLF line reports the right line and a target without a trailing
+# \r, which is lost the moment the bytes are normalized to LF.
+vault-lines/Concepts/golang/Crlf.md -text
