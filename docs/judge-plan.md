@@ -282,3 +282,13 @@ on this list that diffs is a bug.
    Unreachable from the four pipelines (their invocations are fixed strings);
    guard: the property only manifests on a malformed call nothing makes, and
    the dedicated flag tests pin it.
+8. **Findings touching the private daily journal are dropped from check
+   output** (deliberate, Koopa 2026-07-05; a finding is dropped when its citing
+   path or any collision member begins with Diary/, unconditionally — the full
+   unfiltered set included — so the journal's contents never travel into a
+   report a downstream reader sees. The reference reports a journal note's
+   findings like any other's; this fail-closed drop is the divergence). The
+   journal is still scanned, so its links resolve for other notes. Fixture +
+   dedicated test pin the intent (the drop holds under the full set; a broken
+   link outside the journal is still reported); the real vault currently emits
+   no journal-touching finding, so the sandwich also holds.

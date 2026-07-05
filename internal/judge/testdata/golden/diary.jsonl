@@ -1,0 +1,1 @@
+{"rule_id":"link.broken","severity":"warn","path":"Notes/keep.md","line":1,"message":"[[Missing Note Target]] resolves to no note","evidence":"no filename or alias matches the target","suggested_action":"create the target note, or change the link to an existing filename/alias","source_rule":"Note-Schema.md#aliases","target":"Missing Note Target","fingerprint":"5cbb8b9307bf0954"}

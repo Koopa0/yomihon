@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -78,6 +79,52 @@ func TestCheckSkipsFileReferencesInComments(t *testing.T) {
 	}
 	if !bytes.Contains(got, []byte("out-of-comment.md")) {
 		t.Error("a file reference outside a comment must still be reported")
+	}
+}
+
+// TestCheckDropsDiaryFindings pins the drop that keeps the private daily
+// journal out of check output. A finding is removed when any path it touches —
+// its citing path or a collision member — begins with Diary/, so the journal's
+// contents never reach a report a downstream reader sees. The journal is still
+// scanned (see TestCollectNotesScanBoundary), so its links resolve for other
+// notes; only the reporting is suppressed. The golden is written from this
+// engine, not the reference, because the drop is exactly where the two differ:
+// the reference reports the journal's broken link, and this engine must not.
+// The fixture pairs a broken link inside the journal (dropped) with one outside
+// it (kept), so a blanket drop would fail the kept-link assertion.
+func TestCheckDropsDiaryFindings(t *testing.T) {
+	t.Parallel()
+	got := runCheck(t, "testdata/vault-diary")
+	want, err := os.ReadFile("testdata/golden/diary.jsonl")
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("diary findings differ from golden\ngot:\n%s\nwant:\n%s", got, want)
+	}
+	// The intent, asserted directly so reverting the drop fails loudly: the
+	// journal entry's finding is gone, the note's is kept.
+	if bytes.Contains(got, []byte("Diary/")) {
+		t.Error("a finding touching the private daily journal must not be reported")
+	}
+	if !bytes.Contains(got, []byte("Notes/keep.md")) {
+		t.Error("a broken link outside the journal must still be reported")
+	}
+	// The drop holds even when the full, unfiltered set is requested, checked
+	// against the raw paths rather than the engine's own helper.
+	all, err := check("testdata/vault-diary", nil, true)
+	if err != nil {
+		t.Fatalf("check(--all): %v", err)
+	}
+	for i := range all {
+		if strings.HasPrefix(all[i].Path, "Diary/") {
+			t.Errorf("the full set still reported journal path %q (%s)", all[i].Path, all[i].RuleID)
+		}
+		for _, m := range all[i].CollisionMembers {
+			if strings.HasPrefix(m, "Diary/") {
+				t.Errorf("the full set still reported journal collision member %q (%s)", m, all[i].RuleID)
+			}
+		}
 	}
 }
 
