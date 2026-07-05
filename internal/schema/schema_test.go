@@ -33,13 +33,17 @@ func loadFixture(t *testing.T) *schema.Schema {
 // for the status state machine. The legal status values are defined once, in
 // the vault contract that this package alone reads; no other package under
 // internal/ may pin one of those values as a string literal in its logic.
-// Naming the one distinguished seal value as a const is allowed — that is a
-// single named reference, not a second copy of the value set — so only literals
-// used directly in expressions are flagged. The judge package is exempt: it
+// Naming the value as a const, at any scope, is allowed — that is a single
+// named reference, not a second copy of the value set — so only literals used
+// directly in expressions are flagged. The judge package is exempt: it
 // reproduces, byte for byte, a frozen external contract whose rule constants
 // happen to be status values, pinned by its golden files rather than derived
 // from this contract. The forbidden set is loaded from the fixture contract, so
 // the test behaves the same on every machine, with or without the real vault.
+// The set is the bare status words, so an unrelated literal equal to one — a
+// log line, a class name — would also trip this guard; that trade-off is
+// accepted, since restricting the match to literals compared against a
+// status-typed value is far harder to express and the words rarely collide.
 func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 	t.Parallel()
 	s := loadFixture(t)
@@ -76,36 +80,38 @@ func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 			return nil
 		}
 		// A status value on the right of a const declaration names the value in
-		// one place; that is the allowed form, so collect those positions and
-		// flag every other literal.
+		// one place; that is the allowed form, at any scope. A single pre-order
+		// walk records each const's literal positions before it reaches them as
+		// children, so a package-level or function-local const is exempt while
+		// every other literal is flagged.
 		named := map[token.Pos]bool{}
-		for _, decl := range f.Decls {
-			gd, ok := decl.(*ast.GenDecl)
-			if !ok || gd.Tok != token.CONST {
-				continue
-			}
-			for _, spec := range gd.Specs {
-				vs, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.GenDecl:
+				if node.Tok != token.CONST {
+					return true
 				}
-				for _, value := range vs.Values {
-					if lit, ok := value.(*ast.BasicLit); ok {
-						named[lit.ValuePos] = true
+				for _, spec := range node.Specs {
+					vs, ok := spec.(*ast.ValueSpec)
+					if !ok {
+						continue
+					}
+					for _, value := range vs.Values {
+						if lit, ok := value.(*ast.BasicLit); ok {
+							named[lit.ValuePos] = true
+						}
 					}
 				}
+			case *ast.BasicLit:
+				if node.Kind != token.STRING || named[node.ValuePos] {
+					return true
+				}
+				value, uerr := strconv.Unquote(node.Value)
+				if uerr != nil || !forbidden[value] {
+					return true
+				}
+				violations = append(violations, fmt.Sprintf("%s: %q", fset.Position(node.ValuePos), value))
 			}
-		}
-		ast.Inspect(f, func(n ast.Node) bool {
-			lit, ok := n.(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING || named[lit.ValuePos] {
-				return true
-			}
-			value, uerr := strconv.Unquote(lit.Value)
-			if uerr != nil || !forbidden[value] {
-				return true
-			}
-			violations = append(violations, fmt.Sprintf("%s: %q", fset.Position(lit.ValuePos), value))
 			return true
 		})
 		return nil

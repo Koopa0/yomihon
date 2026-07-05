@@ -181,8 +181,9 @@ func drive(t *testing.T, url string) {
 // listener binds the loopback address and only the port is configurable, so the
 // only environment this command may read are the vault root and the port; a
 // bind address or host must never become configurable by accident. The test
-// parses the command's own source and asserts every os.Getenv key is one of the
-// two allowed names.
+// parses the command's own source and asserts every environment read —
+// os.Getenv or os.LookupEnv — uses one of the two allowed keys, and that
+// os.Environ never reads the whole environment.
 func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	t.Parallel()
 	allowed := map[string]bool{"KURODO_ROOT": true, "KURODO_PORT": true}
@@ -205,11 +206,21 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 				return true
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "Getenv" {
+			if !ok {
 				return true
 			}
 			pkg, isIdent := sel.X.(*ast.Ident)
 			if !isIdent || pkg.Name != "os" {
+				return true
+			}
+			// Getenv and LookupEnv both take the key as their first argument;
+			// Environ reads the whole environment and so is always suspect.
+			switch sel.Sel.Name {
+			case "Getenv", "LookupEnv":
+			case "Environ":
+				offenders = append(offenders, fmt.Sprintf("%s: os.Environ reads the whole environment", fset.Position(call.Pos())))
+				return true
+			default:
 				return true
 			}
 			if len(call.Args) == 0 {
@@ -217,7 +228,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 			}
 			lit, ok := call.Args[0].(*ast.BasicLit)
 			if !ok || lit.Kind != token.STRING {
-				offenders = append(offenders, fmt.Sprintf("%s: os.Getenv called with a non-literal key", fset.Position(call.Pos())))
+				offenders = append(offenders, fmt.Sprintf("%s: os.%s called with a non-literal key", fset.Position(call.Pos()), sel.Sel.Name))
 				return true
 			}
 			key, uerr := strconv.Unquote(lit.Value)
@@ -225,7 +236,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 				return true
 			}
 			if !allowed[key] {
-				offenders = append(offenders, fmt.Sprintf("%s: os.Getenv(%q)", fset.Position(lit.ValuePos), key))
+				offenders = append(offenders, fmt.Sprintf("%s: os.%s(%q)", fset.Position(lit.ValuePos), sel.Sel.Name, key))
 			}
 			return true
 		})

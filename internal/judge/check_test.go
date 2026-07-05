@@ -132,9 +132,10 @@ func TestCheckDropsDiaryFindings(t *testing.T) {
 // over the same live vault and asserts the whole check output is byte-identical
 // — every rule, not just the frontmatter subset. It is skipped when the
 // reference tool or the vault is absent, so it never blocks a build elsewhere.
-// One rule departs from the reference (see TestCheckSkipsFileReferencesInComments);
-// the real vault holds no input that triggers it, so the whole-vault bytes stay
-// identical.
+// Two behaviors depart from the reference (see TestCheckSkipsFileReferencesInComments
+// and TestCheckDropsDiaryFindings); the real vault holds no input that triggers
+// either — no file reference inside a comment, no finding touching the private
+// daily journal — so the whole-vault bytes stay identical.
 func TestCheckMatchesReferenceOnRealVault(t *testing.T) {
 	t.Parallel()
 	tool := referenceTool()
