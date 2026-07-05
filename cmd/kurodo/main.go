@@ -123,6 +123,9 @@ func parseJudgeArgs(args []string) (judgeArgs, error) {
 		name, inline, hasInline := strings.Cut(arg, "=")
 		switch name {
 		case "--all":
+			if hasInline {
+				return p, fmt.Errorf("flag %s takes no value", name)
+			}
 			p.all = true
 		case "--root", "--baseline", "--deny", "--format":
 			value, rest, err := takeValue(name, inline, hasInline, args)
@@ -147,13 +150,21 @@ func parseJudgeArgs(args []string) (judgeArgs, error) {
 // text after "=" when given inline, otherwise the next argument. A flag that
 // ends the argument list with no value is an error.
 func takeValue(name, inline string, hasInline bool, rest []string) (value string, remaining []string, err error) {
-	if hasInline {
-		return inline, rest, nil
-	}
-	if len(rest) == 0 {
+	switch {
+	case hasInline:
+		value, remaining = inline, rest
+	case len(rest) == 0:
 		return "", rest, fmt.Errorf("flag %s needs a value", name)
+	default:
+		value, remaining = rest[0], rest[1:]
 	}
-	return rest[0], rest[1:], nil
+	// An empty value — from --flag= or --flag "" — is never meaningful for
+	// these flags, and silently accepting it would let an unset variable in a
+	// caller's --root=$VAR quietly scan the working directory instead of failing.
+	if value == "" {
+		return "", remaining, fmt.Errorf("flag %s needs a non-empty value", name)
+	}
+	return value, remaining, nil
 }
 
 // setFlag records one value flag on the parsed arguments, validating the output
