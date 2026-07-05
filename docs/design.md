@@ -16,7 +16,7 @@
    └─ koopa0.dev: outward-facing execution and publishing; the two never intrude on each other
 ```
 
-kurodo reads everything, writes one field, never edits notes, and never oversteps. The DB holds only derived data (indexes); the source of truth is always the vault files plus git.
+kurodo reads everything, writes one field, never edits notes, and never oversteps. Derived data (indexes, caches) is disposable and rebuilt from the vault; the source of truth is always the vault files plus git.
 
 ## 2. Tech stack (every dependency justifies itself)
 
@@ -28,9 +28,9 @@ kurodo reads everything, writes one field, never edits notes, and never overstep
 | `os/exec` git              | The audit layer must share exactly the same semantics as hand-run git; no go-git |
 | vanilla JS (single file)   | Inherits from yomihon: native elements first (details/dialog), no framework      |
 
-The search index is **in-memory** (D24), so there is no database and no new dependency for it — see §6.
+The search index is **in-memory** (D24) — see §6. Databases and vector stores are per-feature engineering calls (D31): the in-process shape is the default at the current scale, and the escalation ladders with explicit triggers live in `roadmap.md` §4.
 
-**Not introduced**: PostgreSQL / pgx / sqlc / testcontainers (D24 — the search index is in-memory; a client-server RDBMS is over-reach for a local single-user tool, and its only edge is pgvector for the D05-gated embedder), fsnotify (D21 — a ~2s mtime scan does incremental indexing and handles create/delete/rename uniformly, without kqueue's non-recursive watch and lost events), Alpine (yomihon M2 already removed it — precedent), HTMX (wait until a real partial-update need appears), go-git, any ORM, any JS framework, vector search (D05's three gates).
+**Not introduced**: fsnotify (D21 — a ~2s mtime scan does incremental indexing and handles create/delete/rename uniformly, without kqueue's non-recursive watch and lost events), Alpine (yomihon M2 already removed it — precedent), HTMX (wait until a real partial-update need appears), go-git, any ORM, any JS framework.
 
 ## 3. Binary and command surface
 
@@ -69,9 +69,9 @@ How the walls grow into code: `internal/status` is the only package with file-wr
 
 **Write (the one and only path)**: the formal algorithm, UI, error vocabulary, and acceptance all live in `spec.md` §4. The skeleton: read the file for its current state → state machine validation (from + owner, actor=koopa) → dirty check → surgical single-line rewrite → atomic write-back → git commit (author = Koopa's identity, `(via kurodo)`) → PRG redirect.
 
-## 6. Derived state — in-memory, no database (D24, D25)
+## 6. Derived state — in-memory (D24, D25)
 
-There is no database. All derived state is built in memory from the vault and
+All derived state is built in memory from the vault and
 held in one snapshot behind an `atomic.Pointer`:
 
 ```go
@@ -93,16 +93,15 @@ a restart.
 
 The search index holds only what search reads (D23): per note, `rel_path`,
 `title`, `note_type`, `domain`, `status`, `slug`, `topics`, and the NFC-folded
-`plain_text`. No link structure (that serves a future backlinks feature, §10)
+`plain_text`. No link structure (that serves the H-face backlinks, `roadmap.md`)
 and no raw frontmatter — added when a real consumer arrives, at zero cost since
 the whole thing rebuilds from the vault.
 
 No status history: `git log` is the history (vault-model §3). The reading and
 judge faces never depend on any persistent store (spec §0.1); search is as
 available as reading, because the index _is_ memory sourced from the
-always-present vault. The recorded future persistence path is SQLite, not
-PostgreSQL (D24), and only when a frequently-invoked search CLI makes the
-per-invocation rescan painful.
+always-present vault. Persistence, when a trigger fires, climbs the ladders in
+`roadmap.md` §4 (D24's SQLite rung for lexical; D32's vector rungs).
 
 ## 7. Search
 
@@ -110,10 +109,10 @@ Deterministic substring over the in-memory index (§6) plus structured
 filtering; spec and acceptance in `spec.md` §3. Match has one definer — a Go
 `fold(s) = strings.ToLower(nfc(s))` applied to both the stored text and the
 query, so "what counts as a match" is decided in exactly one place. A linear
-scan over ~419 folded strings is microsecond-scale. Any move to a persistent or
-semantic index must go through the kura-field-log three gates
-(`System/kura-field-log.md:22`) — and would be SQLite / sqlite-vec, not
-PostgreSQL (D24).
+scan over ~419 folded strings is microsecond-scale. The hybrid semantic
+extension is committed scope (D32): Gemini embeddings fused with this lexical
+index via RRF — it composes with the deterministic layer, never replaces it;
+design and storage ladders in `roadmap.md`.
 
 ## 8. UI (styling references the Syntax template; the implementation is all server-rendered templ)
 
@@ -129,9 +128,9 @@ The goals (the four end-state points) are in `spec.md` §0. **No milestone fence
 
 The two retirements are **evidence-based gates, not dates** (D11):
 
-- **yomihon's retirement gate** = `spec.md` §1 (visual parity) + §6 (five interactions + fixtures + two weeks of practical use). Until it is met, yomihon is frozen in service (tag `v1.0.0`, bug fixes only).
+- **yomihon's retirement gate** = `spec.md` §1 (visual parity) + §6's three reading-face items (five interactions + fixtures + two weeks of practical use); the export face is excluded from the gate (D38). Until it is met, yomihon is frozen in service (tag `v1.0.0`, bug fixes only).
 - **kura's retirement gate** = `spec.md` §5 (JSONL byte-compat + snapshots + scan boundary + four-pipeline switchover). Until it is met, not a line of kura changes.
 
-## 10. Unscheduled (the yard is open, the walls don't block)
+## 10. Scheduled and open items
 
-graph view, backlinks panel, frontmatter query, reading progress, PDF export, MCP server (a loose thread left in kura's README), a diagnostics index page (the status-bar report-count panel D26 deferred until it has a real landing page)… all legal; which one grows first is decided by the pain of actual use and the real needs of vault-side agents.
+The remaining faces and their design live in `roadmap.md` (Koopa, 2026-07-05: every remaining face ships; ordering by dependency and leverage). Formerly-unscheduled items now have homes: backlinks panel and frontmatter query → H (agent toolbox + reading-page panel, D33); the diagnostics index page and reading progress → the adjudication cockpit (roadmap §3); graph view → after the cockpit; PDF export → G's yard; MCP server → declined with a recorded reversal condition (D34). The yard stays open for what is not listed; the walls still don't block.

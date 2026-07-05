@@ -1,6 +1,6 @@
 # Judge face — implementation plan (spec §5)
 
-> Status: **awaiting Koopa's review.** Not yet built. The judge face is
+> Status: **built through Stage 3** (schema + graph rules + link.broken.path merged, PR #11–#13); Stage 4 (formats/CLI/switchover sandwich) in flight. The judge face is
 > `kurodo check` / `exists` / `coverage` — a Go rewrite of kura's CLI. Its soul
 > is **byte-compatibility with kura**, a different discipline from the search
 > face's determinism: the retirement gate (D11) is a byte-for-byte match of
@@ -237,3 +237,48 @@ switchover blocker; the rest can land before the gate is declared met.
   gate (it needs `~/.cargo/bin/kura` present and a quiescent vault at test time).
 - Out of scope: the serve/snapshot world (untouched), the write face (wall 1),
   search, export, any frontend.
+
+## 12. Divergence register (the complete list; the retirement gate = byte-compat except exactly these)
+
+Every deliberate or latent departure from the reference bytes, each verified
+against the real binary and each with its guard stated honestly. Anything not
+on this list that diffs is a bug.
+
+1. **stderr error prefix `kurodo:`** (deliberate; ruled in §8). No consumer
+   reads stderr; exit codes and stdout are the contract.
+2. **`--format md` preamble, two lines** (`tool: kurodo`, `# kurodo check`;
+   deliberate, Koopa 2026-07-05). Golden hand-pinned; the real-vault sandwich
+   compares the report body and skips the preamble. **Switchover checklist
+   item**: confirm the md-consuming pipeline does not match on the old tool
+   name before flipping it.
+3. **Path references inside `%%…%%` comments are not checked** (deliberate,
+   Koopa 2026-07-05; the reference checks wikilinks' comment scope but not
+   path refs — an inconsistency in the reference, corrected here). Fixture +
+   dedicated test pin the intent; the real vault has no such case, so the
+   sandwich also holds.
+4. **`coverage` folds an explicit empty `domain: ""` into `(none)`** (latent;
+   the reference emits a separate `""` group). Unreachable: the schema
+   requires a non-empty domain, and the real vault has none. Guard: real —
+   if such a note appears, the sandwich's coverage subtest fails loudly.
+5. **`exists` with an empty query skips empty `title`/`title_en` values; an
+   empty `alias` entry still matches** (latent; the reference matches all
+   empty-string metadata). Unreachable in practice (no empty titles/aliases in
+   the vault; no consumer issues an empty query). Guard: **weak, stated
+   honestly** — the sandwich queries fixed names and would not notice; the
+   divergence can only manifest on a degenerate call nothing makes. If exists
+   is ever touched again, unify the empty-value rule for self-consistency.
+6. **An unreadable contract file is a tool error (exit 2, loud)** (latent; the
+   reference silently skips all schema rules and exits 0). kurodo's behavior
+   is strictly safer for a gating tool — a broken contract should never look
+   like a clean vault. Guard: environmental; if the contract file is ever
+   unreadable during the sandwich, the run fails visibly.
+7. **Malformed flag and filter input is a tool error (exit 2, loud)**
+   (deliberate, 2026-07-05, three cases from review: `--root=` with an empty
+   value, `--all=` with a non-true value, and a path filter that normalizes to
+   an empty prefix — the reference silently falls back to cwd / default /
+   match-nothing respectively, so malformed input can read as a clean scan).
+   Well-formed input is unaffected — a nonexistent-but-valid path filter still
+   matches nothing with exit 0, same as the reference (verified both sides).
+   Unreachable from the four pipelines (their invocations are fixed strings);
+   guard: the property only manifests on a malformed call nothing makes, and
+   the dedicated flag tests pin it.

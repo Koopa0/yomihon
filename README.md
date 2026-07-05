@@ -18,15 +18,18 @@ Working today:
   highlights, task lists, and ruby passed through as-is.
 - The status flip (an adjudication): the write face, guarded by the vault's
   state machine and recorded as a git commit.
-- Server-side syntax highlighting (chroma).
-- Client-side mermaid diagrams.
+- Full-text lexical search (an in-memory index) with structured filters.
+- Syllabus trees, lesson interactions (furigana, TTS, slots, concept drawer),
+  and sandboxed report pages.
+- The judge engine — the vault diagnostics behind `check`, byte-compatible
+  with the external pipelines' frozen JSONL format (CLI dispatch in flight).
+- Server-side syntax highlighting (chroma); client-side mermaid diagrams.
 
-Not built yet:
+Not built yet (the sequencing blueprint is `docs/roadmap.md`):
 
-- Full-text search (an in-memory index; no database).
-- The judge CLI — `check` / `exists` / `coverage`: vault diagnostics whose
-  JSONL bytes and exit codes external pipelines already depend on.
-- Static export.
+- Hybrid semantic search (Gemini embeddings fused with the lexical index).
+- The agent toolbox: graph relation queries and whole-graph export.
+- The adjudication cockpit (home), static export, and the dreaming inbox.
 
 ## Etymology
 
@@ -46,8 +49,10 @@ not a patch — see `docs/design.md` and `docs/decisions.md`.
    under Koopa's own git identity. The rewrite is surgical: the `status` line is
    replaced; every other byte is left untouched.
 2. **Wall 2 — loopback only.** The listener hardcodes `127.0.0.1`; only the port
-   is configurable. The search index and every other piece of derived data stay
-   on the machine.
+   is configurable. kurodo never serves or exposes the vault or any derived data
+   beyond the machine. The one authorized outbound exception: note content —
+   never `Diary/` — sent to the embedding API to compute search vectors, which
+   are stored locally (`docs/decisions.md` D32).
 3. **Wall 3 — one schema contract.** The vault's schema — its enums and state
    machine — lives only in `vault-schema.toml`. `internal/schema` is the only
    package that reads it; there is no second, hardcoded copy anywhere in the repo.
@@ -74,9 +79,10 @@ standalone CLI, no Node). Configuration is read from the environment:
 | `KURODO_ROOT` | Vault path | `~/obsidian` |
 | `KURODO_PORT` | Listen port on `127.0.0.1` | `9610` |
 
-kurodo needs no database. All derived state — the graph, the navigation model,
-and the search index — is in-memory, rebuilt from the vault; the truth is always
-the vault files plus their git history.
+All derived state — the graph, the navigation model, and the search index — is
+in-memory, rebuilt from the vault; the truth is always the vault files plus
+their git history. There is currently no database; adopting one is a
+per-feature engineering call with recorded triggers (`docs/roadmap.md` §4).
 
 ## Layout
 
