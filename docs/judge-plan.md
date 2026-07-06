@@ -308,6 +308,19 @@ on this list that diffs is a bug.
    also drops every concept or routable note under Diary/, so a journal note
    mistyped as a concept never reaches that report either; a fixture with such a
    note and a test pin it.
+10. **Journal content exerts no influence on egress verdicts** (deliberate,
+   D42, ruled 2026-07-06 under delegation): the reference counts a journal
+   note's outgoing edges toward coverage's referenced/mounted sets, and its
+   planned-name lists toward broken-link severity; this engine excludes
+   journal sources from both, so a public concept's mount state and a public
+   broken link's severity never encode journal content. A public link naming
+   a journal title remains the author's own words (entry 8) and its
+   resolution is unchanged. Guard: dedicated fixtures pin both exclusions (a
+   journal-only mount edge leaves the concept orphaned here, mounted on the
+   reference; a journal-only planned name leaves the public link warn here,
+   info there). The real-vault sandwich holds only while the real journal
+   exerts no such influence — the implementation must run it and record
+   which way it lands.
 
 ## 13. The differential campaign (the declaration's final prerequisite)
 
@@ -330,10 +343,12 @@ contract file unreadable, and only uses fixed well-formed invocations — each
 documented as such next to the normalizer table); entries 2 and 4 get
 **mechanical normalizers** (skip the two-line md preamble; fold the
 reference's empty-string coverage domain into its `(none)` form); entries 3,
-8, and 9 get **manifest-driven filters** (drop reference findings at
-manifest-known comment-wrapped path-ref sites, and reference findings/matches
+8, 9, and 10 get **manifest-driven filters** (drop reference findings at
+manifest-known comment-wrapped path-ref sites; drop reference findings/matches
 whose manifest-known resolution touches the journal through any of the four
-channels).
+channels; and re-derive the reference's coverage mount state and broken-link
+severity at manifest-known journal-influence sites, since this engine
+excludes journal sources from both computations).
 
 **Completion bar — the retirement declaration cites this section when all five
 hold:**

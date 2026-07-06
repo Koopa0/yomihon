@@ -48,16 +48,14 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
 1. `PR-diff-fuzz` — the differential harness (merged, PR #19). Acceptance
    held: judge-plan §13's harness shape, rule-reach self-check, kill-tested
    runner.
-1b. **Pending ruling, before the campaign burns nights**: the journal's
-   influence on public results. Its findings are dropped from egress (D39),
-   but a journal note still counts as a *source* — its edges can flip a
-   public concept from orphan to referenced/mounted in coverage, and its
-   planned-name list downgrades a public broken link from warn to info. If
-   Koopa rules this closed (journal ceases to influence egress-visible
-   results), the fix is a new deliberate divergence: tests first, a §12
-   register entry, and a manifest/normalizer update to the differential
-   harness — landed *before* the campaign, so its evidence is collected
-   against the final behavior.
+1b. `PR-diary-influence` — **ruled (D42, delegated): the journal influences
+   no egress verdict.** Tests first: fixtures pin that a journal-only mount
+   edge leaves a public concept orphaned and a journal-only planned name
+   leaves a public broken link at warn; then exclude journal sources from
+   coverage's mount edges and the planned-name set; register entry 10 and
+   the differential harness's manifest/normalizer grow with it. Lands
+   *before* the campaign, so its evidence is collected against the final
+   behavior. The real-vault sandwich is run and its outcome recorded.
 2. Campaign runs — operations, not a PR: nights of runs to the §13 completion
    bar; every divergence pauses for adjudication.
 3. Koopa's retirement declaration, citing §13.
