@@ -318,9 +318,14 @@ on this list that diffs is a bug.
    resolution is unchanged. Guard: dedicated fixtures pin both exclusions (a
    journal-only mount edge leaves the concept orphaned here, mounted on the
    reference; a journal-only planned name leaves the public link warn here,
-   info there). The real-vault sandwich holds only while the real journal
-   exerts no such influence — the implementation must run it and record
-   which way it lands.
+   info there). The same excluded mount set also feeds the routed/unrouted
+   classification, so a routable note mounted only by a journal map counts
+   as unrouted here and routed on the reference — the same divergence seen
+   through a third window, not a separate mechanism; the differential
+   generator does not construct that case (the normalizer set stays closed)
+   and the real-vault sandwich guards it. The sandwich was run at
+   implementation time and held: the real journal currently exerts no such
+   influence on any surface.
 
 ## 13. The differential campaign (the declaration's final prerequisite)
 
