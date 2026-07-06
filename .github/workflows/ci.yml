@@ -131,3 +131,27 @@ jobs:
 
       - name: Drive the reading faces and check the listening socket
         run: bash .github/e2e/smoke.sh "${RUNNER_TEMP}/kurodo"
+
+  # Runs a short live fuzz pass over each diagnostics target and smoke-runs the
+  # benchmarks, so a crash or invariant break in the hand-rolled frontmatter and
+  # link parsing surfaces on a pull request rather than in a later run. The seed
+  # corpus already runs under race in the main job; this job briefly explores new
+  # inputs without it. Go takes one fuzz pattern per invocation, so the targets
+  # are looped.
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Fuzz each diagnostics target briefly
+        run: |
+          for t in FuzzSplitFrontmatter FuzzParseNote FuzzExtractLinks FuzzWriteJSONL FuzzStripTarget; do
+            go test ./internal/judge -run='^$' -fuzz="^${t}\$" -fuzztime=30s || exit 1
+          done
+
+      - name: Smoke-run the benchmarks
+        run: go test ./... -run='^$' -bench=. -benchtime=1x
