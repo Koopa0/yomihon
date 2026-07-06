@@ -8,6 +8,10 @@ readable, navigable interface, and it lets the vault's owner adjudicate a note's
 else in the vault is read-only to it. The vault files plus their git history are
 the source of truth — any derived data is disposable.
 
+Working on this repository — human or agent — start at `docs/program.md`:
+it carries the delivery program, the role split, and the map of which
+document owns what. The quality bar is `docs/standards.md`.
+
 ## Status
 
 Pre-release. The skeleton is up and real lesson notes render end to end.
