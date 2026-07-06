@@ -81,9 +81,14 @@ func dropRefCheckLine(line string, man *genManifest) bool {
 	if f.Target == nil {
 		return false
 	}
-	for _, s := range man.diaryTitleLinks {
-		if s.path == f.Path && s.target == *f.Target {
-			return true
+	// Each manifest-driven drop is constrained to the one rule its construct
+	// produces on the reference side, so a different finding that happens to
+	// share a path and target is kept and surfaces as a loud difference.
+	if f.RuleID == "link.title_not_alias" {
+		for _, s := range man.diaryTitleLinks {
+			if s.path == f.Path && s.target == *f.Target {
+				return true
+			}
 		}
 	}
 	if f.RuleID == "link.broken.path" {
@@ -105,11 +110,16 @@ func normalizeCoverage(c *Coverage, man *genManifest) Coverage {
 	for _, d := range c.Domains {
 		rows[d.Domain] = d
 	}
+	// Only a concept actually deducted from a domain row is deducted from the
+	// total, so the normalized report stays internally consistent even when a
+	// recorded domain has no row to edit.
+	removed := 0
 	for _, dc := range man.diaryConcepts {
 		row, ok := rows[dc.domain]
 		if !ok {
 			continue
 		}
+		removed++
 		row.Concepts--
 		row.Orphan--
 		if row.Concepts <= 0 {
@@ -136,7 +146,7 @@ func normalizeCoverage(c *Coverage, man *genManifest) Coverage {
 	slices.SortFunc(domains, func(a, b DomainCoverage) int { return strings.Compare(a.Domain, b.Domain) })
 
 	return Coverage{
-		TotalConcepts: c.TotalConcepts - len(man.diaryConcepts),
+		TotalConcepts: c.TotalConcepts - removed,
 		Domains:       domains,
 		PendingMount:  withoutDiary(c.PendingMount),
 		Orphans:       withoutDiary(c.Orphans),
@@ -207,6 +217,45 @@ func TestDiffFuzzNormalizeCheckDropsDiaryChannels(t *testing.T) {
 	want := public + "\n"
 	if string(got) != want {
 		t.Errorf("normalizeCheckJSONL kept the wrong lines\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestDiffFuzzNormalizeCheckKeepsOtherRuleAtTitleLinkSite(t *testing.T) {
+	t.Parallel()
+	// A finding that shares a title-link site's path and target but carries a
+	// different rule must be kept: the drop is scoped to the one rule the
+	// construct produces, so it can never mask an unrelated divergence.
+	man := genManifest{
+		diaryTitleLinks: []pathTarget{{path: "Notes/linker.md", target: "Private Title"}},
+	}
+	titleOwner := `{"rule_id":"link.title_not_alias","severity":"warn","path":"Notes/linker.md","target":"Private Title","fingerprint":"a"}`
+	otherRule := `{"rule_id":"provenance.unresolved","severity":"warn","path":"Notes/linker.md","target":"Private Title","fingerprint":"b"}`
+	ref := titleOwner + "\n" + otherRule + "\n"
+	got := normalizeCheckJSONL([]byte(ref), &man)
+	want := otherRule + "\n"
+	if string(got) != want {
+		t.Errorf("normalizeCheckJSONL rule scoping wrong\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestDiffFuzzNormalizeCoverageIgnoresUnmatchedDiaryDomain(t *testing.T) {
+	t.Parallel()
+	// A recorded journal concept whose domain has no reference row must leave
+	// the total untouched, keeping the normalized report internally consistent.
+	man := genManifest{diaryConcepts: []diaryConcept{{domain: "ghost"}}}
+	ref := Coverage{
+		TotalConcepts: 3,
+		Domains:       []DomainCoverage{{Domain: "golang", Concepts: 3, Orphan: 3}},
+		Unrouted:      []Unrouted{},
+	}
+	want := Coverage{
+		TotalConcepts: 3,
+		Domains:       []DomainCoverage{{Domain: "golang", Concepts: 3, Orphan: 3}},
+		Unrouted:      []Unrouted{},
+	}
+	got := normalizeCoverage(&ref, &man)
+	if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
+		t.Errorf("normalizeCoverage unmatched-domain handling (-want +got):\n%s", diff)
 	}
 }
 

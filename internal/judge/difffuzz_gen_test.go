@@ -176,11 +176,13 @@ func planVault(seed int64) (contract string, notes []genNote, man genManifest) {
 
 	p.baseline()
 
-	round := int(seed)
+	// The remainder is taken in int64 so an extreme seed neither overflows on
+	// negation nor depends on the platform's int width.
+	round := seed % int64(focusCount)
 	if round < 0 {
-		round = -round
+		round += int64(focusCount)
 	}
-	guaranteed := round % focusCount
+	guaranteed := int(round)
 	p.plant(guaranteed)
 	for extra := 2 + rng.IntN(4); extra > 0; extra-- {
 		p.plant(safeFocuses[rng.IntN(len(safeFocuses))])
