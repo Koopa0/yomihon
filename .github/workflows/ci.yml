@@ -66,8 +66,13 @@ jobs:
       - name: Regenerate the templ output
         run: go tool templ generate
 
+      # Add everything to the index first so the check also catches a newly
+      # generated file, or one deleted from the tree; a plain diff only sees
+      # edits to a file that is already tracked.
       - name: Fail if the generated Go is out of date
-        run: git diff --exit-code
+        run: |
+          git add -A
+          git diff --cached --exit-code
 
       - name: Fetch the pinned stylesheet generator
         run: |

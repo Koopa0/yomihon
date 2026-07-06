@@ -17,13 +17,14 @@ vault="$here/vault"
 port="${KURODO_SMOKE_PORT:-19733}"
 base="http://127.0.0.1:${port}"
 log="$(mktemp)"
+body="$(mktemp)"
 
 KURODO_ROOT="$vault" KURODO_PORT="$port" "$bin" serve >"$log" 2>&1 &
 server_pid=$!
 cleanup() {
   kill "$server_pid" 2>/dev/null || true
   wait "$server_pid" 2>/dev/null || true
-  rm -f "$log"
+  rm -f "$log" "$body"
 }
 trap cleanup EXIT
 
@@ -41,9 +42,9 @@ done
 # page rendered rather than a blank 200.
 assert_face() {
   local path="$1" marker="$2" code
-  code="$(curl -fsSL -o /tmp/smoke-body -w '%{http_code}' "${base}${path}")" || fail "GET ${path} did not return success"
+  code="$(curl -fsSL -o "$body" -w '%{http_code}' "${base}${path}")" || fail "GET ${path} did not return success"
   [ "$code" = "200" ] || fail "GET ${path} status ${code}, want 200"
-  grep -qF "$marker" /tmp/smoke-body || fail "GET ${path} rendered but is missing its marker: ${marker}"
+  grep -qF "$marker" "$body" || fail "GET ${path} rendered but is missing its marker: ${marker}"
   echo "ok: ${path}"
 }
 
@@ -78,5 +79,4 @@ if printf '%s\n' "$sockets" | grep -qE "(0\.0\.0\.0|\[::\]|\*)[:.]${port}([^0-9]
 fi
 echo "ok: listening only on 127.0.0.1:${port}"
 
-rm -f /tmp/smoke-body
 echo "smoke passed"
