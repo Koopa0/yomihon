@@ -1,7 +1,9 @@
 # Reading-surface UX plan (navigation, motion, and the sidebar)
 
-Status: **drafted 2026-07-06, awaiting Koopa's item-by-item review** (§9 is
-the review checklist). Scope: the global chrome, the landing page, the left
+Status: **ruled 2026-07-06** — item 1 by Koopa (the landing combines the
+dashboard blocks with the vault README rendered in place), items 2–15
+delegated to the guide and resolved as recorded in §9. This document is now
+the buildable design; further changes are amendments, not review rounds. Scope: the global chrome, the landing page, the left
 sidebar, the note page's rails, and motion/loading. Out of scope: the
 adjudication cockpit's queue mechanics (the D plan doc owns those; §4 here
 only builds the skeleton it will inherit) and the ⌘K panel's content (the B
@@ -47,12 +49,18 @@ plan doc owns retrieval).
 
 ## 3. Landing (`/`)
 
-Today `/` redirects to `/notes/README.md`. A README is the vault's door for
-strangers; the owner needs "where was I, what moved, what needs me".
+Today `/` redirects to `/notes/README.md`. The vault README is genuinely good
+(verified 2026-07-06: lifecycle, structure, where-to-start, norms — a proper
+door); the failure was making it the *only* thing on landing, when the daily
+reader needs "what moved, what needs me" at zero scroll.
 
-**Design: `/` renders Home v0.5** — a page assembled at request time from the
-in-memory snapshot (no new state *store*; the reading-tracker stays cockpit
-territory, deferred to the D plan doc, which absorbs this page):
+**Design (Koopa's ruling): `/` renders Home v0.5 — the dashboard blocks
+first, then the vault README rendered in full below them** as the standing
+introduction. No redirect, no vault edit: the README note stays the intro it
+already is, one scroll away instead of in the way. The blocks are assembled
+at request time from the in-memory snapshot (no new state *store*; the
+reading-tracker stays cockpit territory, deferred to the D plan doc, which
+absorbs this page):
 
 1. **Recently changed** — the newest N (≈7) knowledge notes by file mtime,
    with status chips. Honest label: this is "what changed on disk", not
@@ -68,7 +76,9 @@ territory, deferred to the D plan doc, which absorbs this page):
    to the syllabus page.
 4. **Search** — the same field as the topbar, autofocused.
 
-README stays reachable (Folders tree, and any direct link keeps working).
+Below the four blocks, the README body renders through the same pipeline as
+any note; its own page (`/notes/README.md`) and every direct link keep
+working.
 
 **Boundary against spec §2**: spec §2's four home blocks (domain MOC entries,
 cross-domain boards, the mechanical-gate list, doc pointers) are **not**
@@ -189,28 +199,28 @@ Budget: ≤ ~60 lines in `kurodo.js`, zero network, zero state.
 7. No new dependency without a D41 admission recorded in `decisions.md`.
 8. `standards.md` §5 protocol, as for every PR.
 
-## 9. Review checklist (Koopa rules each; the doc is then amended to match)
+## 9. Resolutions (ruled 2026-07-06; item 1 by Koopa, 2–15 delegated to the
+guide and resolved as follows)
 
-1. Landing = Home v0.5 (§3) instead of the README redirect — yes/no/adjust.
-2. Home v0.5's four blocks and their honest labels — anything to add or cut?
-3. Sidebar order: filter / Here / Syllabus / Lifecycle(collapsed) / Reports /
-   Folders (§4) — confirm or reorder.
-4. Lifecycle demoted to a collapsed section — acceptable revision of the
-   Lifecycle-first ruling?
-5. Syllabus courses closed by default, active path(s) auto-opened — or would
-   you rather keep everything expanded?
-6. "Here" (siblings) block — wanted, or is breadcrumb + Folders enough?
-7. No sidebar resize; fixed width + drawer — confirm, or demand resize now?
-8. Sidebar filter box (§5) — wanted as specced?
-9. View transitions with the title as shared element (§2), write path
-   excluded by design — confirm taste.
-10. Seal feedback = chip pulse + server-rendered toast (§7) — enough? too
-    much?
-11. TOC toggle deferred (§6) — agree?
-12. Scroll-spy TOC highlight — wanted?
-13. Mermaid shimmer skeleton — wanted?
-14. D41's library-admission criteria (in `decisions.md`) — confirm the bar's
-    wording.
-15. The one ambient number on the collapsed Lifecycle summary (§4.4): the
-    adjudication backlog (notes awaiting a decision), the `ready` count, or
-    none — which?
+1. **Landing** — Koopa: the README hypothesis was checked and the note is
+   good; keep it in the landing experience. Resolution: Home v0.5 renders the
+   dashboard blocks first and the vault README in full below (§3). No
+   redirect, no vault edit.
+2. Home blocks and labels — as specced in §3.
+3. Sidebar order — as specced in §4.
+4. Lifecycle demoted to a collapsed section — confirmed.
+5. Syllabus closed by default, active path(s) auto-opened — confirmed.
+6. "Here" siblings block — build it.
+7. No sidebar resize — confirmed (returns only if daily use disproves it).
+8. Sidebar filter box — build it as specced in §5.
+9. View transitions, title as shared element, write path excluded — build.
+10. Seal feedback = chip pulse + server-rendered toast — build.
+11. TOC toggle — stays deferred.
+12. TOC scroll-spy — build.
+13. Mermaid shimmer skeleton — build.
+14. D41 admission criteria — stand as written in `decisions.md`.
+15. The ambient number on the collapsed Lifecycle summary — **the
+    adjudication backlog**: the count of notes whose status still has a legal
+    outgoing transition in the state machine, computed from the schema
+    contract at render time — never a hardcoded status list (wall 3). The
+    doorway shows what still needs a decision, not what is already sealed.
