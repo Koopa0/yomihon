@@ -306,3 +306,37 @@ on this list that diffs is a bug.
    also drops every concept or routable note under Diary/, so a journal note
    mistyped as a concept never reaches that report either; a fixture with such a
    note and a test pin it.
+
+## 13. The differential campaign (the declaration's final prerequisite)
+
+The register (§12) freezes the known differences; the campaign hunts unknown
+ones, on inputs nobody wrote by hand. The harness lives in `internal/judge`,
+env-gated like every reference-coupled test (`KURODO_REFERENCE_BIN`; never in
+CI): a seeded, schema-aware vault generator biased toward the rule surfaces; a
+manifest recording the intentionally divergence-prone constructs each vault
+plants (comment-wrapped path refs, journal-crossing links, empty domains), so
+register filtering is precise rather than heuristic; one named normalizer per
+register entry (unit-tested; entries avoided by construction are documented as
+such); and a runner that byte-diffs both engines' `check`, `coverage`, and
+`exists` output after normalization, preserving vault + seed + first diff hunk
+on any mismatch.
+
+**Completion bar — the retirement declaration cites this section when all five
+hold:**
+
+1. At least 5,000 generated vaults cumulatively, across at least three
+   independent runs on separate days with distinct base seeds.
+2. Zero unexplained byte differences after §12 normalization.
+3. The rule-reach self-check passes in every run: all fifteen rules and both
+   frontmatter failure classes exercised at least once.
+4. Every divergence the campaign finds is adjudicated before its run counts: a
+   kurodo defect is fixed; a reference defect becomes a §12 entry with a
+   pinning fixture. A run containing an unadjudicated diff does not count
+   toward item 1.
+5. The declaration records the totals: rounds, base seeds, and the aggregated
+   rule-reach distribution.
+
+After the declaration, the scaffolding dies and the contract stays: delete the
+conformance, sandwich, and differential tests; keep every golden and pinning
+fixture; remove the reference-binary shell export; clean the wrapper backups;
+delete the reference binaries (D40).

@@ -40,6 +40,7 @@
 | 2 | **I: wall-lock sweep** | Retirement declarations require the four walls as test locks; also locks D30's three sandbox mechanisms | D30 |
 | 3 | **Quality rails** (parallel with I) | CI + linters + fuzz pack, per D36 "right after the A face, alongside the I sweep"; the switchover benefits from CI existing | D36 |
 | 4 | **kura switchover + retirement** | Four crons + manual gates move to `kurodo check`; **order inside this item is load-bearing**: run the differential fuzz campaign and capture any final goldens *first*, then verify each consumer against the divergence register (judge-plan §12 — in particular that the md-consuming pipeline tolerates the two-line preamble change), then switch consumers, then declare, then delete the conformance scaffolding (goldens stay) and remove the reference-binary shell export | D36 |
+| 4b | **Reading-surface UX repairs** (parallel with anything) | Daily use moved to kurodo outright (D40), so reading-surface pain is paid every day; the mechanical repairs need no ruling, the taste batch waits for Koopa's accumulated pain list — both in §5b | D40 |
 | 5 | **B: search panel, lexical then hybrid** | ⌘K content over the existing shell first; then Gemini embeddings + RRF fusion (key arrives at build start). Needs a **B plan doc** before the hybrid half — its required contents are listed in §5a | D31, D32 |
 | 6 | **H: agent toolbox** | Graph verbs + whole-graph export + frontmatter query; cheap, unlocks agents and dreaming. Needs an **H plan doc** — output contracts are the point (§5a) | D33 |
 | 7 | **D: Home = the adjudication cockpit** | See §3 — the face that scales Koopa's throughput when agents write faster than he reads. Needs a **D plan doc**; must reconcile with spec §2's four home blocks (see §3) | D26, D35, D37 |
@@ -241,6 +242,42 @@ Before building items 5/6/7, a plan doc per face, carrying at minimum:
 - **D**: queue ordering/skip/read-vs-decided semantics; the spec §4 redirect
   amendment; reading-state file format + diff storage bound; inbox
   pending/processed convention; reconciliation with spec §2's four blocks.
+
+## 5b. Reading-surface UX queue (from daily use, 2026-07-06)
+
+D40 moved daily reading to kurodo outright, so reading-surface pain is paid
+every day; this queue holds it. The diagnosis below was reproduced against the
+real vault with headless screenshots before anything was queued.
+
+**UX-A — mechanical repairs (no ruling needed; parallel with anything):**
+
+1. The right rail occupies its grid column unconditionally. A note with no
+   headings correctly renders no TOC, but the empty column keeps its width —
+   the "blank stuck rail". The template already knows the TOC is empty;
+   collapse the column with a class, zero JS.
+2. `.k-prose table` has no horizontal-overflow guard, while code blocks and
+   mermaid diagrams have one; a wide GFM table breaks the article column.
+   Align tables with the existing overflow pattern.
+3. `.k-title` and the metadata row carry no `overflow-wrap` guard against long
+   unbroken titles and paths.
+
+**UX-B — taste batch (one ruling session over Koopa's accumulated pain list,
+then one PR):** TOC show/hide (native disclosure; a persistent preference may
+ride the existing cookie pattern); left sidebar collapse vs resize; left
+sidebar content order — the current Lifecycle-first layout serves
+adjudication, but daily reading wants wayfinding (the open note's position in
+its own tree), and reordering reopens the D26 layout ruling, which is Koopa's
+call. Batch these deliberately: piecemeal layout changes are how the
+HTML-first discipline erodes.
+
+**Cockpit priority signal:** whole-queue status management is the cockpit
+(§3), designed and unbuilt. If that turns out to be the dominant daily pain,
+pull item 7 ahead of item 5 — this sequence is pain-driven by design.
+
+**Screenshot e2e / Playwright:** deferred until the reading surface
+stabilizes — a baseline captured mid-repair is waste. The CI-only-Node
+posture (D36) already answers the tooling question; the headless-screenshot
+probe used for the diagnosis above is the seed of that job.
 
 ## 6. Standing rules that survive this roadmap
 
