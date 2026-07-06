@@ -275,6 +275,7 @@ linters:
     paths:
       - ^vendor/
       - ^internal/db/   # sqlc-generated — never hand-edited, never linted
+      - ^node_modules/  # a frontend dev dependency ships a stray Go file; gitignored, absent in CI
     rules:
       # Test files allow higher complexity
       - path: _test\.go
@@ -305,3 +306,4 @@ formatters:
     paths:
       - ^vendor/
       - ^internal/db/
+      - ^node_modules/  # a frontend dev dependency ships a stray Go file; gitignored, absent in CI
