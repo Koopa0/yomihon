@@ -161,11 +161,7 @@ POST /status (path, from, to)
 
 **Spec**: `kurodo export` = SSG static output (`dist/`), covering the Japanese lessons + the syllabus index + the five interactions (furigana visibility toggle, native details folding, TTS `data-tts` stripping `<rt>/<rp>` at build time, slot sidecar, concept `<dialog>`). Egress face: unconditionally excludes `Diary/` (§0.1 privacy boundary). PWA / Service Worker: **cut, not inherited** — yomihon's SW, being HTTP-only, never actually registered and is verified dead weight. export output = pure static files.
 
-**The yomihon retirement gate** (D38: the gate is these three reading-face items — the export face does not block the retirement declaration, because nothing consumes yomihon's SSG output):
-
-1. The five interactions are independently reproduced and all fixtures pass (yomihon's testdata assertion pattern + direct consumption of `System/slots/L01–L20.yaml`).
-2. `m1-review/` screenshots at visual parity.
-3. Koopa actually studies with kurodo for two weeks. Until then, yomihon is frozen in service (tag `v1.0.0`).
+**The yomihon retirement gate — closed (D38 narrowed it, D40 closed it)**: the engineering item (the five interactions independently reproduced, all fixtures passing, direct consumption of `System/slots/L01–L20.yaml`) is merged; the two observation items (`m1-review/` screenshot parity, the two-week studying clock) are waived — Koopa moved daily reading to kurodo outright and does not track parity. Retirement is effective on his declaration alone; until then yomihon merely sits frozen (tag `v1.0.0`). Reading-surface problems found in daily use are ordinary UX work (`roadmap.md` §5b), not gate evidence.
 
 **Acceptance of the export face itself** (own schedule, `roadmap.md` §1): the five interactions function in the static output, and `Diary/` is absent from `dist/`.
 

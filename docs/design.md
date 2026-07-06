@@ -128,8 +128,8 @@ The goals (the four end-state points) are in `spec.md` §0. **No milestone fence
 
 The two retirements are **evidence-based gates, not dates** (D11):
 
-- **yomihon's retirement gate** = `spec.md` §1 (visual parity) + §6's three reading-face items (five interactions + fixtures + two weeks of practical use); the export face is excluded from the gate (D38). Until it is met, yomihon is frozen in service (tag `v1.0.0`, bug fixes only).
-- **kura's retirement gate** = `spec.md` §5 (JSONL byte-compat + snapshots + scan boundary + four-pipeline switchover). Until it is met, not a line of kura changes.
+- **yomihon's retirement gate — closed (D40)**: the five interactions + fixtures are merged; the parity and two-week observation items are waived. Retirement is effective on Koopa's declaration; yomihon stays frozen (tag `v1.0.0`) until that word is said, and is then discarded outright.
+- **kura's retirement gate** = `spec.md` §5 (JSONL byte-compat + snapshots + scan boundary + four-pipeline switchover — all merged) **plus the differential fuzz campaign** (`judge-plan.md` §13) as the declaration's final engineering prerequisite. Until the declaration, not a line of kura changes; after it, kura is discarded and kurodo owns the formats (D40).
 
 ## 10. Scheduled and open items
 
