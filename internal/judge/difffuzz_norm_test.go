@@ -154,14 +154,17 @@ func normalizeCoverage(c *Coverage, man *genManifest) Coverage {
 	for _, d := range c.Domains {
 		rows[d.Domain] = d
 	}
-	// Only a concept actually deducted from a domain row is deducted from the
-	// total, so the normalized report stays internally consistent even when a
-	// recorded domain has no row to edit.
+	// The manifest names a note the reference counts as an orphan in its domain,
+	// so a missing row or one with no orphan concept to remove means the manifest
+	// and the reference disagree — a harness fault surfaced at its cause rather
+	// than left to underflow into a negative count. A domain reduced to no
+	// concept drops its row, matching this engine, which files no journal note in
+	// coverage at all.
 	removed := 0
 	for _, dc := range man.diaryConcepts {
 		row, ok := rows[dc.domain]
-		if !ok {
-			continue
+		if !ok || row.Concepts <= 0 || row.Orphan <= 0 {
+			panic("difffuzz: journal-concept re-derivation for domain " + dc.domain + " found no orphan concept to remove")
 		}
 		removed++
 		row.Concepts--
@@ -304,24 +307,33 @@ func TestDiffFuzzNormalizeCheckKeepsOtherRuleAtTitleLinkSite(t *testing.T) {
 	}
 }
 
-func TestDiffFuzzNormalizeCoverageIgnoresUnmatchedDiaryDomain(t *testing.T) {
+func TestDiffFuzzNormalizeCoverageFailsLoudOnConceptMismatch(t *testing.T) {
 	t.Parallel()
-	// A recorded journal concept whose domain has no reference row must leave
-	// the total untouched, keeping the normalized report internally consistent.
-	man := genManifest{diaryConcepts: []diaryConcept{{domain: "ghost"}}}
-	ref := Coverage{
-		TotalConcepts: 3,
-		Domains:       []DomainCoverage{{Domain: "golang", Concepts: 3, Orphan: 3}},
-		Unrouted:      []Unrouted{},
+	// A journal-concept entry names a note the reference counts as an orphan in
+	// its domain, so a domain the reference does not orphan is a manifest /
+	// reference disagreement: a missing row, or a row with no orphan concept to
+	// remove. Both are surfaced at their cause rather than left to underflow into
+	// a negative count that reads downstream as an engine divergence.
+	tests := []struct {
+		name          string
+		conceptDomain string
+		domains       []DomainCoverage
+	}{
+		{name: "no row for the domain", conceptDomain: "ghost", domains: []DomainCoverage{{Domain: "golang", Concepts: 2, Orphan: 2}}},
+		{name: "row with no orphan to remove", conceptDomain: "golang", domains: []DomainCoverage{{Domain: "golang", Concepts: 2, Mounted: 2, Orphan: 0}}},
 	}
-	want := Coverage{
-		TotalConcepts: 3,
-		Domains:       []DomainCoverage{{Domain: "golang", Concepts: 3, Orphan: 3}},
-		Unrouted:      []Unrouted{},
-	}
-	got := normalizeCoverage(&ref, &man)
-	if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
-		t.Errorf("normalizeCoverage unmatched-domain handling (-want +got):\n%s", diff)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			man := genManifest{diaryConcepts: []diaryConcept{{domain: tt.conceptDomain}}}
+			ref := Coverage{TotalConcepts: 2, Domains: tt.domains, Unrouted: []Unrouted{}}
+			defer func() {
+				if recover() == nil {
+					t.Error("normalizeCoverage did not fail loud on a journal-concept the reference does not orphan")
+				}
+			}()
+			normalizeCoverage(&ref, &man)
+		})
 	}
 }
 
