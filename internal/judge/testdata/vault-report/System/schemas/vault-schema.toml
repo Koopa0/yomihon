@@ -3,7 +3,7 @@ schema_version = "1"
 type = ["concept", "lesson", "system"]
 domain = ["golang", "japanese"]
 source_kind = ["course"]
-source_provider = ["ardanlabs"]
+source_provider = ["example-provider"]
 level = ["fundamental"]
 map_kind = ["topic"]
 [enums.status]

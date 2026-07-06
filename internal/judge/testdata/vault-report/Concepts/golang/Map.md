@@ -2,7 +2,7 @@
 title: Go Map
 type: concept
 domain: golang
-source_locator: ArdanLabs Ultimate Go
+source_locator: Example Provider Course
 aliases:
   - shared
 based_on:
