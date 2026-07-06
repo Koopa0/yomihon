@@ -3,6 +3,8 @@ tmp/
 dist/
 .env
 .DS_Store
+# The frontend linters install here on the runner; the product build needs no Node.
+node_modules/
 # Harness (go-spec bootstrap): lives on disk, never tracked in this repo.
 # tests/ holds only harness self-tests; kurodo's Go tests live in internal/*_test.go.
 .claude/

@@ -1,3 +1,7 @@
+# A small vault for the smoke test. The reading faces load this contract but do
+# not validate notes against it, so the notes here exercise the faces (including
+# a study-path syllabus, a type kept out of the enum on purpose) without
+# conforming to the required fields; the contract is present only so it loads.
 schema_version = "1"
 [enums]
 type = ["concept", "lesson", "system"]
@@ -13,7 +17,7 @@ lesson = ["draft", "ready"]
 [fields]
 required = ["title", "type", "domain"]
 required_inbox = ["title", "type"]
-known = ["title", "type", "domain", "status", "source_kind", "source_provider", "level", "map_kind", "based_on", "source_locator", "tags"]
+known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags"]
 lesson_only = ["slug"]
 [fields.status_group]
 system = ["system", "guide"]

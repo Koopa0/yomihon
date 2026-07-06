@@ -2,7 +2,7 @@
 title: Go Slice
 type: concept
 domain: golang
-source_locator: ArdanLabs Ultimate Go
+source_locator: Example Provider Course
 aliases:
   - shared
 ---

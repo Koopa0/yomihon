@@ -12,6 +12,14 @@ on:
 permissions:
   contents: read
 
+# The stylesheet generator is pinned so that a version bump surfaces as an
+# intentional change here rather than as silent output drift. The checksum is
+# the linux-x64 build published with this release, verified before the binary
+# is run.
+env:
+  TAILWIND_VERSION: v4.1.17
+  TAILWIND_SHA256: cc115d9b6c4ede4e423bfea6a3cfc3f03e6c1702b7d910369b9540e2b4cf3860
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -42,3 +50,84 @@ jobs:
 
       - name: Vulnerability scan
         run: govulncheck ./...
+
+  # Regenerating the checked-in generated files must produce no change. A
+  # difference means a generated file was edited by hand, or a source changed
+  # without its output being regenerated with the pinned tools.
+  assets-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Regenerate the templ output
+        run: go tool templ generate
+
+      # Add everything to the index first so the check also catches a newly
+      # generated file, or one deleted from the tree; a plain diff only sees
+      # edits to a file that is already tracked.
+      - name: Fail if the generated Go is out of date
+        run: |
+          git add -A
+          git diff --cached --exit-code
+
+      - name: Fetch the pinned stylesheet generator
+        run: |
+          curl -sSfL "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64" -o "${RUNNER_TEMP}/tailwindcss"
+          echo "${TAILWIND_SHA256}  ${RUNNER_TEMP}/tailwindcss" | sha256sum -c -
+          chmod +x "${RUNNER_TEMP}/tailwindcss"
+
+      - name: Regenerate the stylesheet
+        run: |
+          "${RUNNER_TEMP}/tailwindcss" -i assets/css/input.css -o assets/css/output.css --minify
+
+      - name: Fail if the stylesheet is out of date
+        run: git diff --exit-code -- assets/css/output.css
+
+  # The runtime script and the hand-written stylesheet sources, linted with
+  # pinned tools. Node lives only on the runner; the product build stays free of
+  # it.
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the frontend linters
+        run: npm install --no-save --no-package-lock @biomejs/biome@2.5.2 stylelint@17.14.0 stylelint-config-recommended@18.0.0
+
+      # biome.json turns off four rules where the runtime deliberately differs
+      # from biome's defaults: explicit nil guards over optional chaining, a
+      # couple of string concatenations, the cookie writes behind the theme and
+      # furigana toggles, and the strict directive inside a classic script's
+      # closure. Every other rule stays on, and a warning fails the job.
+      - name: Lint the runtime script
+        run: npx biome lint --error-on-warnings assets/js/kurodo.js
+
+      # The stylesheet sources keep their own house style; the config holds on to
+      # the correctness rules and allows the Tailwind theme at-rule.
+      - name: Lint the stylesheet sources
+        run: npx stylelint --config .stylelintrc.json assets/css/input.css assets/css/components.css assets/css/fonts.css assets/css/tokens.css
+
+  # Builds the server, drives each reading face against a small fixture vault,
+  # and checks the live listening socket is bound to loopback and nothing else.
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build the server
+        run: go build -o "${RUNNER_TEMP}/kurodo" ./cmd/kurodo
+
+      - name: Drive the reading faces and check the listening socket
+        run: bash .github/e2e/smoke.sh "${RUNNER_TEMP}/kurodo"
