@@ -11,9 +11,11 @@ package judge
 // Alongside the vault it returns a manifest recording the constructs whose
 // two-engine treatment deliberately differs: a path reference sealed in a
 // comment, a public note linking a journal note's title, a journal note typed
-// as a concept. Those departures are invisible in a finding's structured
-// fields, so the manifest — not a guess from the output — is what lets the
-// comparison drop exactly the reference lines this engine is expected to omit.
+// as a concept, a public concept mounted only by a journal map, and a public
+// broken link whose target is planned only in a journal note. Those departures
+// are invisible in a finding's structured fields, so the manifest — not a guess
+// from the output — is what lets the comparison re-derive exactly the reference
+// lines and coverage rows this engine is expected to change.
 
 import (
 	"fmt"
@@ -50,6 +52,17 @@ type diaryConcept struct {
 	domain string
 }
 
+// diaryMount is one public concept whose only mount edge comes from a journal
+// map. The reference counts the journal edge and files it as mounted; this
+// engine excludes the journal source and files it as an orphan. Both the path
+// (to place it in the orphan list) and the domain (to move its row from mounted
+// to orphan) are recorded, since a mounted concept leaves no trace in the
+// coverage list entries.
+type diaryMount struct {
+	path   string
+	domain string
+}
+
 // genManifest records what a plan planted that the two engines treat
 // differently, plus the material an existence query draws on. It is the precise
 // alternative to filtering the reference output by heuristic.
@@ -71,6 +84,18 @@ type genManifest struct {
 	// diaryConcepts are journal notes typed as a concept. Coverage counts them
 	// on the reference and drops them here.
 	diaryConcepts []diaryConcept
+
+	// diaryMountTargets are public concepts credited as mounted only through a
+	// journal map's edge. The reference files each as mounted; this engine
+	// excludes the journal source, so coverage's re-derivation moves each from
+	// mounted to orphan in its domain row.
+	diaryMountTargets []diaryMount
+
+	// diaryPlannedTargets are public broken-link sites whose target is planned
+	// only inside a journal note. The reference counts the journal list and files
+	// the link as info; this engine excludes the journal source, so the check
+	// re-derivation flips each from info back to warn at the recorded site.
+	diaryPlannedTargets []pathTarget
 
 	// hasDiary is true when the plan placed any note under the journal, which
 	// switches the coverage and existence comparisons from a raw byte-diff to
@@ -123,6 +148,8 @@ const (
 	focusCommentPathRef
 	focusDiaryChannels
 	focusDiaryConcept
+	focusDiaryMount
+	focusDiaryPlanned
 	focusEmptyDomain
 	focusCount
 )
@@ -437,6 +464,12 @@ func (p *planner) plant(focus int) {
 	case focusDiaryConcept:
 		p.plantDiaryConcept()
 
+	case focusDiaryMount:
+		p.plantDiaryMount(dom)
+
+	case focusDiaryPlanned:
+		p.plantDiaryPlanned(dom)
+
 	case focusEmptyDomain:
 		id := p.id()
 		// A concept declaring an explicit empty domain, folded into "(none)"
@@ -530,6 +563,58 @@ func (p *planner) plantDiaryConcept() {
 	p.man.diaryConcepts = append(p.man.diaryConcepts, diaryConcept{domain: dc})
 	p.man.diaryNames = append(p.man.diaryNames, "Journal Concept "+id)
 	p.man.note("diaryConcept")
+}
+
+// plantDiaryMount places a public concept whose sole inbound edge is a journal
+// map that mounts it. The reference counts the journal edge and files the
+// concept as mounted; this engine excludes the journal source, so the concept
+// is an orphan here. The concept path and its domain are recorded so coverage's
+// re-derivation is exact, since a mounted concept is invisible in the list
+// entries. Nothing else links the concept, so the journal map is its only edge.
+func (p *planner) plantDiaryMount(dom string) {
+	p.man.hasDiary = true
+	id := p.id()
+	concept := "PubMount-" + id
+	path := "Concepts/" + dom + "/" + concept + ".md"
+	p.add(path, validConcept(&p.gc, dom, "Public Mount "+id))
+
+	m := p.id()
+	title := "Journal Map " + m
+	p.add("Diary/2026-06-"+m+".md", frontmatter(
+		"title: "+title,
+		"type: moc",
+		"domain: "+dom,
+		"status: evergreen",
+	)+"\nmounts [["+concept+"]]\n")
+	p.man.diaryMountTargets = append(p.man.diaryMountTargets, diaryMount{path: path, domain: dom})
+	p.man.diaryNames = append(p.man.diaryNames, title)
+	p.man.note("diaryMount")
+}
+
+// plantDiaryPlanned places a public note with a broken link whose target is
+// listed as planned only inside a journal note. The link sits in ordinary prose,
+// not under a gap heading, so only the journal's planned list can make it
+// tracked. The reference counts the journal list and files the link as info;
+// this engine excludes the journal source, so the link stays a warning. The site
+// is recorded by the public note's path and the link text, the fields the check
+// re-derivation keys on.
+func (p *planner) plantDiaryPlanned(dom string) {
+	p.man.hasDiary = true
+	id := p.id()
+	target := "Planned In Journal " + id
+	path := "Concepts/" + dom + "/PubPlanned-" + id + ".md"
+	p.add(path, validConcept(&p.gc, dom, "Public Planned "+id)+
+		"\nlinks [["+target+"]]\n")
+
+	j := p.id()
+	jtitle := "Journal Planner " + j
+	p.add("Diary/2026-07-"+j+".md", frontmatter(
+		"title: "+jtitle,
+		"type: transcript",
+	)+"\n## 缺口\n\n- "+target+"\n")
+	p.man.diaryPlannedTargets = append(p.man.diaryPlannedTargets, pathTarget{path: path, target: target})
+	p.man.diaryNames = append(p.man.diaryNames, jtitle)
+	p.man.note("diaryPlanned")
 }
 
 // validConcept renders a fully valid concept: every required field, valid
