@@ -116,7 +116,10 @@ func mountEdges(notes []note, idx *graph.Index) (mapped, referenced map[string]b
 	referenced = make(map[string]bool)
 	for i := range notes {
 		n := &notes[i]
-		if strings.HasPrefix(n.path, "System/") {
+		if strings.HasPrefix(n.path, "System/") || underDiary(n.path) {
+			// A note in the private daily journal is not counted as a source:
+			// its links must not decide a public concept's mount state, or a
+			// reader of coverage could infer that the journal references it.
 			continue
 		}
 		fromMap := n.noteType == "moc" || n.noteType == "topic-map" || n.noteType == "source-map"

@@ -73,12 +73,17 @@ func slugIndex(notes []note) map[string]string {
 }
 
 // plannedNamesSet is the normalized set of every concept name listed as planned
-// anywhere in the corpus. A broken link to one of these is a tracked
-// forward-reference even when the citing link is not itself under a gap
-// heading.
+// anywhere in the public corpus. A broken link to one of these is a tracked
+// forward-reference even when the citing link is not itself under a gap heading.
+// A note in the private daily journal is not a source: a name planned only there
+// must not soften a public broken link, or a reader of the finding could infer
+// that the journal names that target.
 func plannedNamesSet(notes []note) map[string]bool {
 	set := make(map[string]bool)
 	for i := range notes {
+		if underDiary(notes[i].path) {
+			continue
+		}
 		for _, name := range notes[i].plannedNames {
 			if key := normalizeKey(name); key != "" {
 				set[key] = true
