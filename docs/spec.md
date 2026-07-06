@@ -1,7 +1,7 @@
 # kurodo functional spec (final form)
 
 > **No milestone fences** (decisions D15): this document defines "what done looks like," not "what to build first." Each feature face has its own spec and acceptance criteria; every remaining face ships (D37), ordered by dependency and leverage — the sequencing view and the plan-doc obligations for faces not yet specified here live in `roadmap.md`.
-> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a)); amended 2026-07-05 (D31/D32/D37: semantic search committed, scope ruling, dead-rule cleanup)**.
+> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a)); amended 2026-07-05 (D31/D32/D37: semantic search committed, scope ruling, dead-rule cleanup); amended 2026-07-06 (D40: the yomihon gate closed, retirement recorded as discard, the kura gate gains the differential-campaign prerequisite — judge-plan §13)**.
 
 ## 0. Goals
 
@@ -41,7 +41,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 
 - All dialect conformance tests pass (the structural-assertion pattern inherited from yomihon's `testdata/lesson.md`). Fixtures cover at least: ruby / `<br>` passed through verbatim; all callout types + `[!x]-` / `[!x]+` folding + unknown types degraded to blockquote; the four wikilink states + alias display + ambiguous marking; `![[embed]]`; `==highlight==`; task list; GFM tables (including escaped `\|`); dialect not processed inside a fence + a one-time warning; a broken-YAML single diagnostic that does not cascade; body leading-H1 removal; CJK slug aligned with the TOC anchor (including the `-2` collision suffix).
 - Every `.md` in the real vault opens: zero 500s, zero blank pages (the mechanical definition of fault tolerance).
-- Japanese lessons (L01–L20 + the P series) at visual parity with yomihon: the 14 screenshots in `m1-review/` (in the yomihon repo, `~/go/src/github.com/koopa0/yomihon/m1-review/`) are the baseline.
+- Japanese lessons (L01–L20 + the P series) render with all five interactions. (The original parity criterion — the 14 `m1-review/` screenshots as baseline — was waived by D40 along with the rest of the observation gate; the screenshots remain available in the yomihon repo as a design reference only.)
 
 ## 2. The navigation face
 
@@ -149,13 +149,14 @@ POST /status (path, from, to)
 
 **Do-not-build list** (kura's field log has ruled these WATCH; kurodo does not take them on): the ruby-pairing check (zero real failures), the stray-tag check (root cause is in the hermes generation pipeline, fix it at the source). orphans are not missing — `coverage`'s three-tier classification (mounted / pending_mount / orphan) already covers it, no separate command.
 
-**Acceptance (= the kura retirement gate)**:
+**Acceptance (= the kura retirement gate; items 1–5 are met, item 6 — added by D40 — is the one outstanding)**:
 
-1. kura conformance snapshots are byte-exact (`conformance__jsonl_output.snap`, `conformance__coverage_report.snap`).
-2. Against the real vault: `kurodo check` and `kura check` produce byte-for-byte identical JSONL.
-3. schema.* rules follow vault-guard-spec §8 granularity (a vault-side document, under `~/obsidian/System/`): the (path, rule-class, field/value) sets are equivalent.
-4. **All real consumers switched over** — current state verified (2026-07-02): 4 cron wrappers (`cron-vault-wrapper.sh:132`, `cron-translator-wrapper.sh:91`, `cron-grinder-wrapper.sh:47`, `cron-vault-qa-wrapper.sh`) + the manual gates (QA-Gate tier 0, capture-source, share-rewrite, the file-editing quick gate recorded in kura-field-log) + obsidian CC usage. On the switchover day, a re-inventory is authoritative. Until then, not one line of kura changes.
-5. The judge's three commands run in an environment without PG (the CI environment is the proof).
+1. kura conformance snapshots are byte-exact (`conformance__jsonl_output.snap`, `conformance__coverage_report.snap`). **Met** (golden fixtures + gated conformance tests).
+2. Against the real vault: `kurodo check` and `kura check` produce byte-for-byte identical JSONL. **Met** (the real-vault sandwich, run gated on the reference binary).
+3. schema.* rules follow vault-guard-spec §8 granularity (a vault-side document, under `~/obsidian/System/`): the (path, rule-class, field/value) sets are equivalent. **Met.**
+4. **All real consumers switched over** — executed 2026-07-05: the four cron wrappers now invoke `kurodo`, each with a rollback backup written beside it. **Met.**
+5. The judge's three commands run in an environment without PG (the CI environment is the proof). **Met.**
+6. **The differential campaign reaches its completion bar** (`judge-plan.md` §13; added by D40): generated-vault differential fuzzing across both engines with zero unexplained byte differences. The retirement declaration cites §13.
 
 ## 6. The export face (yomihon inheritance face)
 
@@ -167,7 +168,7 @@ POST /status (path, from, to)
 
 ## 7. Global quality gates
 
-- `make verify` (fmt→vet→lint→test→build) all pass; lint 0 issues; `go test -race -shuffle` all green; `make verify-spec` all green.
+- `make verify` (fmt→vet→lint→test→build) all pass; lint 0 issues; `go test -race -shuffle` all green. The fuller pre-push protocol (regeneration no-op, kill-tests, hygiene greps) is `standards.md` §5.
 - The four walls have test locks: loopback-only, path-escape rejection, the write face touches only the status line, and the renderer never fixes a file (diagnostic types are read-only).
 
 ## 8. Rulings

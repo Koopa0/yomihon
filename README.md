@@ -21,8 +21,9 @@ Working today:
 - Full-text lexical search (an in-memory index) with structured filters.
 - Syllabus trees, lesson interactions (furigana, TTS, slots, concept drawer),
   and sandboxed report pages.
-- The judge engine — the vault diagnostics behind `check`, byte-compatible
-  with the external pipelines' frozen JSONL format (CLI dispatch in flight).
+- The judge engine — the vault diagnostics behind `check` / `coverage` /
+  `exists`, byte-compatible with the external pipelines' frozen JSONL format;
+  the four cron consumers run on it.
 - Server-side syntax highlighting (chroma); client-side mermaid diagrams.
 
 Not built yet (the sequencing blueprint is `docs/roadmap.md`):

@@ -12,34 +12,36 @@
 
 ## 0. Where we are
 
-- **Done and merged**: reading face + redesign, search face (lexical engine +
-  `/search` page + the ⌘K shell — the panel's *content* is item 5 below),
-  C syllabus, F five lesson interactions, E reports (sandboxed, D30), judge face
-  Stages 1–3 (schema + graph rules + link.broken.path, byte-compat pinned by 13
-  golden fixtures + real-vault sandwiches).
-- **In flight**: judge Stage 4 (formats, CLI dispatch, coverage/exists, gating,
-  exit codes, the static switchover sandwich).
-- **The two retirement gates** (evidence-based, D11), stated precisely:
-  - **kura gate** = spec §5 acceptance, which includes "all real consumers
-    switched over". So finishing the A face's code (item 1) produces the
-    *evidence*; the gate is *met* at item 4 (switchover executed). The two are
-    different events and both appear below.
-  - **yomihon gate** = the three reading-face items under spec §6 (five
-    interactions + fixtures — merged with F; `m1-review/` screenshot parity;
-    two weeks of real use, clock running since ~2026-07-03). **Export is
-    excluded from the gate (D38** — nothing consumes yomihon's SSG output), so
-    the declaration does not wait for G. The use-evidence should be recorded
-    (a daily line in the vault or the reading-driven status commits) so the
-    gate is decidable from artifacts, not memory.
+- **Done and merged** (as of 2026-07-06): reading face + redesign, search face
+  (lexical engine + `/search` page + the ⌘K shell — the panel's *content* is
+  item 5 below), C syllabus, F five lesson interactions, E reports (sandboxed,
+  D30), the judge face in full (all four stages: rules, formats, CLI dispatch,
+  coverage/exists, gating, exit codes — byte-compat pinned by golden fixtures +
+  real-vault sandwiches), the wall-lock sweep (D39 included), the quality rails
+  (pinned toolchain, assets-drift, frontend lint, loopback e2e), and the fuzz
+  pack (five targets, rescanner timing, benchmarks, fuzz-smoke job). The four
+  cron consumers already run on `kurodo check` (switched 2026-07-05, with
+  rollback backups).
+- **In flight**: the differential fuzz harness (judge-plan §13) — the campaign
+  it enables is the last engineering prerequisite before the kura declaration.
+- **The two retirement gates** (evidence-based, D11; refined by D38/D40),
+  stated precisely:
+  - **kura gate** = spec §5 acceptance (all merged, consumers switched) **plus
+    the differential campaign completion bar** (judge-plan §13). The
+    declaration cites §13 when it is met.
+  - **yomihon gate — closed (D40)**: the engineering item is merged; the
+    parity and two-week observation items are waived. Retirement is effective
+    on Koopa's declaration alone. **Export stays excluded (D38)** — nothing
+    consumes yomihon's SSG output.
 
 ## 1. Sequence
 
 | # | Work item | Why this position | Decision(s) |
 |---|---|---|---|
-| 1 | **A: judge Stage 4** (in flight) | Produces the kura-gate evidence; four external pipelines wait on it | judge-plan, D30 |
+| 1 | **A: judge Stage 4** (merged) | Produced the kura-gate evidence; the four external pipelines now run on it | judge-plan, D30 |
 | 2 | **I: wall-lock sweep** | Retirement declarations require the four walls as test locks; also locks D30's three sandbox mechanisms | D30 |
 | 3 | **Quality rails** (parallel with I) | CI + linters + fuzz pack, per D36 "right after the A face, alongside the I sweep"; the switchover benefits from CI existing | D36 |
-| 4 | **kura switchover + retirement** | Four crons + manual gates move to `kurodo check`; **order inside this item is load-bearing**: run the differential fuzz campaign and capture any final goldens *first*, then verify each consumer against the divergence register (judge-plan §12 — in particular that the md-consuming pipeline tolerates the two-line preamble change), then switch consumers, then declare, then delete the conformance scaffolding (goldens stay) and remove the reference-binary shell export | D36 |
+| 4 | **kura retirement** | The switchover already executed (2026-07-05, ahead of the originally planned campaign-first order — a disclosed deviation, safe because the switched surfaces were triple-verified and the wrapper backups keep a rollback path). What remains, in order: run the differential campaign to its completion bar, adjudicate anything it finds, then declare, then execute the §13 cleanup checklist. judge-plan §13 is the authoritative statement of both the bar and the cleanup — this row intentionally does not restate them | D36, D40 |
 | 4b | **Reading-surface UX repairs** (parallel with anything) | Daily use moved to kurodo outright (D40), so reading-surface pain is paid every day; the mechanical repairs need no ruling, the taste batch waits for Koopa's accumulated pain list — both in §5b | D40 |
 | 5 | **B: search panel, lexical then hybrid** | ⌘K content over the existing shell first; then Gemini embeddings + RRF fusion (key arrives at build start). Needs a **B plan doc** before the hybrid half — its required contents are listed in §5a | D31, D32 |
 | 6 | **H: agent toolbox** | Graph verbs + whole-graph export + frontmatter query; cheap, unlocks agents and dreaming. Needs an **H plan doc** — output contracts are the point (§5a) | D33 |
@@ -251,10 +253,15 @@ real vault with headless screenshots before anything was queued.
 
 **UX-A — mechanical repairs (no ruling needed; parallel with anything):**
 
-1. The right rail occupies its grid column unconditionally. A note with no
-   headings correctly renders no TOC, but the empty column keeps its width —
-   the "blank stuck rail". The template already knows the TOC is empty;
-   collapse the column with a class, zero JS.
+1. The right rail occupies its grid column unconditionally, and the TOC is
+   only its largest block — the rail also carries the status panel (**the
+   write face**) and the diagnostics list, each with its own render condition.
+   On a note with no headings the column reads as blank because a small card
+   sits atop a tall empty track. The repair must never hide the status panel:
+   collapse the column only when *all three* blocks render nothing (the
+   template can compute that), zero JS. The sparser-but-present case (a lone
+   status card on a tall empty column) is a layout-taste question and belongs
+   to UX-B, not here.
 2. `.k-prose table` has no horizontal-overflow guard, while code blocks and
    mermaid diagrams have one; a wide GFM table breaks the article column.
    Align tables with the existing overflow pattern.
@@ -276,8 +283,10 @@ pull item 7 ahead of item 5 — this sequence is pain-driven by design.
 
 **Screenshot e2e / Playwright:** deferred until the reading surface
 stabilizes — a baseline captured mid-repair is waste. The CI-only-Node
-posture (D36) already answers the tooling question; the headless-screenshot
-probe used for the diagnosis above is the seed of that job.
+posture (D36) already answers the tooling question. No probe artifact is
+checked in; the diagnosis above came from an ad-hoc headless-Chrome run whose
+shape the future job re-creates: build, serve a fixture vault, screenshot
+each face at two widths, compare against a committed baseline.
 
 ## 6. Standing rules that survive this roadmap
 

@@ -1,6 +1,6 @@
 # Judge face — implementation plan (spec §5)
 
-> Status: **built through Stage 3** (schema + graph rules + link.broken.path merged, PR #11–#13); Stage 4 (formats/CLI/switchover sandwich) in flight. The judge face is
+> Status: **built and merged in full** (all four stages: rules, formats, CLI dispatch, coverage/exists, gating — PR #11–#14); the four cron consumers switched over 2026-07-05. The remaining prerequisite before the retirement declaration is the differential campaign (§13). The judge face is
 > `kurodo check` / `exists` / `coverage` — a Go rewrite of kura's CLI. Its soul
 > is **byte-compatibility with kura**, a different discipline from the search
 > face's determinism: the retirement gate (D11) is a byte-for-byte match of
@@ -201,13 +201,15 @@ Reuse `graph.NormalizeNFC` (already exported) + the shared `trim → NFC → low
 1. **Golden conformance, byte-exact.** Port kura's `conformance.rs` fixtures (the
    3-note setup) and assert `kurodo check` stdout equals the 4 golden JSONL lines
    **byte-for-byte** (quoted in §3a), and the coverage/exists compact forms.
-2. **Real-vault diff vs kura (the strongest test).** A test (build-tagged or
-   `t.Skipf` when kura/vault absent) that runs both `kurodo check --root ~/obsidian
-   --format json` and `~/.cargo/bin/kura check --root ~/obsidian --format json`,
-   sorts nothing (both already sorted), and asserts the two byte streams are
-   identical. Same for `coverage`, and for `exists <name>` on a few names. This is
-   the gate that actually proves retirement-readiness. (kura is installed per the
-   crons.)
+2. **Real-vault diff vs the reference (the strongest test).** A test that skips
+   unless `KURODO_REFERENCE_BIN` names an executable (the only way any test may
+   locate the reference binary — no hardcoded paths in the repo; the binding
+   lives in the shell environment outside it), runs both engines with
+   `check --root ~/obsidian --format json`, sorts nothing (both already
+   sorted), and asserts the two byte streams are identical. Same for
+   `coverage`, and for `exists <name>` on a few names. This is the gate that
+   actually proves retirement-readiness. (As merged: `sandwich_test.go` and
+   the `referenceTool` helper in `schema_test.go`.)
 3. **The four crons' load-bearing bytes** (from the fact-gather): exit code under
    `--deny error` (0 vs nonzero); the compact JSONL containing literal
    `link.broken` and `"severity":"warn"` (grinder greps these); the `--format md`
@@ -321,6 +323,18 @@ such); and a runner that byte-diffs both engines' `check`, `coverage`, and
 `exists` output after normalization, preserving vault + seed + first diff hunk
 on any mismatch.
 
+The register mapping is fixed in advance so the filter set is closed: entries
+1, 5, 6, and 7 are **avoided by construction** (the runner compares stdout and
+exit codes only, never issues an empty `exists` query, never makes the
+contract file unreadable, and only uses fixed well-formed invocations — each
+documented as such next to the normalizer table); entries 2 and 4 get
+**mechanical normalizers** (skip the two-line md preamble; fold the
+reference's empty-string coverage domain into its `(none)` form); entries 3,
+8, and 9 get **manifest-driven filters** (drop reference findings at
+manifest-known comment-wrapped path-ref sites, and reference findings/matches
+whose manifest-known resolution touches the journal through any of the four
+channels).
+
 **Completion bar — the retirement declaration cites this section when all five
 hold:**
 
@@ -328,13 +342,16 @@ hold:**
    independent runs on separate days with distinct base seeds.
 2. Zero unexplained byte differences after §12 normalization.
 3. The rule-reach self-check passes in every run: all fifteen rules and both
-   frontmatter failure classes exercised at least once.
-4. Every divergence the campaign finds is adjudicated before its run counts: a
-   kurodo defect is fixed; a reference defect becomes a §12 entry with a
-   pinning fixture. A run containing an unadjudicated diff does not count
-   toward item 1.
-5. The declaration records the totals: rounds, base seeds, and the aggregated
-   rule-reach distribution.
+   frontmatter failure classes — a note with no frontmatter block at all, and
+   a note whose block does not parse — exercised at least once.
+4. Every divergence the campaign finds is adjudicated before its run counts,
+   and adjudication is not the implementer's call: the campaign pauses, the
+   finding goes to Koopa (walls and schema are always his; the guide session
+   triages), and only then is a kurodo defect fixed or a reference defect
+   recorded as a new §12 entry with a pinning fixture. A run containing an
+   unadjudicated diff does not count toward item 1.
+5. The declaration records the totals: rounds, base seeds, run dates, and the
+   aggregated rule-reach distribution.
 
 After the declaration, the scaffolding dies and the contract stays: delete the
 conformance, sandwich, and differential tests; keep every golden and pinning

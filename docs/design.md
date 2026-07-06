@@ -6,9 +6,9 @@
 ## 1. System context
 
 ```
-                          ┌─ judge ── kura (15 rules, in service until the judge parity gate)
+                          ┌─ judge ── kura (15 rules, in service until the retirement declaration — judge-plan §13)
  ~/obsidian (truth) ──────┤
-   ↑ reads whole vault,    └─ reader ─ yomihon (frozen in service until the reading parity gate)
+   ↑ reads whole vault,    └─ reader ─ yomihon (frozen until its retirement declaration — gate closed, D40)
    │ read-only
  kurodo ──write──▶ single status field + git commit (human is the terminal)
    │            └─ CLI toolbox: vault-side agents also act through kurodo (after judge parity)
