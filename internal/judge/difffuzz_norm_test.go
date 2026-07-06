@@ -175,13 +175,16 @@ func normalizeCoverage(c *Coverage, man *genManifest) Coverage {
 	// A concept mounted only by a journal map is filed as mounted on the
 	// reference and an orphan here, so its domain row moves one from mounted to
 	// orphan and its path joins the orphan list. It stays counted, so the total
-	// is unchanged. A recorded domain with no row to edit is left alone, keeping
-	// the report internally consistent.
-	extraOrphans := []string{}
+	// is unchanged. The manifest names a concept the reference must have filed as
+	// mounted, so a missing row or one with no mounted concept to move means the
+	// manifest and the reference disagree — a harness fault surfaced at its cause
+	// rather than buried under a negative count that would read downstream as an
+	// engine divergence.
+	extraOrphans := make([]string, 0, len(man.diaryMountTargets))
 	for _, dm := range man.diaryMountTargets {
 		row, ok := rows[dm.domain]
-		if !ok {
-			continue
+		if !ok || row.Mounted <= 0 {
+			panic("difffuzz: journal-mount re-derivation for " + dm.path + " found domain " + dm.domain + " with no mounted concept to move")
 		}
 		row.Mounted--
 		row.Orphan++
@@ -479,27 +482,34 @@ func TestDiffFuzzNormalizeCoverageReDerivesJournalMount(t *testing.T) {
 	}
 }
 
-func TestDiffFuzzNormalizeCoverageIgnoresUnmatchedMountDomain(t *testing.T) {
+func TestDiffFuzzNormalizeCoverageFailsLoudOnMountMismatch(t *testing.T) {
 	t.Parallel()
-	// A recorded journal-mounted concept whose domain has no reference row must
-	// leave the report untouched, since adding an orphan no row reflects would
-	// break the report's internal consistency.
-	man := genManifest{diaryMountTargets: []diaryMount{{path: "Concepts/ghost/X.md", domain: "ghost"}}}
-	ref := Coverage{
-		TotalConcepts: 2,
-		Domains:       []DomainCoverage{{Domain: "golang", Concepts: 2, Mounted: 1, Orphan: 1}},
-		Orphans:       []string{"Concepts/golang/O.md"},
-		Unrouted:      []Unrouted{},
+	// A journal-mount entry names a concept the reference must have filed as
+	// mounted, so a domain the reference does not mount is a manifest / reference
+	// disagreement: either a duplicate entry that has already spent the one
+	// mounted concept, or reference output that never mounted it. Both are
+	// surfaced at their cause rather than left to underflow into a negative count
+	// that reads downstream as an engine divergence.
+	tests := []struct {
+		name        string
+		mountDomain string
+		domains     []DomainCoverage
+	}{
+		{name: "no row for the domain", mountDomain: "ghost", domains: []DomainCoverage{{Domain: "golang", Concepts: 2, Mounted: 1, Orphan: 1}}},
+		{name: "row with nothing mounted", mountDomain: "golang", domains: []DomainCoverage{{Domain: "golang", Concepts: 1, Mounted: 0, Orphan: 1}}},
 	}
-	want := Coverage{
-		TotalConcepts: 2,
-		Domains:       []DomainCoverage{{Domain: "golang", Concepts: 2, Mounted: 1, Orphan: 1}},
-		Orphans:       []string{"Concepts/golang/O.md"},
-		Unrouted:      []Unrouted{},
-	}
-	got := normalizeCoverage(&ref, &man)
-	if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
-		t.Errorf("normalizeCoverage unmatched-mount handling (-want +got):\n%s", diff)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			man := genManifest{diaryMountTargets: []diaryMount{{path: "Concepts/" + tt.mountDomain + "/PubMount.md", domain: tt.mountDomain}}}
+			ref := Coverage{TotalConcepts: 2, Domains: tt.domains, Unrouted: []Unrouted{}}
+			defer func() {
+				if recover() == nil {
+					t.Error("normalizeCoverage did not fail loud on a journal-mount the reference does not mount")
+				}
+			}()
+			normalizeCoverage(&ref, &man)
+		})
 	}
 }
 
