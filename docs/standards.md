@@ -23,8 +23,11 @@ the four walls (`README`, decisions D02), the walls win.
   before anything is pushed: re-run the gates, re-read the diff, and re-run
   the kill-tests. Acceptance that only reads the builder's report is not
   acceptance.
-- **Koopa presses the last key**: push to origin, merge, and the retirement
-  declarations are his unless he explicitly delegates a specific one.
+- **Koopa presses the last key**: pushes, merges, and the retirement
+  declarations are his decisions, always. Execution of a specific one may be
+  delegated on his explicit instruction for that instance (push, PR-opening,
+  and a local docs merge all have precedent); the guide never pushes or
+  merges on its own initiative.
 
 ## 2. Testing bar
 

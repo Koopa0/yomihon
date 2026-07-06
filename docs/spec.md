@@ -33,7 +33,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 - Diagnostics pane: broken YAML, unresolved / ambiguous link, corrections ledger — display only.
 - Reports: `System/reports/` contains daily-briefing HTML, presented verbatim in a sandboxed iframe. Sandbox policy: **no `allow-same-origin`** — even with scripts allowed it lands in an opaque origin, forming a double layer of defense with the same-origin protection.
 - `.base` / `.canvas` link back to open in Obsidian; D2 is not rendered (already decided for koopa0.dev).
-- Code highlighting is server-side (chroma). JS principle: **zero frameworks, zero external JS dependencies; hand-written vanilla is allowed** (yomihon's five interactions, ~207 lines of hand-written JS, are the precedent).
+- Code highlighting is server-side (chroma). JS principle: **zero client frameworks; interactivity climbs the D41 ladder** — Chromium-native APIs, then hand-written vanilla (the five interactions are the precedent), then a mature vendored library when a D41 admission is recorded (mermaid is the standing one).
 
 **Body leading-H1 policy**: the page title comes from frontmatter `title`; a leading H1 in the body is removed so it isn't shown twice (following yomihon's already-verified behavior).
 

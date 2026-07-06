@@ -28,7 +28,9 @@ the sources below, they win, in this order.
   input to the guide, not rulings.
 - **Koopa** — rules on everything irreversible: the walls, the schema, taste,
   new dependencies (D41 admissions), divergence adjudications, and every
-  push / merge / retirement declaration (delegable per case, merge stays his).
+  push / merge / retirement declaration. These are his decisions always;
+  executing a specific one is delegable on his explicit instruction for that
+  instance, never on the guide's initiative.
 
 Work arrives one PR at a time: briefing → build → independent acceptance →
 push/PR → bot-review triage (findings fixed or refuted line by line) → CI
@@ -72,9 +74,11 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
     stable enough that a baseline is worth committing.
 
 **Track 4 — the remaining faces (each: plan doc → adversarial round → build):**
-11. `B` — search panel: plan doc first (chunking, cache format, RRF, the
-    degraded-mode matrix, the eval set — roadmap §5a; Gemini key arrives at
-    build start), then the lexical ⌘K panel PR, then the hybrid PR.
+11. `B` — search panel, two halves in order (roadmap §1 row 5): the lexical
+    ⌘K panel PR first — no plan doc needed, `search-plan.md` already pins
+    lexical semantics and the shell exists; then the **B plan doc** (chunking,
+    cache format, RRF, the degraded-mode matrix, the eval set — roadmap §5a;
+    Gemini key arrives at build start) before any hybrid work.
 12. `H` — agent toolbox: plan doc (JSON contract per verb + goldens — these
     outputs are frozen contracts from day one, D37), then the build PR.
 13. `D` — the adjudication cockpit: plan doc (queue semantics, reading-state

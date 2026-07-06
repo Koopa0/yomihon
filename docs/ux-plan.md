@@ -30,11 +30,17 @@ plan doc owns retrieval).
 
 - Topbar stays: wordmark → breadcrumb territory, search field (⌘K), furigana
   toggle, theme toggle. No new global elements.
-- **Cross-document view transitions** for every navigation: CSS-only
+- **Cross-document view transitions** for link navigations: CSS-only
   (`@view-transition { navigation: auto }`), default cross-fade ≈180ms; the
   note title carries a `view-transition-name` so moving between list and note
   reads as the title traveling, not a repaint. Reduced-motion: transitions
   off entirely.
+- **The write path is the accepted exception.** `navigation: auto` does not
+  fire for POST form submissions, so the seal's POST → redirect → GET (D27)
+  will not cross-fade — and that stays as it is. Do not "fix" it by
+  intercepting the form with `fetch` and driving a same-document transition:
+  that is exactly the write-path scripting D27 forbids. The seal gets its
+  feedback from §7's chip pulse and toast instead.
 - Keyboard: `⌘K` (exists) focuses search; `/` focuses the sidebar filter
   (§5); `[` toggles the sidebar drawer at narrow widths. No other global
   bindings until asked for.
@@ -44,13 +50,18 @@ plan doc owns retrieval).
 Today `/` redirects to `/notes/README.md`. A README is the vault's door for
 strangers; the owner needs "where was I, what moved, what needs me".
 
-**Design: `/` renders Home v0.5** — a page built entirely from the existing
-in-memory snapshot (no new state, no reading-tracker; that is cockpit
-territory and explicitly deferred to the D plan doc, which absorbs this page):
+**Design: `/` renders Home v0.5** — a page assembled at request time from the
+in-memory snapshot (no new state *store*; the reading-tracker stays cockpit
+territory, deferred to the D plan doc, which absorbs this page):
 
 1. **Recently changed** — the newest N (≈7) knowledge notes by file mtime,
    with status chips. Honest label: this is "what changed on disk", not
-   "what you read last" — the latter needs cockpit state.
+   "what you read last" — the latter needs cockpit state. **Plumbing note
+   (not free today)**: the snapshot types expose no timestamp; the scanner
+   already stats every file, so the work is threading an mtime through the
+   snapshot build onto the nav model — one field, captured at scan time. Do
+   not bolt on a per-request stat walk; freshness stays centralized in the
+   scanner (D25).
 2. **Lifecycle strip** — the status counts as one row of chips, each linking
    to its filtered list. This is the board's trailhead, not the board.
 3. **Study paths** — one card per syllabus: title, sealed/total count, link
@@ -58,6 +69,12 @@ territory and explicitly deferred to the D plan doc, which absorbs this page):
 4. **Search** — the same field as the topbar, autofocused.
 
 README stays reachable (Folders tree, and any direct link keeps working).
+
+**Boundary against spec §2**: spec §2's four home blocks (domain MOC entries,
+cross-domain boards, the mechanical-gate list, doc pointers) are **not**
+discharged by v0.5 — they remain the cockpit-content obligation (roadmap §3),
+and the D plan doc reconciles both when it absorbs this page. v0.5 is the
+pre-cockpit skeleton, nothing more.
 
 ## 4. The left sidebar (structure, wayfinding, disclosure)
 
@@ -71,14 +88,20 @@ Order, top to bottom:
 1. **Filter box** (§5).
 2. **Here** — only on note/syllabus pages: the current note's siblings
    (same-directory notes, sorted, current one marked `aria-current="page"`),
-   with the parent directory as the block's heading-link. One glance answers
-   "where am I, what is next to me".
+   under a plain-text heading naming the parent directory. The heading is a
+   label, not a link — no folder-index route exists and this plan does not
+   invent one; "everything in this folder" is what the block itself shows.
+   One glance answers "where am I, what is next to me".
 3. **Syllabus** — every course a closed `<details>`; the course — and inside
-   it the module — containing the current note is auto-opened server-side
-   (the template computes the active path; no JS). Lesson rows keep the
-   status chip. The current lesson is highlighted.
+   it the module — containing the current note is auto-opened server-side.
+   **Plumbing note (not free today)**: nothing maps a note back to the
+   sections that reference it; build a reverse index (rel-path → syllabus /
+   section chain) at snapshot build time, next to the existing nav model. A
+   note referenced from several sections opens **all** of its containing
+   paths, `aria-current` on each occurrence — no tie-break rule to invent.
+   Lesson rows keep the status chip; the current lesson is highlighted.
 4. **Lifecycle** — demoted to one collapsed `<details>`, summary carrying
-   the live total that matters (e.g. "Lifecycle · 21 ready"); expanding shows
+   one ambient number (which number is checklist item 15); expanding shows
    the nine counts linking to filtered lists. The full board lives on Home /
    the future cockpit — the sidebar only keeps its doorway. This deliberately
    revisits the Lifecycle-first ordering (D26): that ruling optimized for
@@ -119,14 +142,15 @@ Budget: ≤ ~60 lines in `kurodo.js`, zero network, zero state.
   living with the repair, it lands as a `<details>` around the TOC with a
   cookie-persisted default — one evening of work, ruled then, not built on
   speculation.
-- Long-TOC behavior: the rail becomes independently scrollable
-  (`position: sticky` + `overflow-y: auto`, CSS-only) so the status panel is
-  reachable without scrolling the article.
+- Long-TOC behavior — **already shipped, keep it**: the rail is independently
+  scrollable and sticky today (`position: sticky` + `overflow-y: auto` in the
+  stylesheet). No work here; listed only so nobody re-adds it.
 
 ## 7. Motion, loading, feedback (the appropriate-animation inventory)
 
-- **Navigation**: cross-document view transitions (§2). This is the single
-  highest-leverage polish item — every click stops flashing white.
+- **Navigation**: cross-document view transitions (§2, with the write-path
+  exception stated there). This is the single highest-leverage polish item —
+  every link click stops flashing white.
 - **Seal / status flip**: the POST-redirect-get stays (D27). After the
   redirect, the updated status chip plays one ~400ms pulse (CSS animation
   keyed off a `?sealed=1` query param the redirect carries), and a small
@@ -154,7 +178,7 @@ Budget: ≤ ~60 lines in `kurodo.js`, zero network, zero state.
 3. `prefers-reduced-motion: reduce` kills every transition and animation
    (assert by computed style in the e2e).
 4. The wayfinding invariants: on any note page, the sidebar shows the note's
-   siblings, its syllabus path auto-opened (when it has one), and its
+   siblings, its syllabus path(s) auto-opened (when it has any), and its
    folder-ancestors expanded — assert on three representative fixtures
    (concept, lesson, no-frontmatter Sources note).
 5. The rail never hides the status panel while frontmatter is valid — a
@@ -171,18 +195,22 @@ Budget: ≤ ~60 lines in `kurodo.js`, zero network, zero state.
 2. Home v0.5's four blocks and their honest labels — anything to add or cut?
 3. Sidebar order: filter / Here / Syllabus / Lifecycle(collapsed) / Reports /
    Folders (§4) — confirm or reorder.
-4. Lifecycle demoted to a collapsed section with its total in the summary —
-   acceptable revision of the Lifecycle-first ruling?
-5. Syllabus courses closed by default, active path auto-opened — or would
+4. Lifecycle demoted to a collapsed section — acceptable revision of the
+   Lifecycle-first ruling?
+5. Syllabus courses closed by default, active path(s) auto-opened — or would
    you rather keep everything expanded?
 6. "Here" (siblings) block — wanted, or is breadcrumb + Folders enough?
 7. No sidebar resize; fixed width + drawer — confirm, or demand resize now?
 8. Sidebar filter box (§5) — wanted as specced?
-9. View transitions with the title as shared element (§2) — confirm taste.
+9. View transitions with the title as shared element (§2), write path
+   excluded by design — confirm taste.
 10. Seal feedback = chip pulse + server-rendered toast (§7) — enough? too
     much?
-11. TOC toggle deferred; sticky-scroll rail instead (§6) — agree?
+11. TOC toggle deferred (§6) — agree?
 12. Scroll-spy TOC highlight — wanted?
 13. Mermaid shimmer skeleton — wanted?
 14. D41's library-admission criteria (in `decisions.md`) — confirm the bar's
     wording.
+15. The one ambient number on the collapsed Lifecycle summary (§4.4): the
+    adjudication backlog (notes awaiting a decision), the `ready` count, or
+    none — which?
