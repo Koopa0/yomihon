@@ -22,7 +22,7 @@ vet:
 	go vet ./...
 
 gen:
-	templ generate
+	go tool templ generate
 
 css:
 	tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
