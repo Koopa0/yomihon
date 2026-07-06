@@ -285,13 +285,13 @@ func FuzzWriteJSONL(f *testing.F) {
 			assertLineRoundTrips(t, &findings[i], lines[i])
 		}
 
-		// The line separators and the HTML characters ride as raw bytes: a value
-		// carrying the character produces the character in the output, never its
-		// escape. Round-tripping alone would pass on either form, so this pins the
+		// The line separators and the HTML characters ride as raw bytes rather
+		// than their JSON escapes. Counting each raw occurrence against the total
+		// the fields carry catches a single escaped field even when another field
+		// holds the same character raw, which a bare presence check would let
+		// slip. Round-tripping alone would pass on either form, so this pins the
 		// wire choice directly.
-		for _, v := range []string{ruleID, pth, message, evidence, suggested, target} {
-			assertRidesRaw(t, v, out)
-		}
+		assertSpecialsRideRaw(t, findings, out)
 	})
 }
 
@@ -331,9 +331,12 @@ func assertLineRoundTrips(t *testing.T, want *Finding, line []byte) {
 	}
 }
 
-// assertRidesRaw checks that any line separator or HTML character in v reaches
-// the output as its raw bytes rather than a JSON escape.
-func assertRidesRaw(t *testing.T, v string, out []byte) {
+// assertSpecialsRideRaw checks that every line separator and HTML character the
+// findings carry reaches the output as its raw bytes: the number of raw
+// occurrences in the output equals the number the fields hold, so an escaped
+// occurrence in any one field is caught rather than masked by a raw occurrence
+// in another.
+func assertSpecialsRideRaw(t *testing.T, findings []Finding, out []byte) {
 	t.Helper()
 	for _, c := range []struct {
 		r    rune
@@ -345,19 +348,37 @@ func assertRidesRaw(t *testing.T, v string, out []byte) {
 		{'>', "greater-than"},
 		{'&', "ampersand"},
 	} {
-		if strings.ContainsRune(v, c.r) && !bytes.ContainsRune(out, c.r) {
-			t.Errorf("value %q carries %s but the output does not carry it raw:\n%q", v, c.name, out)
+		want := 0
+		for i := range findings {
+			for _, s := range findingStrings(&findings[i]) {
+				want += strings.Count(s, string(c.r))
+			}
+		}
+		if got := bytes.Count(out, []byte(string(c.r))); got != want {
+			t.Errorf("output carries %s %d time(s), want %d across the findings' fields:\n%q", c.name, got, want, out)
 		}
 	}
 }
 
+// findingStrings returns every string field a finding serializes, so a check
+// can range over exactly the text the encoder writes.
+func findingStrings(fnd *Finding) []string {
+	s := []string{fnd.RuleID, fnd.Path, fnd.Message, fnd.Evidence, fnd.SuggestedAction, fnd.SourceRule, fnd.Fingerprint}
+	if fnd.Field != nil {
+		s = append(s, *fnd.Field)
+	}
+	if fnd.Target != nil {
+		s = append(s, *fnd.Target)
+	}
+	if fnd.ResolvedTo != nil {
+		s = append(s, *fnd.ResolvedTo)
+	}
+	return append(s, fnd.CollisionMembers...)
+}
+
 // allValidUTF8 reports whether every string field of a finding is valid UTF-8.
 func allValidUTF8(fnd *Finding) bool {
-	fields := []string{fnd.RuleID, fnd.Path, fnd.Message, fnd.Evidence, fnd.SuggestedAction, fnd.SourceRule, fnd.Fingerprint}
-	if fnd.Target != nil {
-		fields = append(fields, *fnd.Target)
-	}
-	for _, s := range fields {
+	for _, s := range findingStrings(fnd) {
 		if !utf8.ValidString(s) {
 			return false
 		}
