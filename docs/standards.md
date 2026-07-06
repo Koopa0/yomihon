@@ -77,6 +77,16 @@ the four walls (`README`, decisions D02), the walls win.
   `KURODO_REFERENCE_BIN` and skip when it is absent; that skip is design, not
   a gap to fix.
 
+**Known debts against this bar (recorded 2026-07-06, queued for one dedicated
+chore PR — do not copy these patterns while they remain):** the umbrella `ci`
+job (rename to `verify`, mirroring the local gate, with the vulnerability
+scan split into its own job); `govulncheck@latest` (pin it); the
+golangci-lint installer fetched from a moving ref and piped to `sh` without a
+checksum (pin the ref; verify what runs); no concurrency group and no job
+timeouts. Until that PR lands, the Tailwind fetch step — pinned version,
+checksum verified before execution — is the exemplar to copy, not the
+installer steps above it.
+
 ## 4. Taste
 
 - **Comments are self-contained** and state the durable reason in domain
