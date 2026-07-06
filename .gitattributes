@@ -1,0 +1,6 @@
+# Vendored and generated files: keeps the repository's language statistics,
+# pull-request diffs, and code search honest. The product is Go; the vendored
+# diagram renderer and the generated assets must not classify it otherwise.
+assets/js/mermaid/** linguist-vendored
+assets/css/output.css linguist-generated
+*_templ.go linguist-generated
