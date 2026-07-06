@@ -45,8 +45,19 @@ reviewability — one PR is one reviewable idea. These are not fences (D15):
 a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
 
 **Track 1 — finish the kura retirement (the only externally-blocked thread):**
-1. `PR-diff-fuzz` — the differential harness (in flight). Acceptance:
-   judge-plan §13's harness shape, rule-reach self-check, kill-tested runner.
+1. `PR-diff-fuzz` — the differential harness (merged, PR #19). Acceptance
+   held: judge-plan §13's harness shape, rule-reach self-check, kill-tested
+   runner.
+1b. **Pending ruling, before the campaign burns nights**: the journal's
+   influence on public results. Its findings are dropped from egress (D39),
+   but a journal note still counts as a *source* — its edges can flip a
+   public concept from orphan to referenced/mounted in coverage, and its
+   planned-name list downgrades a public broken link from warn to info. If
+   Koopa rules this closed (journal ceases to influence egress-visible
+   results), the fix is a new deliberate divergence: tests first, a §12
+   register entry, and a manifest/normalizer update to the differential
+   harness — landed *before* the campaign, so its evidence is collected
+   against the final behavior.
 2. Campaign runs — operations, not a PR: nights of runs to the §13 completion
    bar; every divergence pauses for adjudication.
 3. Koopa's retirement declaration, citing §13.
@@ -61,9 +72,14 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    vulnerability scan into its own job, pin `govulncheck`, pin and verify the
    golangci-lint installer, add a concurrency group and per-job timeouts.
    Koopa updates the branch-protection required checks in the same motion.
+   The local gate is part of the same debt: the Makefile's `./...` targets
+   pick up Go packages shipped inside the ignored `node_modules/` tree when
+   it exists (the frontend linters leave one), so test/vet/fmt scope to a
+   package list filtered of `/node_modules/`, with a guard that keeps the
+   filter honest.
 
 **Track 3 ∥ — the reading surface (quality of daily life):**
-6. `PR-ux-a` — the three mechanical repairs (roadmap §5b; no ruling needed).
+6. `PR-ux-a` — the four mechanical repairs (roadmap §5b; no ruling needed).
 7. `ux-plan.md` review — Koopa walks the design calls item by item
    (the checklist at its end) and rules; the doc is amended to match.
 8. `PR-ux-b1` — sidebar restructure: wayfinding, syllabus disclosure, the

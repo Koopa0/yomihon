@@ -270,6 +270,11 @@ real vault with headless screenshots before anything was queued.
    Align tables with the existing overflow pattern.
 3. `.k-title` and the metadata row carry no `overflow-wrap` guard against long
    unbroken titles and paths.
+4. The status handler's success redirect concatenates the raw note path, while
+   every rendered note link percent-escapes per segment; a note whose name
+   carries `?` or `#` seals correctly but redirects to the wrong URL. Reuse
+   the same per-segment escaping in the redirect (and its `?sealed=1` suffix),
+   with tests covering `?`, `#`, CJK, and spaces.
 
 **UX-B — designed in `ux-plan.md` (2026-07-06), awaiting Koopa's item-by-item
 review (its §9 checklist), then one or two PRs per the approved plan.** The
