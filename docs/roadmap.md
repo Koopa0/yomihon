@@ -36,6 +36,9 @@
 
 ## 1. Sequence
 
+The PR-granular execution view of this table — roles, briefing protocol, and
+acceptance per unit — is `program.md`.
+
 | # | Work item | Why this position | Decision(s) |
 |---|---|---|---|
 | 1 | **A: judge Stage 4** (merged) | Produced the kura-gate evidence; the four external pipelines now run on it | judge-plan, D30 |
@@ -268,14 +271,12 @@ real vault with headless screenshots before anything was queued.
 3. `.k-title` and the metadata row carry no `overflow-wrap` guard against long
    unbroken titles and paths.
 
-**UX-B — taste batch (one ruling session over Koopa's accumulated pain list,
-then one PR):** TOC show/hide (native disclosure; a persistent preference may
-ride the existing cookie pattern); left sidebar collapse vs resize; left
-sidebar content order — the current Lifecycle-first layout serves
-adjudication, but daily reading wants wayfinding (the open note's position in
-its own tree), and reordering reopens the D26 layout ruling, which is Koopa's
-call. Batch these deliberately: piecemeal layout changes are how the
-HTML-first discipline erodes.
+**UX-B — designed in `ux-plan.md` (2026-07-06), awaiting Koopa's item-by-item
+review (its §9 checklist), then one or two PRs per the approved plan.** The
+questions this batch used to hold — TOC toggle, sidebar collapse/resize,
+sidebar content order and wayfinding, landing page, motion — all have
+positions taken there. Batch the implementation deliberately: piecemeal
+layout changes are how the HTML-first discipline erodes.
 
 **Cockpit priority signal:** whole-queue status management is the cockpit
 (§3), designed and unbuilt. If that turns out to be the dominant daily pain,

@@ -103,10 +103,13 @@ installer steps above it.
 - **Zero text coupling to the retired references** in code, tests, strings,
   and env names; the docs that record the gates are the one exception and are
   rewritten at declaration time.
-- **UI work is HTML-first, CSS-second, JS-last**, per the reading-page
-  discipline: server-rendered templ, native elements before script, one
-  vanilla enhancement file, no client framework. A requirement that seems to
-  want one is a stop-and-surface, not a dependency decision.
+- **UI work climbs the interaction ladder (D41)**: semantic HTML, then CSS,
+  then Chromium-native Web APIs, then a small vanilla-JS enhancement, then —
+  when it genuinely earns its place — a mature, vendorable library admitted
+  per D41's criteria and recorded as a decision. The app stays a
+  server-rendered MPA; no client-framework runtime. Motion, loading, and
+  transition polish are in-scope quality (`ux-plan.md`), held to the same
+  ladder and to `prefers-reduced-motion`.
 
 ## 5. Verification protocol (before any push)
 
