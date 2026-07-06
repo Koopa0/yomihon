@@ -53,37 +53,57 @@ func TestJudgeDifferentialFuzz(t *testing.T) {
 	base := int64(envInt("KURODO_DIFF_SEED_BASE", 0))
 
 	reached := map[string]int{}
-	noFrontmatter := 0
+	cats := map[string]int{}
 	for i := range rounds {
 		seed := base + int64(i)
 		dir := t.TempDir()
 		man := writeVault(t, dir, seed)
-		noFrontmatter += man.categories["noFrontmatter"]
+		for k, v := range man.categories {
+			cats[k] += v
+		}
 
 		runCheckRound(t, tool, dir, seed, &man, reached)
 		runCoverageRound(t, tool, dir, seed, &man)
 		runExistsRound(t, tool, dir, seed, &man)
 	}
 
-	logDistribution(t, rounds, reached, noFrontmatter)
+	logDistribution(t, rounds, reached, cats)
 	if rounds >= focusCount {
-		assertRuleReach(t, reached, noFrontmatter)
+		assertRuleReach(t, reached, cats["noFrontmatter"])
+		assertInfluenceReach(t, cats)
 	} else {
 		t.Logf("reach check skipped: %d rounds is fewer than the %d needed to guarantee every surface", rounds, focusCount)
 	}
 }
 
-// logDistribution reports how many times each rule surface was reached across a
-// run, so the operator can see the fuzzing landed where it was aimed.
-func logDistribution(t *testing.T, rounds int, reached map[string]int, noFrontmatter int) {
+// logDistribution reports how many times each rule surface and each finding-less
+// planted construct was reached across a run, so the operator can see the
+// fuzzing landed where it was aimed.
+func logDistribution(t *testing.T, rounds int, reached, cats map[string]int) {
 	t.Helper()
 	var b strings.Builder
 	fmt.Fprintf(&b, "rule reach over %d rounds:\n", rounds)
 	for _, r := range requiredRules {
 		fmt.Fprintf(&b, "  %-24s %d\n", r, reached[r])
 	}
-	fmt.Fprintf(&b, "  %-24s %d", "(no-frontmatter plants)", noFrontmatter)
+	fmt.Fprintf(&b, "  %-24s %d\n", "(no-frontmatter plants)", cats["noFrontmatter"])
+	fmt.Fprintf(&b, "  %-24s %d\n", "(journal-mount plants)", cats["diaryMount"])
+	fmt.Fprintf(&b, "  %-24s %d", "(journal-planned plants)", cats["diaryPlanned"])
 	t.Log(b.String())
+}
+
+// assertInfluenceReach fails when the generator no longer plants both journal-
+// influence constructs. Neither adds a rule_id the reach tally would catch — a
+// journal mount produces no finding, and a journal-planned link is an ordinary
+// broken link — so the manifest counters are what prove the constructs still
+// appear, and with them the divergence the harness is meant to exercise.
+func assertInfluenceReach(t *testing.T, cats map[string]int) {
+	t.Helper()
+	for _, cat := range []string{"diaryMount", "diaryPlanned"} {
+		if cats[cat] == 0 {
+			t.Errorf("the generator never planted the %q construct; its journal-influence divergence would go unexercised", cat)
+		}
+	}
 }
 
 // runCheckRound compares the check JSONL after the reference lines this engine
@@ -230,11 +250,13 @@ func runExistsRound(t *testing.T, tool, dir string, seed int64, man *genManifest
 func TestDiffFuzzRuleReach(t *testing.T) {
 	t.Parallel()
 	reached := map[string]int{}
-	noFrontmatter := 0
+	cats := map[string]int{}
 	for seed := range int64(focusCount) {
 		dir := t.TempDir()
 		man := writeVault(t, dir, seed)
-		noFrontmatter += man.categories["noFrontmatter"]
+		for k, v := range man.categories {
+			cats[k] += v
+		}
 		findings, err := Check(dir)
 		if err != nil {
 			t.Fatalf("Check(seed=%d): %v", seed, err)
@@ -243,7 +265,8 @@ func TestDiffFuzzRuleReach(t *testing.T) {
 			reached[findings[i].RuleID]++
 		}
 	}
-	assertRuleReach(t, reached, noFrontmatter)
+	assertRuleReach(t, reached, cats["noFrontmatter"])
+	assertInfluenceReach(t, cats)
 }
 
 // assertRuleReach fails when a required rule was never reached or when no
