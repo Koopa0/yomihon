@@ -64,6 +64,38 @@ func TestHTMLExistingDialectRegressions(t *testing.T) {
 	}
 }
 
+// TestTableWrappedForOverflow pins the horizontal-overflow guard: every GFM
+// table is nested in a scroll container so a table too wide for the reading
+// column scrolls inside its own box instead of stretching the article. The
+// element stays a real <table> with its header and cells intact — the wrapper
+// changes only the outer element, so the table's semantics survive.
+func TestTableWrappedForOverflow(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, t.TempDir(), nil, nil)
+
+	// A wide table: an unbreakable token in one cell is exactly what pushes a
+	// table past the column and, without the wrapper, spills into the article.
+	body := "| head | value |\n|---|---|\n| a | superlongunbreakabletokenwithoutspaces_0123456789 |\n"
+	got := r.HTML(body).HTML
+
+	if !strings.Contains(got, `<div class="k-tablewrap"><table>`) {
+		t.Errorf("table is not wrapped in the scroll container:\n%s", got)
+	}
+	if !strings.Contains(got, "</table></div>") {
+		t.Errorf("table wrapper is not closed:\n%s", got)
+	}
+	// The real table survives — the wrapper must not have stripped table markup.
+	for _, want := range []string{"<thead>", "<th>head</th>", "<td>a</td>"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("wrapped table lost %q:\n%s", want, got)
+		}
+	}
+	// Exactly one wrapper for one table — no double wrap, no stray container.
+	if n := strings.Count(got, "k-tablewrap"); n != 1 {
+		t.Errorf("k-tablewrap count = %d, want 1:\n%s", n, got)
+	}
+}
+
 // TestHeadingSlugsSkipNestedRawHeading pins the graceful-skip: a heading with a
 // raw inline <hN> in it (an authoring accident goldmark+WithUnsafe passes
 // through verbatim) is left byte-identical — no id assigned, absent from the
