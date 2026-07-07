@@ -21,7 +21,9 @@ env:
   TAILWIND_SHA256: cc115d9b6c4ede4e423bfea6a3cfc3f03e6c1702b7d910369b9540e2b4cf3860
 
 jobs:
-  ci:
+  # Mirrors the local gate: build, vet, lint, and race-enabled tests in the
+  # same order a developer runs before pushing.
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,9 +34,6 @@ jobs:
 
       - name: Install golangci-lint v2 (pinned)
         run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
-
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Build
         run: go build ./...
@@ -47,6 +46,22 @@ jobs:
 
       - name: Test
         run: go test -race -count=1 -shuffle=on ./...
+
+  # Scans the dependency and standard-library surface for known
+  # vulnerabilities. Kept separate from the build-and-test gate so a new
+  # advisory does not mask a genuine build or test regression, and either
+  # result reads at a glance.
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Vulnerability scan
         run: govulncheck ./...
