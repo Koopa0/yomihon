@@ -254,10 +254,12 @@ anchor-positioning API, and the Baseline newly-available HTML set:
 - **Rejected with reasons, do not re-adopt without a new ruling**:
   `<details name>` exclusive accordions — exclusivity fights the wayfinding
   invariant (multi-section membership must hold several branches open at
-  once); anchor positioning and the popover attribute — no floating UI
-  exists (no tooltips, no hover previews, no menus); adopting either would
-  be inventing a consumer for an API. Both become candidates the day the
-  cockpit or a hover-preview surface is ruled in.
+  once).
+- **Ruled in (2026-07-07, correcting this audit's first pass)**: anchor
+  positioning and the popover attribute. The first pass rejected them as
+  "no floating UI exists" — circular, since the missing floating UI is
+  itself the reading capability this vault wants. Their consumers are real
+  and named in §11: wikilink hover previews and in-place diagnostic cards.
 - **Watch**: `ruby-overhang` — the lesson pages are ruby-dense (furigana),
   so this is the one typography knob with a real consumer here; do nothing
   until a rendering complaint exists, then it is a one-line CSS decision.
@@ -265,3 +267,39 @@ anchor-positioning API, and the Baseline newly-available HTML set:
   immediately-visible content), declarative shadow DOM, and the current
   beta's media/GPU/telemetry surface — no consumer in a local server-rendered
   reader.
+
+## 11. The hover layer (ruled 2026-07-07; lands as its own PR after the
+motion batch)
+
+Reading a wikilink-dense vault wants the glance-without-leaving move. Two
+surfaces, one mechanism — the popover attribute for the top layer and light
+dismiss, CSS anchor positioning (`anchor-name`, `position-area`,
+`@position-try` with flip fallbacks, `position-visibility`) for placement;
+no positioning JS, ever.
+
+1. **Wikilink hover preview.** Hovering or focusing a resolved wikilink
+   opens an anchored card with the target note's beginning (title, status
+   chip, the first few rendered blocks). Content comes from a small
+   read-only fragment endpoint that reuses the existing rendering pipeline —
+   same sanitization, same dialect, truncated at the server, journal pages
+   render like any other (local reading is not egress). Enhancement JS owns
+   only intent and fetch: a short hover delay (~250ms) so scanning text
+   never flickers, focus triggers for keyboard, Esc dismisses, one in-flight
+   fetch with a small session cache. No JS → links navigate exactly as
+   today. Ambiguous and broken links get no preview — their affordance is
+   the diagnostic card below.
+2. **In-place diagnostic cards.** The renderer already knows, per link, why
+   it is broken or ambiguous; it embeds that detail (and for collisions,
+   the candidate list) as data attributes at render time. Hover/focus on a
+   marked link anchors a card showing the detail right where the problem
+   sits — no fetch, content is already in the page. The right-rail
+   diagnostics list stays (the per-note overview); this connects each entry
+   to its location.
+
+Bounds: previews never nest (no preview from within a preview); one card on
+screen at a time; `prefers-reduced-motion` strips the entry transition, not
+the capability; the card is display furniture — never a write surface, so
+the seal stays on the page proper. Deferred until felt: footnote previews
+(same mechanism, add when footnote-hopping actually annoys), and converting
+the concept sheet from a centered modal to an anchored popover — that
+reopens a built surface, so it is Koopa's taste call, offered not assumed.

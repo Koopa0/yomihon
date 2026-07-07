@@ -84,6 +84,9 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    filter box, lifecycle demotion (per the approved plan).
 9. `PR-ux-b2` — landing page v0.5, view transitions, motion and loading
    affordances (per the approved plan).
+9b. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
+    a read-only fragment endpoint, and in-place diagnostic cards — popover +
+    CSS anchor positioning, zero positioning JS.
 10. `PR-e2e-screenshots` — the deferred screenshot job, once the surface is
     stable enough that a baseline is worth committing.
 
