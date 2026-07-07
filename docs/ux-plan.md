@@ -303,3 +303,36 @@ the seal stays on the page proper. Deferred until felt: footnote previews
 (same mechanism, add when footnote-hopping actually annoys), and converting
 the concept sheet from a centered modal to an anchored popover — that
 reopens a built surface, so it is Koopa's taste call, offered not assumed.
+
+## 12. Reading-smoothness inventory (ruled 2026-07-07; rides with the motion
+batch unless noted)
+
+A reader's product is typography and scroll feel; these are one-to-three-line
+native-CSS upgrades, each with its consumer named. Everything motion-shaped
+obeys `prefers-reduced-motion`; nothing here adds JavaScript.
+
+1. **Smooth anchor travel** — `scroll-behavior: smooth` on the document:
+   TOC and footnote jumps travel instead of teleporting (headings already
+   carry `scroll-margin-top`, so they land clear of the topbar).
+2. **Scroll containment** — `overscroll-behavior: contain` on both rails
+   and the drawer: reaching a rail's end stops chaining into the page.
+3. **Prose wrapping** — `text-wrap: pretty` on article paragraphs (titles
+   keep `balance`): fewer orphans in long CJK-Latin mixed text.
+4. **CJK punctuation trim** — `text-spacing-trim` on the article: adjacent
+   full-width punctuation stops double-spacing; judged visually against
+   real lesson pages at acceptance.
+5. **Arrival echo** — a brief `:target` highlight on the heading just
+   jumped to, so the eye lands with the scroll.
+6. **Entry transitions** — `@starting-style` for the seal toast, dialogs,
+   and the hover layer's popovers: elements enter smoothly without a single
+   line of script.
+7. **Stable gutter** — `scrollbar-gutter: stable` on the article scroller:
+   no layout shift when a short page grows a scrollbar.
+8. **Phrase-aware Japanese wrapping** — `word-break: auto-phrase` where
+   `lang="ja"` already exists (slot machine, spoken lines). The renderer
+   does not language-tag prose runs today; widening the tagging is deferred
+   until Japanese-reading pain names it.
+9. **Reading progress bar** (the one taste call, offered not assumed): a
+   hairline scroll-driven progress indicator on note pages — pure CSS
+   (`animation-timeline: scroll()`), stateless, no relation to the
+   cockpit's read-tracking. Ships only on Koopa's yes.
