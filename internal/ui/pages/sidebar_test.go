@@ -70,7 +70,12 @@ func buildModel(t *testing.T) *nav.Model {
 			"- [[L01]]\n",
 		"Writing/lessons/go/L01.md": "---\ntype: lesson\nstatus: draft\n---\nbody\n",
 		"Writing/lessons/go/L02.md": "---\ntype: lesson\nstatus: draft\n---\nbody\n",
-		"Concepts/go/C01.md":        "---\ntype: concept\n---\nbody\n",
+		// A concept note not listed by any study-path.
+		"Concepts/go/C01.md": "---\ntype: concept\n---\nbody\n",
+		"Concepts/go/C02.md": "---\ntype: concept\n---\nbody\n",
+		// A Sources note with no frontmatter at all (a legal shape).
+		"Sources/articles/Other.md": "just prose, no frontmatter\n",
+		"Sources/articles/Raw.md":   "raw clipping, no frontmatter\n",
 	}
 	for rel, content := range files {
 		p := filepath.Join(root, filepath.FromSlash(rel))
@@ -151,6 +156,67 @@ func TestNewSidebarWayfinding(t *testing.T) {
 	}
 	if !sb2.sectionOpen(goPath, []string{"Decode", "Bytes"}) {
 		t.Errorf("sectionOpen(%q, [Decode Bytes]) = false, want true", goPath)
+	}
+}
+
+// TestNewSidebarNonLessonFixtures checks the other two representative shapes: a
+// concept note and a frontmatter-less Sources note. Neither is listed by a
+// study-path, so no syllabus branch opens — but siblings still surface and the
+// folder ancestors still expand, the same wayfinding a lesson gets.
+func TestNewSidebarNonLessonFixtures(t *testing.T) {
+	t.Parallel()
+	model := buildModel(t)
+
+	tests := []struct {
+		name     string
+		current  string
+		wantDir  string
+		wantHere []nav.NoteRef
+		wantDirs []string
+	}{
+		{
+			name:    "concept note",
+			current: "Concepts/go/C01.md",
+			wantDir: "Concepts/go",
+			wantHere: []nav.NoteRef{
+				{Name: "C01", RelPath: "Concepts/go/C01.md"},
+				{Name: "C02", RelPath: "Concepts/go/C02.md"},
+			},
+			wantDirs: []string{"Concepts", "Concepts/go"},
+		},
+		{
+			name:    "no-frontmatter Sources note",
+			current: "Sources/articles/Raw.md",
+			wantDir: "Sources/articles",
+			wantHere: []nav.NoteRef{
+				{Name: "Other", RelPath: "Sources/articles/Other.md"},
+				{Name: "Raw", RelPath: "Sources/articles/Raw.md"},
+			},
+			wantDirs: []string{"Sources", "Sources/articles"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sb := NewSidebar(model, tt.current, nil, 0, false)
+			if sb.syllabusOpen("Maps/Go path.md") {
+				t.Error("syllabusOpen = true for a note no study-path lists, want false")
+			}
+			if sb.HereDir != tt.wantDir {
+				t.Errorf("HereDir = %q, want %q", sb.HereDir, tt.wantDir)
+			}
+			if diff := cmp.Diff(tt.wantHere, sb.Here); diff != "" {
+				t.Errorf("Here mismatch (-want +got):\n%s", diff)
+			}
+			for _, dir := range tt.wantDirs {
+				if !sb.folderOpen(dir) {
+					t.Errorf("folderOpen(%q) = false, want true", dir)
+				}
+			}
+			if !sb.current(tt.current) {
+				t.Errorf("current(%q) = false, want true", tt.current)
+			}
+		})
 	}
 }
 
