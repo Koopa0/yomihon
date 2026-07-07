@@ -1,17 +1,21 @@
 MODULE := github.com/koopa0/kurodo
 
-# The whole-tree Go targets run over a filtered list that drops the ignored
-# node_modules tree the frontend linters leave behind: it can carry a stray Go
-# package, and an unfiltered ./... would build, vet, and format it as if it
-# were ours. GO_PKGS feeds the package-based targets; GO_DIRS feeds goimports,
-# which takes paths. The guards turn an empty list — a broken toolchain or a
-# filter that matched everything — into a hard failure instead of a silent
-# pass over nothing.
-GO_PKGS := $(shell go list ./... | grep -v /node_modules/)
-GO_DIRS := $(shell go list -f '{{.Dir}}' ./... | grep -v /node_modules/)
-
-require-pkgs = test -n "$(strip $(GO_PKGS))" || { echo 'go package list is empty after filtering node_modules' >&2; exit 1; }
-require-dirs = test -n "$(strip $(GO_DIRS))" || { echo 'go directory list is empty after filtering node_modules' >&2; exit 1; }
+# `go list ./...` over the whole tree also descends into node_modules — the
+# ignored frontend build tree, which can carry a stray Go package — and an
+# unfiltered list would build, vet, and format it as if it were ours. Each Go
+# target filters it out inside its own recipe (via filtered-go-list) so the
+# listing runs only for the target that needs it, not on every `make`. The
+# listing is captured in two steps: the `go list` first, so a broken toolchain
+# aborts the recipe with go's own error, then the filter, so an empty result
+# after filtering fails loudly instead of passing silently over nothing.
+#
+# $(1) is any extra `go list` flags; the filtered result lands in $$list.
+define filtered-go-list
+set -eu; \
+list=$$(go list $(1) ./...); \
+list=$$(printf '%s\n' "$$list" | grep -v /node_modules/ || true); \
+[ -n "$$list" ] || { echo 'go list is empty after filtering node_modules' >&2; exit 1; }
+endef
 
 .PHONY: build run test lint fmt vet gen css verify clean
 
@@ -22,20 +26,17 @@ run: gen css
 	go run ./cmd/kurodo serve
 
 test:
-	@$(require-pkgs)
-	go test -race -count=1 -shuffle=on $(GO_PKGS)
+	@$(call filtered-go-list); go test -race -count=1 -shuffle=on $$list
 
 lint:
 	golangci-lint config verify
 	golangci-lint run
 
 fmt:
-	@$(require-dirs)
-	goimports -w -local $(MODULE) $(GO_DIRS)
+	@$(call filtered-go-list,-f '{{.Dir}}'); goimports -w -local $(MODULE) $$list
 
 vet:
-	@$(require-pkgs)
-	go vet $(GO_PKGS)
+	@$(call filtered-go-list); go vet $$list
 
 gen:
 	go tool templ generate
