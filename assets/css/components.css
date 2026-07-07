@@ -556,14 +556,16 @@ html, body { margin: 0; background: var(--bg); }
 @keyframes k-inkBloom { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 7px oklch(0.55 0.18 33 / 0); } }
 @keyframes k-hairline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes k-fadeup   { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-/* Reduced motion kills decorative animation/transition — but NOT the seal hold-fill.
-   Its width transition is functional progress feedback for the ~430ms press-and-hold
-   misclick guard (a reduced-motion user must still see the hold advancing, or the
-   guard is half-blind — WCAG exempts motion that conveys essential state). So
-   .k-sealfill is excluded here and keeps the duration kurodo.js sets inline. Do not
-   fold it back into the blanket kill (R2-10 — this is the exception it warned about).
-   The post-seal ceremony (k-sealBed/inkBloom/hairline animations) stays killed. */
-@media (prefers-reduced-motion: reduce) { .kurodo *:not(.k-sealfill), .kurodo *::before, .kurodo *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+/* Reduced motion kills decorative animation/transition — but not the two
+   essential state displays. The seal hold-fill's width transition is the
+   ~430ms press-and-hold misclick guard made visible (a reduced-motion
+   reader must still see the hold advancing, or the guard is half-blind —
+   WCAG exempts motion that conveys essential state), and the reading-
+   position hairline is scroll state, not decoration (its scroll timeline
+   is not driven by durations anyway, but the exemption is explicit).
+   Neither may be folded back into the blanket kill. The post-seal
+   ceremony (k-sealBed/inkBloom/hairline animations) stays killed. */
+@media (prefers-reduced-motion: reduce) { .kurodo *:not(.k-sealfill):not(.k-readline), .kurodo *::before, .kurodo *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ============================================================
    Syllabus page (study-path) — a full-page render of nav.Syllabus.
@@ -642,6 +644,74 @@ html, body { margin: 0; background: var(--bg); }
 .k-progress__fill[data-fill="100"] { width: 100%; }
 
 /* ============================================================
+   Reading smoothness — scroll feel, wrapping, arrival
+   ------------------------------------------------------------
+   The scroll container in this shell is .k-main (the rails scroll
+   independently), so every scroll property lands there — on the
+   document it would be a no-op.
+   ============================================================ */
+.k-main {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scroll-timeline: --k-read block;
+}
+.k-rail-left, .k-rail-right { overscroll-behavior: contain; }
+
+/* paragraphs wrap with the last lines weighed; titles keep their balance */
+.k-prose p { text-wrap: pretty; }
+
+/* CJK punctuation sets solid where full widths would double up, and only a
+   paragraph's first line keeps its full-width opening bracket — the
+   classical book convention. Adjacent-pair trimming largely rides the
+   font's own contextual half-width feature once the content language is
+   CJK; this declaration pins the line-start convention explicitly. */
+.k-prose { text-spacing-trim: space-first; }
+
+/* phrase-aware Japanese line breaking, wherever content is language-tagged */
+.kurodo [lang="ja"] { word-break: auto-phrase; }
+
+/* Arrival echo — a brief wash on the heading a table-of-contents jump lands
+   on. While the viewport is still travelling the enhancement script holds it
+   back (the root carries data-traveling until the scroll settles), so the
+   echo plays when the eye arrives; with no script the jump is immediate and
+   the echo simply plays at once. */
+.k-prose :target { animation: k-arrive 1.1s var(--ease-standard); }
+[data-traveling] .k-prose :target { animation: none; }
+@keyframes k-arrive {
+  from { background: var(--accent-muted); box-shadow: 0 0 0 6px var(--accent-muted); }
+  to { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+/* Entry transitions for the top-layer surfaces: first-frame styles let the
+   open state transition in instead of popping. */
+.k-searchdialog[open] { transition: opacity var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard); }
+.k-conceptsheet[open] { transition: opacity var(--dur-slow) var(--ease-standard); }
+@starting-style {
+  .k-searchdialog[open] { opacity: 0; transform: translateY(-6px); }
+  .k-conceptsheet[open] { opacity: 0; }
+}
+
+/* Reading-position hairline — the header's bottom edge doubles as the
+   indicator: a vermilion fill rides the existing 1px seam, driven by the
+   reading column's scroll position through a named scroll timeline (the
+   header is not a descendant of the scroller, so the scope is lifted to
+   their common ancestor). It is scroll position, not completion — the
+   syllabus bars own "done" — and it is essential state display: reduced
+   motion keeps it, via the explicit exemption in the blanket kill below.
+   A page with nothing to scroll leaves the timeline inactive and the
+   fill invisible. */
+.kurodo { timeline-scope: --k-read; }
+.k-readline {
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: var(--accent); transform-origin: left; transform: scaleX(0);
+  pointer-events: none;
+  animation: k-readline linear both;
+  animation-timeline: --k-read;
+}
+@keyframes k-readline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ============================================================
    Cross-document view transitions — navigation morphs, chrome holds
    ------------------------------------------------------------
    Naming a region makes it an independent transition group, not a
@@ -705,4 +775,5 @@ html, body { margin: 0; background: var(--bg); }
 @media (prefers-reduced-motion: reduce) {
   .k-rail-left { transition: none; }
   .k-rail-left details::details-content { transition: none; }
+  .k-main { scroll-behavior: auto; }
 }
