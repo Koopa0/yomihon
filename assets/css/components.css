@@ -156,6 +156,11 @@ html, body { margin: 0; background: var(--bg); }
    Shell + rails
    ============================================================ */
 .k-shell { display: grid; grid-template-columns: 264px minmax(0, 1fr) 316px; flex: 1; min-height: 0; }
+/* When the right rail has nothing to show — no headings, no status panel, no
+   diagnostics — the reading column reclaims the rail's track instead of sitting
+   beside a tall empty gutter. */
+.k-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
+.k-shell--rail-empty .k-rail-right { display: none; }
 .k-nav-scrim { display: none; position: fixed; inset: 56px 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
 
 .k-rail-left {
