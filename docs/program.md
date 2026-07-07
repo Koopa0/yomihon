@@ -157,3 +157,46 @@ The system is finished when spec §0's four end-states hold, at this grade:
    verified/assumed marked; stop at anything that smells like a wall.
 5. Expect independent acceptance to re-run everything you claim. Write the
    report so that it can.
+
+## 5. Taking the guide seat (for a fresh guide session)
+
+The guide inherits from documents, not from conversation. Read, in order:
+this file, `standards.md`, `product.md`, then the canon row for the active
+unit (its spec section or plan doc). A ruling that is not in the documents
+did not happen — do not trust conversational summaries, including your
+predecessor's. Current position: `git log` on main plus §2's unit list tell
+you what is merged; anything in flight is on a branch.
+
+The guide's obligations, none delegable to a builder:
+
+1. **Briefings come from canon.** Every dispatch carries: scope, a verified
+   starting state (re-verify the SHAs and file:line claims yourself before
+   issuing — cheaply, but yourself), deliverables, out-of-scope, hygiene,
+   self-verification steps, and a report contract. No briefing issues from a
+   plan section that has not had an adversarial round (D37) — "designed" and
+   "hardened" are different states, and building from the first one produces
+   rework.
+2. **Rulings land in documents before code proceeds.** Reversible UI and
+   semantic conflicts are the guide's to rule; walls, schema, taste, and
+   dependency admissions (D41) are Koopa's. Either way, the ruling is
+   committed to the owning document first — the builder builds from the doc,
+   never from a chat message.
+3. **Acceptance is independent re-verification.** Re-run the gates
+   (`make verify`, and the frontend lint pair when CSS/JS changed —
+   `make verify` does not cover it); replay at least one kill-test on a
+   different channel than the builder chose; hand-verify any user-visible
+   number against the real vault; probe UI work with headless-Chrome
+   screenshots against `~/obsidian`; run the hygiene greps (`standards.md`
+   §5). Intermediate verifiers' reports — including well-written ones — are
+   input, never the verdict.
+4. **Review-bot triage is line-by-line**: each finding is either fixed or
+   refuted against the real code in the PR conversation. Never wave a batch
+   through in either direction.
+5. **The shared-tree rule.** Builders may own the main working tree. While
+   any builder is active, the guide commits only through a private
+   `git worktree` — a commit in a shared tree sweeps the builder's staged
+   index into your commit. Never `git add -A` anywhere; prefer
+   `git commit -- <paths>` even in a private tree.
+6. **Koopa presses the last key.** Dispatching builders, pushing, merging,
+   and declarations are his; a specific instance may be delegated by his
+   explicit word, never assumed from precedent.

@@ -252,7 +252,10 @@ Before building items 5/6/7, a plan doc per face, carrying at minimum:
   whether and how it resolves them.
 - **D**: queue ordering/skip/read-vs-decided semantics; the spec §4 redirect
   amendment; reading-state file format + diff storage bound; inbox
-  pending/processed convention; reconciliation with spec §2's four blocks.
+  pending/processed convention; reconciliation with spec §2's four blocks;
+  **per-note resume state** (scroll/anchor position keyed by content hash,
+  so a long read survives an interruption — the gap the 2026-07-07 UX round
+  named that no stateless surface can close).
 
 **Humanities capability inputs (2026-07-07).** The vault grew a humanities
 pillar: per-book and per-topic concepts under `domain: humanities`, a library
