@@ -157,7 +157,12 @@
         const first = rail.querySelector('a:not([hidden])');
         if (first) first.click();
       } else if (e.key === 'Escape') {
+        // Clear the filter and stop here: without stopPropagation the same Esc
+        // would bubble to the global handler and also close the nav drawer, so
+        // one press would do two things. A second Esc (filter now empty, focus
+        // returned to the page) reaches the global handler and closes the drawer.
         e.preventDefault();
+        e.stopPropagation();
         input.value = '';
         apply();
         input.blur();
