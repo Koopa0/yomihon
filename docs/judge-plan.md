@@ -359,7 +359,11 @@ excludes journal sources from both computations).
 hold:**
 
 1. At least 5,000 generated vaults cumulatively, across at least three
-   independent runs on separate days with distinct base seeds.
+   independent runs with distinct base seeds. (As first written this demanded
+   separate calendar days; Koopa waived the day boundary on 2026-07-07 — the
+   third run's independence came from a fresh seed base and a main that had
+   absorbed the intervening hardening work, which is the variance the clause
+   was after. Run dates are still recorded per item 5.)
 2. Zero unexplained byte differences after §12 normalization.
 3. The rule-reach self-check passes in every run: all fifteen rules and both
    frontmatter failure classes — a note with no frontmatter block at all, and
