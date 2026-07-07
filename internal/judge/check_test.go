@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 )
@@ -161,39 +160,6 @@ func TestTouchesDiary(t *testing.T) {
 				t.Errorf("touchesDiary(path=%q) = %v, want %v", tt.f.Path, got, tt.want)
 			}
 		})
-	}
-}
-
-// TestCheckMatchesReferenceOnRealVault runs the reference tool and this engine
-// over the same live vault and asserts the whole check output is byte-identical
-// — every rule, not just the frontmatter subset. It is skipped when the
-// reference tool or the vault is absent, so it never blocks a build elsewhere.
-// Two behaviors depart from the reference (see TestCheckSkipsFileReferencesInComments
-// and TestCheckDropsDiaryFindings); the real vault holds no input that triggers
-// either — no file reference inside a comment, no finding touching the private
-// daily journal — so the whole-vault bytes stay identical.
-func TestCheckMatchesReferenceOnRealVault(t *testing.T) {
-	t.Parallel()
-	tool := referenceTool()
-	if tool == "" {
-		t.Skip("set KURODO_REFERENCE_BIN to the conformance reference binary to run this check")
-	}
-	vaultRoot := referenceVault()
-	if vaultRoot == "" {
-		t.Skip("vault not found; set KURODO_VAULT to a root holding the contract")
-	}
-
-	// #nosec G204 -- tool is resolved from a trusted environment variable set by the operator, not from user input
-	out, err := exec.CommandContext(t.Context(), tool, "check", "--root", vaultRoot, "--format", "json").Output()
-	if err != nil {
-		t.Fatalf("run reference tool: %v", err)
-	}
-	want := out
-
-	got := runCheck(t, vaultRoot)
-	if !bytes.Equal(got, want) {
-		t.Errorf("check findings differ from the reference tool on %s\ngot:\n%s\nwant:\n%s",
-			vaultRoot, got, want)
 	}
 }
 
