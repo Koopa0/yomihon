@@ -243,10 +243,39 @@ Before building items 5/6/7, a plan doc per face, carrying at minimum:
   cases; the eval set; egress guard test (Diary/ never reaches the embedder —
   an I-style lock).
 - **H**: the JSON contract per verb (fields, ordering, exit codes) + goldens;
-  `related`'s fusion semantics; export format + its documented size envelope.
+  `related`'s fusion semantics; export format + its documented size envelope;
+  a frontmatter-query verb with multi-key filtering (domain / status / topics /
+  source_kind — reuse the shipped search filter grammar, no new language); a
+  backlinks-aggregation verb (`--group-by topic` ranking by in-degree), which
+  must define its edge sets explicitly: wikilink backlinks live in the graph
+  index today, `based_on` provenance references do not — the verb states
+  whether and how it resolves them.
 - **D**: queue ordering/skip/read-vs-decided semantics; the spec §4 redirect
   amendment; reading-state file format + diff storage bound; inbox
   pending/processed convention; reconciliation with spec §2's four blocks.
+
+**Humanities capability inputs (2026-07-07).** The vault grew a humanities
+pillar: per-book and per-topic concepts under `domain: humanities`, a library
+map (`type: moc`) tracking books with the reading state kept in a table
+column — deliberately not frontmatter, so the write face never touches it —
+and a new `status: published` for release. kurodo needs zero code for the new
+enum values: domain and status flow from the contract file, and the write
+face offers a transition the moment its lifecycle entry exists there (until
+then it correctly offers nothing). What the new pillar actually asks of the
+faces, by ownership:
+- Structured queries (domain × status × topics) are **already shipped** in
+  the lexical search grammar; the one delta is `source_kind` — an index
+  field + filter key added when B or H builds (amending the index's
+  only-what-search-reads list is part of that PR, not a side effect).
+- Topic-depth ranking is the H backlinks-aggregation verb above.
+- **Deferred, deliberately**: a "read but no review written" gap report
+  would require parsing the library map's table cells (a state column plus
+  per-row wikilink presence) — presentation-coupled and brittle. Not built
+  until the manual answer fails: the map is small enough to read directly.
+  Reopen trigger: the question recurs weekly or the map outgrows one
+  screen. When reopened it lands as an H query-verb composition; a judge
+  coverage rule stays the wrong home even after the judge face unfreezes,
+  because the fragility is in the map format, not the rule engine.
 
 ## 5b. Reading-surface UX queue (from daily use, 2026-07-06)
 
