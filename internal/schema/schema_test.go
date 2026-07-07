@@ -193,6 +193,53 @@ func TestTransition(t *testing.T) {
 	}
 }
 
+// TestAdvanceableBy exercises the "still has a named, owned onward step"
+// predicate on a synthetic contract, so it proves the state-machine logic
+// rather than any particular vault's status words. The state names here are
+// invented (s1…final, retired) precisely so the test cannot pass by accident of
+// matching a real status.
+func TestAdvanceableBy(t *testing.T) {
+	t.Parallel()
+
+	// s1→s2→s3→final is a linear owned path; retired is the "any state" escape
+	// (both its from and applies_to are the wildcard), which must never count as
+	// an onward step.
+	s := &schema.Schema{Lifecycle: []schema.Stage{
+		{Status: "s1", AppliesTo: []string{"doc"}, From: nil, Owner: []string{"bot"}},
+		{Status: "s2", AppliesTo: []string{"doc"}, From: []string{"s1"}, Owner: []string{"editor"}},
+		{Status: "s3", AppliesTo: []string{"doc", "note"}, From: []string{"s2"}, Owner: []string{"editor", "bot"}},
+		{Status: "final", AppliesTo: []string{"*"}, From: []string{"s3"}, Owner: []string{"editor"}},
+		{Status: "retired", AppliesTo: []string{"*"}, From: []string{"*"}, Owner: []string{"editor", "bot"}},
+	}}
+
+	tests := []struct {
+		name     string
+		noteType string
+		status   string
+		actor    string
+		want     bool
+	}{
+		{"named edge, owner matches", "doc", "s1", "editor", true},
+		{"named edge, owner excluded", "doc", "s1", "bot", false},
+		{"named edge, type not in applies_to", "note", "s1", "editor", false},
+		{"owner list includes actor", "doc", "s2", "bot", true},
+		{"applies_to wildcard admits the type", "doc", "s3", "editor", true},
+		{"applies_to wildcard admits any type", "anytype", "s3", "editor", true},
+		{"only the wildcard escape remains", "doc", "final", "editor", false},
+		{"escape state itself has no named onward step", "doc", "retired", "editor", false},
+		{"status defined nowhere", "doc", "nope", "editor", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := s.AdvanceableBy(tt.noteType, tt.status, tt.actor); got != tt.want {
+				t.Errorf("AdvanceableBy(%q, %q, %q) = %v, want %v",
+					tt.noteType, tt.status, tt.actor, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestLoadRealContract locks the assumptions this repo makes about the real
 // vault contract. Skips when the vault is absent (fresh clone, CI).
 func TestLoadRealContract(t *testing.T) {

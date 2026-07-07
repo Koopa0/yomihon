@@ -314,6 +314,128 @@ func TestBuildFolderTree(t *testing.T) {
 	}
 }
 
+// TestPlacements inverts the syllabus trees into the note -> placements map the
+// sidebar reads to open itself to the current note. It covers the two cases that
+// make the inversion worth building: a note listed by two different study-paths
+// (two placements, one per path), and a note listed by two sections of the same
+// study-path (two placements, each carrying its own heading chain). An
+// unresolved lesson carries no path and must not appear.
+func TestPlacements(t *testing.T) {
+	t.Parallel()
+
+	syllabi := []Syllabus{
+		{
+			Title: "Go", RelPath: "Maps/go-path.md",
+			Sections: []Section{
+				{Heading: "Part A", Level: 2, Sub: []Section{
+					{Heading: "Module 1", Level: 3, Lessons: []Lesson{
+						{Text: "L1", Target: "L1", RelPath: "L/L1.md", Resolution: graph.Unique},
+						{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md", Resolution: graph.Unique},
+					}},
+				}},
+				{Heading: "Part B", Level: 2, Lessons: []Lesson{
+					{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md", Resolution: graph.Unique},
+					{Text: "Ghost", Target: "Ghost", Resolution: graph.Unresolved},
+				}},
+			},
+		},
+		{
+			Title: "JP", RelPath: "Maps/jp-path.md",
+			Sections: []Section{
+				{Heading: "Unit 1", Level: 2, Lessons: []Lesson{
+					{Text: "L1", Target: "L1", RelPath: "L/L1.md", Resolution: graph.Unique},
+				}},
+			},
+		},
+	}
+	m := &Model{lessonIndex: buildLessonIndex(syllabi)}
+
+	tests := []struct {
+		name    string
+		relPath string
+		want    []Placement
+	}{
+		{
+			name:    "listed by two study-paths",
+			relPath: "L/L1.md",
+			want: []Placement{
+				{SyllabusRelPath: "Maps/go-path.md", Headings: []string{"Part A", "Module 1"}},
+				{SyllabusRelPath: "Maps/jp-path.md", Headings: []string{"Unit 1"}},
+			},
+		},
+		{
+			name:    "listed by two sections of one study-path",
+			relPath: "L/Shared.md",
+			want: []Placement{
+				{SyllabusRelPath: "Maps/go-path.md", Headings: []string{"Part A", "Module 1"}},
+				{SyllabusRelPath: "Maps/go-path.md", Headings: []string{"Part B"}},
+			},
+		},
+		{name: "unresolved lesson never indexed", relPath: "Ghost", want: nil},
+		{name: "unreferenced note", relPath: "L/Orphan.md", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if diff := cmp.Diff(tt.want, m.Placements(tt.relPath)); diff != "" {
+				t.Errorf("Placements(%q) mismatch (-want +got):\n%s", tt.relPath, diff)
+			}
+		})
+	}
+}
+
+// TestSiblings checks the "here" lookup returns a note's whole directory (itself
+// included, for the caller to mark) in the folder tree's lexical order, reports
+// the empty directory for a vault-root note, and yields nothing for an unknown
+// directory.
+func TestSiblings(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{
+		"Concepts/golang/Baz.md",
+		"Concepts/golang/Foo.md",
+		"Concepts/rust/Bar.md",
+		"README.md",
+	}
+	m := &Model{dirNotes: buildDirNotes(paths)}
+
+	tests := []struct {
+		name      string
+		relPath   string
+		wantDir   string
+		wantNotes []NoteRef
+	}{
+		{
+			name:    "same-directory siblings include self",
+			relPath: "Concepts/golang/Foo.md",
+			wantDir: "Concepts/golang",
+			wantNotes: []NoteRef{
+				{Name: "Baz", RelPath: "Concepts/golang/Baz.md"},
+				{Name: "Foo", RelPath: "Concepts/golang/Foo.md"},
+			},
+		},
+		{
+			name:      "vault-root note has the empty directory",
+			relPath:   "README.md",
+			wantDir:   "",
+			wantNotes: []NoteRef{{Name: "README", RelPath: "README.md"}},
+		},
+		{name: "unknown directory", relPath: "Nowhere/x.md", wantDir: "Nowhere", wantNotes: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir, notes := m.Siblings(tt.relPath)
+			if dir != tt.wantDir {
+				t.Errorf("Siblings(%q) dir = %q, want %q", tt.relPath, dir, tt.wantDir)
+			}
+			if diff := cmp.Diff(tt.wantNotes, notes); diff != "" {
+				t.Errorf("Siblings(%q) notes mismatch (-want +got):\n%s", tt.relPath, diff)
+			}
+		})
+	}
+}
+
 // TestBuildReports checks the .md reports (directly under System/reports/)
 // come first, then the daily-briefing/ HTML briefings with latest.html
 // marked, and that a daily-briefing README.md, a stray .txt, and files

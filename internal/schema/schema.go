@@ -152,3 +152,30 @@ func (s *Schema) Transition(noteType, from, to, actor string) error {
 	}
 	return nil
 }
+
+// AdvanceableBy reports whether actor may move a note of the given type one
+// concrete step onward from status: some lifecycle entry names status as a
+// specific predecessor in its from list and grants actor the ownership to make
+// that move.
+//
+// It differs from Transition in two deliberate ways, matching the question of
+// whether a note still awaits a decision from actor. It ignores the
+// retire-to-archive edge, whose from list is the "any state" wildcard rather
+// than a named predecessor: archiving is an escape always on offer, not a
+// pending onward move, so a match requires status to be listed literally (the
+// wildcard string never equals a real status here). And it reports only whether
+// one such owned edge exists, not whether a specific target is reachable.
+func (s *Schema) AdvanceableBy(noteType, status, actor string) bool {
+	for _, st := range s.Lifecycle {
+		if !slices.Contains(st.From, status) {
+			continue
+		}
+		if !slices.Contains(st.AppliesTo, noteType) && !slices.Contains(st.AppliesTo, "*") {
+			continue
+		}
+		if slices.Contains(st.Owner, actor) {
+			return true
+		}
+	}
+	return false
+}

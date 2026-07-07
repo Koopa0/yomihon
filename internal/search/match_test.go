@@ -146,6 +146,32 @@ func TestSearchEmptyQuery(t *testing.T) {
 	}
 }
 
+// TestCountByTypeStatus tallies notes by (type, status) together — the pairing
+// CountByStatus cannot express, since two notes sharing a status but not a type
+// must stay separate. The type/status words are invented so the count is what is
+// proven, not any real vault's vocabulary; a note missing a field falls in that
+// field's "" bucket.
+func TestCountByTypeStatus(t *testing.T) {
+	t.Parallel()
+	idx := BuildFromDocs([]Doc{
+		{RelPath: "a.md", NoteType: "lesson", Status: "s1"},
+		{RelPath: "b.md", NoteType: "lesson", Status: "s1"},
+		{RelPath: "c.md", NoteType: "lesson", Status: "s2"},
+		{RelPath: "d.md", NoteType: "concept", Status: "s1"},
+		{RelPath: "e.md", NoteType: "", Status: ""},
+	})
+	got := idx.CountByTypeStatus()
+	want := map[TypeStatus]int{
+		{Type: "lesson", Status: "s1"}:  2,
+		{Type: "lesson", Status: "s2"}:  1,
+		{Type: "concept", Status: "s1"}: 1,
+		{Type: "", Status: ""}:          1,
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("CountByTypeStatus() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestBuildFromDocsDeterministic pins that building the same input twice yields
 // byte-identical indexes (input order does not leak into the result — entries
 // are sorted by RelPath).
