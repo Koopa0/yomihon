@@ -12,17 +12,29 @@ on:
 permissions:
   contents: read
 
-# The stylesheet generator is pinned so that a version bump surfaces as an
-# intentional change here rather than as silent output drift. The checksum is
-# the linux-x64 build published with this release, verified before the binary
-# is run.
+# Only the newest run for a ref needs to finish; superseded runs are cancelled
+# so a burst of pushes does not queue redundant work.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The stylesheet generator and the Go linter are pinned by version and by
+# checksum, so a version bump surfaces as an intentional change here rather
+# than as silent tool drift, and the exact bytes are verified before either
+# binary runs. Each checksum matches the Linux x86-64 artifact published with
+# that release.
 env:
   TAILWIND_VERSION: v4.1.17
   TAILWIND_SHA256: cc115d9b6c4ede4e423bfea6a3cfc3f03e6c1702b7d910369b9540e2b4cf3860
+  GOLANGCI_LINT_VERSION: v2.12.2
+  GOLANGCI_LINT_SHA256: 8df580d2670fed8fa984aac0507099af8df275e665215f5c7a2ae3943893a553
 
 jobs:
-  ci:
+  # Mirrors the local gate: build, vet, lint, and race-enabled tests in the
+  # same order a developer runs before pushing.
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -31,10 +43,11 @@ jobs:
           go-version-file: go.mod
 
       - name: Install golangci-lint v2 (pinned)
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
-
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: |
+          curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64.tar.gz" -o "${RUNNER_TEMP}/golangci-lint.tar.gz"
+          echo "${GOLANGCI_LINT_SHA256}  ${RUNNER_TEMP}/golangci-lint.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/golangci-lint.tar.gz" -C "${RUNNER_TEMP}"
+          install -D "${RUNNER_TEMP}/golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64/golangci-lint" "$(go env GOPATH)/bin/golangci-lint"
 
       - name: Build
         run: go build ./...
@@ -48,6 +61,23 @@ jobs:
       - name: Test
         run: go test -race -count=1 -shuffle=on ./...
 
+  # Scans the dependency and standard-library surface for known
+  # vulnerabilities. Kept separate from the build-and-test gate so a new
+  # advisory does not mask a genuine build or test regression, and either
+  # result reads at a glance.
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install govulncheck (pinned)
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
+
       - name: Vulnerability scan
         run: govulncheck ./...
 
@@ -56,6 +86,7 @@ jobs:
   # without its output being regenerated with the pinned tools.
   assets-drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -92,6 +123,7 @@ jobs:
   # it.
   lint-frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -119,6 +151,7 @@ jobs:
   # and checks the live listening socket is bound to loopback and nothing else.
   e2e-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -140,6 +173,7 @@ jobs:
   # are looped.
   fuzz-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
