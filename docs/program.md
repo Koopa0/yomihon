@@ -83,7 +83,7 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
 8. `PR-ux-b1` — sidebar restructure: wayfinding, syllabus disclosure, the
    filter box, lifecycle demotion (per the approved plan).
 9. `PR-ux-b2` — landing page v0.5, view transitions, motion and loading
-   affordances (per the approved plan).
+   affordances, and the reading-smoothness inventory (ux-plan §12).
 9b. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.
