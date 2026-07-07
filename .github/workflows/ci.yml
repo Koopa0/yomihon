@@ -12,6 +12,12 @@ on:
 permissions:
   contents: read
 
+# Only the newest run for a ref needs to finish; superseded runs are cancelled
+# so a burst of pushes does not queue redundant work.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # The stylesheet generator and the Go linter are pinned by version and by
 # checksum, so a version bump surfaces as an intentional change here rather
 # than as silent tool drift, and the exact bytes are verified before either
@@ -28,6 +34,7 @@ jobs:
   # same order a developer runs before pushing.
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -60,6 +67,7 @@ jobs:
   # result reads at a glance.
   govulncheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -78,6 +86,7 @@ jobs:
   # without its output being regenerated with the pinned tools.
   assets-drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -114,6 +123,7 @@ jobs:
   # it.
   lint-frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -141,6 +151,7 @@ jobs:
   # and checks the live listening socket is bound to loopback and nothing else.
   e2e-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -162,6 +173,7 @@ jobs:
   # are looped.
   fuzz-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
