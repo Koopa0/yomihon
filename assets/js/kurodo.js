@@ -120,7 +120,7 @@
 
   // ---- sidebar filter (progressive enhancement) ----------------------------
   // A text box, hidden until this runs, that narrows the sidebar to entries
-  // whose visible text matches. A group (a disclosure or the "here" block) with
+  // whose visible text matches. A group (a disclosure or the "here" list) with
   // no surviving entry collapses away; a match keeps its ancestor disclosures
   // open, so the path to it stays visible. Enter follows the first match; Esc
   // clears and hands focus back to the page. Zero network, zero persisted state.
