@@ -184,18 +184,66 @@ html, body { margin: 0; background: var(--bg); }
 .k-chevron { transition: transform var(--dur-base) var(--ease-standard); opacity: .7; flex: none; }
 .kurodo details:not([open]) .k-chevron { transform: rotate(-90deg); }
 
+/* Disclosure open/close animates the body height — Chromium-native, CSS-only.
+   interpolate-size lets a height:auto transition resolve; ::details-content is
+   the wrapper the engine wraps a <details>'s body in. Scoped to the left rail so
+   prose disclosures (callouts) are untouched. Reduced motion disables it below —
+   the blanket motion kill reaches elements and ::before/::after, not this
+   pseudo-element, so it is turned off explicitly. */
+.k-rail-left { interpolate-size: allow-keywords; }
+.k-rail-left details::details-content {
+  height: 0;
+  overflow: hidden;
+  transition: height var(--dur-base) var(--ease-standard), content-visibility var(--dur-base);
+  transition-behavior: allow-discrete;
+}
+.k-rail-left details[open]::details-content { height: auto; }
+
 /* lifecycle status rows */
 .k-navdot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-faint); flex: none; }
 .k-navdot--ready { border-radius: 1px; background: var(--accent); }
 .k-navicon { width: 17px; display: inline-flex; justify-content: center; flex: none; }
 
-/* syllabus tree */
-.k-syllabus { font-size: var(--fs-13); }
-.k-syllabus__title { display: flex; align-items: center; gap: 8px; padding: 5px 8px; color: var(--fg); font-weight: var(--fw-medium); }
+/* filter box — hidden until the script reveals it (pure enhancement) */
+.k-filter {
+  width: 100%; box-sizing: border-box; margin: 6px 0 4px; padding: 7px 10px;
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+  color: var(--fg); font-family: var(--font-sans); font-size: var(--fs-13); outline: none;
+}
+.k-filter::placeholder { color: var(--fg-faint); }
+.k-filter:focus-visible { border-color: var(--accent-muted); outline: none; }
+
+/* "here" — the current note's same-directory siblings */
+.k-here { display: flex; flex-direction: column; padding: 2px 0 4px; }
+.k-here__label {
+  padding: 10px 8px 5px; font-family: var(--font-mono); font-size: var(--fs-11);
+  color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* the pending-decision figure on the collapsed Lifecycle summary */
+.k-pending {
+  margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0;
+  color: var(--accent); background: var(--accent-muted); border-radius: var(--r-sm); padding: 1px 7px;
+}
+
+/* syllabus tree — nested course / section disclosures */
 .k-tree { padding-left: 12px; border-left: 1px solid var(--border); margin-left: 8px; }
-.k-tree__label { padding: 4px 8px; color: var(--fg-muted); }
 .k-navmark { font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); }
 .k-navmark--warn { color: var(--warn); }
+
+/* a course summary (the study-path title) and a section summary (a heading) */
+.k-railitem, .k-treeitem {
+  display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: var(--r-sm);
+  font-size: var(--fs-13); color: var(--fg-muted); cursor: pointer;
+}
+.k-railitem { color: var(--fg); font-weight: var(--fw-medium); }
+.k-railitem:hover, .k-treeitem:hover { background: var(--overlay); color: var(--fg); }
+.k-railitem__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-railitem__full {
+  display: block; padding: 4px 8px 6px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint);
+}
+.k-railitem__full:hover { color: var(--accent); }
 
 /* ============================================================
    Center article
@@ -603,4 +651,5 @@ html, body { margin: 0; background: var(--bg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .k-rail-left { transition: none; }
+  .k-rail-left details::details-content { transition: none; }
 }
