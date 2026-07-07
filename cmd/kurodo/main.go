@@ -299,18 +299,20 @@ func run(log *slog.Logger) error {
 	navProvider := func() *nav.Model { return store.Current().Nav }
 	searchProvider := func() *search.Index { return store.Current().Search }
 	countsProvider := func() map[string]int { return store.Current().Search.CountByStatus() }
+	typeStatusCountsProvider := func() map[search.TypeStatus]int { return store.Current().Search.CountByTypeStatus() }
 
 	mux := http.NewServeMux()
 	note.NewHandler(note.Deps{
-		Root:       cfg.root,
-		Renderer:   renderer,
-		Status:     statusSvc,
-		Nav:        navProvider,
-		Counts:     countsProvider,
-		Provenance: statusSvc.LastCommitHash,
-		Log:        log,
-		Slots:      slots,
-		Concepts:   concepts,
+		Root:             cfg.root,
+		Renderer:         renderer,
+		Status:           statusSvc,
+		Nav:              navProvider,
+		Counts:           countsProvider,
+		TypeStatusCounts: typeStatusCountsProvider,
+		Provenance:       statusSvc.LastCommitHash,
+		Log:              log,
+		Slots:            slots,
+		Concepts:         concepts,
 	}).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)

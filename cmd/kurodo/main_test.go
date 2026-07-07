@@ -58,6 +58,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	navProvider := func() *nav.Model { return store.Current().Nav }
 	searchProvider := func() *search.Index { return store.Current().Search }
 	countsProvider := func() map[string]int { return store.Current().Search.CountByStatus() }
+	typeStatusCountsProvider := func() map[search.TypeStatus]int { return store.Current().Search.CountByTypeStatus() }
 
 	// A fail-closed writing service: reachable by the reading page as a
 	// dependency, but never driven here.
@@ -69,14 +70,15 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 
 	mux := http.NewServeMux()
 	note.NewHandler(note.Deps{
-		Root:       root,
-		Renderer:   render.New(root, store.Resolver()),
-		Status:     svc,
-		Nav:        navProvider,
-		Counts:     countsProvider,
-		Provenance: svc.LastCommitHash,
-		Log:        log,
-		Concepts:   concepts,
+		Root:             root,
+		Renderer:         render.New(root, store.Resolver()),
+		Status:           svc,
+		Nav:              navProvider,
+		Counts:           countsProvider,
+		TypeStatusCounts: typeStatusCountsProvider,
+		Provenance:       svc.LastCommitHash,
+		Log:              log,
+		Concepts:         concepts,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.NewHandler(syllabus.Deps{Nav: navProvider, Log: log}).Register(mux)
