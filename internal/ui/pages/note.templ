@@ -69,6 +69,25 @@ func (v NoteView) diagCount() int {
 	return n
 }
 
+// railEmpty reports whether all three right-rail blocks — the table of
+// contents, the status panel, and the diagnostics list — would render
+// nothing, so the layout may drop the rail's column and hand its width to
+// the article. It restates the exact render conditions those three blocks
+// use, so the answer stays truthful if any one of them changes.
+//
+// The status panel (the write face) shows whenever the frontmatter parsed
+// cleanly; the diagnostics list shows whenever it did not, and also when a
+// cleanly parsed note still carries render diagnostics. So for any note that
+// reached this page the status panel or the diagnostics list is always
+// present, and this returns true only as a defensive fallback, never for a
+// real note — the status panel is therefore never hidden by this collapse.
+func (v NoteView) railEmpty() bool {
+	tocEmpty := len(v.TOC) == 0
+	statusEmpty := v.Diagnostic != ""
+	diagEmpty := v.Diagnostic == "" && len(v.RenderDiagnostics) == 0
+	return tocEmpty && statusEmpty && diagEmpty
+}
+
 // breadcrumb is the reading crumb: the note's directory segments (the filename
 // dropped), e.g. "Writing/lessons/japanese/L20.md" → [Writing lessons japanese].
 func breadcrumb(relPath string) []string {
@@ -82,7 +101,7 @@ func breadcrumb(relPath string) []string {
 templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="k-nav-scrim" data-nav-close></div>
-		<div class="k-shell">
+		<div class={ "k-shell", templ.KV("k-shell--rail-empty", v.railEmpty()) }>
 			@sidebar(v.Nav, v.Lifecycle)
 			<main class="k-main">
 				<article class="k-article" lang="zh-Hant">

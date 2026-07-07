@@ -131,7 +131,7 @@ func New(root string, idx Resolver) *Renderer {
 		root: root,
 		idx:  idx,
 		md: goldmark.New(
-			goldmark.WithExtensions(extension.GFM, highlightExtension{}, codeBlockExtension{}),
+			goldmark.WithExtensions(extension.GFM, highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}),
 			goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()),
 		),
 	}
