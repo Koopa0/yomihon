@@ -203,8 +203,11 @@ html, body { margin: 0; background: var(--bg); }
 .k-article { max-width: calc(var(--measure-article) + 72px); margin: 0 auto; padding: 44px 56px 120px; }
 .k-crumbs { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--fg-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .k-crumbs__sep { opacity: .5; }
-.k-title { font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-38); line-height: 1.25; letter-spacing: 0.01em; color: var(--fg); margin: 14px 0 0; text-wrap: balance; }
+.k-title { font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-38); line-height: 1.25; letter-spacing: 0.01em; color: var(--fg); margin: 14px 0 0; text-wrap: balance; overflow-wrap: anywhere; }
 .k-metarow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 20px 0; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
+/* a long unbroken title or path breaks mid-string instead of overflowing the
+   column; min-width:0 lets the flex item shrink so the break can take effect */
+.k-metarow > span { min-width: 0; overflow-wrap: anywhere; }
 
 /* kintsugi seam — the one signature: a parted hairline mended with a vermilion thread */
 .k-seam { position: relative; height: 1px; width: 100%; margin: 4px 0 8px;
