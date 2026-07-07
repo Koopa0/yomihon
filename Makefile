@@ -13,7 +13,7 @@ MODULE := github.com/koopa0/kurodo
 define filtered-go-list
 set -eu; \
 list=$$(go list $(1) ./...); \
-list=$$(printf '%s\n' "$$list" | grep -v /node_modules/ || true); \
+list=$$(printf '%s\n' "$$list" | grep -vE '/node_modules(/|$$)' || true); \
 [ -n "$$list" ] || { echo 'go list is empty after filtering node_modules' >&2; exit 1; }
 endef
 
