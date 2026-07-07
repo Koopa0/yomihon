@@ -151,8 +151,8 @@ POST /status (path, from, to)
 
 **Acceptance (= the kura retirement gate; all six items are met — kura was declared retired 2026-07-07, D43)**:
 
-1. kura conformance snapshots are byte-exact (`conformance__jsonl_output.snap`, `conformance__coverage_report.snap`). **Met** (golden fixtures + gated conformance tests).
-2. Against the real vault: `kurodo check` and `kura check` produce byte-for-byte identical JSONL. **Met** (the real-vault sandwich, run gated on the reference binary).
+1. kura conformance snapshots are byte-exact (`conformance__jsonl_output.snap`, `conformance__coverage_report.snap`). **Met** — the golden fixtures pin these bytes, and their comparison tests remain the enforced contract.
+2. Against the real vault: `kurodo check` and `kura check` produce byte-for-byte identical JSONL. **Met** historically by the real-vault sandwich, which was deleted with the scaffolding once kura was retired; the golden fixtures (item 1) carry the byte contract forward, with no reference engine left to diff against.
 3. schema.* rules follow vault-guard-spec §8 granularity (a vault-side document, under `~/obsidian/System/`): the (path, rule-class, field/value) sets are equivalent. **Met.**
 4. **All real consumers switched over** — executed 2026-07-05: the four cron wrappers now invoke `kurodo`, each with a rollback backup written beside it. **Met.**
 5. The judge's three commands run in an environment without PG (the CI environment is the proof). **Met.**
