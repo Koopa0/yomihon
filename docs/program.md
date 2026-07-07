@@ -7,6 +7,7 @@ the sources below, they win, in this order.
 
 | Concern | Canon |
 |---|---|
+| Why the product exists, its modes, its aesthetic | `product.md` (positioning, the constitutional queue, the taste charter) |
 | What the finished system is | `spec.md` (goals §0, per-face specs and acceptance) |
 | Why it is the way it is | `decisions.md` (D01–D41; a ruling that is not there did not happen) |
 | What order and why | `roadmap.md` (dependency and leverage; no milestone fences, D15) |
