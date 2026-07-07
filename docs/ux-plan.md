@@ -220,7 +220,19 @@ guide and resolved as follows)
 13. Mermaid shimmer skeleton — build.
 14. D41 admission criteria — stand as written in `decisions.md`.
 15. The ambient number on the collapsed Lifecycle summary — **the
-    adjudication backlog**: the count of notes whose status still has a legal
-    outgoing transition in the state machine, computed from the schema
-    contract at render time — never a hardcoded status list (wall 3). The
-    doorway shows what still needs a decision, not what is already sealed.
+    adjudication backlog**, precisely (refined 2026-07-07 when the archive
+    stage's wildcard `from` made the first phrasing degenerate to "all
+    notes"): a note counts when its current status appears as a concrete
+    (non-wildcard) `from` predecessor of at least one lifecycle stage whose
+    owner includes the vault's owner, and is not the seal status itself.
+    Derived from the loaded contract at render time — never a hardcoded
+    status list (wall 3); the one sanctioned constant is the existing seal
+    status. Why each clause: the wildcard archive escape names no real
+    pending work; an agent-advanced status is the agents' queue, not the
+    owner's — the owner field is the machine-readable answer to "whose hand
+    moves this", so a future ownership change re-scopes the number with no
+    code change; and the seal is the pipeline's resting point — promotion
+    beyond it is opt-in, not pending adjudication. Against the 2026-07-07
+    contract this yields imported + draft (an illustration, not a list to
+    copy). The predicate's test constructs its own contract exercising all
+    three exclusions.
