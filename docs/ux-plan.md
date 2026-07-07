@@ -236,3 +236,32 @@ guide and resolved as follows)
     contract this yields imported + draft (an illustration, not a list to
     copy). The predicate's test constructs its own contract exercising all
     three exclusions.
+
+## 10. Platform-feature audit (2026-07-07; re-run when a new UI surface lands)
+
+The ladder demands Chromium-native first — and equally, no feature adopted
+without a consumer. Audited against the current Chromium beta notes, the
+anchor-positioning API, and the Baseline newly-available HTML set:
+
+- **In use**: `<details>`/`<summary>` (server-computed disclosure), `<dialog>`
+  (search, concept sheet — modal, so background inertness comes free from
+  `showModal`; the `inert` attribute needs no separate adoption),
+  `aria-current`, `interpolate-size` + `::details-content`, `content-visibility`,
+  `color-mix`, `text-wrap`, `overflow-wrap`, `:focus-visible`,
+  `requestSubmit`.
+- **Planned, already specced**: cross-document view transitions and the
+  scroll-spy IntersectionObserver (§2, §7).
+- **Rejected with reasons, do not re-adopt without a new ruling**:
+  `<details name>` exclusive accordions — exclusivity fights the wayfinding
+  invariant (multi-section membership must hold several branches open at
+  once); anchor positioning and the popover attribute — no floating UI
+  exists (no tooltips, no hover previews, no menus); adopting either would
+  be inventing a consumer for an API. Both become candidates the day the
+  cockpit or a hover-preview surface is ruled in.
+- **Watch**: `ruby-overhang` — the lesson pages are ruby-dense (furigana),
+  so this is the one typography knob with a real consumer here; do nothing
+  until a rendering complaint exists, then it is a one-line CSS decision.
+- **Not applicable**: lazy iframes (the report iframe is the page's sole,
+  immediately-visible content), declarative shadow DOM, and the current
+  beta's media/GPU/telemetry surface — no consumer in a local server-rendered
+  reader.
