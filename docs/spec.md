@@ -149,14 +149,16 @@ POST /status (path, from, to)
 
 **Do-not-build list** (kura's field log has ruled these WATCH; kurodo does not take them on): the ruby-pairing check (zero real failures), the stray-tag check (root cause is in the hermes generation pipeline, fix it at the source). orphans are not missing — `coverage`'s three-tier classification (mounted / pending_mount / orphan) already covers it, no separate command.
 
-**Acceptance (= the kura retirement gate; items 1–5 are met, item 6 — added by D40 — is the one outstanding)**:
+**Acceptance (= the kura retirement gate; all six items are met — kura was declared retired 2026-07-07, D43)**:
 
 1. kura conformance snapshots are byte-exact (`conformance__jsonl_output.snap`, `conformance__coverage_report.snap`). **Met** (golden fixtures + gated conformance tests).
 2. Against the real vault: `kurodo check` and `kura check` produce byte-for-byte identical JSONL. **Met** (the real-vault sandwich, run gated on the reference binary).
 3. schema.* rules follow vault-guard-spec §8 granularity (a vault-side document, under `~/obsidian/System/`): the (path, rule-class, field/value) sets are equivalent. **Met.**
 4. **All real consumers switched over** — executed 2026-07-05: the four cron wrappers now invoke `kurodo`, each with a rollback backup written beside it. **Met.**
 5. The judge's three commands run in an environment without PG (the CI environment is the proof). **Met.**
-6. **The differential campaign reaches its completion bar** (`judge-plan.md` §13; added by D40): generated-vault differential fuzzing across both engines with zero unexplained byte differences. The retirement declaration cites §13.
+6. **The differential campaign reaches its completion bar** (`judge-plan.md` §13; added by D40): generated-vault differential fuzzing across both engines with zero unexplained byte differences. **Met** — the campaign ran across three independent runs to zero unexplained divergence, and the declaration cited §13.
+
+With item 6 met, all six acceptance items hold; kura was declared retired on 2026-07-07 (D43), and the conformance scaffolding was then deleted while the goldens keep the contract.
 
 ## 6. The export face (yomihon inheritance face)
 

@@ -6,7 +6,7 @@
 ## 1. System context
 
 ```
-                          ┌─ judge ── kura (15 rules, in service until the retirement declaration — judge-plan §13)
+                          ┌─ judge ── kura (15 rules, retired 2026-07-07 — judge-plan §13, D43; kurodo owns the formats)
  ~/obsidian (truth) ──────┤
    ↑ reads whole vault,    └─ reader ─ yomihon (frozen until its retirement declaration — gate closed, D40)
    │ read-only
@@ -129,7 +129,7 @@ The goals (the four end-state points) are in `spec.md` §0. **No milestone fence
 The two retirements are **evidence-based gates, not dates** (D11):
 
 - **yomihon's retirement gate — closed (D40)**: the five interactions + fixtures are merged; the parity and two-week observation items are waived. Retirement is effective on Koopa's declaration; yomihon stays frozen (tag `v1.0.0`) until that word is said, and is then discarded outright.
-- **kura's retirement gate** = `spec.md` §5 (JSONL byte-compat + snapshots + scan boundary + four-pipeline switchover — all merged) **plus the differential fuzz campaign** (`judge-plan.md` §13) as the declaration's final engineering prerequisite. Until the declaration, not a line of kura changes; after it, kura is discarded and kurodo owns the formats (D40).
+- **kura's retirement gate — met; kura declared retired 2026-07-07 (D43)**: `spec.md` §5 (JSONL byte-compat + snapshots + scan boundary + four-pipeline switchover — all merged) plus the differential fuzz campaign (`judge-plan.md` §13), which ran to its completion bar with zero unexplained divergence. kura is discarded and kurodo owns the formats (D40).
 
 ## 10. Scheduled and open items
 
