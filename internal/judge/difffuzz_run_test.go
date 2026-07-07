@@ -49,8 +49,14 @@ func TestJudgeDifferentialFuzz(t *testing.T) {
 	if tool == "" {
 		t.Skip("set KURODO_REFERENCE_BIN to the conformance reference binary to run the differential")
 	}
-	rounds := envInt("KURODO_DIFF_ROUNDS", focusCount)
-	base := int64(envInt("KURODO_DIFF_SEED_BASE", 0))
+	rounds := envInt(t, "KURODO_DIFF_ROUNDS", focusCount)
+	if rounds <= 0 {
+		// A run of zero or fewer rounds exercises nothing yet reports success;
+		// that vacuous pass is as silent a misconfiguration as a bad value, so
+		// it stops the run rather than proceeding with no coverage.
+		t.Fatalf("KURODO_DIFF_ROUNDS=%d: a run needs a positive number of rounds", rounds)
+	}
+	base := int64(envInt(t, "KURODO_DIFF_SEED_BASE", 0))
 
 	reached := map[string]int{}
 	cats := map[string]int{}
@@ -427,11 +433,73 @@ func firstN(s []string, n int) []string {
 	return s[:n]
 }
 
-func envInt(key string, fallback int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
+// parseEnvInt resolves a run's integer setting, keeping unset distinct from
+// misconfigured. An absent or empty value is a legitimate default and yields
+// the fallback; a value that is present but unparseable is a typo the run must
+// refuse rather than silently shrink to the default. On a bad value it returns
+// an error naming the variable and the offending text.
+func parseEnvInt(key, raw string, fallback int) (int, error) {
+	if raw == "" {
+		return fallback, nil
 	}
-	return fallback
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s=%q is not an integer", key, raw)
+	}
+	return n, nil
+}
+
+// envInt reads an integer run setting from the environment, failing the test
+// loudly when the value is present but unparseable so a fuzzing run configured
+// by a typo refuses to run instead of falling back to its default unnoticed.
+func envInt(t *testing.T, key string, fallback int) int {
+	t.Helper()
+	n, err := parseEnvInt(key, os.Getenv(key), fallback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// TestParseEnvInt pins the three behaviours that keep a run from starting under
+// a silently-wrong configuration: an unset value falls back, a valid value
+// (including a legal zero seed base) parses, and a present-but-unparseable
+// value errors while naming the variable and the offending text.
+func TestParseEnvInt(t *testing.T) {
+	t.Parallel()
+	const (
+		key      = "KURODO_DIFF_ROUNDS"
+		fallback = 7
+	)
+	tests := []struct {
+		name    string
+		raw     string
+		want    int
+		wantErr bool
+	}{
+		{name: "empty falls back", raw: "", want: fallback},
+		{name: "valid parses", raw: "42", want: 42},
+		{name: "zero parses", raw: "0", want: 0},
+		{name: "negative parses", raw: "-3", want: -3},
+		{name: "garbage errors", raw: "abc", wantErr: true},
+		{name: "trailing garbage errors", raw: "12x", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseEnvInt(key, tt.raw, fallback)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseEnvInt(%q, %q) error = %v, wantErr %v", key, tt.raw, err, tt.wantErr)
+			}
+			if tt.wantErr {
+				if !strings.Contains(err.Error(), key) || !strings.Contains(err.Error(), tt.raw) {
+					t.Errorf("parseEnvInt(%q, %q) error = %q, want it to name both the variable and the value", key, tt.raw, err)
+				}
+				return
+			}
+			if got != tt.want {
+				t.Errorf("parseEnvInt(%q, %q) = %d, want %d", key, tt.raw, got, tt.want)
+			}
+		})
+	}
 }
