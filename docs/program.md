@@ -85,7 +85,10 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    filter box, lifecycle demotion (per the approved plan).
 9. `PR-ux-b2` — landing page v0.5, view transitions, motion and loading
    affordances, and the reading-smoothness inventory (ux-plan §12).
-9b. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
+9b. `PR-ux-b3` — the content-driven sidebar (ux-plan §13): every map note
+    renders as a navigable tree, wayfinding generalizes to all pillars,
+    lifecycle retires to Home's strip and a topbar chip.
+9c. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.
 10. `PR-e2e-screenshots` — the deferred screenshot job, once the surface is
@@ -94,7 +97,8 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
 **Track 4 — the remaining faces (each: plan doc → adversarial round → build):**
 11. `B` — search panel, two halves in order (roadmap §1 row 5): the lexical
     ⌘K panel PR first — no plan doc needed, `search-plan.md` already pins
-    lexical semantics and the shell exists; then the **B plan doc** (chunking,
+    lexical semantics and the shell exists; this PR also moves the search
+    results page into the shared shell with the sidebar (ux-plan §2); then the **B plan doc** (chunking,
     cache format, RRF, the degraded-mode matrix, the eval set — roadmap §5a;
     Gemini key arrives at build start) before any hybrid work.
 12. `H` — agent toolbox: plan doc (JSON contract per verb + goldens — these

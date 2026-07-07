@@ -43,6 +43,17 @@ plan doc owns retrieval).
   intercepting the form with `fetch` and driving a same-document transition:
   that is exactly the write-path scripting D27 forbids. The seal gets its
   feedback from §7's chip pulse and toast instead.
+- **Stable regions do not flash (amended 2026-07-07).** The topbar and the
+  sidebar each carry a `view-transition-name`, so a navigation visibly
+  repaints only the content column — the chrome reads as one continuous
+  surface across page loads, which is what makes an MPA feel inhabited
+  rather than reloaded. Without this, every sidebar click flashes the whole
+  frame; with it, the frame holds still.
+- **One shell everywhere (amended 2026-07-07).** Every page — the search
+  results page included — renders inside the same shell with the sidebar
+  present. A lifecycle chip or a search never strands the reader in a
+  chromeless page; the search page's adoption of the shared sidebar lands
+  with the B-lexical work, which owns that page.
 - Keyboard: `⌘K` (exists) focuses search; `/` focuses the sidebar filter
   (§5); `[` toggles the sidebar drawer at narrow widths. No other global
   bindings until asked for.
@@ -131,6 +142,17 @@ persisted preference like the theme cookie.
 `<details>` open/close animates via `interpolate-size` +
 `::details-content` transition (Chromium-native, CSS-only); reduced-motion
 disables it.
+
+**Disclosure persistence (amended 2026-07-07, closing a gap the first build
+shipped with).** The server computes the open set from the current note
+only, so a section the reader opened by hand snapped shut on the next
+navigation. The rule: **the reader's toggles are remembered; where they are
+is always revealed.** A small enhancement records manual open/close per
+section key in `sessionStorage` and reapplies it after load; the current
+note's own chain (Here, its map paths, its folder ancestors) is always
+forced open regardless of memory — the wayfinding invariant outranks a
+stale toggle. No JS → server defaults, exactly as today. Session-scoped,
+not persistent: yesterday's browsing posture should not fossilize.
 
 ## 5. Sidebar filter (the one new vanilla-JS enhancement)
 
@@ -332,7 +354,47 @@ obeys `prefers-reduced-motion`; nothing here adds JavaScript.
    `lang="ja"` already exists (slot machine, spoken lines). The renderer
    does not language-tag prose runs today; widening the tagging is deferred
    until Japanese-reading pain names it.
-9. **Reading progress bar** (the one taste call, offered not assumed): a
-   hairline scroll-driven progress indicator on note pages — pure CSS
-   (`animation-timeline: scroll()`), stateless, no relation to the
-   cockpit's read-tracking. Ships only on Koopa's yes.
+9. **Reading progress bar** — ruled yes (2026-07-07, the call was handed
+   back to the guide): a hairline scroll-driven indicator under the topbar
+   on note pages — pure CSS (`animation-timeline: scroll()`), stateless, no
+   relation to the cockpit's read-tracking. It conveys reading state rather
+   than decoration, the gesture itself drives it, and long concept notes
+   are this vault's norm; it stays under reduced-motion because it is
+   position display, not motion.
+
+## 13. The sidebar grows from the content (ruled 2026-07-07)
+
+The vault will keep sprouting pillars — courses today, a reading map and
+humanities concepts this week, more shapes after that. A sidebar of
+hand-coded categories goes stale the day a new pillar lands; the design
+answer is that **the vault's own maps are the navigation**, and the sidebar
+renders whatever maps exist.
+
+1. **Generalize the tree-builder.** The syllabus tree (headings → sections,
+   resolved wikilinks → entries) is not a syllabus feature — it is how any
+   map note works. Extend the nav model to build the same tree for every
+   map-typed note (`moc`, `topic-map`, `source-map`, alongside
+   `study-path`), from the type the contract already defines. The reading
+   map's theme headings become sections; the linked 心得 notes become
+   entries with status chips.
+2. **Only what exists appears.** A tree entry is a *resolved* wikilink — a
+   note that actually exists. The reading map's hundreds of unwritten rows
+   stay on the map's own page (one click on the map's title); the sidebar
+   shows the written vault and grows exactly as fast as the writing does.
+   The filter box (§5) absorbs scale beyond that.
+3. **Wayfinding generalizes with it.** The reverse index (built for
+   lessons) extends to every map: reading a humanities 心得 auto-opens the
+   reading map at its theme section, current entry marked — the same
+   arrival experience a lesson gets today. One mechanism, every pillar.
+4. **Grouping**: the sidebar's middle becomes **Paths** (study-paths, as
+   built) then **Maps** (the rest, one `<details>` per map, collapsed,
+   ordered by domain then title). No per-pillar special cases; a new map in
+   the vault is a new section in the sidebar with zero kurodo changes.
+5. **Lifecycle leaves the sidebar** once Home v0.5 lands: the strip on Home
+   is its real home, and the ambient backlog number moves to a quiet topbar
+   chip linking there. End state: the sidebar is pure wayfinding (where am
+   I, what is near me), Home/cockpit is status (what needs me), search is
+   query — three questions, three surfaces, no overlap.
+
+Lands as `PR-ux-b3` after the motion batch; the search page's shell
+adoption (§2) rides B-lexical, which owns that page.
