@@ -83,12 +83,20 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    (the checklist at its end) and rules; the doc is amended to match.
 8. `PR-ux-b1` — sidebar restructure: wayfinding, syllabus disclosure, the
    filter box, lifecycle demotion (per the approved plan).
-9. `PR-ux-b2` — landing page v0.5, view transitions, motion and loading
-   affordances, and the reading-smoothness inventory (ux-plan §12).
-9b. `PR-ux-b3` — the content-driven sidebar (ux-plan §13): every map note
-    renders as a navigable tree, wayfinding generalizes to all pillars,
-    lifecycle retires to Home's strip and a topbar chip.
-9c. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
+9. `PR-ux-b2` — **the experience batch (dispatchable now, parallel with
+   descaffold — zero file overlap)**: view transitions with stable chrome
+   regions, the reading-smoothness inventory (§12, hairline included), seal
+   feedback, mermaid shimmer, TOC scroll-spy, disclosure persistence, the
+   search page's shell adoption, and the right-rail redesign (§6). This is
+   the batch that closes the gap between the designed experience and the
+   shipped one.
+9b. `PR-ux-b2h` — Home v0.5 (ux-plan §3): the mtime plumbing and the
+    landing page; smaller and separable from the experience batch.
+9c. `PR-ux-b3` — the content-driven sidebar (ux-plan §13): every map note
+    renders as a navigable tree, wayfinding generalizes to all pillars, the
+    journal gets its door, lifecycle retires to Home's strip and a topbar
+    chip.
+9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.
 10. `PR-e2e-screenshots` — the deferred screenshot job, once the surface is
@@ -97,8 +105,8 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
 **Track 4 — the remaining faces (each: plan doc → adversarial round → build):**
 11. `B` — search panel, two halves in order (roadmap §1 row 5): the lexical
     ⌘K panel PR first — no plan doc needed, `search-plan.md` already pins
-    lexical semantics and the shell exists; this PR also moves the search
-    results page into the shared shell with the sidebar (ux-plan §2); then the **B plan doc** (chunking,
+    lexical semantics and the shell exists (the search page's shell
+    adoption ships earlier, with the experience batch); then the **B plan doc** (chunking,
     cache format, RRF, the degraded-mode matrix, the eval set — roadmap §5a;
     Gemini key arrives at build start) before any hybrid work.
 12. `H` — agent toolbox: plan doc (JSON contract per verb + goldens — these

@@ -52,8 +52,10 @@ plan doc owns retrieval).
 - **One shell everywhere (amended 2026-07-07).** Every page — the search
   results page included — renders inside the same shell with the sidebar
   present. A lifecycle chip or a search never strands the reader in a
-  chromeless page; the search page's adoption of the shared sidebar lands
-  with the B-lexical work, which owns that page.
+  chromeless page. Ownership moved (2026-07-07): the shell adoption ships
+  with the experience batch, not B-lexical — the sidebar appearing and
+  vanishing between pages is today's worst layout jump, and it must not
+  wait for retrieval work that owns the page's *content*.
 - Keyboard: `⌘K` (exists) focuses search; `/` focuses the sidebar filter
   (§5); `[` toggles the sidebar drawer at narrow widths. No other global
   bindings until asked for.
@@ -166,9 +168,15 @@ Budget: ≤ ~60 lines in `kurodo.js`, zero network, zero state.
 
 ## 6. The note page's right rail
 
-- UX-A's repair holds (roadmap §5b): the rail collapses only when all three
-  blocks (TOC, status panel, diagnostics) render nothing; the status panel —
-  the write face — is never hidden by any layout state.
+- **Redesigned (2026-07-07, after the owner rejected the sparse rail)**: the
+  right rail exists **only when it has reading aids to hold** — a TOC or
+  diagnostics. On a note with neither, the column disappears entirely and
+  the article breathes; the status panel — the write face, never hidden —
+  renders as the compact seal bar under the note header, the same
+  affordance the narrow viewport already uses, now the rule rather than
+  the fallback. A lone status card floating on a tall empty track was the
+  worst of both: wasted width and visual imbalance. UX-A's guard remains
+  as the invariant underneath: no layout state may hide the write face.
 - The TOC gets no show/hide toggle for now: the original complaint was the
   blank column, which the repair removes. If a toggle is still wanted after
   living with the repair, it lands as a `<details>` around the TOC with a
@@ -219,7 +227,10 @@ Budget: ≤ ~60 lines in `kurodo.js`, zero network, zero state.
    lesson, and a no-heading note — committed as the baseline that seeds
    `PR-e2e-screenshots`.
 7. No new dependency without a D41 admission recorded in `decisions.md`.
-8. `standards.md` §5 protocol, as for every PR.
+8. Empty states are designed, not accidental: no results, no matches in
+   the filter, an empty section — each says what happened and what to do
+   next, in the interface's quiet register.
+9. `standards.md` §5 protocol, as for every PR.
 
 ## 9. Resolutions (ruled 2026-07-06; item 1 by Koopa, 2–15 delegated to the
 guide and resolved as follows)
@@ -390,7 +401,14 @@ renders whatever maps exist.
    built) then **Maps** (the rest, one `<details>` per map, collapsed,
    ordered by domain then title). No per-pillar special cases; a new map in
    the vault is a new section in the sidebar with zero kurodo changes.
-5. **Lifecycle leaves the sidebar** once Home v0.5 lands: the strip on Home
+5. **The journal is content too (added 2026-07-07)**: a **Journal**
+   section — the most recent entries under `Diary/`, newest first, small
+   fixed count, collapsed — joins the sidebar below Maps. Reading one's own
+   journal in kurodo is legitimate and always was (local rendering is not
+   egress, D39/D42); it simply never had a door better than the Folders
+   tree. Like every section here it is content-driven: it renders from the
+   directory, and it renders nothing when the directory is empty.
+6. **Lifecycle leaves the sidebar** once Home v0.5 lands: the strip on Home
    is its real home, and the ambient backlog number moves to a quiet topbar
    chip linking there. End state: the sidebar is pure wayfinding (where am
    I, what is near me), Home/cockpit is status (what needs me), search is
