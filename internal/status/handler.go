@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/koopa0/kurodo/internal/schema"
@@ -63,8 +64,9 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		// On the seal (→ ready) carry a one-shot ?sealed=1 so the reading page
 		// plays the settle animation once and then strips it; every other
-		// transition redirects plainly.
-		target := "/notes/" + path
+		// transition redirects plainly. The query suffix is appended after the
+		// path is escaped, so it stays the URL's own query, not part of a name.
+		target := notesHref(path)
 		if to == sealStatus {
 			target += "?sealed=1"
 		}
@@ -106,4 +108,24 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("flip failed", "path", path, "from", from, "to", to, "error", err)
 		http.Error(w, "cannot flip status", http.StatusInternalServerError)
 	}
+}
+
+// notesHref builds the reading-page location a successful flip redirects to. It
+// percent-escapes each path segment on its own — so a "/" inside a segment can
+// never be read as a separator, and a name carrying "?" or "#" cannot bleed
+// into the URL's query or fragment — while keeping "/" as the separator between
+// segments, exactly how the note route parses {path...} back and byte-identical
+// to the links the rendered pages already point at, so a seal redirect lands on
+// the same URL an in-page link would.
+//
+// It mirrors the reading UI's own per-segment escaping rather than importing
+// it: the write face reaching across to the presentation layer for a five-line
+// URL builder would be a dependency the wrong way round, so each side keeps its
+// own copy.
+func notesHref(p string) string {
+	segments := strings.Split(p, "/")
+	for i, s := range segments {
+		segments[i] = url.PathEscape(s)
+	}
+	return "/notes/" + strings.Join(segments, "/")
 }
