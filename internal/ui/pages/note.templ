@@ -76,10 +76,11 @@ func (v NoteView) diagCount() int {
 // use, so the answer stays truthful if any one of them changes.
 //
 // The status panel (the write face) shows whenever the frontmatter parsed
-// cleanly, and the diagnostics list shows whenever it did not, so for any
-// note that reached this page one of the two is always present; this only
-// returns true as a defensive fallback, never for a real note. The status
-// panel is therefore never hidden by this collapse.
+// cleanly; the diagnostics list shows whenever it did not, and also when a
+// cleanly parsed note still carries render diagnostics. So for any note that
+// reached this page the status panel or the diagnostics list is always
+// present, and this returns true only as a defensive fallback, never for a
+// real note — the status panel is therefore never hidden by this collapse.
 func (v NoteView) railEmpty() bool {
 	tocEmpty := len(v.TOC) == 0
 	statusEmpty := v.Diagnostic != ""
