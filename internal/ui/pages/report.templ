@@ -25,7 +25,7 @@ templ Report(v ReportView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="k-nav-scrim" data-nav-close></div>
 		<div class="k-shell2">
-			@sidebar(v.Nav, nil)
+			@sidebar(NewSidebar(v.Nav, "", nil, 0, false))
 			<main class="k-main k-reportmain">
 				<h1 class="k-reporttitle">{ v.Name }</h1>
 				<iframe

@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/kurodo/internal/lesson"
 	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/kurodo/internal/search"
 	"github.com/koopa0/kurodo/internal/ui/pages"
 	"github.com/koopa0/kurodo/internal/vault"
 )
@@ -32,16 +33,18 @@ const sealStatus = "ready"
 // made here, so a non-lesson note never grows lesson affordances.
 const typeLesson = "lesson"
 
-// StatusPolicy is the subset of the write face's state the reading page needs:
-// whether the face is closed (Closed), which transition keys, if any, to offer
-// (Transitions), and the stable note-status axis the Lifecycle rail lists
-// (Order). It is a genuine slice of *status.Service — never its write path:
-// Flip, the single status write, stays out of the reading page's reach.
-// *status.Service satisfies this.
+// StatusPolicy is the read-only projection of the write face the reading page
+// needs: whether the face is closed (Closed), which transition keys to offer
+// (Transitions), the stable note-status axis the Lifecycle rail lists (Order),
+// and whether a note still has an owner-held onward move (Advanceable), for the
+// sidebar's pending-decision count. It is a genuine slice of *status.Service —
+// never its write path: Flip, the single status write, stays out of the reading
+// page's reach. *status.Service satisfies this.
 type StatusPolicy interface {
 	Closed() bool
 	Transitions(noteType, current string) []string
 	Order() []string
+	Advanceable(noteType, current string) bool
 }
 
 // Deps is everything the reading feature reads from. Grouping the providers in a
@@ -52,13 +55,18 @@ type StatusPolicy interface {
 // a closure, not a method set — the models live behind the atomic snapshot and
 // must be read fresh per request.
 type Deps struct {
-	Root       string
-	Renderer   *render.Renderer
-	Status     StatusPolicy
-	Nav        func() *nav.Model
-	Counts     func() map[string]int
-	Provenance func(ctx context.Context, rel string) (string, error)
-	Log        *slog.Logger
+	Root     string
+	Renderer *render.Renderer
+	Status   StatusPolicy
+	Nav      func() *nav.Model
+	Counts   func() map[string]int
+	// TypeStatusCounts tallies notes by (type, status) from the current
+	// snapshot, so the sidebar can weigh each note's onward transitions against
+	// the contract for its pending-decision count. Kept apart from Counts because
+	// that pairing, not the flat status tally, is what the count needs.
+	TypeStatusCounts func() map[search.TypeStatus]int
+	Provenance       func(ctx context.Context, rel string) (string, error)
+	Log              *slog.Logger
 	// Slots is the lesson slot-machine sidecar index, loaded once at
 	// startup. Unlike the closures above it is static (slot sidecars are never
 	// indexed as notes and never enter the scanner's rebuilt-on-change snapshot
@@ -95,6 +103,9 @@ func NewHandler(d Deps) *Handler {
 	}
 	if d.Counts == nil {
 		panic("note: NewHandler requires a non-nil Counts provider")
+	}
+	if d.TypeStatusCounts == nil {
+		panic("note: NewHandler requires a non-nil TypeStatusCounts provider")
 	}
 	if d.Provenance == nil {
 		panic("note: NewHandler requires a non-nil Provenance provider")
@@ -164,6 +175,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		concepts = h.loadConcepts(refs)
 	}
 
+	pending, pendingKnown := h.pending()
 	view := pages.NoteView{
 		Title:             n.Title(),
 		RelPath:           n.RelPath,
@@ -173,8 +185,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
-		Nav:               h.deps.Nav(),
-		Lifecycle:         h.lifecycle(n.Status()),
+		Sidebar:           pages.NewSidebar(h.deps.Nav(), n.RelPath, h.lifecycle(n.Status()), pending, pendingKnown),
 		WriteClosed:       h.deps.Status.Closed(),
 		Concepts:          concepts,
 	}
@@ -268,4 +279,25 @@ func (h *Handler) lifecycle(current string) []pages.LifecycleItem {
 		})
 	}
 	return items
+}
+
+// pending counts the notes still awaiting a decision: those whose (type, status)
+// still has an owner-held onward move in the contract, excluding the seal itself
+// — the final human act on a note is not something still pending. It returns
+// known = false when the write face is closed, so the sidebar shows no figure
+// rather than a misleading zero. The predicate reuses the write face's own
+// contract reading; the seal is named in one place, never a second status list.
+func (h *Handler) pending() (count int, known bool) {
+	if h.deps.Status.Closed() {
+		return 0, false
+	}
+	for ts, n := range h.deps.TypeStatusCounts() {
+		if ts.Status == sealStatus {
+			continue
+		}
+		if h.deps.Status.Advanceable(ts.Type, ts.Status) {
+			count += n
+		}
+	}
+	return count, true
 }

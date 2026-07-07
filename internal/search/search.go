@@ -167,6 +167,29 @@ func (idx *Index) CountByStatus() map[string]int {
 	return counts
 }
 
+// TypeStatus is a note's (type, status) pair. Which onward transitions a status
+// allows depends on the note type, so a caller that weighs those transitions
+// needs both together — something CountByStatus, keyed on status alone, cannot
+// supply.
+type TypeStatus struct {
+	Type   string
+	Status string
+}
+
+// CountByTypeStatus tallies indexed notes by their (type, status) pair in a
+// single pass. It is the primitive the reading page uses to weigh each note's
+// onward transitions against the schema contract without re-reading the vault:
+// the transition rules key on type as well as status, so the flatter
+// CountByStatus does not carry enough. A note missing either field lands in that
+// field's "" bucket.
+func (idx *Index) CountByTypeStatus() map[TypeStatus]int {
+	counts := make(map[TypeStatus]int, len(idx.entries))
+	for _, e := range idx.entries {
+		counts[TypeStatus{Type: e.NoteType, Status: e.Status}]++
+	}
+	return counts
+}
+
 // stringField reads a string frontmatter value, empty when absent or not a
 // string (a malformed field costs that field, never the build).
 func stringField(n *vault.Note, key string) string {

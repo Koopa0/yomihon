@@ -356,6 +356,45 @@ func TestTransitions(t *testing.T) {
 	}
 }
 
+// TestAdvanceable checks that the "still awaits my decision" predicate is closed
+// under a nil contract and, when open, asks the contract with the operator as
+// the actor — so an onward step someone else owns does not count. The contract
+// is synthetic (states a, b, c) to keep the test about the actor wiring, not any
+// real vault's status words.
+func TestAdvanceable(t *testing.T) {
+	t.Parallel()
+
+	// a→b is owned by the operator; b→c is owned by someone else, so only a is
+	// advanceable by the operator.
+	contract := &schema.Schema{Lifecycle: []schema.Stage{
+		{Status: "b", AppliesTo: []string{"doc"}, From: []string{"a"}, Owner: []string{"koopa"}},
+		{Status: "c", AppliesTo: []string{"doc"}, From: []string{"b"}, Owner: []string{"bot"}},
+	}}
+
+	if status.NewService(t.TempDir(), nil).Advanceable("doc", "a") {
+		t.Error("Advanceable on a closed write face = true, want false")
+	}
+
+	svc := status.NewService(t.TempDir(), contract)
+	tests := []struct {
+		name   string
+		status string
+		want   bool
+	}{
+		{"operator owns the onward step", "a", true},
+		{"onward step owned by someone else", "b", false},
+		{"no onward step defined", "c", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := svc.Advanceable("doc", tt.status); got != tt.want {
+				t.Errorf("Advanceable(%q, %q) = %v, want %v", "doc", tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFlipByteIdentical(t *testing.T) {
 	t.Parallel()
 

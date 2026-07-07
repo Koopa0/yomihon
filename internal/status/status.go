@@ -118,6 +118,19 @@ func (s *Service) Order() []string {
 	return s.contract.Statuses("")
 }
 
+// Advanceable reports whether the operator still has a legal onward move for a
+// note of the given type and status: a named forward transition the operator
+// owns, ignoring the always-available retire-to-archive escape. It returns false
+// when the write face is closed. The reading page uses it to tell which notes
+// still await a decision from the operator, reusing the same contract the write
+// path validates against — never a second copy of the state machine.
+func (s *Service) Advanceable(noteType, status string) bool {
+	if s.Closed() {
+		return false
+	}
+	return s.contract.AdvanceableBy(noteType, status, actor)
+}
+
 // LastCommitHash returns the short hash of the most recent commit that touched
 // rel, via a read-only `git log -1 --format=%h -- <rel>`. It is the provenance
 // line the reading page shows beside a sealed (ready) note. internal/status is

@@ -72,6 +72,16 @@ type Model struct {
 	// Reports enumerates System/reports/ — the .md reports first, then the
 	// daily-briefing/ HTML briefings; contents are never parsed.
 	Reports []Report
+
+	// lessonIndex maps a note's rel-path to the syllabus placements that list it
+	// — the reverse of Syllabi — built once so the sidebar can open to the
+	// current note without re-walking every study-path per request. Read it
+	// through Placements.
+	lessonIndex map[string][]Placement
+	// dirNotes maps a directory's rel-path to the files directly inside it, built
+	// once so the sidebar can show a note's same-directory siblings without
+	// descending the folder tree per request. Read it through Siblings.
+	dirNotes map[string][]NoteRef
 }
 
 // Folder is one directory in the browse tree: its display name, its
@@ -145,6 +155,7 @@ func Build(root string, idx Resolver) (*Model, error) {
 
 	m := &Model{Reports: buildReports(paths)}
 	m.Folders, m.RootNotes = buildFolderTree(paths)
+	m.dirNotes = buildDirNotes(paths)
 
 	// One read pass over every markdown note: record each note's status
 	// (for lesson badges) and collect the study-path notes to parse. An
@@ -170,6 +181,7 @@ func Build(root string, idx Resolver) (*Model, error) {
 	for _, n := range studyPaths {
 		m.Syllabi = append(m.Syllabi, parseSyllabus(n, idx, statusByPath))
 	}
+	m.lessonIndex = buildLessonIndex(m.Syllabi)
 	return m, nil
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/kurodo/internal/note"
 	"github.com/koopa0/kurodo/internal/render"
 	"github.com/koopa0/kurodo/internal/schema"
+	"github.com/koopa0/kurodo/internal/search"
 	"github.com/koopa0/kurodo/internal/status"
 )
 
@@ -63,16 +64,21 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	if err != nil {
 		t.Fatalf("lesson.BuildConceptIndex(%q) = %v", root, err)
 	}
+	searchIdx, err := search.Build(root)
+	if err != nil {
+		t.Fatalf("search.Build(%q) = %v", root, err)
+	}
 	h := note.NewHandler(note.Deps{
-		Root:       root,
-		Renderer:   render.New(root, idx),
-		Status:     svc,
-		Nav:        func() *nav.Model { return navModel },
-		Counts:     func() map[string]int { return nil },
-		Provenance: func(context.Context, string) (string, error) { return "", nil },
-		Log:        slog.New(slog.DiscardHandler),
-		Slots:      slots,
-		Concepts:   concepts,
+		Root:             root,
+		Renderer:         render.New(root, idx),
+		Status:           svc,
+		Nav:              func() *nav.Model { return navModel },
+		Counts:           func() map[string]int { return nil },
+		TypeStatusCounts: func() map[search.TypeStatus]int { return searchIdx.CountByTypeStatus() },
+		Provenance:       func(context.Context, string) (string, error) { return "", nil },
+		Log:              slog.New(slog.DiscardHandler),
+		Slots:            slots,
+		Concepts:         concepts,
 	})
 	h.Register(mux)
 	srv := httptest.NewServer(mux)

@@ -35,13 +35,11 @@ type NoteView struct {
 	RenderDiagnostics []render.Diagnostic
 	TOC               []render.TOCEntry
 
-	// Nav is the read-only whole-vault sidebar model (folders, syllabi,
-	// reports), read from the current snapshot each request.
-	Nav *nav.Model
-
-	// Lifecycle is the status-first Lifecycle rail: the note group's statuses in
-	// toml order, each with its live snapshot count.
-	Lifecycle []LifecycleItem
+	// Sidebar is the resolved left navigation for this page: the whole-vault
+	// model plus this note's wayfinding context — its same-directory siblings,
+	// the study-path and folder branches to open, the entry to mark — and the
+	// lifecycle doorway with its pending-decision count.
+	Sidebar Sidebar
 
 	Transitions   []string
 	WriteClosed   bool
@@ -102,7 +100,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="k-nav-scrim" data-nav-close></div>
 		<div class={ "k-shell", templ.KV("k-shell--rail-empty", v.railEmpty()) }>
-			@sidebar(v.Nav, v.Lifecycle)
+			@sidebar(v.Sidebar)
 			<main class="k-main">
 				<article class="k-article" lang="zh-Hant">
 					@articleHead(v)
@@ -171,35 +169,40 @@ templ articleHead(v NoteView) {
 
 // ============================ LEFT RAIL ============================
 
-// sidebar is the navigation face: a status-first Lifecycle list, the
-// syllabus tree, the Reports section (daily-briefing HTML → the sandboxed
-// /reports shell, .md reports → the ordinary /notes reading page), and a
-// collapsed Folders tree (which preserves "any file ≤3 clicks"). It takes the
-// two things it renders — the whole-vault nav model and the Lifecycle rail —
-// directly, so both the reading page and the report shell mount the same
-// navigation; the report passes a nil Lifecycle (it is not a note, so it carries
-// no status axis). A nil model renders nothing.
-templ sidebar(model *nav.Model, lifecycle []LifecycleItem) {
+// sidebar is the navigation face, ordered for a daily reader: a filter box
+// (revealed only once the script runs), the "here" list of the current note's
+// same-directory siblings, the study-path tree opened to the current note, the
+// lifecycle doorway with its pending-decision count, the reports list, and the
+// folder tree with the current note's branch expanded. It takes one resolved
+// Sidebar, so the reading page and the report shell mount the same navigation; a
+// report builds it with no current note, so every branch renders closed and
+// unmarked. A nil model renders nothing.
+templ sidebar(sb Sidebar) {
 	<aside class="k-rail-left">
-		if len(lifecycle) > 0 {
-			<details open>
-				<summary class="k-railsummary">
-					@chevron()
-					Lifecycle
-				</summary>
-				<div class="k-railgroup">
-					for _, it := range lifecycle {
-						<a class={ "ui-navitem", templ.KV("is-active", it.Active) } href={ templ.URL(statusHref(it.Name)) }>
-							<span class={ "k-navdot", templ.KV("k-navdot--ready", it.Name == sealStatus) } aria-hidden="true"></span>
-							{ it.Name }
-							<span class="ui-navitem__count">{ strconv.Itoa(it.Count) }</span>
-						</a>
+		<input
+			class="k-filter"
+			type="text"
+			placeholder="Filter navigation…"
+			aria-label="Filter navigation"
+			autocomplete="off"
+			spellcheck="false"
+			data-nav-filter
+			hidden
+		/>
+		if sb.Model != nil {
+			if len(sb.Here) > 0 {
+				<nav class="k-here" aria-label="This folder">
+					<div class="k-here__label">{ hereLabel(sb.HereDir) }</div>
+					for _, n := range sb.Here {
+						<a
+							class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
+							href={ templ.URL(notesHref(n.RelPath)) }
+							{ currentAttr(sb.current(n.RelPath))... }
+						>{ n.Name }</a>
 					}
-				</div>
-			</details>
-		}
-		if model != nil {
-			if len(model.Syllabi) > 0 {
+				</nav>
+			}
+			if len(sb.Model.Syllabi) > 0 {
 				<div class="k-railsep" aria-hidden="true"></div>
 				<details open>
 					<summary class="k-railsummary">
@@ -207,13 +210,34 @@ templ sidebar(model *nav.Model, lifecycle []LifecycleItem) {
 						Syllabus
 					</summary>
 					<div class="k-railgroup">
-						for _, s := range model.Syllabi {
-							@syllabus(s)
+						for _, s := range sb.Model.Syllabi {
+							@syllabusTree(sb, s)
 						}
 					</div>
 				</details>
 			}
-			if len(model.Reports) > 0 {
+			if len(sb.Lifecycle) > 0 {
+				<div class="k-railsep" aria-hidden="true"></div>
+				<details>
+					<summary class="k-railsummary">
+						@chevron()
+						Lifecycle
+						if sb.PendingKnown {
+							<span class="k-pending" title="notes still awaiting a decision">{ strconv.Itoa(sb.Pending) }</span>
+						}
+					</summary>
+					<div class="k-railgroup">
+						for _, it := range sb.Lifecycle {
+							<a class={ "ui-navitem", templ.KV("is-active", it.Active) } href={ templ.URL(statusHref(it.Name)) }>
+								<span class={ "k-navdot", templ.KV("k-navdot--ready", it.Name == sealStatus) } aria-hidden="true"></span>
+								{ it.Name }
+								<span class="ui-navitem__count">{ strconv.Itoa(it.Count) }</span>
+							</a>
+						}
+					</div>
+				</details>
+			}
+			if len(sb.Model.Reports) > 0 {
 				<div class="k-railsep" aria-hidden="true"></div>
 				<details>
 					<summary class="k-railsummary">
@@ -221,7 +245,7 @@ templ sidebar(model *nav.Model, lifecycle []LifecycleItem) {
 						Reports
 					</summary>
 					<div class="k-railgroup">
-						for _, rep := range model.Reports {
+						for _, rep := range sb.Model.Reports {
 							if rep.Briefing {
 								<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
 									{ rep.Name }
@@ -239,13 +263,13 @@ templ sidebar(model *nav.Model, lifecycle []LifecycleItem) {
 				</details>
 			}
 			<div class="k-railsep" aria-hidden="true"></div>
-			<details>
+			<details open?={ sb.folderTreeOpen() }>
 				<summary class="k-railsummary">
 					@chevron()
 					Folders
 				</summary>
 				<div class="k-railgroup">
-					@folderList(model.Folders, model.RootNotes)
+					@folderList(sb)
 				</div>
 			</details>
 		}
@@ -257,30 +281,39 @@ templ chevron() {
 }
 
 // folderList renders the vault-root notes then the lifecycle-ordered folders.
-templ folderList(folders []nav.Folder, rootNotes []nav.NoteRef) {
-	for _, n := range rootNotes {
-		<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+templ folderList(sb Sidebar) {
+	for _, n := range sb.Model.RootNotes {
+		<a
+			class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
+			href={ templ.URL(notesHref(n.RelPath)) }
+			{ currentAttr(sb.current(n.RelPath))... }
+		>{ n.Name }</a>
 	}
-	for _, f := range folders {
-		@folderNode(f)
+	for _, f := range sb.Model.Folders {
+		@folderNode(sb, f)
 	}
 }
 
 // folderNode renders one folder and recurses — the tree mirrors the real
 // directory structure to whatever depth it has, as a nested native <details>.
-templ folderNode(f nav.Folder) {
+// The branch holding the current note opens by default, revealing it in place.
+templ folderNode(sb Sidebar, f nav.Folder) {
 	if len(f.Sub) > 0 || len(f.Notes) > 0 {
-		<details>
+		<details open?={ sb.folderOpen(f.RelPath) }>
 			<summary class="ui-navitem">
 				@chevron()
 				{ f.Name }
 			</summary>
 			<div class="k-tree">
 				for _, sub := range f.Sub {
-					@folderNode(sub)
+					@folderNode(sb, sub)
 				}
 				for _, n := range f.Notes {
-					<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+					<a
+						class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
+						href={ templ.URL(notesHref(n.RelPath)) }
+						{ currentAttr(sb.current(n.RelPath))... }
+					>{ n.Name }</a>
 				}
 			</div>
 		</details>
@@ -289,36 +322,55 @@ templ folderNode(f nav.Folder) {
 	}
 }
 
-// syllabus renders one study-path: a link to its full study-path page, then
-// its tree. The title points at the purpose-built /syllabus view (which wins
-// over the raw map note); the map note itself stays reachable via the Folders
-// tree, so "any vault file <=3 clicks" still holds.
-templ syllabus(s nav.Syllabus) {
-	<a class="k-syllabus__title" href={ templ.URL(syllabusHref(s.RelPath)) }>{ s.Title }</a>
-	@sectionList(s.Sections)
-}
-
-templ sectionList(sections []nav.Section) {
-	if len(sections) > 0 {
+// syllabusTree renders one study-path as a closed disclosure that opens when it
+// holds the current note. The summary toggles the course; a link inside opens
+// the full study-path page, which the disclosure would otherwise put out of reach.
+templ syllabusTree(sb Sidebar, s nav.Syllabus) {
+	<details open?={ sb.syllabusOpen(s.RelPath) }>
+		<summary class="k-railitem">
+			@chevron()
+			<span class="k-railitem__name">{ s.Title }</span>
+		</summary>
 		<div class="k-tree">
-			for _, sec := range sections {
-				<div class="k-tree__label">{ sec.Heading }</div>
-				@sectionList(sec.Sub)
-				for _, l := range sec.Lessons {
-					@lessonLink(l)
-				}
+			<a class="k-railitem__full" href={ templ.URL(syllabusHref(s.RelPath)) }>Open study path</a>
+			for _, sec := range s.Sections {
+				@sectionNode(sb, s.RelPath, childChain(nil, sec.Heading), sec)
 			}
 		</div>
-	}
+	</details>
+}
+
+// sectionNode renders one syllabus section as a disclosure, opened when it lies
+// on the path to the current note, and recurses for nested sections.
+templ sectionNode(sb Sidebar, syl string, chain []string, sec nav.Section) {
+	<details open?={ sb.sectionOpen(syl, chain) }>
+		<summary class="k-treeitem">
+			@chevron()
+			{ sec.Heading }
+		</summary>
+		<div class="k-tree">
+			for _, sub := range sec.Sub {
+				@sectionNode(sb, syl, childChain(chain, sub.Heading), sub)
+			}
+			for _, l := range sec.Lessons {
+				@lessonLink(sb, l)
+			}
+		</div>
+	</details>
 }
 
 // lessonLink renders one syllabus lesson entry. A uniquely-resolved lesson is a
-// link; an ambiguous or unresolved lesson is still shown (the reading face is
-// fail-open), as plain text carrying a diagnostic mark instead of a link.
-templ lessonLink(l nav.Lesson) {
+// link, marked when it is the note being read; an ambiguous or unresolved lesson
+// is still shown (the reading face is fail-open), as plain text carrying a
+// diagnostic mark instead of a link.
+templ lessonLink(sb Sidebar, l nav.Lesson) {
 	switch l.Resolution {
 		case graph.Unique:
-			<a class="ui-navitem" href={ templ.URL(notesHref(l.RelPath)) }>
+			<a
+				class={ "ui-navitem", templ.KV("is-active", sb.current(l.RelPath)) }
+				href={ templ.URL(notesHref(l.RelPath)) }
+				{ currentAttr(sb.current(l.RelPath))... }
+			>
 				<span class="k-navdot" aria-hidden="true"></span>
 				{ l.Text }
 				if l.Status != "" {

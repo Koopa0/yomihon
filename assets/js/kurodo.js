@@ -118,6 +118,58 @@
     history.replaceState(null, '', u);
   }
 
+  // ---- sidebar filter (progressive enhancement) ----------------------------
+  // A text box, hidden until this runs, that narrows the sidebar to entries
+  // whose visible text matches. A group (a disclosure or the "here" list) with
+  // no surviving entry collapses away; a match keeps its ancestor disclosures
+  // open, so the path to it stays visible. Enter follows the first match; Esc
+  // clears and hands focus back to the page. Zero network, zero persisted state.
+  function initNavFilter() {
+    const rail = document.querySelector('.k-rail-left');
+    const input = rail && rail.querySelector('[data-nav-filter]');
+    if (!input) return;
+    input.hidden = false;
+    const groups = [...rail.querySelectorAll('details, .k-here')];
+    const wasOpen = new Map();
+    rail.querySelectorAll('details').forEach((d) => { wasOpen.set(d, d.open); });
+    const links = [...rail.querySelectorAll('a')];
+    function apply() {
+      const q = input.value.trim().toLowerCase();
+      if (!q) {
+        links.forEach((a) => { a.hidden = false; });
+        groups.forEach((g) => {
+          g.hidden = false;
+          if (g.tagName === 'DETAILS') g.open = wasOpen.get(g);
+        });
+        return;
+      }
+      links.forEach((a) => { a.hidden = !a.textContent.toLowerCase().includes(q); });
+      groups.forEach((g) => {
+        const hit = [...g.querySelectorAll('a')].some((a) => !a.hidden);
+        g.hidden = !hit;
+        if (g.tagName === 'DETAILS') g.open = hit;
+      });
+    }
+    input.addEventListener('input', apply);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const first = rail.querySelector('a:not([hidden])');
+        if (first) first.click();
+      } else if (e.key === 'Escape') {
+        // Clear the filter and stop here: without stopPropagation the same Esc
+        // would bubble to the global handler and also close the nav drawer, so
+        // one press would do two things. A second Esc (filter now empty, focus
+        // returned to the page) reaches the global handler and closes the drawer.
+        e.preventDefault();
+        e.stopPropagation();
+        input.value = '';
+        apply();
+        input.blur();
+      }
+    });
+  }
+
   // ---- ⌘K search dialog + global keys --------------------------------------
   function initSearch() {
     const dialog = document.querySelector('[data-search]');
@@ -144,6 +196,16 @@
         return; // <dialog> closes itself on Escape
       }
       if (typing || (dialog && dialog.open)) return;
+      if (e.key === '/') {
+        const filter = document.querySelector('[data-nav-filter]');
+        if (filter && !filter.hidden) { e.preventDefault(); filter.focus(); }
+        return;
+      }
+      if (e.key === '[') {
+        e.preventDefault();
+        root.dataset.nav = root.dataset.nav === 'open' ? 'closed' : 'open';
+        return;
+      }
       if ((e.key === 'r' || e.key === 'R') && !e.repeat && sealForm && !sealing) {
         e.preventDefault();
         holdStart(sealForm);
@@ -309,6 +371,7 @@
     if ('speechSynthesis' in window) root.dataset.speech = 'on';
     initToggles();
     initDrawer();
+    initNavFilter();
     initSeal();
     stripSealSignal();
     initSearch();
