@@ -67,23 +67,13 @@ func (v NoteView) diagCount() int {
 	return n
 }
 
-// railEmpty reports whether all three right-rail blocks — the table of
-// contents, the status panel, and the diagnostics list — would render
-// nothing, so the layout may drop the rail's column and hand its width to
-// the article. It restates the exact render conditions those three blocks
-// use, so the answer stays truthful if any one of them changes.
-//
-// The status panel (the write face) shows whenever the frontmatter parsed
-// cleanly; the diagnostics list shows whenever it did not, and also when a
-// cleanly parsed note still carries render diagnostics. So for any note that
-// reached this page the status panel or the diagnostics list is always
-// present, and this returns true only as a defensive fallback, never for a
-// real note — the status panel is therefore never hidden by this collapse.
-func (v NoteView) railEmpty() bool {
-	tocEmpty := len(v.TOC) == 0
-	statusEmpty := v.Diagnostic != ""
-	diagEmpty := v.Diagnostic == "" && len(v.RenderDiagnostics) == 0
-	return tocEmpty && statusEmpty && diagEmpty
+// hasAids reports whether this note carries reading aids — a table of
+// contents or any diagnostic. The right rail exists to hold reading aids:
+// when a note has none, the rail's column is dropped entirely and the write
+// face appears in the fixed-bottom seal bar instead, so the reader never
+// sits beside a tall gutter holding a lone status card.
+func (v NoteView) hasAids() bool {
+	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0
 }
 
 // breadcrumb is the reading crumb: the note's directory segments (the filename
@@ -99,11 +89,12 @@ func breadcrumb(relPath string) []string {
 templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="k-nav-scrim" data-nav-close></div>
-		<div class={ "k-shell", templ.KV("k-shell--rail-empty", v.railEmpty()) }>
+		<div class={ "k-shell", templ.KV("k-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar)
 			<main class="k-main">
 				<article class="k-article" lang="zh-Hant">
 					@articleHead(v)
+					@inlineAids(v)
 					<div class="k-prose">
 						@templ.Raw(v.BodyHTML)
 					</div>
@@ -399,11 +390,7 @@ templ rightRail(v NoteView) {
 		if len(v.TOC) > 0 {
 			<nav aria-label="On this page">
 				<div class="ui-side__label">On this page</div>
-				<div class="k-toc__list">
-					for _, h := range v.TOC {
-						<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
-					}
-				</div>
+				@tocList(v)
 			</nav>
 		}
 		if v.Diagnostic == "" {
@@ -411,6 +398,37 @@ templ rightRail(v NoteView) {
 		}
 		@diagnostics(v)
 	</aside>
+}
+
+// tocList is the table-of-contents link list, shared by the right rail and
+// the inline disclosure so the two render one surface, never two variants.
+templ tocList(v NoteView) {
+	<div class="k-toc__list">
+		for _, h := range v.TOC {
+			<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
+		}
+	</div>
+}
+
+// inlineAids keeps the reading aids reachable at widths where the right rail
+// is hidden: the table of contents as a closed native disclosure at the top
+// of the article, the diagnostics list beneath it. Wide viewports hide this
+// block and show the rail instead; a note with no aids renders nothing here.
+templ inlineAids(v NoteView) {
+	if v.hasAids() {
+		<div class="k-inlineaids">
+			if len(v.TOC) > 0 {
+				<details class="k-toc-inline">
+					<summary class="k-toc-inline__summary">
+						@chevron()
+						On this page
+					</summary>
+					@tocList(v)
+				</details>
+			}
+			@diagnostics(v)
+		</div>
+	}
 }
 
 // statusPanel is the write face's entire UI: one plain form per
@@ -540,27 +558,37 @@ templ diagnostics(v NoteView) {
 
 // ============================ SEAL BAR (≤1280) ============================
 
-// sealBar is the narrow-screen fallback for the hidden right rail: the current
-// status plus, when legal, the same seal form the rail carries (shared data-seal
-// hook, so the hold ceremony behaves identically). Rendered only when there is
-// a status panel to mirror (no frontmatter diagnostic).
+// sealBar is the status face at every width where the right rail is absent:
+// narrow viewports hide the rail, and a note with no reading aids drops its
+// column entirely. It mirrors the status panel's states — the sealed badge,
+// the current chip with the seal form when legal (shared data-seal hook, so
+// the hold ceremony behaves identically), and the closed-face notices — so
+// the write face's state always has somewhere to appear. Only a frontmatter
+// diagnostic suppresses it, exactly as it suppresses the status panel: a
+// note whose frontmatter did not parse has no status to show, and the
+// diagnostics list is the face that explains why.
 templ sealBar(v NoteView) {
-	if v.Diagnostic == "" && !v.WriteClosed && !v.NoFrontmatter {
+	if v.Diagnostic == "" {
 		<div class={ "k-sealbar", templ.KV("k-justsealed", v.JustSealed) } data-seal-panel>
-			if v.Status == sealStatus {
-				<div class="k-sealed">
-					<span class="k-sealed__stamp" lang="ja" aria-hidden="true">済</span>
-					<span class="k-sealed__label">ready</span>
-				</div>
-				<span class="k-actor">鈐印 · sealed</span>
-			} else {
-				if v.Status != "" {
-					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
-				}
-				<span class="k-sealbar__spacer"></span>
-				if hasSeal(v.Transitions) {
-					@sealForm(v)
-				}
+			switch {
+				case v.WriteClosed:
+					<p class="k-sealbar__notice">Contract unavailable — the write face is closed (fail-closed).</p>
+				case v.NoFrontmatter:
+					<p class="k-sealbar__notice">No frontmatter (valid).</p>
+				case v.Status == sealStatus:
+					<div class="k-sealed">
+						<span class="k-sealed__stamp" lang="ja" aria-hidden="true">済</span>
+						<span class="k-sealed__label">ready</span>
+					</div>
+					<span class="k-actor">鈐印 · sealed</span>
+				default:
+					if v.Status != "" {
+						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					}
+					<span class="k-sealbar__spacer"></span>
+					if hasSeal(v.Transitions) {
+						@sealForm(v)
+					}
 			}
 		</div>
 	}

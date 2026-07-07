@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/kurodo/internal/nav"
 )
 
 // TestSearchHandler exercises GET /search end to end: route registration, the
@@ -18,7 +20,7 @@ func TestSearchHandler(t *testing.T) {
 		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft", PlainText: "kafka is a distributed log"},
 	})
 	mux := http.NewServeMux()
-	NewHandler(func() *Index { return idx }, slog.New(slog.DiscardHandler)).Register(mux)
+	NewHandler(func() *Index { return idx }, func() *nav.Model { return nil }, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -28,7 +30,9 @@ func TestSearchHandler(t *testing.T) {
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
-		for _, want := range []string{"Kafka Basics", `href="/notes/Writing/Kafka.md"`, "draft"} {
+		// k-rail-left is the shared sidebar: the results page renders inside
+		// the same shell as every other page, never a chromeless view.
+		for _, want := range []string{"Kafka Basics", `href="/notes/Writing/Kafka.md"`, "draft", "k-rail-left"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("search page missing %q; body = %q", want, body)
 			}

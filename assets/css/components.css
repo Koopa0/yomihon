@@ -156,11 +156,13 @@ html, body { margin: 0; background: var(--bg); }
    Shell + rails
    ============================================================ */
 .k-shell { display: grid; grid-template-columns: 264px minmax(0, 1fr) 316px; flex: 1; min-height: 0; }
-/* When the right rail has nothing to show — no headings, no status panel, no
-   diagnostics — the reading column reclaims the rail's track instead of sitting
-   beside a tall empty gutter. */
+/* The right rail exists to hold reading aids — the table of contents and the
+   diagnostics list. A note with neither drops the rail's column entirely: the
+   reading column takes the width, and the fixed-bottom seal bar carries the
+   status face at every viewport width, not only narrow ones. */
 .k-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
 .k-shell--rail-empty .k-rail-right { display: none; }
+.k-shell--rail-empty ~ .k-sealbar { display: flex; }
 .k-nav-scrim { display: none; position: fixed; inset: 56px 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
 
 .k-rail-left {
@@ -330,6 +332,19 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    Right rail — TOC · status panel · diagnostics
    ============================================================ */
+/* Inline reading aids — the stand-in for the right rail at widths where the
+   rail is hidden: the table of contents as a closed native disclosure at the
+   top of the article, the diagnostics list beneath it. Wide viewports show
+   the rail and hide this block (the media rule sits with the other width
+   switches at the end of this sheet). */
+.k-inlineaids { display: none; }
+.k-toc-inline__summary {
+  display: flex; align-items: center; gap: 7px; padding: 8px 0;
+  font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em;
+  color: var(--fg-faint); text-transform: uppercase;
+}
+.k-toc-inline .k-toc__list { margin: 4px 0 6px; }
+
 .k-toc__list { display: flex; flex-direction: column; gap: 1px; border-left: 1px solid var(--border); }
 .k-toc__list a { padding: 5px 12px; margin-left: -1px; border-left: 2px solid transparent; color: var(--fg-subtle); font-size: var(--fs-13); }
 .k-toc__list a:hover { color: var(--fg); }
@@ -389,13 +404,16 @@ html, body { margin: 0; background: var(--bg); }
 .k-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 12px; line-height: 1.6; color: var(--fg-faint); }
 
 /* ============================================================
-   Narrow-screen seal bar (≤1280) — fallback for the hidden right rail
+   Seal bar — the status face wherever the right rail is absent: narrow
+   viewports (the rail is hidden) and no-aid notes (the rail's column is
+   dropped, the sibling rule under .k-shell--rail-empty reveals this bar).
    ============================================================ */
 .k-sealbar { display: none; align-items: center; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border);
   background: color-mix(in oklch, var(--panel) 92%, transparent); backdrop-filter: blur(10px); }
 .k-sealbar__spacer { flex: 1; }
 .k-sealbar .k-sealbtn { width: auto; height: 40px; padding: 0 16px; flex: none; }
+.k-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
 
 /* ============================================================
    ⌘K search dialog (native <dialog>)
@@ -630,6 +648,7 @@ html, body { margin: 0; background: var(--bg); }
   .k-shell { grid-template-columns: 248px minmax(0, 1fr); }
   .k-rail-right { display: none !important; }
   .k-sealbar { display: flex; }
+  .k-inlineaids { display: flex; flex-direction: column; gap: 22px; margin: 26px 0 6px; }
 }
 @media (max-width: 900px) {
   .k-shell, .k-shell2 { grid-template-columns: 1fr; }
