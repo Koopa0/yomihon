@@ -22,13 +22,14 @@
   pack (five targets, rescanner timing, benchmarks, fuzz-smoke job). The four
   cron consumers already run on `kurodo check` (switched 2026-07-05, with
   rollback backups).
-- **In flight**: the differential fuzz harness (judge-plan §13) — the campaign
-  it enables is the last engineering prerequisite before the kura declaration.
+- **Done** (2026-07-07): the differential fuzz campaign (judge-plan §13) ran to
+  its completion bar with zero unexplained divergence; kura was declared retired
+  (D43) and the conformance scaffolding was deleted, the goldens kept.
 - **The two retirement gates** (evidence-based, D11; refined by D38/D40),
   stated precisely:
-  - **kura gate** = spec §5 acceptance (all merged, consumers switched) **plus
-    the differential campaign completion bar** (judge-plan §13). The
-    declaration cites §13 when it is met.
+  - **kura gate — met; declared retired 2026-07-07 (D43)** = spec §5 acceptance
+    (all merged, consumers switched) plus the differential campaign completion
+    bar (judge-plan §13), which the declaration cited.
   - **yomihon gate — closed (D40)**: the engineering item is merged; the
     parity and two-week observation items are waived. Retirement is effective
     on Koopa's declaration alone. **Export stays excluded (D38)** — nothing
@@ -44,7 +45,7 @@ acceptance per unit — is `program.md`.
 | 1 | **A: judge Stage 4** (merged) | Produced the kura-gate evidence; the four external pipelines now run on it | judge-plan, D30 |
 | 2 | **I: wall-lock sweep** | Retirement declarations require the four walls as test locks; also locks D30's three sandbox mechanisms | D30 |
 | 3 | **Quality rails** (parallel with I) | CI + linters + fuzz pack, per D36 "right after the A face, alongside the I sweep"; the switchover benefits from CI existing | D36 |
-| 4 | **kura retirement** | The switchover already executed (2026-07-05, ahead of the originally planned campaign-first order — a disclosed deviation, safe because the switched surfaces were triple-verified and the wrapper backups keep a rollback path). What remains, in order: run the differential campaign to its completion bar, adjudicate anything it finds, then declare, then execute the §13 cleanup checklist. judge-plan §13 is the authoritative statement of both the bar and the cleanup — this row intentionally does not restate them | D36, D40 |
+| 4 | **kura retirement (done, D43)** | The switchover executed 2026-07-05 (ahead of the originally planned campaign-first order — a disclosed deviation, safe because the switched surfaces were triple-verified and the wrapper backups keep a rollback path). The differential campaign then ran to its completion bar with zero unexplained divergence, kura was declared retired 2026-07-07, and the §13 cleanup checklist was executed. judge-plan §13 remains the authoritative record | D36, D40, D43 |
 | 4b | **Reading-surface UX repairs** (parallel with anything) | Daily use moved to kurodo outright (D40), so reading-surface pain is paid every day; the mechanical repairs need no ruling, the taste batch waits for Koopa's accumulated pain list — both in §5b | D40 |
 | 5 | **B: search panel, lexical then hybrid** | ⌘K content over the existing shell first; then Gemini embeddings + RRF fusion (key arrives at build start). Needs a **B plan doc** before the hybrid half — its required contents are listed in §5a | D31, D32 |
 | 6 | **H: agent toolbox** | Graph verbs + whole-graph export + frontmatter query; cheap, unlocks agents and dreaming. Needs an **H plan doc** — output contracts are the point (§5a) | D33 |

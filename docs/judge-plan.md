@@ -1,6 +1,6 @@
 # Judge face — implementation plan (spec §5)
 
-> Status: **built and merged in full** (all four stages: rules, formats, CLI dispatch, coverage/exists, gating — PR #11–#14); the four cron consumers switched over 2026-07-05. The remaining prerequisite before the retirement declaration is the differential campaign (§13). The judge face is
+> Status: **built and merged in full** (all four stages: rules, formats, CLI dispatch, coverage/exists, gating — PR #11–#14); the four cron consumers switched over 2026-07-05. The differential campaign (§13) has since run to its completion bar and kura was declared retired on 2026-07-07 (D43); the conformance scaffolding is deleted and the goldens keep the contract. The judge face is
 > `kurodo check` / `exists` / `coverage` — a Go rewrite of kura's CLI. Its soul
 > is **byte-compatibility with kura**, a different discipline from the search
 > face's determinism: the retirement gate (D11) is a byte-for-byte match of
@@ -201,15 +201,14 @@ Reuse `graph.NormalizeNFC` (already exported) + the shared `trim → NFC → low
 1. **Golden conformance, byte-exact.** Port kura's `conformance.rs` fixtures (the
    3-note setup) and assert `kurodo check` stdout equals the 4 golden JSONL lines
    **byte-for-byte** (quoted in §3a), and the coverage/exists compact forms.
-2. **Real-vault diff vs the reference (the strongest test).** A test that skips
-   unless `KURODO_REFERENCE_BIN` names an executable (the only way any test may
-   locate the reference binary — no hardcoded paths in the repo; the binding
-   lives in the shell environment outside it), runs both engines with
-   `check --root ~/obsidian --format json`, sorts nothing (both already
-   sorted), and asserts the two byte streams are identical. Same for
-   `coverage`, and for `exists <name>` on a few names. This is the gate that
-   actually proves retirement-readiness. (As merged: `sandwich_test.go` and
-   the `referenceTool` helper in `schema_test.go`.)
+2. **Real-vault diff vs the reference (the strongest test).** While the
+   predecessor still ran, a gated test ran both engines with
+   `check --root ~/obsidian --format json`, sorted nothing (both already
+   sorted), and asserted the two byte streams identical — the same for
+   `coverage` and for `exists <name>` on a few names. It was the gate that
+   proved retirement-readiness, and it was deleted with the rest of the
+   conformance scaffolding once kura was declared retired (D43); the goldens
+   in item 1 carry the contract forward.
 3. **The four crons' load-bearing bytes** (from the fact-gather): exit code under
    `--deny error` (0 vs nonzero); the compact JSONL containing literal
    `link.broken` and `"severity":"warn"` (grinder greps these); the `--format md`
@@ -330,9 +329,9 @@ on this list that diffs is a bug.
 ## 13. The differential campaign (the declaration's final prerequisite)
 
 The register (§12) freezes the known differences; the campaign hunts unknown
-ones, on inputs nobody wrote by hand. The harness lives in `internal/judge`,
-env-gated like every reference-coupled test (`KURODO_REFERENCE_BIN`; never in
-CI): a seeded, schema-aware vault generator biased toward the rule surfaces; a
+ones, on inputs nobody wrote by hand. The harness lived in `internal/judge`,
+gated on a reference binary named only in the shell environment and never run
+in CI: a seeded, schema-aware vault generator biased toward the rule surfaces; a
 manifest recording the intentionally divergence-prone constructs each vault
 plants (comment-wrapped path refs, journal-crossing links, empty domains), so
 register filtering is precise rather than heuristic; one named normalizer per
@@ -377,7 +376,8 @@ hold:**
 5. The declaration records the totals: rounds, base seeds, run dates, and the
    aggregated rule-reach distribution.
 
-After the declaration, the scaffolding dies and the contract stays: delete the
-conformance, sandwich, and differential tests; keep every golden and pinning
-fixture; remove the reference-binary shell export; clean the wrapper backups;
-delete the reference binaries (D40).
+After the declaration this was executed (D43): the scaffolding died and the
+contract stayed — the conformance, sandwich, and differential tests were
+deleted, every golden and pinning fixture kept; the reference-binary shell
+export was removed, the wrapper backups cleaned, and the reference binaries
+deleted (D40).

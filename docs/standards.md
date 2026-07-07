@@ -76,9 +76,10 @@ the four walls (`README`, decisions D02), the walls win.
   superseded runs, and every job carries a timeout.
 - **Node lives only on the runner** (frontend linting, future screenshot
   e2e); the product build never acquires a Node step.
-- **The reference binary never enters CI.** Reference-coupled tests gate on
-  `KURODO_REFERENCE_BIN` and skip when it is absent; that skip is design, not
-  a gap to fix.
+- **The reference binary never entered CI.** The conformance tests that
+  compared against it were env-gated and skipped when the binary was absent —
+  design, not a gap; they were deleted when the reference engine was declared
+  retired (D43), and the goldens they backed remain the contract.
 
 **Known debts against this bar (recorded 2026-07-06, queued for one dedicated
 chore PR — do not copy these patterns while they remain):** the umbrella `ci`

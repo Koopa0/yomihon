@@ -57,13 +57,14 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    the differential harness's manifest/normalizer grow with it. Lands
    *before* the campaign, so its evidence is collected against the final
    behavior. The real-vault sandwich is run and its outcome recorded.
-2. Campaign runs — operations, not a PR: nights of runs to the §13 completion
-   bar; every divergence pauses for adjudication.
-3. Koopa's retirement declaration, citing §13.
-4. `PR-descaffold` — delete conformance, sandwich, and differential tests;
-   goldens and pinning fixtures stay; docs' gate passages rewritten to past
-   tense. Vault-side: shell export removed, wrapper backups cleaned,
-   reference binaries deleted (operations alongside the PR).
+2. Campaign runs — **done**: runs to the §13 completion bar across three
+   independent seed bases with zero unexplained divergence; nothing needed
+   adjudication.
+3. Koopa's retirement declaration, citing §13 — **done (D43, 2026-07-07)**.
+4. `PR-descaffold` — **done (this PR)**: conformance, sandwich, and differential
+   tests deleted; goldens and pinning fixtures kept; the docs' gate passages
+   rewritten to past tense. Vault-side: shell export removed, wrapper backups
+   cleaned, reference binaries deleted (operations alongside the PR).
 
 **Track 2 ∥ — CI hygiene (one chore PR, already specified):**
 5. `PR-ci-hygiene` — pay the debts recorded in `standards.md` §3: rename the
