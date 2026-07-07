@@ -1,7 +1,7 @@
 {
   "extends": ["stylelint-config-recommended"],
   "rules": {
-    "at-rule-no-unknown": [true, { "ignoreAtRules": ["theme"] }],
+    "at-rule-no-unknown": [true, { "ignoreAtRules": ["theme", "source"] }],
     "no-descending-specificity": null,
     "no-duplicate-selectors": null
   }
