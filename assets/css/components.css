@@ -642,6 +642,40 @@ html, body { margin: 0; background: var(--bg); }
 .k-progress__fill[data-fill="100"] { width: 100%; }
 
 /* ============================================================
+   Cross-document view transitions — navigation morphs, chrome holds
+   ------------------------------------------------------------
+   Naming a region makes it an independent transition group, not a
+   stable one: a named group whose pixels differ cross-fades into a
+   double exposure. So the chrome — header, left rail, seal bar —
+   hard-cuts (its old/new snapshot animations turned off; near-identical
+   pixels read as perfect stillness, per-note differences as a crisp
+   update, never a ghost), while the reading column keeps the default
+   group morph so the width change between a railed and a rail-less page
+   glides instead of double-exposing two reflowed text blocks. The title
+   carries its own name, so moving between pages reads as the title
+   travelling. Form POSTs never fire navigation transitions, so the
+   seal's redirect lands plainly — that is the write path's contract,
+   not a gap. Reduced motion turns navigation transitions off entirely.
+   ============================================================ */
+@view-transition { navigation: auto; }
+
+.k-header { view-transition-name: k-header; }
+.k-rail-left { view-transition-name: k-rail-left; }
+.k-sealbar { view-transition-name: k-sealbar; }
+.k-main { view-transition-name: k-main; }
+.k-title { view-transition-name: k-title; }
+
+::view-transition-old(k-header), ::view-transition-new(k-header),
+::view-transition-old(k-rail-left), ::view-transition-new(k-rail-left),
+::view-transition-old(k-sealbar), ::view-transition-new(k-sealbar) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media (max-width: 1280px) {
