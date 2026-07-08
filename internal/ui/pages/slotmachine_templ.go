@@ -16,7 +16,7 @@ import (
 
 // SlotMachine renders one lesson's sentence-pattern practice: an interactive
 // card per pattern. Everything visible is server-rendered from each slot's
-// first fill, so the sentences read correctly with JS off; kurodo.js upgrades
+// first fill, so the sentences read correctly with JS off; yomihon.js upgrades
 // the cards to swap fills, recolour, shuffle, and speak. The section chrome is
 // English (functional UI text stays English); the slot labels, the abstract
 // frame, and the gloss are lesson content, shown as authored.
@@ -59,7 +59,7 @@ func SlotMachine(s *lesson.Sidecar) templ.Component {
 	})
 }
 
-// slotCard is one pattern: its data blob (consumed by kurodo.js), the abstract
+// slotCard is one pattern: its data blob (consumed by yomihon.js), the abstract
 // frame + optional note, one select per distinct slot, the live sentence, the
 // Chinese gloss, and the speak / shuffle actions.
 func slotCard(p lesson.Pattern) templ.Component {
@@ -296,7 +296,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 }
 
 // slotOutput is the live sentence: literal template text as bare nodes, each
-// slot as a coloured, ruby-annotated span kurodo.js rewrites on change.
+// slot as a coloured, ruby-annotated span yomihon.js rewrites on change.
 func slotOutput(p lesson.Pattern) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -349,7 +349,7 @@ func slotOutput(p lesson.Pattern) templ.Component {
 }
 
 // slotOut is one slot's rendered word: the first fill's surface form over its
-// reading. kurodo.js finds it by data-slot-key and rewrites the base (ruby >
+// reading. yomihon.js finds it by data-slot-key and rewrites the base (ruby >
 // span) and the reading (rt); the colour class supplies --c.
 func slotOut(key string, pos lesson.Position) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

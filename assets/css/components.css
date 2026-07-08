@@ -1,5 +1,5 @@
 /* ============================================================
-   kurodo — product layer
+   yomihon — product layer
    ------------------------------------------------------------
    The DS component classes this page actually uses (ui-navitem,
    ui-side__label, ui-status, ui-type, ui-kbd, ui-scrim, ui-dialog),
@@ -8,7 +8,7 @@
    diagnostics), ruby zero-reflow, the seal ceremony, and the reading
    prose that styles the renderer's REAL emitted classes (.callout /
    .wikilink / .chroma / <mark> / <ruby> — never reshaped, only dressed).
-   Everything is scoped under .kurodo so nothing leaks to other surfaces.
+   Everything is scoped under .yomihon so nothing leaks to other surfaces.
    ============================================================ */
 
 /* ============================================================
@@ -16,7 +16,7 @@
    ============================================================ */
 html, body { margin: 0; background: var(--bg); }
 
-.kurodo {
+.yomihon {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -28,22 +28,22 @@ html, body { margin: 0; background: var(--bg); }
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-.kurodo a { color: inherit; text-decoration: none; }
-.kurodo details > summary { list-style: none; cursor: pointer; }
-.kurodo summary::-webkit-details-marker { display: none; }
-.kurodo :focus-visible { outline: 2px solid var(--fg-subtle); outline-offset: 2px; border-radius: var(--r-sm); }
-.kurodo ::selection { background: var(--accent-muted); }
-.kurodo *::-webkit-scrollbar { width: 11px; height: 11px; }
-.kurodo *::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
-.kurodo *::-webkit-scrollbar-track { background: transparent; }
+.yomihon a { color: inherit; text-decoration: none; }
+.yomihon details > summary { list-style: none; cursor: pointer; }
+.yomihon summary::-webkit-details-marker { display: none; }
+.yomihon :focus-visible { outline: 2px solid var(--fg-subtle); outline-offset: 2px; border-radius: var(--r-sm); }
+.yomihon ::selection { background: var(--accent-muted); }
+.yomihon *::-webkit-scrollbar { width: 11px; height: 11px; }
+.yomihon *::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
+.yomihon *::-webkit-scrollbar-track { background: transparent; }
 
 /* grain — the one texture that keeps it off-clinical */
-.kurodo::after {
+.yomihon::after {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: .03;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   mix-blend-mode: multiply;
 }
-[data-theme="dark"] .kurodo::after { mix-blend-mode: overlay; opacity: .055; }
+[data-theme="dark"] .yomihon::after { mix-blend-mode: overlay; opacity: .055; }
 
 /* ============================================================
    DS components (only the ones this page uses)
@@ -67,7 +67,7 @@ html, body { margin: 0; background: var(--bg); }
   text-transform: uppercase; letter-spacing: 0.06em; padding: 0; white-space: nowrap;
 }
 
-/* ---- Status badge (mono, dot + name; kurodo's 9 note statuses) ---- */
+/* ---- Status badge (mono, dot + name; yomihon's 9 note statuses) ---- */
 .ui-status {
   display: inline-flex; align-items: center; gap: 6px; line-height: 1;
   font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-medium);
@@ -184,7 +184,7 @@ html, body { margin: 0; background: var(--bg); }
 .k-railgroup { padding: 0 0 10px; }
 .k-railsep { height: 1px; background: var(--border-faint); margin: 2px 8px; }
 .k-chevron { transition: transform var(--dur-base) var(--ease-standard); opacity: .7; flex: none; }
-.kurodo details:not([open]) .k-chevron { transform: rotate(-90deg); }
+.yomihon details:not([open]) .k-chevron { transform: rotate(-90deg); }
 
 /* Disclosure open/close animates the body height — Chromium-native, CSS-only.
    interpolate-size lets a height:auto transition resolve; ::details-content is
@@ -399,7 +399,7 @@ html, body { margin: 0; background: var(--bg); }
 .k-sealby { margin-top: 10px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); display: flex; align-items: center; gap: 7px; }
 .k-sealby svg { width: 12px; height: 12px; }
 .k-sealgit { margin-top: 5px; font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); opacity: .75; }
-/* one-shot ceremony (added by kurodo.js when ?sealed=1) */
+/* one-shot ceremony (added by yomihon.js when ?sealed=1) */
 .k-justsealed .k-sealed { animation: k-sealBed .5s var(--ease-standard) both; }
 .k-justsealed .k-sealed__stamp { animation: k-inkBloom .65s ease-out both; }
 .k-justsealed .k-sealline { animation: k-hairline .55s .1s var(--ease-standard) both; }
@@ -461,14 +461,14 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    Ruby (furigana) — rt hidden by VISIBILITY only → zero reflow
    ============================================================ */
-.kurodo ruby { ruby-align: center; ruby-position: over; }
-.kurodo rt { font-family: var(--font-sans); font-size: 0.5em; font-weight: 400; color: var(--fg-subtle); letter-spacing: 0.02em; user-select: none; }
+.yomihon ruby { ruby-align: center; ruby-position: over; }
+.yomihon rt { font-family: var(--font-sans); font-size: 0.5em; font-weight: 400; color: var(--fg-subtle); letter-spacing: 0.02em; user-select: none; }
 [data-ruby="off"] rt:not([data-keep="1"]) { visibility: hidden; }
 
 /* ============================================================
    TTS — read-aloud speak button on lesson sentences.
    Server-rendered (render.InjectTTS) with reading-stripped data-tts; the
-   button hangs in the left gutter and is revealed ONLY once kurodo.js
+   button hangs in the left gutter and is revealed ONLY once yomihon.js
    confirms a Web Speech engine (root[data-speech]), so with no JS or no
    engine the sentence still reads and the affordance is simply absent.
    ============================================================ */
@@ -603,7 +603,7 @@ html, body { margin: 0; background: var(--bg); }
    is not driven by durations anyway, but the exemption is explicit).
    Neither may be folded back into the blanket kill. The post-seal
    ceremony (k-sealBed/inkBloom/hairline animations) stays killed. */
-@media (prefers-reduced-motion: reduce) { .kurodo *:not(.k-sealfill):not(.k-readline), .kurodo *::before, .kurodo *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+@media (prefers-reduced-motion: reduce) { .yomihon *:not(.k-sealfill):not(.k-readline), .yomihon *::before, .yomihon *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ============================================================
    Syllabus page (study-path) — a full-page render of nav.Syllabus.
@@ -617,7 +617,7 @@ html, body { margin: 0; background: var(--bg); }
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
    /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
-   kurodo styles only the frame, never the content inside it. */
+   yomihon styles only the frame, never the content inside it. */
 .k-reportmain { display: flex; flex-direction: column; gap: 14px; padding: 22px 26px; overflow: hidden; }
 .k-reporttitle { font-family: var(--font-serif); font-weight: 600; font-size: var(--fs-ed-20); letter-spacing: 0.01em; color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
 .k-reportframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
@@ -707,7 +707,7 @@ html, body { margin: 0; background: var(--bg); }
 .k-prose { text-spacing-trim: space-first; }
 
 /* phrase-aware Japanese line breaking, wherever content is language-tagged */
-.kurodo [lang="ja"] { word-break: auto-phrase; }
+.yomihon [lang="ja"] { word-break: auto-phrase; }
 
 /* Arrival echo — a brief wash on the heading a table-of-contents jump lands
    on. While the viewport is still travelling the enhancement script holds it
@@ -739,7 +739,7 @@ html, body { margin: 0; background: var(--bg); }
    motion keeps it, via the explicit exemption in the blanket kill below.
    A page with nothing to scroll leaves the timeline inactive and the
    fill invisible. */
-.kurodo { timeline-scope: --k-read; }
+.yomihon { timeline-scope: --k-read; }
 .k-readline {
   position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
   background: var(--accent); transform-origin: left; transform: scaleX(0);

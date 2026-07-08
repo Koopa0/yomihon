@@ -140,7 +140,7 @@ jobs:
       # furigana toggles, and the strict directive inside a classic script's
       # closure. Every other rule stays on, and a warning fails the job.
       - name: Lint the runtime script
-        run: npx biome lint --error-on-warnings assets/js/kurodo.js
+        run: npx biome lint --error-on-warnings assets/js/yomihon.js
 
       # The stylesheet sources keep their own house style; the config holds on to
       # the correctness rules and allows the Tailwind theme at-rule.

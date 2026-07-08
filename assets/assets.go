@@ -1,19 +1,19 @@
-// Package assets embeds kurodo's small, fixed set of vendored and
+// Package assets embeds yomihon's small, fixed set of vendored and
 // hand-written client-side files. This file — not internal/asset — is
 // where the go:embed directive has to live: an embed pattern can only
 // reach files at or below the declaring .go file's own directory (no
 // "../"), and this repo's static-asset directory convention (the
-// Makefile's css target, mirroring yomihon's assets/{css,js,fonts}) fixes
-// assets/ at the module root, not under internal/. internal/asset reads
-// Files at package init to build its fixed, closed name→content registry;
-// it never reads this package's contents at request time.
+// Makefile's css target, mirroring yomihon-dev's assets/{css,js,fonts})
+// fixes assets/ at the module root, not under internal/. internal/asset
+// reads Files at package init to build its fixed, closed name→content
+// registry; it never reads this package's contents at request time.
 package assets
 
 import "embed"
 
 // Files holds:
 //
-//   - js/kurodo.js — kurodo's own hand-written client script (see that
+//   - js/yomihon.js — yomihon's own hand-written client script (see that
 //     file's doc comment).
 //
 //   - js/mermaid/ — the vendored mermaid@11.15.0 ES-module runtime.
@@ -43,5 +43,5 @@ import "embed"
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine (D-brief: zero external requests).
 //
-//go:embed js/kurodo.js js/mermaid css/output.css fonts
+//go:embed js/yomihon.js js/mermaid css/output.css fonts
 var Files embed.FS

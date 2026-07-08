@@ -1,4 +1,4 @@
-/* kurodo runtime — the one client-side script this repo ships. All vanilla,
+/* yomihon runtime — the one client-side script this repo ships. All vanilla,
    zero framework, no build step, loaded `defer` from the layout. Every behavior
    here is progressive enhancement over a page that already works with JS off:
 
@@ -36,7 +36,7 @@
   // so the next server render matches. data-* is the whole HTML↔JS contract.
   function setToggle(name, value) {
     root.dataset[name] = value;
-    document.cookie = `kurodo_${name}=${value};path=/;max-age=31536000;samesite=lax`;
+    document.cookie = `yomihon_${name}=${value};path=/;max-age=31536000;samesite=lax`;
   }
   function initToggles() {
     document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
@@ -134,7 +134,7 @@
   // of the stored state, and the filter asks it for the resting open state
   // instead of keeping a competing map of its own.
   const navState = (() => {
-    const KEY = 'kurodo.nav';
+    const KEY = 'yomihon.nav';
     let filtering = false;
     const serverOpen = new Map();
     function read() {
@@ -360,7 +360,7 @@
         // Hand the block back to its plain source text: the shimmer that
         // promised a render must not keep playing over a failure.
         el.setAttribute('data-mermaid-error', '');
-        console.warn('[kurodo] mermaid diagram failed to render:', err);
+        console.warn('[yomihon] mermaid diagram failed to render:', err);
       }
     }
   }

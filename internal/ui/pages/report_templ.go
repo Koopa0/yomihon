@@ -17,7 +17,7 @@ import (
 // (its title, and the key its /raw endpoint resolves against the allowlist) and
 // the whole-vault Nav for the shared sidebar. A report is not a note — no TOC,
 // no status panel, no diagnostics: the briefing HTML is served verbatim inside a
-// sandboxed iframe, and kurodo styles only the frame, never the content.
+// sandboxed iframe, and yomihon styles only the frame, never the content.
 type ReportView struct {
 	Name string
 	Nav  *nav.Model
@@ -27,7 +27,7 @@ type ReportView struct {
 // nil Lifecycle — a report carries no status axis), a title, and one iframe that
 // fills the reading column. The iframe is sandboxed allow-scripts and never
 // allow-same-origin — even with scripts running, the content lands in an opaque
-// origin that cannot reach kurodo's pages or endpoints; its src is this report's
+// origin that cannot reach yomihon's pages or endpoints; its src is this report's
 // verbatim /raw endpoint, so the briefing renders exactly as authored.
 func Report(v ReportView, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

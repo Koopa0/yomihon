@@ -247,7 +247,7 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 		`data-chain data-key="folders"`,
 		`data-key="dir:Concepts"`,
 		`data-filter-empty`,
-		`kurodo.nav`,
+		`yomihon.nav`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered sidebar is missing %q", want)

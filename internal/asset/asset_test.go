@@ -35,7 +35,7 @@ func TestKnownAssetsServe200(t *testing.T) {
 		wantType   string
 		minBodyLen int
 	}{
-		{name: "kurodo.js", path: "/static/kurodo.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "yomihon.js", path: "/static/yomihon.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "chroma.css", path: "/static/chroma.css", wantType: "text/css; charset=utf-8", minBodyLen: 100},
 		{name: "mermaid entry module", path: "/static/mermaid.esm.min.mjs", wantType: "text/javascript; charset=utf-8", minBodyLen: 1000},
 	}
@@ -139,7 +139,7 @@ func TestUnknownAssetsAre404(t *testing.T) {
 		path string
 	}{
 		{name: "plain nonexistent name", path: "/static/does-not-exist.js"},
-		{name: "nonexistent name shaped like a real one", path: "/static/kurodo.js.bak"},
+		{name: "nonexistent name shaped like a real one", path: "/static/yomihon.js.bak"},
 		{name: "raw dot-dot traversal", path: "/static/../../../../etc/passwd"},
 		{name: "dot-dot traversal inside one path segment", path: "/static/..%2F..%2F..%2Fetc%2Fpasswd"},
 		{name: "double-encoded dot-dot", path: "/static/%252e%252e%252fetc%252fpasswd"},
