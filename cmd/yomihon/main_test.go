@@ -188,7 +188,7 @@ func drive(t *testing.T, url string) {
 // os.Environ never reads the whole environment.
 func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	t.Parallel()
-	allowed := map[string]bool{"KURODO_ROOT": true, "KURODO_PORT": true}
+	allowed := map[string]bool{"YOMIHON_ROOT": true, "YOMIHON_PORT": true}
 	fset := token.NewFileSet()
 	var offenders []string
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
@@ -248,7 +248,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 		t.Fatalf("walk cmd/yomihon: %v", err)
 	}
 	if len(offenders) > 0 {
-		t.Errorf("this command may read only KURODO_ROOT and KURODO_PORT (the listener binds loopback, only the port configurable), but found:\n%s",
+		t.Errorf("this command may read only YOMIHON_ROOT and YOMIHON_PORT (the listener binds loopback, only the port configurable), but found:\n%s",
 			strings.Join(offenders, "\n"))
 	}
 }

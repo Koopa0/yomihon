@@ -210,8 +210,8 @@ type config struct {
 
 func loadConfig() (config, error) {
 	cfg := config{
-		root: os.Getenv("KURODO_ROOT"),
-		port: os.Getenv("KURODO_PORT"),
+		root: os.Getenv("YOMIHON_ROOT"),
+		port: os.Getenv("YOMIHON_PORT"),
 	}
 	if cfg.root == "" {
 		home, err := os.UserHomeDir()

@@ -14,7 +14,7 @@ import (
 // acceptance criterion "every real .md file opens: zero 500s, zero blank
 // pages".
 // It builds a real graph.Index and render.Renderer against
-// ~/obsidian (or KURODO_ROOT) and renders every single .md file under
+// ~/obsidian (or YOMIHON_ROOT) and renders every single .md file under
 // it, asserting for each: no panic, no error, non-empty HTML. This is a
 // permanent regression guard, following the same t.Skipf-when-vault-
 // absent pattern as internal/schema's TestLoadRealContract — it runs (and
@@ -23,7 +23,7 @@ import (
 func TestRealVaultRendersWithoutFaults(t *testing.T) {
 	t.Parallel()
 
-	root := os.Getenv("KURODO_ROOT")
+	root := os.Getenv("YOMIHON_ROOT")
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

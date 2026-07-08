@@ -245,7 +245,7 @@ func TestAdvanceableBy(t *testing.T) {
 func TestLoadRealContract(t *testing.T) {
 	t.Parallel()
 
-	root := os.Getenv("KURODO_ROOT")
+	root := os.Getenv("YOMIHON_ROOT")
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

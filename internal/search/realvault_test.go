@@ -8,7 +8,7 @@ import (
 )
 
 // TestBuildRealVault builds the search index from the real vault (~/obsidian or
-// KURODO_ROOT) and checks that it is non-empty and that a known, stable query
+// YOMIHON_ROOT) and checks that it is non-empty and that a known, stable query
 // hits its expected note. It follows internal/nav/realvault_test.go's
 // t.Skipf-when-absent pattern, so it runs whenever the vault is present and is
 // skipped loudly (not vacuously green) when it is not.
@@ -46,7 +46,7 @@ func TestBuildRealVault(t *testing.T) {
 
 func realVaultRoot(t *testing.T) string {
 	t.Helper()
-	root := os.Getenv("KURODO_ROOT")
+	root := os.Getenv("YOMIHON_ROOT")
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
