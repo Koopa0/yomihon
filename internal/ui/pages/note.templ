@@ -132,7 +132,7 @@ templ conceptSheet(concepts []lesson.ConceptDoc) {
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog class="k-conceptsheet" data-concept-sheet aria-label="Grammar note">
+		<dialog class="k-conceptsheet" data-concept-sheet aria-label="Grammar note" closedby="any">
 			<div class="k-conceptsheet__head">
 				<span class="k-conceptsheet__title" data-concept-title></span>
 				<button type="button" class="k-iconbtn" data-concept-close aria-label="Close">

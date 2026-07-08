@@ -323,7 +323,7 @@ func conceptSheet(concepts []lesson.ConceptDoc) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, " <dialog class=\"k-conceptsheet\" data-concept-sheet aria-label=\"Grammar note\"><div class=\"k-conceptsheet__head\"><span class=\"k-conceptsheet__title\" data-concept-title></span> <button type=\"button\" class=\"k-iconbtn\" data-concept-close aria-label=\"Close\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M18 6 6 18\"></path><path d=\"m6 6 12 12\"></path></svg></button></div><div class=\"k-conceptsheet__body k-prose\" data-concept-body></div></dialog>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, " <dialog class=\"k-conceptsheet\" data-concept-sheet aria-label=\"Grammar note\" closedby=\"any\"><div class=\"k-conceptsheet__head\"><span class=\"k-conceptsheet__title\" data-concept-title></span> <button type=\"button\" class=\"k-iconbtn\" data-concept-close aria-label=\"Close\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M18 6 6 18\"></path><path d=\"m6 6 12 12\"></path></svg></button></div><div class=\"k-conceptsheet__body k-prose\" data-concept-body></div></dialog>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

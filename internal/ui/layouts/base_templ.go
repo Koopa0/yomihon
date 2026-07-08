@@ -171,7 +171,7 @@ func searchDialog() templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<dialog class=\"k-searchdialog ui-dialog\" data-search><form class=\"k-searchdialog__form\" method=\"get\" action=\"/search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <input class=\"k-searchdialog__input\" type=\"search\" name=\"q\" placeholder=\"Search the storehouse…\" aria-label=\"Search notes\" autofocus> <span class=\"ui-kbd\">esc</span></form><div class=\"k-searchdialog__foot\"><span>↵ search</span> <span>esc close</span></div></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<dialog class=\"k-searchdialog ui-dialog\" data-search closedby=\"any\"><form class=\"k-searchdialog__form\" method=\"get\" action=\"/search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <input class=\"k-searchdialog__input\" type=\"search\" name=\"q\" placeholder=\"Search the storehouse…\" aria-label=\"Search notes\" autofocus> <span class=\"ui-kbd\">esc</span></form><div class=\"k-searchdialog__foot\"><span>↵ search</span> <span>esc close</span></div></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
