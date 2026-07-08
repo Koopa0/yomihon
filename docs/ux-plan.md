@@ -162,10 +162,11 @@ Corrections this consolidation makes explicit:
   affordance **is the existing fixed-bottom seal bar**, at every width where
   the rail is absent. One muscle memory, not two.
 - **The seal bar's guard changes**: today it renders nothing when the write
-  face is closed; it must instead render the fail-closed notice — otherwise
-  a closed contract on a no-aid note leaves the write face's state with
-  nowhere to appear. A dedicated fixture pins this exact combination
-  (WriteClosed × no TOC × no diagnostics).
+  face is closed; it must instead mirror **every** status-face state the
+  rail panel would show — the fail-closed notice and the no-frontmatter
+  notice alike (ruled at acceptance, 2026-07-08: the "nowhere to appear"
+  argument covers all of them, not just the closed contract). A dedicated
+  fixture pins WriteClosed × no TOC × no diagnostics.
 - The ≤1280 inline TOC is new (the shipped media query silently discarded
   reading aids on laptop widths); it is a native disclosure, closed by
   default, zero JS.
@@ -206,7 +207,10 @@ Corrections this consolidation makes explicit:
    asserted by computed style; **essential progress feedback survives**
    (the seal hold-fill, the reading-position hairline), also asserted; the
    hairline's survival requires its explicit exemption from the blanket
-   kill (§12.9).
+   kill (§12.9). Until the screenshot e2e exists, the CSS-borne halves of
+   these guarantees (the exemption selector, the reduced-motion
+   view-transition rule) are locked by stylesheet-text assertions — crude,
+   but a lock that can go red beats a manual check that cannot.
 4. Wayfinding invariants on the three representative fixtures (concept,
    lesson, no-frontmatter Sources note), plus the multi-section fixture.
 5. The write face is reachable in every layout state — including the
@@ -321,7 +325,10 @@ this shell is `.k-main` (the rails scroll independently); every scroll
 property below lands there, not on the document — on `html` it is a no-op.**
 
 1. **Smooth anchor travel** — `scroll-behavior: smooth` on `.k-main`
-   (headings already carry `scroll-margin-top`).
+   (headings already carry `scroll-margin-top`). Known platform edge,
+   accepted: a second fragment click while a smooth scroll is still in
+   flight is swallowed by Chromium; intercepting navigation to fix it would
+   rebuild the platform, so it stays.
 2. **Scroll containment** — `overscroll-behavior: contain` on `.k-main` and
    both rails: reaching an end stops chaining into the parent.
 3. **Prose wrapping** — `text-wrap: pretty` on article paragraphs (titles
