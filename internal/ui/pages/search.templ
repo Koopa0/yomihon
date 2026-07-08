@@ -65,7 +65,10 @@ templ Search(v SearchView, c layouts.Chrome) {
 							}
 						</div>
 					} else if v.Query != "" {
-						<p class="k-searchpage__empty">No results.</p>
+						<div class="k-searchpage__empty">
+							<p>No results for &quot;{ v.Query }&quot;.</p>
+							<p class="k-searchpage__hint">Try fewer or different words, or narrow by lifecycle with status:draft.</p>
+						</div>
 					}
 				</div>
 			</main>

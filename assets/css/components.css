@@ -214,6 +214,8 @@ html, body { margin: 0; background: var(--bg); }
 }
 .k-filter::placeholder { color: var(--fg-faint); }
 .k-filter:focus-visible { border-color: var(--accent-muted); outline: none; }
+/* the filter's designed no-match state — never a silently empty column */
+.k-filter-empty { margin: 8px 8px 4px; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-12); line-height: 1.6; color: var(--fg-faint); }
 
 /* "here" — the current note's same-directory siblings */
 .k-here { display: flex; flex-direction: column; padding: 2px 0 4px; }
@@ -328,6 +330,16 @@ html, body { margin: 0; background: var(--bg); }
 /* mermaid placeholder / rendered svg */
 .k-prose .mermaid-diagram { margin: 18px 0 0; padding: 12px; overflow-x: auto; text-align: center; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg-subtle); white-space: pre-wrap; background: var(--panel); border: 1px dashed var(--border); border-radius: var(--r-md); }
 .k-prose .mermaid-diagram svg { max-width: 100%; height: auto; }
+/* Shimmer while the client render is genuinely coming: gated on the boot
+   signal so a page without the script keeps the plain source text, and
+   released if a diagram fails to render (data-mermaid-error). */
+[data-js] .k-prose .mermaid-diagram:not([data-mermaid-error]):not(:has(svg)) {
+  color: transparent;
+  background: linear-gradient(100deg, var(--panel) 40%, var(--elevated) 50%, var(--panel) 60%);
+  background-size: 200% 100%;
+  animation: k-shimmer 1.4s linear infinite;
+}
+@keyframes k-shimmer { from { background-position: 120% 0; } to { background-position: -80% 0; } }
 
 /* ============================================================
    Right rail — TOC · status panel · diagnostics
@@ -348,6 +360,8 @@ html, body { margin: 0; background: var(--bg); }
 .k-toc__list { display: flex; flex-direction: column; gap: 1px; border-left: 1px solid var(--border); }
 .k-toc__list a { padding: 5px 12px; margin-left: -1px; border-left: 2px solid transparent; color: var(--fg-subtle); font-size: var(--fs-13); }
 .k-toc__list a:hover { color: var(--fg); }
+/* the scroll-spy's active entry (set by the enhancement script) */
+.k-toc__list a.is-active { color: var(--fg); border-left-color: var(--accent); }
 .k-toc__list a[data-level="3"] { padding-left: 22px; }
 .k-toc__list a[data-level="4"] { padding-left: 32px; }
 
@@ -434,6 +448,8 @@ html, body { margin: 0; background: var(--bg); }
 .k-searchpage__form input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
 .k-searchpage__form .k-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
 .k-searchpage__empty { margin: 28px 4px; font-family: var(--font-serif); color: var(--fg-subtle); }
+.k-searchpage__empty p { margin: 0; }
+.k-searchpage__empty .k-searchpage__hint { margin-top: 6px; font-size: var(--fs-12); color: var(--fg-faint); }
 .k-results { display: flex; flex-direction: column; gap: 2px; margin: 20px 0 0; }
 .k-result { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: var(--r-sm); transition: background var(--dur-base); }
 .k-result:hover { background: var(--overlay); }
@@ -548,6 +564,24 @@ html, body { margin: 0; background: var(--bg); }
 @media (max-width: 720px) {
   .k-conceptsheet { width: 100vw; height: auto; max-height: 82dvh; margin: auto 0 0; border-left: none; border-top: 1px solid var(--border); border-radius: var(--r-lg) var(--r-lg) 0 0; }
 }
+
+/* ============================================================
+   Seal toast — server-rendered on the one-shot redirect signal; enters
+   from its first-frame style and fades itself away. Pure CSS, so it
+   plays with or without the enhancement script.
+   ============================================================ */
+.k-toast {
+  position: fixed; left: 50%; bottom: 84px; translate: -50% 0; z-index: 60;
+  display: flex; align-items: center; gap: 8px; padding: 9px 16px;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: var(--r-md);
+  box-shadow: var(--shadow-2); color: var(--accent);
+  font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium);
+  pointer-events: none;
+  transition: opacity var(--dur-slow) var(--ease-standard), translate var(--dur-slow) var(--ease-standard);
+  animation: k-toastfade 0.6s var(--ease-standard) 2.6s both;
+}
+@starting-style { .k-toast { opacity: 0; translate: -50% 8px; } }
+@keyframes k-toastfade { to { opacity: 0; visibility: hidden; } }
 
 /* ============================================================
    Seal ceremony keyframes (落款／鈐印)

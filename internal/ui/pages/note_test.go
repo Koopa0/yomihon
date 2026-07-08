@@ -111,6 +111,35 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 	}
 }
 
+// TestSealToastRidesTheRedirectSignal locks the toast's one-shot contract:
+// it renders exactly when the page carries the seal redirect's signal, so
+// the confirmation is server-rendered CSS that plays with or without the
+// enhancement script.
+func TestSealToastRidesTheRedirectSignal(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name       string
+		justSealed bool
+	}{
+		{name: "just sealed renders the toast", justSealed: true},
+		{name: "an ordinary view does not", justSealed: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := NoteView{Title: "T", RelPath: "a.md", Status: "ready", JustSealed: tt.justSealed}
+			var buf bytes.Buffer
+			if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			if got := strings.Contains(buf.String(), "k-toast"); got != tt.justSealed {
+				t.Errorf("toast rendered = %v, want %v", got, tt.justSealed)
+			}
+		})
+	}
+}
+
 // TestSealBarMirrorsTheStatusPanelGuard records the seal bar's render
 // condition as the invariant it is: the bar renders exactly when the status
 // panel does — whenever the frontmatter parsed — because at narrow widths and

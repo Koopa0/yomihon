@@ -116,6 +116,46 @@ func currentAttr(isCurrent bool) templ.Attributes {
 	return nil
 }
 
+// pathsChainOpen reports whether any study-path branch holds the current
+// note, which makes the surrounding group part of the wayfinding chain: the
+// reader's location must stay visible even if the group was closed by hand
+// on an earlier page.
+func (s *Sidebar) pathsChainOpen() bool { return len(s.openSyllabi) > 0 }
+
+// disclosureAttrs marks one sidebar disclosure for the single state owner
+// that coordinates <details open>: key names the section stably across pages
+// (the reader's manual toggles persist against it for the session), and
+// chain marks the branch as part of the current note's wayfinding chain,
+// which is always forced open and never persisted — recording a manual
+// close would either hide the reader's own location on the next page or
+// make persistence look broken.
+func disclosureAttrs(key string, chain bool) templ.Attributes {
+	attrs := templ.Attributes{"data-key": key}
+	if chain {
+		attrs["data-chain"] = true
+	}
+	return attrs
+}
+
+// navRestoreScript is the sidebar's pre-paint disclosure restore, inlined so
+// it runs synchronously after the sidebar's markup exists and before the
+// first paint that could flash a wrong state. It reapplies the session's
+// persisted manual toggles to every keyed disclosure — except the
+// wayfinding chain, which is always forced open. The enhancement script
+// owns every later change and writes the same storage key.
+const navRestoreScript = `<script>
+(() => {
+	'use strict';
+	let stored = {};
+	try { stored = JSON.parse(sessionStorage.getItem('kurodo.nav') || '{}') || {}; } catch { stored = {}; }
+	document.querySelectorAll('.k-rail-left details[data-key]').forEach((d) => {
+		if (d.hasAttribute('data-chain')) { d.open = true; return; }
+		const want = stored[d.dataset.key];
+		if (typeof want === 'boolean') { d.open = want; }
+	});
+})();
+</script>`
+
 // hereLabel names the siblings block after the current note's directory: its
 // innermost folder, or the vault root for a file that lives at the top.
 func hereLabel(dir string) string {

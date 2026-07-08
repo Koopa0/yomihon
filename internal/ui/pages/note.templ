@@ -103,7 +103,20 @@ templ Note(v NoteView, c layouts.Chrome) {
 			@rightRail(v)
 		</div>
 		@sealBar(v)
+		@sealToast(v)
 		@conceptSheet(v.Concepts)
+	}
+}
+
+// sealToast is the one-shot seal confirmation: server-rendered from the same
+// redirect signal that plays the chip's settle pulse, it enters from its
+// first-frame style and fades itself away — pure CSS, so it plays with or
+// without the enhancement script (the script's only role is stripping the
+// query parameter so a manual refresh does not replay it; a reload of the
+// sealed URL replaying it is accepted for a single-operator local tool).
+templ sealToast(v NoteView) {
+	if v.JustSealed {
+		<div class="k-toast" role="status">済 · sealed ready</div>
 	}
 }
 
@@ -180,6 +193,7 @@ templ sidebar(sb Sidebar) {
 			data-nav-filter
 			hidden
 		/>
+		<p class="k-filter-empty" data-filter-empty hidden>No matches — Esc clears the filter.</p>
 		if sb.Model != nil {
 			if len(sb.Here) > 0 {
 				<nav class="k-here" aria-label="This folder">
@@ -195,7 +209,7 @@ templ sidebar(sb Sidebar) {
 			}
 			if len(sb.Model.Syllabi) > 0 {
 				<div class="k-railsep" aria-hidden="true"></div>
-				<details open>
+				<details open { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 					<summary class="k-railsummary">
 						@chevron()
 						Syllabus
@@ -209,7 +223,7 @@ templ sidebar(sb Sidebar) {
 			}
 			if len(sb.Lifecycle) > 0 {
 				<div class="k-railsep" aria-hidden="true"></div>
-				<details>
+				<details { disclosureAttrs("lifecycle", false)... }>
 					<summary class="k-railsummary">
 						@chevron()
 						Lifecycle
@@ -230,7 +244,7 @@ templ sidebar(sb Sidebar) {
 			}
 			if len(sb.Model.Reports) > 0 {
 				<div class="k-railsep" aria-hidden="true"></div>
-				<details>
+				<details { disclosureAttrs("reports", false)... }>
 					<summary class="k-railsummary">
 						@chevron()
 						Reports
@@ -254,7 +268,7 @@ templ sidebar(sb Sidebar) {
 				</details>
 			}
 			<div class="k-railsep" aria-hidden="true"></div>
-			<details open?={ sb.folderTreeOpen() }>
+			<details open?={ sb.folderTreeOpen() } { disclosureAttrs("folders", sb.folderTreeOpen())... }>
 				<summary class="k-railsummary">
 					@chevron()
 					Folders
@@ -265,6 +279,12 @@ templ sidebar(sb Sidebar) {
 			</details>
 		}
 	</aside>
+	// The pre-paint restore: reapplies the reader's persisted disclosure
+	// toggles before the sidebar first paints, so a section the reader
+	// closed never flashes open or replays its opening animation on the
+	// next page. The wayfinding chain always wins over a stored value; the
+	// enhancement script owns every change after this point.
+	@templ.Raw(navRestoreScript)
 }
 
 templ chevron() {
@@ -290,7 +310,7 @@ templ folderList(sb Sidebar) {
 // The branch holding the current note opens by default, revealing it in place.
 templ folderNode(sb Sidebar, f nav.Folder) {
 	if len(f.Sub) > 0 || len(f.Notes) > 0 {
-		<details open?={ sb.folderOpen(f.RelPath) }>
+		<details open?={ sb.folderOpen(f.RelPath) } { disclosureAttrs("dir:"+f.RelPath, sb.folderOpen(f.RelPath))... }>
 			<summary class="ui-navitem">
 				@chevron()
 				{ f.Name }
@@ -317,7 +337,7 @@ templ folderNode(sb Sidebar, f nav.Folder) {
 // holds the current note. The summary toggles the course; a link inside opens
 // the full study-path page, which the disclosure would otherwise put out of reach.
 templ syllabusTree(sb Sidebar, s nav.Syllabus) {
-	<details open?={ sb.syllabusOpen(s.RelPath) }>
+	<details open?={ sb.syllabusOpen(s.RelPath) } { disclosureAttrs("syl:"+s.RelPath, sb.syllabusOpen(s.RelPath))... }>
 		<summary class="k-railitem">
 			@chevron()
 			<span class="k-railitem__name">{ s.Title }</span>
@@ -334,7 +354,7 @@ templ syllabusTree(sb Sidebar, s nav.Syllabus) {
 // sectionNode renders one syllabus section as a disclosure, opened when it lies
 // on the path to the current note, and recurses for nested sections.
 templ sectionNode(sb Sidebar, syl string, chain []string, sec nav.Section) {
-	<details open?={ sb.sectionOpen(syl, chain) }>
+	<details open?={ sb.sectionOpen(syl, chain) } { disclosureAttrs("sylsec:"+sectionKey(syl, chain), sb.sectionOpen(syl, chain))... }>
 		<summary class="k-treeitem">
 			@chevron()
 			{ sec.Heading }
