@@ -1,6 +1,6 @@
 // Package report serves the reports face: the daily-briefing HTML
 // under System/reports/, presented verbatim inside a sandboxed iframe. It is the
-// first route in kurodo that serves a raw vault file, so its safety rests on one
+// first route in yomihon that serves a raw vault file, so its safety rests on one
 // invariant — a requested <name> is only ever looked up against the snapshot's
 // already-enumerated report allowlist (the .html briefings nav found under
 // System/reports/daily-briefing/, nav.Report.Briefing); request input never
@@ -16,7 +16,7 @@
 // the /raw resource itself with a Content-Security-Policy sandbox header — not
 // only through the shell's iframe attribute — so the containment holds however a
 // briefing is loaded (framed by the shell, framed cross-origin, or opened
-// top-level), never depending on the embedder. kurodo styles only the frame —
+// top-level), never depending on the embedder. yomihon styles only the frame —
 // the renderer never touches the content inside it.
 package report
 

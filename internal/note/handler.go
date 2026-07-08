@@ -134,7 +134,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// The reading page renders notes, and a note is a .md file. Any other vault
 	// resource served here would go through the markdown pipeline with WithUnsafe,
 	// which passes raw HTML — including <script> — straight into this first-party,
-	// kurodo-origin page: a .html briefing would then run its scripts same-origin
+	// yomihon-origin page: a .html briefing would then run its scripts same-origin
 	// to the whole vault-reading surface, the very execution the reports face
 	// sandboxes. Non-note resources are not read here — briefings have their own
 	// sandboxed /reports route, and .canvas/.base are not markdown — so serve only

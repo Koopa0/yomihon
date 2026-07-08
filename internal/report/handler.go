@@ -79,7 +79,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	// Enforce the sandbox on the resource itself, not only through the shell's
 	// iframe attribute: a CSP sandbox lands this script-bearing briefing in a
-	// unique opaque origin however it is loaded — inside kurodo's shell, framed
+	// unique opaque origin however it is loaded — inside yomihon's shell, framed
 	// cross-origin, or opened top-level ("open frame in new tab"). Without it the
 	// containment would depend on the embedder, so a hostile briefing (a
 	// prompt-injected brief, or a compromised CDN script it loads) opened outside
@@ -87,7 +87,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	// could read and exfiltrate it — including Diary/, a hard never-egress.
 	// allow-scripts, never allow-same-origin, mirrors the shell iframe exactly,
 	// so the briefing still renders; frame-ancestors 'self' also
-	// refuses cross-origin framing of raw vault HTML — kurodo's own shell is the
+	// refuses cross-origin framing of raw vault HTML — yomihon's own shell is the
 	// only legitimate embedder.
 	w.Header().Set("Content-Security-Policy", "sandbox allow-scripts; frame-ancestors 'self'")
 	_, _ = w.Write(b)

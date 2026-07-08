@@ -70,7 +70,7 @@ const (
 )
 
 // Diagnostic is one rendering-time note about content the dialect passes
-// couldn't cleanly handle. Display-only: kurodo reports, it
+// couldn't cleanly handle. Display-only: yomihon reports, it
 // never fixes or rejects. It lives in this package rather than
 // internal/graph because a diagnostic is fundamentally a rendering-time
 // decision — it is render, not graph, that decides an unresolved link,

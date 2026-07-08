@@ -21,7 +21,7 @@ import (
 // can be) — unlike substituting the real HTML directly inline, which
 // risks goldmark re-parsing already-rendered markup as markdown text.
 func blockPlaceholder(i int) string {
-	return fmt.Sprintf(`<div data-kurodo-block="%d"></div>`, i)
+	return fmt.Sprintf(`<div data-yomihon-block="%d"></div>`, i)
 }
 
 func substituteBlocks(htmlOut string, blocks []string) string {
@@ -177,11 +177,11 @@ func (r *Renderer) tryOpenFence(st *preprocessState) bool {
 // stays valid HTML and human-readable) and once URL-encoded in
 // data-mermaid-code (net/url.QueryEscape's output charset — letters,
 // digits, "-_.~%+" — never needs further HTML-attribute escaping, so no
-// double-encoding risk). assets/js/kurodo.js reads that attribute,
+// double-encoding risk). assets/js/yomihon.js reads that attribute,
 // URL-decodes it, and replaces the element's content with mermaid's
 // rendered SVG client-side — mirroring koopa0.dev's markdown.service.ts
 // processMermaidDiagrams/renderMermaid DOM shape exactly (see that file's
-// doc comments); the loading mechanism differs only because kurodo has no
+// doc comments); the loading mechanism differs only because yomihon has no
 // bundler.
 func (r *Renderer) consumeMermaid(st *preprocessState, marker byte) {
 	st.i++

@@ -13,7 +13,7 @@
 // this scale, and hashing would force reading every file on every scan
 // (reconsider past ~10k files).
 //
-// The scanner is fault-tolerant by the same asymmetry as the rest of kurodo
+// The scanner is fault-tolerant by the same asymmetry as the rest of yomihon
 // (reading is fail-open): a failed build logs and publishes an empty/partial
 // snapshot, and reading never depends on the build succeeding.
 package snapshot
