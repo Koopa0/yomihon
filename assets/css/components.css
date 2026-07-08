@@ -432,7 +432,7 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    ⌘K search dialog (native <dialog>)
    ============================================================ */
-.k-searchdialog { border: none; padding: 0; background: transparent; max-width: 600px; width: min(600px, 92vw); margin-top: 12vh; }
+.k-searchdialog { border: none; padding: 0; max-width: 600px; width: min(600px, 92vw); margin: 12vh auto auto; }
 .k-searchdialog::backdrop { background: rgb(0 0 0 / 0.5); }
 .k-searchdialog__form { display: flex; align-items: center; gap: 11px; padding: 15px 18px; }
 .k-searchdialog__form svg { width: 17px; height: 17px; color: var(--fg-subtle); flex: none; }
