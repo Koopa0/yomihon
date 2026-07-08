@@ -560,7 +560,7 @@ func syllabusRail(v SyllabusView) templ.Component {
 			templ_7745c5c3_Var26 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<aside class=\"k-rail-left\"><div class=\"ui-side__label k-syl-raillabel\">Study paths</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<aside class=\"k-rail-left\" id=\"nav-rail\"><div class=\"ui-side__label k-syl-raillabel\">Study paths</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -494,7 +494,7 @@ func sidebar(sb Sidebar) templ.Component {
 			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<aside class=\"k-rail-left\"><input class=\"k-filter\" type=\"text\" placeholder=\"Filter navigation…\" aria-label=\"Filter navigation\" autocomplete=\"off\" spellcheck=\"false\" data-nav-filter hidden><p class=\"k-filter-empty\" data-filter-empty hidden>No matches — Esc clears the filter.</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<aside class=\"k-rail-left\" id=\"nav-rail\"><input class=\"k-filter\" type=\"text\" placeholder=\"Filter navigation…\" aria-label=\"Filter navigation\" autocomplete=\"off\" spellcheck=\"false\" data-nav-filter hidden><p class=\"k-filter-empty\" data-filter-empty hidden>No matches — Esc clears the filter.</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
