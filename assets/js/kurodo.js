@@ -11,6 +11,13 @@
        sees exactly the no-JS submit; with JS off the button is a one-press seal.
      - the ?sealed=1 one-shot: the panel already renders its settle animation
        server-side; JS just strips the param so a refresh does not replay it.
+     - sidebar disclosures: one state owner — the wayfinding chain is always
+       forced open and never recorded, manual toggles persist for the session
+       (an inline sidebar script restores them pre-paint), and the filter's
+       opens are transient.
+     - TOC scroll-spy: marks the heading being read; a TOC click locks its
+       target as active until the scroll settles, and holds the arrival echo
+       back for the same window.
      - ⌘K search: opens the native <dialog>; the header link to /search is the
        no-JS fallback.
      - mermaid: renders ```mermaid fences into SVG, lazily, only on pages that
@@ -118,37 +125,81 @@
     history.replaceState(null, '', u);
   }
 
+  // ---- sidebar disclosure state: one owner for <details open> ---------------
+  // Three forces act on the sidebar's disclosures: the server's wayfinding
+  // chain (data-chain — always forced open, never persisted), the reader's
+  // manual toggles (persisted per data-key for the session; an inline script
+  // in the sidebar reapplies them before first paint), and the filter's
+  // transient opens while a query is active. This module is the only writer
+  // of the stored state, and the filter asks it for the resting open state
+  // instead of keeping a competing map of its own.
+  const navState = (() => {
+    const KEY = 'kurodo.nav';
+    let filtering = false;
+    const serverOpen = new Map();
+    function read() {
+      try { return JSON.parse(sessionStorage.getItem(KEY) || '{}') || {}; } catch { return {}; }
+    }
+    function init(rail) {
+      rail.querySelectorAll('details[data-key]').forEach((d) => { serverOpen.set(d, d.open); });
+      // A single delegated listener: toggle events bubble from every details.
+      rail.addEventListener('toggle', (e) => {
+        const d = e.target;
+        if (filtering || !d.dataset || !d.dataset.key) return;
+        if (d.hasAttribute('data-chain')) return; // the active chain is never recorded
+        const stored = read();
+        stored[d.dataset.key] = d.open;
+        sessionStorage.setItem(KEY, JSON.stringify(stored));
+      }, true);
+    }
+    // resting is the open state with no filter active: the wayfinding chain,
+    // then the session's stored toggle, then the server's rendered default.
+    function resting(d) {
+      if (d.hasAttribute('data-chain')) return true;
+      const want = read()[d.dataset.key];
+      return typeof want === 'boolean' ? want : serverOpen.get(d);
+    }
+    return { init, resting, setFiltering(on) { filtering = on; } };
+  })();
+
   // ---- sidebar filter (progressive enhancement) ----------------------------
-  // A text box, hidden until this runs, that narrows the sidebar to entries
-  // whose visible text matches. A group (a disclosure or the "here" list) with
-  // no surviving entry collapses away; a match keeps its ancestor disclosures
-  // open, so the path to it stays visible. Enter follows the first match; Esc
-  // clears and hands focus back to the page. Zero network, zero persisted state.
+  // A text box, hidden until this runs, that narrows the sidebar to rows
+  // whose visible text matches — links and non-link rows alike (an
+  // unresolved lesson is a span, and it matters for wayfinding). A group (a
+  // disclosure or the "here" list) with no surviving row collapses away; a
+  // match keeps its ancestor disclosures open, so the path to it stays
+  // visible. Clearing the query hands every disclosure back to its resting
+  // state; a query with no match says so instead of leaving a silently
+  // empty column. Enter follows the first link match; Esc clears and hands
+  // focus back to the page.
   function initNavFilter() {
     const rail = document.querySelector('.k-rail-left');
     const input = rail && rail.querySelector('[data-nav-filter]');
     if (!input) return;
     input.hidden = false;
+    navState.init(rail);
+    const empty = rail.querySelector('[data-filter-empty]');
     const groups = [...rail.querySelectorAll('details, .k-here')];
-    const wasOpen = new Map();
-    rail.querySelectorAll('details').forEach((d) => { wasOpen.set(d, d.open); });
-    const links = [...rail.querySelectorAll('a')];
+    const rows = [...rail.querySelectorAll('a, span.ui-navitem')];
     function apply() {
       const q = input.value.trim().toLowerCase();
+      navState.setFiltering(q !== '');
+      if (empty) empty.hidden = true;
       if (!q) {
-        links.forEach((a) => { a.hidden = false; });
+        rows.forEach((r) => { r.hidden = false; });
         groups.forEach((g) => {
           g.hidden = false;
-          if (g.tagName === 'DETAILS') g.open = wasOpen.get(g);
+          if (g.tagName === 'DETAILS') g.open = navState.resting(g);
         });
         return;
       }
-      links.forEach((a) => { a.hidden = !a.textContent.toLowerCase().includes(q); });
+      rows.forEach((r) => { r.hidden = !r.textContent.toLowerCase().includes(q); });
       groups.forEach((g) => {
-        const hit = [...g.querySelectorAll('a')].some((a) => !a.hidden);
+        const hit = [...g.querySelectorAll('a, span.ui-navitem')].some((r) => !r.hidden);
         g.hidden = !hit;
         if (g.tagName === 'DETAILS') g.open = hit;
       });
+      if (empty) empty.hidden = rows.some((r) => !r.hidden);
     }
     input.addEventListener('input', apply);
     input.addEventListener('keydown', (e) => {
@@ -167,6 +218,65 @@
         apply();
         input.blur();
       }
+    });
+  }
+
+  // ---- TOC scroll-spy, coordinated with smooth scrolling --------------------
+  // Marks the table-of-contents entry whose heading the reader is at, in the
+  // rail and the inline disclosure alike. On a TOC click the clicked target
+  // is locked as the active entry until the scroll settles (scrollend, with
+  // a timeout fallback), so the spy never flickers through every heading in
+  // between; the root carries data-traveling for the same window, which
+  // holds the arrival echo back until the eye has arrived.
+  function initTocSpy() {
+    const main = document.querySelector('.k-main');
+    const links = [...document.querySelectorAll('.k-toc__list a[href^="#"]')];
+    if (!main || links.length === 0) return;
+    const targetId = (a) => decodeURIComponent(a.getAttribute('href').slice(1));
+    const headings = [...new Set(links.map(targetId))]
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+    if (headings.length === 0) return;
+    let locked = null;
+    let settleTimer = null;
+    function mark(id) {
+      links.forEach((a) => {
+        const on = targetId(a) === id;
+        a.classList.toggle('is-active', on);
+        if (on) { a.setAttribute('aria-current', 'true'); } else { a.removeAttribute('aria-current'); }
+      });
+    }
+    // The active heading is the last one at or above the reading line (a
+    // quarter down the column). The observer only says when that answer can
+    // have changed; the band edges are where headings cross it.
+    function recompute() {
+      if (locked) return;
+      const top = main.getBoundingClientRect().top;
+      const line = main.clientHeight * 0.25;
+      let current = headings[0].id;
+      for (const h of headings) {
+        if (h.getBoundingClientRect().top - top <= line) { current = h.id; } else { break; }
+      }
+      mark(current);
+    }
+    const io = new IntersectionObserver(recompute, { root: main, rootMargin: '0px 0px -75% 0px' });
+    headings.forEach((h) => { io.observe(h); });
+    recompute();
+    function settle() {
+      clearTimeout(settleTimer);
+      locked = null;
+      delete root.dataset.traveling;
+      recompute();
+    }
+    links.forEach((a) => {
+      a.addEventListener('click', () => {
+        locked = targetId(a);
+        mark(locked);
+        root.dataset.traveling = 'on';
+        clearTimeout(settleTimer);
+        main.addEventListener('scrollend', settle, { once: true });
+        settleTimer = setTimeout(settle, 900);
+      });
     });
   }
 
@@ -247,6 +357,9 @@
         el.replaceChildren();
         el.appendChild(document.importNode(svgEl, true));
       } catch (err) {
+        // Hand the block back to its plain source text: the shimmer that
+        // promised a render must not keep playing over a failure.
+        el.setAttribute('data-mermaid-error', '');
         console.warn('[kurodo] mermaid diagram failed to render:', err);
       }
     }
@@ -374,6 +487,7 @@
     initNavFilter();
     initSeal();
     stripSealSignal();
+    initTocSpy();
     initSearch();
     initKeys();
     initTTS();

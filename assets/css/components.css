@@ -156,11 +156,13 @@ html, body { margin: 0; background: var(--bg); }
    Shell + rails
    ============================================================ */
 .k-shell { display: grid; grid-template-columns: 264px minmax(0, 1fr) 316px; flex: 1; min-height: 0; }
-/* When the right rail has nothing to show — no headings, no status panel, no
-   diagnostics — the reading column reclaims the rail's track instead of sitting
-   beside a tall empty gutter. */
+/* The right rail exists to hold reading aids — the table of contents and the
+   diagnostics list. A note with neither drops the rail's column entirely: the
+   reading column takes the width, and the fixed-bottom seal bar carries the
+   status face at every viewport width, not only narrow ones. */
 .k-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
 .k-shell--rail-empty .k-rail-right { display: none; }
+.k-shell--rail-empty ~ .k-sealbar { display: flex; }
 .k-nav-scrim { display: none; position: fixed; inset: 56px 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
 
 .k-rail-left {
@@ -212,6 +214,8 @@ html, body { margin: 0; background: var(--bg); }
 }
 .k-filter::placeholder { color: var(--fg-faint); }
 .k-filter:focus-visible { border-color: var(--accent-muted); outline: none; }
+/* the filter's designed no-match state — never a silently empty column */
+.k-filter-empty { margin: 8px 8px 4px; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-12); line-height: 1.6; color: var(--fg-faint); }
 
 /* "here" — the current note's same-directory siblings */
 .k-here { display: flex; flex-direction: column; padding: 2px 0 4px; }
@@ -326,13 +330,38 @@ html, body { margin: 0; background: var(--bg); }
 /* mermaid placeholder / rendered svg */
 .k-prose .mermaid-diagram { margin: 18px 0 0; padding: 12px; overflow-x: auto; text-align: center; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg-subtle); white-space: pre-wrap; background: var(--panel); border: 1px dashed var(--border); border-radius: var(--r-md); }
 .k-prose .mermaid-diagram svg { max-width: 100%; height: auto; }
+/* Shimmer while the client render is genuinely coming: gated on the boot
+   signal so a page without the script keeps the plain source text, and
+   released if a diagram fails to render (data-mermaid-error). */
+[data-js] .k-prose .mermaid-diagram:not([data-mermaid-error]):not(:has(svg)) {
+  color: transparent;
+  background: linear-gradient(100deg, var(--panel) 40%, var(--elevated) 50%, var(--panel) 60%);
+  background-size: 200% 100%;
+  animation: k-shimmer 1.4s linear infinite;
+}
+@keyframes k-shimmer { from { background-position: 120% 0; } to { background-position: -80% 0; } }
 
 /* ============================================================
    Right rail — TOC · status panel · diagnostics
    ============================================================ */
+/* Inline reading aids — the stand-in for the right rail at widths where the
+   rail is hidden: the table of contents as a closed native disclosure at the
+   top of the article, the diagnostics list beneath it. Wide viewports show
+   the rail and hide this block (the media rule sits with the other width
+   switches at the end of this sheet). */
+.k-inlineaids { display: none; }
+.k-toc-inline__summary {
+  display: flex; align-items: center; gap: 7px; padding: 8px 0;
+  font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em;
+  color: var(--fg-faint); text-transform: uppercase;
+}
+.k-toc-inline .k-toc__list { margin: 4px 0 6px; }
+
 .k-toc__list { display: flex; flex-direction: column; gap: 1px; border-left: 1px solid var(--border); }
 .k-toc__list a { padding: 5px 12px; margin-left: -1px; border-left: 2px solid transparent; color: var(--fg-subtle); font-size: var(--fs-13); }
 .k-toc__list a:hover { color: var(--fg); }
+/* the scroll-spy's active entry (set by the enhancement script) */
+.k-toc__list a.is-active { color: var(--fg); border-left-color: var(--accent); }
 .k-toc__list a[data-level="3"] { padding-left: 22px; }
 .k-toc__list a[data-level="4"] { padding-left: 32px; }
 
@@ -389,13 +418,16 @@ html, body { margin: 0; background: var(--bg); }
 .k-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 12px; line-height: 1.6; color: var(--fg-faint); }
 
 /* ============================================================
-   Narrow-screen seal bar (≤1280) — fallback for the hidden right rail
+   Seal bar — the status face wherever the right rail is absent: narrow
+   viewports (the rail is hidden) and no-aid notes (the rail's column is
+   dropped, the sibling rule under .k-shell--rail-empty reveals this bar).
    ============================================================ */
 .k-sealbar { display: none; align-items: center; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border);
   background: color-mix(in oklch, var(--panel) 92%, transparent); backdrop-filter: blur(10px); }
 .k-sealbar__spacer { flex: 1; }
 .k-sealbar .k-sealbtn { width: auto; height: 40px; padding: 0 16px; flex: none; }
+.k-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
 
 /* ============================================================
    ⌘K search dialog (native <dialog>)
@@ -416,6 +448,8 @@ html, body { margin: 0; background: var(--bg); }
 .k-searchpage__form input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
 .k-searchpage__form .k-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
 .k-searchpage__empty { margin: 28px 4px; font-family: var(--font-serif); color: var(--fg-subtle); }
+.k-searchpage__empty p { margin: 0; }
+.k-searchpage__empty .k-searchpage__hint { margin-top: 6px; font-size: var(--fs-12); color: var(--fg-faint); }
 .k-results { display: flex; flex-direction: column; gap: 2px; margin: 20px 0 0; }
 .k-result { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: var(--r-sm); transition: background var(--dur-base); }
 .k-result:hover { background: var(--overlay); }
@@ -521,8 +555,12 @@ html, body { margin: 0; background: var(--bg); }
 .k-conceptsheet {
   border: none; padding: 0; margin: 0 0 0 auto; height: 100dvh; max-height: 100dvh;
   width: min(460px, 92vw); background: var(--panel); border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-2); box-sizing: border-box; display: flex; flex-direction: column;
+  box-shadow: var(--shadow-2); box-sizing: border-box;
 }
+/* The flex layout applies only while the dialog is open: an unconditional
+   display would defeat the browser's own hiding of a closed dialog and
+   paint the sheet over the right rail. */
+.k-conceptsheet[open] { display: flex; flex-direction: column; }
 .k-conceptsheet::backdrop { background: rgb(0 0 0 / 0.4); }
 .k-conceptsheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: none; }
 .k-conceptsheet__title { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); }
@@ -532,20 +570,40 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ============================================================
+   Seal toast — server-rendered on the one-shot redirect signal; enters
+   from its first-frame style and fades itself away. Pure CSS, so it
+   plays with or without the enhancement script.
+   ============================================================ */
+.k-toast {
+  position: fixed; left: 50%; bottom: 84px; translate: -50% 0; z-index: 60;
+  display: flex; align-items: center; gap: 8px; padding: 9px 16px;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: var(--r-md);
+  box-shadow: var(--shadow-2); color: var(--accent);
+  font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium);
+  pointer-events: none;
+  transition: opacity var(--dur-slow) var(--ease-standard), translate var(--dur-slow) var(--ease-standard);
+  animation: k-toastfade 0.6s var(--ease-standard) 2.6s both;
+}
+@starting-style { .k-toast { opacity: 0; translate: -50% 8px; } }
+@keyframes k-toastfade { to { opacity: 0; visibility: hidden; } }
+
+/* ============================================================
    Seal ceremony keyframes (落款／鈐印)
    ============================================================ */
 @keyframes k-sealBed  { 0% { transform: scale(1.18); opacity: 0; } 55% { transform: scale(.965); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 @keyframes k-inkBloom { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 7px oklch(0.55 0.18 33 / 0); } }
 @keyframes k-hairline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes k-fadeup   { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-/* Reduced motion kills decorative animation/transition — but NOT the seal hold-fill.
-   Its width transition is functional progress feedback for the ~430ms press-and-hold
-   misclick guard (a reduced-motion user must still see the hold advancing, or the
-   guard is half-blind — WCAG exempts motion that conveys essential state). So
-   .k-sealfill is excluded here and keeps the duration kurodo.js sets inline. Do not
-   fold it back into the blanket kill (R2-10 — this is the exception it warned about).
-   The post-seal ceremony (k-sealBed/inkBloom/hairline animations) stays killed. */
-@media (prefers-reduced-motion: reduce) { .kurodo *:not(.k-sealfill), .kurodo *::before, .kurodo *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+/* Reduced motion kills decorative animation/transition — but not the two
+   essential state displays. The seal hold-fill's width transition is the
+   ~430ms press-and-hold misclick guard made visible (a reduced-motion
+   reader must still see the hold advancing, or the guard is half-blind —
+   WCAG exempts motion that conveys essential state), and the reading-
+   position hairline is scroll state, not decoration (its scroll timeline
+   is not driven by durations anyway, but the exemption is explicit).
+   Neither may be folded back into the blanket kill. The post-seal
+   ceremony (k-sealBed/inkBloom/hairline animations) stays killed. */
+@media (prefers-reduced-motion: reduce) { .kurodo *:not(.k-sealfill):not(.k-readline), .kurodo *::before, .kurodo *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ============================================================
    Syllabus page (study-path) — a full-page render of nav.Syllabus.
@@ -624,12 +682,115 @@ html, body { margin: 0; background: var(--bg); }
 .k-progress__fill[data-fill="100"] { width: 100%; }
 
 /* ============================================================
+   Reading smoothness — scroll feel, wrapping, arrival
+   ------------------------------------------------------------
+   The scroll container in this shell is .k-main (the rails scroll
+   independently), so every scroll property lands there — on the
+   document it would be a no-op.
+   ============================================================ */
+.k-main {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scroll-timeline: --k-read block;
+}
+.k-rail-left, .k-rail-right { overscroll-behavior: contain; }
+
+/* paragraphs wrap with the last lines weighed; titles keep their balance */
+.k-prose p { text-wrap: pretty; }
+
+/* CJK punctuation sets solid where full widths would double up, and only a
+   paragraph's first line keeps its full-width opening bracket — the
+   classical book convention. Adjacent-pair trimming largely rides the
+   font's own contextual half-width feature once the content language is
+   CJK; this declaration pins the line-start convention explicitly. */
+.k-prose { text-spacing-trim: space-first; }
+
+/* phrase-aware Japanese line breaking, wherever content is language-tagged */
+.kurodo [lang="ja"] { word-break: auto-phrase; }
+
+/* Arrival echo — a brief wash on the heading a table-of-contents jump lands
+   on. While the viewport is still travelling the enhancement script holds it
+   back (the root carries data-traveling until the scroll settles), so the
+   echo plays when the eye arrives; with no script the jump is immediate and
+   the echo simply plays at once. */
+.k-prose :target { animation: k-arrive 1.1s var(--ease-standard); }
+[data-traveling] .k-prose :target { animation: none; }
+@keyframes k-arrive {
+  from { background: var(--accent-muted); box-shadow: 0 0 0 6px var(--accent-muted); }
+  to { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+/* Entry transitions for the top-layer surfaces: first-frame styles let the
+   open state transition in instead of popping. */
+.k-searchdialog[open] { transition: opacity var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard); }
+.k-conceptsheet[open] { transition: opacity var(--dur-slow) var(--ease-standard); }
+@starting-style {
+  .k-searchdialog[open] { opacity: 0; transform: translateY(-6px); }
+  .k-conceptsheet[open] { opacity: 0; }
+}
+
+/* Reading-position hairline — the header's bottom edge doubles as the
+   indicator: a vermilion fill rides the existing 1px seam, driven by the
+   reading column's scroll position through a named scroll timeline (the
+   header is not a descendant of the scroller, so the scope is lifted to
+   their common ancestor). It is scroll position, not completion — the
+   syllabus bars own "done" — and it is essential state display: reduced
+   motion keeps it, via the explicit exemption in the blanket kill below.
+   A page with nothing to scroll leaves the timeline inactive and the
+   fill invisible. */
+.kurodo { timeline-scope: --k-read; }
+.k-readline {
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: var(--accent); transform-origin: left; transform: scaleX(0);
+  pointer-events: none;
+  animation: k-readline linear both;
+  animation-timeline: --k-read;
+}
+@keyframes k-readline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ============================================================
+   Cross-document view transitions — navigation morphs, chrome holds
+   ------------------------------------------------------------
+   Naming a region makes it an independent transition group, not a
+   stable one: a named group whose pixels differ cross-fades into a
+   double exposure. So the chrome — header, left rail, seal bar —
+   hard-cuts (its old/new snapshot animations turned off; near-identical
+   pixels read as perfect stillness, per-note differences as a crisp
+   update, never a ghost), while the reading column keeps the default
+   group morph so the width change between a railed and a rail-less page
+   glides instead of double-exposing two reflowed text blocks. The title
+   carries its own name, so moving between pages reads as the title
+   travelling. Form POSTs never fire navigation transitions, so the
+   seal's redirect lands plainly — that is the write path's contract,
+   not a gap. Reduced motion turns navigation transitions off entirely.
+   ============================================================ */
+@view-transition { navigation: auto; }
+
+.k-header { view-transition-name: k-header; }
+.k-rail-left { view-transition-name: k-rail-left; }
+.k-sealbar { view-transition-name: k-sealbar; }
+.k-main { view-transition-name: k-main; }
+.k-title { view-transition-name: k-title; }
+
+::view-transition-old(k-header), ::view-transition-new(k-header),
+::view-transition-old(k-rail-left), ::view-transition-new(k-rail-left),
+::view-transition-old(k-sealbar), ::view-transition-new(k-sealbar) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media (max-width: 1280px) {
   .k-shell { grid-template-columns: 248px minmax(0, 1fr); }
   .k-rail-right { display: none !important; }
   .k-sealbar { display: flex; }
+  .k-inlineaids { display: flex; flex-direction: column; gap: 22px; margin: 26px 0 6px; }
 }
 @media (max-width: 900px) {
   .k-shell, .k-shell2 { grid-template-columns: 1fr; }
@@ -652,4 +813,5 @@ html, body { margin: 0; background: var(--bg); }
 @media (prefers-reduced-motion: reduce) {
   .k-rail-left { transition: none; }
   .k-rail-left details::details-content { transition: none; }
+  .k-main { scroll-behavior: auto; }
 }

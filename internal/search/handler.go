@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/koopa0/kurodo/internal/nav"
 	"github.com/koopa0/kurodo/internal/ui/pages"
 )
 
@@ -11,21 +12,27 @@ import (
 // index each request through the provider closure (main wires it to the live
 // Snapshot's Search), so an edited note is reflected within one scan
 // cycle. All business logic stays in this package (Parse + Index.Search); the
-// handler only parses the query, calls, and renders.
+// handler only parses the query, calls, and renders. The nav provider feeds
+// the shared sidebar, so the results page carries the same shell as every
+// other page.
 type Handler struct {
 	index func() *Index
+	nav   func() *nav.Model
 	log   *slog.Logger
 }
 
-// NewHandler wires the search HTTP surface. index must not be nil — it is the
-// live-Snapshot accessor, always a real closure (a wiring bug otherwise, caught
-// here rather than three calls deep in the first request; mirrors the other
-// handlers' nil-dependency guards).
-func NewHandler(index func() *Index, log *slog.Logger) *Handler {
+// NewHandler wires the search HTTP surface. index and nav must not be nil —
+// they are the live-Snapshot accessors, always real closures (a wiring bug
+// otherwise, caught here rather than three calls deep in the first request;
+// mirrors the other handlers' nil-dependency guards).
+func NewHandler(index func() *Index, navProvider func() *nav.Model, log *slog.Logger) *Handler {
 	if index == nil {
 		panic("search: NewHandler requires a non-nil index provider")
 	}
-	return &Handler{index: index, log: log}
+	if navProvider == nil {
+		panic("search: NewHandler requires a non-nil nav provider")
+	}
+	return &Handler{index: index, nav: navProvider, log: log}
 }
 
 // Register mounts the search route.
@@ -40,7 +47,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	results := h.index().Search(Parse(q))
 
-	view := pages.SearchView{Query: q, Results: viewResults(results)}
+	view := pages.SearchView{Query: q, Results: viewResults(results), Nav: h.nav()}
 	if err := pages.Search(view, pages.ChromeFromRequest(r, "Search")).Render(r.Context(), w); err != nil {
 		h.log.Error("write search page", "query", q, "error", err)
 	}

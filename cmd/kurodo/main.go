@@ -315,7 +315,7 @@ func run(log *slog.Logger) error {
 		Concepts:         concepts,
 	}).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
-	search.NewHandler(searchProvider, log).Register(mux)
+	search.NewHandler(searchProvider, navProvider, log).Register(mux)
 	syllabus.NewHandler(syllabus.Deps{Nav: navProvider, Log: log}).Register(mux)
 	report.NewHandler(report.Deps{Root: cfg.root, Nav: navProvider, Log: log}).Register(mux)
 	asset.Register(mux)

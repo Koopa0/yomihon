@@ -1,8 +1,10 @@
 package pages
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -217,6 +219,42 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 				t.Errorf("current(%q) = false, want true", tt.current)
 			}
 		})
+	}
+}
+
+// TestSidebarMarksDisclosureStateForTheScript locks the HTML contract the
+// disclosure state owner reads: every sidebar disclosure carries a stable
+// data-key, the current note's wayfinding chain also carries data-chain
+// (forced open, never persisted), discretionary branches carry no chain
+// marker, and the pre-paint restore script and the filter's no-match notice
+// ride with the sidebar. Rendered attributes come from a map, so the marker
+// pair appears in alphabetical order (data-chain before data-key).
+func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
+	t.Parallel()
+	model := buildModel(t)
+	sb := NewSidebar(model, "Writing/lessons/go/L01.md", nil, 0, false)
+
+	var buf bytes.Buffer
+	if err := sidebar(sb).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+
+	for _, want := range []string{
+		`data-chain data-key="paths"`,
+		`data-chain data-key="syl:Maps/Go path.md"`,
+		`data-chain data-key="dir:Writing/lessons/go"`,
+		`data-chain data-key="folders"`,
+		`data-key="dir:Concepts"`,
+		`data-filter-empty`,
+		`kurodo.nav`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered sidebar is missing %q", want)
+		}
+	}
+	if strings.Contains(html, `data-chain data-key="dir:Concepts"`) {
+		t.Error("dir:Concepts carries data-chain, but it is not an ancestor of the current note")
 	}
 }
 
