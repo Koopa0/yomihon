@@ -114,6 +114,12 @@ installer steps above it.
   server-rendered MPA; no client-framework runtime. Motion, loading, and
   transition polish are in-scope quality (`ux-plan.md`), held to the same
   ladder and to `prefers-reduced-motion`.
+- **Web platform baseline (Koopa, 2026-07-08): the target is Baseline 2026.**
+  Core UX prefers Baseline Widely-available features; Newly-available
+  features are welcome as progressive enhancement; Limited-availability
+  features require explicit justification and a fallback, recorded where
+  they are used. The ladder's Chromium-native rung reads through this lens:
+  a Chromium-only API may enhance a core action, never carry it alone.
 
 ## 5. Verification protocol (before any push)
 
