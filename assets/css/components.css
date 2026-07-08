@@ -752,8 +752,18 @@ html, body { margin: 0; background: var(--bg); }
   position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
   background: var(--accent); transform-origin: left; transform: scaleX(0);
   pointer-events: none;
-  animation: k-readline linear both;
-  animation-timeline: --k-read;
+}
+/* The hairline is driven only where a scroll timeline exists. Guarding the
+   animation keeps an engine without scroll timelines at the resting scaleX(0)
+   — no line — rather than snapping to a permanently full one, which is what a
+   scroll-bound animation with no timeline and no duration would otherwise do.
+   The explicit auto duration keeps the time component valid for the timeline. */
+@supports (animation-timeline: scroll()) {
+  .k-readline {
+    animation: k-readline linear both;
+    animation-duration: auto;
+    animation-timeline: --k-read;
+  }
 }
 @keyframes k-readline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
