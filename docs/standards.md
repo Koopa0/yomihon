@@ -122,7 +122,7 @@ installer steps above it.
 3. Kill-tests for every new lock (see §2), stated in the PR.
 4. Hygiene greps over the changed files, all expected to come back empty:
    - `grep -ri kura -- '*.go'` (zero coupling),
-   - `grep -rnE '§|\bD[0-9]{1,3}\b|docs/|yomihon|[Ss]tage|[Pp]hase|\b(NEVER|MUST|ONLY|VERBATIM)\b'`
+   - `grep -rnE '§|\bD[0-9]{1,3}\b|docs/|kurodo|[Ss]tage|[Pp]hase|\b(NEVER|MUST|ONLY|VERBATIM)\b'`
      over changed `.go`/`.templ`/workflow files (comment discipline; the
      ALL-CAPS class is checked case-sensitively),
    - `git status --porcelain` (no untracked residue, nothing harness-owned

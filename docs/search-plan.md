@@ -160,7 +160,7 @@ spirit); walk it collecting text:
 | ruby: base + rt | both (searching the kana reading should hit) |
 | HTML tags themselves, callout marker syntax | no |
 
-Acceptance is **one-directional**: whatever `rg` finds in the note *body*, kurodo
+Acceptance is **one-directional**: whatever `rg` finds in the note *body*, yomihon
 finds too. `rg` also matching raw markup characters that `plain_text` strips is by
 design, not a bug.
 
@@ -225,10 +225,10 @@ English (D19), including "no results".
 ## 12. Cleaned up when PostgreSQL was dropped (D24)
 
 Removed so a future session cannot reinstate PG from stale config: `sqlc.yaml`,
-the Makefile `sqlc` target, the empty `migrations/`, `KURODO_DB` (D12), and the
+the Makefile `sqlc` target, the empty `migrations/`, `YOMIHON_DB` (D12), and the
 PG lines in `CLAUDE.md` Facts / `design.md` §2 stack. The go-spec harness rules
 under `.claude/rules/` still describe pgx/sqlc generically (they are shared
-reference, not a kurodo claim). Database posture has since moved on: adoption
+reference, not a yomihon claim). Database posture has since moved on: adoption
 is a per-feature engineering call (D31), with escalation ladders in
 `roadmap.md` §4.
 
@@ -237,4 +237,4 @@ is a per-feature engineering call (D31), with escalation ladders in
 1. Deterministic-only v0: **confirmed** (Koopa, 2026-07-03).
 2. Engine: **in-memory** (D24); SQLite is the recorded upgrade path with a
    mechanical trigger; PostgreSQL dropped.
-3. No `KURODO_DB` / DSN (in-memory) — settled.
+3. No `YOMIHON_DB` / DSN (in-memory) — settled.

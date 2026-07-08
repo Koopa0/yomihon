@@ -1,4 +1,4 @@
-# kurodo Roadmap — the blueprint after the judge face
+# yomihon Roadmap — the blueprint after the judge face
 
 > What this document is: the sequencing and design view of everything that remains,
 > so any future session can pick up a work item with its goal, shape, UI surface,
@@ -20,7 +20,7 @@
   real-vault sandwiches), the wall-lock sweep (D39 included), the quality rails
   (pinned toolchain, assets-drift, frontend lint, loopback e2e), and the fuzz
   pack (five targets, rescanner timing, benchmarks, fuzz-smoke job). The four
-  cron consumers already run on `kurodo check` (switched 2026-07-05, with
+  cron consumers already run on `yomihon check` (switched 2026-07-05, with
   rollback backups).
 - **Done** (2026-07-07): the differential fuzz campaign (judge-plan §13) ran to
   its completion bar with zero unexplained divergence; kura was declared retired
@@ -36,10 +36,10 @@
   - **kura gate — met; declared retired 2026-07-07 (D43)** = spec §5 acceptance
     (all merged, consumers switched) plus the differential campaign completion
     bar (judge-plan §13), which the declaration cited.
-  - **yomihon gate — closed (D40)**: the engineering item is merged; the
+  - **yomihon-dev gate — closed (D40)**: the engineering item is merged; the
     parity and two-week observation items are waived. Retirement is effective
     on Koopa's declaration alone. **Export stays excluded (D38)** — nothing
-    consumes yomihon's SSG output.
+    consumes yomihon-dev's SSG output.
 
 ## 1. Sequence
 
@@ -52,21 +52,21 @@ acceptance per unit — is `program.md`.
 | 2 | **I: wall-lock sweep** | Retirement declarations require the four walls as test locks; also locks D30's three sandbox mechanisms | D30 |
 | 3 | **Quality rails** (parallel with I) | CI + linters + fuzz pack, per D36 "right after the A face, alongside the I sweep"; the switchover benefits from CI existing | D36 |
 | 4 | **kura retirement (done, D43)** | The switchover executed 2026-07-05 (ahead of the originally planned campaign-first order — a disclosed deviation, safe because the switched surfaces were triple-verified and the wrapper backups keep a rollback path). The differential campaign then ran to its completion bar with zero unexplained divergence, kura was declared retired 2026-07-07, and the §13 cleanup checklist was executed. judge-plan §13 remains the authoritative record | D36, D40, D43 |
-| 4b | **Reading-surface UX repairs** (parallel with anything) | Daily use moved to kurodo outright (D40), so reading-surface pain is paid every day; the mechanical repairs need no ruling, the taste batch waits for Koopa's accumulated pain list — both in §5b | D40 |
+| 4b | **Reading-surface UX repairs** (parallel with anything) | Daily use moved to yomihon outright (D40), so reading-surface pain is paid every day; the mechanical repairs need no ruling, the taste batch waits for Koopa's accumulated pain list — both in §5b | D40 |
 | 5 | **B: search panel, lexical then hybrid** | ⌘K content over the existing shell first; then Gemini embeddings + RRF fusion (key arrives at build start). Needs a **B plan doc** before the hybrid half — its required contents are listed in §5a | D31, D32 |
 | 6 | **H: agent toolbox** | Graph verbs + whole-graph export + frontmatter query; cheap, unlocks agents and dreaming. Needs an **H plan doc** — output contracts are the point (§5a) | D33 |
 | 7 | **D: Home = the adjudication cockpit** | See §3 — the face that scales Koopa's throughput when agents write faster than he reads. Needs a **D plan doc**; must reconcile with spec §2's four home blocks (see §3) | D26, D35, D37 |
-| 8 | **G: export** | Absorbs yomihon's SSG mode on its own schedule; excluded from the yomihon gate (D38) | spec §6, D38 |
+| 8 | **G: export** | Absorbs yomihon-dev's SSG mode on its own schedule; excluded from the yomihon-dev gate (D38) | spec §6, D38 |
 | 9 | **Dreaming pipeline + adjudication inbox** | Agent-side consumer of 5/6; the inbox UI lands in the cockpit. **Honesty note**: the accept→apply loop is closed only by the seal-applies-patch ruling (§3) — until Koopa makes it, proposals are read-only reports and acting on an acceptance is out-of-band | D35 |
 
-## 2. Capability ↔ UI mapping (kurodo has a UI; nothing ships CLI-only unless it is agent-only)
+## 2. Capability ↔ UI mapping (yomihon has a UI; nothing ships CLI-only unless it is agent-only)
 
 | Capability | Agent surface (CLI) | Human surface (UI) |
 |---|---|---|
-| Hybrid search | `kurodo search` (see degraded-mode rules, §4a) | ⌘K panel + `/search` page (B) |
-| Relation queries | `kurodo graph backlinks/neighbors/path/related`, `graph export` — `related` merges the structural and semantic channels in **one call** (it reads the embedding cache; without it, structural-only plus a warning) | Backlinks / related panel in the reading page's right column; graph view later (H → D) |
-| Diagnostics | `kurodo check` (JSONL/human/md) | Note-page diagnostics column (exists); diagnostics index page (parked in D26, lands with the cockpit) |
-| Coverage | `kurodo coverage` | Cockpit tile (domains / pending / orphans) |
+| Hybrid search | `yomihon search` (see degraded-mode rules, §4a) | ⌘K panel + `/search` page (B) |
+| Relation queries | `yomihon graph backlinks/neighbors/path/related`, `graph export` — `related` merges the structural and semantic channels in **one call** (it reads the embedding cache; without it, structural-only plus a warning) | Backlinks / related panel in the reading page's right column; graph view later (H → D) |
+| Diagnostics | `yomihon check` (JSONL/human/md) | Note-page diagnostics column (exists); diagnostics index page (parked in D26, lands with the cockpit) |
+| Coverage | `yomihon coverage` | Cockpit tile (domains / pending / orphans) |
 | Status flow | — (the write is human-only, wall 1) | Lifecycle queues + per-note seal (D26/D27); cockpit queue flow (§3) |
 | Dreaming proposals | Agent writes report files | Reports face today; adjudication inbox in the cockpit (D35, §3) |
 
@@ -81,7 +81,7 @@ the next consumer will grep whatever B and H emit.
 
 The scenario that defines it (Koopa): agents write many documents; reviewing,
 reading, learning, and adjudicating them must not mean opening `.md` files one
-by one and hand-editing status. Everything flows through kurodo.
+by one and hand-editing status. Everything flows through yomihon.
 
 **Relation to spec §2**: the cockpit becomes the landing surface, leading with
 the status queues (D26's axis promoted from sidebar to landing page); spec §2's
@@ -111,7 +111,7 @@ the four blocks survive, nothing hardcodes what the toml can express (wall 3).
   up the machine; losing it resets read-tracking, which is annoying but not
   data loss in the vault sense — recorded as an accepted cost. It is keyed by
   note path and stores a **content hash of the note body at last read** — a
-  content hash, not a git commit hash, so: kurodo's own status-only commits do
+  content hash, not a git commit hash, so: yomihon's own status-only commits do
   not false-flag a re-read (frontmatter is excluded from the hash), uncommitted
   agent edits *are* detected (the scanner sees content, not commits), and a
   renamed note loses its read state (accepted, noted).
@@ -127,24 +127,24 @@ the four blocks survive, nothing hardcodes what the toml can express (wall 3).
   queue — its source is the reports listing (nav already indexes
   `System/reports/`), plus a pending/processed convention the dreaming pipeline
   owns (e.g. processed proposals move to a subfolder — agent-side, not a
-  kurodo write). The D plan doc pins the convention.
+  yomihon write). The D plan doc pins the convention.
 - **The accept dead-end, named**: today, accepting a proposal has no mechanical
-  path — kurodo cannot persist the acceptance (wall 1) and the agent cannot
+  path — yomihon cannot persist the acceptance (wall 1) and the agent cannot
   read Koopa's mind. Until the ruling below, "accept" means Koopa acts on it
   out-of-band (tells the agent, or edits himself). This is a known v1 limit,
   not an oversight.
 - **A named future adjudication (not smuggled in)**: the shape that closes the
   loop while preserving the human terminal is **seal-applies-patch**: the agent
-  precomputes the exact patch, Koopa seals it, kurodo applies it mechanically
+  precomputes the exact patch, Koopa seals it, yomihon applies it mechanically
   in one commit. That amends **wall 1** (today: one field, status only) **and
-  wall 4** (today: kurodo never modifies note content — a mechanical
-  application of a human-sealed patch is still kurodo writing content). Both
+  wall 4** (today: yomihon never modifies note content — a mechanical
+  application of a human-sealed patch is still yomihon writing content). Both
   walls, one ruling, parked for Koopa — the pressure will come; it must arrive
   as a ruling, not as an implementation detail.
 - **Agent write discipline (operational prerequisite)**: the status flip's
   preflight 409s on a dirty file; a cron fleet that writes without committing
   stalls every adjudication behind it. Rule: vault-writing agents commit their
-  writes (their own identity); kurodo's 409 stands as the safety net, not the
+  writes (their own identity); yomihon's 409 stands as the safety net, not the
   norm. Recorded here because the cockpit's throughput assumes it.
 
 ## 4. Escalation ladders (upgrade by trigger, not by taste — D31)
@@ -188,7 +188,7 @@ only, and the design keeps semantic strictly an enhancement layer:
 
 - **⌘K / `/search`**: embedder unreachable → lexical results with a visible
   "semantic offline" indicator. Never blank, never blocking.
-- **`kurodo search` CLI**: lexical by default; `--semantic` adds the hybrid
+- **`yomihon search` CLI**: lexical by default; `--semantic` adds the hybrid
   channel and **fails loudly** (nonzero exit, stderr says why) when the cache
   is cold or the API is unreachable — an agent must never get silently
   different result sets with exit 0. A `--semantic=best-effort` mode may exist
@@ -268,7 +268,7 @@ Before building items 5/6/7, a plan doc per face, carrying at minimum:
 pillar: per-book and per-topic concepts under `domain: humanities`, a library
 map (`type: moc`) tracking books with the reading state kept in a table
 column — deliberately not frontmatter, so the write face never touches it —
-and a new `status: published` for release. kurodo needs zero code for the new
+and a new `status: published` for release. yomihon needs zero code for the new
 enum values: domain and status flow from the contract file, and the write
 face offers a transition the moment its lifecycle entry exists there (until
 then it correctly offers nothing). What the new pillar actually asks of the
@@ -289,7 +289,7 @@ faces, by ownership:
 
 ## 5b. Reading-surface UX queue (from daily use, 2026-07-06)
 
-D40 moved daily reading to kurodo outright, so reading-surface pain is paid
+D40 moved daily reading to yomihon outright, so reading-surface pain is paid
 every day; this queue holds it. The diagnosis below was reproduced against the
 real vault with headless screenshots before anything was queued.
 

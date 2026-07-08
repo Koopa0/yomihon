@@ -1,7 +1,7 @@
 # Judge face — implementation plan (spec §5)
 
 > Status: **built and merged in full** (all four stages: rules, formats, CLI dispatch, coverage/exists, gating — PR #11–#14); the four cron consumers switched over 2026-07-05. The differential campaign (§13) has since run to its completion bar and kura was declared retired on 2026-07-07 (D43); the conformance scaffolding is deleted and the goldens keep the contract. The judge face is
-> `kurodo check` / `exists` / `coverage` — a Go rewrite of kura's CLI. Its soul
+> `yomihon check` / `exists` / `coverage` — a Go rewrite of kura's CLI. Its soul
 > is **byte-compatibility with kura**, a different discipline from the search
 > face's determinism: the retirement gate (D11) is a byte-for-byte match of
 > kura's JSONL and its conformance snapshots, plus switching the four real
@@ -11,14 +11,14 @@
 ## 1. Goal and the retirement gate (D11)
 
 Reproduce kura's `check` / `exists` / `coverage` output **byte-for-byte**, so the
-four pipelines and the manual gates can switch from `kura` to `kurodo` without
+four pipelines and the manual gates can switch from `kura` to `yomihon` without
 noticing, and kura can finally be retired. Until this is met, kura does not change
 a line — it stands as the golden reference.
 
 ## 2. Deployment shape — DB-free, stateless, fresh walk (§0.1)
 
 This is the hard constraint. The judge face is **not** part of the serve /
-in-memory-snapshot world. Each `kurodo check` invocation is a stateless process
+in-memory-snapshot world. Each `yomihon check` invocation is a stateless process
 that walks the vault fresh and exits — kura's exact shape (no server, no daemon,
 no database, zero background state). §0.1: "`check` / `exists` / `coverage` are
 stateless file scans that never touch the DB." If the judge face needed the
@@ -128,7 +128,7 @@ From `RULE_IDS` (kura `src/lib.rs`): `link.title_not_alias`, `link.broken`,
 `schema.frontmatter`.
 
 - **Graph-consuming (6):** the six link/map/provenance rules share the wikilink
-  resolver — kurodo's `internal/graph` already reproduces kura's `graph.rs`
+  resolver — yomihon's `internal/graph` already reproduces kura's `graph.rs`
   semantics (trim→NFC→lower normalize, four key forms + aliases, title never a
   key, ambiguous-not-guessed). `link.title_not_alias` additionally needs a
   title→note index; `provenance.unresolved` a slug index; `collision.alias` an
@@ -166,7 +166,7 @@ during the build.
 - Walk the whole tree; hidden entries (`.obsidian`, `.git`, `.trash`) skipped;
   **gitignore is NOT honored** (Obsidian ignores git; a gitignored attachment is a
   live link target). `.md` → notes, everything else → linkable resources. Sorted by
-  path. kurodo's `internal/vault` walk must match this (confirm it skips dotfiles
+  path. yomihon's `internal/vault` walk must match this (confirm it skips dotfiles
   and does not consult `.gitignore`).
 - Default finding scope drops a finding only if **every** path it touches (citing
   path + collision members) starts with `System/`; `--all` disables this. No
@@ -177,7 +177,7 @@ during the build.
 ## 7. NFC
 
 Reuse `graph.NormalizeNFC` (already exported) + the shared `trim → NFC → lower`
-(Unicode lowercase, not ASCII) — kurodo's `graph.normalize` already matches kura's
+(Unicode lowercase, not ASCII) — yomihon's `graph.normalize` already matches kura's
 `graph.rs::normalize` byte-for-byte. Walk-time path normalization must also be NFC
 (kura NFC-normalizes every relative path); `internal/vault.List` already does this
 (D-note: verified earlier). A mismatch here breaks both resolution and fingerprints
@@ -187,19 +187,19 @@ Reuse `graph.NormalizeNFC` (already exported) + the shared `trim → NFC → low
 
 - New package `internal/judge` (or `internal/check`): the `Finding` type + its
   byte-exact serializer, the fingerprint, the 15 rules, and `check`/`exists`/
-  `coverage`. `cmd/kurodo` gains the `check`/`exists`/`coverage` subcommands
+  `coverage`. `cmd/yomihon` gains the `check`/`exists`/`coverage` subcommands
   (dispatch only; the existing `serve` is untouched).
 - **Open decision — the error prefix.** kura prints tool errors as `kura: <err>`.
-  For byte-exactness of stderr, do we emit `kura:` (a lie — it's kurodo) or
-  `kurodo:`? stderr is not consumed by any cron (they read exit codes and stdout),
-  so `kurodo:` is safe and honest. Proposed: `kurodo:`. Confirm.
+  For byte-exactness of stderr, do we emit `kura:` (a lie — it's yomihon) or
+  `yomihon:`? stderr is not consumed by any cron (they read exit codes and stdout),
+  so `yomihon:` is safe and honest. Proposed: `yomihon:`. Confirm.
 - **Open decision — coverage/exists pretty vs compact.** The CLI is compact; I'll
   match the compact CLI bytes (the pretty `.snap` is insta's, not on-wire).
 
 ## 9. Testing — byte-compat is proven two ways
 
 1. **Golden conformance, byte-exact.** Port kura's `conformance.rs` fixtures (the
-   3-note setup) and assert `kurodo check` stdout equals the 4 golden JSONL lines
+   3-note setup) and assert `yomihon check` stdout equals the 4 golden JSONL lines
    **byte-for-byte** (quoted in §3a), and the coverage/exists compact forms.
 2. **Real-vault diff vs the reference (the strongest test).** While the
    predecessor still ran, a gated test ran both engines with
@@ -231,8 +231,8 @@ switchover blocker; the rest can land before the gate is declared met.
 - **Build all 15 rules + coverage + exists** in this face (the retirement gate and
   the real-vault diff need the whole surface). `--baseline` (delta gate) has **zero
   live consumers** (verified) — implement for byte-compat, not as a hot path.
-- Open decisions for sign-off: (1) error prefix `kurodo:` vs `kura:` (§8 — I
-  propose `kurodo:`); (2) package name `internal/judge` vs `internal/check`
+- Open decisions for sign-off: (1) error prefix `yomihon:` vs `kura:` (§8 — I
+  propose `yomihon:`); (2) package name `internal/judge` vs `internal/check`
   (I propose `judge` — it is the judge face, and it holds three commands, not just
   check); (3) confirm the real-vault diff-vs-kura test as the primary acceptance
   gate (it needs `~/.cargo/bin/kura` present and a quiescent vault at test time).
@@ -370,7 +370,7 @@ hold:**
 4. Every divergence the campaign finds is adjudicated before its run counts,
    and adjudication is not the implementer's call: the campaign pauses, the
    finding goes to Koopa (walls and schema are always his; the guide session
-   triages), and only then is a kurodo defect fixed or a reference defect
+   triages), and only then is a yomihon defect fixed or a reference defect
    recorded as a new §12 entry with a pinning fixture. A run containing an
    unadjudicated diff does not count toward item 1.
 5. The declaration records the totals: rounds, base seeds, run dates, and the
