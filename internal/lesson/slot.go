@@ -5,7 +5,7 @@
 //
 // Everything here is read-only: the vault owns the data, this package only
 // parses and validates it. The slot sidecar's shape — patterns, slots, fills,
-// and the closed colour set — is kurodo's own vocabulary expressed as a Go
+// and the closed colour set — is yomihon's own vocabulary expressed as a Go
 // struct and checked here, NOT the note frontmatter contract: vault-schema.toml
 // is the single source of schema truth for notes, but this machine-owned
 // sidecar sits outside that schema.
@@ -21,7 +21,7 @@ import (
 // slotColors is the closed set of slot colour tokens; each maps to a
 // light/dark pair in the stylesheet. Validate rejects any other value so an
 // authoring typo surfaces at load rather than shipping a miscoloured card.
-// This is kurodo's own vocabulary for the slot sidecar, deliberately not a
+// This is yomihon's own vocabulary for the slot sidecar, deliberately not a
 // vault-schema.toml enum — that schema governs note frontmatter, not this
 // machine-owned file.
 var slotColors = map[string]bool{
@@ -86,7 +86,7 @@ func Load(path string) (*Sidecar, error) {
 // problem; an empty result means valid. It is the load-time guard against
 // freezing wrong content as truth — a template key with no slot, a slot with no
 // fills, an unknown colour, or a gloss key absent from the template. It reports
-// only, never repairs: kurodo surfaces problems, a human edits the file.
+// only, never repairs: yomihon surfaces problems, a human edits the file.
 func (s *Sidecar) Validate() []string {
 	var problems []string
 	for _, p := range s.Patterns {

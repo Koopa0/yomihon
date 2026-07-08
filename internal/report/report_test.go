@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 // briefingFixture carries a <script>, an HTML entity, and CJK content, so the
-// verbatim /raw round-trip proves kurodo neither rewrites, escapes, nor
+// verbatim /raw round-trip proves yomihon neither rewrites, escapes, nor
 // transcodes the bytes it serves — a briefing lands in the sandboxed frame
 // exactly as authored.
 const briefingFixture = `<!doctype html>
@@ -150,7 +150,7 @@ func TestRawServesVerbatim(t *testing.T) {
 
 // TestRawIsSelfSandboxing pins the resource-level containment: /raw carries a
 // CSP sandbox so a script-bearing briefing lands in an opaque origin however it
-// is loaded — not only when kurodo's shell iframe supplies the attribute. Absent
+// is loaded — not only when yomihon's shell iframe supplies the attribute. Absent
 // this, a cross-origin frame or a top-level "open in new tab" would run the
 // briefing's scripts same-origin to the whole vault-reading surface.
 func TestRawIsSelfSandboxing(t *testing.T) {

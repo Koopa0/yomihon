@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/lesson"
-	"github.com/koopa0/kurodo/internal/nav"
-	"github.com/koopa0/kurodo/internal/render"
-	"github.com/koopa0/kurodo/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
 // sealStatus is the one primary status — the koopa-only seal (落款／鈐印).
@@ -25,7 +25,7 @@ import (
 const sealStatus = "ready"
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
-// and RenderDiagnostics (dialect passes) are both display-only: kurodo reports
+// and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
 // what it found, and a human edits the file.
 //
 // Transitions, WriteClosed, and NoFrontmatter drive the status panel (the only
@@ -258,7 +258,7 @@ func sealToast(v NoteView) templ.Component {
 
 // conceptSheet is the in-app grammar-concept drawer: one hidden <template> of
 // rendered content per concept the lesson links to, plus a single shared native
-// <dialog>. kurodo.js clones the matching template into the dialog on a trigger
+// <dialog>. yomihon.js clones the matching template into the dialog on a trigger
 // click and calls showModal(); with JS off the triggers stay ordinary links to
 // the concept notes, so nothing here renders unless a concept is referenced.
 func conceptSheet(concepts []lesson.ConceptDoc) templ.Component {

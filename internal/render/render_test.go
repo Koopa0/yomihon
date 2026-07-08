@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
 // newRenderer builds a Renderer over a real (not faked)
@@ -487,7 +487,7 @@ func TestBodyFirstH1RemovedOnlyWhenTrulyFirst(t *testing.T) {
 // a ```mermaid fence must become exactly one div.mermaid-diagram element
 // carrying the raw source twice — human-readable (HTML-escaped) as text
 // content for the no-JS/SSR fallback, and URL-encoded in data-mermaid-code
-// for assets/js/kurodo.js to decode client-side. The two encodings must
+// for assets/js/yomihon.js to decode client-side. The two encodings must
 // not corrupt each other (net/url.QueryEscape's output charset never
 // needs HTML-attribute escaping, so there is no double-encoding to get
 // wrong — see consumeMermaid's doc comment).

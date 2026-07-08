@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/search"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/search"
 )
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }

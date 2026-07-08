@@ -3,7 +3,7 @@ package nav
 import (
 	"slices"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // Placement records one appearance of a note as a syllabus lesson: the

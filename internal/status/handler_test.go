@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/status"
+	"github.com/koopa0/yomihon/internal/status"
 )
 
 func newHandlerServer(t *testing.T, svc *status.Service) *httptest.Server {

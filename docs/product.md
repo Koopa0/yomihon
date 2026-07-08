@@ -1,6 +1,6 @@
 # Product (positioning, modes, and the aesthetic charter)
 
-This document is the product lens: what kurodo is *for*, how its owner's
+This document is the product lens: what yomihon is *for*, how its owner's
 activities shape its surfaces, and the taste every visual decision answers
 to. The functional canon (spec, plan docs) says what each face does; this
 says why the whole thing deserves to exist when Obsidian is already open in
@@ -8,10 +8,10 @@ the next window.
 
 ## 1. Positioning
 
-kurodo is **the human terminal of a human-and-agent knowledge system**. The
+yomihon is **the human terminal of a human-and-agent knowledge system**. The
 vault is not a folder of notes; it is a living pipeline — agents draft,
 translate, examine, and propose; one human reads, decides, and directs.
-Obsidian renders *files*. kurodo renders *the work*: what changed, what
+Obsidian renders *files*. yomihon renders *the work*: what changed, what
 needs a decision, what an agent claims, how knowledge connects, how far a
 course of study has come. The seal — reading a thing and ruling on it in
 the same breath — is the product's heart, and everything else is built
@@ -19,7 +19,7 @@ around getting the owner to that moment with less friction and more
 context.
 
 It is deliberately **not an editor**. Authoring and revising prose belongs
-to Obsidian, which is excellent at it; kurodo writes exactly one
+to Obsidian, which is excellent at it; yomihon writes exactly one
 frontmatter field under a state machine (wall 1) and renders everything
 else faithfully (wall 4). This division is not a limitation to apologize
 for — it is the product architecture: the editor and the terminal stay
@@ -74,13 +74,13 @@ in advance, ruled only by Koopa, and only when real usage makes the case.
    exists so the idea has a disciplined landing zone instead of an
    improvised one.
 
-Reading the journal in kurodo needs no amendment — local rendering is not
+Reading the journal in yomihon needs no amendment — local rendering is not
 egress (D39/D42 guard the machine-readable outputs, not the owner's own
 eyes).
 
 ## 5. The aesthetic charter (delegated to the guide, 2026-07-07)
 
-The look is **the scholar's desk, not the dashboard**: kurodo (蔵人) serves
+The look is **the scholar's desk, not the dashboard**: yomihon serves
 a sovereign's reading room. Decisions that follow from it:
 
 - **Paper first.** Calm warm surfaces, restrained borders, generous

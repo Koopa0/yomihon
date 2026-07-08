@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/schema"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // checkSchema validates every knowledge note's frontmatter against the

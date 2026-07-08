@@ -1,11 +1,11 @@
-// Package asset serves kurodo's fixed, compile-time-known set of static
-// files: the vendored mermaid ES-module runtime, kurodo's own
+// Package asset serves yomihon's fixed, compile-time-known set of static
+// files: the vendored mermaid ES-module runtime, yomihon's own
 // hand-written client script, and the generated chroma stylesheet.
 //
 // This is the FIRST route in this repo that serves something other than
 // rendered vault content, and its entire security property rests on one
 // invariant: registry (built once, at package init, from what is
-// compiled into the binary via github.com/koopa0/kurodo/assets'
+// compiled into the binary via github.com/koopa0/yomihon/assets'
 // embed.FS, or computed in memory by render.ChromaCSS) is a fixed, closed
 // map. serve does exactly one thing with request input — an exact lookup
 // of r.PathValue("path") against that map — and nothing else. There is no
@@ -24,8 +24,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/koopa0/kurodo/assets"
-	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/yomihon/assets"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
 const (
@@ -43,11 +43,11 @@ type entry struct {
 	body        func() []byte
 }
 
-// registry is kurodo's entire static-asset name space, built once at
+// registry is yomihon's entire static-asset name space, built once at
 // package init (see buildRegistry) and never mutated afterward.
 var registry = buildRegistry()
 
-// buildRegistry assembles the fixed asset set: kurodo.js and the whole
+// buildRegistry assembles the fixed asset set: yomihon.js and the whole
 // vendored mermaid/ subtree from assets.Files (see that package's doc
 // comment for why the mermaid tree is more than one file), plus
 // render.ChromaCSS's computed stylesheet, which has no embedded file
@@ -59,7 +59,7 @@ func buildRegistry() map[string]entry {
 			body:        func() []byte { return []byte(render.ChromaCSS()) },
 		},
 	}
-	embedFile(reg, "kurodo.js", "js/kurodo.js", jsContentType)
+	embedFile(reg, "yomihon.js", "js/yomihon.js", jsContentType)
 	embedFile(reg, "app.css", "css/output.css", cssContentType)
 	embedTree(reg, "js/mermaid")
 	embedFonts(reg, "fonts")

@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/kurodo/internal/schema"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // The testdata contract is a loader fixture, not a second schema: runtime
@@ -245,7 +245,7 @@ func TestAdvanceableBy(t *testing.T) {
 func TestLoadRealContract(t *testing.T) {
 	t.Parallel()
 
-	root := os.Getenv("KURODO_ROOT")
+	root := os.Getenv("YOMIHON_ROOT")
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

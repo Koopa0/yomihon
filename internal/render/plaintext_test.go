@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
 // TestPlainText is the table-driven acceptance for the plain-text

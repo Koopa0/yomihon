@@ -14,9 +14,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/render"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // fold is the single definer of "what counts as a match": NFC then lowercase,

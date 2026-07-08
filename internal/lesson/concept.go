@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // ConceptSubdir is the root of the vault's grammar-concept notes; the vault

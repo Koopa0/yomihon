@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/schema"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Check scans the vault rooted at root for corpus-level findings — broken and

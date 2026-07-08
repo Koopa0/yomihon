@@ -1,4 +1,4 @@
-MODULE := github.com/koopa0/kurodo
+MODULE := github.com/koopa0/yomihon
 
 # `go list ./...` over the whole tree also descends into node_modules — the
 # ignored frontend build tree, which can carry a stray Go package — and an
@@ -20,10 +20,10 @@ endef
 .PHONY: build run test lint fmt vet gen css verify clean
 
 build: gen css
-	go build -o bin/kurodo ./cmd/kurodo
+	go build -o bin/yomihon ./cmd/yomihon
 
 run: gen css
-	go run ./cmd/kurodo serve
+	go run ./cmd/yomihon serve
 
 test:
 	@$(call filtered-go-list); go test -race -count=1 -shuffle=on $$list

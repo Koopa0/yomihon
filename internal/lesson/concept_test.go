@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/koopa0/kurodo/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lesson"
 )
 
 // writeConceptIn writes a concept note under <root>/Concepts/<domain>/<name>.

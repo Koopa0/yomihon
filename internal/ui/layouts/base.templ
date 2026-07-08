@@ -7,10 +7,10 @@ package layouts
 // Chrome is the per-request shell state the shell renders server-side: the page
 // title, and the persisted theme / furigana signals stamped onto the root as
 // data-* attributes so the correct state paints on the first byte (no FOUC).
-// data-* is the single HTML↔JS contract; kurodo.js flips these attributes and
+// data-* is the single HTML↔JS contract; yomihon.js flips these attributes and
 // their cookies, CSS reacts (see assets/css/*).
 type Chrome struct {
-	Title string // page title (before " — kurodo")
+	Title string // page title (before " — yomihon")
 	Theme string // "light" | "dark"
 	Ruby  string // "on" | "off"
 }
@@ -21,17 +21,17 @@ templ Base(c Chrome) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ c.Title } — kurodo</title>
+			<title>{ c.Title } — yomihon</title>
 			<link rel="stylesheet" href="/static/app.css"/>
 			<link rel="stylesheet" href="/static/chroma.css"/>
 		</head>
 		<body>
-			<div class="kurodo">
+			<div class="yomihon">
 				@header()
 				{ children... }
 				@searchDialog()
 			</div>
-			<script src="/static/kurodo.js" defer></script>
+			<script src="/static/yomihon.js" defer></script>
 		</body>
 	</html>
 }
@@ -39,7 +39,7 @@ templ Base(c Chrome) {
 // header is the shared top chrome: the wordmark, the ⌘K search entry, and the
 // furigana + theme toggles. The toggles are plain <button>s whose glyph state
 // is CSS-driven from the root data-* attributes (no JS needed just to show the
-// right icon); kurodo.js only flips the attribute + cookie on click. The search
+// right icon); yomihon.js only flips the attribute + cookie on click. The search
 // entry is a real link to /search (the no-JS fallback) that JS upgrades into
 // opening the dialog.
 templ header() {
@@ -48,7 +48,7 @@ templ header() {
 			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
 		</button>
 		<div class="k-brand">
-			<a class="k-brand__name" href="/">kurodo</a>
+			<a class="k-brand__name" href="/">yomihon</a>
 			<span class="k-brand__dot" aria-hidden="true"></span>
 			<span class="k-brand__tag">STOREHOUSE</span>
 		</div>

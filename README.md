@@ -1,6 +1,6 @@
-# kurodo — a local reading and adjudication interface for a personal Obsidian vault
+# yomihon — a local reading and adjudication interface for a personal Obsidian vault
 
-kurodo is a local-only, single-user interface over one Obsidian vault (`~/obsidian`).
+yomihon is a local-only, single-user interface over one Obsidian vault (`~/obsidian`).
 It renders the whole vault — lessons, concepts, reports, syllabus notes — as a
 readable, navigable interface, and it lets the vault's owner adjudicate a note's
 `status` in place, right where they finished reading. It never serves outside
@@ -36,32 +36,33 @@ Not built yet (the sequencing blueprint is `docs/roadmap.md`):
 - The agent toolbox: graph relation queries and whole-graph export.
 - The adjudication cockpit (home), static export, and the dreaming inbox.
 
-## Etymology
+## Past name
 
-> **kurodo (蔵人)** — in the Heian court, the *kurōdo* were the palace archivists
-> who kept the sovereign's document store and relayed their rulings. The name
-> encodes the design: the archivist reads and prepares the record, but only the
-> sovereign — here, Koopa — presses `ready`.
+> The project was originally named **kurodo (蔵人)** — in the Heian court, the
+> *kurōdo* were the palace archivists who kept the sovereign's document store
+> and relayed their rulings. The name encoded the design: the archivist reads
+> and prepares the record, but only the sovereign — here, Koopa — presses
+> `ready`. It was later renamed to yomihon.
 
 ## Design principles: the four walls
 
-kurodo's behavior is fenced by four walls. Crossing one is a design decision,
+yomihon's behavior is fenced by four walls. Crossing one is a design decision,
 not a patch — see `docs/design.md` and `docs/decisions.md`.
 
-1. **Wall 1 — the write face is one field.** The only thing kurodo writes is the
+1. **Wall 1 — the write face is one field.** The only thing yomihon writes is the
    frontmatter `status` field. Every change is validated against the vault's
    state machine (by prior state and owner) and recorded as a single git commit
    under Koopa's own git identity. The rewrite is surgical: the `status` line is
    replaced; every other byte is left untouched.
 2. **Wall 2 — loopback only.** The listener hardcodes `127.0.0.1`; only the port
-   is configurable. kurodo never serves or exposes the vault or any derived data
+   is configurable. yomihon never serves or exposes the vault or any derived data
    beyond the machine. The one authorized outbound exception: note content —
    never `Diary/` — sent to the embedding API to compute search vectors, which
    are stored locally (`docs/decisions.md` D32).
 3. **Wall 3 — one schema contract.** The vault's schema — its enums and state
    machine — lives only in `vault-schema.toml`. `internal/schema` is the only
    package that reads it; there is no second, hardcoded copy anywhere in the repo.
-4. **Wall 4 — the renderer never fixes a note.** kurodo reads fault-tolerantly
+4. **Wall 4 — the renderer never fixes a note.** yomihon reads fault-tolerantly
    and surfaces diagnostics for bad YAML, broken links, and name collisions, but
    it never edits a file to "fix" them. The judge reports; a human edits.
 
@@ -71,9 +72,9 @@ vault's Obsidian dialect has a spec, and generic Obsidian knowledge gets it wron
 ## Build and run
 
 ```sh
-make build         # templ generate, then build bin/kurodo
-make run           # go run ./cmd/kurodo serve
-bin/kurodo serve   # or run the built binary directly
+make build         # templ generate, then build bin/yomihon
+make run           # go run ./cmd/yomihon serve
+bin/yomihon serve  # or run the built binary directly
 ```
 
 Requires Go 1.26. Styles are built separately with `make css` (Tailwind v4
@@ -81,8 +82,8 @@ standalone CLI, no Node). Configuration is read from the environment:
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `KURODO_ROOT` | Vault path | `~/obsidian` |
-| `KURODO_PORT` | Listen port on `127.0.0.1` | `9610` |
+| `YOMIHON_ROOT` | Vault path | `~/obsidian` |
+| `YOMIHON_PORT` | Listen port on `127.0.0.1` | `9610` |
 
 All derived state — the graph, the navigation model, and the search index — is
 in-memory, rebuilt from the vault; the truth is always the vault files plus
@@ -91,7 +92,7 @@ per-feature engineering call with recorded triggers (`docs/roadmap.md` §4).
 
 ## Layout
 
-Package-by-feature under `internal/`; `cmd/kurodo/` is wiring only.
+Package-by-feature under `internal/`; `cmd/yomihon/` is wiring only.
 
 | Package | Responsibility |
 |---|---|

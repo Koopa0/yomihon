@@ -17,7 +17,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // plainParser is a minimal goldmark parser used only to walk a note body for

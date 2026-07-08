@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/nav"
-	"github.com/koopa0/kurodo/internal/syllabus"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/syllabus"
 )
 
 // newServer builds a real nav.Model from a temp vault (real-first: no fakes)

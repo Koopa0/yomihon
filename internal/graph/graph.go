@@ -21,7 +21,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // NormalizeNFC returns s in Unicode Normalization Form C (NFC) — the single

@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 func TestAncestorDirs(t *testing.T) {
@@ -247,7 +247,7 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 		`data-chain data-key="folders"`,
 		`data-key="dir:Concepts"`,
 		`data-filter-empty`,
-		`kurodo.nav`,
+		`yomihon.nav`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered sidebar is missing %q", want)

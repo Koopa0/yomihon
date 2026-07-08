@@ -14,7 +14,7 @@ package render
 // handler, registered by goldmark.New at priority 1000) mirrors that
 // project's approach; this file does not import or vendor its code, and
 // deliberately skips its configuration surface (custom formatters,
-// per-language style overrides, line highlighting) — kurodo needs none of
+// per-language style overrides, line highlighting) — yomihon needs none of
 // that.
 
 import (
@@ -33,7 +33,7 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// chromaStyleName is kurodo's single fixed highlighting theme: a
+// chromaStyleName is yomihon's single fixed highlighting theme: a
 // light-background style consistent with base.templ's current minimal
 // light UI. Dark-mode-aware highlighting is deliberately out of scope
 // while the UI itself has no dark mode.

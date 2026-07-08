@@ -3,9 +3,9 @@ package note
 import (
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/schema"
-	"github.com/koopa0/kurodo/internal/search"
-	"github.com/koopa0/kurodo/internal/status"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/status"
 )
 
 // TestPending checks the pending-decision tally: a note counts when its

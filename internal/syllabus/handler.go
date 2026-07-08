@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/kurodo/internal/nav"
-	"github.com/koopa0/kurodo/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // Deps is what the syllabus feature reads from: the current navigation model

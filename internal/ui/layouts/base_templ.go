@@ -19,10 +19,10 @@ import templruntime "github.com/a-h/templ/runtime"
 // Chrome is the per-request shell state the shell renders server-side: the page
 // title, and the persisted theme / furigana signals stamped onto the root as
 // data-* attributes so the correct state paints on the first byte (no FOUC).
-// data-* is the single HTML↔JS contract; kurodo.js flips these attributes and
+// data-* is the single HTML↔JS contract; yomihon.js flips these attributes and
 // their cookies, CSS reacts (see assets/css/*).
 type Chrome struct {
-	Title string // page title (before " — kurodo")
+	Title string // page title (before " — yomihon")
 	Theme string // "light" | "dark"
 	Ruby  string // "on" | "off"
 }
@@ -87,7 +87,7 @@ func Base(c Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " — kurodo</title><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"></head><body><div class=\"kurodo\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " — yomihon</title><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"></head><body><div class=\"yomihon\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -103,7 +103,7 @@ func Base(c Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div><script src=\"/static/kurodo.js\" defer></script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div><script src=\"/static/yomihon.js\" defer></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -114,7 +114,7 @@ func Base(c Chrome) templ.Component {
 // header is the shared top chrome: the wordmark, the ⌘K search entry, and the
 // furigana + theme toggles. The toggles are plain <button>s whose glyph state
 // is CSS-driven from the root data-* attributes (no JS needed just to show the
-// right icon); kurodo.js only flips the attribute + cookie on click. The search
+// right icon); yomihon.js only flips the attribute + cookie on click. The search
 // entry is a real link to /search (the no-JS fallback) that JS upgrades into
 // opening the dialog.
 func header() templ.Component {
@@ -138,7 +138,7 @@ func header() templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<header class=\"k-header\"><button class=\"k-iconbtn k-hamburger\" type=\"button\" data-nav-toggle aria-label=\"Toggle navigation\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"k-brand\"><a class=\"k-brand__name\" href=\"/\">kurodo</a> <span class=\"k-brand__dot\" aria-hidden=\"true\"></span> <span class=\"k-brand__tag\">STOREHOUSE</span></div><div class=\"k-header__spacer\"></div><a class=\"k-searchbtn\" href=\"/search\" data-search-open><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"k-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"k-iconbtn k-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\"><span class=\"k-rubybtn__glyph\" aria-hidden=\"true\">振</span> <span class=\"k-rubybtn__on\">ON</span> <span class=\"k-rubybtn__off\">OFF</span></button> <button class=\"k-iconbtn k-themebtn\" type=\"button\" data-theme-toggle aria-label=\"Toggle theme\"><svg class=\"k-ico-sun\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"></path></svg> <svg class=\"k-ico-moon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"></path></svg></button> <span class=\"k-readline\" aria-hidden=\"true\"></span></header>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<header class=\"k-header\"><button class=\"k-iconbtn k-hamburger\" type=\"button\" data-nav-toggle aria-label=\"Toggle navigation\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"k-brand\"><a class=\"k-brand__name\" href=\"/\">yomihon</a> <span class=\"k-brand__dot\" aria-hidden=\"true\"></span> <span class=\"k-brand__tag\">STOREHOUSE</span></div><div class=\"k-header__spacer\"></div><a class=\"k-searchbtn\" href=\"/search\" data-search-open><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"k-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"k-iconbtn k-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\"><span class=\"k-rubybtn__glyph\" aria-hidden=\"true\">振</span> <span class=\"k-rubybtn__on\">ON</span> <span class=\"k-rubybtn__off\">OFF</span></button> <button class=\"k-iconbtn k-themebtn\" type=\"button\" data-theme-toggle aria-label=\"Toggle theme\"><svg class=\"k-ico-sun\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"></path></svg> <svg class=\"k-ico-moon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"></path></svg></button> <span class=\"k-readline\" aria-hidden=\"true\"></span></header>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

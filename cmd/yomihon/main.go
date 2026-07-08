@@ -1,4 +1,4 @@
-// kurodo is the local reading-and-adjudication interface for the
+// yomihon is the local reading-and-adjudication interface for the
 // Obsidian vault: it reads everything, writes exactly one frontmatter field
 // (status), and never leaves 127.0.0.1.
 package main
@@ -17,36 +17,36 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/koopa0/kurodo/internal/asset"
-	"github.com/koopa0/kurodo/internal/judge"
-	"github.com/koopa0/kurodo/internal/lesson"
-	"github.com/koopa0/kurodo/internal/nav"
-	"github.com/koopa0/kurodo/internal/note"
-	"github.com/koopa0/kurodo/internal/render"
-	"github.com/koopa0/kurodo/internal/report"
-	"github.com/koopa0/kurodo/internal/schema"
-	"github.com/koopa0/kurodo/internal/search"
-	"github.com/koopa0/kurodo/internal/snapshot"
-	"github.com/koopa0/kurodo/internal/status"
-	"github.com/koopa0/kurodo/internal/syllabus"
+	"github.com/koopa0/yomihon/internal/asset"
+	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/report"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/syllabus"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "kurodo: usage: kurodo <serve|check|coverage|exists> [options]")
+		fmt.Fprintln(os.Stderr, "yomihon: usage: yomihon <serve|check|coverage|exists> [options]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
 	case "serve":
 		log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 		if err := run(log); err != nil {
-			log.Error("kurodo exited", "error", err)
+			log.Error("yomihon exited", "error", err)
 			os.Exit(1)
 		}
 	case "check", "coverage", "exists":
 		os.Exit(runJudge(os.Args[1], os.Args[2:]))
 	default:
-		fmt.Fprintf(os.Stderr, "kurodo: unknown command %q; use serve, check, coverage, or exists\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "yomihon: unknown command %q; use serve, check, coverage, or exists\n", os.Args[1])
 		os.Exit(2)
 	}
 }
@@ -65,7 +65,7 @@ type judgeArgs struct {
 
 // runJudge parses one judge subcommand's arguments, runs it, prints its output,
 // and returns the process exit code. A parse or tool error prints to stderr with
-// the kurodo prefix and exits 2, distinct from a gate hit or a "does not exist",
+// the yomihon prefix and exits 2, distinct from a gate hit or a "does not exist",
 // which come back as exit 1 from the command itself.
 func runJudge(command string, args []string) int {
 	p, err := parseJudgeArgs(args)
@@ -187,11 +187,11 @@ func (p *judgeArgs) setFlag(name, value string) error {
 	return nil
 }
 
-// judgeError reports a tool error on stderr with the kurodo prefix and returns
-// the tool-error exit code. Stderr is the one surface that names kurodo rather
+// judgeError reports a tool error on stderr with the yomihon prefix and returns
+// the tool-error exit code. Stderr is the one surface that names yomihon rather
 // than reproducing the reference tool's bytes, since no pipeline reads it.
 func judgeError(err error) int {
-	fmt.Fprintf(os.Stderr, "kurodo: %v\n", err)
+	fmt.Fprintf(os.Stderr, "yomihon: %v\n", err)
 	return 2
 }
 
@@ -210,8 +210,8 @@ type config struct {
 
 func loadConfig() (config, error) {
 	cfg := config{
-		root: os.Getenv("KURODO_ROOT"),
-		port: os.Getenv("KURODO_PORT"),
+		root: os.Getenv("YOMIHON_ROOT"),
+		port: os.Getenv("YOMIHON_PORT"),
 	}
 	if cfg.root == "" {
 		home, err := os.UserHomeDir()
@@ -330,7 +330,7 @@ func run(log *slog.Logger) error {
 	// to engineer around with tokens.
 	handler := http.NewCrossOriginProtection().Handler(mux)
 
-	// Loopback is hardcoded; only the port is configurable — kurodo and
+	// Loopback is hardcoded; only the port is configurable — yomihon and
 	// everything it derives from the vault must never be reachable from
 	// another machine.
 	var lc net.ListenConfig
@@ -349,7 +349,7 @@ func run(log *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(listener) }()
-	log.Info("kurodo serving", "addr", listener.Addr().String(), "vault", cfg.root)
+	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
 
 	select {
 	case err := <-errCh:
@@ -365,6 +365,6 @@ func run(log *slog.Logger) error {
 	if err := <-errCh; !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve: %w", err)
 	}
-	log.Info("kurodo stopped")
+	log.Info("yomihon stopped")
 	return nil
 }

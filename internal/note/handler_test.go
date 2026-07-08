@@ -11,14 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/lesson"
-	"github.com/koopa0/kurodo/internal/nav"
-	"github.com/koopa0/kurodo/internal/note"
-	"github.com/koopa0/kurodo/internal/render"
-	"github.com/koopa0/kurodo/internal/schema"
-	"github.com/koopa0/kurodo/internal/search"
-	"github.com/koopa0/kurodo/internal/status"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/status"
 )
 
 // newServer wires the reading page against a real (not faked)
@@ -135,7 +135,7 @@ func TestReadingPageRejectsPathTraversal(t *testing.T) {
 	}
 	// A decoy one level above the vault root, reachable by traversal only if a
 	// layer fails. Its sentinel must never appear in any response body.
-	const sentinel = "kurodo-outside-vault-sentinel-never-serve-this"
+	const sentinel = "yomihon-outside-vault-sentinel-never-serve-this"
 	if err := os.WriteFile(filepath.Join(parent, "secret.md"), []byte(sentinel+"\n"), 0o644); err != nil {
 		t.Fatalf("write decoy: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 // dirExists reports whether path is an existing directory.
 // TestReadingPageServesOnlyMarkdownNotes pins that /notes serves only .md notes.
 // A non-note resource rendered here would pass through WithUnsafe into this
-// first-party, kurodo-origin page — a .html briefing would run its <script>
+// first-party, yomihon-origin page — a .html briefing would run its <script>
 // same-origin to the whole vault, the execution the reports face sandboxes; it
 // has its own sandboxed /reports route instead. The .html and .canvas below
 // exist on disk, so their 404 is the extension gate, not a missing file.

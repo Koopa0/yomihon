@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/kurodo/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lesson"
 )
 
 func TestParseTemplate(t *testing.T) {

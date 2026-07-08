@@ -15,8 +15,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/koopa0/kurodo/internal/schema"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Sentinel errors. Callers match with errors.Is.
@@ -42,19 +42,19 @@ var (
 	// Koopa-authored audit commit.
 	ErrDirty = errors.New("status: note has uncommitted changes")
 	// ErrStatusLine means the frontmatter block does not contain exactly
-	// one line beginning with "status:" — a schema violation kurodo does
-	// not repair. kurodo only reports faults; fixing the file belongs to
+	// one line beginning with "status:" — a schema violation yomihon does
+	// not repair. yomihon only reports faults; fixing the file belongs to
 	// a human editor.
 	ErrStatusLine = errors.New("status: frontmatter does not have exactly one status line")
 	// ErrCommitFailed means the file was already rewritten on disk but the
-	// git commit failed. kurodo deliberately does not roll back — a
+	// git commit failed. yomihon deliberately does not roll back — a
 	// rollback is a second write that would hide what happened, and the
 	// vault git error is surfaced (this is a local, single-operator tool;
 	// there is no one else who could read it) so Koopa can fix it by hand.
 	ErrCommitFailed = errors.New("status: note rewritten but git commit failed")
 )
 
-// actor is the single local operator kurodo writes on behalf of. kurodo is
+// actor is the single local operator yomihon writes on behalf of. yomihon is
 // a local-only, single-user tool; there is no multi-user concept.
 const actor = "koopa"
 
@@ -76,7 +76,7 @@ type Service struct {
 
 // NewService wires the write face for the vault rooted at root. A nil
 // contract closes the write face (Closed reports true): no transitions are
-// offered and every Flip is rejected. Reading elsewhere in kurodo does not
+// offered and every Flip is rejected. Reading elsewhere in yomihon does not
 // go through this package and is unaffected by a nil contract.
 func NewService(root string, contract *schema.Schema) *Service {
 	return &Service{root: root, contract: contract}
@@ -278,7 +278,7 @@ func rewriteStatusLine(data []byte, to string) ([]byte, error) {
 // the original mode, and renames over the target.
 func writeAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".kurodo-status-*.tmp")
+	tmp, err := os.CreateTemp(dir, ".yomihon-status-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
@@ -322,7 +322,7 @@ func (s *Service) dirty(ctx context.Context, rel string) (bool, error) {
 }
 
 // commit records the flip as one commit, authored by the vault's own git
-// identity, never one kurodo sets itself — the audit meaning of the commit
+// identity, never one yomihon sets itself — the audit meaning of the commit
 // is "Koopa pressed it". relSlash is used in the commit
 // message (a stable, slash-form path); rel is what's passed to git, which
 // on this platform are the same string.
@@ -335,7 +335,7 @@ func (s *Service) commit(ctx context.Context, rel, relSlash, from, to string) er
 	if _, err := runGit(ctx, s.root, "add", "--", rel); err != nil {
 		return fmt.Errorf("%w: git add %s: %w", ErrCommitFailed, relSlash, err)
 	}
-	msg := fmt.Sprintf("status(%s): %s → %s (via kurodo)", relSlash, from, to)
+	msg := fmt.Sprintf("status(%s): %s → %s (via yomihon)", relSlash, from, to)
 	if _, err := runGit(ctx, s.root, "commit", "-m", msg); err != nil {
 		return fmt.Errorf("%w: %w", ErrCommitFailed, err)
 	}
@@ -348,7 +348,7 @@ func (s *Service) commit(ctx context.Context, rel, relSlash, from, to string) er
 // misread as a git flag.
 func runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
 	fullArgs := append([]string{"-C", root}, args...)
-	cmd := exec.CommandContext(ctx, "git", fullArgs...) // #nosec G204 G702 -- args are fixed kurodo-constructed slices, never shell-interpreted
+	cmd := exec.CommandContext(ctx, "git", fullArgs...) // #nosec G204 G702 -- args are fixed yomihon-constructed slices, never shell-interpreted
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return out, fmt.Errorf("git %v: %w: %s", args, err, bytes.TrimSpace(out))

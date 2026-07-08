@@ -1,9 +1,9 @@
 ---
 type: report
-tool: kurodo
+tool: yomihon
 ---
 
-# kurodo check
+# yomihon check
 
 11 findings — **3 error**, **6 warn**, 2 hidden.
 

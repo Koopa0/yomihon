@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"strconv"
 
-	"github.com/koopa0/kurodo/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
 // Syllabus is the study-path page: the whole tree of one study-path rendered on
@@ -210,7 +210,7 @@ func syllabusHead(v SyllabusView) templ.Component {
 
 // partBlock renders one top-level section (a part): an anchored editorial
 // heading, then its lessons and modules fully expanded inline. There is no
-// per-part page (kurodo has no reading-progress model), so every part —
+// per-part page (yomihon has no reading-progress model), so every part —
 // completed or not — expands the same.
 func partBlock(sec SectionView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

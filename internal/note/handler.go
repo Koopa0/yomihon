@@ -11,12 +11,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/lesson"
-	"github.com/koopa0/kurodo/internal/nav"
-	"github.com/koopa0/kurodo/internal/render"
-	"github.com/koopa0/kurodo/internal/search"
-	"github.com/koopa0/kurodo/internal/ui/pages"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // sealStatus is the one primary status — the koopa-only seal. Only a ready note
@@ -134,7 +134,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// The reading page renders notes, and a note is a .md file. Any other vault
 	// resource served here would go through the markdown pipeline with WithUnsafe,
 	// which passes raw HTML — including <script> — straight into this first-party,
-	// kurodo-origin page: a .html briefing would then run its scripts same-origin
+	// yomihon-origin page: a .html briefing would then run its scripts same-origin
 	// to the whole vault-reading surface, the very execution the reports face
 	// sandboxes. Non-note resources are not read here — briefings have their own
 	// sandboxed /reports route, and .canvas/.base are not markdown — so serve only

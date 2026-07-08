@@ -21,7 +21,7 @@ type Note struct {
 	RelPath     string
 	Frontmatter map[string]any
 	// FMDiagnostic is non-empty when the frontmatter block exists but is not
-	// valid YAML. Display-only: kurodo reports the fault; a human edits the file.
+	// valid YAML. Display-only: yomihon reports the fault; a human edits the file.
 	FMDiagnostic string
 	Body         string
 }

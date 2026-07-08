@@ -17,7 +17,7 @@ var conceptLink = regexp.MustCompile(`<a href="([^"]*)" class="wikilink">`)
 //
 // A trigger stays a real navigable <a> (no-JS opens the concept note's reading
 // page — the approved degradation); it only gains data-concept + the
-// concept-link class, so kurodo.js can intercept the click and open the sheet
+// concept-link class, so yomihon.js can intercept the click and open the sheet
 // instead. Like InjectTTS this is a lesson-gated post-pass over already-rendered
 // HTML — render.HTML stays a generic note renderer, and the locked wikilink
 // output is not reshaped, only annotated.

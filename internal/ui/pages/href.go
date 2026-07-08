@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
 // notesHref builds the reading-page URL for a vault-relative path,
@@ -85,11 +85,11 @@ type LifecycleItem struct {
 // input hygiene, since a cookie is user-controllable.
 func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
 	theme := "light"
-	if c, err := r.Cookie("kurodo_theme"); err == nil && c.Value == "dark" {
+	if c, err := r.Cookie("yomihon_theme"); err == nil && c.Value == "dark" {
 		theme = "dark"
 	}
 	ruby := "on"
-	if c, err := r.Cookie("kurodo_ruby"); err == nil && c.Value == "off" {
+	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
 		ruby = "off"
 	}
 	return layouts.Chrome{Title: title, Theme: theme, Ruby: ruby}

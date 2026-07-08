@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Drives a real kurodo server against the fixture vault next to this script and
+# Drives a real yomihon server against the fixture vault next to this script and
 # asserts that each reading face renders, then asserts the listening socket is
 # bound to loopback and to nothing else. The socket assertion is the live form
 # of the promise that the server is reachable only from this machine: if the
@@ -8,18 +8,18 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-bin="${1:-${KURODO_BIN:-}}"
+bin="${1:-${YOMIHON_BIN:-}}"
 if [ -z "$bin" ]; then
-  echo "usage: smoke.sh <path-to-kurodo-binary>   (or set KURODO_BIN)" >&2
+  echo "usage: smoke.sh <path-to-yomihon-binary>   (or set YOMIHON_BIN)" >&2
   exit 2
 fi
 vault="$here/vault"
-port="${KURODO_SMOKE_PORT:-19733}"
+port="${YOMIHON_SMOKE_PORT:-19733}"
 base="http://127.0.0.1:${port}"
 log="$(mktemp)"
 body="$(mktemp)"
 
-KURODO_ROOT="$vault" KURODO_PORT="$port" "$bin" serve >"$log" 2>&1 &
+YOMIHON_ROOT="$vault" YOMIHON_PORT="$port" "$bin" serve >"$log" 2>&1 &
 server_pid=$!
 cleanup() {
   kill "$server_pid" 2>/dev/null || true

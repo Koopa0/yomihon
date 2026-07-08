@@ -379,7 +379,7 @@ the day a new one lands. **The vault's own maps are the navigation.**
    section, current entry marked — the same arrival a lesson gets.
 4. **Grouping**: **Paths** (study-paths, as built), then **Maps** (one
    `<details>` per map, collapsed, ordered by domain then title). A new map
-   in the vault is a new section with zero kurodo changes.
+   in the vault is a new section with zero yomihon changes.
 5. **Journal is content too**: a **Journal** section — most recent entries
    under `Diary/`, newest first, small fixed count, collapsed — below Maps.
    Local reading is legitimate and always was (D39/D42 guard machine

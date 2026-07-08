@@ -291,12 +291,12 @@ func humanReport(findings []Finding) string {
 
 // markdownReport renders the packed findings as a fileable markdown note body.
 // The frontmatter is deterministic — no timestamp — so the caller stamps and
-// routes it. The tool identity names kurodo, the tool that produced it, rather
-// than reproducing the reference tool's name in a note kurodo files.
+// routes it. The tool identity names yomihon, the tool that produced it, rather
+// than reproducing the reference tool's name in a note yomihon files.
 func markdownReport(findings []Finding) string {
 	p := pack(findings)
 	var s strings.Builder
-	s.WriteString("---\ntype: report\ntool: kurodo\n---\n\n# kurodo check\n\n")
+	s.WriteString("---\ntype: report\ntool: yomihon\n---\n\n# yomihon check\n\n")
 	fmt.Fprintf(&s, "%d findings — **%d error**, **%d warn**, %d hidden.\n\n", len(findings), p.errors, p.warns, p.planned+p.external)
 
 	if len(p.scoreboard) > 0 {

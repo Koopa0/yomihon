@@ -1,7 +1,7 @@
 # Vault Model — the builder's guide to this Obsidian vault
 
 > Required reading before you touch the renderer / graph / search. This document describes the dialect, semantics, and authority structure of one **specific vault** (`~/obsidian`) — it is not a general Obsidian tutorial.
-> In this document, "yomihon" = the old reader, frozen in service (`~/go/src/github.com/koopa0/yomihon`, a reference implementation); "kurodo" = this project.
+> In this document, "yomihon-dev" = the old reader, frozen in service (`~/go/src/github.com/koopa0/yomihon-dev`, a reference implementation); "yomihon" = this project.
 >
 > Facts anchored on 2026-07-02, all verified against real files. The vault is alive: the scale numbers will change, but the contract layers (layers 2 and 3) evolve only through vault-schema.toml.
 
@@ -13,7 +13,7 @@
 
 Four syntactic forms: `[[name]]`, `[[name|display text]]`, `[[name#heading]]`, `[[name^block]]`.
 
-The reference spec for resolution semantics is kura's `src/graph.rs` + `src/wikilink.rs`; kurodo must copy it rule by rule:
+The reference spec for resolution semantics is kura's `src/graph.rs` + `src/wikilink.rs`; yomihon must copy it rule by rule:
 
 - **Normalize**: `trim → Unicode NFC → lowercase`. NFC is mandatory for CJK (macOS filenames use NFD; kura also NFC-normalizes paths as it walks — see `vault.rs`).
 - **Key set**: every note is keyed under four forms — the filename stem, the full name with `.md`, the vault-relative path stem, and the full relative path — **plus its frontmatter `aliases`**.
@@ -26,11 +26,11 @@ The reference spec for resolution semantics is kura's `src/graph.rs` + `src/wiki
 
 ### Embeds: `![[...]]`
 
-Transclusion embeds; may appear for images, notes, or PDFs. Note: yomihon's parser **does not handle** embeds (the leading `!` survives as literal text) — kurodo must add this; it is one of the known gaps in the reference implementation.
+Transclusion embeds; may appear for images, notes, or PDFs. Note: yomihon-dev's parser **does not handle** embeds (the leading `!` survives as literal text) — yomihon must add this; it is one of the known gaps in the reference implementation.
 
 ### Callouts: `> [!type]`
 
-yomihon has a complete conversion honed on real lessons; copy its semantics:
+yomihon-dev has a complete conversion honed on real lessons; copy its semantics:
 
 - Fold markers: `[!type]-` → a `<details>` **collapsed** by default; `[!type]+` → an expanded `<details>`; no suffix → a static tinted alert.
 - Type mapping (two color buckets: `note` = sky, `warning` = amber) plus default English titles:
@@ -48,7 +48,7 @@ yomihon has a complete conversion honed on real lessons; copy its semantics:
 
 ### Highlights: `==text==`
 
-yomihon **does not handle** this — kurodo must, since you'll hit it when rendering the whole vault.
+yomihon-dev **does not handle** this — yomihon must, since you'll hit it when rendering the whole vault.
 
 ### Tasks: `- [ ]` / `- [x]`
 
@@ -56,7 +56,7 @@ GFM task list; covered by goldmark `extension.GFM`.
 
 ### YAML frontmatter
 
-A structural layer, not decoration (see layer 2). Fault-tolerance requirement: bad YAML emits exactly **one** diagnostic (aligned with kura's `schema.frontmatter`, no cascade); one note must never wreck the whole render. Split out the frontmatter before running any body preprocessing (yomihon's `splitFrontmatter` lesson: otherwise a value like `based_on: [[...]]` gets mangled by the wikilink pass).
+A structural layer, not decoration (see layer 2). Fault-tolerance requirement: bad YAML emits exactly **one** diagnostic (aligned with kura's `schema.frontmatter`, no cascade); one note must never wreck the whole render. Split out the frontmatter before running any body preprocessing (yomihon-dev's `splitFrontmatter` lesson: otherwise a value like `based_on: [[...]]` gets mangled by the wikilink pass).
 
 ### Raw HTML in the body
 
@@ -66,7 +66,7 @@ Example: `Writing/lessons/japanese/L20 普通形と常体.md:141` (katakana gets
 
 ### Code-fence safety
 
-Line-oriented preprocessing (the callout / wikilink / table passes) doesn't understand fences. The policy inherited from yomihon: when `[[...]]`, `> [!…]`, or a pipe-table is detected inside a fence, emit a single build warning rather than silently corrupting the output.
+Line-oriented preprocessing (the callout / wikilink / table passes) doesn't understand fences. The policy inherited from yomihon-dev: when `[[...]]`, `> [!…]`, or a pipe-table is detected inside a fence, emit a single build warning rather than silently corrupting the output.
 
 ### Non-Markdown files
 
@@ -88,7 +88,7 @@ Line-oriented preprocessing (the callout / wikilink / table passes) doesn't unde
 
 ### Folders = lifecycle, not classification
 
-The main flow: `Inbox → Sources → Concepts → Maps / Synthesis → Writing`; `System/` = governance layer, `Views/` = dashboards, `Diagrams/` = diagrams. Hard rule (Vault-Architecture.md): **≤ 9 top-level folders, domains one level deep, no subfolders** — navigation runs through MOCs and `topics`, not a tree. kurodo's sidebar should reflect this model rather than invent a tree of its own.
+The main flow: `Inbox → Sources → Concepts → Maps / Synthesis → Writing`; `System/` = governance layer, `Views/` = dashboards, `Diagrams/` = diagrams. Hard rule (Vault-Architecture.md): **≤ 9 top-level folders, domains one level deep, no subfolders** — navigation runs through MOCs and `topics`, not a tree. yomihon's sidebar should reflect this model rather than invent a tree of its own.
 
 ### The four hard rules (Note-Schema.md)
 
@@ -115,13 +115,13 @@ The toml's `[fields.status_group]` maps types into three groups:
 - **system group**: active / archived
 - `archived` can be entered from any state (`from = ["*"]`).
 
-The toml's `[[lifecycle]]` table declares, for each status, its `from` (legal prior states) and `owner` — **the owner of `ready` is `koopa`; any agent writing ready is a violation**. kurodo is a single-user local app whose operator *is* Koopa, so a ready button in the UI is legal; but illegal from→to transitions must be blocked.
+The toml's `[[lifecycle]]` table declares, for each status, its `from` (legal prior states) and `owner` — **the owner of `ready` is `koopa`; any agent writing ready is a violation**. yomihon is a single-user local app whose operator *is* Koopa, so a ready button in the UI is legal; but illegal from→to transitions must be blocked.
 
-Key fact: the toml comments admit that a file-scan tool (kura) cannot see the *previous* state, so it validates only enum + owner, and from→to enforcement is deferred. **kurodo is an interactive writer that reads the current state before writing, so it can naturally enforce the full from→to + owner check** — this is kurodo's first substantive contribution to the contract, not a repeat of kura's work.
+Key fact: the toml comments admit that a file-scan tool (kura) cannot see the *previous* state, so it validates only enum + owner, and from→to enforcement is deferred. **yomihon is an interactive writer that reads the current state before writing, so it can naturally enforce the full from→to + owner check** — this is yomihon's first substantive contribution to the contract, not a repeat of kura's work.
 
 ### slug
 
-Only lessons need one. Pattern `^[a-z0-9]+(-[a-z0-9]+)*$` (built into the toml); namespace prefixes: Japanese `jp-minna-lNN` / `jp-kana-pNN`, Go lessons plain, one rust lesson `rust-ownership`. **Once a slug is finalized it never changes; the filename may.** Policy note: `System/schemas/Slug-Policy.md` — the prefixes are a minting convention living at the doc layer; the toml only validates the pattern. If kurodo later needs to consume the prefixes mechanically, propose adding them to the toml then. Today all 147 lessons carry a slug and all are compliant (2026-07-02 verified).
+Only lessons need one. Pattern `^[a-z0-9]+(-[a-z0-9]+)*$` (built into the toml); namespace prefixes: Japanese `jp-minna-lNN` / `jp-kana-pNN`, Go lessons plain, one rust lesson `rust-ownership`. **Once a slug is finalized it never changes; the filename may.** Policy note: `System/schemas/Slug-Policy.md` — the prefixes are a minting convention living at the doc layer; the toml only validates the pattern. If yomihon later needs to consume the prefixes mechanically, propose adding them to the toml then. Today all 147 lessons carry a slug and all are compliant (2026-07-02 verified).
 
 ### The syllabus (study-path) is machine-parseable
 
@@ -133,7 +133,7 @@ Only lessons need one. Pattern `^[a-z0-9]+(-[a-z0-9]+)*$` (built into the toml);
 
 - Two series: `L01`–`L20` (the main grammar lessons) plus `P01`–`P07` (the kana prerequisite lessons), all `type: lesson, domain: japanese`.
 - **The drills (`Writing/lessons/japanese/drills/`, 8 files) having no frontmatter is intentional and legal** (toml `no_frontmatter_is_legal`; both kura and Bases exclude them) — treat them as attachment-level content; don't require a schema.
-- The division of labor: the vault owns **understanding** (the P series, the grammar lessons), the Kotonoha app owns **reflex** (kana/kanji drills) — drill-style interaction never grows into kurodo.
+- The division of labor: the vault owns **understanding** (the P series, the grammar lessons), the Kotonoha app owns **reflex** (kana/kanji drills) — drill-style interaction never grows into yomihon.
 - Orthography rules (Japanese-Companion-Guide.md): furigana may fade, **katakana always gets ruby and never fades**, particles are annotated with their actual reading, strict level-gating.
 
 ### golang-lesson specifics
@@ -142,17 +142,17 @@ Revised lessons carry a **corrections ledger**: a frontmatter `corrections:` lis
 
 ---
 
-## Layer 3: Authority and governance (kurodo's place in the ecosystem)
+## Layer 3: Authority and governance (yomihon's place in the ecosystem)
 
 ### vault-schema.toml is the machine source of truth
 
-`System/schemas/vault-schema.toml` (schema_version 1) declares itself the SoT; its consumers are kura (the schema.* rules), `gen_fileclasses.py`, Note-Schema.md (the human doctrine, "change the toml before you change an enum"), and kurodo. kurodo only reads it, never hard-codes (wall 3).
+`System/schemas/vault-schema.toml` (schema_version 1) declares itself the SoT; its consumers are kura (the schema.* rules), `gen_fileclasses.py`, Note-Schema.md (the human doctrine, "change the toml before you change an enum"), and yomihon. yomihon only reads it, never hard-codes (wall 3).
 
 ### kura is the corpus judge (15 rules)
 
 7 link/graph rules (`link.title_not_alias`, `link.broken`, `link.broken.path`, `collision.alias`, `provenance.unresolved`, `map.disk_mismatch`, `map.disk_unlisted`) plus 8 schema.* rules (enum / required / unknown_key / slug / domain_folder / legacy_tag / provenance / frontmatter, all at error level). Gate semantics: `--deny error`; info never gates.
 
-When kurodo sees something broken: **render it anyway and flag a diagnostic; don't fix, don't block, don't overstep** (wall 4).
+When yomihon sees something broken: **render it anyway and flag a diagnostic; don't fix, don't block, don't overstep** (wall 4).
 
 ### The pipelines (the real consumers of `check`, verified vault-side 2026-07-02)
 
@@ -168,21 +168,21 @@ The JSONL contract (the retirement gate's golden comparison target, field shape)
 
 ### Scan boundary ≠ render boundary
 
-By default kura **does not scan** `System/`, `Diagrams/`, `Views/` (only `--all` does). kurodo's render surface is larger than kura's scan surface (it must read reports and briefings); but when aligning a `kurodo check`, it must replicate kura's scan boundary, or the JSONL won't line up.
+By default kura **does not scan** `System/`, `Diagrams/`, `Views/` (only `--all` does). yomihon's render surface is larger than kura's scan surface (it must read reports and briefings); but when aligning a `yomihon check`, it must replicate kura's scan boundary, or the JSONL won't line up.
 
 ### git is the audit layer
 
-The vault is a git repo. kurodo makes one commit per status transition (wall 1) — this keeps everything reversible and is the precondition that lets the yard be opened wide. **Do not build a separate status-history table: `git log` is the history.**
+The vault is a git repo. yomihon makes one commit per status transition (wall 1) — this keeps everything reversible and is the precondition that lets the yard be opened wide. **Do not build a separate status-history table: `git log` is the history.**
 
 ### The write pipeline at a glance
 
-hermes goes through a worktree branch → the three QA-Gate layers (kura → Codex → Claude) → only Claude merges → **only Koopa presses ready**. kurodo's status flip is this chain's human-terminal interface, not a bypass.
+hermes goes through a worktree branch → the three QA-Gate layers (kura → Codex → Claude) → only Claude merges → **only Koopa presses ready**. yomihon's status flip is this chain's human-terminal interface, not a bypass.
 
 ### The privacy line (a dedicated doc is drafted: `System/agent-guides/Privacy-Boundary.md`, pending Koopa's final review)
 
 - The line is a **folder**: the top-level `Diary/` never egresses (a folder is fail-closed, a frontmatter flag is fail-open, so use the folder).
-- For kurodo: local-only rendering for Koopa himself is **legal**; every egress surface (export, check findings, snapshots, feeding an agent) unconditionally excludes `Diary/` — not even `--all` includes it, because findings written into a report would be read by agents.
-- The mechanical source: the toml will add `[privacy] never_egress_dirs = ["Diary"]` — kura, kurodo, and hermes all read the same one (wall 3); no hard-coding.
+- For yomihon: local-only rendering for Koopa himself is **legal**; every egress surface (export, check findings, snapshots, feeding an agent) unconditionally excludes `Diary/` — not even `--all` includes it, because findings written into a report would be read by agents.
+- The mechanical source: the toml will add `[privacy] never_egress_dirs = ["Diary"]` — kura, yomihon, and hermes all read the same one (wall 3); no hard-coding.
 - The `type: diary` draft: lives in `Diary/`, domain-exempt, does not require a status. The boundary test is a single sentence: **if you want an agent to look at it, it isn't a diary** (a Japanese diary-writing exercise is not a diary).
 
 ---
@@ -192,7 +192,7 @@ hermes goes through a worktree branch → the three QA-Gate layers (kura → Cod
 1. **Data model**: `System/schemas/vault-schema.toml` → `System/schemas/Note-Schema.md` → `System/schemas/Vault-Architecture.md`
 2. **System philosophy and the judge's spec**: `System/Vault-Index.md` → `System/Koopa-Knowledge-Compiler.md` → `System/vault-guard-spec.md` (note: the spec's filename is still the old name; the tool has been renamed kura) plus `System/kura-field-log.md`
 3. **The people, the division of labor, the gates**: `System/agent-guides/about-koopa.md` → `collaboration-charter.md` → `QA-Gate.md` → `Japanese-Companion-Guide.md` → `Privacy-Boundary.md` (draft) plus `System/schemas/Slug-Policy.md`
-4. **The three reference implementations**: `~/go/src/github.com/koopa0/yomihon/internal/markdown/parser.go` (dialect handling) plus `kura/src/graph.rs`, `src/wikilink.rs` (the link-resolution spec) plus `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts` (an existing component; untrusted premise, a different context)
+4. **The three reference implementations**: `~/go/src/github.com/koopa0/yomihon-dev/internal/markdown/parser.go` (dialect handling) plus `kura/src/graph.rs`, `src/wikilink.rs` (the link-resolution spec) plus `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts` (an existing component; untrusted premise, a different context)
 5. **A sampling of real content (read the real files before writing your first line of rendering code)**:
    - `Writing/lessons/japanese/L20 普通形と常体.md` (an HTML-ruby lesson)
    - `Writing/lessons/golang/Garbage Collection Guide.md` (a corrections ledger)

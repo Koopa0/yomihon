@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/kurodo/internal/schema"
-	"github.com/koopa0/kurodo/internal/status"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/status"
 )
 
 // testRel is the vault-relative path every fixture note in this package
@@ -34,7 +34,7 @@ func loadContract(t *testing.T) *schema.Schema {
 
 // newVault creates a temp git repo standing in for the vault, with a fake
 // local git identity scoped to that repo only. The flip's commit author
-// must come from this config — never anything kurodo hardcodes —
+// must come from this config — never anything yomihon hardcodes —
 // so tests exercise the real git behavior instead of mocking it.
 // commit.gpgsign is forced off so the test does not depend on whatever the
 // host's global git config or GPG agent happens to be set up to do.
@@ -144,7 +144,7 @@ func TestFlipHappyPath(t *testing.T) {
 		t.Fatalf("commit count = %d, want %d (exactly one new commit)", after, before+1)
 	}
 
-	wantSubject := "status(" + testRel + "): draft → ready (via kurodo)"
+	wantSubject := "status(" + testRel + "): draft → ready (via yomihon)"
 	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != wantSubject {
 		t.Errorf("commit subject = %q, want %q", got, wantSubject)
 	}
@@ -543,7 +543,7 @@ func TestFlipConcurrentNeverLiesInTheCommitMessage(t *testing.T) {
 	if want := "status: " + wantStatus; !strings.Contains(final, want) {
 		t.Errorf("file after concurrent flips = %q, want it to contain %q", final, want)
 	}
-	wantSubject := "status(" + testRel + "): draft → " + wantStatus + " (via kurodo)"
+	wantSubject := "status(" + testRel + "): draft → " + wantStatus + " (via yomihon)"
 	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != wantSubject {
 		t.Errorf("commit subject = %q, want %q (must match what was actually committed)", got, wantSubject)
 	}

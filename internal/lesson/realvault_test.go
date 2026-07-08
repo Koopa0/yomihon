@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lesson"
 )
 
 // slotSlug is the namespace the Minna-no-Nihongo slot sidecars declare
@@ -26,7 +26,7 @@ var slotSlug = regexp.MustCompile(`^jp-minna-l\d+$`)
 func TestRealVaultSlotsLoadAndValidate(t *testing.T) {
 	t.Parallel()
 
-	root := os.Getenv("KURODO_ROOT")
+	root := os.Getenv("YOMIHON_ROOT")
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

@@ -10,7 +10,7 @@ import (
 // TestReportGolden asserts the human and markdown renderings of the report
 // fixture equal their goldens byte for byte. The human golden is the reference
 // tool's exact output; the markdown golden is that output with only its two
-// tool-identity lines changed to name kurodo, the sole place the format
+// tool-identity lines changed to name yomihon, the sole place the format
 // deliberately departs from the reference (see the tool identity in
 // markdownReport).
 func TestReportGolden(t *testing.T) {

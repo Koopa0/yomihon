@@ -13,7 +13,7 @@
 // this scale, and hashing would force reading every file on every scan
 // (reconsider past ~10k files).
 //
-// The scanner is fault-tolerant by the same asymmetry as the rest of kurodo
+// The scanner is fault-tolerant by the same asymmetry as the rest of yomihon
 // (reading is fail-open): a failed build logs and publishes an empty/partial
 // snapshot, and reading never depends on the build succeeding.
 package snapshot
@@ -27,10 +27,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/nav"
-	"github.com/koopa0/kurodo/internal/search"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // scanInterval is the reconciliation cadence: a full mtime stat over ~420

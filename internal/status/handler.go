@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/schema"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // maxFormBytes bounds the POST /status body: three short form fields never
@@ -80,7 +80,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "this page is stale; reload and try again", http.StatusConflict)
 	case errors.Is(err, ErrConcurrentWrite):
 		// Distinct from ErrStale above: this is not an old browser tab —
-		// something touched the file in the narrow window between kurodo
+		// something touched the file in the narrow window between yomihon
 		// reading it and writing it back.
 		http.Error(w, "the file was modified between read and write; try again", http.StatusConflict)
 	case errors.Is(err, ErrDirty):

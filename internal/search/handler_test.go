@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 // TestSearchHandler exercises GET /search end to end: route registration, the

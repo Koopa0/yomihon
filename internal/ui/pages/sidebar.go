@@ -6,8 +6,8 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 // Sidebar is the fully resolved left navigation for one request: the shared
@@ -147,7 +147,7 @@ const navRestoreScript = `<script>
 (() => {
 	'use strict';
 	let stored = {};
-	try { stored = JSON.parse(sessionStorage.getItem('kurodo.nav') || '{}') || {}; } catch { stored = {}; }
+	try { stored = JSON.parse(sessionStorage.getItem('yomihon.nav') || '{}') || {}; } catch { stored = {}; }
 	document.querySelectorAll('.k-rail-left details[data-key]').forEach((d) => {
 		if (d.hasAttribute('data-chain')) { d.open = true; return; }
 		const want = stored[d.dataset.key];

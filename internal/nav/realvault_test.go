@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // TestBuildRealVault builds the navigation model against the real vault
-// (~/obsidian, or KURODO_ROOT) and asserts the navigation acceptance
+// (~/obsidian, or YOMIHON_ROOT) and asserts the navigation acceptance
 // criteria against the two real study-path files, the lifecycle
 // folder tree, and the reports list. It follows the same
 // t.Skipf-when-vault-absent pattern as internal/render's realvault_test and
@@ -110,7 +110,7 @@ func TestBuildRealVault(t *testing.T) {
 
 func realVaultRoot(t *testing.T) string {
 	t.Helper()
-	root := os.Getenv("KURODO_ROOT")
+	root := os.Getenv("YOMIHON_ROOT")
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

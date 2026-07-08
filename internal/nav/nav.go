@@ -9,7 +9,7 @@
 //  3. a flat list of the reports under System/reports/.
 //
 // The Model is built once at process startup and never mutated afterward
-// (mirroring how graph.Index is built in cmd/kurodo/main.go), so every
+// (mirroring how graph.Index is built in cmd/yomihon/main.go), so every
 // request hands out the same immutable value with no per-request work and
 // no locking.
 //
@@ -31,8 +31,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // typeStudyPath is the single frontmatter `type` value nav keys on to find
@@ -140,7 +140,7 @@ func lifecycleRank(name string) int {
 // same as render.New's nil Resolver). The returned error is reserved for a
 // failure to even list the vault; every finer-grained problem (an
 // unreadable note, a broken lesson link, a malformed syllabus) is tolerated
-// and surfaced in the model rather than returned. cmd/kurodo/main.go
+// and surfaced in the model rather than returned. cmd/yomihon/main.go
 // treats a returned error the same asymmetric way it treats a graph build
 // failure: log and serve an empty model, never abort the server.
 func Build(root string, idx Resolver) (*Model, error) {

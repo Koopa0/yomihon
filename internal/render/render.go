@@ -33,7 +33,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // Resolver is the minimal wikilink-resolution capability render needs.
@@ -70,7 +70,7 @@ const (
 )
 
 // Diagnostic is one rendering-time note about content the dialect passes
-// couldn't cleanly handle. Display-only: kurodo reports, it
+// couldn't cleanly handle. Display-only: yomihon reports, it
 // never fixes or rejects. It lives in this package rather than
 // internal/graph because a diagnostic is fundamentally a rendering-time
 // decision — it is render, not graph, that decides an unresolved link,
