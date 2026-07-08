@@ -61,10 +61,22 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    independent seed bases with zero unexplained divergence; nothing needed
    adjudication.
 3. Koopa's retirement declaration, citing §13 — **done (D43, 2026-07-07)**.
-4. `PR-descaffold` — **done (this PR)**: conformance, sandwich, and differential
+4. `PR-descaffold` — **done (PR #26)**: conformance, sandwich, and differential
    tests deleted; goldens and pinning fixtures kept; the docs' gate passages
    rewritten to past tense. Vault-side: shell export removed, wrapper backups
    cleaned, reference binaries deleted (operations alongside the PR).
+
+**NEXT — the rename (kurodo → yomihon, D44): a solo sweep, do it before any
+feature branch below opens.** It touches every import path, so it must run on
+a clean tree with nothing else outstanding — and the longer it waits, the more
+new code is born `kurodo` and widens the sweep. It is a coordinated migration,
+not a find-and-replace: three live-consumer seams (the markdown report's tool
+name, the env-var whitelist lock, the four crons' binary path) plus two
+directory moves that are Koopa's hand (the working directory and the
+path-keyed Claude Code memory directory — miss the second and the whole
+handoff memory orphans). The full executable plan, its landmines, and its
+acceptance criteria are `rename-plan.md`. The experience batch (unit 9) has
+merged, so the precondition is met; this is the immediate next dispatch.
 
 **Track 2 ∥ — CI hygiene (one chore PR, already specified):**
 5. `PR-ci-hygiene` — pay the debts recorded in `standards.md` §3: rename the
@@ -84,13 +96,16 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    (the checklist at its end) and rules; the doc is amended to match.
 8. `PR-ux-b1` — sidebar restructure: wayfinding, syllabus disclosure, the
    filter box, lifecycle demotion (per the approved plan).
-9. `PR-ux-b2` — **the experience batch (dispatchable now, parallel with
-   descaffold — zero file overlap)**: view transitions with stable chrome
-   regions, the reading-smoothness inventory (§12, hairline included), seal
-   feedback, mermaid shimmer, TOC scroll-spy, disclosure persistence, the
-   search page's shell adoption, and the right-rail redesign (§6). This is
-   the batch that closes the gap between the designed experience and the
-   shipped one.
+9. `PR-ux-b2` — **the experience batch (merged, PR #27)**: view transitions
+   with stable chrome regions, the reading-smoothness inventory (§12, hairline
+   included), seal feedback, mermaid shimmer, TOC scroll-spy, disclosure
+   persistence, the search page's shell adoption, and the right-rail redesign
+   (§6). It also carried two fixes that resolved standing bugs — the concept
+   sheet no longer paints an opaque panel over the TOC on lesson pages, and
+   the search page renders inside the shell (both were diagnosed as already
+   fixed here, 2026-07-08). One cosmetic remainder, `PR-ux-fixes`: a ruby
+   heading's TOC text duplicates kanji and kana (the tag-strip keeps `<rt>`
+   text) — display-only, batchable with `PR-ux-b3`.
 9b. `PR-ux-b2h` — Home v0.5 (ux-plan §3): the mtime plumbing and the
     landing page; smaller and separable from the experience batch.
 9c. `PR-ux-b3` — the content-driven sidebar (ux-plan §13): every map note

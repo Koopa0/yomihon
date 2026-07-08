@@ -25,6 +25,12 @@
 - **Done** (2026-07-07): the differential fuzz campaign (judge-plan §13) ran to
   its completion bar with zero unexplained divergence; kura was declared retired
   (D43) and the conformance scaffolding was deleted, the goldens kept.
+- **Done** (2026-07-08): the sidebar wayfinding rebuild (PR #25) and the
+  experience batch (PR #27 — view transitions, the smoothness inventory, seal
+  feedback, disclosure persistence, the search shell, the rail redesign), which
+  also fixed the concept-sheet-over-TOC and search-layout bugs. **Next is the
+  rename to yomihon (D44, `rename-plan.md`)** — a solo sweep before the next
+  feature branch.
 - **The two retirement gates** (evidence-based, D11; refined by D38/D40),
   stated precisely:
   - **kura gate — met; declared retired 2026-07-07 (D43)** = spec §5 acceptance
