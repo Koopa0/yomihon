@@ -228,6 +228,15 @@ loopback-only; and the real vault served under the new name (renamed script
 incident during acceptance, not a code defect: a pre-rename `bin/kurodo`
 server from the morning still occupied the probe port and answered with old
 bytes until killed — stale local servers outlive renames; check `lsof`
-before trusting a probe. Remaining operations: the four-cron cutover to
-`~/go/bin/yomihon` (install, backup, verify each, then delete the old
-binary) and removing the emptied old working directory.
+before trusting a probe.
+
+The cron cutover completed the same evening (guide, on Koopa's delegation):
+`~/go/bin/yomihon` installed, the four wrappers switched with
+`.pre-yomihon-rename` backups and a one-line diff each, then verified — the
+zero-LLM vault-qa wrapper ran end to end (95 findings summarized, the report
+refiled under the new tool identity) and the three LLM-gated wrappers had
+their exact check invocations exercised read-only against the real vault —
+and the old binary deleted. The hermes memory records the rename; the dated
+hermes rulings and advisories keep the old name as history, as do the two
+dated vault reports. All that remains is removing the emptied old working
+directory.
