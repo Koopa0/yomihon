@@ -422,7 +422,7 @@ html, body { margin: 0; background: var(--bg); }
    dropped, the sibling rule under .k-shell--rail-empty reveals this bar).
    ============================================================ */
 .k-sealbar { display: none; align-items: center; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border);
+  padding: 10px 16px; border-top: 1px solid var(--border);
   background: color-mix(in oklch, var(--panel) 92%, transparent); backdrop-filter: blur(10px); }
 .k-sealbar__spacer { flex: 1; }
 .k-sealbar .k-sealbtn { width: auto; height: 40px; padding: 0 16px; flex: none; }
