@@ -25,14 +25,14 @@ type Handler struct {
 // they are the live-Snapshot accessors, always real closures (a wiring bug
 // otherwise, caught here rather than three calls deep in the first request;
 // mirrors the other handlers' nil-dependency guards).
-func NewHandler(index func() *Index, nav func() *nav.Model, log *slog.Logger) *Handler {
+func NewHandler(index func() *Index, navProvider func() *nav.Model, log *slog.Logger) *Handler {
 	if index == nil {
 		panic("search: NewHandler requires a non-nil index provider")
 	}
-	if nav == nil {
+	if navProvider == nil {
 		panic("search: NewHandler requires a non-nil nav provider")
 	}
-	return &Handler{index: index, nav: nav, log: log}
+	return &Handler{index: index, nav: navProvider, log: log}
 }
 
 // Register mounts the search route.
