@@ -425,3 +425,88 @@ The consequential corrections, so their reasons survive:
    focused links/buttons (keyboard-navigation convention; suppressed only in
    text entry and dialogs); the "missing product.md" finding was an artifact
    of reviewing a branch cut before that document landed on main.
+
+## 15. The frontend fix batch (ruled 2026-07-08; three sources: guide probe, platform audit, external review)
+
+A user-reported break — the ⌘K palette rendering broken on open — triggered a
+three-source review: the guide's live-browser probe, a platform-guidance
+audit against the Chrome CSS/UI corpus, and an independent external review.
+Merged rulings. In batch scope (one PR, together with §14's ruby-TOC repair):
+
+1. **⌘K palette centering.** The Tailwind Preflight universal reset zeroes
+   the user-agent's `dialog { margin: auto }`, and the palette sets only a
+   top margin — it renders pinned to the left edge. `margin: 12vh auto auto`
+   restores centering. (Probe-verified: computed side margins are 0.)
+2. **⌘K palette surface.** `.k-searchdialog` is declared after `.ui-dialog`
+   at equal specificity and zeroes its panel fill — the palette body is
+   transparent over the half-black backdrop, a contrast failure in light
+   mode. One rule owns the dialog's box; the overriding declarations go.
+3. **Seal shortcut vs. focused selects.** The global-shortcut typing guard
+   treats only inputs, textareas, and contentEditable as typing surfaces; a
+   focused slot-machine `<select>` still feeds `/`, `[`, and a held `R` —
+   which starts the seal hold — while those keys are meaningful typeahead
+   inside the select. `SELECT` joins the typing guard. §14's ruling stands
+   for links and buttons: single-key shortcuts stay live there; a select's
+   letter-jump makes it text entry, not navigation.
+4. **Filter focus ring.** `.k-filter:focus-visible` swaps the global ring
+   for a 12%-alpha border — near-invisible. The override goes.
+5. **Search-input focus treatment.** The autofocused palette and search-page
+   inputs light the heavy global ring on every open. Ruled: the visible
+   indicator moves to the enclosing form (`:focus-within` border accent);
+   the inputs stop drawing the outline; an indicator remains at all times.
+6. **Light dismiss.** The palette and the concept sheet gain
+   `closedby="any"` (inert where unsupported; the concept sheet's manual
+   backdrop-click handler stays as the cross-engine fallback).
+7. **Reading-hairline hardening.** The scroll-driven animation gains an
+   `@supports (animation-timeline: scroll())` guard and an explicit `auto`
+   duration, so a no-timeline engine shows no line rather than a permanently
+   full one. (Flagged independently by both reviews.)
+8. **Decorative SVGs** gain `aria-hidden="true"` wherever the parent already
+   carries the accessible name (hamburger, search glyph, sun/moon, the
+   sidebar chevron, the sealby check).
+9. **Toggle state for assistive tech.** The ruby and theme buttons expose
+   `aria-pressed`, the hamburger `aria-expanded` + `aria-controls`; the
+   server renders the initial state and the enhancement script keeps it
+   current.
+10. **Dead safe-area padding goes.** The seal bar pads with
+    `env(safe-area-inset-bottom)` but the viewport meta never opts into
+    `viewport-fit=cover` — and the listener is loopback-only, so no notched
+    viewport can ever render this app. The dead `env()` is removed rather
+    than activated.
+11. **Speak-button target size.** 22px → a 24px minimum via padding
+    (WCAG 2.5.8), so content can still grow it.
+
+Ruled out, with reasons:
+
+- **Standard scrollbar properties alongside the webkit pseudos.** In Blink,
+  setting `scrollbar-color`/`scrollbar-width` disables `::-webkit-scrollbar`
+  styling — the designed 11px padded thumb would be replaced. A regression on
+  the primary browser, for portability nothing uses. Re-test at acceptance
+  if doubted.
+- **Narrow-header overflow** (external finding). Real below roughly 450px
+  viewports, but the listener is loopback-only — no phone reaches it, and
+  desktop windows rarely tile that narrow. Parked; revisit if a real window
+  hits it.
+- **The inline sidebar restore script** (external finding: one-JS-file
+  violation). Stays, and is hereby the recorded exception: it is a pre-paint
+  state restorer, the one job a deferred file cannot do without flashing the
+  wrong disclosure state. If a CSP ever lands, it takes a nonce.
+- **Popover for the mobile drawer** (external finding). The rail is a grid
+  column on wide viewports and a drawer only under 900px; a `popover`
+  attribute would fight the user-agent's resting `display: none` across that
+  split. A restructure, not an upgrade — revisit only if the drawer needs
+  top-layer features.
+- **Customizable `<select>` for the slot machine** (`appearance:
+  base-select` + `::picker(select)`). Accepted in principle — it is the
+  sanctioned answer to the branded-closed/native-open inconsistency and
+  degrades to today's native picker where unsupported — but it carries
+  visual design decisions, so it ships as its own small PR after this batch.
+
+Baseline statuses read per standards.md §4's Baseline-2026 policy: item 6
+and the follow-up select PR are Limited-availability enhancements over
+native fallbacks; everything else is Widely available or plain CSS.
+
+Acceptance for the batch: the guide re-runs the live-browser probe (palette
+centered, opaque panel over a dimmed backdrop, at wide and narrow widths),
+replays the seal-shortcut check from a focused select, re-runs `make verify`
+plus the frontend lint pair, and runs the hygiene greps.
