@@ -11,7 +11,7 @@
 // Diagnostic strings, including mixed Chinese and English text, are
 // part of the frozen format. Rewording, translating, or reformatting
 // them changes bytes that consumers match against, so they stay exactly
-// as they are even where kurodo's own text would otherwise be English
+// as they are even where yomihon's own text would otherwise be English
 // only.
 package judge
 
