@@ -211,3 +211,23 @@ merge → GitHub repo rename and `git remote set-url`, cron cutover, delete the
 old binary and the emptied old directory. Feature work (Home v0.5, the
 content-driven sidebar, the hover layer, B, H) resumes on the renamed base
 and is born as yomihon.
+
+## Outcome (2026-07-08)
+
+The code PR (#28, nine commits) merged the same day; the GitHub rename and
+`git remote set-url` are done. The guide's independent acceptance held:
+gates re-run green, regeneration a no-op, the residual `kurodo` hits all
+inside the history carve-out plus three adjudicated-legitimate mentions (the
+README's past-name note, this unit's own description in `program.md`, and
+the hygiene grep's ban pattern in `standards.md`); the env-whitelist lock
+went red against a planted `os.LookupEnv` on a different channel than the
+builder's kill-test and green after revert; only `report-md.golden` changed;
+no consumer matches either tool name; the e2e smoke re-confirmed
+loopback-only; and the real vault served under the new name (renamed script
+200, old name 404, the theme cookie round-tripping as `yomihon_theme`). One
+incident during acceptance, not a code defect: a pre-rename `bin/kurodo`
+server from the morning still occupied the probe port and answered with old
+bytes until killed — stale local servers outlive renames; check `lsof`
+before trusting a probe. Remaining operations: the four-cron cutover to
+`~/go/bin/yomihon` (install, backup, verify each, then delete the old
+binary) and removing the emptied old working directory.

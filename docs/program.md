@@ -66,17 +66,16 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    rewritten to past tense. Vault-side: shell export removed, wrapper backups
    cleaned, reference binaries deleted (operations alongside the PR).
 
-**NEXT — the rename (kurodo → yomihon, D44): a solo sweep, do it before any
-feature branch below opens.** It touches every import path, so it must run on
-a clean tree with nothing else outstanding — and the longer it waits, the more
-new code is born `kurodo` and widens the sweep. It is a coordinated migration,
-not a find-and-replace: three live-consumer seams (the markdown report's tool
-name, the env-var whitelist lock, the four crons' binary path) plus two
-directory moves that are Koopa's hand (the working directory and the
-path-keyed Claude Code memory directory — miss the second and the whole
-handoff memory orphans). The full executable plan, its landmines, and its
-acceptance criteria are `rename-plan.md`. The experience batch (unit 9) has
-merged, so the precondition is met; this is the immediate next dispatch.
+**The rename (kurodo → yomihon, D44) — done (PR #28, merged 2026-07-08;
+acceptance held the same day).** The coordinated migration ran as
+`rename-plan.md` records — module path, command directory, client script and
+CSS scope, client-state keys, env whitelist lock, report tool identity,
+wordmark, and living docs in one solo sweep; the directory, memory-slug, and
+GitHub moves landed around it. Independent acceptance re-ran the gates,
+kill-tested the env lock on a different channel, and probed the real vault
+under the new name. Operations remainder (Koopa's hand): the four-cron
+cutover to `~/go/bin/yomihon`, then deleting the old binary and the emptied
+old directory.
 
 **Track 2 ∥ — CI hygiene (one chore PR, already specified):**
 5. `PR-ci-hygiene` — pay the debts recorded in `standards.md` §3: rename the
