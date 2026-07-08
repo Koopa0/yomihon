@@ -83,6 +83,17 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			},
 			wantAbsent: []string{"k-shell--rail-empty", "k-sealbar", "k-statuspanel"},
 		},
+		{
+			name:     "render diagnostics alone keep the rail",
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{"ready"}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
+			wantAids: true,
+			wantPresent: []string{
+				"Diagnostics",
+				"k-inlineaids",
+				"k-statuspanel",
+			},
+			wantAbsent: []string{"k-shell--rail-empty"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
