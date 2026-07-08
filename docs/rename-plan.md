@@ -68,6 +68,13 @@ module-rename commit.
    second seats this project's handoff where new sessions look. Verify:
    `MEMORY.md` under the yomihon slug now opens with the build handoff, not
    the predecessor's build notes.
+   **Executed 2026-07-08**, with two deviations folded in: a mistyped second
+   move first nested this project's memory inside the predecessor's (the
+   guide reconciled it), and the session transcripts moved too — the
+   predecessor's five sessions to the yomihon-dev slug, this project's
+   thirty-eight to the yomihon slug — so resume history follows the rename
+   (Koopa's call, superseding the keep-in-place default above). The emptied
+   kurodo slug was removed.
 4. **Cron cutover** (operations, the kura→kurodo discipline): the four
    `~/.hermes/scripts/cron-*-wrapper.sh` switch their invocation from
    `~/go/bin/kurodo` to `~/go/bin/yomihon`, each with a `.pre-yomihon-rename`
