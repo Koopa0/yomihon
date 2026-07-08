@@ -294,7 +294,10 @@
     const sealForm = document.querySelector('[data-seal]');
     window.addEventListener('keydown', (e) => {
       const t = e.target;
-      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      // A focused <select> counts as typing too: its own letter keys jump to
+      // matching options, so the single-key page shortcuts (including the held
+      // R that starts the seal) must stay out of its way while it has focus.
+      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         if (dialog) { dialog.open ? dialog.close() : dialog.showModal(); }
