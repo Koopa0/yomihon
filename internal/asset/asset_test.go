@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/yomihon/internal/asset"
 )
 
-// newServer wires asset.Register the same way cmd/kurodo/main.go does and
+// newServer wires asset.Register the same way cmd/yomihon/main.go does and
 // starts a real HTTP server, so the tests below exercise net/http's own
 // path canonicalization (redirects, ".." collapsing) exactly as production
 // traffic would — not a hand-simulated approximation of it.

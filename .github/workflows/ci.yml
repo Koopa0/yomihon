@@ -1,6 +1,6 @@
 name: CI
 
-# Gates every PR (and push to main) on kurodo's actual code: build, vet, lint,
+# Gates every PR (and push to main) on yomihon's actual code: build, vet, lint,
 # race-enabled tests, and a vulnerability scan. Deterministic — no agent or API
 # dependency. Intended as a required check.
 
@@ -160,10 +160,10 @@ jobs:
           go-version-file: go.mod
 
       - name: Build the server
-        run: go build -o "${RUNNER_TEMP}/kurodo" ./cmd/kurodo
+        run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
 
       - name: Drive the reading faces and check the listening socket
-        run: bash .github/e2e/smoke.sh "${RUNNER_TEMP}/kurodo"
+        run: bash .github/e2e/smoke.sh "${RUNNER_TEMP}/yomihon"
 
   # Runs a short live fuzz pass over each diagnostics target and smoke-runs the
   # benchmarks, so a crash or invariant break in the hand-rolled frontmatter and

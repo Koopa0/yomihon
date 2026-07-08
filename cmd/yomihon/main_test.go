@@ -245,7 +245,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk cmd/kurodo: %v", err)
+		t.Fatalf("walk cmd/yomihon: %v", err)
 	}
 	if len(offenders) > 0 {
 		t.Errorf("this command may read only KURODO_ROOT and KURODO_PORT (the listener binds loopback, only the port configurable), but found:\n%s",
