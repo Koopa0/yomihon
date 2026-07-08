@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/schema"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestCheckSchemaGolden drives the frontmatter engine over fixture vaults and

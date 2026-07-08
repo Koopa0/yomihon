@@ -5,7 +5,7 @@
 // This is the FIRST route in this repo that serves something other than
 // rendered vault content, and its entire security property rests on one
 // invariant: registry (built once, at package init, from what is
-// compiled into the binary via github.com/koopa0/kurodo/assets'
+// compiled into the binary via github.com/koopa0/yomihon/assets'
 // embed.FS, or computed in memory by render.ChromaCSS) is a fixed, closed
 // map. serve does exactly one thing with request input — an exact lookup
 // of r.PathValue("path") against that map — and nothing else. There is no
@@ -24,8 +24,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/koopa0/kurodo/assets"
-	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/yomihon/assets"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
 const (

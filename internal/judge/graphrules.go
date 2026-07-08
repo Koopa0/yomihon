@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // The graph rules turn the resolved link graph into findings: a wikilink that

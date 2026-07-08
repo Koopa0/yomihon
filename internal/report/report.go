@@ -23,7 +23,7 @@ package report
 import (
 	"log/slog"
 
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 // Deps is everything the reports feature reads from: the current navigation

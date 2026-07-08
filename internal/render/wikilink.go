@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // blockPlaceholder is the marker substituted into the markdown source at

@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"strconv"
 
-	"github.com/koopa0/kurodo/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lesson"
 )
 
 // SlotMachine renders one lesson's sentence-pattern practice: an interactive

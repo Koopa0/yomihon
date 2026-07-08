@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // Coverage reports how well the concept corpus is filed: per-domain concept

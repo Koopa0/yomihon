@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"strconv"
 
-	"github.com/koopa0/kurodo/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
 // Syllabus is the study-path page: the whole tree of one study-path rendered on

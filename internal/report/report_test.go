@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 // briefingFixture carries a <script>, an HTML entity, and CJK content, so the

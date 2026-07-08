@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func writeNote(t *testing.T, root, rel, content string) {

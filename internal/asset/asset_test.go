@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/asset"
+	"github.com/koopa0/yomihon/internal/asset"
 )
 
 // newServer wires asset.Register the same way cmd/kurodo/main.go does and

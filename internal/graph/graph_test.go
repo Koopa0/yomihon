@@ -8,7 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 func TestResolveCaseInsensitive(t *testing.T) {

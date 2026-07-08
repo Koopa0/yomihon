@@ -3,7 +3,7 @@ package search
 import (
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // Filter is one structured constraint: a fixed key and its literal value.

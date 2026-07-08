@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
 // notesHref builds the reading-page URL for a vault-relative path,

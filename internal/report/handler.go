@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // Register mounts the reports face's routes: the shell page and the verbatim

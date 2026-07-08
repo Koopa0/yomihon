@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/schema"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // maxFormBytes bounds the POST /status body: three short form fields never

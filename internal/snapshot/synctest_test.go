@@ -6,7 +6,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/koopa0/kurodo/internal/search"
+	"github.com/koopa0/yomihon/internal/search"
 )
 
 // TestRunSwapsOnlyOnChange pins the scanner's timing behavior on a fake clock:

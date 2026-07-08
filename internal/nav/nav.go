@@ -31,8 +31,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // typeStudyPath is the single frontmatter `type` value nav keys on to find

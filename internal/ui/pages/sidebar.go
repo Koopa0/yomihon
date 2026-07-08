@@ -6,8 +6,8 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 // Sidebar is the fully resolved left navigation for one request: the shared

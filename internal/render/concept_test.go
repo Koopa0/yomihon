@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/render"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
 // conceptLookup is a tiny hand-written stand-in for the concept index: the set

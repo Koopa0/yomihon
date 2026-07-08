@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/koopa0/kurodo/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lesson"
 )
 
 // slotSlug is the namespace the Minna-no-Nihongo slot sidecars declare

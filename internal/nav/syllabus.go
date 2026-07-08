@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/vault"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Syllabus is one parsed study-path note: its title, its own vault path

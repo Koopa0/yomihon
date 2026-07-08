@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/kurodo/internal/graph"
-	"github.com/koopa0/kurodo/internal/nav"
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/nav"
 )
 
 // SyllabusView is everything the study-path page needs: the current path's
