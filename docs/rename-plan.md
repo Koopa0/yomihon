@@ -44,22 +44,30 @@ module-rename commit.
    sequencing; the sweep simply runs in the new directory). What remains is
    deleting the emptied `~/go/src/github.com/koopa0/kurodo/` once nothing else
    points at it.
-3. **Claude Code memory-directory move** (the hidden hole, now overdue — the
-   working directory has already moved):
-   `~/.claude/projects/-Users-koopa-go-src-github-com-koopa0-kurodo` →
-   `~/.claude/projects/-Users-koopa-go-src-github-com-koopa0-yomihon`. The
-   memory is keyed by the slugified absolute path; without this move the entire
-   cross-session handoff memory and session history are orphaned (still on
-   disk under the old slug, but never auto-loaded). The harness itself
-   (`.claude/` hooks and settings) uses relative paths and rode the
-   working-directory move for free — verified 2026-07-08; nothing inside it is
-   hardcoded to the old path.
-   **Collision, found at dispatch:** the target slug already exists and holds
-   the frozen predecessor's memory (one index entry, `yomihon-build-and-m1`),
-   which sessions in this project's directory now auto-load as stale context.
-   Reconcile in the same motion: move the predecessor's memory to
-   `-Users-koopa-go-src-github-com-koopa0-yomihon-dev` (its project's new
-   path), then move the kurodo slug's contents into the vacated yomihon slug.
+3. **Claude Code memory move — do it now, before the builder session opens.**
+   The working directory has already moved, so every session opened in it —
+   the guide's, the builder's — auto-loads the frozen predecessor's stale
+   memory instead of this project's handoff. The memory is keyed by the
+   slugified absolute path; the harness itself (`.claude/` hooks and settings)
+   uses relative paths and rode the working-directory move for free — verified
+   2026-07-08; nothing inside it is hardcoded to the old path.
+   **Move the `memory/` subdirectories, not the whole slug directories** — the
+   yomihon slug already holds session transcripts born in the moved working
+   directory, and the old slugs' transcripts are history worth keeping where
+   they lie. With no Claude session open:
+
+       P=~/.claude/projects
+       mkdir -p "$P/-Users-koopa-go-src-github-com-koopa0-yomihon-dev"
+       mv "$P/-Users-koopa-go-src-github-com-koopa0-yomihon/memory" \
+          "$P/-Users-koopa-go-src-github-com-koopa0-yomihon-dev/memory"
+       mv "$P/-Users-koopa-go-src-github-com-koopa0-kurodo/memory" \
+          "$P/-Users-koopa-go-src-github-com-koopa0-yomihon/memory"
+
+   The first move parks the frozen predecessor's memory at its project's new
+   path (deleting it instead would be irreversible and buys nothing); the
+   second seats this project's handoff where new sessions look. Verify:
+   `MEMORY.md` under the yomihon slug now opens with the build handoff, not
+   the predecessor's build notes.
 4. **Cron cutover** (operations, the kura→kurodo discipline): the four
    `~/.hermes/scripts/cron-*-wrapper.sh` switch their invocation from
    `~/go/bin/kurodo` to `~/go/bin/yomihon`, each with a `.pre-yomihon-rename`
@@ -189,10 +197,10 @@ sweep includes comment prose — the acceptance grep reads comments too.
 
 ## Sequencing summary
 
-The working directory has already moved (2026-07-08). What remains: code PR
-(builder, in the moved directory) → independent acceptance → merge → Koopa
-renames the GitHub repo and points the local remote at it, reconciles and
-moves the memory directories, cuts the four crons over, deletes the old
-binary and the emptied old directory. Feature work (Home v0.5, the
+The working directory has already moved (2026-07-08). What remains: memory
+move (item 3, before the builder session opens) → code PR (builder, in the
+moved directory) → independent acceptance → Koopa pushes and opens the PR →
+merge → GitHub repo rename and `git remote set-url`, cron cutover, delete the
+old binary and the emptied old directory. Feature work (Home v0.5, the
 content-driven sidebar, the hover layer, B, H) resumes on the renamed base
 and is born as yomihon.
