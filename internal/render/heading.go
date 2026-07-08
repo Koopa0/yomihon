@@ -57,7 +57,10 @@ func assignHeadingSlugs(htmlOut string) (string, []TOCEntry) {
 		if nestedHeadingOpen.MatchString(inner) {
 			return tag
 		}
-		text := strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
+		// A ruby heading carries its reading inside <rt>; strip that before
+		// reducing the remaining tags so the entry and its anchor keep the base
+		// characters once, not the kana echoed after them.
+		text := strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(rubyReading.ReplaceAllString(inner, ""), "")))
 
 		id := slugify(text)
 		if seen[id] {

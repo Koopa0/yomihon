@@ -415,6 +415,28 @@ func TestHeadingSlugFallsBackToSection(t *testing.T) {
 	}
 }
 
+func TestHeadingSlugStripsRubyReading(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, t.TempDir(), nil, nil)
+
+	// A furigana heading keeps only its base characters in the entry and the
+	// anchor — the reading inside <rt> must not echo after the kanji.
+	got := r.HTML("## <ruby>漢字<rt>かんじ</rt></ruby>\n")
+
+	want := []render.TOCEntry{{Level: 2, Text: "漢字", ID: "漢字"}}
+	if diff := cmp.Diff(want, got.TOC); diff != "" {
+		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
+	}
+	// The heading body is untouched: the ruby markup survives byte-for-byte and
+	// the heading carries the base-character id.
+	if !strings.Contains(got.HTML, `<ruby>漢字<rt>かんじ</rt></ruby>`) {
+		t.Errorf("HTML().HTML dropped the ruby markup from the heading body:\n%s", got.HTML)
+	}
+	if !strings.Contains(got.HTML, `id="漢字"`) {
+		t.Errorf("HTML().HTML missing the base-character heading id:\n%s", got.HTML)
+	}
+}
+
 func TestFenceSafety(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, t.TempDir(), []graph.NoteInput{{Path: "Real.md"}}, nil)

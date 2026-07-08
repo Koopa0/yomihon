@@ -14,14 +14,14 @@ var (
 	// "<p>" inside code is escaped by goldmark, so only real paragraph tags
 	// match (the same assumption heading.go's <h1-6> pass relies on).
 	ttsParagraph = regexp.MustCompile(`(?s)<p>(.*?)</p>`)
-	// ttsReading matches a ruby reading annotation — an <rt>…</rt> or an
-	// <rp>…</rp>, each closed by its OWN tag — so the spoken text keeps the base
-	// characters and never the furigana. Two alternations (not a single [tp]
-	// class) so an <rt> can never pair with a stray </rp> on malformed markup.
-	// <rp> does not appear in current content, but it is stripped too,
-	// defensively — its fallback parentheses are furigana apparatus, not
-	// spoken text.
-	ttsReading = regexp.MustCompile(`(?s)<rt>.*?</rt>|<rp>.*?</rp>`)
+	// rubyReading matches a ruby reading annotation — an <rt>…</rt> or an
+	// <rp>…</rp>, each closed by its own tag — so a caller that strips it keeps
+	// the base characters and drops the furigana. Two alternations (not a single
+	// [tp] class) so an <rt> can never pair with a stray </rp> on malformed
+	// markup. <rp> does not appear in current content, but it is stripped too,
+	// defensively — its fallback parentheses are reading apparatus, not part of
+	// the base text.
+	rubyReading = regexp.MustCompile(`(?s)<rt>.*?</rt>|<rp>.*?</rp>`)
 	// ttsListItem matches one goldmark-emitted list item — a TIGHT one, whose
 	// content is inline (a sentence), which is where the practice/example
 	// sentences live. A LOOSE item wraps its content in <p> and is handled by
@@ -119,7 +119,7 @@ func injectListItemTTS(htmlOut string) string {
 // readings (<rt>/<rp>) removed so only the base characters remain, every other
 // tag stripped, HTML entities decoded, and the result trimmed.
 func spokenText(inner string) string {
-	s := ttsTag.ReplaceAllString(ttsReading.ReplaceAllString(inner, ""), "")
+	s := ttsTag.ReplaceAllString(rubyReading.ReplaceAllString(inner, ""), "")
 	return strings.TrimSpace(html.UnescapeString(s))
 }
 
