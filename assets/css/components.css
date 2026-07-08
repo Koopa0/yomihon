@@ -555,8 +555,12 @@ html, body { margin: 0; background: var(--bg); }
 .k-conceptsheet {
   border: none; padding: 0; margin: 0 0 0 auto; height: 100dvh; max-height: 100dvh;
   width: min(460px, 92vw); background: var(--panel); border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-2); box-sizing: border-box; display: flex; flex-direction: column;
+  box-shadow: var(--shadow-2); box-sizing: border-box;
 }
+/* The flex layout applies only while the dialog is open: an unconditional
+   display would defeat the browser's own hiding of a closed dialog and
+   paint the sheet over the right rail. */
+.k-conceptsheet[open] { display: flex; flex-direction: column; }
 .k-conceptsheet::backdrop { background: rgb(0 0 0 / 0.4); }
 .k-conceptsheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: none; }
 .k-conceptsheet__title { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); }
