@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -429,4 +430,22 @@ func (w *corpWriter) Write(b []byte) (int, error) {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.ResponseWriter.Write(b)
+}
+
+// Unwrap hands the real writer back, so the abilities this wrapper does not
+// name for itself — flushing, hijacking, setting a deadline — stay reachable
+// through an http.ResponseController rather than disappearing behind it.
+func (w *corpWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// ReadFrom keeps the copy that serves a file's bytes on the writer's own fast
+// path. Without it the wrapper would hide the underlying io.ReaderFrom, and
+// every image and document would be copied through a buffer for no reason.
+func (w *corpWriter) ReadFrom(r io.Reader) (int64, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	if rf, ok := w.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+	return io.Copy(w.ResponseWriter, r)
 }

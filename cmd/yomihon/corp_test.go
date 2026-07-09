@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -83,4 +85,51 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCorpWriterKeepsTheWriterUnderneathReachable pins that the wrapper hides
+// none of the abilities the real writer has. Flushing and hijacking are not
+// named on the wrapper itself, so a caller reaches them through an
+// http.ResponseController, which follows Unwrap; and the copy that serves a
+// file's bytes must still find the writer's own io.ReaderFrom rather than fall
+// back to a buffer.
+func TestCorpWriterKeepsTheWriterUnderneathReachable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a flush reaches the writer underneath", func(t *testing.T) {
+		t.Parallel()
+		rec := httptest.NewRecorder()
+		w := &corpWriter{ResponseWriter: rec}
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			t.Errorf("Flush through the wrapper = %v, want it to reach the writer", err)
+		}
+		if !rec.Flushed {
+			t.Error("the writer underneath was never flushed")
+		}
+	})
+
+	t.Run("the copy fast path is offered, and commits the refusal", func(t *testing.T) {
+		t.Parallel()
+		rec := httptest.NewRecorder()
+		w := &corpWriter{ResponseWriter: rec}
+
+		// io.Copy reaches for the destination's io.ReaderFrom; hiding it would
+		// send every served file through a buffer instead.
+		rf, ok := any(w).(io.ReaderFrom)
+		if !ok {
+			t.Fatal("the wrapper hides the writer's io.ReaderFrom")
+		}
+		// Called directly, not through io.Copy: io.Copy prefers a source's
+		// io.WriterTo, so a copy from a strings.Reader would never reach here
+		// and would prove nothing about this path.
+		if _, err := rf.ReadFrom(strings.NewReader("bytes")); err != nil {
+			t.Fatalf("ReadFrom = %v", err)
+		}
+		if got := rec.Header().Get(corpHeader); got != corpValue {
+			t.Errorf("after a copy, %s = %q, want %q", corpHeader, got, corpValue)
+		}
+		if rec.Body.String() != "bytes" {
+			t.Errorf("body = %q, want %q", rec.Body.String(), "bytes")
+		}
+	})
 }
