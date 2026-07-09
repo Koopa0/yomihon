@@ -511,3 +511,72 @@ Acceptance for the batch: the guide re-runs the live-browser probe (palette
 centered, opaque panel over a dimmed backdrop, at wide and narrow widths),
 replays the seal-shortcut check from a focused select, re-runs `make verify`
 plus the frontend lint pair, and runs the hygiene greps.
+
+## 16. The platform-feature register and the organization review (2026-07-09)
+
+An external organization review of the CSS and JS layers (run after the §15
+batch merged) confirmed the architecture — server-rendered HTML, native
+platform, one enhancement script, token-first CSS, no utility soup, the
+write path untouched by fetch — and surfaced governance gaps. Rulings follow.
+
+**The feature register.** standards.md §4's Baseline-2026 policy requires
+Limited-availability features to carry justification and a fallback,
+recorded where used. The register, one row per non-Widely feature in
+production use (statuses as of 2026-07; re-check when §10 re-runs):
+
+| Feature | Where | Role | Baseline | When absent | Guard |
+|---|---|---|---|---|---|
+| `@view-transition` (cross-document) | components.css | navigation continuity | Limited | instant navigation, nothing lost | none needed |
+| `scroll-timeline` + `animation-timeline` | components.css, reading hairline | reading-position state | Limited | no hairline | `@supports` — required: an unguarded no-timeline engine paints a permanently full bar (§15 item 7) |
+| `interpolate-size` + `::details-content` | components.css, sidebar disclosure | disclosure motion | Limited | instant open/close | none needed |
+| `text-spacing-trim` | components.css, prose | CJK punctuation setting | Limited | the font's default spacing | none needed |
+| `word-break: auto-phrase` | components.css, `[lang="ja"]` | phrase-aware wrapping | Limited | standard wrapping | none needed |
+| `closedby="any"` | palette + concept sheet | light dismiss | Limited | Esc everywhere; the concept sheet keeps its JS backdrop handler | none needed |
+| Web Speech API | yomihon.js, TTS + slot speak | read-aloud | Limited | speak controls never appear (the boot `[data-speech]` gate) | gated at boot |
+| Customizable `<select>` (planned, §15 follow-up) | slot machine | picker branding | Limited | the native picker | `@supports (appearance: base-select)` |
+
+The guard principle the register encodes: **a feature is `@supports`-guarded
+only where its absence misbehaves, never where it merely does nothing** —
+unknown declarations are already ignored fail-safe, so blanket guards are
+noise. This resolves the review's "inconsistent feature-query strategy"
+finding: the inconsistency is the policy.
+
+**Accepted from the review:**
+
+- `.k-prose a` signals by color alone while wikilinks carry a border — plain
+  prose links gain a non-color signal (an underline in the wikilink's
+  weight). Next fix batch.
+- The register above is the review's "document every native feature"
+  recommendation, landed as canon.
+
+**Deferred, with explicit triggers:**
+
+- Splitting `components.css` (~835 lines): deferred until the hover layer
+  lands or the sheet stops reading top-to-bottom. The split, when it comes,
+  is by surface (base / primitives / shell / prose / surfaces / lesson /
+  motion) under the same `input.css` imports — no naming-strategy change.
+- Splitting `yomihon.js` into modules: the one-file-no-build design stands
+  until the file nears ~800 lines; the shape to evaluate then is plain ES
+  modules, never a bundler.
+- Review tooling as a repo dependency: stays out. CI already pins and runs
+  the lint pair; a `package.json` would be a dependency decision, not a
+  convenience.
+
+**Two defects from daily use (Koopa, 2026-07-09), diagnosed and ruled:**
+
+- **The sidebar lists what the route refuses.** `nav.buildFolderTree` folds
+  every scanned path into the browse tree, while the note route serves only
+  `.md` by design — so the vault root's `Makefile` renders as a nav item
+  that 404s. No ruling has ever put non-markdown rendering in scope (the
+  reading end-state is "every `.md` opens"). Fork awaiting Koopa's ruling:
+  (a) the tree filters to `.md` — small and spec-true; or (b) a new small
+  unit — a read-only source view (whitelisted text extensions, chroma
+  highlighting, no status face, no seal) and the tree keeps listing them.
+- **The filter box pops in after every navigation.** The input ships
+  `hidden` and the deferred script reveals it after parse, so each
+  navigation paints the sidebar without it and it appears a beat later —
+  extra visible now that view transitions hold the chrome still. Ruled: the
+  reveal moves into the sidebar's existing pre-paint inline script (the
+  §15-recorded exception, which runs exactly at the right moment); with JS
+  off the box stays hidden, as an inert control should. Next fix batch,
+  together with §15's two leftover comment tokens in `components.css`.
