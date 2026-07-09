@@ -21,12 +21,16 @@ const MUTATE = process.env.MUTATE || '';
 const fail = (msg) => { throw new Error(`FAIL seal-select-guard: ${msg}`); };
 
 // The fill starts synchronously inside the keydown handler today, so reading it
-// on the next line happens to work. These two waits exist so the lock does not
+// on the next line happens to work. These waits exist so the lock does not
 // depend on that: move the fill behind a timer or a frame and the probe must
 // still see it. The control waits, up to a bound, for the fill to appear before
 // calling itself broken; the guard case waits a fixed moment and then insists
 // the fill never appeared at all.
-const FILL_START_TIMEOUT_MS = 300;
+//
+// Every wait carries its own bound, so a fill that never moves stops the probe
+// with a sentence naming what it was waiting for, rather than stalling until
+// the driver's default expires and reporting nothing anyone can act on.
+const FILL_TIMEOUT_MS = 300;
 // Comfortably under the hold's own completion, so a key held here can never run
 // through to a submitted form. The aborted POST is the last line of defence
 // against that, never the first.
@@ -76,7 +80,7 @@ try {
     await page.waitForFunction(
       () => [...document.querySelectorAll('.y-sealfill')].some((f) => f.style.width === '100%'),
       null,
-      { timeout: FILL_START_TIMEOUT_MS },
+      { timeout: FILL_TIMEOUT_MS },
     );
   } catch {
     controlStarted = false;
@@ -85,9 +89,17 @@ try {
   if (!controlStarted) {
     fail('positive control broken: held R on the body did not start the seal fill, so this probe cannot see the seal path at all');
   }
-  // Release must retract the fill before the real case runs.
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll('.y-sealfill')].every((f) => f.style.width !== '100%'));
+  // Release must retract the fill before the real case runs: a fill left at full
+  // width would read as a leak the guard case never caused.
+  try {
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('.y-sealfill')].every((f) => f.style.width !== '100%'),
+      null,
+      { timeout: FILL_TIMEOUT_MS },
+    );
+  } catch {
+    fail('the seal fill never retracted after R was released, so the guard case below would start from a fill already at full width');
+  }
   // A completed hold would submit the form and latch the script's sealing
   // state, making the case below pass without testing the guard — so a POST
   // during the control window is a loud stop, not a quiet abort.
