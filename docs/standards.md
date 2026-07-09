@@ -81,15 +81,14 @@ the four walls (`README`, decisions D02), the walls win.
   design, not a gap; they were deleted when the reference engine was declared
   retired (D43), and the goldens they backed remain the contract.
 
-**Known debts against this bar (recorded 2026-07-06, queued for one dedicated
-chore PR — do not copy these patterns while they remain):** the umbrella `ci`
-job (rename to `verify`, mirroring the local gate, with the vulnerability
-scan split into its own job); `govulncheck@latest` (pin it); the
-golangci-lint installer fetched from a moving ref and piped to `sh` without a
-checksum (pin the ref; verify what runs); no concurrency group and no job
-timeouts. Until that PR lands, the Tailwind fetch step — pinned version,
-checksum verified before execution — is the exemplar to copy, not the
-installer steps above it.
+**The debts recorded against this bar on 2026-07-06 were paid in full the
+next day (PR #21):** the umbrella job is now `verify` and mirrors the local
+gate, the vulnerability scan runs in its own pinned `govulncheck` job, the
+golangci-lint installer is checksum-verified before it runs, the workflow
+carries a concurrency group and per-job timeouts, and the Makefile's Go
+targets scope past a stray `node_modules/` tree. The Tailwind fetch step's
+discipline — pinned version, checksum verified before execution — is now the
+pattern every installer step follows.
 
 ## 4. Taste
 

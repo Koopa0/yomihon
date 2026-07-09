@@ -77,17 +77,15 @@ under the new name. Operations remainder (Koopa's hand): the four-cron
 cutover to `~/go/bin/yomihon`, then deleting the old binary and the emptied
 old directory.
 
-**Track 2 ∥ — CI hygiene (one chore PR, already specified):**
-5. `PR-ci-hygiene` — pay the debts recorded in `standards.md` §3: rename the
-   umbrella `ci` job to `verify` (mirror the local gate), split the
-   vulnerability scan into its own job, pin `govulncheck`, pin and verify the
-   golangci-lint installer, add a concurrency group and per-job timeouts.
-   Koopa updates the branch-protection required checks in the same motion.
-   The local gate is part of the same debt: the Makefile's `./...` targets
-   pick up Go packages shipped inside the ignored `node_modules/` tree when
-   it exists (the frontend linters leave one), so test/vet/fmt scope to a
-   package list filtered of `/node_modules/`, with a guard that keeps the
-   filter honest.
+**Track 2 ∥ — CI hygiene:**
+5. `PR-ci-hygiene` — **done (PR #21, merged 2026-07-07)**: the umbrella job
+   renamed to `verify`, the vulnerability scan split into its own pinned
+   `govulncheck` job, the golangci-lint installer checksum-verified, a
+   concurrency group and per-job timeouts added, and the Makefile's Go
+   targets scoped past a stray `node_modules/` tree. (The unit stayed listed
+   as open here for two days after it merged — the staleness Koopa caught on
+   2026-07-09; `standards.md` §3's debt paragraph retired in the same
+   motion.)
 
 **Track 3 ∥ — the reading surface (quality of daily life):**
 6. `PR-ux-a` — the four mechanical repairs (roadmap §5b; no ruling needed).
