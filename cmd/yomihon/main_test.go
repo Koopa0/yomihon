@@ -88,8 +88,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// Drive each read/render route at least once, covering its disk-touching
-	// path: the home redirect, notes, a study-path syllabus, search, and both
-	// the report shell and its verbatim raw read.
+	// path: the home redirect, notes, a study-path syllabus, search, both the
+	// report shell and its verbatim raw read, and the faces that open a file
+	// that is not a note — a text file rendered as source, a picture, and the
+	// unchanged bytes behind each of them.
 	for _, path := range []string{
 		"/",
 		"/notes/README.md",
@@ -99,6 +101,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		"/search?q=tortoise",
 		"/reports/latest.html",
 		"/reports/latest.html/raw",
+		"/notes/Makefile",
+		"/raw/Makefile",
+		"/notes/Diagrams/pic.png",
+		"/raw/Diagrams/pic.png",
 	} {
 		drive(t, srv.URL+path)
 	}
@@ -115,15 +121,19 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 }
 
 // writeSweepFixture lays down a vault that exercises each read face: a home
-// note, two linked notes, a study-path note (a syllabus), and a briefing (the
-// verbatim raw read).
+// note, two linked notes, a study-path note (a syllabus), a briefing (the
+// verbatim raw read), and two files that are not notes — one text, carrying no
+// extension so its kind is decided by its bytes, and one picture, whose few
+// bytes only have to be enough for the route to name and serve them.
 func writeSweepFixture(t *testing.T, root string) {
 	t.Helper()
 	files := map[string]string{
-		"README.md":      "# Sweep\n\nHome, linking to [[Alpha]].\n",
-		"Notes/alpha.md": "---\ntype: concept\naliases: [Alpha]\n---\n# Alpha\n\nAlpha links to [[Beta]] and mentions a tortoise.\n",
-		"Notes/beta.md":  "---\ntype: concept\naliases: [Beta]\n---\n# Beta\n\nBeta body.\n",
-		"Maps/study.md":  "---\ntype: study-path\ntitle: Study Path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
+		"README.md":        "# Sweep\n\nHome, linking to [[Alpha]].\n",
+		"Notes/alpha.md":   "---\ntype: concept\naliases: [Alpha]\n---\n# Alpha\n\nAlpha links to [[Beta]] and mentions a tortoise.\n",
+		"Notes/beta.md":    "---\ntype: concept\naliases: [Beta]\n---\n# Beta\n\nBeta body.\n",
+		"Maps/study.md":    "---\ntype: study-path\ntitle: Study Path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
+		"Makefile":         "build:\n\tgo build ./...\n",
+		"Diagrams/pic.png": "\x89PNG\r\n\x1a\n and a few bytes more",
 		"System/reports/daily-briefing/latest.html": "<!doctype html><h1>Daily briefing</h1><p>body</p>\n",
 	}
 	for rel, content := range files {
