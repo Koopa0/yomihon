@@ -1,0 +1,74 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/ui/layouts"
+
+// File is the reading page for a vault file that is not a note: the shared
+// header and navigation, the file's own name as the title, and one of four
+// bodies. It carries no right rail — a file has no table of contents and no
+// diagnostics — and no seal bar, because the write face reaches only a note's
+// status.
+templ File(v FileView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell y-shell--rail-empty">
+			@sidebar(v.Sidebar)
+			<main class="y-main">
+				<article class="y-article">
+					@fileHead(v)
+					switch v.Kind {
+						case FileSource:
+							<div class="y-prose y-source">
+								@templ.Raw(v.SourceHTML)
+							</div>
+						case FileImage:
+							<div class="y-prose">
+								<img src={ templ.URL(rawHref(v.RelPath)) } alt={ v.Title }/>
+							</div>
+						case FilePDF:
+							<iframe class="y-fileframe" src={ templ.URL(rawHref(v.RelPath)) } title={ v.Title }></iframe>
+						default:
+							@fileInfo(v)
+					}
+				</article>
+			</main>
+		</div>
+	}
+}
+
+// fileHead is the file's breadcrumb, name, and byte-level meta — the same shape
+// a note's head takes, without the status chip a file cannot have.
+templ fileHead(v FileView) {
+	if crumbs := breadcrumb(v.RelPath); len(crumbs) > 0 {
+		<div class="y-crumbs">
+			for i, seg := range crumbs {
+				if i > 0 {
+					<span class="y-crumbs__sep" aria-hidden="true">·</span>
+				}
+				<span>{ seg }</span>
+			}
+		</div>
+	}
+	<h1 class="y-title">{ v.Title }</h1>
+	<div class="y-metarow">
+		<span class="ui-type">{ string(v.Kind) }</span>
+		<span>{ v.RelPath }</span>
+	</div>
+	<div class="y-seam" aria-hidden="true"></div>
+}
+
+// fileInfo is what yomihon says when it cannot show a file: what it is, how big
+// it is, and where its bytes are. Honest, not clever.
+templ fileInfo(v FileView) {
+	<div class="y-fileinfo">
+		<p class="y-fileinfo__lead">This file has no reader here. Its bytes are available unchanged.</p>
+		<dl class="y-fileinfo__list">
+			<dt>Name</dt>
+			<dd>{ v.Title }</dd>
+			<dt>Size</dt>
+			<dd>{ humanSize(v.Size) }</dd>
+			<dt>Type</dt>
+			<dd>{ v.ContentType }</dd>
+		</dl>
+		<a class="y-fileinfo__raw" href={ templ.URL(rawHref(v.RelPath)) }>Open the raw bytes</a>
+	</div>
+}

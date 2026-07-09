@@ -340,11 +340,12 @@ func (r *Renderer) renderWikilink(target, display string, diags *[]Diagnostic) s
 // note's body), the embed renders as plain wikilink-style text instead of
 // expanding again (see embedPolicy's doc comment for why this alone
 // prevents runaway/cyclic chains). A unique non-markdown target (image,
-// PDF, canvas, ...) gets a placeholder: this repo has no route yet that
-// serves raw vault files — wiring one is a real, separate design decision
-// (path validation, MIME handling, what's safe to expose even on
-// loopback) out of scope here. Ambiguous/unresolved get the same
-// diagnostic-styled treatment as a broken wikilink.
+// PDF, canvas, ...) gets a labelled placeholder rather than being drawn into
+// the note's body: the file itself opens on its own page, and painting its
+// media inline here is a distinct rendering concern this renderer does not
+// take on. The placeholder names the file so the reader knows it is there.
+// Ambiguous/unresolved get the same diagnostic-styled treatment as a broken
+// wikilink.
 func (r *Renderer) renderEmbed(target string, allowEmbed embedPolicy, diags *[]Diagnostic) string {
 	if allowEmbed == embedsDenied {
 		return r.renderWikilink(target, target, diags)

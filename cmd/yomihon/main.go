@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -328,7 +329,7 @@ func run(log *slog.Logger) error {
 	// agent) — same-account local processes are cryptographically
 	// indistinguishable, so that limit is accepted policy, not something
 	// to engineer around with tokens.
-	handler := http.NewCrossOriginProtection().Handler(mux)
+	handler := crossOriginResourcePolicy(http.NewCrossOriginProtection().Handler(mux))
 
 	// Loopback is hardcoded; only the port is configurable — yomihon and
 	// everything it derives from the vault must never be reachable from
@@ -367,4 +368,108 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("yomihon stopped")
 	return nil
+}
+
+// corpHeader names the refusal, in one place, so the two spots that must agree
+// about it cannot drift apart.
+const (
+	corpHeader = "Cross-Origin-Resource-Policy"
+	corpValue  = "same-origin"
+)
+
+// crossOriginResourcePolicy stamps every response with a refusal to be embedded
+// by any origin but yomihon's own. The listener is loopback, but a browser is a
+// confused deputy: a page the reader visits elsewhere can still reach
+// 127.0.0.1 with its own credentials and pull a response in as an image, a
+// frame, or a script — learning from the load whether a named file exists and
+// how large it is, and running any servable script file in its own origin.
+// That is exactly the crossing the loopback boundary is meant to forbid.
+// Same-origin is the whole app: the shell, its assets, and the sandboxed
+// frames all load from this one origin, so nothing legitimate is refused.
+//
+// A response can be committed in exactly four ways, and the header is restored
+// on every one of them before it goes out: a named status, a body written
+// without one, a copy taken through the writer's reader-from, and a flush. A
+// handler that instead returns having written nothing has committed nothing
+// either, so the header map is still open and the refusal is restored on the
+// way out, before the server fills in the 200 it writes on the handler's
+// behalf. Hijacking is not among them: it takes the connection and yomihon
+// writes no response at all.
+//
+// What this does not defend against is a handler that reaches past the wrapper
+// on purpose, unwrapping to the real writer and writing there. That is not a
+// policy weakened by accident, which is what this guards, and such a handler
+// could take the connection outright anyway.
+func crossOriginResourcePolicy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(corpHeader, corpValue)
+		cw := &corpWriter{ResponseWriter: w}
+		next.ServeHTTP(cw, r)
+		if !cw.wroteHeader {
+			w.Header().Set(corpHeader, corpValue)
+		}
+	})
+}
+
+// corpWriter reasserts the embed refusal at the last moment it can still be
+// written — when the status line is committed, after every handler has had its
+// say about the headers and before any of them reach the reader.
+type corpWriter struct {
+	http.ResponseWriter
+
+	wroteHeader bool
+}
+
+func (w *corpWriter) WriteHeader(statusCode int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		w.Header().Set(corpHeader, corpValue)
+	}
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+// Write commits the headers the way net/http itself would, so a handler that
+// writes a body without naming a status still passes through WriteHeader above.
+func (w *corpWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+// Unwrap hands the real writer back, so the abilities this wrapper does not
+// name for itself — hijacking, setting a deadline — stay reachable through an
+// http.ResponseController rather than disappearing behind it. Flushing is named
+// below precisely because it commits a response, and a response controller
+// consults the outermost writer before it unwraps.
+func (w *corpWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// Flush commits the response, so like every other path that does, it restores
+// the refusal first. A handler reaching http.Flusher by assertion lands here.
+func (w *corpWriter) Flush() {
+	w.FlushError() //nolint:errcheck // http.Flusher reports nothing; the error surfaces to a caller that asks for it
+}
+
+// FlushError is the form an http.ResponseController looks for before it looks
+// for a Flusher and before it unwraps. Naming it here is what keeps a flush
+// from reaching the writer underneath and committing headers this wrapper never
+// saw.
+func (w *corpWriter) FlushError() error {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return http.NewResponseController(w.ResponseWriter).Flush()
+}
+
+// ReadFrom keeps the copy that serves a file's bytes on the writer's own fast
+// path. Without it the wrapper would hide the underlying io.ReaderFrom, and
+// every image and document would be copied through a buffer for no reason.
+func (w *corpWriter) ReadFrom(r io.Reader) (int64, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	if rf, ok := w.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+	return io.Copy(w.ResponseWriter, r)
 }
