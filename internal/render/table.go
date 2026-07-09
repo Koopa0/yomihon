@@ -19,7 +19,7 @@ import (
 
 // tableWrapClass is the scroll container the reading stylesheet gives an
 // overflow rule; the same name lives there.
-const tableWrapClass = "k-tablewrap"
+const tableWrapClass = "y-tablewrap"
 
 // tableWrapRenderer overrides goldmark's <table> element rendering to nest it
 // in a scroll container. Only the table element is overridden; its header,

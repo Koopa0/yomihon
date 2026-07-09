@@ -242,7 +242,7 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 	}
 
 	_, sourceBody := get(t, srv.URL+"/notes/Sources/S00.md")
-	if strings.Contains(sourceBody, "data-tts") || strings.Contains(sourceBody, "k-tts") {
+	if strings.Contains(sourceBody, "data-tts") || strings.Contains(sourceBody, "y-tts") {
 		t.Errorf("non-lesson (source-note) page leaked a TTS button — the lesson gate failed; body = %q", sourceBody)
 	}
 	if !strings.Contains(sourceBody, "<ruby>今日<rt>きょう</rt></ruby>") {
@@ -339,14 +339,14 @@ func TestShowSlotMachine(t *testing.T) {
 	}
 
 	// The machine rendered, with the first-fill sentence and a coloured slot.
-	for _, want := range []string{`class="k-slotmachine"`, `class="k-slotcard"`, `k-slotdata`, `k-slot-topic`, `わたし`} {
+	for _, want := range []string{`class="y-slotmachine"`, `class="y-slotcard"`, `y-slotdata`, `y-slot-topic`, `わたし`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("lesson page missing slot-machine marker %q", want)
 		}
 	}
 	// Placement: after the table, before the body that follows it.
 	tbl := strings.Index(page, "</table>")
-	machine := strings.Index(page, "k-slotmachine")
+	machine := strings.Index(page, "y-slotmachine")
 	after := strings.Index(page, "AFTERTABLEBODY")
 	if tbl < 0 || tbl >= machine || machine >= after {
 		t.Errorf("slot machine mis-positioned: </table>@%d, machine@%d, after-body@%d (want table < machine < after)", tbl, machine, after)
@@ -369,7 +369,7 @@ func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
 	}
 	srv := newServer(t, root)
 	_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L02.md")
-	if strings.Contains(page, "k-slotmachine") {
+	if strings.Contains(page, "y-slotmachine") {
 		t.Errorf("lesson with no matching sidecar still rendered a slot machine; body = %q", page)
 	}
 }
@@ -653,7 +653,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		`class="k-rail-left"`, // the nav rail rendered at all
+		`class="y-rail-left"`, // the nav rail rendered at all
 		"Writing",             // a lifecycle folder in the collapsed Folders tree
 		"Go path",             // the study-path title
 		"Data",                // the pipe-format H2's English label

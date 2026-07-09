@@ -92,7 +92,7 @@ func TestShow(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		`class="k-shell2"`, // the study-path shell rendered
+		`class="y-shell2"`, // the study-path shell rendered
 		"Go path",          // the path title
 		"Study paths",      // the switcher label
 		"On this path",     // the part jump-nav

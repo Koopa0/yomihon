@@ -36,8 +36,8 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{"ready"}},
 			wantAids: false,
 			wantPresent: []string{
-				"k-shell--rail-empty",
-				"k-sealbar",
+				"y-shell--rail-empty",
+				"y-sealbar",
 				"data-seal",
 			},
 		},
@@ -46,8 +46,8 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", WriteClosed: true},
 			wantAids: false,
 			wantPresent: []string{
-				"k-shell--rail-empty",
-				"k-sealbar",
+				"y-shell--rail-empty",
+				"y-sealbar",
 				"the write face is closed (fail-closed)",
 			},
 		},
@@ -56,8 +56,8 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Title: "T", RelPath: "a.md", NoFrontmatter: true},
 			wantAids: false,
 			wantPresent: []string{
-				"k-shell--rail-empty",
-				"k-sealbar",
+				"y-shell--rail-empty",
+				"y-sealbar",
 				"No frontmatter (valid).",
 			},
 		},
@@ -66,12 +66,12 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{"ready"}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
 			wantAids: true,
 			wantPresent: []string{
-				"k-statuspanel",
-				"k-inlineaids",
-				"k-toc-inline",
+				"y-statuspanel",
+				"y-inlineaids",
+				"y-toc-inline",
 				"On this page",
 			},
-			wantAbsent: []string{"k-shell--rail-empty"},
+			wantAbsent: []string{"y-shell--rail-empty"},
 		},
 		{
 			name:     "broken frontmatter: the diagnostics face owns the page, no seal bar",
@@ -79,9 +79,9 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAids: true,
 			wantPresent: []string{
 				"Diagnostics",
-				"k-inlineaids",
+				"y-inlineaids",
 			},
-			wantAbsent: []string{"k-shell--rail-empty", "k-sealbar", "k-statuspanel"},
+			wantAbsent: []string{"y-shell--rail-empty", "y-sealbar", "y-statuspanel"},
 		},
 		{
 			name:     "render diagnostics alone keep the rail",
@@ -89,10 +89,10 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAids: true,
 			wantPresent: []string{
 				"Diagnostics",
-				"k-inlineaids",
-				"k-statuspanel",
+				"y-inlineaids",
+				"y-statuspanel",
 			},
-			wantAbsent: []string{"k-shell--rail-empty"},
+			wantAbsent: []string{"y-shell--rail-empty"},
 		},
 	}
 	for _, tt := range tests {
@@ -144,7 +144,7 @@ func TestSealToastRidesTheRedirectSignal(t *testing.T) {
 			if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render: %v", err)
 			}
-			if got := strings.Contains(buf.String(), "k-toast"); got != tt.justSealed {
+			if got := strings.Contains(buf.String(), "y-toast"); got != tt.justSealed {
 				t.Errorf("toast rendered = %v, want %v", got, tt.justSealed)
 			}
 		})
@@ -178,7 +178,7 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 			if err := Note(tt.view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render: %v", err)
 			}
-			if got := strings.Contains(buf.String(), "k-sealbar"); got != tt.wantSealBar {
+			if got := strings.Contains(buf.String(), "y-sealbar"); got != tt.wantSealBar {
 				t.Errorf("seal bar rendered = %v, want %v", got, tt.wantSealBar)
 			}
 		})

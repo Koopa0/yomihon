@@ -30,9 +30,9 @@ func TestSearchHandler(t *testing.T) {
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
-		// k-rail-left is the shared sidebar: the results page renders inside
+		// y-rail-left is the shared sidebar: the results page renders inside
 		// the same shell as every other page, never a chromeless view.
-		for _, want := range []string{"Kafka Basics", `href="/notes/Writing/Kafka.md"`, "draft", "k-rail-left"} {
+		for _, want := range []string{"Kafka Basics", `href="/notes/Writing/Kafka.md"`, "draft", "y-rail-left"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("search page missing %q; body = %q", want, body)
 			}

@@ -80,7 +80,7 @@
   // Every seal fill in the DOM animates together — the right-rail button and the
   // narrow-screen bar share the class, so whichever is visible fills identically.
   function sealFills() {
-    return document.querySelectorAll('.k-sealfill');
+    return document.querySelectorAll('.y-sealfill');
   }
   function holdStart(form) {
     if (sealing || holding || !form) return;
@@ -188,12 +188,12 @@
   // empty column. Enter follows the first link match; Esc clears and hands
   // focus back to the page.
   function initNavFilter() {
-    const rail = document.querySelector('.k-rail-left');
+    const rail = document.querySelector('.y-rail-left');
     const input = rail && rail.querySelector('[data-nav-filter]');
     if (!input) return;
     navState.init(rail);
     const empty = rail.querySelector('[data-filter-empty]');
-    const groups = [...rail.querySelectorAll('details, .k-here')];
+    const groups = [...rail.querySelectorAll('details, .y-here')];
     const rows = [...rail.querySelectorAll('a, span.ui-navitem')];
     function apply() {
       const q = input.value.trim().toLowerCase();
@@ -243,8 +243,8 @@
   // between; the root carries data-traveling for the same window, which
   // holds the arrival echo back until the eye has arrived.
   function initTocSpy() {
-    const main = document.querySelector('.k-main');
-    const links = [...document.querySelectorAll('.k-toc__list a[href^="#"]')];
+    const main = document.querySelector('.y-main');
+    const links = [...document.querySelectorAll('.y-toc__list a[href^="#"]')];
     if (!main || links.length === 0) return;
     const targetId = (a) => decodeURIComponent(a.getAttribute('href').slice(1));
     const headings = [...new Set(links.map(targetId))]
@@ -405,16 +405,16 @@
   }
 
   // ---- slot machine: swap fills, recolour, shuffle, speak ------------------
-  // Each card carries its data in a <script class="k-slotdata"> JSON blob; the
+  // Each card carries its data in a <script class="y-slotdata"> JSON blob; the
   // sentence is already server-rendered on the first fill, so the card reads
   // with JS off. This upgrades it: a <select> change (or shuffle) rewrites every
   // matching output span's base (ruby>span) and reading (rt) and re-substitutes
   // the gloss. data-* names are the whole HTML<->JS contract.
   function initSlots() {
-    document.querySelectorAll('.k-slotcard').forEach(initSlotCard);
+    document.querySelectorAll('.y-slotcard').forEach(initSlotCard);
   }
   function initSlotCard(card) {
-    const dataEl = card.querySelector('script.k-slotdata');
+    const dataEl = card.querySelector('script.y-slotdata');
     if (!dataEl) return;
     let data;
     try { data = JSON.parse(dataEl.textContent); } catch { return; } // keep server state
@@ -430,14 +430,14 @@
       keys.forEach((k) => {
         const f = fill(k);
         if (!f) return;
-        card.querySelectorAll(`.k-slotout[data-slot-key="${k}"]`).forEach((out) => {
+        card.querySelectorAll(`.y-slotout[data-slot-key="${k}"]`).forEach((out) => {
           const base = out.querySelector('ruby > span');
           const rt = out.querySelector('rt');
           if (base) base.textContent = f.jp;
           if (rt) rt.textContent = f.reading;
         });
       });
-      const g = card.querySelector('.k-slotgloss');
+      const g = card.querySelector('.y-slotgloss');
       if (g) g.textContent = data.gloss.replace(/\{([A-Za-z0-9]+)\}/g, (_, k) => {
         const f = fill(k);
         return f ? f.zh : '{' + k + '}';

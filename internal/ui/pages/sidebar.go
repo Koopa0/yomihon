@@ -149,11 +149,11 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 const navRestoreScript = `<script>
 (() => {
 	'use strict';
-	const filter = document.querySelector('.k-rail-left [data-nav-filter]');
+	const filter = document.querySelector('.y-rail-left [data-nav-filter]');
 	if (filter) { filter.hidden = false; }
 	let stored = {};
 	try { stored = JSON.parse(sessionStorage.getItem('yomihon.nav') || '{}') || {}; } catch { stored = {}; }
-	document.querySelectorAll('.k-rail-left details[data-key]').forEach((d) => {
+	document.querySelectorAll('.y-rail-left details[data-key]').forEach((d) => {
 		if (d.hasAttribute('data-chain')) { d.open = true; return; }
 		const want = stored[d.dataset.key];
 		if (typeof want === 'boolean') { d.open = want; }
