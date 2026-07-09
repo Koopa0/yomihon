@@ -94,7 +94,7 @@ func injectParagraphTTS(htmlOut string) string {
 		if spoken == "" {
 			return para
 		}
-		return `<div class="k-reading">` + speakButton(spoken) + para + `</div>`
+		return `<div class="y-reading">` + speakButton(spoken) + para + `</div>`
 	})
 }
 
@@ -129,6 +129,6 @@ func spokenText(inner string) string {
 // items, so the two passes render an identical button. text is already the
 // reading-stripped spoken form; it is attribute-escaped into data-tts.
 func speakButton(text string) string {
-	return `<button class="k-tts" type="button" data-tts="` + html.EscapeString(text) +
+	return `<button class="y-tts" type="button" data-tts="` + html.EscapeString(text) +
 		`" aria-label="Read this sentence aloud">` + ttsSpeaker + `</button>`
 }

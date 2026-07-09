@@ -23,13 +23,13 @@ type ReportView struct {
 // verbatim /raw endpoint, so the briefing renders exactly as authored.
 templ Report(v ReportView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<div class="k-nav-scrim" data-nav-close></div>
-		<div class="k-shell2">
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
 			@sidebar(NewSidebar(v.Nav, "", nil, 0, false))
-			<main class="k-main k-reportmain">
-				<h1 class="k-reporttitle">{ v.Name }</h1>
+			<main class="y-main y-reportmain">
+				<h1 class="y-reporttitle">{ v.Name }</h1>
 				<iframe
-					class="k-reportframe"
+					class="y-reportframe"
 					src={ templ.URL(reportRawHref(v.Name)) }
 					sandbox="allow-scripts"
 					title={ v.Name }

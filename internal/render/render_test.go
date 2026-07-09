@@ -78,7 +78,7 @@ func TestTableWrappedForOverflow(t *testing.T) {
 	body := "| head | value |\n|---|---|\n| a | superlongunbreakabletokenwithoutspaces_0123456789 |\n"
 	got := r.HTML(body).HTML
 
-	if !strings.Contains(got, `<div class="k-tablewrap"><table>`) {
+	if !strings.Contains(got, `<div class="y-tablewrap"><table>`) {
 		t.Errorf("table is not wrapped in the scroll container:\n%s", got)
 	}
 	if !strings.Contains(got, "</table></div>") {
@@ -91,8 +91,8 @@ func TestTableWrappedForOverflow(t *testing.T) {
 		}
 	}
 	// Exactly one wrapper for one table — no double wrap, no stray container.
-	if n := strings.Count(got, "k-tablewrap"); n != 1 {
-		t.Errorf("k-tablewrap count = %d, want 1:\n%s", n, got)
+	if n := strings.Count(got, "y-tablewrap"); n != 1 {
+		t.Errorf("y-tablewrap count = %d, want 1:\n%s", n, got)
 	}
 }
 

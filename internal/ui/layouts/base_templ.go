@@ -140,7 +140,7 @@ func header(c Chrome) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<header class=\"k-header\"><button class=\"k-iconbtn k-hamburger\" type=\"button\" data-nav-toggle aria-label=\"Toggle navigation\" aria-expanded=\"false\" aria-controls=\"nav-rail\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"k-brand\"><a class=\"k-brand__name\" href=\"/\">yomihon</a> <span class=\"k-brand__dot\" aria-hidden=\"true\"></span> <span class=\"k-brand__tag\">STOREHOUSE</span></div><div class=\"k-header__spacer\"></div><a class=\"k-searchbtn\" href=\"/search\" data-search-open><svg aria-hidden=\"true\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"k-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"k-iconbtn k-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\" aria-pressed=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<header class=\"y-header\"><button class=\"y-iconbtn y-hamburger\" type=\"button\" data-nav-toggle aria-label=\"Toggle navigation\" aria-expanded=\"false\" aria-controls=\"nav-rail\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"y-brand\"><a class=\"y-brand__name\" href=\"/\">yomihon</a> <span class=\"y-brand__dot\" aria-hidden=\"true\"></span> <span class=\"y-brand__tag\">STOREHOUSE</span></div><div class=\"y-header__spacer\"></div><a class=\"y-searchbtn\" href=\"/search\" data-search-open><svg aria-hidden=\"true\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"y-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"y-iconbtn y-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\" aria-pressed=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -153,7 +153,7 @@ func header(c Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"><span class=\"k-rubybtn__glyph\" aria-hidden=\"true\">振</span> <span class=\"k-rubybtn__on\">ON</span> <span class=\"k-rubybtn__off\">OFF</span></button> <button class=\"k-iconbtn k-themebtn\" type=\"button\" data-theme-toggle aria-label=\"Toggle theme\" aria-pressed=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"><span class=\"y-rubybtn__glyph\" aria-hidden=\"true\">振</span> <span class=\"y-rubybtn__on\">ON</span> <span class=\"y-rubybtn__off\">OFF</span></button> <button class=\"y-iconbtn y-themebtn\" type=\"button\" data-theme-toggle aria-label=\"Toggle theme\" aria-pressed=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -166,7 +166,7 @@ func header(c Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><svg class=\"k-ico-sun\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"></path></svg> <svg class=\"k-ico-moon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"></path></svg></button> <span class=\"k-readline\" aria-hidden=\"true\"></span></header>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><svg class=\"y-ico-sun\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"></path></svg> <svg class=\"y-ico-moon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"></path></svg></button> <span class=\"y-readline\" aria-hidden=\"true\"></span></header>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -199,7 +199,7 @@ func searchDialog() templ.Component {
 			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<dialog class=\"k-searchdialog ui-dialog\" data-search closedby=\"any\"><form class=\"k-searchdialog__form\" method=\"get\" action=\"/search\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <input class=\"k-searchdialog__input\" type=\"search\" name=\"q\" placeholder=\"Search the storehouse…\" aria-label=\"Search notes\" autofocus> <span class=\"ui-kbd\">esc</span></form><div class=\"k-searchdialog__foot\"><span>↵ search</span> <span>esc close</span></div></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<dialog class=\"y-searchdialog ui-dialog\" data-search closedby=\"any\"><form class=\"y-searchdialog__form\" method=\"get\" action=\"/search\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <input class=\"y-searchdialog__input\" type=\"search\" name=\"q\" placeholder=\"Search the storehouse…\" aria-label=\"Search notes\" autofocus> <span class=\"ui-kbd\">esc</span></form><div class=\"y-searchdialog__foot\"><span>↵ search</span> <span>esc close</span></div></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -32,7 +32,7 @@ func TestCSSCarriesTheMotionGuarantees(t *testing.T) {
 	if m == nil {
 		t.Fatal("the reduced-motion blanket kill rule is missing from css/components.css")
 	}
-	for _, exempt := range []string{":not(.k-sealfill)", ":not(.k-readline)"} {
+	for _, exempt := range []string{":not(.y-sealfill)", ":not(.y-readline)"} {
 		if !strings.Contains(m[1], exempt) {
 			t.Errorf("the blanket kill selector %q is missing the %s exemption", strings.TrimSpace(m[1]), exempt)
 		}

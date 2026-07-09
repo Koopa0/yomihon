@@ -21,7 +21,7 @@ func TestInjectTTSWrapsRubyParagraph(t *testing.T) {
 		t.Errorf("InjectTTS reshaped the original paragraph; got:\n%s", got)
 	}
 	// It is a real button in a reading wrapper, not a bare attribute.
-	for _, want := range []string{`<div class="k-reading">`, `<button class="k-tts"`, `type="button"`, `aria-label="Read this sentence aloud"`} {
+	for _, want := range []string{`<div class="y-reading">`, `<button class="y-tts"`, `type="button"`, `aria-label="Read this sentence aloud"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("InjectTTS output missing %q; got:\n%s", want, got)
 		}
@@ -83,7 +83,7 @@ func TestInjectTTSWrapsRubyListItem(t *testing.T) {
 		t.Errorf("InjectTTS did not add a reading-stripped button to the list item; got:\n%s", got)
 	}
 	// The button is the li's first child, before the sentence content.
-	if !strings.Contains(got, `<li><button class="k-tts"`) {
+	if !strings.Contains(got, `<li><button class="y-tts"`) {
 		t.Errorf("InjectTTS did not inject the button as the list item's first child; got:\n%s", got)
 	}
 	if !strings.Contains(got, `<ruby>私<rt>わたし</rt></ruby>は学生です。</li>`) {
@@ -135,7 +135,7 @@ func TestInjectTTSSkipsParagraphWithNestedRawParagraph(t *testing.T) {
 	if got != in {
 		t.Errorf("InjectTTS corrupted a paragraph with a nested raw <p>:\nwant %q\ngot  %q", in, got)
 	}
-	if strings.Contains(got, "k-reading") || strings.Contains(got, "data-tts") {
+	if strings.Contains(got, "y-reading") || strings.Contains(got, "data-tts") {
 		t.Errorf("InjectTTS wrapped a nested-paragraph sentence (must skip to avoid corruption); got:\n%s", got)
 	}
 }

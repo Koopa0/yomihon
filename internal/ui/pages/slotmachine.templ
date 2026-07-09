@@ -13,10 +13,10 @@ import (
 // English (functional UI text stays English); the slot labels, the abstract
 // frame, and the gloss are lesson content, shown as authored.
 templ SlotMachine(s *lesson.Sidecar) {
-	<section class="k-slotmachine" aria-label="Sentence patterns">
-		<div class="k-slotmachine__intro">
-			<h2 class="k-slotmachine__title">Sentence patterns</h2>
-			<p class="k-slotmachine__sub">Swap a word and the sentence rebuilds, recolours, and reads aloud — the lesson's frames, practised live.</p>
+	<section class="y-slotmachine" aria-label="Sentence patterns">
+		<div class="y-slotmachine__intro">
+			<h2 class="y-slotmachine__title">Sentence patterns</h2>
+			<p class="y-slotmachine__sub">Swap a word and the sentence rebuilds, recolours, and reads aloud — the lesson's frames, practised live.</p>
 		</div>
 		for _, p := range s.Patterns {
 			@slotCard(p)
@@ -28,26 +28,26 @@ templ SlotMachine(s *lesson.Sidecar) {
 // frame + optional note, one select per distinct slot, the live sentence, the
 // Chinese gloss, and the speak / shuffle actions.
 templ slotCard(p lesson.Pattern) {
-	<article class="k-slotcard">
-		@templ.Raw(`<script type="application/json" class="k-slotdata">` + lesson.PatternJSON(p) + `</script>`)
-		<header class="k-slotcard__head">
-			<span class="k-slotcard__abstract" lang="ja">{ lesson.AbstractTemplate(p.Template) }</span>
+	<article class="y-slotcard">
+		@templ.Raw(`<script type="application/json" class="y-slotdata">` + lesson.PatternJSON(p) + `</script>`)
+		<header class="y-slotcard__head">
+			<span class="y-slotcard__abstract" lang="ja">{ lesson.AbstractTemplate(p.Template) }</span>
 			if p.Note != "" {
-				<span class="k-slotcard__note">{ p.Note }</span>
+				<span class="y-slotcard__note">{ p.Note }</span>
 			}
 		</header>
-		<div class="k-slotcontrols">
+		<div class="y-slotcontrols">
 			for _, key := range lesson.TemplateKeys(p.Template) {
 				@slotControl(key, p.Slots[key])
 			}
 		</div>
 		@slotOutput(p)
-		<p class="k-slotgloss">{ lesson.GlossInitial(p) }</p>
-		<div class="k-slotactions">
-			<button type="button" class="k-slotbtn" data-slot-action="speak" aria-label="Read this combination aloud">
+		<p class="y-slotgloss">{ lesson.GlossInitial(p) }</p>
+		<div class="y-slotactions">
+			<button type="button" class="y-slotbtn" data-slot-action="speak" aria-label="Read this combination aloud">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
 			</button>
-			<button type="button" class="k-slotbtn" data-slot-action="shuffle" aria-label="Shuffle to a random combination">
+			<button type="button" class="y-slotbtn" data-slot-action="shuffle" aria-label="Shuffle to a random combination">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="m15 15 6 6"></path><path d="M4 4l5 5"></path></svg>
 			</button>
 		</div>
@@ -58,9 +58,9 @@ templ slotCard(p lesson.Pattern) {
 // whose options are the fills (value = index, text = "JP — ZH"). The colour
 // class assigns --c, which the select's left border reads.
 templ slotControl(key string, pos lesson.Position) {
-	<label class="k-slotfield">
-		<span class="k-slotfield__label">{ pos.LabelZH }</span>
-		<select class={ "k-slotselect", "k-slot-" + pos.Color } data-slot-key={ key }>
+	<label class="y-slotfield">
+		<span class="y-slotfield__label">{ pos.LabelZH }</span>
+		<select class={ "y-slotselect", "y-slot-" + pos.Color } data-slot-key={ key }>
 			for i, f := range pos.Fills {
 				<option value={ strconv.Itoa(i) }>{ f.JP } — { f.ZH }</option>
 			}
@@ -71,7 +71,7 @@ templ slotControl(key string, pos lesson.Position) {
 // slotOutput is the live sentence: literal template text as bare nodes, each
 // slot as a coloured, ruby-annotated span yomihon.js rewrites on change.
 templ slotOutput(p lesson.Pattern) {
-	<p class="k-slotoutput" lang="ja">
+	<p class="y-slotoutput" lang="ja">
 		for _, seg := range lesson.ParseTemplate(p.Template) {
 			if seg.Key == "" {
 				{ seg.Text }
@@ -86,7 +86,7 @@ templ slotOutput(p lesson.Pattern) {
 // reading. yomihon.js finds it by data-slot-key and rewrites the base (ruby >
 // span) and the reading (rt); the colour class supplies --c.
 templ slotOut(key string, pos lesson.Position) {
-	<span class={ "k-slotout", "k-slot-" + pos.Color } data-slot-key={ key }>
+	<span class={ "y-slotout", "y-slot-" + pos.Color } data-slot-key={ key }>
 		<ruby><span>{ lesson.FirstFill(pos).JP }</span><rt>{ lesson.FirstFill(pos).Reading }</rt></ruby>
 	</span>
 }

@@ -41,7 +41,7 @@ func SlotMachine(s *lesson.Sidecar) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section class=\"k-slotmachine\" aria-label=\"Sentence patterns\"><div class=\"k-slotmachine__intro\"><h2 class=\"k-slotmachine__title\">Sentence patterns</h2><p class=\"k-slotmachine__sub\">Swap a word and the sentence rebuilds, recolours, and reads aloud — the lesson's frames, practised live.</p></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section class=\"y-slotmachine\" aria-label=\"Sentence patterns\"><div class=\"y-slotmachine__intro\"><h2 class=\"y-slotmachine__title\">Sentence patterns</h2><p class=\"y-slotmachine__sub\">Swap a word and the sentence rebuilds, recolours, and reads aloud — the lesson's frames, practised live.</p></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -83,15 +83,15 @@ func slotCard(p lesson.Pattern) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<article class=\"k-slotcard\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<article class=\"y-slotcard\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.Raw(`<script type="application/json" class="k-slotdata">`+lesson.PatternJSON(p)+`</script>`).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templ.Raw(`<script type="application/json" class="y-slotdata">`+lesson.PatternJSON(p)+`</script>`).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<header class=\"k-slotcard__head\"><span class=\"k-slotcard__abstract\" lang=\"ja\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<header class=\"y-slotcard__head\"><span class=\"y-slotcard__abstract\" lang=\"ja\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -109,7 +109,7 @@ func slotCard(p lesson.Pattern) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if p.Note != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"k-slotcard__note\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"y-slotcard__note\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -127,7 +127,7 @@ func slotCard(p lesson.Pattern) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</header><div class=\"k-slotcontrols\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</header><div class=\"y-slotcontrols\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -145,7 +145,7 @@ func slotCard(p lesson.Pattern) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<p class=\"k-slotgloss\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<p class=\"y-slotgloss\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -158,7 +158,7 @@ func slotCard(p lesson.Pattern) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</p><div class=\"k-slotactions\"><button type=\"button\" class=\"k-slotbtn\" data-slot-action=\"speak\" aria-label=\"Read this combination aloud\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 5 6 9H2v6h4l5 4z\"></path><path d=\"M15.54 8.46a5 5 0 0 1 0 7.07\"></path><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14\"></path></svg></button> <button type=\"button\" class=\"k-slotbtn\" data-slot-action=\"shuffle\" aria-label=\"Shuffle to a random combination\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M16 3h5v5\"></path><path d=\"M4 20 21 3\"></path><path d=\"M21 16v5h-5\"></path><path d=\"m15 15 6 6\"></path><path d=\"M4 4l5 5\"></path></svg></button></div></article>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</p><div class=\"y-slotactions\"><button type=\"button\" class=\"y-slotbtn\" data-slot-action=\"speak\" aria-label=\"Read this combination aloud\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 5 6 9H2v6h4l5 4z\"></path><path d=\"M15.54 8.46a5 5 0 0 1 0 7.07\"></path><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14\"></path></svg></button> <button type=\"button\" class=\"y-slotbtn\" data-slot-action=\"shuffle\" aria-label=\"Shuffle to a random combination\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M16 3h5v5\"></path><path d=\"M4 20 21 3\"></path><path d=\"M21 16v5h-5\"></path><path d=\"m15 15 6 6\"></path><path d=\"M4 4l5 5\"></path></svg></button></div></article>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -190,7 +190,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<label class=\"k-slotfield\"><span class=\"k-slotfield__label\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<label class=\"y-slotfield\"><span class=\"y-slotfield__label\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -207,7 +207,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var8 = []any{"k-slotselect", "k-slot-" + pos.Color}
+		var templ_7745c5c3_Var8 = []any{"y-slotselect", "y-slot-" + pos.Color}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var8...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -318,7 +318,7 @@ func slotOutput(p lesson.Pattern) templ.Component {
 			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<p class=\"k-slotoutput\" lang=\"ja\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<p class=\"y-slotoutput\" lang=\"ja\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -372,7 +372,7 @@ func slotOut(key string, pos lesson.Position) templ.Component {
 			templ_7745c5c3_Var16 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var17 = []any{"k-slotout", "k-slot-" + pos.Color}
+		var templ_7745c5c3_Var17 = []any{"y-slotout", "y-slot-" + pos.Color}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var17...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
