@@ -244,4 +244,9 @@ discipline the report briefings established, because a same-origin SVG or
 HTML document would otherwise run scripts against the app's origin. The
 write face is untouched — source views carry no status face and no seal —
 and search and the graph stay markdown-only: reading widened; adjudication
-and indexing did not.
+and indexing did not. (Correction, 2026-07-09: "the graph stays
+markdown-only" understated the standing behavior — the graph already
+indexes every non-markdown file as a wikilink resolution target, extensions
+kept, pinned by test. It is the graph's *note set* that stays
+markdown-only; this ruling makes those already-resolving links open instead
+of 404.)

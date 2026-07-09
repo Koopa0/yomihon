@@ -613,9 +613,34 @@ note URL space so the sidebar's links simply start working:
 - **Binary without a viewer, and text beyond a comfort cap (~1 MB)** → an
   information page: name, size, type, a link to the raw bytes. Honest, not
   clever.
-- **Unchanged**: search and the graph index markdown only; the write face
-  touches nothing here; `Diary/` renders locally like everything else
-  (local rendering is not egress, D39/D42).
+- **Unchanged**: search indexes markdown only (an explicit filter); the
+  graph's note set stays markdown-only, while non-markdown files remain
+  what they already were — wikilink resolution targets, extensions kept,
+  pinned by test; the write face touches nothing here; `Diary/` renders
+  locally like everything else (local rendering is not egress, D39/D42).
+
+**Recon rulings (2026-07-09, guide) — three questions ruled before code:**
+
+- **The raw endpoint serves exactly the scanned set.** The `.md` gate was
+  one of three defense layers (mux dot-segment cleaning, the gate, non-local
+  rejection), and widening the route must not silently widen the served set:
+  `filepath.IsLocal` alone admits `.git/config`, and `.git` holds the whole
+  vault's history. The route re-states the scanner's own rule at its
+  boundary — any path with a dot-leading segment 404s, and only regular
+  files serve, so a symlink cannot walk out of the vault. That is the letter
+  of the ruling ("every file the tree lists") with the third layer restored.
+- **Raw responses copy the report-raw headers** (explicit content type,
+  `nosniff`, `no-store`) **with a stricter CSP: a bare sandbox, no
+  `allow-scripts`** — vault bytes never execute against the app's origin
+  (the report route keeps its own allowance; briefings run their charts).
+  The PDF unknown gets a decision ladder, not a guess: probe headed Chrome
+  under the bare sandbox; if the viewer renders, the sandbox is uniform; if
+  not, exempt `application/pdf` alone and record why (the viewer isolates
+  PDF script from the origin); last resort, PDFs take the info page.
+- **Dead wikilinks come alive, by design.** The graph already resolves
+  non-markdown targets; today those links render and then 404. After this
+  unit they open. Rendered bytes change nowhere — destinations start
+  answering. Confirmed as the ruling's intent, not a side effect.
 
 **The prefix sweep (`k-` → `y-`).** The rename kept `k-` as "a neutral
 prefix" to avoid churn; the owner reads it as the old name's residue, and
