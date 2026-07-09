@@ -287,7 +287,11 @@ html, body { margin: 0; background: var(--bg); }
 .k-prose blockquote { margin: 22px 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--border-strong); color: var(--fg-subtle); }
 .k-prose hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
 .k-prose img { max-width: 100%; height: auto; border-radius: var(--r-md); }
+/* A link must be findable without seeing color. Wikilinks already say so with
+   a bottom border, so the underline goes to every other prose link, drawn at
+   the same weight so the two read as one family. */
 .k-prose a { color: var(--link); }
+.k-prose a:not(.wikilink) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
 /* inline code + fenced code (chroma) */
 .k-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }
