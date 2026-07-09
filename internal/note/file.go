@@ -15,6 +15,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // maxSourceBytes is the comfort cap on a file rendered as highlighted source.
@@ -151,6 +152,26 @@ func trimPartialRune(b []byte) []byte {
 		return b
 	}
 	return b
+}
+
+// readNote reads a markdown note through the containment the other kinds get.
+// vault.ReadNote inspects the path string with filepath.IsLocal and then hands
+// the name to os.ReadFile, which follows symbolic links: a link named like a
+// note, sitting inside the vault and pointing anywhere at all, would be read and
+// rendered. The vault root refuses links outright, so the note takes the same
+// door as every other file, and only what the browse tree lists can be read.
+func (h *Handler) readNote(rel string) (*vault.Note, error) {
+	f, _, err := openInVault(h.deps.Root, rel)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() //nolint:errcheck // a read-only handle; a close error cannot affect the response
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	return vault.Parse(rel, data), nil
 }
 
 // showFile serves a vault file that is not a note. The extension chooses a

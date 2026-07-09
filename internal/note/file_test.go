@@ -46,9 +46,13 @@ func fileVault(t *testing.T) (root string) {
 	write(t, filepath.Join(root, ".git", "config"), []byte(sentinel+"\n"))
 	write(t, filepath.Join(root, ".obsidian", "app.json"), []byte(sentinel+"\n"))
 	write(t, filepath.Join(parent, "secret.txt"), []byte(sentinel+"\n"))
+	write(t, filepath.Join(parent, "secret.md"), []byte(sentinel+"\n"))
 	symlink(t, filepath.Join(parent, "secret.txt"), filepath.Join(root, "escape.txt"))
 	symlink(t, parent, filepath.Join(root, "up"))
 	symlink(t, filepath.Join(root, "notes.txt"), filepath.Join(root, "inside.txt"))
+	// A link that wears a note's name. The markdown branch reads through a
+	// different door than the others, and it must be the same door.
+	symlink(t, filepath.Join(parent, "secret.md"), filepath.Join(root, "link.md"))
 	return root
 }
 
@@ -265,6 +269,7 @@ func TestFileRoutesRefuseWhatTheTreeDoesNotList(t *testing.T) {
 		{name: "symlink out of the vault", path: "escape.txt"},
 		{name: "symlinked directory out of the vault", path: "up/secret.txt"},
 		{name: "symlink inside the vault is still not a regular file", path: "inside.txt"},
+		{name: "a symlink wearing a note's name", path: "link.md"},
 		{name: "a directory is not a file", path: "Notes"},
 		{name: "encoded dot-dot", path: "%2e%2e%2fsecret.txt"},
 		{name: "encoded dot-dot twice", path: "%2e%2e%2f%2e%2e%2fsecret.txt"},

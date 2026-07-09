@@ -5,8 +5,6 @@ package note
 import (
 	"bytes"
 	"context"
-	"errors"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -16,7 +14,6 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // sealStatus is the one primary status — the koopa-only seal. Only a ready note
@@ -151,14 +148,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	n, err := vault.ReadNote(h.deps.Root, rel)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	n, err := h.readNote(rel)
+	if err != nil {
+		// A note that vanished, and one the vault root turned away, answer
+		// alike: neither is here.
+		h.deps.Log.Warn("read note", "path", rel, "error", err)
 		http.NotFound(w, r)
-		return
-	case err != nil:
-		h.deps.Log.Error("read note", "path", rel, "error", err)
-		http.Error(w, "cannot read note", http.StatusInternalServerError)
 		return
 	}
 
