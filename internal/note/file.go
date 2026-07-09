@@ -292,12 +292,15 @@ func fileContentType(rel string, f io.ReadSeeker) string {
 		return ct
 	}
 	var head [sniffBytes]byte
-	n, err := io.ReadFull(f, head[:])
-	// A file shorter than the window is the ordinary case, not a failure.
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+	n, readErr := io.ReadFull(f, head[:])
+	// The rewind comes before any verdict: the caller reads this same handle
+	// from the beginning, and a peek that gave up early must not leave it
+	// standing in the middle of the file.
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return octetContentType
 	}
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
+	// A file shorter than the window is the ordinary case, not a failure.
+	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
 		return octetContentType
 	}
 	if looksText(trimPartialRune(head[:n])) {
