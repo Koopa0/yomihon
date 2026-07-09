@@ -528,6 +528,25 @@ html, body { margin: 0; background: var(--bg); }
 .y-slotfield { display: flex; flex-direction: column; gap: 4px; }
 .y-slotfield__label { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.04em; color: var(--fg-subtle); }
 .y-slotselect { font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); background: var(--elevated); border: 1px solid var(--border); border-left: 3px solid var(--c, var(--border-strong)); border-radius: var(--r-sm); padding: 6px 10px; cursor: pointer; }
+/* Where the customizable-select API is present, the closed control keeps the
+   native styling above and the picker it opens is branded to match. Opt both
+   the control and its picker in — one without the other leaves the picker
+   native. base-select routes the closed face through the inner button, which
+   carries no box of its own, so the surface, border, and coloured edge above
+   still draw the face unchanged. base-select also stops sizing the control to
+   its longest option — it now fits the current selection — so a floor width
+   keeps the controls row from shifting as fills of different lengths appear. */
+@supports (appearance: base-select) {
+  .y-slotselect, .y-slotselect::picker(select) { appearance: base-select; }
+  .y-slotselect { min-width: 12rem; }
+  .y-slotselect button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: inherit; }
+  .y-slotselect::picker-icon { color: var(--fg-subtle); }
+  .y-slotselect::picker(select) { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow-2); font-family: var(--font-serif); padding: 4px; }
+  .y-slotselect option { padding: 6px 10px; border-radius: var(--r-sm); color: var(--fg); cursor: pointer; }
+  .y-slotselect option:hover { background: var(--elevated); }
+  .y-slotselect option:checked { background: color-mix(in oklch, var(--c) 10%, transparent); }
+  .y-slotselect option::checkmark { color: var(--c); }
+}
 
 .y-slotoutput { font-family: var(--font-serif); font-size: var(--fs-ed-24); line-height: var(--lh-cjk); color: var(--fg); margin: 18px 0 0; }
 .y-slotout { color: var(--c); background: color-mix(in oklch, var(--c) 12%, transparent); border-radius: 4px; padding: 0 3px; }

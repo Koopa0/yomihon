@@ -54,13 +54,17 @@ templ slotCard(p lesson.Pattern) {
 	</article>
 }
 
-// slotControl is one slot's picker: its Chinese label and a native <select>
-// whose options are the fills (value = index, text = "JP — ZH"). The colour
-// class assigns --c, which the select's left border reads.
+// slotControl is one slot's picker: its Chinese label and a <select> whose
+// options are the fills (value = index, text = "JP — ZH"). The inner button
+// carries the closed face where the customizable-select API is supported, and
+// the picker it opens is branded to match; elsewhere the native picker shows
+// and the button is inert. The colour class assigns --c, which the select's
+// left border reads.
 templ slotControl(key string, pos lesson.Position) {
 	<label class="y-slotfield">
 		<span class="y-slotfield__label">{ pos.LabelZH }</span>
 		<select class={ "y-slotselect", "y-slot-" + pos.Color } data-slot-key={ key }>
+			<button type="button"><selectedcontent></selectedcontent></button>
 			for i, f := range pos.Fills {
 				<option value={ strconv.Itoa(i) }>{ f.JP } — { f.ZH }</option>
 			}
