@@ -481,7 +481,7 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    TTS — read-aloud speak button on lesson sentences.
    Server-rendered (render.InjectTTS) with reading-stripped data-tts; the
-   button hangs in the left gutter and is revealed ONLY once yomihon.js
+   button hangs in the left gutter and is revealed only once yomihon.js
    confirms a Web Speech engine (root[data-speech]), so with no JS or no
    engine the sentence still reads and the affordance is simply absent.
    ============================================================ */
@@ -508,7 +508,7 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ============================================================
-   Slot machine — interactive sentence-pattern practice (D29).
+   Slot machine — interactive sentence-pattern practice.
    Server-rendered on the first fill so it reads with JS off; the controls
    (selects, shuffle) show only under [data-js] and the speak button only
    under [data-speech], so no-JS / no-engine pages hide dead controls.
