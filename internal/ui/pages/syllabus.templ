@@ -124,7 +124,7 @@ templ lessonRow(l LessonView) {
 // current one active) over the "On this path" part jump-nav and the path-level
 // progress bar.
 templ syllabusRail(v SyllabusView) {
-	<aside class="k-rail-left">
+	<aside class="k-rail-left" id="nav-rail">
 		<div class="ui-side__label k-syl-raillabel">Study paths</div>
 		for _, p := range v.Paths {
 			@pathSwitch(p)

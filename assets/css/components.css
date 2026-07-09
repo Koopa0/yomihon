@@ -213,7 +213,6 @@ html, body { margin: 0; background: var(--bg); }
   color: var(--fg); font-family: var(--font-sans); font-size: var(--fs-13); outline: none;
 }
 .k-filter::placeholder { color: var(--fg-faint); }
-.k-filter:focus-visible { border-color: var(--accent-muted); outline: none; }
 /* the filter's designed no-match state — never a silently empty column */
 .k-filter-empty { margin: 8px 8px 4px; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-12); line-height: 1.6; color: var(--fg-faint); }
 
@@ -423,7 +422,7 @@ html, body { margin: 0; background: var(--bg); }
    dropped, the sibling rule under .k-shell--rail-empty reveals this bar).
    ============================================================ */
 .k-sealbar { display: none; align-items: center; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border);
+  padding: 10px 16px; border-top: 1px solid var(--border);
   background: color-mix(in oklch, var(--panel) 92%, transparent); backdrop-filter: blur(10px); }
 .k-sealbar__spacer { flex: 1; }
 .k-sealbar .k-sealbtn { width: auto; height: 40px; padding: 0 16px; flex: none; }
@@ -432,20 +431,29 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    ⌘K search dialog (native <dialog>)
    ============================================================ */
-.k-searchdialog { border: none; padding: 0; background: transparent; max-width: 600px; width: min(600px, 92vw); margin-top: 12vh; }
+.k-searchdialog { border: none; padding: 0; max-width: 600px; width: min(600px, 92vw); margin: 12vh auto auto; }
 .k-searchdialog::backdrop { background: rgb(0 0 0 / 0.5); }
-.k-searchdialog__form { display: flex; align-items: center; gap: 11px; padding: 15px 18px; }
+/* The autofocused search fields stop lighting the page-wide focus ring on
+   every open. The focus signal moves to the enclosing field instead: the
+   palette form owns the divider above its footer and accents it, the search
+   page form accents its resting border — so a focus indicator is always
+   present without the ring flashing on the input itself. */
+.k-searchdialog__form { display: flex; align-items: center; gap: 11px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
+.k-searchdialog__form:focus-within { border-bottom-color: var(--accent); }
 .k-searchdialog__form svg { width: 17px; height: 17px; color: var(--fg-subtle); flex: none; }
 .k-searchdialog__input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
-.k-searchdialog__foot { padding: 10px 18px; border-top: 1px solid var(--border); background: var(--elevated); font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); display: flex; align-items: center; gap: 14px; }
+.k-searchdialog__input:focus-visible { outline: none; }
+.k-searchdialog__foot { padding: 10px 18px; background: var(--elevated); font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); display: flex; align-items: center; gap: 14px; }
 
 /* ============================================================
    Search results page (the pure-filter browse target; ⌘K panel is later)
    ============================================================ */
 .k-searchpage { max-width: 720px; margin: 0 auto; padding: 40px 24px 96px; }
 .k-searchpage__form { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
+.k-searchpage__form:focus-within { border-color: var(--accent); }
 .k-searchpage__form svg { color: var(--fg-subtle); flex: none; }
 .k-searchpage__form input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
+.k-searchpage__form input:focus-visible { outline: none; }
 .k-searchpage__form .k-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
 .k-searchpage__empty { margin: 28px 4px; font-family: var(--font-serif); color: var(--fg-subtle); }
 .k-searchpage__empty p { margin: 0; }
@@ -477,7 +485,7 @@ html, body { margin: 0; background: var(--bg); }
 .k-tts {
   position: absolute; left: -30px; top: 0.35em;
   display: none; align-items: center; justify-content: center;
-  width: 22px; height: 22px; padding: 0;
+  min-width: 24px; min-height: 24px; padding: 0;
   border: none; border-radius: var(--r-sm);
   background: none; color: var(--fg-faint); cursor: pointer;
   transition: color .12s, background .12s;
@@ -487,7 +495,7 @@ html, body { margin: 0; background: var(--bg); }
 .k-tts svg { width: 15px; height: 15px; }
 /* A list item's speak button is its first child (a <li> can't be gutter-wrapped
    without breaking list semantics), so it sits inline before the sentence. */
-.k-prose li > .k-tts { position: static; width: 20px; height: 20px; margin: 0 5px 0 0; vertical-align: -0.15em; }
+.k-prose li > .k-tts { position: static; min-width: 24px; min-height: 24px; margin: 0 5px 0 0; vertical-align: -0.15em; }
 .k-prose li > .k-tts svg { width: 14px; height: 14px; }
 /* Narrow screens have no gutter — the paragraph button sits inline too. */
 @media (max-width: 720px) {
@@ -744,8 +752,18 @@ html, body { margin: 0; background: var(--bg); }
   position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
   background: var(--accent); transform-origin: left; transform: scaleX(0);
   pointer-events: none;
-  animation: k-readline linear both;
-  animation-timeline: --k-read;
+}
+/* The hairline is driven only where a scroll timeline exists. Guarding the
+   animation keeps an engine without scroll timelines at the resting scaleX(0)
+   — no line — rather than snapping to a permanently full one, which is what a
+   scroll-bound animation with no timeline and no duration would otherwise do.
+   The explicit auto duration keeps the time component valid for the timeline. */
+@supports (animation-timeline: scroll()) {
+  .k-readline {
+    animation: k-readline linear both;
+    animation-duration: auto;
+    animation-timeline: --k-read;
+  }
 }
 @keyframes k-readline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 

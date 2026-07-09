@@ -38,22 +38,35 @@
     root.dataset[name] = value;
     document.cookie = `yomihon_${name}=${value};path=/;max-age=31536000;samesite=lax`;
   }
+  // The server renders each toggle's pressed state on the first byte; here the
+  // script keeps it current after a click, reading the flipped state back from
+  // the root so the button announces its new state to assistive tech.
   function initToggles() {
-    document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
+    document.querySelector('[data-theme-toggle]')?.addEventListener('click', (e) => {
       setToggle('theme', root.dataset.theme === 'dark' ? 'light' : 'dark');
+      e.currentTarget.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));
     });
-    document.querySelector('[data-ruby-toggle]')?.addEventListener('click', () => {
+    document.querySelector('[data-ruby-toggle]')?.addEventListener('click', (e) => {
       setToggle('ruby', root.dataset.ruby === 'off' ? 'on' : 'off');
+      e.currentTarget.setAttribute('aria-pressed', String(root.dataset.ruby === 'on'));
     });
   }
 
   // ---- nav drawer (≤900) ---------------------------------------------------
+  // One writer for the drawer state: flip the root data-nav attribute (CSS
+  // reveals or hides the rail as a drawer) and keep the hamburger's expanded
+  // state honest for assistive tech, from wherever the state is changed.
+  function setNav(open) {
+    root.dataset.nav = open ? 'open' : 'closed';
+    const toggle = document.querySelector('[data-nav-toggle]');
+    if (toggle) toggle.setAttribute('aria-expanded', String(open));
+  }
   function initDrawer() {
     document.querySelector('[data-nav-toggle]')?.addEventListener('click', () => {
-      root.dataset.nav = root.dataset.nav === 'open' ? 'closed' : 'open';
+      setNav(root.dataset.nav !== 'open');
     });
     document.querySelector('[data-nav-close]')?.addEventListener('click', () => {
-      root.dataset.nav = 'closed';
+      setNav(false);
     });
   }
 
@@ -294,14 +307,17 @@
     const sealForm = document.querySelector('[data-seal]');
     window.addEventListener('keydown', (e) => {
       const t = e.target;
-      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      // A focused <select> counts as typing too: its own letter keys jump to
+      // matching options, so the single-key page shortcuts (including the held
+      // R that starts the seal) must stay out of its way while it has focus.
+      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         if (dialog) { dialog.open ? dialog.close() : dialog.showModal(); }
         return;
       }
       if (e.key === 'Escape') {
-        if (root.dataset.nav === 'open') root.dataset.nav = 'closed';
+        if (root.dataset.nav === 'open') setNav(false);
         holdEnd();
         return; // <dialog> closes itself on Escape
       }
@@ -313,7 +329,7 @@
       }
       if (e.key === '[') {
         e.preventDefault();
-        root.dataset.nav = root.dataset.nav === 'open' ? 'closed' : 'open';
+        setNav(root.dataset.nav !== 'open');
         return;
       }
       if ((e.key === 'r' || e.key === 'R') && !e.repeat && sealForm && !sealing) {

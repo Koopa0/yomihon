@@ -132,7 +132,7 @@ templ conceptSheet(concepts []lesson.ConceptDoc) {
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog class="k-conceptsheet" data-concept-sheet aria-label="Grammar note">
+		<dialog class="k-conceptsheet" data-concept-sheet aria-label="Grammar note" closedby="any">
 			<div class="k-conceptsheet__head">
 				<span class="k-conceptsheet__title" data-concept-title></span>
 				<button type="button" class="k-iconbtn" data-concept-close aria-label="Close">
@@ -182,7 +182,7 @@ templ articleHead(v NoteView) {
 // report builds it with no current note, so every branch renders closed and
 // unmarked. A nil model renders nothing.
 templ sidebar(sb Sidebar) {
-	<aside class="k-rail-left">
+	<aside class="k-rail-left" id="nav-rail">
 		<input
 			class="k-filter"
 			type="text"
@@ -288,7 +288,7 @@ templ sidebar(sb Sidebar) {
 }
 
 templ chevron() {
-	<svg class="k-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
+	<svg class="k-chevron" aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
 }
 
 // folderList renders the vault-root notes then the lifecycle-ordered folders.
@@ -503,7 +503,7 @@ templ sealedBadge(v NoteView) {
 	</div>
 	<div class="k-sealline" aria-hidden="true"></div>
 	<div class="k-sealby">
-		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>
+		<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>
 		鈐印 · sealed by koopa
 		if v.JustSealed {
 			· just now
