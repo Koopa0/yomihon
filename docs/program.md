@@ -102,9 +102,15 @@ old directory.
    (§6). It also carried two fixes that resolved standing bugs — the concept
    sheet no longer paints an opaque panel over the TOC on lesson pages, and
    the search page renders inside the shell (both were diagnosed as already
-   fixed here, 2026-07-08). One cosmetic remainder, `PR-ux-fixes`: a ruby
-   heading's TOC text duplicates kanji and kana (the tag-strip keeps `<rt>`
-   text) — display-only, batchable with `PR-ux-b3`.
+   fixed here, 2026-07-08). The cosmetic remainder shipped in `PR-ux-fixes` —
+   **done (PR #29, 2026-07-09)**: the frontend fix batch from ux-plan §15's
+   three-source review (palette centering and surface, the seal-shortcut
+   guard on focused selects, light dismiss, focus indicators, ARIA state,
+   the ruby-TOC repair, and the smaller platform fixes), accepted
+   independently and merged. Its follow-ups live in ux-plan §16: a small
+   second fix batch (filter pre-paint reveal, prose-link underline, comment
+   tokens) and the customizable-select PR, plus one scope fork awaiting
+   Koopa (the sidebar/route `.md` asymmetry).
 9b. `PR-ux-b2h` — Home v0.5 (ux-plan §3): the mtime plumbing and the
     landing page; smaller and separable from the experience batch.
 9c. `PR-ux-b3` — the content-driven sidebar (ux-plan §13): every map note
