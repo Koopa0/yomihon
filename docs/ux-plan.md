@@ -630,5 +630,7 @@ product's name and stays.
 underline (§16), and the two comment tokens left in `components.css` (§15).
 
 Sequencing, smallest first and the sweep before new classes are born:
-fix batch two → the prefix sweep → the file-view unit → the customizable
-select (§15). One PR each; independent acceptance between PRs.
+fix batch two (done, PR #30) → the prefix sweep (done, PR #31; 671
+occurrences, zero pixel change, zero golden touched) → the file-view unit →
+the customizable select (§15). One PR each; independent acceptance between
+PRs.

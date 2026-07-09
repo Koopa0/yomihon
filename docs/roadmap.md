@@ -304,10 +304,10 @@ real vault with headless screenshots before anything was queued.
    template can compute that), zero JS. The sparser-but-present case (a lone
    status card on a tall empty column) is a layout-taste question and belongs
    to UX-B, not here.
-2. `.k-prose table` has no horizontal-overflow guard, while code blocks and
+2. `.y-prose table` has no horizontal-overflow guard, while code blocks and
    mermaid diagrams have one; a wide GFM table breaks the article column.
    Align tables with the existing overflow pattern.
-3. `.k-title` and the metadata row carry no `overflow-wrap` guard against long
+3. `.y-title` and the metadata row carry no `overflow-wrap` guard against long
    unbroken titles and paths.
 4. The status handler's success redirect concatenates the raw note path, while
    every rendered note link percent-escapes per segment; a note whose name

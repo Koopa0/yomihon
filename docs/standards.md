@@ -126,7 +126,9 @@ installer steps above it.
 1. `make verify` — fmt, vet, lint (zero issues), test, build.
 2. Regeneration is a no-op: `make gen && make css` leaves the tree clean.
 3. Kill-tests for every new lock (see §2), stated in the PR.
-4. Hygiene greps over the changed files, all expected to come back empty:
+4. Hygiene greps over the changed files, all expected to come back empty
+   (word-boundary patterns run under `grep -P` or the system grep — `git
+   grep -E` silently drops `\b`, matching nothing and passing vacuously):
    - `grep -ri kura -- '*.go'` (zero coupling),
    - `grep -rnE '§|\bD[0-9]{1,3}\b|docs/|kurodo|[Ss]tage|[Pp]hase|\b(NEVER|MUST|ONLY|VERBATIM)\b'`
      over changed `.go`/`.templ`/workflow files (comment discipline; the
