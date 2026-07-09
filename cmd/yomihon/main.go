@@ -369,6 +369,13 @@ func run(log *slog.Logger) error {
 	return nil
 }
 
+// corpHeader names the refusal, in one place, so the two spots that must agree
+// about it cannot drift apart.
+const (
+	corpHeader = "Cross-Origin-Resource-Policy"
+	corpValue  = "same-origin"
+)
+
 // crossOriginResourcePolicy stamps every response with a refusal to be embedded
 // by any origin but yomihon's own. The listener is loopback, but a browser is a
 // confused deputy: a page the reader visits elsewhere can still reach
@@ -377,11 +384,41 @@ func run(log *slog.Logger) error {
 // how large it is, and running any servable script file in its own origin.
 // That is exactly the crossing the loopback boundary is meant to forbid.
 // Same-origin is the whole app: the shell, its assets, and the sandboxed
-// frames all load from this one origin, so nothing legitimate is refused, and
-// every present and future endpoint inherits the header without restating it.
+// frames all load from this one origin, so nothing legitimate is refused.
+//
+// The header is written twice over, because once is not a guarantee. Setting it
+// before the handler runs covers a handler that answers without ever writing;
+// setting it again as the headers go out covers a handler that cleared or
+// rewrote it in between. A policy the whole server depends on must not be
+// something any one endpoint can quietly drop.
 func crossOriginResourcePolicy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-		next.ServeHTTP(w, r)
+		w.Header().Set(corpHeader, corpValue)
+		next.ServeHTTP(&corpWriter{ResponseWriter: w}, r)
 	})
+}
+
+// corpWriter reasserts the embed refusal at the last moment it can still be
+// written — when the status line is committed, after every handler has had its
+// say about the headers and before any of them reach the reader.
+type corpWriter struct {
+	http.ResponseWriter
+	wroteHeader bool
+}
+
+func (w *corpWriter) WriteHeader(statusCode int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		w.Header().Set(corpHeader, corpValue)
+	}
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+// Write commits the headers the way net/http itself would, so a handler that
+// writes a body without naming a status still passes through WriteHeader above.
+func (w *corpWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
 }
