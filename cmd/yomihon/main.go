@@ -386,15 +386,22 @@ const (
 // Same-origin is the whole app: the shell, its assets, and the sandboxed
 // frames all load from this one origin, so nothing legitimate is refused.
 //
-// The header is written twice over, because once is not a guarantee. Setting it
-// before the handler runs covers a handler that answers without ever writing;
-// setting it again as the headers go out covers a handler that cleared or
-// rewrote it in between. A policy the whole server depends on must not be
-// something any one endpoint can quietly drop.
+// A handler gets two chances to lose the header and neither is allowed to
+// succeed, so it is written at both of the moments that can still matter. If
+// the handler commits a status, the wrapper restores the header first, ahead of
+// anything it may have cleared or rewritten. If the handler instead returns
+// having written nothing, no byte has left yet and the header map is still
+// open, so it is restored on the way out — before the server fills in the 200
+// it writes on the handler's behalf. A policy the whole server rests on must
+// not be something any one endpoint can quietly drop.
 func crossOriginResourcePolicy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(corpHeader, corpValue)
-		next.ServeHTTP(&corpWriter{ResponseWriter: w}, r)
+		cw := &corpWriter{ResponseWriter: w}
+		next.ServeHTTP(cw, r)
+		if !cw.wroteHeader {
+			w.Header().Set(corpHeader, corpValue)
+		}
 	})
 }
 

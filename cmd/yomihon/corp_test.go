@@ -55,6 +55,21 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 				http.Error(w, "no", http.StatusNotFound)
 			},
 		},
+		{
+			// The quietest way to lose it: no status, no body, nothing for a
+			// wrapper to intercept — the server writes the 200 itself, from a
+			// header map the handler has already emptied.
+			name: "a handler that deletes the header and never writes",
+			inner: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Del(corpHeader)
+			},
+		},
+		{
+			name: "a handler that weakens the header and never writes",
+			inner: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set(corpHeader, "cross-origin")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
