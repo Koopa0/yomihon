@@ -54,7 +54,7 @@
   --success:       oklch(0.520 0.130 155);
   --success-bg:    oklch(0.520 0.130 155 / 0.10);
 
-  /* ---- Slot-machine colours — the 8 grammatical roles (D29). Each coloured
+  /* ---- Slot-machine colours — the 8 grammatical roles. Each coloured
      element reads --c; the .y-slot-<token> class only assigns it, so one token
      tints a slot's select border, its surface, and its ruby together. Muted so
      a card full of coloured words never out-shouts the reading, and hues avoid
