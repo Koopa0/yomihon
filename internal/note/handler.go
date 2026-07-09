@@ -5,6 +5,7 @@ package note
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -149,9 +150,15 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	n, err := h.readNote(rel)
-	if err != nil {
+	switch {
+	case errors.Is(err, errUnreadable):
+		// The file was there and allowed; the read itself failed.
+		h.deps.Log.Error("read note", "path", rel, "error", err)
+		http.Error(w, "cannot read note", http.StatusInternalServerError)
+		return
+	case err != nil:
 		// A note that vanished, and one the vault root turned away, answer
-		// alike: neither is here.
+		// alike: neither is here, and which is which is not the caller's.
 		h.deps.Log.Warn("read note", "path", rel, "error", err)
 		http.NotFound(w, r)
 		return

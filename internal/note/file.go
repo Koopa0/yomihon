@@ -3,6 +3,7 @@ package note
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"mime"
@@ -162,6 +163,13 @@ func trimPartialRune(b []byte) []byte {
 	return b
 }
 
+// errUnreadable marks a failure that struck after the vault root had already
+// agreed a file exists and may be served: a disk that faulted mid-read, not a
+// path that was turned away. The two must answer differently. A refusal has to
+// look exactly like absence, or it becomes an answer about the vault's shape;
+// a fault is the server's own problem and should say so.
+var errUnreadable = errors.New("unreadable file")
+
 // readNote reads a markdown note through the containment the other kinds get.
 // vault.ReadNote inspects the path string with filepath.IsLocal and then hands
 // the name to os.ReadFile, which follows symbolic links: a link named like a
@@ -177,7 +185,7 @@ func (h *Handler) readNote(rel string) (*vault.Note, error) {
 
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w %s: %w", errUnreadable, rel, err)
 	}
 	return vault.Parse(rel, data), nil
 }
