@@ -51,9 +51,16 @@ try {
   // must have revealed the filter.
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.route('**/yomihon.js', (route) => route.abort());
+    // The same reason the strip-inline flag exists: a route that matches
+    // nothing blocks nothing, and this case would then watch the deferred
+    // script run and call it proof that it never did.
+    let blocked = false;
+    await page.route('**/yomihon.js', (route) => { blocked = true; return route.abort(); });
     if (MUTATE === 'strip-inline') await stripInline(page);
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    if (!blocked) {
+      fail('case 2 blocked nothing: the deferred enhancement script was never requested, so a visible filter proves nothing about the inline script');
+    }
     if (MUTATE === 'strip-inline' && !stripped) {
       fail('strip-inline mutation did not apply: no inline script block was removed');
     }
