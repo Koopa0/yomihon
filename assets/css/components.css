@@ -472,7 +472,7 @@ html, body { margin: 0; background: var(--bg); }
 .k-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; }
 
 /* ============================================================
-   Ruby (furigana) — rt hidden by VISIBILITY only → zero reflow
+   Ruby (furigana) — rt hidden by visibility only → zero reflow
    ============================================================ */
 .yomihon ruby { ruby-align: center; ruby-position: over; }
 .yomihon rt { font-family: var(--font-sans); font-size: 0.5em; font-weight: 400; color: var(--fg-subtle); letter-spacing: 0.02em; user-select: none; }
