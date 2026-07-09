@@ -637,6 +637,35 @@ note URL space so the sidebar's links simply start working:
   under the bare sandbox; if the viewer renders, the sandbox is uniform; if
   not, exempt `application/pdf` alone and record why (the viewer isolates
   PDF script from the origin); last resort, PDFs take the info page.
+- **Addendum (2026-07-09, from the build's adversarial round):
+  `Cross-Origin-Resource-Policy: same-origin` joins the header contract,
+  set once at the server's middleware seam so every response carries
+  it.** The builder proved the leak live: with yomihon running, any
+  website open in the same browser can no-cors-embed `/raw` URLs — an
+  existence-and-size oracle over guessable paths, and the vault's one
+  servable script executing inside the hostile page's origin. That is
+  the browser acting as a confused deputy across the loopback boundary —
+  the leak class wall 2 exists to refuse — and the report-raw endpoint
+  shipped with the same gap, which the seam-wide header closes in the
+  same motion. Kill-tested like any lock: drop the header, watch the
+  assertion go red.
+- **From first live use (Koopa, 2026-07-09): a real vault PDF does not
+  open, and `.canvas` / `.base` deserve their lexers — folded into the
+  unit, since "every file opens" is its own acceptance.** The PDF
+  failure is diagnosed before it is fixed (the bare sandbox killing the
+  viewer is one suspect; a text-looking first block misrouting a known
+  kind is another), then the ruled ladder executes: if the sandbox is
+  the culprit, `application/pdf` alone drops the sandbox directive,
+  keeping every other header, and the exemption records why that is
+  safe (the viewer renders PDF in its own isolated context, not the
+  app's origin); the info page stays the last resort. Known viewer
+  kinds (pdf and the image set) dispatch by extension ahead of the
+  content sniff, so a deceptive first block cannot reroute them.
+  `.canvas` aliases to the JSON lexer and `.base` to YAML (confirm
+  against a real file before wiring). `.d2` stays a plain-text source
+  view — its correct reading form today; rendering D2 diagrams natively
+  is a future candidate behind a dependency ruling (D41), noted here,
+  not queued.
 - **Dead wikilinks come alive, by design.** The graph already resolves
   non-markdown targets; today those links render and then 404. After this
   unit they open. Rendered bytes change nowhere — destinations start
