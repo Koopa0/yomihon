@@ -68,6 +68,21 @@ func hasTokenSpan(html string) bool {
 	return strings.Contains(structural, `<span class="`)
 }
 
+// TestPlainSourceKeepsTheHighlighterContainer pins the degraded rendering's
+// shape. A file the highlighter chokes on still reaches the reader inside the
+// block the stylesheet dresses; losing the container would leave that one file
+// looking like a different kind of page.
+func TestPlainSourceKeepsTheHighlighterContainer(t *testing.T) {
+	t.Parallel()
+	got := plainSource("a -> b\n")
+	if !strings.Contains(got, `<pre class="chroma">`) {
+		t.Errorf("plainSource() = %q, want the highlighter's own container", got)
+	}
+	if strings.Contains(got, "<script") {
+		t.Error("plainSource did not escape its input")
+	}
+}
+
 // TestSourceHTMLEscapes is the safety property: whatever the lexer, the file's
 // own bytes never become live markup. A file that is all angle brackets renders
 // as escaped text, not as tags.

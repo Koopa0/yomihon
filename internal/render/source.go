@@ -60,7 +60,9 @@ func lexerFor(filename string) chroma.Lexer {
 }
 
 // plainSource is the degraded rendering: still escaped, still readable, just
-// uncolored. A file the highlighter chokes on must never fail the page.
+// uncolored. A file the highlighter chokes on must never fail the page. It
+// keeps the same container the highlighter emits, so the block a reader sees
+// is dressed identically whether or not any token was ever coloured.
 func plainSource(source string) string {
-	return "<pre><code>" + html.EscapeString(source) + "</code></pre>"
+	return `<pre class="chroma"><code>` + html.EscapeString(source) + "</code></pre>"
 }
