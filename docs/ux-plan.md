@@ -580,3 +580,44 @@ finding: the inconsistency is the policy.
   §15-recorded exception, which runs exactly at the right moment); with JS
   off the box stays hidden, as an inert control should. Next fix batch,
   together with §15's two leftover comment tokens in `components.css`.
+
+## 17. Reading every file, the prefix sweep, and fix batch two (ruled 2026-07-09)
+
+**The file-view unit (D45).** The reading route widens from `.md`-only to
+every file the tree lists, presentation per type, all inside the existing
+note URL space so the sidebar's links simply start working:
+
+- **Dispatch by content, not by trust in extensions**: a small sniff (valid
+  UTF-8, no NUL in the head) decides text vs binary; the extension then
+  picks the chroma lexer for text and the viewer for known binary kinds.
+- **Text** → a read-only source page in the shell: filename as title,
+  chroma-highlighted `<pre>` (plain where no lexer matches), no status
+  face, no seal, no TOC, no diagnostics — a source file is not a note.
+- **Images** (png/jpg/gif/webp/svg) → an image page wrapping the raw bytes
+  in `<img>`; **PDF** → the browser's viewer over the raw bytes.
+- **Raw bytes** serve from their own endpoint with the correct content type
+  and the report-raw CSP-sandbox discipline (`internal/report/handler.go`:
+  the sandbox lands on the resource itself) — a same-origin SVG or HTML
+  file must never run scripts against the app's origin.
+- **Binary without a viewer, and text beyond a comfort cap (~1 MB)** → an
+  information page: name, size, type, a link to the raw bytes. Honest, not
+  clever.
+- **Unchanged**: search and the graph index markdown only; the write face
+  touches nothing here; `Diary/` renders locally like everything else
+  (local rendering is not egress, D39/D42).
+
+**The prefix sweep (`k-` → `y-`).** The rename kept `k-` as "a neutral
+prefix" to avoid churn; the owner reads it as the old name's residue, and
+taste is his — the earlier keep ruling is reversed. It sweeps now, before
+the file-view unit and the content-driven sidebar multiply classes under
+the old prefix: one mechanical change across the stylesheet, the templates,
+the enhancement script's selectors, the sidebar's inline script, and the
+tests, regenerated and probed. The `ui-` design-system prefix is not the
+product's name and stays.
+
+**Fix batch two:** the filter's pre-paint reveal (§16), the prose-link
+underline (§16), and the two comment tokens left in `components.css` (§15).
+
+Sequencing, smallest first and the sweep before new classes are born:
+fix batch two → the prefix sweep → the file-view unit → the customizable
+select (§15). One PR each; independent acceptance between PRs.

@@ -40,7 +40,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 **Acceptance**:
 
 - All dialect conformance tests pass (the structural-assertion pattern inherited from yomihon-dev's `testdata/lesson.md`). Fixtures cover at least: ruby / `<br>` passed through verbatim; all callout types + `[!x]-` / `[!x]+` folding + unknown types degraded to blockquote; the four wikilink states + alias display + ambiguous marking; `![[embed]]`; `==highlight==`; task list; GFM tables (including escaped `\|`); dialect not processed inside a fence + a one-time warning; a broken-YAML single diagnostic that does not cascade; body leading-H1 removal; CJK slug aligned with the TOC anchor (including the `-2` collision suffix).
-- Every `.md` in the real vault opens: zero 500s, zero blank pages (the mechanical definition of fault tolerance).
+- Every `.md` in the real vault opens: zero 500s, zero blank pages (the mechanical definition of fault tolerance). Every other file the vault holds opens too (D45): text as a read-only source view, images and PDFs as themselves, anything else as an honest information page over its raw bytes — the tree never links to a 404.
 - Japanese lessons (L01–L20 + the P series) render with all five interactions. (The original parity criterion — the 14 `m1-review/` screenshots as baseline — was waived by D40 along with the rest of the observation gate; the screenshots remain available in the yomihon-dev repo as a design reference only.)
 
 ## 2. The navigation face
