@@ -40,6 +40,8 @@ func fileVault(t *testing.T) (root string) {
 	write(t, filepath.Join(root, "pic.png"), []byte("\x89PNG\r\n\x1a\n fake pixels"))
 	write(t, filepath.Join(root, "icon.svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`))
 	write(t, filepath.Join(root, "doc.pdf"), []byte("%PDF-1.4 fake document"))
+	write(t, filepath.Join(root, "board.canvas"), []byte(`{"nodes":[{"id":"a","type":"text"}]}`))
+	write(t, filepath.Join(root, "view.base"), []byte("filters:\n  and:\n    - file.ext == \"md\"\n"))
 	write(t, filepath.Join(root, "big.txt"), bytes.Repeat([]byte("x"), bigTextBytes))
 
 	// Forbidden shapes.
@@ -149,6 +151,16 @@ func TestFileRouteRendersEachKind(t *testing.T) {
 			name: "a pdf is handed to the browser's viewer",
 			path: "doc.pdf",
 			want: []string{`ui-type">pdf<`, `src="/raw/doc.pdf"`},
+		},
+		{
+			name: "a canvas is highlighted source, tokenized as JSON",
+			path: "board.canvas",
+			want: []string{`ui-type">source<`, `<pre class="chroma"`, `<span class="`},
+		},
+		{
+			name: "a base is highlighted source, tokenized as YAML",
+			path: "view.base",
+			want: []string{`ui-type">source<`, `<pre class="chroma"`, `<span class="`},
 		},
 	}
 	for _, tt := range tests {
