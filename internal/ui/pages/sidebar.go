@@ -137,15 +137,20 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 	return attrs
 }
 
-// navRestoreScript is the sidebar's pre-paint disclosure restore, inlined so
-// it runs synchronously after the sidebar's markup exists and before the
-// first paint that could flash a wrong state. It reapplies the session's
-// persisted manual toggles to every keyed disclosure — except the
-// wayfinding chain, which is always forced open. The enhancement script
-// owns every later change and writes the same storage key.
+// navRestoreScript settles the sidebar into its enhanced state before the
+// first paint. It is inlined so it runs synchronously once the sidebar's
+// markup exists and before any frame that could show a wrong state: the
+// filter box, which ships hidden because it is inert without a script,
+// appears in that same first frame rather than popping in after the
+// deferred script parses; and every keyed disclosure gets the session's
+// persisted manual toggle back — except the wayfinding chain, which is
+// always forced open. The enhancement script owns every later change and
+// writes the same storage key.
 const navRestoreScript = `<script>
 (() => {
 	'use strict';
+	const filter = document.querySelector('.k-rail-left [data-nav-filter]');
+	if (filter) { filter.hidden = false; }
 	let stored = {};
 	try { stored = JSON.parse(sessionStorage.getItem('yomihon.nav') || '{}') || {}; } catch { stored = {}; }
 	document.querySelectorAll('.k-rail-left details[data-key]').forEach((d) => {

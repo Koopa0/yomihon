@@ -206,7 +206,8 @@ html, body { margin: 0; background: var(--bg); }
 .k-navdot--ready { border-radius: 1px; background: var(--accent); }
 .k-navicon { width: 17px; display: inline-flex; justify-content: center; flex: none; }
 
-/* filter box — hidden until the script reveals it (pure enhancement) */
+/* filter box — pure enhancement: ships hidden, and the sidebar's pre-paint
+   script reveals it in the first frame; with no script it never appears */
 .k-filter {
   width: 100%; box-sizing: border-box; margin: 6px 0 4px; padding: 7px 10px;
   background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);

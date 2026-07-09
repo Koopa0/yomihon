@@ -466,13 +466,13 @@ func articleHead(v NoteView) templ.Component {
 // ============================ LEFT RAIL ============================
 
 // sidebar is the navigation face, ordered for a daily reader: a filter box
-// (revealed only once the script runs), the "here" list of the current note's
-// same-directory siblings, the study-path tree opened to the current note, the
-// lifecycle doorway with its pending-decision count, the reports list, and the
-// folder tree with the current note's branch expanded. It takes one resolved
-// Sidebar, so the reading page and the report shell mount the same navigation; a
-// report builds it with no current note, so every branch renders closed and
-// unmarked. A nil model renders nothing.
+// (shipped hidden, revealed by the pre-paint script below), the "here" list of
+// the current note's same-directory siblings, the study-path tree opened to the
+// current note, the lifecycle doorway with its pending-decision count, the
+// reports list, and the folder tree with the current note's branch expanded.
+// It takes one resolved Sidebar, so the reading page and the report shell mount
+// the same navigation; a report builds it with no current note, so every branch
+// renders closed and unmarked. A nil model renders nothing.
 func sidebar(sb Sidebar) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
