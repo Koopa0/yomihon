@@ -276,13 +276,38 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close() //nolint:errcheck // a read-only handle; a close error cannot affect the response
 
-	w.Header().Set("Content-Type", fileContentType(rel, f))
+	contentType := fileContentType(rel, f)
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "sandbox; frame-ancestors 'self'")
+	w.Header().Set("Content-Security-Policy", rawContentSecurityPolicy(contentType))
+	// Cross-origin embedding is refused one layer up, in the server's own
+	// header seam, so every response — this one, the report bytes, and any
+	// future endpoint — carries the same refusal without each having to
+	// remember it.
 	// ServeContent answers range requests, which a PDF viewer relies on, and
 	// leaves the content type alone because it is already set.
 	http.ServeContent(w, r, "", info.ModTime(), f)
+}
+
+// rawContentSecurityPolicy chooses how strongly a raw response is sandboxed.
+//
+// The sandbox exists to neutralize a same-origin document that could run
+// scripts against the app's origin — an SVG or an HTML file served from this
+// same host. A PDF cannot do that: the browser hands it to its own isolated
+// document viewer, never renders it as a page in this origin, and the pinned
+// application/pdf type with nosniff keeps it from being read as anything that
+// could. So the sandbox buys a PDF no safety it does not already have, while it
+// does stop some browsers' viewers from loading the document at all. A PDF
+// therefore keeps only the framing confinement — yomihon's own shell is still
+// the sole page that may embed it, enforced here and again by the same-origin
+// resource policy the server stamps on every response — and everything else is
+// fully sandboxed.
+func rawContentSecurityPolicy(contentType string) string {
+	if strings.HasPrefix(contentType, "application/pdf") {
+		return "frame-ancestors 'self'"
+	}
+	return "sandbox; frame-ancestors 'self'"
 }
 
 // fileContentType names a file's bytes: the pinned type for a kind this feature

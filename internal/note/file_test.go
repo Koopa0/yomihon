@@ -215,6 +215,28 @@ func TestRawServesBytesUnderASandbox(t *testing.T) {
 	}
 }
 
+// TestRawPDFDropsTheSandbox pins the one exception to the raw sandbox. A PDF
+// cannot script the app's origin — the browser renders it in its own isolated
+// viewer, and the pinned type with nosniff keeps it from being read as anything
+// that could — so it carries no sandbox directive, which some browsers' viewers
+// refuse to load under. The framing confinement stays, so only yomihon's own
+// shell may still embed it.
+func TestRawPDFDropsTheSandbox(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, fileVault(t))
+
+	_, pdfHeader, _ := fetch(t, srv.URL+"/raw/doc.pdf")
+	if got := pdfHeader.Get("Content-Security-Policy"); got != "frame-ancestors 'self'" {
+		t.Errorf("GET /raw/doc.pdf CSP = %q, want the framing confinement without the sandbox", got)
+	}
+	// Every other kind keeps the full sandbox — the PDF exemption is exactly
+	// that, not a general loosening.
+	_, svgHeader, _ := fetch(t, srv.URL+"/raw/icon.svg")
+	if got := svgHeader.Get("Content-Security-Policy"); got != "sandbox; frame-ancestors 'self'" {
+		t.Errorf("GET /raw/icon.svg CSP = %q, want the full sandbox", got)
+	}
+}
+
 // TestRawNamesTheContentType pins the type of every kind the viewers rely on,
 // and shows that a name with no extension is answered from its bytes rather
 // than guessed.
