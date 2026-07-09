@@ -1,7 +1,10 @@
-# A small vault for the smoke test. The reading faces load this contract but do
-# not validate notes against it, so the notes here exercise the faces (including
-# a study-path syllabus, a type kept out of the enum on purpose) without
-# conforming to the required fields; the contract is present only so it loads.
+# A small vault for the smoke test and the browser behavior probes. The
+# reading faces load this contract but do not validate notes against it, so
+# most notes here exercise the faces (including a study-path syllabus, a type
+# kept out of the enum on purpose) without conforming to the required fields.
+# The lifecycle entries carry one real edge — draft to ready, owned by the
+# human actor — so the lesson note renders a live seal form for the
+# seal-select-guard probe without ever committing a transition.
 schema_version = "1"
 [enums]
 type = ["concept", "lesson", "system"]
@@ -21,6 +24,7 @@ known = ["title", "type", "domain", "status", "based_on", "source_locator", "tag
 lesson_only = ["slug"]
 [fields.status_group]
 system = ["system", "guide"]
+lesson = ["lesson"]
 [rules]
 domain_equals_folder_under = ["Concepts"]
 concept_requires_provenance = ["based_on", "source_locator"]
@@ -30,4 +34,13 @@ forbid_tag_with_slash = true
 knowledge_dirs = ["Concepts", "Sources"]
 skip_basenames = ["README.md"]
 [[lifecycle]]
-status = "seedling"
+status = "draft"
+applies_to = ["lesson"]
+from = []
+owner = ["claude", "koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["lesson"]
+from = ["draft"]
+owner = ["koopa"]

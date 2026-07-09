@@ -1,0 +1,11 @@
+# Joined to the lesson note by the slug inside this file, never by filename.
+lesson: L01
+slug: jp-e2e-l01
+title: わたしは学生です
+patterns:
+  - id: p1
+    template: "{A}は {B}です"
+    gloss_zh: "{A} 是 {B}"
+    slots:
+      A: {label_zh: "主題", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}
+      B: {label_zh: "述語", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}]}
