@@ -420,10 +420,15 @@ func TestHeadingSlugStripsRubyReading(t *testing.T) {
 	r := newRenderer(t, t.TempDir(), nil, nil)
 
 	// A furigana heading keeps only its base characters in the entry and the
-	// anchor — the reading inside <rt> must not echo after the kanji.
-	got := r.HTML("## <ruby>漢字<rt>かんじ</rt></ruby>\n")
+	// anchor — the reading inside <rt> must not echo after the kanji. The second
+	// heading carries an attribute on the reading tag, which must still be
+	// stripped whole rather than leaving the reading behind.
+	got := r.HTML("## <ruby>漢字<rt>かんじ</rt></ruby>\n\n## <ruby>音<rt lang=\"ja\">おと</rt></ruby>\n")
 
-	want := []render.TOCEntry{{Level: 2, Text: "漢字", ID: "漢字"}}
+	want := []render.TOCEntry{
+		{Level: 2, Text: "漢字", ID: "漢字"},
+		{Level: 2, Text: "音", ID: "音"},
+	}
 	if diff := cmp.Diff(want, got.TOC); diff != "" {
 		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
 	}

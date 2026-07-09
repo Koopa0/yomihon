@@ -16,12 +16,14 @@ var (
 	ttsParagraph = regexp.MustCompile(`(?s)<p>(.*?)</p>`)
 	// rubyReading matches a ruby reading annotation — an <rt>…</rt> or an
 	// <rp>…</rp>, each closed by its own tag — so a caller that strips it keeps
-	// the base characters and drops the furigana. Two alternations (not a single
-	// [tp] class) so an <rt> can never pair with a stray </rp> on malformed
-	// markup. <rp> does not appear in current content, but it is stripped too,
-	// defensively — its fallback parentheses are reading apparatus, not part of
-	// the base text.
-	rubyReading = regexp.MustCompile(`(?s)<rt>.*?</rt>|<rp>.*?</rp>`)
+	// the base characters and drops the furigana. The open tag may carry
+	// attributes; only its name is anchored, so an annotation is removed whole
+	// rather than having its wrapper stripped and the reading left behind. Two
+	// alternations (not a single [tp] class) so an <rt> can never pair with a
+	// stray </rp> on malformed markup. <rp> does not appear in current content,
+	// but it is stripped too, defensively — its fallback parentheses are
+	// reading apparatus, not part of the base text.
+	rubyReading = regexp.MustCompile(`(?s)<rt[^>]*>.*?</rt>|<rp[^>]*>.*?</rp>`)
 	// ttsListItem matches one goldmark-emitted list item — a TIGHT one, whose
 	// content is inline (a sentence), which is where the practice/example
 	// sentences live. A LOOSE item wraps its content in <p> and is handled by
