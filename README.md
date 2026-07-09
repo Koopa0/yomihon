@@ -1,106 +1,206 @@
-# yomihon — a local reading and adjudication interface for a personal Obsidian vault
+# yomihon
 
-yomihon is a local-only, single-user interface over one Obsidian vault (`~/obsidian`).
-It renders the whole vault — lessons, concepts, reports, syllabus notes — as a
-readable, navigable interface, and it lets the vault's owner adjudicate a note's
-`status` in place, right where they finished reading. It never serves outside
-`127.0.0.1`, and it writes exactly one frontmatter field (`status`); everything
-else in the vault is read-only to it. The vault files plus their git history are
-the source of truth — any derived data is disposable.
+yomihon is a local, single-user web interface for reading and curating a
+personal Markdown knowledge vault. It renders every file in the vault as a
+readable, navigable page, and lets the vault's owner advance a note's
+lifecycle `status` right where they finished reading — one field, one
+validated transition, one git commit. Everything else in the vault is
+read-only to it.
 
-Working on this repository — human or agent — start at `docs/program.md`:
-it carries the delivery program, the role split, and the map of which
-document owns what. The quality bar is `docs/standards.md`.
+> [!WARNING]
+> yomihon is under active development. Expect significant feature and
+> interface changes between releases.
 
-## Status
+It binds to `127.0.0.1`, has no authentication, and is built for exactly one
+person on one machine. There is no database: all derived state — the link
+graph, the navigation model, the search index — lives in memory and is
+rebuilt from the files, so the source of truth is always the vault plus its
+git history.
 
-Pre-release. The skeleton is up and real lesson notes render end to end.
+## Features
 
-Working today:
+### Reading
 
-- Reading and Obsidian-dialect rendering — callouts, wikilinks, embeds,
-  highlights, task lists, and ruby passed through as-is.
-- The status flip (an adjudication): the write face, guarded by the vault's
-  state machine and recorded as a git commit.
-- Full-text lexical search (an in-memory index) with structured filters.
-- Syllabus trees, lesson interactions (furigana, TTS, slots, concept drawer),
-  and sandboxed report pages.
-- The judge engine — the vault diagnostics behind `check` / `coverage` /
-  `exists`, byte-compatible with the external pipelines' frozen JSONL format;
-  the four cron consumers run on it.
-- Server-side syntax highlighting (chroma); client-side mermaid diagrams.
+Markdown renders through [goldmark](https://github.com/yuin/goldmark) with
+GFM (tables, task lists, strikethrough) plus the vault dialect:
 
-Not built yet (the sequencing blueprint is `docs/roadmap.md`):
+- **Wikilinks** — `[[target]]` and `[[target|display]]`, resolved against the
+  whole vault; broken or ambiguous links render as flagged spans, never as
+  silent guesses.
+- **Transclusion** — `![[note]]` embeds a note's body one level deep.
+- **Callouts** — `> [!note]`, `> [!warning]`, and friends, with `+`/`-`
+  foldability rendered as native `<details>`.
+- **Highlights** — `==text==` becomes `<mark>`.
+- **Ruby** — hand-written `<ruby>` furigana passes through untouched, with a
+  global show/hide toggle.
+- **Mermaid** — fenced ` ```mermaid ` blocks render client-side, with the
+  escaped source as the no-JS fallback.
+- **Syntax highlighting** — server-side via
+  [chroma](https://github.com/alecthomas/chroma); no highlighting JavaScript
+  is shipped.
+- **Headings** — CJK-safe anchor slugs and a generated table of contents.
+- `%%comments%%` are stripped before rendering.
 
-- Hybrid semantic search (Gemini embeddings fused with the lexical index).
-- The agent toolbox: graph relation queries and whole-graph export.
-- The adjudication cockpit (home), static export, and the dreaming inbox.
+Rendering is fault-tolerant: a page never fails to load. Bad YAML, broken
+links, and unknown callouts surface as inline diagnostics instead.
 
-## Past name
+### File viewer
 
-> The project was originally named **kurodo (蔵人)** — in the Heian court, the
-> *kurōdo* were the palace archivists who kept the sovereign's document store
-> and relayed their rulings. The name encoded the design: the archivist reads
-> and prepares the record, but only the sovereign — here, Koopa — presses
-> `ready`. It was later renamed to yomihon.
+Every file in the vault is viewable, not just notes:
 
-## Design principles: the four walls
+| Format | Treatment |
+|---|---|
+| Markdown (`.md`) | Full reading page with TOC and diagnostics |
+| Images (`.png` `.jpg` `.jpeg` `.gif` `.webp` `.svg`) | Inline image page |
+| PDF (`.pdf`) | Embedded PDF view |
+| Text and source files (≤ 1 MiB) | Syntax-highlighted source page |
+| Everything else | Info page with a raw download link |
 
-yomihon's behavior is fenced by four walls. Crossing one is a design decision,
-not a patch — see `docs/design.md` and `docs/decisions.md`.
+Raw file responses are served with explicit content types, `nosniff`, a CSP
+sandbox, and HTTP range support.
 
-1. **Wall 1 — the write face is one field.** The only thing yomihon writes is the
-   frontmatter `status` field. Every change is validated against the vault's
-   state machine (by prior state and owner) and recorded as a single git commit
-   under Koopa's own git identity. The rewrite is surgical: the `status` line is
-   replaced; every other byte is left untouched.
-2. **Wall 2 — loopback only.** The listener hardcodes `127.0.0.1`; only the port
-   is configurable. yomihon never serves or exposes the vault or any derived data
-   beyond the machine. The one authorized outbound exception: note content —
-   never `Diary/` — sent to the embedding API to compute search vectors, which
-   are stored locally (`docs/decisions.md` D32).
-3. **Wall 3 — one schema contract.** The vault's schema — its enums and state
-   machine — lives only in `vault-schema.toml`. `internal/schema` is the only
-   package that reads it; there is no second, hardcoded copy anywhere in the repo.
-4. **Wall 4 — the renderer never fixes a note.** yomihon reads fault-tolerantly
-   and surfaces diagnostics for bad YAML, broken links, and name collisions, but
-   it never edits a file to "fix" them. The judge reports; a human edits.
+### Search
 
-Before touching the renderer, graph, or search, read `docs/vault-model.md`: the
-vault's Obsidian dialect has a spec, and generic Obsidian knowledge gets it wrong.
+An in-memory lexical index over titles and bodies, opened from anywhere with
+`⌘K` (a plain `/search` form is the no-JS fallback). Bare words AND-match as
+substrings; structured filters narrow by frontmatter:
 
-## Build and run
-
-```sh
-make build         # templ generate, then build bin/yomihon
-make run           # go run ./cmd/yomihon serve
-bin/yomihon serve  # or run the built binary directly
+```
+kanji type:lesson status:ready folder:Sources
 ```
 
-Requires Go 1.26. Styles are built separately with `make css` (Tailwind v4
-standalone CLI, no Node). Configuration is read from the environment:
+Supported filter keys: `type:` `status:` `domain:` `slug:` `topic:` `folder:`.
+
+### Status — the single write
+
+The one thing yomihon writes is the frontmatter `status` field. A flip is
+validated against the vault's own state machine (by prior state and owner),
+applied as a surgical single-line rewrite — every other byte of the file is
+left untouched — and recorded as one git commit in the vault under the
+owner's git identity. Stale reads, concurrent writes, and a dirty work tree
+are all rejected.
+
+The state machine ships with the vault, not the binary: yomihon loads it from
+`System/schemas/vault-schema.toml` inside the vault root. Without that
+contract, the write face stays closed and yomihon is a pure reader.
+
+### Vault diagnostics
+
+A diagnostics engine (the judge) reports on vault health — broken and
+ambiguous links, alias collisions, files missing from maps, frontmatter that
+violates the vault schema — and classifies concept coverage. It only ever
+reports; fixing a file is a human's job.
+
+### Study paths, lessons, and reports
+
+- **Study paths** — curriculum notes render as part → module → lesson trees
+  with per-lesson resolution state and a switcher across paths.
+- **Lesson pages** add text-to-speech with furigana-aware reading,
+  sentence-pattern practice slots loaded from vault sidecars, and a concept
+  drawer that previews linked concept notes in place.
+- **Reports** — HTML briefings stored in the vault render verbatim inside
+  sandboxed iframes.
+
+## Getting started
+
+Requires Go 1.26. Building CSS additionally requires the
+[Tailwind CSS standalone CLI](https://tailwindcss.com/blog/standalone-cli)
+(no Node); generated templates and built CSS are committed, so
+`go build ./...` works without either.
+
+```sh
+make build          # templ generate + tailwind + go build → bin/yomihon
+bin/yomihon serve   # http://127.0.0.1:9610
+```
+
+Configuration is environment-only:
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `YOMIHON_ROOT` | Vault path | `~/obsidian` |
-| `YOMIHON_PORT` | Listen port on `127.0.0.1` | `9610` |
+| `YOMIHON_PORT` | Listen port | `9610` |
 
-All derived state — the graph, the navigation model, and the search index — is
-in-memory, rebuilt from the vault; the truth is always the vault files plus
-their git history. There is currently no database; adopting one is a
-per-feature engineering call with recorded triggers (`docs/roadmap.md` §4).
+The listener is always `127.0.0.1`; only the port is configurable.
 
-## Layout
+## Command line
 
-Package-by-feature under `internal/`; `cmd/yomihon/` is wiring only.
+```
+yomihon <serve|check|coverage|exists> [options]
+```
+
+| Command | Purpose |
+|---|---|
+| `serve` | Start the reading interface |
+| `check` | Scan the vault and report diagnostics |
+| `coverage` | Report how concepts are mounted into the vault's maps |
+| `exists <name>` | Test whether a note exists by filename, title, or alias |
+
+The three scan commands share `--root <dir>` (default: current directory) and
+`--format json|human|md`. When the format flag is absent, output going to a
+pipe is JSON and output going to a terminal is human-readable, so the same
+invocation works interactively and in scripts.
+
+`check` also takes:
+
+- `--all` — include `System/` findings, excluded by default (`Diary/` is
+  always excluded)
+- `--deny <severity|rule-id>` — turn matching findings into a failing exit,
+  for use as a CI or pre-commit gate (repeatable)
+- `--baseline <file>` — subtract a previous JSON run, reporting only new
+  findings
+
+Exit codes are a contract: `0` clean, `1` gate hit (or, for `exists`, no
+match), `2` tool error. `coverage` always exits `0`. The JSON output is
+line-delimited with a stable field order and per-finding fingerprints, so
+downstream tooling can diff runs byte-for-byte.
+
+## Design guarantees
+
+1. **One write.** The only mutation yomihon ever performs is the `status`
+   flip described above. Every other byte of the vault is read-only.
+2. **Loopback only.** The server never listens beyond `127.0.0.1` and never
+   exposes the vault or any derived data off the machine.
+3. **One schema.** The vault's enums and state machine are read from
+   `vault-schema.toml` in the vault itself; the binary carries no copy.
+4. **Never "fix" a note.** Reading is fault-tolerant and problems become
+   diagnostics; yomihon never edits a file to repair it.
+
+## Project layout
+
+Package-by-feature under `internal/`; `cmd/yomihon` is wiring only.
 
 | Package | Responsibility |
 |---|---|
-| `vault` | Walks the vault; splits and fault-tolerantly parses frontmatter |
+| `vault` | Walks the vault; fault-tolerant frontmatter parsing |
 | `schema` | Loads `vault-schema.toml` — the only reader of the contract |
-| `render` | Renders the Obsidian dialect to HTML with goldmark: callouts, wikilinks, embeds, highlights, headings, code blocks |
-| `graph` | Resolves wikilinks, builds the link index, reports link diagnostics |
-| `note` | The reading face: loads a note, renders it, builds the TOC and diagnostics panel |
-| `status` | The write face: state-machine validation, surgical single-line rewrite, git commit |
+| `render` | Markdown → HTML: wikilinks, callouts, embeds, highlights, code |
+| `graph` | Wikilink resolution, the link index, link diagnostics |
+| `note` | The reading page and the file viewer |
+| `search` | The lexical index and query grammar |
+| `status` | The write face: validation, surgical rewrite, git commit |
+| `judge` | The diagnostics engine behind `check` / `coverage` / `exists` |
+| `syllabus` | Study-path pages |
+| `lesson` | Text-to-speech, practice slots, the concept drawer |
+| `nav` | The sidebar tree, siblings, and placements |
+| `report` | Sandboxed briefing pages |
+| `snapshot` | Atomic in-memory rebuild of all derived state |
 | `ui` | templ layouts, pages, and blocks |
-| `asset` | Serves static JS and CSS |
+| `asset` | Static assets |
+
+## Development
+
+```sh
+make verify   # fmt + vet + lint + test + build
+make test     # race-enabled, shuffled test run
+make gen      # regenerate templ output
+make css      # rebuild Tailwind output
+```
+
+Tests use the standard library plus
+[go-cmp](https://github.com/google/go-cmp). Golden files under
+`internal/judge/testdata/` pin the diagnostic wire format byte-for-byte —
+external tooling parses it, so those bytes are load-bearing.
+
+## License
+
+[MIT](LICENSE)
