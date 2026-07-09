@@ -8,6 +8,16 @@ import (
 	"testing"
 )
 
+// The refusal exactly as it must appear on the wire. These are spelled out
+// rather than taken from the middleware's own constants: a check that compares a
+// constant against itself proves only that Go finds equal values equal. It would
+// stay green while the server shipped a header named something else, or shipped
+// "cross-origin" — which is not a weaker refusal but an invitation.
+const (
+	wireCORPHeader = "Cross-Origin-Resource-Policy"
+	wireCORPValue  = "same-origin"
+)
+
 // TestCrossOriginResourcePolicy pins the server-wide embed refusal. The listener
 // is loopback, but a browser will carry a request to it on behalf of any page
 // the reader visits; the header denies that page the embed, so it cannot read a
@@ -40,14 +50,14 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 		{
 			name: "a handler that deletes the header",
 			inner: func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Del(corpHeader)
+				w.Header().Del(wireCORPHeader)
 				w.WriteHeader(http.StatusOK)
 			},
 		},
 		{
 			name: "a handler that rewrites the header to something weaker",
 			inner: func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set(corpHeader, "cross-origin")
+				w.Header().Set(wireCORPHeader, "cross-origin")
 				_, _ = w.Write([]byte("body"))
 			},
 		},
@@ -63,13 +73,13 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 			// header map the handler has already emptied.
 			name: "a handler that deletes the header and never writes",
 			inner: func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Del(corpHeader)
+				w.Header().Del(wireCORPHeader)
 			},
 		},
 		{
 			name: "a handler that weakens the header and never writes",
 			inner: func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set(corpHeader, "cross-origin")
+				w.Header().Set(wireCORPHeader, "cross-origin")
 			},
 		},
 		{
@@ -77,14 +87,14 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 			// would otherwise walk past the wrapper to the writer underneath.
 			name: "a handler that deletes the header and flushes",
 			inner: func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Del(corpHeader)
+				w.Header().Del(wireCORPHeader)
 				_ = http.NewResponseController(w).Flush()
 			},
 		},
 		{
 			name: "a handler that deletes the header and flushes by assertion",
 			inner: func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Del(corpHeader)
+				w.Header().Del(wireCORPHeader)
 				if f, ok := w.(http.Flusher); ok {
 					f.Flush()
 				}
@@ -101,8 +111,8 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 			// Result reports the headers as they were committed. The recorder's
 			// live map would happily show a value that never left, which is how
 			// a bypass hides from a test that trusts it.
-			if got := rec.Result().Header.Get(corpHeader); got != corpValue {
-				t.Errorf("committed %s = %q, want %q", corpHeader, got, corpValue)
+			if got := rec.Result().Header.Get(wireCORPHeader); got != wireCORPValue {
+				t.Errorf("committed %s = %q, want %q", wireCORPHeader, got, wireCORPValue)
 			}
 		})
 	}
@@ -146,8 +156,8 @@ func TestCorpWriterKeepsTheWriterUnderneathReachable(t *testing.T) {
 		if _, err := rf.ReadFrom(strings.NewReader("bytes")); err != nil {
 			t.Fatalf("ReadFrom = %v", err)
 		}
-		if got := rec.Header().Get(corpHeader); got != corpValue {
-			t.Errorf("after a copy, %s = %q, want %q", corpHeader, got, corpValue)
+		if got := rec.Result().Header.Get(wireCORPHeader); got != wireCORPValue {
+			t.Errorf("after a copy, %s = %q, want %q", wireCORPHeader, got, wireCORPValue)
 		}
 		if rec.Body.String() != "bytes" {
 			t.Errorf("body = %q, want %q", rec.Body.String(), "bytes")
