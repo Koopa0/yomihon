@@ -675,8 +675,13 @@ note URL space so the sidebar's links simply start working:
   vault through a symlinked `.md` — by routing both reads through the vault
   root's own door. `Cross-Origin-Resource-Policy` landed at the server's
   middleware seam, so every response carries it.
-  **Acceptance is unfinished.** The merge preceded the guide's independent
-  re-verification (Koopa's key, his call). What one guide session did
+  **Acceptance is unfinished, and Koopa waived the remainder (2026-07-09).**
+  The merge preceded the guide's independent re-verification, and he ruled
+  the replay not worth its cost against a green CI, a clean bot verdict, and
+  the builder's own adversarial pass. Recorded rather than quietly dropped:
+  the containment guards and the cross-origin refusal below carry the
+  builder's evidence, not a second party's. If a leak ever appears here,
+  this is where to start. What one guide session did
   verify: the merged commits are on main, `Cross-Origin-Resource-Policy`
   and the PDF/text CSP split are correct on a live server, and the CORP
   wrapper commits the header on every response-committing path it names
@@ -690,7 +695,9 @@ note URL space so the sidebar's links simply start working:
   the cross-origin leak is actually closed by embedding a `/raw` URL from a
   hostile origin in a real browser. The builder's own report is candid that
   this middleware took five review rounds and shipped fake kill-tests along
-  the way — that history is the reason the replay is owed, not a formality.
+  the way; that history is why the list is written down even though the
+  replay was waived — a future session inherits the gap, not the illusion
+  that it was closed.
 - **Dead wikilinks come alive, by design.** The graph already resolves
   non-markdown targets; today those links render and then 404. After this
   unit they open. Rendered bytes change nowhere — destinations start
