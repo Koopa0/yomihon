@@ -311,7 +311,9 @@
       // A focused <select> counts as typing too: its own letter keys jump to
       // matching options, so the single-key page shortcuts (including the held
       // R that starts the seal) must stay out of its way while it has focus.
-      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+      // The whole select subtree counts, not just the element itself: with the
+      // customizable picker open, key events target the focused <option>.
+      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable || (t.closest && t.closest('select')));
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         if (dialog) { dialog.open ? dialog.close() : dialog.showModal(); }

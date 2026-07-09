@@ -533,7 +533,7 @@ production use (statuses as of 2026-07; re-check when §10 re-runs):
 | `word-break: auto-phrase` | components.css, `[lang="ja"]` | phrase-aware wrapping | Limited | standard wrapping | none needed |
 | `closedby="any"` | palette + concept sheet | light dismiss | Limited | Esc everywhere; the concept sheet keeps its JS backdrop handler | none needed |
 | Web Speech API | yomihon.js, TTS + slot speak | read-aloud | Limited | speak controls never appear (the boot `[data-speech]` gate) | gated at boot |
-| Customizable `<select>` (planned, §15 follow-up) | slot machine | picker branding | Limited | the native picker | `@supports (appearance: base-select)` |
+| Customizable `<select>` | components.css, slot machine | picker branding | Limited | the native picker | `@supports (appearance: base-select)` |
 
 The guard principle the register encodes: **a feature is `@supports`-guarded
 only where its absence misbehaves, never where it merely does nothing** —
