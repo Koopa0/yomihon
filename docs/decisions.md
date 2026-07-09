@@ -228,3 +228,20 @@ The name is currently held by the frozen predecessor at `~/go/src/github.com/koo
 3. The four cron consumers call `~/go/bin/kurodo`; the binary name changes on install, so they cut over to the `yomihon` binary with the same backup-and-verify discipline the kura→kurodo switchover used — the old binary stays until the cutover is verified, then is deleted.
 
 Sequencing: after the experience batch merges and before the next feature branch opens — a rename touches every import path, so it must be a solo sweep on a clean tree. The GitHub repo renames and the local directory move are Koopa's hand (a directory move under a live session breaks tooling).
+
+## D45 Every vault file is readable in yomihon (Koopa, 2026-07-09)
+
+The sidebar lists the whole vault, but the reading route served only `.md`
+and 404'd the rest — surfaced when the vault root's Makefile appeared in the
+tree as a dead link. Koopa ruled: the terminal does not pick which files
+deserve eyes — every file the vault holds opens, and the presentation fits
+the type. Markdown keeps the note page. Text renders as a read-only source
+view, chroma-highlighted by extension and plain where unknown. Images
+display; PDFs hand to the browser's viewer; anything binary (or any text
+file too large to render comfortably) gets an honest information page
+pointing at its raw bytes. Raw bytes serve under the same CSP-sandbox
+discipline the report briefings established, because a same-origin SVG or
+HTML document would otherwise run scripts against the app's origin. The
+write face is untouched — source views carry no status face and no seal —
+and search and the graph stay markdown-only: reading widened; adjudication
+and indexing did not.
