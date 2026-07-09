@@ -463,7 +463,8 @@ Merged rulings. In batch scope (one PR, together with §14's ruby-TOC repair):
    full one. (Flagged independently by both reviews.)
 8. **Decorative SVGs** gain `aria-hidden="true"` wherever the parent already
    carries the accessible name (hamburger, search glyph, sun/moon, the
-   sidebar chevron, the sealby check).
+   sidebar chevron, the sealby check, and the two form magnifier glyphs whose
+   name sits on the sibling input).
 9. **Toggle state for assistive tech.** The ruby and theme buttons expose
    `aria-pressed`, the hamburger `aria-expanded` + `aria-controls`; the
    server renders the initial state and the enhancement script keeps it
