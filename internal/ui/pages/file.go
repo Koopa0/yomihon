@@ -47,6 +47,9 @@ var byteUnits = []string{"KB", "MB", "GB"}
 // figure alongside it: an information page exists to be exact, and "2.4 MB" on
 // its own is a rounding, not a fact.
 func humanSize(n int64) string {
+	if n == 1 {
+		return "1 byte"
+	}
 	if n < 1024 {
 		return withThousands(n) + " bytes"
 	}
