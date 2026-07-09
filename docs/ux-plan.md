@@ -666,6 +666,31 @@ note URL space so the sidebar's links simply start working:
   view — its correct reading form today; rendering D2 diagrams natively
   is a future candidate behind a dependency ruling (D41), noted here,
   not queued.
+- **Outcome (2026-07-09, PR #32 merged as `23c465b`).** The ladder's step 2
+  was taken and confirmed: the bare sandbox kills Safari's PDF viewer while
+  Chrome tolerates it, so `application/pdf` alone drops the sandbox
+  directive and keeps every other header; Koopa verified the real vault's
+  PDF renders in Safari, and Chrome shows no regression. The unit also
+  closed a pre-existing symlink escape — the note route read outside the
+  vault through a symlinked `.md` — by routing both reads through the vault
+  root's own door. `Cross-Origin-Resource-Policy` landed at the server's
+  middleware seam, so every response carries it.
+  **Acceptance is unfinished.** The merge preceded the guide's independent
+  re-verification (Koopa's key, his call). What one guide session did
+  verify: the merged commits are on main, `Cross-Origin-Resource-Policy`
+  and the PDF/text CSP split are correct on a live server, and the CORP
+  wrapper commits the header on every response-committing path it names
+  (`WriteHeader`, `Write`, `ReadFrom`, `Flush`, `FlushError`, and the
+  no-write return), with `Unwrap` present. What remains owed, and is the
+  next guide's first task: re-run `make verify` and the frontend lint pair
+  on the merged head; replay the containment payload table on a channel
+  other than the builder's raw-TCP (a real browser, and `curl` for the
+  encoded forms); replay the CORP and sandbox kill-tests; probe the real
+  vault for Makefile, `.canvas`, `.base`, an image, and the PDF; and prove
+  the cross-origin leak is actually closed by embedding a `/raw` URL from a
+  hostile origin in a real browser. The builder's own report is candid that
+  this middleware took five review rounds and shipped fake kill-tests along
+  the way — that history is the reason the replay is owed, not a formality.
 - **Dead wikilinks come alive, by design.** The graph already resolves
   non-markdown targets; today those links render and then 404. After this
   unit they open. Rendered bytes change nowhere — destinations start
