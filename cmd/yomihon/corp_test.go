@@ -72,6 +72,24 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 				w.Header().Set(corpHeader, "cross-origin")
 			},
 		},
+		{
+			// A flush commits the response. Reached through a controller, it
+			// would otherwise walk past the wrapper to the writer underneath.
+			name: "a handler that deletes the header and flushes",
+			inner: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Del(corpHeader)
+				_ = http.NewResponseController(w).Flush()
+			},
+		},
+		{
+			name: "a handler that deletes the header and flushes by assertion",
+			inner: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Del(corpHeader)
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,8 +98,11 @@ func TestCrossOriginResourcePolicy(t *testing.T) {
 			rec := httptest.NewRecorder()
 			crossOriginResourcePolicy(tt.inner).ServeHTTP(rec, req)
 
-			if got := rec.Header().Get(corpHeader); got != corpValue {
-				t.Errorf("%s = %q, want %q", corpHeader, got, corpValue)
+			// Result reports the headers as they were committed. The recorder's
+			// live map would happily show a value that never left, which is how
+			// a bypass hides from a test that trusts it.
+			if got := rec.Result().Header.Get(corpHeader); got != corpValue {
+				t.Errorf("committed %s = %q, want %q", corpHeader, got, corpValue)
 			}
 		})
 	}

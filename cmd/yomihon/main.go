@@ -387,14 +387,19 @@ const (
 // Same-origin is the whole app: the shell, its assets, and the sandboxed
 // frames all load from this one origin, so nothing legitimate is refused.
 //
-// A handler gets two chances to lose the header and neither is allowed to
-// succeed, so it is written at both of the moments that can still matter. If
-// the handler commits a status, the wrapper restores the header first, ahead of
-// anything it may have cleared or rewritten. If the handler instead returns
-// having written nothing, no byte has left yet and the header map is still
-// open, so it is restored on the way out — before the server fills in the 200
-// it writes on the handler's behalf. A policy the whole server rests on must
-// not be something any one endpoint can quietly drop.
+// A response can be committed in exactly four ways, and the header is restored
+// on every one of them before it goes out: a named status, a body written
+// without one, a copy taken through the writer's reader-from, and a flush. A
+// handler that instead returns having written nothing has committed nothing
+// either, so the header map is still open and the refusal is restored on the
+// way out, before the server fills in the 200 it writes on the handler's
+// behalf. Hijacking is not among them: it takes the connection and yomihon
+// writes no response at all.
+//
+// What this does not defend against is a handler that reaches past the wrapper
+// on purpose, unwrapping to the real writer and writing there. That is not a
+// policy weakened by accident, which is what this guards, and such a handler
+// could take the connection outright anyway.
 func crossOriginResourcePolicy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(corpHeader, corpValue)
@@ -433,9 +438,28 @@ func (w *corpWriter) Write(b []byte) (int, error) {
 }
 
 // Unwrap hands the real writer back, so the abilities this wrapper does not
-// name for itself — flushing, hijacking, setting a deadline — stay reachable
-// through an http.ResponseController rather than disappearing behind it.
+// name for itself — hijacking, setting a deadline — stay reachable through an
+// http.ResponseController rather than disappearing behind it. Flushing is named
+// below precisely because it commits a response, and a response controller
+// consults the outermost writer before it unwraps.
 func (w *corpWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// Flush commits the response, so like every other path that does, it restores
+// the refusal first. A handler reaching http.Flusher by assertion lands here.
+func (w *corpWriter) Flush() {
+	w.FlushError() //nolint:errcheck // http.Flusher reports nothing; the error surfaces to a caller that asks for it
+}
+
+// FlushError is the form an http.ResponseController looks for before it looks
+// for a Flusher and before it unwraps. Naming it here is what keeps a flush
+// from reaching the writer underneath and committing headers this wrapper never
+// saw.
+func (w *corpWriter) FlushError() error {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return http.NewResponseController(w.ResponseWriter).Flush()
+}
 
 // ReadFrom keeps the copy that serves a file's bytes on the writer's own fast
 // path. Without it the wrapper would hide the underlying io.ReaderFrom, and
