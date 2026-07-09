@@ -119,6 +119,7 @@ func NewHandler(d Deps) *Handler {
 // Register mounts the feature's routes.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
+	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /{$}", h.home)
 }
 
@@ -128,19 +129,25 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/notes/README.md", http.StatusFound)
 }
 
+// show serves one entry of the browse tree. Every file the tree lists opens
+// here; the presentation follows the kind. Markdown is the note page — the
+// reading surface with its status face, table of contents and diagnostics.
+// Everything else is a read-only view of a file, built by showFile.
+//
+// A note's body reaches this first-party page through the markdown pipeline
+// with WithUnsafe, which passes raw HTML — including <script> — through
+// unchanged. That is why no other kind may take this path: a vault .html file
+// rendered here would run its scripts against the whole vault-reading surface.
+// The other kinds are shown as escaped source or handed to the browser through
+// the sandboxed raw endpoint, never poured into this page.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	rel := r.PathValue("path")
-
-	// The reading page renders notes, and a note is a .md file. Any other vault
-	// resource served here would go through the markdown pipeline with WithUnsafe,
-	// which passes raw HTML — including <script> — straight into this first-party,
-	// yomihon-origin page: a .html briefing would then run its scripts same-origin
-	// to the whole vault-reading surface, the very execution the reports face
-	// sandboxes. Non-note resources are not read here — briefings have their own
-	// sandboxed /reports route, and .canvas/.base are not markdown — so serve only
-	// .md and 404 the rest (.md is the scanner's own note test, internal/nav).
-	if !strings.HasSuffix(rel, ".md") {
+	if !servable(rel) {
 		http.NotFound(w, r)
+		return
+	}
+	if !strings.HasSuffix(rel, ".md") {
+		h.showFile(w, r, rel)
 		return
 	}
 

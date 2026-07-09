@@ -252,12 +252,15 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 
 // dirExists reports whether path is an existing directory.
 // TestReadingPageServesOnlyMarkdownNotes pins that /notes serves only .md notes.
-// A non-note resource rendered here would pass through WithUnsafe into this
-// first-party, yomihon-origin page — a .html briefing would run its <script>
-// same-origin to the whole vault, the execution the reports face sandboxes; it
-// has its own sandboxed /reports route instead. The .html and .canvas below
-// exist on disk, so their 404 is the extension gate, not a missing file.
-func TestReadingPageServesOnlyMarkdownNotes(t *testing.T) {
+// Every file the browse tree lists now opens, so a non-note resource no longer
+// meets a 404 here. The guarantee that 404 was protecting is unchanged and is
+// what this pins: a resource's markup never becomes live markup in this
+// first-party, yomihon-origin page. A note's body passes through WithUnsafe,
+// which hands raw HTML — including <script> — to the page verbatim; every other
+// kind is escaped into a source view instead, and its bytes reach the browser
+// only through the sandboxed raw endpoint. The .html below carries a script tag
+// precisely so that its inertness can be observed.
+func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write := func(rel, content string) {
@@ -270,9 +273,9 @@ func TestReadingPageServesOnlyMarkdownNotes(t *testing.T) {
 			t.Fatalf("write: %v", err)
 		}
 	}
+	const liveTag = `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>`
 	write("Notes/keep.md", "# kept\n\nbody\n")
-	write("System/reports/daily-briefing/x.html",
-		`<!doctype html><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><body>hi</body>`)
+	write("System/reports/daily-briefing/x.html", `<!doctype html>`+liveTag+`<body>hi</body>`)
 	write("Diagrams/x.canvas", "{\"nodes\":[]}\n")
 	srv := newServer(t, root)
 
@@ -284,12 +287,21 @@ func TestReadingPageServesOnlyMarkdownNotes(t *testing.T) {
 		"Diagrams/x.canvas",
 	} {
 		code, body := get(t, srv.URL+"/notes/"+rel)
-		if code != http.StatusNotFound {
-			t.Errorf("GET /notes/%s = %d, want 404 (only .md notes are served here)", rel, code)
+		if code != http.StatusOK {
+			t.Errorf("GET /notes/%s = %d, want 200 (every listed file opens)", rel, code)
 		}
-		if strings.Contains(body, "cdn.jsdelivr") {
-			t.Errorf("GET /notes/%s leaked raw resource bytes into a first-party page:\n%s", rel, body)
+		if !strings.Contains(body, `<pre class="chroma"`) {
+			t.Errorf("GET /notes/%s is not a source view", rel)
 		}
+		if strings.Contains(body, liveTag) {
+			t.Errorf("GET /notes/%s put a live script tag into a first-party page", rel)
+		}
+	}
+
+	// The script's own text is shown — escaped, as source — which is the
+	// difference between reading a file and running it.
+	if _, body := get(t, srv.URL+"/notes/System/reports/daily-briefing/x.html"); !strings.Contains(body, "cdn.jsdelivr") {
+		t.Error("the .html source view does not show the file's own text")
 	}
 }
 

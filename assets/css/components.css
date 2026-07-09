@@ -635,6 +635,18 @@ html, body { margin: 0; background: var(--bg); }
 .y-reporttitle { font-family: var(--font-serif); font-weight: 600; font-size: var(--fs-ed-20); letter-spacing: 0.01em; color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
 .y-reportframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
 
+/* File views — a vault file that is not a note. Source and pictures borrow the
+   reading column's own type and code styling, so only the document frame and
+   the information page need rules of their own. */
+.y-source pre.chroma { margin-top: 22px; }
+.y-fileframe { display: block; width: 100%; height: min(78vh, 900px); margin: 22px 0 0; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
+.y-fileinfo { margin: 26px 0 0; padding: 20px 22px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); }
+.y-fileinfo__lead { margin: 0 0 16px; font-family: var(--font-serif); font-style: italic; color: var(--fg-subtle); }
+.y-fileinfo__list { display: grid; grid-template-columns: auto 1fr; gap: 6px 20px; margin: 0; }
+.y-fileinfo__list dt { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); align-self: baseline; }
+.y-fileinfo__list dd { margin: 0; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg); overflow-wrap: anywhere; }
+.y-fileinfo__raw { display: inline-block; margin: 18px 0 0; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
 .y-syl { max-width: 800px; margin: 0 auto; padding: 44px 56px 120px; }
 .y-syl-kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
 .y-syl .y-title { margin-top: 12px; }

@@ -33,6 +33,19 @@ func notesHref(p string) string {
 	return "/notes/" + strings.Join(segments, "/")
 }
 
+// rawHref builds the unchanged-bytes URL for a vault-relative path, escaping
+// each segment exactly as notesHref does, so a file's page and the bytes it
+// points at name the same file whatever its spaces, CJK, or missing extension.
+// It is its own route rather than a suffix on the note URL: a vault directory
+// named "raw" would otherwise make "/notes/raw/x" ambiguous.
+func rawHref(p string) string {
+	segments := strings.Split(p, "/")
+	for i, s := range segments {
+		segments[i] = url.PathEscape(s)
+	}
+	return "/raw/" + strings.Join(segments, "/")
+}
+
 // syllabusHref builds the study-path page URL for a vault-relative path,
 // percent-escaping each segment exactly as notesHref does — so a study-path
 // whose path carries spaces or CJK (e.g. "Maps/Go 課綱.md") round-trips through
