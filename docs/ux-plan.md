@@ -548,6 +548,15 @@ finding: the inconsistency is the policy.
   weight). Next fix batch.
 - The register above is the review's "document every native feature"
   recommendation, landed as canon.
+- The live-browser probes that accepted the §15 fixes are promoted to a
+  committed CI behavior lock before the screenshot baseline work. The job uses
+  runner-only `playwright-core` with the system Chrome, installed the same way
+  as `lint-frontend`; it does not add `package.json`, does not download a
+  browser, and does not compare pixels. It asserts the behaviors that are
+  currently only acceptance-session facts: the palette is centered and opaque;
+  the filter is present before first paint with the enhancement normal or its
+  deferred script blocked, and stays hidden with JavaScript disabled; and a
+  held `R` from a focused select cannot start the seal path.
 
 **Deferred, with explicit triggers:**
 
@@ -558,9 +567,11 @@ finding: the inconsistency is the policy.
 - Splitting `yomihon.js` into modules: the one-file-no-build design stands
   until the file nears ~800 lines; the shape to evaluate then is plain ES
   modules, never a bundler.
-- Review tooling as a repo dependency: stays out. CI already pins and runs
-  the lint pair; a `package.json` would be a dependency decision, not a
-  convenience.
+- Review tooling as a repo dependency: stays out for the behavior lock. CI
+  already pins and runs the lint pair, and the behavior probe uses the same
+  runner-only install pattern. A `package.json` becomes a dependency decision
+  only if the later screenshot-baseline job needs `@playwright/test` for
+  `toHaveScreenshot`, traces, and diff reports.
 
 **Two defects from daily use (Koopa, 2026-07-09), diagnosed and ruled:**
 

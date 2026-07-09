@@ -120,8 +120,21 @@ old directory.
 9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.
-10. `PR-e2e-screenshots` — the deferred screenshot job, once the surface is
-    stable enough that a baseline is worth committing.
+10a. `PR-e2e-reading-behavior` — promote the scratchpad live-browser probes
+     for the §15/§16 reading-surface regressions into CI before they evaporate:
+     a committed `.github/e2e/*.mjs` script using `playwright-core` with
+     `channel: "chrome"` against the runner's Chrome, installed in the job
+     with `npm install --no-save --no-package-lock` in the same runner-only
+     style as `lint-frontend`. No `package.json`, no bundled browser, no pixel
+     baseline. Locks: palette centered and opaque; the filter present before
+     first paint with the enhancement normal or its deferred script blocked,
+     and staying hidden with JavaScript disabled; and a held `R` inside a
+     focused select never touching the seal path.
+10b. `PR-e2e-screenshots` — the deferred screenshot baseline job, once the
+     surface is stable enough that a baseline is worth committing. Its
+     dependency shape is a fresh D41-style decision: use `@playwright/test`
+     only if the screenshot runner, traces, and diff reports earn a checked-in
+     dev dependency and package manifest.
 
 **Track 4 — the remaining faces (each: plan doc → adversarial round → build):**
 11. `B` — search panel, two halves in order (roadmap §1 row 5): the lexical
