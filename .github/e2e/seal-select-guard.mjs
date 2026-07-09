@@ -21,20 +21,21 @@ const MUTATE = process.env.MUTATE || '';
 const fail = (msg) => { throw new Error(`FAIL seal-select-guard: ${msg}`); };
 
 // The fill starts synchronously inside the keydown handler today, so reading it
-// on the next line happens to work. These waits exist so the lock does not
+// on the next line happens to work. This bound exists so the lock does not
 // depend on that: move the fill behind a timer or a frame and the probe must
-// still see it. The control waits, up to a bound, for the fill to appear before
-// calling itself broken; the guard case waits a fixed moment and then insists
-// the fill never appeared at all.
+// still see it. Both sides share it — the positive control waits up to
+// FILL_TIMEOUT_MS for the fill to appear before calling itself broken, and the
+// guard case watches for the same span a fill that must never appear. One shared
+// tolerance is what makes the negative sound: a leaked fill that began later than
+// the guard watched but sooner than the control tolerates would otherwise slip
+// through green. The span stays under the hold's own completion, so a key held
+// through it can never run the seal to a submitted form; the aborted POST is the
+// last line of defence against that, never the first.
 //
 // Every wait carries its own bound, so a fill that never moves stops the probe
 // with a sentence naming what it was waiting for, rather than stalling until
 // the driver's default expires and reporting nothing anyone can act on.
 const FILL_TIMEOUT_MS = 300;
-// Comfortably under the hold's own completion, so a key held here can never run
-// through to a submitted form. The aborted POST is the last line of defence
-// against that, never the first.
-const GUARD_SETTLE_MS = 150;
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -65,9 +66,6 @@ try {
   if (MUTATE === 'unguard-select' && !unguarded) {
     fail("unguard-select mutation did not apply: the typing guard's select clause was not found");
   }
-
-  const anyFillHolding = () => page.$$eval('.y-sealfill', (fills) =>
-    fills.some((f) => f.style.width === '100%'));
 
   if (!(await page.$('[data-seal]'))) fail('page has no seal form — pick a sealable lesson page');
   if (!(await page.$('select.y-slotselect'))) fail('page has no slot select — pick a slot lesson page');
@@ -107,13 +105,24 @@ try {
     fail('positive control ran long enough to submit the seal form; the guard case below would be vacuous');
   }
 
-  // The lock: R held from a focused select must not start the fill. The wait is
-  // what makes this an assertion rather than a race — a fill that began one
-  // frame later would otherwise go unseen and the guard would pass on nothing.
+  // The lock: R held from a focused select must not start the fill. Watching for
+  // the fill up to the bound the control tolerates — rather than reading once
+  // after a fixed pause — is what makes this a sound negative: a leaked fill is
+  // caught the instant it appears, and only a window that stays empty for as long
+  // as a real fill was ever allowed to take is read as no leak.
   await page.focus('select.y-slotselect');
   await page.keyboard.down('r');
-  await page.waitForTimeout(GUARD_SETTLE_MS);
-  const leaked = await anyFillHolding();
+  let leaked = false;
+  try {
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('.y-sealfill')].some((f) => f.style.width === '100%'),
+      null,
+      { timeout: FILL_TIMEOUT_MS },
+    );
+    leaked = true;
+  } catch {
+    leaked = false;
+  }
   await page.keyboard.up('r');
   if (leaked) fail('held R inside a focused select started the seal fill');
   if (postAttempted) fail('a POST fired while the select was focused — the seal path ran to completion');
