@@ -65,11 +65,19 @@ var imageExts = map[string]bool{
 // begin with a dot — and the vault's .git holds the whole history of every note
 // in it. Widening the route without restating the rule here would quietly widen
 // the served set to those trees.
+// The segments are split on the running system's own separator, taken from the
+// path after it leaves the URL's slash form. A rule about path elements has to
+// agree with the system about where an element ends, or a name the system reads
+// as two segments would be inspected here as one.
 func servable(rel string) bool {
-	if rel == "" || !filepath.IsLocal(filepath.FromSlash(rel)) {
+	if rel == "" {
 		return false
 	}
-	for seg := range strings.SplitSeq(rel, "/") {
+	name := filepath.FromSlash(rel)
+	if !filepath.IsLocal(name) {
+		return false
+	}
+	for seg := range strings.SplitSeq(name, string(filepath.Separator)) {
 		if strings.HasPrefix(seg, ".") {
 			return false
 		}
