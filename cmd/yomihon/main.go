@@ -328,7 +328,7 @@ func run(log *slog.Logger) error {
 	// agent) — same-account local processes are cryptographically
 	// indistinguishable, so that limit is accepted policy, not something
 	// to engineer around with tokens.
-	handler := http.NewCrossOriginProtection().Handler(mux)
+	handler := crossOriginResourcePolicy(http.NewCrossOriginProtection().Handler(mux))
 
 	// Loopback is hardcoded; only the port is configurable — yomihon and
 	// everything it derives from the vault must never be reachable from
@@ -367,4 +367,21 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("yomihon stopped")
 	return nil
+}
+
+// crossOriginResourcePolicy stamps every response with a refusal to be embedded
+// by any origin but yomihon's own. The listener is loopback, but a browser is a
+// confused deputy: a page the reader visits elsewhere can still reach
+// 127.0.0.1 with its own credentials and pull a response in as an image, a
+// frame, or a script — learning from the load whether a named file exists and
+// how large it is, and running any servable script file in its own origin.
+// That is exactly the crossing the loopback boundary is meant to forbid.
+// Same-origin is the whole app: the shell, its assets, and the sandboxed
+// frames all load from this one origin, so nothing legitimate is refused, and
+// every present and future endpoint inherits the header without restating it.
+func crossOriginResourcePolicy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		next.ServeHTTP(w, r)
+	})
 }
