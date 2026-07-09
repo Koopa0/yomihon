@@ -174,13 +174,13 @@ templ articleHead(v NoteView) {
 // ============================ LEFT RAIL ============================
 
 // sidebar is the navigation face, ordered for a daily reader: a filter box
-// (revealed only once the script runs), the "here" list of the current note's
-// same-directory siblings, the study-path tree opened to the current note, the
-// lifecycle doorway with its pending-decision count, the reports list, and the
-// folder tree with the current note's branch expanded. It takes one resolved
-// Sidebar, so the reading page and the report shell mount the same navigation; a
-// report builds it with no current note, so every branch renders closed and
-// unmarked. A nil model renders nothing.
+// (shipped hidden, revealed by the pre-paint script below), the "here" list of
+// the current note's same-directory siblings, the study-path tree opened to the
+// current note, the lifecycle doorway with its pending-decision count, the
+// reports list, and the folder tree with the current note's branch expanded.
+// It takes one resolved Sidebar, so the reading page and the report shell mount
+// the same navigation; a report builds it with no current note, so every branch
+// renders closed and unmarked. A nil model renders nothing.
 templ sidebar(sb Sidebar) {
 	<aside class="k-rail-left" id="nav-rail">
 		<input
@@ -279,11 +279,11 @@ templ sidebar(sb Sidebar) {
 			</details>
 		}
 	</aside>
-	// The pre-paint restore: reapplies the reader's persisted disclosure
-	// toggles before the sidebar first paints, so a section the reader
-	// closed never flashes open or replays its opening animation on the
-	// next page. The wayfinding chain always wins over a stored value; the
-	// enhancement script owns every change after this point.
+	// The pre-paint settle: reveals the filter box and reapplies the reader's
+	// persisted disclosure toggles before the sidebar first paints, so the box
+	// never pops in late and a section the reader closed never flashes open or
+	// replays its opening animation. The wayfinding chain always wins over a
+	// stored value; the enhancement script owns every change after this point.
 	@templ.Raw(navRestoreScript)
 }
 

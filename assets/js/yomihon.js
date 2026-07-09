@@ -176,9 +176,11 @@
   })();
 
   // ---- sidebar filter (progressive enhancement) ----------------------------
-  // A text box, hidden until this runs, that narrows the sidebar to rows
-  // whose visible text matches — links and non-link rows alike (an
-  // unresolved lesson is a span, and it matters for wayfinding). A group (a
+  // A text box — shipped hidden and revealed by the sidebar's pre-paint
+  // script, so it is there in the first frame and stays absent with JS off —
+  // that narrows the sidebar to rows whose visible text matches: links and
+  // non-link rows alike (an unresolved lesson is a span, and it matters for
+  // wayfinding). A group (a
   // disclosure or the "here" list) with no surviving row collapses away; a
   // match keeps its ancestor disclosures open, so the path to it stays
   // visible. Clearing the query hands every disclosure back to its resting
@@ -189,7 +191,6 @@
     const rail = document.querySelector('.k-rail-left');
     const input = rail && rail.querySelector('[data-nav-filter]');
     if (!input) return;
-    input.hidden = false;
     navState.init(rail);
     const empty = rail.querySelector('[data-filter-empty]');
     const groups = [...rail.querySelectorAll('details, .k-here')];

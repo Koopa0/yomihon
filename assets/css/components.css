@@ -206,7 +206,8 @@ html, body { margin: 0; background: var(--bg); }
 .k-navdot--ready { border-radius: 1px; background: var(--accent); }
 .k-navicon { width: 17px; display: inline-flex; justify-content: center; flex: none; }
 
-/* filter box — hidden until the script reveals it (pure enhancement) */
+/* filter box — pure enhancement: ships hidden, and the sidebar's pre-paint
+   script reveals it in the first frame; with no script it never appears */
 .k-filter {
   width: 100%; box-sizing: border-box; margin: 6px 0 4px; padding: 7px 10px;
   background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
@@ -286,7 +287,11 @@ html, body { margin: 0; background: var(--bg); }
 .k-prose blockquote { margin: 22px 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--border-strong); color: var(--fg-subtle); }
 .k-prose hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
 .k-prose img { max-width: 100%; height: auto; border-radius: var(--r-md); }
+/* A link must be findable without seeing color. Wikilinks already say so with
+   a bottom border, so the underline goes to every other prose link, drawn at
+   the same weight so the two read as one family. */
 .k-prose a { color: var(--link); }
+.k-prose a:not(.wikilink) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
 /* inline code + fenced code (chroma) */
 .k-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }
@@ -467,7 +472,7 @@ html, body { margin: 0; background: var(--bg); }
 .k-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; }
 
 /* ============================================================
-   Ruby (furigana) — rt hidden by VISIBILITY only → zero reflow
+   Ruby (furigana) — rt hidden by visibility only → zero reflow
    ============================================================ */
 .yomihon ruby { ruby-align: center; ruby-position: over; }
 .yomihon rt { font-family: var(--font-sans); font-size: 0.5em; font-weight: 400; color: var(--fg-subtle); letter-spacing: 0.02em; user-select: none; }
@@ -476,7 +481,7 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    TTS — read-aloud speak button on lesson sentences.
    Server-rendered (render.InjectTTS) with reading-stripped data-tts; the
-   button hangs in the left gutter and is revealed ONLY once yomihon.js
+   button hangs in the left gutter and is revealed only once yomihon.js
    confirms a Web Speech engine (root[data-speech]), so with no JS or no
    engine the sentence still reads and the affordance is simply absent.
    ============================================================ */
@@ -503,7 +508,7 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ============================================================
-   Slot machine — interactive sentence-pattern practice (D29).
+   Slot machine — interactive sentence-pattern practice.
    Server-rendered on the first fill so it reads with JS off; the controls
    (selects, shuffle) show only under [data-js] and the speak button only
    under [data-speech], so no-JS / no-engine pages hide dead controls.
