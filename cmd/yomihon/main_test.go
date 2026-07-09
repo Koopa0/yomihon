@@ -88,8 +88,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// Drive each read/render route at least once, covering its disk-touching
-	// path: the home redirect, notes, a study-path syllabus, search, and both
-	// the report shell and its verbatim raw read.
+	// path: the home redirect, notes, a study-path syllabus, search, both the
+	// report shell and its verbatim raw read, and the faces that open a file
+	// that is not a note — a text file rendered as source, a picture, and the
+	// unchanged bytes behind each of them.
 	for _, path := range []string{
 		"/",
 		"/notes/README.md",
@@ -99,6 +101,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		"/search?q=tortoise",
 		"/reports/latest.html",
 		"/reports/latest.html/raw",
+		"/notes/Makefile",
+		"/raw/Makefile",
+		"/notes/Diagrams/pic.png",
+		"/raw/Diagrams/pic.png",
 	} {
 		drive(t, srv.URL+path)
 	}
@@ -115,15 +121,19 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 }
 
 // writeSweepFixture lays down a vault that exercises each read face: a home
-// note, two linked notes, a study-path note (a syllabus), and a briefing (the
-// verbatim raw read).
+// note, two linked notes, a study-path note (a syllabus), a briefing (the
+// verbatim raw read), and two files that are not notes — one text, carrying no
+// extension so its kind is decided by its bytes, and one picture, whose few
+// bytes only have to be enough for the route to name and serve them.
 func writeSweepFixture(t *testing.T, root string) {
 	t.Helper()
 	files := map[string]string{
-		"README.md":      "# Sweep\n\nHome, linking to [[Alpha]].\n",
-		"Notes/alpha.md": "---\ntype: concept\naliases: [Alpha]\n---\n# Alpha\n\nAlpha links to [[Beta]] and mentions a tortoise.\n",
-		"Notes/beta.md":  "---\ntype: concept\naliases: [Beta]\n---\n# Beta\n\nBeta body.\n",
-		"Maps/study.md":  "---\ntype: study-path\ntitle: Study Path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
+		"README.md":        "# Sweep\n\nHome, linking to [[Alpha]].\n",
+		"Notes/alpha.md":   "---\ntype: concept\naliases: [Alpha]\n---\n# Alpha\n\nAlpha links to [[Beta]] and mentions a tortoise.\n",
+		"Notes/beta.md":    "---\ntype: concept\naliases: [Beta]\n---\n# Beta\n\nBeta body.\n",
+		"Maps/study.md":    "---\ntype: study-path\ntitle: Study Path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
+		"Makefile":         "build:\n\tgo build ./...\n",
+		"Diagrams/pic.png": "\x89PNG\r\n\x1a\n and a few bytes more",
 		"System/reports/daily-briefing/latest.html": "<!doctype html><h1>Daily briefing</h1><p>body</p>\n",
 	}
 	for rel, content := range files {
@@ -163,8 +173,13 @@ func hashTree(t *testing.T, root string) map[string]string {
 	return sums
 }
 
-// drive issues a GET and discards the body; the sweep cares that the request
-// touched the vault's read path, not what it returned.
+// drive issues a GET, discards the body, and asserts the route actually served —
+// a status below 400. Without that assertion the sweep could pass without ever
+// exercising a route: one regressed to a 404 or a 500 answers before it touches
+// disk, so "nothing was read" reads as "nothing was written" and the guard
+// proves nothing at all. The default client follows redirects, so the home
+// page's 302 lands on its final 2xx; a status at or above 400 means the route
+// did not serve.
 func drive(t *testing.T, url string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
@@ -177,6 +192,9 @@ func drive(t *testing.T, url string) {
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		t.Errorf("GET %s = %d, want the route to serve (below 400) so the sweep actually exercises it", url, resp.StatusCode)
+	}
 }
 
 // TestOnlyKnownEnvVarsAreRead fixes the command's configuration surface. The
@@ -185,7 +203,9 @@ func drive(t *testing.T, url string) {
 // bind address or host must never become configurable by accident. The test
 // parses the command's own source and asserts every environment read —
 // os.Getenv or os.LookupEnv — uses one of the two allowed keys, and that
-// os.Environ never reads the whole environment.
+// os.Environ never reads the whole environment. It resolves os through each
+// file's own imports, so an aliased import cannot slip a read past it, and a
+// dot-import of os — which would hide reads behind a bare call — fails outright.
 func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	t.Parallel()
 	allowed := map[string]bool{"YOMIHON_ROOT": true, "YOMIHON_PORT": true}
@@ -202,6 +222,28 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 		if perr != nil {
 			return fmt.Errorf("parse %s: %w", path, perr)
 		}
+		// Resolve which local names bind to package os, so an aliased import
+		// (import o "os") cannot slip an env read past this guard by calling
+		// o.Getenv. A dot-import of os hides its calls entirely — a bare Getenv
+		// with no package selector — so it is failed outright, not audited. A
+		// blank import makes no calls at all.
+		osNames := map[string]bool{}
+		for _, imp := range f.Imports {
+			p, uerr := strconv.Unquote(imp.Path.Value)
+			if uerr != nil || p != "os" {
+				continue
+			}
+			switch {
+			case imp.Name == nil:
+				osNames["os"] = true
+			case imp.Name.Name == ".":
+				offenders = append(offenders, fmt.Sprintf("%s: dot-imports os, which hides env reads from this guard", fset.Position(imp.Pos())))
+			case imp.Name.Name == "_":
+				// a side-effect import makes no calls
+			default:
+				osNames[imp.Name.Name] = true
+			}
+		}
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -212,7 +254,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 				return true
 			}
 			pkg, isIdent := sel.X.(*ast.Ident)
-			if !isIdent || pkg.Name != "os" {
+			if !isIdent || !osNames[pkg.Name] {
 				return true
 			}
 			// Getenv and LookupEnv both take the key as their first argument;
