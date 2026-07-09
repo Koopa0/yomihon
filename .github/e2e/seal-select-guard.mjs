@@ -20,6 +20,18 @@ const MUTATE = process.env.MUTATE || '';
 
 const fail = (msg) => { throw new Error(`FAIL seal-select-guard: ${msg}`); };
 
+// The fill starts synchronously inside the keydown handler today, so reading it
+// on the next line happens to work. These two waits exist so the lock does not
+// depend on that: move the fill behind a timer or a frame and the probe must
+// still see it. The control waits, up to a bound, for the fill to appear before
+// calling itself broken; the guard case waits a fixed moment and then insists
+// the fill never appeared at all.
+const FILL_START_TIMEOUT_MS = 300;
+// Comfortably under the hold's own completion, so a key held here can never run
+// through to a submitted form. The aborted POST is the last line of defence
+// against that, never the first.
+const GUARD_SETTLE_MS = 150;
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -59,7 +71,16 @@ try {
   // Positive control: R held outside any typing surface starts the fill.
   await page.evaluate(() => document.body.focus());
   await page.keyboard.down('r');
-  const controlStarted = await anyFillHolding();
+  let controlStarted = true;
+  try {
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('.y-sealfill')].some((f) => f.style.width === '100%'),
+      null,
+      { timeout: FILL_START_TIMEOUT_MS },
+    );
+  } catch {
+    controlStarted = false;
+  }
   await page.keyboard.up('r');
   if (!controlStarted) {
     fail('positive control broken: held R on the body did not start the seal fill, so this probe cannot see the seal path at all');
@@ -74,9 +95,12 @@ try {
     fail('positive control ran long enough to submit the seal form; the guard case below would be vacuous');
   }
 
-  // The lock: R held from a focused select must not start the fill.
+  // The lock: R held from a focused select must not start the fill. The wait is
+  // what makes this an assertion rather than a race — a fill that began one
+  // frame later would otherwise go unseen and the guard would pass on nothing.
   await page.focus('select.y-slotselect');
   await page.keyboard.down('r');
+  await page.waitForTimeout(GUARD_SETTLE_MS);
   const leaked = await anyFillHolding();
   await page.keyboard.up('r');
   if (leaked) fail('held R inside a focused select started the seal fill');
