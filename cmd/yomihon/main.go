@@ -403,6 +403,7 @@ func crossOriginResourcePolicy(next http.Handler) http.Handler {
 // say about the headers and before any of them reach the reader.
 type corpWriter struct {
 	http.ResponseWriter
+
 	wroteHeader bool
 }
 
