@@ -33,9 +33,9 @@ class LockFired extends Error {}
 class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
-const fail = (msg) => { throw new LockFired(`FAIL filter-prepaint: ${msg}`); };
-const broken = (msg) => { throw new ProbeBroken(`BROKEN filter-prepaint: ${msg}`); };
-const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-prepaint: ${msg}`); };
+const fail = (msg) => { throw new LockFired(`FAIL filter-inline-reveal: ${msg}`); };
+const broken = (msg) => { throw new ProbeBroken(`BROKEN filter-inline-reveal: ${msg}`); };
+const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-inline-reveal: ${msg}`); };
 
 // Every mutation this probe can inject lives in this table; the dispatch below
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
@@ -66,7 +66,7 @@ if (MUTATE === 'list') {
   process.exit(0);
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
-  console.error(`filter-prepaint: unknown MUTATE mode ${MUTATE}`);
+  console.error(`filter-inline-reveal: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
 
@@ -115,7 +115,7 @@ try {
     await ctx.close();
   }
 
-  console.log('PASS filter-prepaint: revealed without the deferred script (so the inline script reveals it), hidden with JS off');
+  console.log('PASS filter-inline-reveal: revealed without the deferred script (so the inline script reveals it), hidden with JS off');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

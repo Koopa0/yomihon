@@ -21,7 +21,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # probe file | the page path it must be driven against
 probes=(
   "palette.mjs|/"
-  "filter-prepaint.mjs|/notes/README.md"
+  "filter-inline-reveal.mjs|/notes/README.md"
   "seal-select-guard.mjs|/notes/Writing/lessons/japanese/L01.md"
 )
 
