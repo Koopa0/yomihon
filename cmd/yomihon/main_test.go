@@ -365,21 +365,31 @@ func envOffenders(reads []envRead) []envRead {
 	return offenders
 }
 
-// TestOnlyKnownEnvVarsAreRead fixes the command's configuration surface. The
-// listener binds the loopback address and only the port is configurable, so the
-// only environment this command may read are the vault root and the port. The
-// test parses the command's own source and asserts that every reach for the
-// environment — through os or through the syscall package beneath it, called or
-// merely handed over as a value — names one of the two allowed keys.
-func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
-	t.Parallel()
-	fset := token.NewFileSet()
+// skippedTrees are directories the walk below never descends into: git's own
+// store, the frontend build tree that a local install leaves behind, the build
+// output, and the fixture inputs, none of which are compiled into the command.
+var skippedTrees = map[string]bool{".git": true, "node_modules": true, "bin": true, "tmp": true, "testdata": true}
+
+// productionGoFiles parses every non-test Go file the command is built from,
+// walking the module rather than one directory. The environment the binary reads
+// is the environment every package it links reads, so a guard that inspected only
+// the command's own directory would be answered by moving the read one import
+// away.
+func productionGoFiles(t *testing.T, fset *token.FileSet, root string) []*ast.File {
+	t.Helper()
 	var files []*ast.File
-	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if d.IsDir() {
+			if skippedTrees[d.Name()] {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		f, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
@@ -387,16 +397,46 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 			return fmt.Errorf("parse %s: %w", path, perr)
 		}
 		files = append(files, f)
+		paths = append(paths, filepath.ToSlash(path))
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk cmd/yomihon: %v", err)
+		t.Fatalf("walk %s: %v", root, err)
 	}
-	// A walk that found nothing would report no offenders and prove nothing.
-	if len(files) == 0 {
-		t.Fatal("no command source was parsed, so this guard inspected nothing")
+	// A walk that stopped reaching the command, or stopped reaching the packages
+	// it links, would report no offenders and prove nothing at all. Both ends of
+	// the tree have to be present before an empty result means anything.
+	var sawCommand, sawInternal bool
+	for _, p := range paths {
+		if strings.HasSuffix(p, "cmd/yomihon/main.go") {
+			sawCommand = true
+		}
+		if strings.Contains(p, "/internal/") {
+			sawInternal = true
+		}
 	}
-	offenders := envOffenders(envReads(fset, files, allowedEnvKeys))
+	if !sawCommand || !sawInternal {
+		t.Fatalf("the walk of %s parsed %d files but did not reach both the command and the packages it links (command %v, internal %v), so an empty result would mean nothing",
+			root, len(files), sawCommand, sawInternal)
+	}
+	return files
+}
+
+// TestOnlyKnownEnvVarsAreRead fixes the command's configuration surface. The
+// listener binds the loopback address and only the port is configurable, so the
+// only environment this binary may read are the vault root and the port. The
+// test parses every non-test file the command is built from — its own and each
+// package it links — and asserts that every reach for the environment, through
+// os or through the syscall package beneath it, called or merely handed over as
+// a value, names one of the two allowed keys.
+func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
+	t.Parallel()
+	moduleRoot := filepath.Join("..", "..")
+	if _, err := os.Stat(filepath.Join(moduleRoot, "go.mod")); err != nil {
+		t.Fatalf("no go.mod at %s, so this guard cannot find the sources the command is built from: %v", moduleRoot, err)
+	}
+	fset := token.NewFileSet()
+	offenders := envOffenders(envReads(fset, productionGoFiles(t, fset, moduleRoot), allowedEnvKeys))
 	if len(offenders) > 0 {
 		lines := make([]string, 0, len(offenders))
 		for _, o := range offenders {
