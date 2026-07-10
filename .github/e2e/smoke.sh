@@ -30,13 +30,20 @@ fail() {
 # bound to loopback and to nothing else. Empty means the server is not listening
 # at all, which is not the promise either. Echoing the reason lets one caller
 # print it and the self-test compare against it.
+#
+# Both address tests end the port at a non-digit, because a port number is a
+# prefix of longer ones: asked about 1973, a line for 19733 answers. Without that
+# bound the verdict reads a socket it was not asked about — it would call a
+# server on 192.168.1.5:1973 loopback-only on the strength of something else
+# listening on 127.0.0.1:19733. The callers below happen to hand it one port's
+# lines, which is their property and not this one's.
 loopback_only() {
   local listing="$1" port="$2"
   if [ -z "$listing" ]; then
     echo "no listening socket found on port ${port}"
     return 1
   fi
-  if ! printf '%s\n' "$listing" | grep -qE "127\.0\.0\.1[:.]${port}"; then
+  if ! printf '%s\n' "$listing" | grep -qE "127\.0\.0\.1[:.]${port}([^0-9]|$)"; then
     echo "socket is not bound to 127.0.0.1"
     return 1
   fi
@@ -99,6 +106,17 @@ LISTEN 0 4096 [::]:19733 [::]:*"
     "non-loopback address" \
     "yomihon 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:19733 (LISTEN)
 yomihon 1 koopa 7u IPv4 0x2 0t0 TCP *:19733 (LISTEN)"
+  # A port number is a prefix of longer ones. These two hold the loopback test to
+  # the port it was asked about: the first is a loopback socket on a different
+  # port that merely starts with this one, and the second sets that decoy beside
+  # a server reachable from the network on the port that was asked about.
+  check "lsof, loopback on a longer port that starts with this one" \
+    "not bound to 127.0.0.1" \
+    "something 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:197330 (LISTEN)"
+  check "lsof, that decoy beside a network-reachable bind on the asked port" \
+    "not bound to 127.0.0.1" \
+    "something 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:197330 (LISTEN)
+yomihon   2 koopa 7u IPv4 0x2 0t0 TCP 192.168.1.5:19733 (LISTEN)"
 
   [ "$failures" -eq 0 ] || fail "the loopback socket verdict no longer refuses a widened bind"
   echo "self-test passed: every widened bind it was shown was refused, each for its own reason"
