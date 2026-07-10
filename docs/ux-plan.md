@@ -549,14 +549,19 @@ finding: the inconsistency is the policy.
 - The register above is the review's "document every native feature"
   recommendation, landed as canon.
 - The live-browser probes that accepted the §15 fixes are promoted to a
-  committed CI behavior lock before the screenshot baseline work. The job uses
-  runner-only `playwright-core` with the system Chrome, installed the same way
-  as `lint-frontend`; it does not add `package.json`, does not download a
-  browser, and does not compare pixels. It asserts the behaviors that are
-  currently only acceptance-session facts: the palette is centered and opaque;
-  the filter is present before first paint with the enhancement normal or its
-  deferred script blocked, and stays hidden with JavaScript disabled; and a
-  held `R` from a focused select cannot start the seal path.
+  committed CI behavior lock before the screenshot baseline work — **done
+  (PR #35)**, and hardened until every lock could be watched to fail
+  (**PR #37**). The job uses runner-only `playwright-core` with the system
+  Chrome, installed the same way as `lint-frontend`; it does not add
+  `package.json`, does not download a browser, and does not compare pixels. It
+  asserts the behaviors that were previously only acceptance-session facts: the
+  palette is centered, opaque, and finishes its fade; the filter is revealed by
+  the document's own inline script rather than the deferred one, and stays
+  hidden with JavaScript disabled; and a held `R` from a focused select cannot
+  start the seal path, with the picker closed or open. The claim about first
+  paint was withdrawn — the probe read `hidden` after parsing, which shows
+  *which* script reveals the filter, not *when* — and the file was renamed
+  `filter-inline-reveal.mjs` to say so.
 
 **Deferred, with explicit triggers:**
 

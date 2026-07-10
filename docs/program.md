@@ -105,10 +105,15 @@ old directory.
    three-source review (palette centering and surface, the seal-shortcut
    guard on focused selects, light dismiss, focus indicators, ARIA state,
    the ruby-TOC repair, and the smaller platform fixes), accepted
-   independently and merged. Its follow-ups live in ux-plan §16: a small
-   second fix batch (filter pre-paint reveal, prose-link underline, comment
-   tokens) and the customizable-select PR, plus one scope fork awaiting
-   Koopa (the sidebar/route `.md` asymmetry).
+   independently and merged. Its follow-ups from ux-plan §16 are done: the
+   second fix batch — **done (PR #30)** — carried the filter pre-paint reveal,
+   the prose-link underline, and the comment tokens; the class-prefix sweep
+   `k-` → `y-` followed — **done (PR #31)**; and the customizable select's open
+   picker was branded to match its closed face — **done (PR #34)**. The scope
+   fork Koopa held (the sidebar/route `.md` asymmetry) became D45 and shipped —
+   **done (PR #32)** — with the embed refusal pinned to the bytes it must put on
+   the wire — **done (PR #33)**. One Safari glance at a slot lesson is still
+   owed, to turn PR #34's button-in-select assumption into a fact.
 9b. `PR-ux-b2h` — Home v0.5 (ux-plan §3): the mtime plumbing and the
     landing page; smaller and separable from the experience batch.
 9c. `PR-ux-b3` — the content-driven sidebar (ux-plan §13): every map note
@@ -118,21 +123,37 @@ old directory.
 9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.
-10a. `PR-e2e-reading-behavior` — promote the scratchpad live-browser probes
-     for the §15/§16 reading-surface regressions into CI before they evaporate:
-     a committed `.github/e2e/*.mjs` script using `playwright-core` with
-     `channel: "chrome"` against the runner's Chrome, installed in the job
-     with `npm install --no-save --no-package-lock` in the same runner-only
-     style as `lint-frontend`. No `package.json`, no bundled browser, no pixel
-     baseline. Locks: palette centered and opaque; the filter present before
-     first paint with the enhancement normal or its deferred script blocked,
-     and staying hidden with JavaScript disabled; and a held `R` inside a
-     focused select never touching the seal path.
+10a. `PR-e2e-reading-behavior` — **done (PR #35)**: the scratchpad live-browser
+     probes for the §15/§16 reading-surface regressions are committed as
+     `.github/e2e/*.mjs`, driven by `playwright-core` with `channel: "chrome"`
+     against the runner's Chrome, installed with
+     `npm install --no-save --no-package-lock` in the same runner-only style as
+     `lint-frontend`. No `package.json`, no bundled browser, no pixel baseline.
+     Locks: the palette centered and opaque; the filter revealed by the
+     document's own inline script and hidden with JavaScript off; a held `R`
+     inside a focused select never touching the seal path.
+10a-i. `PR-wall-locks` — **done (PR #36)**: the two wall guards made able to
+     fail, and the file faces swept.
+10a-ii. `PR-instrument-hardening` — **done (PR #37)**: every lock provably able
+     to fail, and CI proving it. The probe contract of `standards.md` §2 lands
+     here — site-bound markers, `not-applied` exiting 2, the `e2e-mutations`
+     job asserting exit 1 plus the exact marker — together with the job family
+     renamed (`e2e-http`, `e2e-behavior`, `e2e-mutations`, `fuzz`), the
+     loopback socket assertion's first self-test, and the environment guard
+     widened to every package the binary links. The probe named for a paint it
+     never sampled became `filter-inline-reveal.mjs`.
 10b. `PR-e2e-screenshots` — the deferred screenshot baseline job, once the
      surface is stable enough that a baseline is worth committing. Its
      dependency shape is a fresh D41-style decision: use `@playwright/test`
      only if the screenshot runner, traces, and diff reports earn a checked-in
      dev dependency and package manifest.
+10c. `PR-typing-guard-coverage` — the seal shortcut's typing guard is probed on
+     the select's two faces only. Cover the rest: `INPUT` (the sidebar filter),
+     `TEXTAREA`, `contentEditable`, and the clause that stands down while the
+     search dialog is open. Fold in a needle-uniqueness assertion for
+     `rewriteGuard`: the needle must occur exactly once in the fetched script,
+     and a second occurrence reports `not-applied` rather than rewriting a
+     clause the mode was never aimed at. Low priority — after the Home unit.
 
 **Track 4 — the remaining faces (each: plan doc → adversarial round → build):**
 11. `B` — search panel, two halves in order (roadmap §1 row 5): the lexical
@@ -221,6 +242,18 @@ The guide's obligations, none delegable to a builder:
    screenshots against `~/obsidian`; run the hygiene greps (`standards.md`
    §5). Intermediate verifiers' reports — including well-written ones — are
    input, never the verdict.
+3a. **Acceptance is cold first.** Form your findings from the raw diff before
+   you read the builder's report; a report is a warm reading and it hands you
+   its own frame. Review the merge preview against main, not the branch alone
+   — a textually clean merge can produce a state neither side ever ran, and it
+   has: a kill-test whose needle matched the branch's script died against
+   main's. Treat the verification instruments as review targets in their own
+   right, and ask each one to show you it failing — the reviewer's findings on
+   this repository land on the instruments as often as on the code. Scale the
+   number of fresh-context lenses to the blast radius, not to the diff size.
+   And re-run the mutation transcripts rather than re-reading them: a
+   transcript is a claim, and re-running it is the only thing that turns the
+   claim into a fact.
 4. **Review-bot triage is line-by-line**: each finding is either fixed or
    refuted against the real code in the PR conversation. Never wave a batch
    through in either direction.

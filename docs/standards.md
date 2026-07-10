@@ -35,6 +35,29 @@ the four walls (`README`, decisions D02), the walls win.
   (loopback-only, drift, privacy drop, wire format) is proven by mutation:
   plant the defect it exists to catch, watch it go red, revert, and say so in
   the PR. A lock that has never been red is a hope, not a lock.
+- **A lock is not done until CI can watch it fail.** A self-testing probe
+  carries `MUTATE` modes, and they obey one contract. Every mode lives in the
+  same structure that dispatches it, so `MUTATE=list` prints exactly the modes
+  that exist. Every assertion names the **site** it guards; every mode names
+  the site it aims at; the caught marker prints only when the aimed-at site is
+  the one that fired — an unrelated assertion failing during a mutated run is a
+  real regression, not a catch, and the run goes red without the marker. A
+  probe refuses to start when a mode aims at a site that does not exist, or
+  when a site has no mode aiming at it: an assertion nothing has tried to break
+  is a lock nobody has watched fail. A mutation whose needle matches nothing
+  prints `MUTATE-RESULT: not-applied <mode>` and exits **2**; a detection prints
+  `MUTATE-RESULT: caught <mode>` and exits **1**. The `e2e-mutations` job runs
+  every listed mode and requires exit 1 together with that exact marker line —
+  never mere non-zero, because "the needle matched nothing" is also non-zero.
+  A kill-test that dies then goes red the day it dies.
+- **The environment wall is audited across the binary, not one directory.** The
+  guard parses every non-test file the `yomihon` binary is built from — the
+  command's own sources and those of every package it links, as the toolchain
+  reports them — so a configuration read cannot hide one import away. A new
+  environment key is therefore a deliberate edit to the wall test's allowlist,
+  and never a quiet addition: read it in the `cmd/yomihon` wiring and pass it
+  down as a field, never from inside `internal/`. B-lexical's embedding key
+  arrives exactly this way.
 - **Goldens are frozen bytes.** No `-update` flags, no regeneration paths in
   test code. A golden changes only when a ruling changes the contract, in its
   own commit, citing the ruling.
@@ -62,12 +85,14 @@ the four walls (`README`, decisions D02), the walls win.
   (`tool` directives) or an explicit pinned version; downloaded binaries are
   checksum-verified before they run. "latest" is forbidden in a workflow.
 - **Jobs are failure classes.** A job's name answers "what broke?" in
-  kebab-case nouns: `assets-drift`, `frontend-lint`, `e2e-smoke`,
-  `fuzz-smoke`. An umbrella job named after the workflow itself (`ci` inside
-  `CI`) says nothing and is a naming defect. The Go gate mirrors the local
-  gate (`make verify`), and advisory scans that can turn red without a code
-  change (vulnerability databases) live in their own job so they never block
-  an unrelated PR ambiguously.
+  kebab-case nouns, and the names of one family read as one family:
+  `assets-drift`, `lint-frontend`, `e2e-http`, `e2e-behavior`,
+  `e2e-mutations`, `fuzz`. A name says what is asserted, not how the check is
+  run — `-smoke` says only that the check is brief. An umbrella job named after
+  the workflow itself (`ci` inside `CI`) says nothing and is a naming defect.
+  The Go gate mirrors the local gate (`make verify`), and advisory scans that
+  can turn red without a code change (vulnerability databases) live in their
+  own job so they never block an unrelated PR ambiguously.
 - **One workflow file while the jobs share pins.** Shared env (pinned
   versions, checksums) stays in one place; split files only when jobs stop
   sharing anything.
@@ -141,3 +166,14 @@ pattern every installer step follows.
    and what is verified versus assumed. Bot review comments are triaged
    against the real code — findings are either fixed or refuted line by line,
    never waved through.
+7. **Every finding reaches one of three states before merge**: fixed in this
+   PR, queued as a named unit in `program.md`, or refused with a written
+   reason. "Fixed on another branch" is none of them — that is how a defect a
+   reviewer handed over four days early still shipped. A refusal states the
+   mechanism it refutes; a finding whose mechanism is wrong can still carry a
+   point worth taking, and the reply says so.
+8. **A too-large notice from the review bot is answered, not absorbed.** A PR
+   the bot declines to read has not been reviewed. Trigger the review by hand,
+   or split the PR. Silence from a reviewer is not a passing verdict, and four
+   PRs in this repository's history were never read because nobody noticed the
+   notice.

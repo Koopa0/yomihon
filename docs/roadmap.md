@@ -19,7 +19,7 @@
   coverage/exists, gating, exit codes — byte-compat pinned by golden fixtures +
   real-vault sandwiches), the wall-lock sweep (D39 included), the quality rails
   (pinned toolchain, assets-drift, frontend lint, loopback e2e), and the fuzz
-  pack (five targets, rescanner timing, benchmarks, fuzz-smoke job). The four
+  pack (five targets, rescanner timing, benchmarks, the `fuzz` job). The four
   cron consumers already run on `yomihon check` (switched 2026-07-05, with
   rollback backups).
 - **Done** (2026-07-07): the differential fuzz campaign (judge-plan §13) ran to
@@ -214,10 +214,12 @@ only, and the design keeps semantic strictly an enhancement layer:
 ## 5. Quality rails (D36, work items not advice)
 
 - **CI (GitHub Actions), jobs by code area**: lint-go · test-go(-race) ·
-  fuzz-smoke (30s/target) · assets-drift (templ + css regeneration must diff
+  fuzz (30s/target) · assets-drift (templ + css regeneration must diff
   clean) · lint-frontend (Biome for the single JS file, Stylelint for
-  input.css) · build · e2e-smoke (boot server on a fixture vault, assert key
-  pages; startup scan is synchronous, so no race with the rescanner).
+  input.css) · build · e2e-http (boot server on a fixture vault, assert key
+  pages; startup scan is synchronous, so no race with the rescanner) ·
+  e2e-behavior (the live-browser locks) · e2e-mutations (each probe's
+  self-tests, exit 1 plus the caught marker).
   **Posture note**: Biome/Stylelint/axe-core run in CI only — the *build*
   stays Node-free (the stack fact is about the product, not the CI runner).
   Reference-binary conformance tests skip in CI by design; golden fixtures
