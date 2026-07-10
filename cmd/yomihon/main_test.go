@@ -9,6 +9,7 @@ package main_test
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -19,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -365,47 +367,53 @@ func envOffenders(reads []envRead) []envRead {
 	return offenders
 }
 
-// skippedTrees are directories the walk below never descends into: git's own
-// store, the frontend build tree that a local install leaves behind, the build
-// output, and the fixture inputs, none of which are compiled into the command.
-var skippedTrees = map[string]bool{".git": true, "node_modules": true, "bin": true, "tmp": true, "testdata": true}
+// module is this repository's import path, used to keep the file listing below
+// to the packages written here rather than the ones they borrow.
+const module = "github.com/koopa0/yomihon"
 
-// productionGoFiles parses every non-test Go file the command is built from,
-// walking the module rather than one directory. The environment the binary reads
-// is the environment every package it links reads, so a guard that inspected only
-// the command's own directory would be answered by moving the read one import
-// away.
-func productionGoFiles(t *testing.T, fset *token.FileSet, root string) []*ast.File {
+// productionGoFiles parses every Go file the yomihon binary is built from: the
+// command's own, and those of each package it links.
+//
+// The set comes from the toolchain rather than from a walk of the directories,
+// because the promise is about what the process reads. A walk answers a
+// different question — what the repository contains — and would call a second
+// command's own configuration a breach of this one's, while a build constraint
+// that excludes a file from the binary would not exclude it from the walk. Ask
+// the linker's question, get the linker's answer.
+//
+// The environment a binary reads is the environment every package it links
+// reads, so a guard that inspected only the command's own directory would be
+// answered by moving the read one import away.
+func productionGoFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 	t.Helper()
+	// Each line is one file of one package in this module that the command links.
+	const format = `{{if .Module}}{{if eq .Module.Path "` + module + `"}}` +
+		`{{$dir := .Dir}}{{range .GoFiles}}{{$dir}}/{{.}}{{"\n"}}{{end}}{{end}}{{end}}`
+	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "-f", format, ".")
+	out, err := cmd.Output()
+	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			t.Fatalf("go list -deps .: %v\n%s", err, exit.Stderr)
+		}
+		t.Fatalf("go list -deps .: %v", err)
+	}
 	var files []*ast.File
 	var paths []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if skippedTrees[d.Name()] {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
+	for _, path := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if path == "" {
+			continue
 		}
 		f, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if perr != nil {
-			return fmt.Errorf("parse %s: %w", path, perr)
+			t.Fatalf("parse %s: %v", path, perr)
 		}
 		files = append(files, f)
 		paths = append(paths, filepath.ToSlash(path))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
 	}
-	// A walk that stopped reaching the command, or stopped reaching the packages
-	// it links, would report no offenders and prove nothing at all. Both ends of
-	// the tree have to be present before an empty result means anything.
+	// A listing that stopped reaching the command, or stopped reaching the
+	// packages it links, would report no offenders and prove nothing at all. Both
+	// ends have to be present before an empty result means anything.
 	var sawCommand, sawInternal bool
 	for _, p := range paths {
 		if strings.HasSuffix(p, "cmd/yomihon/main.go") {
@@ -416,8 +424,8 @@ func productionGoFiles(t *testing.T, fset *token.FileSet, root string) []*ast.Fi
 		}
 	}
 	if !sawCommand || !sawInternal {
-		t.Fatalf("the walk of %s parsed %d files but did not reach both the command and the packages it links (command %v, internal %v), so an empty result would mean nothing",
-			root, len(files), sawCommand, sawInternal)
+		t.Fatalf("the toolchain listed %d files the command is built from, but not both the command itself and the packages it links (command %v, internal %v), so an empty result would mean nothing",
+			len(files), sawCommand, sawInternal)
 	}
 	return files
 }
@@ -425,18 +433,18 @@ func productionGoFiles(t *testing.T, fset *token.FileSet, root string) []*ast.Fi
 // TestOnlyKnownEnvVarsAreRead fixes the command's configuration surface. The
 // listener binds the loopback address and only the port is configurable, so the
 // only environment this binary may read are the vault root and the port. The
-// test parses every non-test file the command is built from — its own and each
-// package it links — and asserts that every reach for the environment, through
-// os or through the syscall package beneath it, called or merely handed over as
-// a value, names one of the two allowed keys.
+// test parses every file the command is built from — its own and each package it
+// links, as the toolchain reports them — and asserts that every reach for the
+// environment, through os or through the syscall package beneath it, called or
+// merely handed over as a value, names one of the two allowed keys.
+//
+// The subject is the binary, not the repository: a tool that lived here and read
+// its own configuration would not be breaking this command's promise, and would
+// not be linked into it either.
 func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	t.Parallel()
-	moduleRoot := filepath.Join("..", "..")
-	if _, err := os.Stat(filepath.Join(moduleRoot, "go.mod")); err != nil {
-		t.Fatalf("no go.mod at %s, so this guard cannot find the sources the command is built from: %v", moduleRoot, err)
-	}
 	fset := token.NewFileSet()
-	offenders := envOffenders(envReads(fset, productionGoFiles(t, fset, moduleRoot), allowedEnvKeys))
+	offenders := envOffenders(envReads(fset, productionGoFiles(t, fset), allowedEnvKeys))
 	if len(offenders) > 0 {
 		lines := make([]string, 0, len(offenders))
 		for _, o := range offenders {
