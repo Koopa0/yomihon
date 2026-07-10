@@ -28,7 +28,11 @@ fi
 
 vault="$here/vault"
 base="http://127.0.0.1:${port}"
-log="$(mktemp)"
+# Named, and with a template. Every documented form of mktemp on this machine's
+# BSD takes one; a bare call is tolerated rather than promised, and these scripts
+# are meant to run here as well as on the runner. The name is what identifies the
+# file if one is ever left behind.
+log="$(mktemp "${TMPDIR:-/tmp}/yomihon-serve.XXXXXX")"
 
 YOMIHON_ROOT="$vault" YOMIHON_PORT="$port" "$bin" serve >"$log" 2>&1 &
 server_pid=$!

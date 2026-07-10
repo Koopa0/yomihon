@@ -111,7 +111,7 @@ fi
 
 base="${YOMIHON_BASE:?smoke.sh needs a running server; start it with serve.sh}"
 port="${YOMIHON_PORT:?smoke.sh needs a running server; start it with serve.sh}"
-body="$(mktemp)"
+body="$(mktemp "${TMPDIR:-/tmp}/yomihon-smoke.XXXXXX")"
 trap 'rm -f "$body"' EXIT
 
 # Each face: 200 after following redirects, plus a marker that proves the right
