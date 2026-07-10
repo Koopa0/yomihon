@@ -68,8 +68,11 @@ run_mutations() {
       if out="$(PAGE_PATH="$page" MUTATE="$mode" node "${here}/${probe}")"; then status=0; else status=$?; fi
       printf '%s\n' "$out"
       [ "$status" -eq 1 ] || fail "${probe} MUTATE=${mode} exited ${status}, want 1 (0: the regression walked past the probe; 2: the mutation matched nothing)"
-      printf '%s\n' "$out" | grep -qF "MUTATE-RESULT: caught ${mode}" ||
-        fail "${probe} MUTATE=${mode} exited 1 without the caught marker, so its exit code proves nothing"
+      # Whole-line, so the marker names this mode and no other: one mode's name
+      # can be a prefix of another's, and a substring match would let the marker
+      # for palette-fill-partial answer for palette-fill.
+      printf '%s\n' "$out" | grep -qxF "MUTATE-RESULT: caught ${mode}" ||
+        fail "${probe} MUTATE=${mode} exited 1 without a line reading exactly 'MUTATE-RESULT: caught ${mode}', so its exit code proves nothing"
     done <<<"$modes"
   done
   echo "probes.sh: every mutation was caught"

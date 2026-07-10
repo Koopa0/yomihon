@@ -37,25 +37,27 @@ const fail = (msg) => { throw new LockFired(`FAIL filter-prepaint: ${msg}`); };
 const broken = (msg) => { throw new ProbeBroken(`BROKEN filter-prepaint: ${msg}`); };
 const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-prepaint: ${msg}`); };
 
-// Tracks that the mutation really removed something: a mutation that matches
-// nothing produces a green self-test that means nothing, so case 2 checks this
-// flag before trusting its own result.
-let mutated = false;
-
 // Every mutation this probe can inject lives in this table; the dispatch below
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
 // is not listed cannot happen. strip-inline serves the document with its inline
 // scripts removed, leaving the deferred file as the only thing that could
 // reveal the filter — and case 2 blocks that file, so case 2 must go red.
+//
+// A mutation is installed on one page and answers for that page alone: it hands
+// back the proof that it really removed something from what that page loaded. A
+// mutation matching nothing leaves the document whole, and the case would then
+// watch the reveal it meant to prevent and call the result a self-test.
 const MUTATIONS = {
   'strip-inline': async (page) => {
+    let applied = false;
     await page.route(BASE + PAGE, async (route) => {
       const res = await route.fetch();
       const original = await res.text();
       const body = original.replace(/<script>[\s\S]*?<\/script>/g, '');
-      if (body !== original) mutated = true;
+      if (body !== original) applied = true;
       return route.fulfill({ response: res, body });
     });
+    return () => applied;
   },
 };
 
@@ -84,18 +86,19 @@ try {
   // to this case, because this is the case that carries the lock.
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    // The same reason the mutated flag exists: a route that matches
+    // The same reason a mutation proves it applied: a route that matches
     // nothing blocks nothing, and this case would then watch the deferred
     // script run and call it proof that it never did.
     let blocked = false;
     await page.route('**/yomihon.js', (route) => { blocked = true; return route.abort(); });
-    if (MUTATE) await MUTATIONS[MUTATE](page);
+    let mutationApplied = null;
+    if (MUTATE) mutationApplied = await MUTATIONS[MUTATE](page);
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (!blocked) {
       broken('case 2 blocked nothing: the deferred enhancement script was never requested, so a visible filter proves nothing about the inline script');
     }
-    if (MUTATE && !mutated) {
-      notApplied(`the ${MUTATE} mutation changed nothing in the served document`);
+    if (MUTATE && !mutationApplied()) {
+      notApplied(`the ${MUTATE} mutation changed nothing in the document this page loaded`);
     }
     const hidden = await page.$eval(FILTER, (el) => el.hidden);
     if (hidden) fail('case 2 (deferred blocked): reveal depends on the deferred script');

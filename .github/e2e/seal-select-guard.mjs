@@ -38,24 +38,30 @@ const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED seal-select-guar
 
 // The clause of the served script that keeps the single-key shortcuts out of a
 // focused select's typeahead. Replacing it with false removes the guard and
-// nothing else, which is the regression both cases must catch. Tracking that it
-// really rewrote something is the point of `mutated`: a needle matching nothing
-// serves the script unchanged, and the self-test would go green proving nothing.
+// nothing else, which is the regression both cases must catch.
 const GUARD_NEEDLE = "t.closest('select')";
-let mutated = false;
 
 // Every mutation this probe can inject lives in this table; the dispatch below
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
 // is not listed cannot happen.
+//
+// A mutation is installed on one page and answers for that page alone: it hands
+// back the proof that its needle rewrote the script that page actually loaded. A
+// proof shared between the cases would let a page served the script unchanged
+// inherit the other page's success — and that case would then hold R against the
+// guard it believed it had removed, find nothing leaking, and call the silence a
+// pass.
 const MUTATIONS = {
   'unguard-select': async (page) => {
+    let applied = false;
     await page.route('**/yomihon.js', async (route) => {
       const res = await route.fetch();
       const original = await res.text();
       const body = original.replace(GUARD_NEEDLE, 'false');
-      if (body !== original) mutated = true;
+      if (body !== original) applied = true;
       return route.fulfill({ response: res, body });
     });
+    return () => applied;
   },
 };
 
@@ -118,11 +124,12 @@ async function guardCase({ name, arrange }) {
     if (route.request().method() === 'POST') { postAttempted = true; return route.abort(); }
     return route.continue();
   });
-  if (MUTATE) await MUTATIONS[MUTATE](page);
+  let mutationApplied = null;
+  if (MUTATE) mutationApplied = await MUTATIONS[MUTATE](page);
   await page.goto(BASE + PAGE, { waitUntil: 'load' });
   await page.waitForSelector('html[data-js]');
-  if (MUTATE && !mutated) {
-    notApplied(`the ${MUTATE} needle matched nothing in the served script: ${GUARD_NEEDLE}`);
+  if (MUTATE && !mutationApplied()) {
+    notApplied(`${name}: the ${MUTATE} needle matched nothing in the script this page loaded: ${GUARD_NEEDLE}`);
   }
 
   if (!(await page.$('[data-seal]'))) broken('page has no seal form — pick a sealable lesson page');
