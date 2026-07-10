@@ -57,30 +57,44 @@ const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED seal-select-guar
 // nothing else, which is the regression both cases must catch.
 const GUARD_NEEDLE = "t.closest('select')";
 
+// Serves the script with the guard's clause rewritten, and hands back the proof
+// it rewrote something. A mutation is installed on one page and answers for that
+// page alone: a proof shared between the cases would let a page served the
+// script unchanged inherit the other page's success — and that case would then
+// hold R against the guard it believed it had removed, find nothing leaking, and
+// call the silence a pass.
+const rewriteGuard = (replacement) => async (page) => {
+  let applied = false;
+  await page.route('**/yomihon.js', async (route) => {
+    const res = await route.fetch();
+    const original = await res.text();
+    const body = original.replace(GUARD_NEEDLE, replacement);
+    if (body !== original) applied = true;
+    return route.fulfill({ response: res, body });
+  });
+  return () => applied;
+};
+
 // Every mutation this probe can inject lives in this table; the dispatch below
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
 // is not listed cannot happen.
 //
-// A mutation is installed on one page and answers for that page alone: it hands
-// back the proof that its needle rewrote the script that page actually loaded. A
-// proof shared between the cases would let a page served the script unchanged
-// inherit the other page's success — and that case would then hold R against the
-// guard it believed it had removed, find nothing leaking, and call the silence a
-// pass.
+// Removing the guard makes both faces leak, and the closed face alone would
+// report that. Weakening it to a test of the target's own tag name is the
+// regression only the open picker can see: with the picker closed the key event
+// targets the select, and a tag-name test still holds; with it open the event
+// targets an option, whose tag name is not SELECT, and the shortcut fires. That
+// weakening is the guard this script actually shipped before the picker was
+// branded, so it is the regression the second case exists for — and without a
+// mutation of its own, nothing would ever watch that case fail.
 const MUTATIONS = {
   'unguard-select': {
     target: 'no-fill-from-inside-the-select',
-    apply: async (page) => {
-      let applied = false;
-      await page.route('**/yomihon.js', async (route) => {
-        const res = await route.fetch();
-        const original = await res.text();
-        const body = original.replace(GUARD_NEEDLE, 'false');
-        if (body !== original) applied = true;
-        return route.fulfill({ response: res, body });
-      });
-      return () => applied;
-    },
+    apply: rewriteGuard('false'),
+  },
+  'weaken-select-to-tagname': {
+    target: 'no-fill-from-inside-the-select',
+    apply: rewriteGuard("t.tagName === 'SELECT'"),
   },
 };
 
@@ -168,6 +182,8 @@ async function guardCase({ name, arrange }) {
   if (MUTATE && !mutationApplied()) {
     notApplied(`${name}: the ${MUTATE} needle matched nothing in the script this page loaded: ${GUARD_NEEDLE}`);
   }
+  // A mutation that only one case can catch leaves the other passing, which is
+  // correct and says nothing. The verdict is taken across both cases below.
 
   if (!(await page.$('[data-seal]'))) broken('page has no seal form — pick a sealable lesson page');
   if (!(await page.$(SELECT))) broken('page has no slot select — pick a slot lesson page');
