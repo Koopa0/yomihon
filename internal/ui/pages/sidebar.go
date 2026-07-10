@@ -12,24 +12,15 @@ import (
 
 // Sidebar is the fully resolved left navigation for one request: the shared
 // whole-vault model, plus the current note's context — its same-directory
-// siblings, which study-path and folder branches to open, which entry is the one
-// being read — and the lifecycle doorway carrying the count of notes still
-// awaiting a decision. A page with no current note (a report) builds one with an
-// empty current path, so every branch renders in its default closed, unmarked
-// state.
+// siblings, which map and folder branches to open, which entry is the one
+// being read. A page with no current note builds one with an empty current path,
+// so every branch renders in its default closed, unmarked state.
 //
 // The open sets are resolved once here from the model's precomputed indexes, so
 // the templates only look up a boolean while rendering rather than re-walking the
 // tree.
 type Sidebar struct {
-	Model     *nav.Model
-	Lifecycle []LifecycleItem
-
-	// Pending is the count of notes still awaiting a decision; PendingKnown is
-	// false when the write face is closed, so the doorway shows no number rather
-	// than a misleading zero.
-	Pending      int
-	PendingKnown bool
+	Model *nav.Model
 
 	// CurrentPath is the note being read, empty on a page with no note.
 	CurrentPath string
@@ -38,27 +29,22 @@ type Sidebar struct {
 	HereDir string
 	Here    []nav.NoteRef
 
-	openSyllabi  map[string]bool
-	openSections map[string]bool
+	openMaps     map[string]bool
+	openBranches map[string]bool
 	openFolders  map[string]bool
 }
 
 // NewSidebar resolves the left navigation for one page. model is the whole-vault
-// nav model; currentPath is the note being read ("" for a page with no note);
-// lifecycle and the pending figure come from the note handler. pendingKnown is
-// false when the write face is closed, so the doorway shows no number.
-func NewSidebar(model *nav.Model, currentPath string, lifecycle []LifecycleItem, pending int, pendingKnown bool) Sidebar {
+// nav model; currentPath is the note being read ("" for a page with no note).
+func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	// The current path arrives from the request URL; the model's indexes are
 	// keyed by NFC paths, so fold it once here to match on either form.
 	currentPath = graph.NormalizeNFC(currentPath)
 	sb := Sidebar{
 		Model:        model,
-		Lifecycle:    lifecycle,
-		Pending:      pending,
-		PendingKnown: pendingKnown,
 		CurrentPath:  currentPath,
-		openSyllabi:  map[string]bool{},
-		openSections: map[string]bool{},
+		openMaps:     map[string]bool{},
+		openBranches: map[string]bool{},
 		openFolders:  map[string]bool{},
 	}
 	if model == nil || currentPath == "" {
@@ -67,12 +53,12 @@ func NewSidebar(model *nav.Model, currentPath string, lifecycle []LifecycleItem,
 
 	sb.HereDir, sb.Here = model.Siblings(currentPath)
 
-	// Open every study-path branch that lists the current note, down to the
-	// section it sits in (each heading prefix, so the ancestors open too).
+	// Open every map branch that lists the current note, down to the
+	// branch it sits in (each heading prefix, so the ancestors open too).
 	for _, p := range model.Placements(currentPath) {
-		sb.openSyllabi[p.SyllabusRelPath] = true
+		sb.openMaps[p.MapRelPath] = true
 		for i := 1; i <= len(p.Headings); i++ {
-			sb.openSections[sectionKey(p.SyllabusRelPath, p.Headings[:i])] = true
+			sb.openBranches[branchKey(p.MapRelPath, p.Headings[:i])] = true
 		}
 	}
 
@@ -90,13 +76,13 @@ func (s *Sidebar) current(relPath string) bool {
 	return relPath != "" && relPath == s.CurrentPath
 }
 
-// syllabusOpen reports whether a study-path branch contains the current note.
-func (s *Sidebar) syllabusOpen(relPath string) bool { return s.openSyllabi[relPath] }
+// mapOpen reports whether a map branch contains the current note.
+func (s *Sidebar) mapOpen(relPath string) bool { return s.openMaps[relPath] }
 
-// sectionOpen reports whether a study-path section lies on the path to the
+// branchOpen reports whether a map branch lies on the path to the
 // current note. It rebuilds the same key NewSidebar stored, so the two agree.
-func (s *Sidebar) sectionOpen(syllabusRelPath string, headings []string) bool {
-	return s.openSections[sectionKey(syllabusRelPath, headings)]
+func (s *Sidebar) branchOpen(mapRelPath string, headings []string) bool {
+	return s.openBranches[branchKey(mapRelPath, headings)]
 }
 
 // folderOpen reports whether a folder is an ancestor of the current note.
@@ -116,11 +102,14 @@ func currentAttr(isCurrent bool) templ.Attributes {
 	return nil
 }
 
-// pathsChainOpen reports whether any study-path branch holds the current
-// note, which makes the surrounding group part of the wayfinding chain: the
-// reader's location must stay visible even if the group was closed by hand
-// on an earlier page.
-func (s *Sidebar) pathsChainOpen() bool { return len(s.openSyllabi) > 0 }
+// pathsChainOpen reports whether a study path holds the current note, which
+// makes the surrounding group part of the wayfinding chain.
+func (s *Sidebar) pathsChainOpen() bool {
+	if s.Model == nil {
+		return false
+	}
+	return slices.ContainsFunc(s.Model.Paths, func(path nav.Map) bool { return s.openMaps[path.RelPath] })
+}
 
 // disclosureAttrs marks one sidebar disclosure for the single state owner
 // that coordinates <details open>: key names the section stably across pages
@@ -173,17 +162,17 @@ func hereLabel(dir string) string {
 	return dir
 }
 
-// childChain extends a section-heading chain by one level, returning a fresh
+// childChain extends a branch-heading chain by one level, returning a fresh
 // slice so a recursive render never mutates its parent's chain.
 func childChain(chain []string, heading string) []string {
 	return slices.Concat(chain, []string{heading})
 }
 
-// sectionKey identifies a study-path section by its path and the heading chain
-// leading to it, so the resolved open set and the renderer name the same section.
+// branchKey identifies a map branch by its path and the heading chain leading
+// to it, so the resolved open set and the renderer name the same branch.
 // The separator is a control character that never appears in a heading.
-func sectionKey(syllabusRelPath string, headings []string) string {
-	return syllabusRelPath + "\x1f" + strings.Join(headings, "\x1f")
+func branchKey(mapRelPath string, headings []string) string {
+	return mapRelPath + "\x1f" + strings.Join(headings, "\x1f")
 }
 
 // ancestorDirs lists the directory chain from the vault root down to the file at

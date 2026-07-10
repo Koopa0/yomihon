@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
@@ -16,8 +15,7 @@ import (
 // what it found, and a human edits the file.
 //
 // Transitions, WriteClosed, and NoFrontmatter drive the status panel (the only
-// UI through which the vault is written). Lifecycle is the status-first sidebar axis;
-// SealTarget and Sealed carry the schema-owned seal semantics into the
+// UI through which the vault is written). SealTarget and Sealed carry the schema-owned seal semantics into the
 // template. JustSealed / SealedHash are the seal-provenance signals and are
 // meaningful only when Sealed is true.
 type NoteView struct {
@@ -35,8 +33,7 @@ type NoteView struct {
 
 	// Sidebar is the resolved left navigation for this page: the whole-vault
 	// model plus this note's wayfinding context — its same-directory siblings,
-	// the study-path and folder branches to open, the entry to mark — and the
-	// lifecycle doorway with its pending-decision count.
+	// map and folder branches to open, and the entry to mark.
 	Sidebar Sidebar
 
 	Transitions   []string
@@ -173,9 +170,9 @@ templ articleHead(v NoteView) {
 
 // sidebar is the navigation face, ordered for a daily reader: a filter box
 // (shipped hidden, revealed by the pre-paint script below), the "here" list of
-// the current note's same-directory siblings, the study-path tree opened to the
-// current note, the lifecycle doorway with its pending-decision count, the
-// reports list, and the folder tree with the current note's branch expanded.
+// the current note's same-directory siblings, content-derived Paths and Maps,
+// recent Journal entries, reports, and the folder tree with the current note's
+// branch expanded.
 // It takes one resolved Sidebar, so the reading page and the report shell mount
 // the same navigation; a report builds it with no current note, so every branch
 // renders closed and unmarked. A nil model renders nothing.
@@ -205,37 +202,41 @@ templ sidebar(sb Sidebar) {
 					}
 				</nav>
 			}
-			if len(sb.Model.Syllabi) > 0 {
+			if len(sb.Model.Paths) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
-				<details open { disclosureAttrs("paths", sb.pathsChainOpen())... }>
+				<details open data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 					<summary class="y-railsummary">
 						@chevron()
-						Syllabus
+						Paths
 					</summary>
 					<div class="y-railgroup">
-						for _, s := range sb.Model.Syllabi {
-							@syllabusTree(sb, s)
+						for _, m := range sb.Model.Paths {
+							@mapTree(sb, m, syllabusHref(m.RelPath))
 						}
 					</div>
 				</details>
 			}
-			if len(sb.Lifecycle) > 0 {
+			if len(sb.Model.Maps) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
-				<details { disclosureAttrs("lifecycle", false)... }>
+				<section data-sidebar-group="maps" aria-labelledby="sidebar-maps-title">
+					<h2 class="y-railsummary y-railsummary--label" id="sidebar-maps-title">Maps</h2>
+					<div class="y-railgroup">
+						for _, m := range sb.Model.Maps {
+							@mapTree(sb, m, notesHref(m.RelPath))
+						}
+					</div>
+				</section>
+			}
+			if len(sb.Model.Journal) > 0 {
+				<div class="y-railsep" aria-hidden="true"></div>
+				<details data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
 					<summary class="y-railsummary">
 						@chevron()
-						Lifecycle
-						if sb.PendingKnown {
-							<span class="y-pending" title="notes still awaiting a decision">{ strconv.Itoa(sb.Pending) }</span>
-						}
+						Journal
 					</summary>
 					<div class="y-railgroup">
-						for _, it := range sb.Lifecycle {
-							<a class={ "ui-navitem", templ.KV("is-active", it.Active) } href={ templ.URL(statusHref(it.Name)) }>
-								<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
-								{ it.Name }
-								<span class="ui-navitem__count">{ strconv.Itoa(it.Count) }</span>
-							</a>
+						for _, entry := range sb.Model.Journal {
+							<a class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) } href={ templ.URL(notesHref(entry.RelPath)) } data-sidebar-journal-entry { currentAttr(sb.current(entry.RelPath))... }>{ entry.Title }</a>
 						}
 					</div>
 				</details>
@@ -331,74 +332,56 @@ templ folderNode(sb Sidebar, f nav.Folder) {
 	}
 }
 
-// syllabusTree renders one study-path as a closed disclosure that opens when it
-// holds the current note. The summary toggles the course; a link inside opens
-// the full study-path page, which the disclosure would otherwise put out of reach.
-templ syllabusTree(sb Sidebar, s nav.Syllabus) {
-	<details open?={ sb.syllabusOpen(s.RelPath) } { disclosureAttrs("syl:"+s.RelPath, sb.syllabusOpen(s.RelPath))... }>
+// mapTree renders one map as a closed disclosure that opens when it holds the
+// current note. href points Paths at their dedicated route and other maps at
+// their note page.
+templ mapTree(sb Sidebar, m nav.Map, href string) {
+	<details open?={ sb.mapOpen(m.RelPath) } data-map-tree={ m.RelPath } { disclosureAttrs("map:"+m.RelPath, sb.mapOpen(m.RelPath))... }>
 		<summary class="y-railitem">
 			@chevron()
-			<span class="y-railitem__name">{ s.Title }</span>
+			<span class="y-railitem__name">{ m.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(syllabusHref(s.RelPath)) }>Open study path</a>
-			for _, sec := range s.Sections {
-				@sectionNode(sb, s.RelPath, childChain(nil, sec.Heading), sec)
+			<a class="y-railitem__full" href={ templ.URL(href) }>Open map</a>
+			for _, branch := range m.Branches {
+				@branchNode(sb, m.RelPath, childChain(nil, branch.Heading), branch)
 			}
 		</div>
 	</details>
 }
 
-// sectionNode renders one syllabus section as a disclosure, opened when it lies
-// on the path to the current note, and recurses for nested sections.
-templ sectionNode(sb Sidebar, syl string, chain []string, sec nav.Section) {
-	<details open?={ sb.sectionOpen(syl, chain) } { disclosureAttrs("sylsec:"+sectionKey(syl, chain), sb.sectionOpen(syl, chain))... }>
+// branchNode renders one map branch as a disclosure, opened when it lies on the
+// path to the current note, and recurses for nested branches.
+templ branchNode(sb Sidebar, mapPath string, chain []string, branch nav.Branch) {
+	<details open?={ sb.branchOpen(mapPath, chain) } { disclosureAttrs("mapbranch:"+branchKey(mapPath, chain), sb.branchOpen(mapPath, chain))... }>
 		<summary class="y-treeitem">
 			@chevron()
-			{ sec.Heading }
+			{ branch.Heading }
 		</summary>
 		<div class="y-tree">
-			for _, sub := range sec.Sub {
-				@sectionNode(sb, syl, childChain(chain, sub.Heading), sub)
+			for _, sub := range branch.Sub {
+				@branchNode(sb, mapPath, childChain(chain, sub.Heading), sub)
 			}
-			for _, l := range sec.Lessons {
-				@lessonLink(sb, l)
+			for _, entry := range branch.Entries {
+				@entryLink(sb, entry)
 			}
 		</div>
 	</details>
 }
 
-// lessonLink renders one syllabus lesson entry. A uniquely-resolved lesson is a
-// link, marked when it is the note being read; an ambiguous or unresolved lesson
-// is still shown (the reading face is fail-open), as plain text carrying a
-// diagnostic mark instead of a link.
-templ lessonLink(sb Sidebar, l nav.Lesson) {
-	switch l.Resolution {
-		case graph.Unique:
-			<a
-				class={ "ui-navitem", templ.KV("is-active", sb.current(l.RelPath)) }
-				href={ templ.URL(notesHref(l.RelPath)) }
-				{ currentAttr(sb.current(l.RelPath))... }
-			>
-				<span class="y-navdot" aria-hidden="true"></span>
-				{ l.Text }
-				if l.Status != "" {
-					<span class="ui-navitem__count">{ l.Status }</span>
-				}
-			</a>
-		case graph.Ambiguous:
-			<span class="ui-navitem">
-				<span class="y-navmark y-navmark--warn" aria-hidden="true">?</span>
-				{ l.Text }
-				<span class="y-navmark y-navmark--warn">ambiguous</span>
-			</span>
-		default:
-			<span class="ui-navitem">
-				<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-				{ l.Text }
-				<span class="y-navmark y-navmark--warn">unresolved</span>
-			</span>
-	}
+// entryLink renders one resolved map entry and marks the current note.
+templ entryLink(sb Sidebar, entry nav.Entry) {
+	<a
+		class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
+		href={ templ.URL(notesHref(entry.RelPath)) }
+		{ currentAttr(sb.current(entry.RelPath))... }
+	>
+		<span class="y-navdot" aria-hidden="true"></span>
+		{ entry.Text }
+		if entry.Status != "" {
+			<span class="ui-navitem__count">{ entry.Status }</span>
+		}
+	</a>
 }
 
 // ============================ RIGHT RAIL ============================

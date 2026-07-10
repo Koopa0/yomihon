@@ -2,11 +2,11 @@
 // vault on disk into the structures used by the sidebar and Home:
 //
 //  1. a lifecycle folder tree (browse every note without typing a URL),
-//  2. the parsed study-path syllabus trees (part -> module/section -> lesson,
-//     in document order — the rendered order must match the file's own
-//     listing order), and
+//  2. parsed map-note trees (heading branches -> resolved note entries, in
+//     document order),
 //  3. a flat list of the reports under System/reports/, and
-//  4. knowledge-note summaries carrying scanner-captured modification times.
+//  4. recent Journal entries and knowledge-note summaries carrying
+//     scanner-captured modification times.
 //
 // Each Model is immutable after construction and is published as part of the
 // atomic vault snapshot, so requests need no locking or filesystem metadata
@@ -14,10 +14,10 @@
 //
 // Two invariants shape every decision here:
 //
-//   - Fault-tolerant. A malformed syllabus, a broken lesson link,
+//   - Fault-tolerant. A malformed map, a broken entry link,
 //     an unreadable note, an odd folder — none may panic or drop the rest.
-//     A lesson whose wikilink does not resolve (or is ambiguous) is STILL
-//     listed, carrying its resolution state, never silently dropped.
+//     A wikilink that does not resolve remains visible on its map note but is
+//     absent from navigation, which links only to notes that exist.
 //   - DB-independent. nav reads only files (vault.List /
 //     vault.ReadNote) and the wikilink index; it never touches PostgreSQL
 //     or the schema contract, so the sidebar renders whether or not those
@@ -35,18 +35,21 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// typeStudyPath is the single frontmatter `type` value nav keys on to find
-// syllabus notes. It is one member of the schema's `type` enum, referenced
-// by its stable value — NOT a copy of the enum list or the state machine,
-// which must never be duplicated outside vault-schema.toml. nav deliberately
-// does not load the schema contract to check it: the reading/navigation face
-// must keep working even when the contract cannot be read (reading is
-// fail-open; only the write face is fail-closed), and
-// the write face gets its distinguished seal target from the schema package.
-const typeStudyPath = "study-path"
+const (
+	mapTypeMOC       = "moc"
+	mapTypeSource    = "source-map"
+	mapTypeStudyPath = "study-path"
+	mapTypeTopic     = "topic-map"
+)
+
+// mapNoteTypes is the complete set of note types whose headings and resolved
+// wikilinks form navigation trees. These stable values name one subset of the
+// contract's type enum; nav does not load the contract because reading remains
+// available when the write contract is closed.
+var mapNoteTypes = [...]string{mapTypeMOC, mapTypeSource, mapTypeStudyPath, mapTypeTopic}
 
 // Resolver is the minimal wikilink-resolution capability nav needs to turn
-// a lesson's [[wikilink]] into a note path (and to distinguish unique /
+// an entry's [[wikilink]] into a note path (and to distinguish unique /
 // ambiguous / unresolved). Defined here, in the consumer, as the subset of
 // the producer's surface nav actually uses — the same shape as
 // render.Resolver; internal/graph's concrete *Index satisfies it with no
@@ -55,7 +58,7 @@ type Resolver interface {
 	Resolve(name string) graph.Resolution
 }
 
-// Model is the whole navigation model: the sidebar's three sections, built
+// Model is the whole navigation model, built
 // once and read-only afterward.
 type Model struct {
 	// Folders are the top-level lifecycle folders in the vault's own
@@ -65,9 +68,13 @@ type Model struct {
 	// RootNotes are files that live at the vault root itself (README.md,
 	// CLAUDE.md, ...), which belong to no top-level folder.
 	RootNotes []NoteRef
-	// Syllabi are the parsed study-path trees, one per `type: study-path`
-	// note, in vault.List (path) order.
-	Syllabi []Syllabus
+	// Paths are study-path map trees in vault path order.
+	Paths []Map
+	// Maps are every other map-note tree, ordered by domain and then title.
+	Maps []Map
+	// Journal is the most recent Diary markdown entries, newest first. It comes
+	// from the scanner's file listing and mtime capture, independent of note type.
+	Journal []JournalEntry
 	// Reports enumerates System/reports/ — the .md reports first, then the
 	// daily-briefing/ HTML briefings; contents are never parsed.
 	Reports []Report
@@ -76,11 +83,10 @@ type Model struct {
 	// captured value, so rendering never stats a note.
 	KnowledgeNotes []NoteSummary
 
-	// lessonIndex maps a note's rel-path to the syllabus placements that list it
-	// — the reverse of Syllabi — built once so the sidebar can open to the
-	// current note without re-walking every study-path per request. Read it
-	// through Placements.
-	lessonIndex map[string][]Placement
+	// placementIndex maps a note's rel-path to every map placement that lists it,
+	// built once so the sidebar can open each containing branch without re-walking
+	// every map per request. Read it through Placements.
+	placementIndex map[string][]Placement
 	// dirNotes maps a directory's rel-path to the files directly inside it, built
 	// once so the sidebar can show a note's same-directory siblings without
 	// descending the folder tree per request. Read it through Siblings.
@@ -95,6 +101,14 @@ type NoteSummary struct {
 	RelPath  string
 	Type     string
 	Status   string
+	Modified time.Time
+}
+
+// JournalEntry is one recent Diary markdown file. Modified is the scanner's
+// captured value, not a timestamp read while rendering a request.
+type JournalEntry struct {
+	Title    string
+	RelPath  string
 	Modified time.Time
 }
 
@@ -150,10 +164,10 @@ func lifecycleRank(name string) int {
 }
 
 // Build assembles the navigation model for the vault rooted at root. idx
-// resolves lesson wikilinks and must not be nil (a wiring bug, treated the
+// resolves map-entry wikilinks and must not be nil (a wiring bug, treated the
 // same as render.New's nil Resolver). The returned error is reserved for a
 // failure to even list the vault; every finer-grained problem (an
-// unreadable note, a broken lesson link, a malformed syllabus) is tolerated
+// unreadable note, an unresolved map entry, a malformed map) is tolerated
 // and surfaced in the model rather than returned. cmd/yomihon/main.go
 // treats a returned error the same asymmetric way it treats a graph build
 // failure: log and serve an empty model, never abort the server. mtimes is the
@@ -169,28 +183,58 @@ func Build(root string, idx Resolver, mtimes map[string]time.Time) (*Model, erro
 		return nil, fmt.Errorf("nav: build: %w", err)
 	}
 
-	m := &Model{Reports: buildReports(paths)}
+	m := &Model{
+		Reports: buildReports(paths),
+		Journal: buildJournal(paths, mtimes),
+	}
 	m.Folders, m.RootNotes = buildFolderTree(paths)
 	m.dirNotes = buildDirNotes(paths)
 
-	// One read pass over every markdown note: record each note's status
-	// (for lesson badges) and collect the study-path notes to parse. An
-	// unreadable note is skipped, not fatal.
+	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(root, paths, mtimes)
+	m.KnowledgeNotes = knowledgeNotes
+
+	for _, n := range mapNotes {
+		tree := parseMap(n, idx, statusByPath)
+		if tree.Type == mapTypeStudyPath {
+			m.Paths = append(m.Paths, tree)
+		} else {
+			m.Maps = append(m.Maps, tree)
+		}
+	}
+	slices.SortStableFunc(m.Maps, func(a, b Map) int {
+		if byDomain := cmp.Compare(a.Domain, b.Domain); byDomain != 0 {
+			return byDomain
+		}
+		if byTitle := cmp.Compare(a.Title, b.Title); byTitle != 0 {
+			return byTitle
+		}
+		return cmp.Compare(a.RelPath, b.RelPath)
+	})
+	m.placementIndex = buildPlacementIndex(slices.Concat(m.Paths, m.Maps))
+	return m, nil
+}
+
+// collectNavigationNotes performs the model build's one markdown read pass. It
+// records statuses for entry badges, typed-note summaries for Home, and the map
+// notes whose bodies Build parses next. An unreadable note is skipped without
+// affecting its neighbors.
+func collectNavigationNotes(root string, paths []string, mtimes map[string]time.Time) (map[string]string, []*vault.Note, []NoteSummary) {
 	statusByPath := make(map[string]string)
-	var studyPaths []*vault.Note
+	var mapNotes []*vault.Note
+	var knowledgeNotes []NoteSummary
 	for _, p := range paths {
 		if !strings.HasSuffix(p, ".md") {
 			continue
 		}
-		n, readErr := vault.ReadNote(root, p)
-		if readErr != nil {
-			continue // best-effort: a note that vanished or is unreadable drops out, the rest stand
+		n, err := vault.ReadNote(root, p)
+		if err != nil {
+			continue
 		}
-		if s := n.Status(); s != "" {
-			statusByPath[p] = s
+		if status := n.Status(); status != "" {
+			statusByPath[p] = status
 		}
 		if noteType := n.Type(); noteType != "" {
-			m.KnowledgeNotes = append(m.KnowledgeNotes, NoteSummary{
+			knowledgeNotes = append(knowledgeNotes, NoteSummary{
 				Title:    n.Title(),
 				RelPath:  n.RelPath,
 				Type:     noteType,
@@ -198,16 +242,44 @@ func Build(root string, idx Resolver, mtimes map[string]time.Time) (*Model, erro
 				Modified: mtimes[p],
 			})
 		}
-		if n.Type() == typeStudyPath {
-			studyPaths = append(studyPaths, n)
+		if isMapNoteType(n.Type()) {
+			mapNotes = append(mapNotes, n)
 		}
 	}
+	return statusByPath, mapNotes, knowledgeNotes
+}
 
-	for _, n := range studyPaths {
-		m.Syllabi = append(m.Syllabi, parseSyllabus(n, idx, statusByPath))
+func isMapNoteType(noteType string) bool {
+	return slices.Contains(mapNoteTypes[:], noteType)
+}
+
+// buildJournal selects markdown files below Diary from the scanner's path and
+// mtime captures. It does not parse frontmatter, so an untyped entry remains
+// eligible. Equal timestamps fall back to path order for stable rebuilds.
+func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
+	const limit = 5
+	entries := make([]JournalEntry, 0, limit)
+	for _, p := range paths {
+		if !strings.HasPrefix(p, "Diary/") || !strings.HasSuffix(p, ".md") {
+			continue
+		}
+		_, base := splitDir(p)
+		entries = append(entries, JournalEntry{Title: displayName(base), RelPath: p, Modified: mtimes[p]})
 	}
-	m.lessonIndex = buildLessonIndex(m.Syllabi)
-	return m, nil
+	slices.SortStableFunc(entries, func(a, b JournalEntry) int {
+		switch {
+		case a.Modified.Equal(b.Modified):
+			return cmp.Compare(a.RelPath, b.RelPath)
+		case a.Modified.After(b.Modified):
+			return -1
+		default:
+			return 1
+		}
+	})
+	if len(entries) > limit {
+		entries = entries[:limit]
+	}
+	return entries
 }
 
 // buildReports enumerates System/reports/: the .md reports directly in that

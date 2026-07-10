@@ -155,7 +155,7 @@ func (idx *Index) Len() int {
 
 // CountByStatus tallies indexed notes by their canonical (NFC) status in a
 // single pass; notes with no status land in the "" bucket. It is the primitive
-// the reading page's Lifecycle rail uses to show a live count beside each schema
+// Home's Lifecycle block uses to show a live count beside each schema
 // status, instead of running a full Search per status value. The status
 // vocabulary the caller displays still comes from the schema contract;
 // this only counts what the index already holds.

@@ -18,12 +18,12 @@ import (
 // internal/schema's TestLoadRealContract, so it runs whenever the vault is
 // present and is skipped loudly (not vacuously green) when it is not.
 //
-// The exact lesson counts (115 Go, 20 大家) are hand-derived from the two
+// The exact entry counts (115 Go, 20 大家) are hand-derived from the two
 // files on 2026-07-02: 115 "- [[...]]" bullets in Maps/Go 課綱.md, and 20
 // wikilink-bearing "- **L..**" bullets in Maps/大家...學習路徑.md (L1-L20;
 // L21-L25 are "待建" with no wikilink, and the daily-loop/table/gaps
-// sections carry no lesson bullets). Update these literals if the syllabi
-// grow — a mismatch means the parser dropped or gained a lesson, which is
+// branches carry no entry bullets). Update these literals if the study paths
+// grow — a mismatch means the parser dropped or gained an entry, which is
 // exactly what this guards.
 func TestBuildRealVault(t *testing.T) {
 	t.Parallel()
@@ -39,58 +39,54 @@ func TestBuildRealVault(t *testing.T) {
 		t.Fatalf("Build(%q) = %v", root, err)
 	}
 
-	goSyl := findSyllabus(t, m, "Go 課綱")
-	minnaSyl := findSyllabus(t, m, "大家")
+	goPath := findPath(t, m, "Go 課綱")
+	minnaPath := findPath(t, m, "大家")
 
 	// --- structure: 大家 is NOT isomorphic to Go ---
-	// Go: 9 H2 parts, 27 H3 modules, 115 lessons — all headings kept.
-	if got := len(goSyl.Sections); got != 9 {
+	// Go: 9 H2 parts, 27 H3 modules, 115 entries — all headings kept.
+	if got := len(goPath.Branches); got != 9 {
 		t.Errorf("Go syllabus top-level parts = %d, want 9", got)
 	}
-	if got := countSubSections(goSyl.Sections); got != 27 {
+	if got := countSubBranches(goPath.Branches); got != 27 {
 		t.Errorf("Go syllabus modules (H3) = %d, want 27", got)
 	}
-	if got := countLessons(goSyl.Sections); got != 115 {
-		t.Errorf("Go syllabus lessons = %d, want 115", got)
+	if got := countEntries(goPath.Branches); got != 115 {
+		t.Errorf("Go syllabus entries = %d, want 115", got)
 	}
 	// 大家: only the course-sequence part survives pruning (loop/table/gaps
-	// drop out), with 5 learning-stage H3s and 20 lessons.
-	if got := len(minnaSyl.Sections); got != 1 {
+	// drop out), with 5 learning-level H3s and 20 entries.
+	if got := len(minnaPath.Branches); got != 1 {
 		t.Errorf("大家 syllabus top-level parts = %d, want 1 (only the course sequence)", got)
 	}
-	if got := countLessons(minnaSyl.Sections); got != 20 {
-		t.Errorf("大家 syllabus lessons = %d, want 20", got)
+	if got := countEntries(minnaPath.Branches); got != 20 {
+		t.Errorf("大家 syllabus entries = %d, want 20", got)
 	}
-	if len(minnaSyl.Sections) == 1 {
-		if got := len(minnaSyl.Sections[0].Sub); got != 5 {
-			t.Errorf("大家 course-sequence stages = %d, want 5", got)
+	if len(minnaPath.Branches) == 1 {
+		if got := len(minnaPath.Branches[0].Sub); got != 5 {
+			t.Errorf("大家 course-sequence levels = %d, want 5", got)
 		}
 	}
 
 	// --- order matches file order (the sidebar must mirror the file's own listing order) ---
-	goLessons := flattenLessons(goSyl.Sections)
+	goEntries := flattenEntries(goPath.Branches)
 	wantGoHead := []string{
 		"Slices- Strings and Slices", "Arrays- Mechanical Sympathy",
 		"Variables", "Constants", "Struct Types",
 	}
-	assertLeadingTargets(t, "Go", goLessons, wantGoHead)
+	assertLeadingTargets(t, "Go", goEntries, wantGoHead)
 
-	minnaLessons := flattenLessons(minnaSyl.Sections)
+	minnaEntries := flattenEntries(minnaPath.Branches)
 	wantMinnaHead := []string{
 		"L01 〜は〜です", "L02 これ・それ・あれ", "L03 ここ・そこ・あそこ",
 	}
-	assertLeadingTargets(t, "大家", minnaLessons, wantMinnaHead)
+	assertLeadingTargets(t, "大家", minnaEntries, wantMinnaHead)
 
-	// Every 大家 L01-L20 lesson resolves to a real note (they exist on
-	// disk); a resolved lesson carries a status badge.
-	resolved := 0
-	for _, l := range minnaLessons {
-		if l.Resolution == graph.Unique {
-			resolved++
+	// Every entry in navigation is resolved by construction; these real lesson
+	// targets also carry their status badges.
+	for _, entry := range minnaEntries {
+		if entry.Status == "" {
+			t.Errorf("大家 entry %q has no status", entry.Target)
 		}
-	}
-	if resolved != 20 {
-		t.Errorf("大家 resolved lessons = %d, want 20 (all L01-L20 exist)", resolved)
 	}
 
 	// --- lifecycle folder tree: expected top-level folders, in order ---
@@ -103,9 +99,12 @@ func TestBuildRealVault(t *testing.T) {
 	if !slices.ContainsFunc(m.Reports, func(r Report) bool { return r.Name == "latest.html" && r.Latest }) {
 		t.Errorf("reports list does not include latest.html marked latest; got %d reports", len(m.Reports))
 	}
+	if len(m.Journal) != 0 {
+		t.Errorf("real-vault Journal = %v, want empty while Diary/ is absent", m.Journal)
+	}
 
-	t.Logf("real vault: Go=%d lessons, 大家=%d lessons (%d resolved), %d reports, %d top-level folders",
-		countLessons(goSyl.Sections), countLessons(minnaSyl.Sections), resolved, len(m.Reports), len(m.Folders))
+	t.Logf("real vault: Go=%d entries, 大家=%d entries, %d maps, %d reports, %d top-level folders",
+		countEntries(goPath.Branches), countEntries(minnaPath.Branches), len(m.Maps), len(m.Reports), len(m.Folders))
 }
 
 func realVaultRoot(t *testing.T) string {
@@ -124,50 +123,50 @@ func realVaultRoot(t *testing.T) string {
 	return root
 }
 
-func findSyllabus(t *testing.T, m *Model, relPathSubstr string) Syllabus {
+func findPath(t *testing.T, m *Model, relPathSubstr string) Map {
 	t.Helper()
-	for _, s := range m.Syllabi {
+	for _, s := range m.Paths {
 		if strings.Contains(s.RelPath, relPathSubstr) {
 			return s
 		}
 	}
-	t.Fatalf("no study-path note whose path contains %q; found %d syllabi", relPathSubstr, len(m.Syllabi))
-	return Syllabus{}
+	t.Fatalf("no study-path note whose path contains %q; found %d paths", relPathSubstr, len(m.Paths))
+	return Map{}
 }
 
-func countLessons(sections []Section) int {
+func countEntries(branches []Branch) int {
 	n := 0
-	for _, s := range sections {
-		n += len(s.Lessons) + countLessons(s.Sub)
+	for _, s := range branches {
+		n += len(s.Entries) + countEntries(s.Sub)
 	}
 	return n
 }
 
-func countSubSections(sections []Section) int {
+func countSubBranches(branches []Branch) int {
 	n := 0
-	for _, s := range sections {
-		n += len(s.Sub) + countSubSections(s.Sub)
+	for _, s := range branches {
+		n += len(s.Sub) + countSubBranches(s.Sub)
 	}
 	return n
 }
 
-func flattenLessons(sections []Section) []Lesson {
-	var out []Lesson
-	for _, s := range sections {
-		out = append(out, s.Lessons...)
-		out = append(out, flattenLessons(s.Sub)...)
+func flattenEntries(branches []Branch) []Entry {
+	var out []Entry
+	for _, s := range branches {
+		out = append(out, s.Entries...)
+		out = append(out, flattenEntries(s.Sub)...)
 	}
 	return out
 }
 
-func assertLeadingTargets(t *testing.T, name string, lessons []Lesson, want []string) {
+func assertLeadingTargets(t *testing.T, name string, entries []Entry, want []string) {
 	t.Helper()
-	if len(lessons) < len(want) {
-		t.Fatalf("%s: only %d lessons, want at least %d to check order", name, len(lessons), len(want))
+	if len(entries) < len(want) {
+		t.Fatalf("%s: only %d entries, want at least %d to check order", name, len(entries), len(want))
 	}
 	for i, w := range want {
-		if lessons[i].Target != w {
-			t.Errorf("%s lesson[%d].Target = %q, want %q (order must match file order)", name, i, lessons[i].Target, w)
+		if entries[i].Target != w {
+			t.Errorf("%s entry[%d].Target = %q, want %q (order must match file order)", name, i, entries[i].Target, w)
 		}
 	}
 }

@@ -67,7 +67,7 @@ type Service struct {
 	// mu serializes Flip: the vault's git repo (index, HEAD) is one shared
 	// resource, and two concurrent flips racing its read-check-write-commit
 	// sequence can produce a commit whose message asserts a from→to
-	// transition that does not match what was actually staged — a false
+	// transition that does not match what was actually recorded — a false
 	// audit-trail entry. A coarse per-Service lock is deliberately simpler
 	// than per-file locking: this is a local, single-operator tool
 	// where correctness matters far more than flip throughput.
@@ -106,8 +106,8 @@ func (s *Service) Transitions(noteType, current string) []string {
 }
 
 // Order returns the default note group's statuses in the contract's declared
-// toml order (schema.Statuses("")) — the stable status axis the reading page's
-// Lifecycle rail lists, independent of any one note. It returns nil when the
+// toml order (schema.Statuses("")) — the stable status axis Home's Lifecycle
+// block lists, independent of any one note. It returns nil when the
 // write face is closed. This is read-only schema vocabulary, not a transition
 // decision, and the enum still traces to the toml: nothing is
 // hardcoded here.

@@ -1,0 +1,55 @@
+# Loader fixture for the pending tally. The named transition after ready makes
+# the seal non-terminal, so the tally has to exclude it explicitly.
+schema_version = "1"
+
+[enums]
+type = ["lesson"]
+domain = ["japanese"]
+
+[enums.status]
+lesson = ["imported", "draft", "ready", "beyond", "archived"]
+
+[fields]
+required = ["title", "type", "domain", "status", "created", "updated"]
+known = ["title", "type", "domain", "status", "created", "updated"]
+
+[fields.status_group]
+lesson = ["lesson"]
+
+[rules]
+slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+
+[scan]
+knowledge_dirs = ["Writing"]
+skip_basenames = ["README.md"]
+no_frontmatter_is_legal = true
+
+[[lifecycle]]
+status = "imported"
+applies_to = ["lesson"]
+from = []
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["lesson"]
+from = ["imported"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["lesson"]
+from = ["draft"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "beyond"
+applies_to = ["lesson"]
+from = ["ready"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["koopa"]

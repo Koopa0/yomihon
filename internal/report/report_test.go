@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // briefingFixture carries a <script>, an HTML entity, and CJK content, so the
@@ -56,11 +57,47 @@ func newHandler(t *testing.T, root string, model *nav.Model) http.Handler {
 	t.Helper()
 	mux := http.NewServeMux()
 	NewHandler(Deps{
-		Root: root,
-		Nav:  func() *nav.Model { return model },
-		Log:  slog.New(slog.DiscardHandler),
+		Root:  root,
+		Shell: func() pages.ShellData { return pages.ShellData{Nav: model} },
+		Log:   slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	return mux
+}
+
+func TestReportRoutesReadOneShellSnapshot(t *testing.T) {
+	t.Parallel()
+	root := vaultWithBriefing(t)
+	for _, tt := range []struct {
+		name, path string
+		wantChip   bool
+	}{
+		{name: "shell", path: "/reports/" + briefingName, wantChip: true},
+		{name: "raw", path: "/reports/" + briefingName + "/raw"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			mux := http.NewServeMux()
+			NewHandler(Deps{
+				Root: root,
+				Shell: func() pages.ShellData {
+					calls++
+					return pages.ShellData{Nav: fixtureModel(), Pending: 2, PendingKnown: true}
+				},
+				Log: slog.New(slog.DiscardHandler),
+			}).Register(mux)
+			rr := get(t, mux, tt.path)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rr.Code)
+			}
+			if calls != 1 {
+				t.Errorf("shell snapshot reads = %d, want 1", calls)
+			}
+			if tt.wantChip && !strings.Contains(rr.Body.String(), `aria-label="2 to decide"`) {
+				t.Errorf("response missing pending chip; body = %q", rr.Body.String())
+			}
+		})
+	}
 }
 
 func get(t *testing.T, h http.Handler, target string) *httptest.ResponseRecorder {
@@ -116,7 +153,7 @@ func TestShowRendersSandboxedIframe(t *testing.T) {
 		t.Errorf(`iframe must be sandbox="allow-scripts"; got:\n%s`, body)
 	}
 	if strings.Contains(body, "allow-same-origin") {
-		t.Errorf("iframe must NEVER grant allow-same-origin; got:\n%s", body)
+		t.Errorf("iframe must not grant allow-same-origin; got:\n%s", body)
 	}
 	if want := `src="/reports/` + briefingName + `/raw"`; !strings.Contains(body, want) {
 		t.Errorf("iframe src must be the verbatim /raw endpoint %q; got:\n%s", want, body)
@@ -163,7 +200,7 @@ func TestRawIsSelfSandboxing(t *testing.T) {
 		t.Errorf("/raw must carry a CSP sandbox allow-scripts; got %q", csp)
 	}
 	if strings.Contains(csp, "allow-same-origin") {
-		t.Errorf("/raw CSP sandbox must NEVER grant allow-same-origin; got %q", csp)
+		t.Errorf("/raw CSP sandbox must not grant allow-same-origin; got %q", csp)
 	}
 }
 

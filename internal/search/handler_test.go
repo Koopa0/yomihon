@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // TestSearchHandler exercises GET /search end to end: route registration, the
@@ -20,7 +21,9 @@ func TestSearchHandler(t *testing.T) {
 		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft", PlainText: "kafka is a distributed log"},
 	})
 	mux := http.NewServeMux()
-	NewHandler(func() *Index { return idx }, func() *nav.Model { return nil }, slog.New(slog.DiscardHandler)).Register(mux)
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -49,6 +52,30 @@ func TestSearchHandler(t *testing.T) {
 			t.Errorf(`search page missing "No results"; body = %q`, body)
 		}
 	})
+}
+
+func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
+	t.Parallel()
+	idx := BuildFromDocs([]Doc{{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"}})
+	calls := 0
+	h := NewHandler(func() RequestSnapshot {
+		calls++
+		return RequestSnapshot{
+			Index: idx,
+			Shell: pages.ShellData{Nav: &nav.Model{}, Pending: 4, PendingKnown: true},
+		}
+	}, slog.New(slog.DiscardHandler))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
+	rr := httptest.NewRecorder()
+	h.search(rr, req)
+	if calls != 1 {
+		t.Errorf("request snapshot reads = %d, want 1", calls)
+	}
+	for _, want := range []string{"One", `aria-label="4 to decide"`} {
+		if !strings.Contains(rr.Body.String(), want) {
+			t.Errorf("search response missing %q; body = %q", want, rr.Body.String())
+		}
+	}
 }
 
 func getBody(t *testing.T, url string) (code int, body string) {

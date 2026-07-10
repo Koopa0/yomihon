@@ -1,6 +1,7 @@
 package nav
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,124 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 )
+
+func writeNavFixture(t *testing.T, root, rel, content string) {
+	t.Helper()
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		t.Fatalf("mkdir %s: %v", rel, err)
+	}
+	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+}
+
+func TestBuildMapTypesAndReversePlacements(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/go/Target.md", "---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
+	writeNavFixture(t, root, "A/Dup.md", "body\n")
+	writeNavFixture(t, root, "B/Dup.md", "body\n")
+
+	fixtures := []struct {
+		rel, title, noteType, domain string
+	}{
+		{rel: "Maps/Course.md", title: "Course", noteType: "study-path", domain: "golang"},
+		{rel: "Maps/A-zeta.md", title: "Zeta", noteType: "moc", domain: "golang"},
+		{rel: "Maps/Beta.md", title: "Beta", noteType: "topic-map", domain: "japanese"},
+		{rel: "Maps/Z-alpha.md", title: "Alpha", noteType: "source-map", domain: "golang"},
+	}
+	for _, f := range fixtures {
+		writeNavFixture(t, root, f.rel, fmt.Sprintf("---\ntitle: %s\ntype: %s\ndomain: %s\n---\n## Shelf\n- [[Target]]\n- [[Ghost]]\n- [[Dup]]\n", f.title, f.noteType, f.domain))
+	}
+
+	idx, err := graph.Build(root)
+	if err != nil {
+		t.Fatalf("graph.Build: %v", err)
+	}
+	model, err := Build(root, idx, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	wantPaths := []Map{{
+		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path",
+		Branches: []Branch{{Heading: "Shelf", Level: 2, Entries: []Entry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing"}}}},
+	}}
+	if diff := cmp.Diff(wantPaths, model.Paths); diff != "" {
+		t.Errorf("Build Paths mismatch (-want +got):\n%s", diff)
+	}
+	wantMaps := []Map{
+		{Title: "Alpha", RelPath: "Maps/Z-alpha.md", Domain: "golang", Type: "source-map", Branches: wantPaths[0].Branches},
+		{Title: "Zeta", RelPath: "Maps/A-zeta.md", Domain: "golang", Type: "moc", Branches: wantPaths[0].Branches},
+		{Title: "Beta", RelPath: "Maps/Beta.md", Domain: "japanese", Type: "topic-map", Branches: wantPaths[0].Branches},
+	}
+	if diff := cmp.Diff(wantMaps, model.Maps); diff != "" {
+		t.Errorf("Build Maps mismatch (-want +got):\n%s", diff)
+	}
+
+	wantPlacements := []Placement{
+		{MapRelPath: "Maps/Course.md", Headings: []string{"Shelf"}},
+		{MapRelPath: "Maps/Z-alpha.md", Headings: []string{"Shelf"}},
+		{MapRelPath: "Maps/A-zeta.md", Headings: []string{"Shelf"}},
+		{MapRelPath: "Maps/Beta.md", Headings: []string{"Shelf"}},
+	}
+	if diff := cmp.Diff(wantPlacements, model.Placements("Concepts/go/Target.md")); diff != "" {
+		t.Errorf("Placements(Target) mismatch (-want +got):\n%s", diff)
+	}
+	if got := model.Placements("Ghost"); len(got) != 0 {
+		t.Errorf("Placements(Ghost) = %v, want empty", got)
+	}
+}
+
+func TestBuildJournalFromScannerMtimes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("newest five without frontmatter", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		mtimes := make(map[string]time.Time)
+		for day := 1; day <= 7; day++ {
+			rel := fmt.Sprintf("Diary/2026-07-%02d.md", day)
+			writeNavFixture(t, root, rel, fmt.Sprintf("# Day %d\n", day))
+			mtimes[rel] = time.Date(2026, time.July, day, 8, 0, 0, 0, time.UTC)
+		}
+		model, err := Build(root, resolver(t), mtimes)
+		if err != nil {
+			t.Fatalf("Build: %v", err)
+		}
+		want := []JournalEntry{
+			{Title: "2026-07-07", RelPath: "Diary/2026-07-07.md", Modified: mtimes["Diary/2026-07-07.md"]},
+			{Title: "2026-07-06", RelPath: "Diary/2026-07-06.md", Modified: mtimes["Diary/2026-07-06.md"]},
+			{Title: "2026-07-05", RelPath: "Diary/2026-07-05.md", Modified: mtimes["Diary/2026-07-05.md"]},
+			{Title: "2026-07-04", RelPath: "Diary/2026-07-04.md", Modified: mtimes["Diary/2026-07-04.md"]},
+			{Title: "2026-07-03", RelPath: "Diary/2026-07-03.md", Modified: mtimes["Diary/2026-07-03.md"]},
+		}
+		if diff := cmp.Diff(want, model.Journal); diff != "" {
+			t.Errorf("Build Journal mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	for _, name := range []string{"absent", "empty"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeNavFixture(t, root, "Notes/ordinary.md", "ordinary note\n")
+			if name == "empty" {
+				if err := os.Mkdir(filepath.Join(root, "Diary"), 0o750); err != nil {
+					t.Fatalf("mkdir Diary: %v", err)
+				}
+			}
+			model, err := Build(root, resolver(t), nil)
+			if err != nil {
+				t.Fatalf("Build: %v", err)
+			}
+			if len(model.Journal) != 0 {
+				t.Errorf("Build Journal = %v, want empty", model.Journal)
+			}
+		})
+	}
+}
 
 // TestBuildCarriesScannerMtimes proves Home's freshness data comes from the
 // scanner-owned capture handed to Build, not from another stat inside nav or a
@@ -47,7 +166,7 @@ func TestBuildCarriesScannerMtimes(t *testing.T) {
 }
 
 // resolver builds a real *graph.Index (testing.md's "real first") from
-// in-memory note paths — no disk — so parseSections resolves lesson
+// in-memory note paths — no disk — so parseBranches resolves entry
 // wikilinks through the exact normalization and ambiguity rules production
 // uses. Same technique as internal/render's tests.
 func resolver(t *testing.T, paths ...string) *graph.Index {
@@ -59,79 +178,79 @@ func resolver(t *testing.T, paths ...string) *graph.Index {
 	return graph.BuildFromNotes(notes, nil)
 }
 
-// TestParseSectionsGoShape covers the pipe-format Go syllabus shape: H2/H3
+// TestParseBranchesGoShape covers the pipe-format Go map shape: H2/H3
 // headings "slug | English | Chinese" (the English column becomes the
-// label) and "- [[Lesson]]" bullets, with prose lines (範圍/★) between
-// headings that must NOT become lessons, and a trailing part with no
-// lessons that must be pruned away.
-func TestParseSectionsGoShape(t *testing.T) {
+// label) and "- [[Entry]]" bullets, with prose lines (範圍/★) between
+// headings that must NOT become entries, and a trailing part with no
+// entries that must be pruned away.
+func TestParseBranchesGoShape(t *testing.T) {
 	t.Parallel()
 
-	idx := resolver(t, "L/Lesson A.md", "L/Lesson B.md", "L/Lesson C.md")
+	idx := resolver(t, "L/Entry A.md", "L/Entry B.md", "L/Entry C.md")
 	statusByPath := map[string]string{
-		"L/Lesson A.md": "draft",
-		"L/Lesson B.md": schema.SealStatus,
-		// Lesson C intentionally absent -> empty status badge.
+		"L/Entry A.md": "draft",
+		"L/Entry B.md": schema.SealStatus,
+		// Entry C intentionally absent -> empty status badge.
 	}
 
-	body := "> intro blockquote citing [[Lesson A]] — a quote, not a bullet\n" +
+	body := "> intro blockquote citing [[Entry A]] — a quote, not a bullet\n" +
 		"\n" +
 		"## data-and-hardware | Data and the Hardware | 資料與硬體本質\n" +
 		"\n" +
-		"範圍:this is prose, not a list item, and it names [[Lesson B]].\n" +
+		"範圍:this is prose, not a list item, and it names [[Entry B]].\n" +
 		"★ 待補模組:bits-bytes-words (prose only).\n" +
 		"\n" +
 		"### text-as-bytes | Text as Bytes | 文字即 bytes\n" +
 		"\n" +
-		"- [[Lesson A]]\n" +
-		"- [[Lesson B]]\n" +
+		"- [[Entry A]]\n" +
+		"- [[Entry B]]\n" +
 		"\n" +
 		"### alignment | Alignment | 對齊\n" +
 		"\n" +
-		"- [[Lesson C]]\n" +
+		"- [[Entry C]]\n" +
 		"\n" +
 		"## empty-part | Empty Part | 空帶\n" +
 		"\n" +
-		"範圍:prose only, no lessons anywhere under this part.\n"
+		"範圍:prose only, no entries anywhere under this part.\n"
 
-	want := []Section{
+	want := []Branch{
 		{
 			Heading: "Data and the Hardware",
 			Level:   2,
-			Sub: []Section{
+			Sub: []Branch{
 				{
 					Heading: "Text as Bytes",
 					Level:   3,
-					Lessons: []Lesson{
-						{Text: "Lesson A", Target: "Lesson A", RelPath: "L/Lesson A.md", Status: "draft", Resolution: graph.Unique},
-						{Text: "Lesson B", Target: "Lesson B", RelPath: "L/Lesson B.md", Status: schema.SealStatus, Resolution: graph.Unique},
+					Entries: []Entry{
+						{Text: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Status: "draft"},
+						{Text: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
 					},
 				},
 				{
 					Heading: "Alignment",
 					Level:   3,
-					Lessons: []Lesson{
-						{Text: "Lesson C", Target: "Lesson C", RelPath: "L/Lesson C.md", Resolution: graph.Unique},
+					Entries: []Entry{
+						{Text: "Entry C", Target: "Entry C", RelPath: "L/Entry C.md"},
 					},
 				},
 			},
 		},
 	}
 
-	got := parseSections(body, idx, statusByPath)
+	got := parseBranches(body, idx, statusByPath)
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("parseSections (Go shape) mismatch (-want +got):\n%s", diff)
+		t.Errorf("parseBranches (Go shape) mismatch (-want +got):\n%s", diff)
 	}
 }
 
-// TestParseSectionsMinnaShape covers the 大家 shape: only the
-// course-sequence section holds a lesson tree; the daily-loop (ordered
-// list), learning-stages (a table), and gaps (task checkboxes) sections
-// carry no lesson bullets and must prune away — even the gap task item that
+// TestParseBranchesMinnaShape covers the 大家 shape: only the
+// course-sequence branch holds an entry tree; the daily-loop (ordered
+// list), learning levels (a table), and gaps (task checkboxes) branches
+// carry no entry bullets and must prune away — even the gap task item that
 // contains a [[wikilink]], and even the loop's ordered item that contains
-// one. Lesson bullets are "- **Lx** ... · [[Lxx]]"; a "待建" bullet with no
-// wikilink is not a lesson. The H1 title is ignored.
-func TestParseSectionsMinnaShape(t *testing.T) {
+// one. Entry bullets are "- **Lx** ... · [[Lxx]]"; a "待建" bullet with no
+// wikilink is not an entry. The H1 title is ignored.
+func TestParseBranchesMinnaShape(t *testing.T) {
 	t.Parallel()
 
 	idx := resolver(t, "jp/L01 Intro.md", "jp/L02 Next.md", "jp/L03 Verbs.md")
@@ -147,12 +266,12 @@ func TestParseSectionsMinnaShape(t *testing.T) {
 		"\n" +
 		"## Daily loop\n" +
 		"\n" +
-		"1. **step** in an ORDERED item, links [[Loop Link]] — not a lesson.\n" +
+		"1. **step** in an ORDERED item, links [[Loop Link]] — not an entry.\n" +
 		"2. another step.\n" +
 		"\n" +
-		"## Stages (a table)\n" +
+		"## Learning levels (a table)\n" +
 		"\n" +
-		"| stage | 課 |\n" +
+		"| level | 課 |\n" +
 		"| --- | --- |\n" +
 		"| decode | L1-3 |\n" +
 		"\n" +
@@ -173,40 +292,40 @@ func TestParseSectionsMinnaShape(t *testing.T) {
 		"- [x] done (see [[Some Guide]])\n" +
 		"- [ ] todo (spec [[Another Guide]])\n"
 
-	want := []Section{
+	want := []Branch{
 		{
 			Heading: "Course sequence (order = lines)",
 			Level:   2,
-			Sub: []Section{
+			Sub: []Branch{
 				{
 					Heading: "Decode",
 					Level:   3,
-					Lessons: []Lesson{
-						{Text: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Status: "draft", Resolution: graph.Unique},
-						{Text: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Status: "draft", Resolution: graph.Unique},
+					Entries: []Entry{
+						{Text: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Status: "draft"},
+						{Text: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Status: "draft"},
 					},
 				},
 				{
 					Heading: "Verbs",
 					Level:   3,
-					Lessons: []Lesson{
-						{Text: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus, Resolution: graph.Unique},
+					Entries: []Entry{
+						{Text: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus},
 					},
 				},
 			},
 		},
 	}
 
-	got := parseSections(body, idx, statusByPath)
+	got := parseBranches(body, idx, statusByPath)
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("parseSections (大家 shape) mismatch (-want +got):\n%s", diff)
+		t.Errorf("parseBranches (大家 shape) mismatch (-want +got):\n%s", diff)
 	}
 }
 
-// TestParseSectionsFaultTolerance proves an unresolved or ambiguous lesson
-// is still listed with the right resolution state, never silently dropped,
-// and that malformed heading/list lines are ignored without panicking.
-func TestParseSectionsFaultTolerance(t *testing.T) {
+// TestParseBranchesFaultTolerance proves unresolved and ambiguous rows stay out
+// of navigation while a uniquely resolved neighbor remains, and malformed
+// heading/list lines are ignored without panicking.
+func TestParseBranchesFaultTolerance(t *testing.T) {
 	t.Parallel()
 
 	// "Dup" resolves to two files -> Ambiguous with sorted candidates.
@@ -215,42 +334,38 @@ func TestParseSectionsFaultTolerance(t *testing.T) {
 	body := "## part | Part | 部\n" +
 		"\n" +
 		"###notaspace this is not a heading\n" +
-		"#### \n" + // empty-label deeper heading, no lessons -> pruned
-		"- \n" + // bare bullet, no wikilink -> not a lesson
+		"#### \n" + // empty-label deeper heading, no entries -> pruned
+		"- \n" + // bare bullet, no wikilink -> not an entry
 		"- [ ] a task with a [[Real]] link -> excluded\n" +
 		"- no wikilink here at all\n" +
 		"\n" +
 		"### mod | Module | 模組\n" +
 		"\n" +
 		"- [[Real]]\n" +
-		"- [[Ghost]]\n" + // unresolved: still listed
-		"- [[Dup]]\n" // ambiguous: still listed with candidates
+		"- [[Ghost]]\n" + // unresolved: stays on the map note, absent here
+		"- [[Dup]]\n" // ambiguous: stays on the map note, absent here
 
-	want := []Section{
+	want := []Branch{
 		{
 			Heading: "Part",
 			Level:   2,
-			Sub: []Section{
+			Sub: []Branch{
 				{
 					Heading: "Module",
 					Level:   3,
-					Lessons: []Lesson{
-						{Text: "Real", Target: "Real", RelPath: "ok/Real.md", Resolution: graph.Unique},
-						{Text: "Ghost", Target: "Ghost", Resolution: graph.Unresolved},
-						{Text: "Dup", Target: "Dup", Resolution: graph.Ambiguous, Candidates: []string{"A/Dup.md", "B/Dup.md"}},
-					},
+					Entries: []Entry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
 				},
 			},
 		},
 	}
 
-	got := parseSections(body, idx, map[string]string{})
+	got := parseBranches(body, idx, map[string]string{})
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("parseSections (fault tolerance) mismatch (-want +got):\n%s", diff)
+		t.Errorf("parseBranches (fault tolerance) mismatch (-want +got):\n%s", diff)
 	}
 }
 
-// TestParseHeading and TestParseLessonItem lock down the two line
+// TestParseHeading and TestParseEntryItem lock down the two line
 // classifiers the whole rule rests on.
 func TestParseHeading(t *testing.T) {
 	t.Parallel()
@@ -265,7 +380,7 @@ func TestParseHeading(t *testing.T) {
 		{name: "h3 plain", line: "### 解碼期", wantText: "解碼期", wantLevel: 3, wantOK: true},
 		{name: "h1 ignored", line: "# Title", wantOK: false},
 		{name: "no space", line: "###notaspace", wantOK: false},
-		{name: "not a heading", line: "- [[Lesson]]", wantOK: false},
+		{name: "not a heading", line: "- [[Entry]]", wantOK: false},
 		{name: "h4 empty label", line: "#### ", wantText: "", wantLevel: 4, wantOK: true},
 	}
 	for _, tt := range tests {
@@ -280,7 +395,7 @@ func TestParseHeading(t *testing.T) {
 	}
 }
 
-func TestParseLessonItem(t *testing.T) {
+func TestParseEntryItem(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name      string
@@ -301,9 +416,9 @@ func TestParseLessonItem(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			inner, ok := parseLessonItem(tt.line)
+			inner, ok := parseEntryItem(tt.line)
 			if ok != tt.wantOK || inner != tt.wantInner {
-				t.Errorf("parseLessonItem(%q) = (%q, %t), want (%q, %t)",
+				t.Errorf("parseEntryItem(%q) = (%q, %t), want (%q, %t)",
 					tt.line, inner, ok, tt.wantInner, tt.wantOK)
 			}
 		})
@@ -325,7 +440,7 @@ func TestBuildFolderTree(t *testing.T) {
 		"Concepts/rust/Bar.md",
 		"Inbox/note.md",
 		"Views/board.base",
-		"Writing/lessons/golang/Lesson.md",
+		"Writing/entries/golang/Entry.md",
 	}
 
 	wantFolders := []Folder{
@@ -335,8 +450,8 @@ func TestBuildFolderTree(t *testing.T) {
 			{Name: "rust", RelPath: "Concepts/rust", Notes: []NoteRef{{Name: "Bar", RelPath: "Concepts/rust/Bar.md"}}},
 		}},
 		{Name: "Writing", RelPath: "Writing", Sub: []Folder{
-			{Name: "lessons", RelPath: "Writing/lessons", Sub: []Folder{
-				{Name: "golang", RelPath: "Writing/lessons/golang", Notes: []NoteRef{{Name: "Lesson", RelPath: "Writing/lessons/golang/Lesson.md"}}},
+			{Name: "entries", RelPath: "Writing/entries", Sub: []Folder{
+				{Name: "golang", RelPath: "Writing/entries/golang", Notes: []NoteRef{{Name: "Entry", RelPath: "Writing/entries/golang/Entry.md"}}},
 			}},
 		}},
 		{Name: "Views", RelPath: "Views", Notes: []NoteRef{{Name: "board.base", RelPath: "Views/board.base"}}},
@@ -352,41 +467,40 @@ func TestBuildFolderTree(t *testing.T) {
 	}
 }
 
-// TestPlacements inverts the syllabus trees into the note -> placements map the
+// TestPlacements inverts the map trees into the note -> placements map the
 // sidebar reads to open itself to the current note. It covers the two cases that
 // make the inversion worth building: a note listed by two different study-paths
-// (two placements, one per path), and a note listed by two sections of the same
+// (two placements, one per path), and a note listed by two branches of the same
 // study-path (two placements, each carrying its own heading chain). An
-// unresolved lesson carries no path and must not appear.
+// unresolved entry carries no path and must not appear.
 func TestPlacements(t *testing.T) {
 	t.Parallel()
 
-	syllabi := []Syllabus{
+	paths := []Map{
 		{
 			Title: "Go", RelPath: "Maps/go-path.md",
-			Sections: []Section{
-				{Heading: "Part A", Level: 2, Sub: []Section{
-					{Heading: "Module 1", Level: 3, Lessons: []Lesson{
-						{Text: "L1", Target: "L1", RelPath: "L/L1.md", Resolution: graph.Unique},
-						{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md", Resolution: graph.Unique},
+			Branches: []Branch{
+				{Heading: "Part A", Level: 2, Sub: []Branch{
+					{Heading: "Module 1", Level: 3, Entries: []Entry{
+						{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
+						{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 					}},
 				}},
-				{Heading: "Part B", Level: 2, Lessons: []Lesson{
-					{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md", Resolution: graph.Unique},
-					{Text: "Ghost", Target: "Ghost", Resolution: graph.Unresolved},
+				{Heading: "Part B", Level: 2, Entries: []Entry{
+					{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 				}},
 			},
 		},
 		{
 			Title: "JP", RelPath: "Maps/jp-path.md",
-			Sections: []Section{
-				{Heading: "Unit 1", Level: 2, Lessons: []Lesson{
-					{Text: "L1", Target: "L1", RelPath: "L/L1.md", Resolution: graph.Unique},
+			Branches: []Branch{
+				{Heading: "Unit 1", Level: 2, Entries: []Entry{
+					{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
 				}},
 			},
 		},
 	}
-	m := &Model{lessonIndex: buildLessonIndex(syllabi)}
+	m := &Model{placementIndex: buildPlacementIndex(paths)}
 
 	tests := []struct {
 		name    string
@@ -397,19 +511,19 @@ func TestPlacements(t *testing.T) {
 			name:    "listed by two study-paths",
 			relPath: "L/L1.md",
 			want: []Placement{
-				{SyllabusRelPath: "Maps/go-path.md", Headings: []string{"Part A", "Module 1"}},
-				{SyllabusRelPath: "Maps/jp-path.md", Headings: []string{"Unit 1"}},
+				{MapRelPath: "Maps/go-path.md", Headings: []string{"Part A", "Module 1"}},
+				{MapRelPath: "Maps/jp-path.md", Headings: []string{"Unit 1"}},
 			},
 		},
 		{
-			name:    "listed by two sections of one study-path",
+			name:    "listed by two branches of one study-path",
 			relPath: "L/Shared.md",
 			want: []Placement{
-				{SyllabusRelPath: "Maps/go-path.md", Headings: []string{"Part A", "Module 1"}},
-				{SyllabusRelPath: "Maps/go-path.md", Headings: []string{"Part B"}},
+				{MapRelPath: "Maps/go-path.md", Headings: []string{"Part A", "Module 1"}},
+				{MapRelPath: "Maps/go-path.md", Headings: []string{"Part B"}},
 			},
 		},
-		{name: "unresolved lesson never indexed", relPath: "Ghost", want: nil},
+		{name: "unresolved entry never indexed", relPath: "Ghost", want: nil},
 		{name: "unreferenced note", relPath: "L/Orphan.md", want: nil},
 	}
 	for _, tt := range tests {

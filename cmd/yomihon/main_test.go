@@ -31,7 +31,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/report"
@@ -39,6 +38,7 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // TestReadFacesNeverWriteTheVault drives every read and render face against a
@@ -58,12 +58,16 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 
 	log := slog.New(slog.DiscardHandler)
 	store := snapshot.New(root, log)
-	navProvider := func() *nav.Model { return store.Current().Nav }
-	searchProvider := func() *search.Index { return store.Current().Search }
 
 	// A fail-closed writing service: reachable by the reading page as a
 	// dependency, but never driven here.
 	svc := status.NewService(root, nil)
+	shellForSnapshot := func(snap *snapshot.Snapshot) pages.ShellData { return note.ShellData(svc, snap) }
+	shellProvider := func() pages.ShellData { return shellForSnapshot(store.Current()) }
+	searchProvider := func() search.RequestSnapshot {
+		snap := store.Current()
+		return search.RequestSnapshot{Index: snap.Search, Shell: shellForSnapshot(snap)}
+	}
 	concepts, err := lesson.BuildConceptIndex(root)
 	if err != nil {
 		t.Fatalf("lesson.BuildConceptIndex(%q) = %v", root, err)
@@ -79,9 +83,9 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		Log:        log,
 		Concepts:   concepts,
 	}).Register(mux)
-	search.NewHandler(searchProvider, navProvider, log).Register(mux)
-	syllabus.NewHandler(syllabus.Deps{Nav: navProvider, Log: log}).Register(mux)
-	report.NewHandler(report.Deps{Root: root, Nav: navProvider, Log: log}).Register(mux)
+	search.NewHandler(searchProvider, log).Register(mux)
+	syllabus.NewHandler(syllabus.Deps{Shell: shellProvider, Log: log}).Register(mux)
+	report.NewHandler(report.Deps{Root: root, Shell: shellProvider, Log: log}).Register(mux)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

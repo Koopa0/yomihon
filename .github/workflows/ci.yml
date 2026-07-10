@@ -232,7 +232,8 @@ jobs:
   # behaviors that plain HTTP assertions cannot see: the command palette opens
   # centered and opaque; the sidebar filter is revealed by the document's own
   # inline script rather than the deferred one, and stays hidden with
-  # JavaScript off; and a held R inside a focused select never starts the seal
+  # JavaScript off; content-derived Paths, Maps, and Journal preserve grouping
+  # and wayfinding; and a held R inside a focused select never starts the seal
   # hold, with the picker closed or open.
   e2e-behavior:
     runs-on: ubuntu-latest

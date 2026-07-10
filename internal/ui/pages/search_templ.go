@@ -23,7 +23,7 @@ type SearchView struct {
 
 	// Nav is the whole-vault navigation model for the shared sidebar: the
 	// search page renders inside the same shell as every other page, so a
-	// lifecycle chip or a search never strands the reader in a chromeless view.
+	// topbar chip or a search never strands the reader in a chromeless view.
 	Nav *nav.Model
 }
 
@@ -40,7 +40,7 @@ type SearchResult struct {
 // the shared shell — header and navigation sidebar included, mounted with no
 // current note so every branch renders closed, the same wiring the report
 // shell uses. The incremental ⌘K panel is a later round; this is the
-// pure-filter browse target the Lifecycle rail and the header search link
+// pure-filter browse target Home's Lifecycle block and the header search link
 // both reach.
 func Search(v SearchView, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -79,7 +79,7 @@ func Search(v SearchView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = sidebar(NewSidebar(v.Nav, "", nil, 0, false)).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = sidebar(NewSidebar(v.Nav, "")).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

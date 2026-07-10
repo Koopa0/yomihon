@@ -88,6 +88,14 @@ func (n *Note) Type() string {
 	return ""
 }
 
+// Domain is the frontmatter domain, empty when absent.
+func (n *Note) Domain() string {
+	if d, ok := n.Frontmatter["domain"].(string); ok {
+		return d
+	}
+	return ""
+}
+
 // Slug is the frontmatter slug, empty when absent. It is a lesson's stable
 // identity (jp-minna-lNN) and the join key to its slot sidecar — the
 // filename is never that key (lesson filenames carry a human title and are
