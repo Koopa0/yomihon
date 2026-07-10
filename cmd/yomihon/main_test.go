@@ -20,6 +20,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -203,16 +204,21 @@ func drive(t *testing.T, url string) {
 var allowedEnvKeys = map[string]bool{"YOMIHON_ROOT": true, "YOMIHON_PORT": true}
 
 // envReaders names every way the two packages that expose one can read the
-// environment, keyed by import path and then by symbol. Getenv and LookupEnv
-// take the key as their only argument, so a call to either is judged by that
-// key and carries no reason here. Every other entry reads more than one
-// variable, or reads it through a mapping this guard cannot follow, and so is
-// refused wherever it appears — its reason says why.
+// environment, keyed by import path and then by symbol. A symbol whose reason is
+// empty is judged by the key it is called with; every other symbol is refused
+// wherever it appears, and its reason says why.
 //
-// The list is the set of ways the promise can be broken, not the set of calls
-// the command happens to make: syscall sits underneath os and is already
-// imported for the termination signal, which makes it the readiest way around a
-// guard that watches os alone.
+// os.Getenv and os.LookupEnv are the two doors, because the command reads its
+// two variables through them. os.Environ takes the whole environment at once;
+// os.ExpandEnv names its variables inside a string, and os.Expand hands the
+// reading to a mapping — neither offers a key to check. syscall.Getenv takes a
+// single literal key exactly as os.Getenv does, and is refused all the same: an
+// allowlist guards nothing once there are two doors, and a read that goes around
+// os goes around this audit. syscall is already imported for the termination
+// signal, which makes it the nearest way around.
+//
+// The map is the set of ways the promise can be broken, not the set of calls the
+// command happens to make. Every row is held to a control below.
 var envReaders = map[string]map[string]string{
 	"os": {
 		"Getenv":    "",
@@ -227,11 +233,16 @@ var envReaders = map[string]map[string]string{
 	},
 }
 
-// envRead is one place a parsed file reaches for the environment, with the
-// reason that reach is not permitted.
+// envRead is one place a parsed file reaches for the environment. Why is empty
+// when the reach is permitted — an allowed key through one of the two doors —
+// and otherwise says why it is refused. Recording the permitted reaches as well
+// as the refused ones is what lets the controls below prove that every reader
+// named in envReaders is actually watched.
 type envRead struct {
-	Pos token.Position
-	Why string
+	Pos    token.Position
+	Pkg    string // the import path the read goes through
+	Symbol string // the symbol read through; empty for a finding about an import itself
+	Why    string
 }
 
 // envReader reports the canonical import path and symbol when sel names one of
@@ -252,17 +263,21 @@ func envReader(sel *ast.SelectorExpr, pkgOf map[string]string) (pkg, symbol stri
 	return path, sel.Sel.Name, true
 }
 
-// envOffenders reports every environment read in the parsed files that is not an
-// os.Getenv or os.LookupEnv call on one of the allowed keys.
+// envReads reports every reach for the environment in the parsed files, refused
+// or permitted. A reach is permitted only when it is an os.Getenv or
+// os.LookupEnv call on one of the allowed keys.
 //
 // A reader mentioned outside a call — os.Expand(s, os.Getenv) hands Getenv over
 // as a value — carries no key this guard can read, so a mention is judged as
 // well as a call. Because the walk visits a call before the selector inside it,
 // a selector already judged as a call is recognised when it comes round again.
-func envOffenders(fset *token.FileSet, files []*ast.File, allowed map[string]bool) []envRead {
-	var offenders []envRead
-	at := func(pos token.Pos, format string, args ...any) {
-		offenders = append(offenders, envRead{Pos: fset.Position(pos), Why: fmt.Sprintf(format, args...)})
+func envReads(fset *token.FileSet, files []*ast.File, allowed map[string]bool) []envRead {
+	var reads []envRead
+	record := func(pos token.Pos, pkg, symbol, why string) {
+		reads = append(reads, envRead{Pos: fset.Position(pos), Pkg: pkg, Symbol: symbol, Why: why})
+	}
+	at := func(pos token.Pos, pkg, symbol, format string, args ...any) {
+		record(pos, pkg, symbol, fmt.Sprintf(format, args...))
 	}
 	for _, f := range files {
 		// Resolve which local name binds to each environment-reading package, so
@@ -280,7 +295,7 @@ func envOffenders(fset *token.FileSet, files []*ast.File, allowed map[string]boo
 			case imp.Name == nil:
 				pkgOf[path] = path
 			case imp.Name.Name == ".":
-				at(imp.Pos(), "dot-imports %s, which hides environment reads from this guard", path)
+				at(imp.Pos(), path, "", "dot-imports %s, which hides environment reads from this guard", path)
 			case imp.Name.Name == "_":
 				// a side-effect import makes no calls
 			default:
@@ -301,38 +316,51 @@ func envOffenders(fset *token.FileSet, files []*ast.File, allowed map[string]boo
 				}
 				judged[sel] = true
 				if why := envReaders[pkg][symbol]; why != "" {
-					at(n.Pos(), "%s.%s %s", pkg, symbol, why)
+					at(n.Pos(), pkg, symbol, "%s.%s %s", pkg, symbol, why)
 					return true
 				}
 				if len(n.Args) != 1 {
-					at(n.Pos(), "%s.%s called with %d arguments, so no single key can be checked", pkg, symbol, len(n.Args))
+					at(n.Pos(), pkg, symbol, "%s.%s called with %d arguments, so no single key can be checked", pkg, symbol, len(n.Args))
 					return true
 				}
 				lit, isLit := n.Args[0].(*ast.BasicLit)
 				if !isLit || lit.Kind != token.STRING {
-					at(n.Pos(), "%s.%s called with a non-literal key", pkg, symbol)
+					at(n.Pos(), pkg, symbol, "%s.%s called with a non-literal key", pkg, symbol)
 					return true
 				}
 				key, uerr := strconv.Unquote(lit.Value)
 				if uerr != nil {
-					at(lit.ValuePos, "%s.%s called with an unreadable key %s", pkg, symbol, lit.Value)
+					at(lit.ValuePos, pkg, symbol, "%s.%s called with an unreadable key %s", pkg, symbol, lit.Value)
 					return true
 				}
 				if !allowed[key] {
-					at(lit.ValuePos, "%s.%s(%q)", pkg, symbol, key)
+					at(lit.ValuePos, pkg, symbol, "%s.%s(%q)", pkg, symbol, key)
+					return true
 				}
+				record(lit.ValuePos, pkg, symbol, "")
 			case *ast.SelectorExpr:
 				if judged[n] {
 					return true
 				}
-				pkg, symbol, reads := envReader(n, pkgOf)
-				if !reads {
+				pkg, symbol, isReader := envReader(n, pkgOf)
+				if !isReader {
 					return true
 				}
-				at(n.Pos(), "%s.%s referenced as a value, so no key can be checked", pkg, symbol)
+				at(n.Pos(), pkg, symbol, "%s.%s referenced as a value, so no key can be checked", pkg, symbol)
 			}
 			return true
 		})
+	}
+	return reads
+}
+
+// envOffenders keeps the reaches this command is not permitted to make.
+func envOffenders(reads []envRead) []envRead {
+	var offenders []envRead
+	for _, r := range reads {
+		if r.Why != "" {
+			offenders = append(offenders, r)
+		}
 	}
 	return offenders
 }
@@ -368,7 +396,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	if len(files) == 0 {
 		t.Fatal("no command source was parsed, so this guard inspected nothing")
 	}
-	offenders := envOffenders(fset, files, allowedEnvKeys)
+	offenders := envOffenders(envReads(fset, files, allowedEnvKeys))
 	if len(offenders) > 0 {
 		lines := make([]string, 0, len(offenders))
 		for _, o := range offenders {
@@ -379,97 +407,160 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	}
 }
 
-// TestEnvOffendersSeesEveryWayAround holds the guard above to the shape of the
-// promise rather than to the calls the command happens to make today. Each row
-// is one way a reader could reach a forbidden variable while the guard stayed
-// green; three of them once did. They are the guard's own controls, and they run
-// with the ordinary suite, so the guard is watched to fail on every test run
-// rather than on the day someone thinks to try.
-func TestEnvOffendersSeesEveryWayAround(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		src  string
-		want []string
-	}{
-		{
-			name: "allowed keys",
-			src: `package main
+// envFixtures are the guard's own controls. Each is one way a reader could reach
+// a forbidden variable while the guard stayed green, and four of them once did.
+// want lists the reason for every refused read, in the order the scan reports
+// them. They run with the ordinary suite, so the guard is watched to fail on
+// every test run rather than on the day someone thinks to try.
+var envFixtures = []struct {
+	name string
+	src  string
+	want []string
+}{
+	{
+		name: "allowed keys",
+		src: `package main
 import "os"
 func f() (string, string, bool) {
 	v, ok := os.LookupEnv("YOMIHON_PORT")
 	return os.Getenv("YOMIHON_ROOT"), v, ok
 }`,
-			want: nil,
-		},
-		{
-			name: "aliased import",
-			src: `package main
+		want: nil,
+	},
+	{
+		name: "aliased import",
+		src: `package main
 import o "os"
 func f() string { return o.Getenv("YOMIHON_SECRET") }`,
-			want: []string{`os.Getenv("YOMIHON_SECRET")`},
-		},
-		{
-			name: "dot import",
-			src: `package main
+		want: []string{`os.Getenv("YOMIHON_SECRET")`},
+	},
+	{
+		name: "dot import",
+		src: `package main
 import . "os"
 func f() string { return Getenv("YOMIHON_SECRET") }`,
-			want: []string{"dot-imports os, which hides environment reads from this guard"},
-		},
-		{
-			name: "blank import",
-			src: `package main
+		want: []string{"dot-imports os, which hides environment reads from this guard"},
+	},
+	{
+		name: "blank import",
+		src: `package main
 import _ "os"
 func f() {}`,
-			want: nil,
-		},
-		{
-			name: "syscall getenv",
-			src: `package main
+		want: nil,
+	},
+	{
+		name: "getenv with a bad key",
+		src: `package main
+import "os"
+func f() string { return os.Getenv("YOMIHON_SECRET") }`,
+		want: []string{`os.Getenv("YOMIHON_SECRET")`},
+	},
+	{
+		name: "lookupenv with a bad key",
+		src: `package main
+import "os"
+func f() (string, bool) { return os.LookupEnv("YOMIHON_SECRET") }`,
+		want: []string{`os.LookupEnv("YOMIHON_SECRET")`},
+	},
+	{
+		name: "os environ",
+		src: `package main
+import "os"
+func f() []string { return os.Environ() }`,
+		want: []string{"os.Environ reads the whole environment"},
+	},
+	{
+		name: "syscall getenv",
+		src: `package main
 import "syscall"
 func f() (string, bool) { return syscall.Getenv("YOMIHON_SECRET") }`,
-			want: []string{"syscall.Getenv reads the environment beneath the os package"},
-		},
-		{
-			name: "syscall environ",
-			src: `package main
+		want: []string{"syscall.Getenv reads the environment beneath the os package"},
+	},
+	{
+		name: "syscall environ",
+		src: `package main
 import "syscall"
 func f() []string { return syscall.Environ() }`,
-			want: []string{"syscall.Environ reads the whole environment"},
-		},
-		{
-			name: "os expandenv",
-			src: `package main
+		want: []string{"syscall.Environ reads the whole environment"},
+	},
+	{
+		name: "os expandenv",
+		src: `package main
 import "os"
 func f() string { return os.ExpandEnv("$YOMIHON_SECRET") }`,
-			want: []string{"os.ExpandEnv reads every variable named in its argument"},
-		},
-		{
-			name: "getenv passed as a value",
-			src: `package main
+		want: []string{"os.ExpandEnv reads every variable named in its argument"},
+	},
+	{
+		name: "getenv passed as a value",
+		src: `package main
 import "os"
 func f() string { return os.Expand("$YOMIHON_SECRET", os.Getenv) }`,
-			want: []string{
-				"os.Expand reads the environment through a mapping this guard cannot follow",
-				"os.Getenv referenced as a value, so no key can be checked",
-			},
+		want: []string{
+			"os.Expand reads the environment through a mapping this guard cannot follow",
+			"os.Getenv referenced as a value, so no key can be checked",
 		},
+	},
+}
+
+// parseEnvFixture parses one control's source, or stops the test that needs it.
+func parseEnvFixture(t *testing.T, name, src string) (*token.FileSet, *ast.File) {
+	t.Helper()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, name+".go", src, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatalf("parse %s: %v", name, err)
 	}
-	for _, tt := range tests {
+	return fset, f
+}
+
+// TestEnvOffendersSeesEveryWayAround holds the guard to the shape of the promise
+// rather than to the calls the command happens to make today.
+func TestEnvOffendersSeesEveryWayAround(t *testing.T) {
+	t.Parallel()
+	for _, tt := range envFixtures {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fset := token.NewFileSet()
-			f, err := parser.ParseFile(fset, tt.name+".go", tt.src, parser.SkipObjectResolution)
-			if err != nil {
-				t.Fatalf("parse %s: %v", tt.name, err)
-			}
+			fset, f := parseEnvFixture(t, tt.name, tt.src)
 			var got []string
-			for _, o := range envOffenders(fset, []*ast.File{f}, allowedEnvKeys) {
+			for _, o := range envOffenders(envReads(fset, []*ast.File{f}, allowedEnvKeys)) {
 				got = append(got, o.Why)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("envOffenders(%s) mismatch (-want +got):\n%s", tt.name, diff)
 			}
 		})
+	}
+}
+
+// TestEveryEnvReaderHasAControl closes the gap the controls above cannot see on
+// their own. A row of envReaders that no fixture ever reaches through is a row
+// nothing would miss: delete it and the guard silently stops watching that
+// reader while every test stays green. So each row has to be refused by at least
+// one control, and a reader added to the map without one fails here — by
+// construction, on the commit that adds it.
+func TestEveryEnvReaderHasAControl(t *testing.T) {
+	t.Parallel()
+	refused := map[string]bool{}
+	for _, tt := range envFixtures {
+		fset, f := parseEnvFixture(t, tt.name, tt.src)
+		for _, o := range envOffenders(envReads(fset, []*ast.File{f}, allowedEnvKeys)) {
+			// A finding about an import itself names no symbol.
+			if o.Symbol != "" {
+				refused[o.Pkg+"."+o.Symbol] = true
+			}
+		}
+	}
+	var uncontrolled []string
+	for pkg, symbols := range envReaders {
+		for symbol := range symbols {
+			if !refused[pkg+"."+symbol] {
+				uncontrolled = append(uncontrolled, pkg+"."+symbol)
+			}
+		}
+	}
+	slices.Sort(uncontrolled)
+	if len(uncontrolled) > 0 {
+		t.Errorf("these environment readers are watched by the guard but refused by no control, so nothing would notice the day the guard stopped watching them:\n%s",
+			strings.Join(uncontrolled, "\n"))
 	}
 }
