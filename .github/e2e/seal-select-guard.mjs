@@ -1,9 +1,9 @@
-// Behavior lock: a held R inside a focused <select> never starts the seal
-// hold — inside a select, letter keys are typeahead, not shortcuts. The
-// observable is the seal fill: holdStart stretches every .y-sealfill to
-// width 100%, so the guard holds exactly when that never happens.
+// Behavior lock: a held R on a typing surface, or anywhere while the search
+// dialog is open, never starts the seal hold. The observable is the seal fill:
+// holdStart stretches every .y-sealfill to width 100%, so the guard holds
+// exactly when that never happens.
 //
-// Two cases, because a select has two faces. With the picker closed the key
+// A select has two faces. With the picker closed the key
 // event targets the select itself. With the branded picker open it targets the
 // focused <option>, and the guard reaches the select only by walking up from
 // there — a walk an earlier guard, which tested the target's own tag name, did
@@ -15,25 +15,33 @@
 // rebound — the probe says so instead of passing vacuously.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (a lesson
-// page carrying both a slot-machine <select> and the seal form). MUTATE names
-// one of the self-test modes below; MUTATE=list prints them.
+// page carrying the sidebar filter, search dialog, slot-machine <select>, and
+// seal form). MUTATE names one of the self-test modes below; MUTATE=list prints
+// them.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 const SELECT = 'select.y-slotselect';
+const SIDEBAR_INPUT = '[data-nav-filter]';
+const SEARCH_DIALOG = '[data-search]';
+const TEST_EDITABLE = '[data-e2e-contenteditable]';
 
-// The assertions that can fire the lock, each named for what it guards. This
-// probe reaches only one: both cases feed a single verdict, and both are aimed
-// at by the one mutation. Naming the site anyway is what keeps that true — a
-// second assertion added later cannot quietly report itself as a catch for a
-// mutation that was never about it.
-const SITES = ['no-fill-from-inside-the-select'];
+// The assertions that can fire the lock, each named for the clause it guards.
+// Select's closed and open faces share one site because both exercise the same
+// closest('select') clause; the open face also carries the historical weakening
+// mutation that only an option target can catch.
+const SITES = [
+  'no-fill-from-inside-the-select',
+  'no-fill-from-sidebar-input',
+  'no-fill-from-contenteditable',
+  'no-fill-while-search-dialog-open',
+];
 
 // Three outcomes a caller has to tell apart: the lock fired, the probe cannot
-// see the thing it claims to watch, and a mutation whose needle matched
-// nothing. Only the first is ever reported as a caught mutation — otherwise a
+// see the thing it claims to watch, and a mutation whose needle did not match
+// exactly once. Only the first is ever reported as a caught mutation — otherwise a
 // crash that happens to exit 1 would read as a detection — and only when the
 // site that fired is the site the mode aimed at.
 class LockFired extends Error {
@@ -52,11 +60,6 @@ const fail = (site, msg) => {
 const broken = (msg) => { throw new ProbeBroken(`BROKEN seal-select-guard: ${msg}`); };
 const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED seal-select-guard: ${msg}`); };
 
-// The clause of the served script that keeps the single-key shortcuts out of a
-// focused select's typeahead. Replacing it with false removes the guard and
-// nothing else, which is the regression both cases must catch.
-const GUARD_NEEDLE = "t.closest('select')";
-
 // Serves the script with the guard's clause rewritten, and hands back the proof
 // it rewrote something. A mutation is installed on one page and answers for that
 // page alone: a proof shared between the cases would let a page served the
@@ -64,20 +67,51 @@ const GUARD_NEEDLE = "t.closest('select')";
 // hold R against the guard it believed it had removed, find nothing leaking, and
 // call the silence a pass.
 //
-// Every occurrence is rewritten, not the first. Replacing one of two would leave
-// the guard standing behind the clause it did not touch, and the run would still
-// call the mutation applied — then find nothing leaking, and blame the probe for
-// a regression it never actually injected.
-const rewriteGuard = (replacement) => async (page) => {
-  let applied = false;
+// Exactly one occurrence is the contract. Zero means the mutation died against
+// rewritten source; two means the needle is ambiguous and could rewrite a clause
+// the mode never aimed at. Both leave the served script untouched and report
+// not-applied rather than pretending to inject a sound regression.
+const rewriteExactlyOnce = (original, needle, replacement) => {
+  const matches = original.split(needle).length - 1;
+  return {
+    body: matches === 1 ? original.replace(needle, replacement) : original,
+    matches,
+  };
+};
+
+const requireUniqueNeedle = ({ matches, mode, name, needle }) => {
+  if (matches === 1) return;
+  const count = matches === null ? 'no fetched script' : `${matches} occurrence${matches === 1 ? '' : 's'}`;
+  notApplied(`${name}: the ${mode} needle matched ${count}; want exactly one: ${needle}`);
+};
+
+// The ambiguous-needle branch cannot arise against today's script, so carry a
+// literal control that proves a second occurrence leaves the source untouched.
+// It also drives the same reporter guardCase uses and requires NotApplied, so
+// neither half of the ambiguous-source contract can silently disappear.
+const duplicateNeedleControl = rewriteExactlyOnce('guard || guard', 'guard', 'false');
+let duplicateReportedNotApplied = false;
+try {
+  requireUniqueNeedle({ matches: duplicateNeedleControl.matches, mode: 'duplicate-control', name: 'duplicate control', needle: 'guard' });
+} catch (err) {
+  duplicateReportedNotApplied = err instanceof NotApplied;
+}
+if (duplicateNeedleControl.matches !== 2 || duplicateNeedleControl.body !== 'guard || guard' || !duplicateReportedNotApplied) {
+  console.error('seal-select-guard: rewriteGuard did not leave an ambiguous source untouched and report it not-applied');
+  process.exit(2);
+}
+
+const rewriteGuard = ({ needle, replacement }) => async (page) => {
+  let matches = null;
   await page.route('**/yomihon.js', async (route) => {
     const res = await route.fetch();
     const original = await res.text();
-    const body = original.replaceAll(GUARD_NEEDLE, replacement);
-    if (body !== original) applied = true;
+    const rewritten = rewriteExactlyOnce(original, needle, replacement);
+    matches = rewritten.matches;
+    const { body } = rewritten;
     return route.fulfill({ response: res, body });
   });
-  return () => applied;
+  return () => matches;
 };
 
 // Every mutation this probe can inject lives in this table; the dispatch below
@@ -95,11 +129,28 @@ const rewriteGuard = (replacement) => async (page) => {
 const MUTATIONS = {
   'unguard-select': {
     target: 'no-fill-from-inside-the-select',
-    apply: rewriteGuard('false'),
+    needle: "t.closest('select')",
+    replacement: 'false',
   },
   'weaken-select-to-tagname': {
     target: 'no-fill-from-inside-the-select',
-    apply: rewriteGuard("t.tagName === 'SELECT'"),
+    needle: "t.closest('select')",
+    replacement: "t.tagName === 'SELECT'",
+  },
+  'unguard-sidebar-input': {
+    target: 'no-fill-from-sidebar-input',
+    needle: "t.tagName === 'INPUT'",
+    replacement: 'false',
+  },
+  'unguard-contenteditable': {
+    target: 'no-fill-from-contenteditable',
+    needle: 't.isContentEditable',
+    replacement: 'false',
+  },
+  'unguard-open-search-dialog': {
+    target: 'no-fill-while-search-dialog-open',
+    needle: '(dialog && dialog.open)',
+    replacement: 'false',
   },
 };
 
@@ -146,6 +197,11 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 // with a sentence naming what it was waiting for, rather than stalling until
 // the driver's default expires and reporting nothing anyone can act on.
 const FILL_TIMEOUT_MS = 300;
+// The customizable picker can move focus to its option before it is ready for
+// the next held key. Waiting after every arrange keeps the hold out of that
+// handoff window; the same rule for every case avoids a timing exception hidden
+// inside the picker case.
+const ARRANGE_SETTLE_MS = 100;
 
 const someFillFull = () => [...document.querySelectorAll('.y-sealfill')].some((f) => f.style.width === '100%');
 const noFillFull = () => [...document.querySelectorAll('.y-sealfill')].every((f) => f.style.width !== '100%');
@@ -170,28 +226,34 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 // Runs one case on a page of its own. A leaked hold latches the script's sealing
 // state, so a second case sharing that page would see no fill and read the
 // silence as a guard that worked. Separate pages keep each case's answer its own.
-async function guardCase({ name, arrange }) {
+async function guardCase({ name, site, arrange }) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   // The seal form writes a real status transition. This probe never commits one:
-  // every POST is aborted at the network layer, and a POST attempted while the
-  // select holds focus is itself a failure signal.
+  // every POST is aborted at the network layer, and a POST attempted during a
+  // guarded negative case is itself a failure signal.
   let postAttempted = false;
   await page.route('**/*', (route) => {
     if (route.request().method() === 'POST') { postAttempted = true; return route.abort(); }
     return route.continue();
   });
-  let mutationApplied = null;
-  if (MUTATE) mutationApplied = await MUTATIONS[MUTATE].apply(page);
+  let mutationMatches = null;
+  if (MUTATE) mutationMatches = await rewriteGuard(MUTATIONS[MUTATE])(page);
   await page.goto(BASE + PAGE, { waitUntil: 'load' });
   await page.waitForSelector('html[data-js]');
-  if (MUTATE && !mutationApplied()) {
-    notApplied(`${name}: the ${MUTATE} needle matched nothing in the script this page loaded: ${GUARD_NEEDLE}`);
+  if (MUTATE) {
+    const { needle } = MUTATIONS[MUTATE];
+    requireUniqueNeedle({ matches: mutationMatches(), mode: MUTATE, name, needle });
   }
-  // A mutation that only one case can catch leaves the other passing, which is
-  // correct and says nothing. The verdict is taken across both cases below.
+  // A mutation that only one case can catch leaves the others passing, which is
+  // correct and says nothing. The verdict is taken across all cases below.
 
   if (!(await page.$('[data-seal]'))) broken('page has no seal form — pick a sealable lesson page');
   if (!(await page.$(SELECT))) broken('page has no slot select — pick a slot lesson page');
+  if (!(await page.$(SIDEBAR_INPUT))) broken('page has no sidebar filter input — pick a reading page with the shared sidebar');
+  if (!(await page.$(SEARCH_DIALOG))) broken('page has no search dialog — pick a page with the shared application shell');
+  if (await page.$('textarea')) {
+    broken('the fixture now carries a TEXTAREA; replace the explicit skip with a case and a mutation aimed at its guard clause');
+  }
 
   // Positive control: R held outside any typing surface starts the fill.
   await page.evaluate(() => document.body.focus());
@@ -213,8 +275,9 @@ async function guardCase({ name, arrange }) {
   }
 
   await arrange(page);
+  await page.waitForTimeout(ARRANGE_SETTLE_MS);
 
-  // The lock: R held from inside the select must not start the fill. Watching for
+  // The lock: R held from the guarded surface must not start the fill. Watching for
   // the fill up to the bound the control tolerates — rather than reading once
   // after a fixed pause — is what makes this a sound negative: a leaked fill is
   // caught the instant it appears, and only a window that stays empty for as long
@@ -222,12 +285,13 @@ async function guardCase({ name, arrange }) {
   const leaked = await holdRAndWatchFill(page);
   const submitted = postAttempted;
   await page.close();
-  return { leaked, submitted };
+  return { leaked, site, submitted };
 }
 
 const CASES = [
   {
     name: 'a focused select',
+    site: 'no-fill-from-inside-the-select',
     arrange: async (page) => {
       await page.focus(SELECT);
       const tag = await page.evaluate(() => document.activeElement.tagName);
@@ -236,6 +300,7 @@ const CASES = [
   },
   {
     name: 'the select picker open on a focused option',
+    site: 'no-fill-from-inside-the-select',
     arrange: async (page) => {
       await page.focus(SELECT);
       await page.keyboard.press('Space'); // opens the branded picker
@@ -256,20 +321,83 @@ const CASES = [
       }
     },
   },
+  {
+    name: 'the focused sidebar filter input',
+    site: 'no-fill-from-sidebar-input',
+    arrange: async (page) => {
+      await page.focus(SIDEBAR_INPUT);
+      const state = await page.evaluate((selector) => {
+        const input = document.querySelector(selector);
+        return { focused: document.activeElement === input, hidden: input.hidden };
+      }, SIDEBAR_INPUT);
+      if (state.hidden) broken('the sidebar filter input is still hidden after JavaScript initialized');
+      if (!state.focused) broken('focusing the sidebar filter input did not make it the active element');
+    },
+  },
+  {
+    name: 'a focused contentEditable surface',
+    site: 'no-fill-from-contenteditable',
+    arrange: async (page) => {
+      const state = await page.evaluate((selector) => {
+        const editable = document.createElement('div');
+        editable.contentEditable = 'true';
+        editable.dataset.e2eContenteditable = '';
+        document.body.append(editable);
+        editable.focus();
+        return {
+          editable: editable.isContentEditable,
+          focused: document.activeElement === document.querySelector(selector),
+        };
+      }, TEST_EDITABLE);
+      if (!state.editable) broken('the test-local contentEditable surface is not editable');
+      if (!state.focused) broken('focusing the test-local contentEditable surface did not make it the active element');
+    },
+  },
+  {
+    name: 'the open search dialog with a non-typing target focused',
+    site: 'no-fill-while-search-dialog-open',
+    arrange: async (page) => {
+      await page.keyboard.press('Control+k');
+      try {
+        await page.waitForFunction((selector) => document.querySelector(selector)?.open, SEARCH_DIALOG, { timeout: 1000 });
+      } catch {
+        broken('Control+K did not open the search dialog');
+      }
+      // The dialog autofocuses its INPUT, which the typing clause already guards.
+      // A test-local negative tabindex lets the modal itself take programmatic
+      // focus, isolating the separate "dialog is open" clause under test.
+      const state = await page.evaluate((selector) => {
+        const dialog = document.querySelector(selector);
+        dialog.tabIndex = -1;
+        dialog.focus();
+        return { focused: document.activeElement === dialog, open: dialog.open };
+      }, SEARCH_DIALOG);
+      if (!state.open) broken('the search dialog closed before its guard case ran');
+      if (!state.focused) broken('the open search dialog did not accept programmatic focus for the non-typing-target case');
+    },
+  },
 ];
 
 try {
-  // Both cases run before any verdict, so a mutation that unguards the select is
-  // seen to break both faces rather than only the first one tried.
-  const leaks = [];
+  // Every case runs before any verdict, so the select mutation is seen to break
+  // both faces rather than only the first one tried. If a mutated run also finds
+  // an unrelated site broken, that site wins the verdict: calling an unrelated
+  // assertion failure a catch would claim a detection nothing proved.
+  const failures = [];
   for (const c of CASES) {
-    const { leaked, submitted } = await guardCase(c);
-    if (leaked) leaks.push(`with ${c.name}`);
-    if (submitted) leaks.push(`with ${c.name}, far enough to submit the form`);
+    const { leaked, site, submitted } = await guardCase(c);
+    if (leaked) failures.push({ site, detail: `with ${c.name}` });
+    if (submitted) failures.push({ site, detail: `with ${c.name}, far enough to submit the form` });
   }
-  if (leaks.length > 0) fail('no-fill-from-inside-the-select', `held R started the seal fill ${leaks.join('; and ')}`);
+  if (failures.length > 0) {
+    const target = MUTATE ? MUTATIONS[MUTATE].target : null;
+    const first = (MUTATE && failures.find((failure) => failure.site !== target)) || failures[0];
+    const details = failures.filter((failure) => failure.site === first.site).map((failure) => failure.detail);
+    fail(first.site, `held R started the seal fill ${details.join('; and ')}`);
+  }
 
-  console.log('PASS seal-select-guard: control fill started from the body; no fill from a focused select, closed or with its picker open');
+  console.log('SKIP seal-select-guard: fixture has no TEXTAREA typing surface');
+  console.log('PASS seal-select-guard: every case started the control fill from the body; no fill from select, sidebar input, contentEditable, or while search was open');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
