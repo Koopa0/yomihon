@@ -42,6 +42,16 @@ type Schema struct {
 	Rules     Rules   `toml:"rules"`
 	Scan      Scan    `toml:"scan"`
 	Lifecycle []Stage `toml:"lifecycle"`
+
+	navigationRoles NavigationRoles
+	artifactPolicy  ArtifactPolicy
+}
+
+type contractFile struct {
+	Schema
+
+	Navigation *navigationSection `toml:"navigation"`
+	Artifacts  *artifactSection   `toml:"artifacts"`
 }
 
 // Enums holds the closed value sets for frontmatter fields.
@@ -97,14 +107,27 @@ func Load(root string) (*Schema, error) {
 
 // LoadFile reads the contract from an explicit path.
 func LoadFile(path string) (*Schema, error) {
-	var s Schema
-	if _, err := toml.DecodeFile(path, &s); err != nil {
+	var decoded contractFile
+	if _, err := toml.DecodeFile(path, &decoded); err != nil {
 		return nil, fmt.Errorf("decode vault contract %s: %w", path, err)
 	}
+	s := &decoded.Schema
 	if len(s.Lifecycle) == 0 {
 		return nil, fmt.Errorf("vault contract %s: no lifecycle stages", path)
 	}
-	return &s, nil
+	s.navigationRoles = deriveNavigationRoles(decoded.Navigation, s.Enums.Type)
+	s.artifactPolicy = deriveArtifactPolicy(decoded.Artifacts)
+	return s, nil
+}
+
+// NavigationRoles returns the contract-derived navigation role capability.
+func (s *Schema) NavigationRoles() NavigationRoles {
+	return s.navigationRoles
+}
+
+// ArtifactPolicy returns the contract-derived artifact policy capability.
+func (s *Schema) ArtifactPolicy() ArtifactPolicy {
+	return s.artifactPolicy
 }
 
 // StatusGroup returns which status enum group applies to a note type.

@@ -34,6 +34,14 @@ forbid_tag_with_slash = true
 [scan]
 knowledge_dirs = ["Concepts", "Sources"]
 skip_basenames = ["README.md"]
+
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc", "source-map", "topic-map"]
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
 [[lifecycle]]
 status = "draft"
 applies_to = ["lesson"]

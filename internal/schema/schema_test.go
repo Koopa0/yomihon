@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,6 +28,476 @@ func loadFixture(t *testing.T) *schema.Schema {
 		t.Fatalf("LoadFile(testdata/contract.toml) = %v", err)
 	}
 	return s
+}
+
+func loadContractText(t *testing.T, navigation, artifacts string) *schema.Schema {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	contract := `schema_version = "1"
+
+[enums]
+type = ["lesson", "study-path", "moc", "topic-map"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+
+[scan]
+knowledge_dirs = ["Writing"]
+` + navigation + artifacts + `
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+`
+	if err := os.WriteFile(path, []byte(contract), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) = %v", path, err)
+	}
+	s, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	return s
+}
+
+func TestLoadFileDerivesValidCapabilities(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc", "topic-map"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+
+	roles := s.NavigationRoles()
+	if !roles.Available() {
+		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
+	}
+	if !roles.IsPathType("study-path") {
+		t.Error("NavigationRoles().IsPathType(\"study-path\") = false, want true")
+	}
+	if !roles.IsMapType("moc") || !roles.IsMapType("topic-map") {
+		t.Error("NavigationRoles().IsMapType() = false for a declared map type, want true")
+	}
+	if roles.IsPathType("lesson") || roles.IsMapType("lesson") {
+		t.Error("NavigationRoles() classifies undeclared type \"lesson\", want neither role")
+	}
+
+	policy := s.ArtifactPolicy()
+	if !policy.Available() {
+		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+	}
+	if !policy.IsNonInstance("System/templates/card.md") {
+		t.Error("ArtifactPolicy().IsNonInstance(\"System/templates/card.md\") = false, want true")
+	}
+}
+
+func TestLoadFileMissingOptionalSections(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, "", "")
+	roles := s.NavigationRoles()
+	if roles.Available() {
+		t.Fatal("NavigationRoles().Available() = true, want false")
+	}
+	const wantNavigation = "contract declares no navigation roles; Paths and Maps disabled until it does"
+	if got := roles.Diagnostic(); got != wantNavigation {
+		t.Errorf("NavigationRoles().Diagnostic() = %q, want %q", got, wantNavigation)
+	}
+	policy := s.ArtifactPolicy()
+	if policy.Available() {
+		t.Fatal("ArtifactPolicy().Available() = true, want false")
+	}
+	const wantArtifact = "contract declares no artifact policy; instance projections disabled until it does"
+	if got := policy.Diagnostic(); got != wantArtifact {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want %q", got, wantArtifact)
+	}
+
+	var zeroRoles schema.NavigationRoles
+	if got := zeroRoles.Diagnostic(); got != wantNavigation {
+		t.Errorf("zero NavigationRoles.Diagnostic() = %q, want %q", got, wantNavigation)
+	}
+	var zeroPolicy schema.ArtifactPolicy
+	if got := zeroPolicy.Diagnostic(); got != wantArtifact {
+		t.Errorf("zero ArtifactPolicy.Diagnostic() = %q, want %q", got, wantArtifact)
+	}
+}
+
+func TestNavigationRolesRejectUnknownPathType(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["unknown-path"]
+map_types = ["moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	roles := s.NavigationRoles()
+	if roles.Available() {
+		t.Fatal("NavigationRoles().Available() = true, want false")
+	}
+	if got := roles.Diagnostic(); !strings.Contains(got, `"unknown-path"`) {
+		t.Errorf("NavigationRoles().Diagnostic() = %q, want offending type named", got)
+	}
+	if roles.IsMapType("moc") {
+		t.Error("NavigationRoles().IsMapType(\"moc\") = true after invalid path type, want entire role set unavailable")
+	}
+	if !s.ArtifactPolicy().Available() {
+		t.Errorf("ArtifactPolicy().Available() = false after invalid navigation roles, diagnostic %q", s.ArtifactPolicy().Diagnostic())
+	}
+}
+
+func TestNavigationRolesRejectUnknownMapType(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["unknown-map"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	roles := s.NavigationRoles()
+	if roles.Available() {
+		t.Fatal("NavigationRoles().Available() = true, want false")
+	}
+	if got := roles.Diagnostic(); !strings.Contains(got, `"unknown-map"`) {
+		t.Errorf("NavigationRoles().Diagnostic() = %q, want offending type named", got)
+	}
+	if roles.IsPathType("study-path") {
+		t.Error("NavigationRoles().IsPathType(\"study-path\") = true after invalid map type, want entire role set unavailable")
+	}
+}
+
+func TestNavigationRolesRejectDuplicatePathType(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path", "study-path"]
+map_types = ["moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	roles := s.NavigationRoles()
+	if roles.Available() {
+		t.Fatal("NavigationRoles().Available() = true, want false")
+	}
+	if got := roles.Diagnostic(); !strings.Contains(got, `"study-path"`) {
+		t.Errorf("NavigationRoles().Diagnostic() = %q, want duplicate type named", got)
+	}
+	if roles.IsMapType("moc") {
+		t.Error("NavigationRoles().IsMapType(\"moc\") = true after duplicate path type, want entire role set unavailable")
+	}
+}
+
+func TestNavigationRolesRejectDuplicateMapType(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc", "moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	roles := s.NavigationRoles()
+	if roles.Available() {
+		t.Fatal("NavigationRoles().Available() = true, want false")
+	}
+	if got := roles.Diagnostic(); !strings.Contains(got, `"moc"`) {
+		t.Errorf("NavigationRoles().Diagnostic() = %q, want duplicate type named", got)
+	}
+	if roles.IsPathType("study-path") {
+		t.Error("NavigationRoles().IsPathType(\"study-path\") = true after duplicate map type, want entire role set unavailable")
+	}
+}
+
+func TestNavigationRolesRejectPathMapOverlap(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["study-path", "moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	roles := s.NavigationRoles()
+	if roles.Available() {
+		t.Fatal("NavigationRoles().Available() = true, want false")
+	}
+	if got := roles.Diagnostic(); !strings.Contains(got, `"study-path"`) {
+		t.Errorf("NavigationRoles().Diagnostic() = %q, want overlapping type named", got)
+	}
+	if roles.IsMapType("moc") || roles.IsPathType("study-path") {
+		t.Error("NavigationRoles() retained a partial role after path/map overlap, want entire role set unavailable")
+	}
+}
+
+func TestArtifactPolicyRejectsEmptyDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+`, `
+[artifacts]
+non_instance_dirs = [""]
+`)
+	policy := s.ArtifactPolicy()
+	if policy.Available() {
+		t.Fatal("ArtifactPolicy().Available() = true, want false")
+	}
+	if got := policy.Diagnostic(); !strings.Contains(got, `""`) {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending empty value named", got)
+	}
+	if !s.NavigationRoles().Available() {
+		t.Errorf("NavigationRoles().Available() = false after invalid artifact policy, diagnostic %q", s.NavigationRoles().Diagnostic())
+	}
+}
+
+func TestArtifactPolicyRejectsCurrentDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, `
+[artifacts]
+non_instance_dirs = ["."]
+`)
+	policy := s.ArtifactPolicy()
+	if policy.Available() {
+		t.Fatal("ArtifactPolicy().Available() = true, want false")
+	}
+	if got := policy.Diagnostic(); !strings.Contains(got, `"."`) {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
+	}
+}
+
+func TestArtifactPolicyRejectsParentDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, `
+[artifacts]
+non_instance_dirs = [".."]
+`)
+	policy := s.ArtifactPolicy()
+	if policy.Available() {
+		t.Fatal("ArtifactPolicy().Available() = true, want false")
+	}
+	if got := policy.Diagnostic(); !strings.Contains(got, `".."`) {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
+	}
+}
+
+func TestArtifactPolicyRejectsAbsoluteDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, `
+[artifacts]
+non_instance_dirs = ["/System/templates"]
+`)
+	policy := s.ArtifactPolicy()
+	if policy.Available() {
+		t.Fatal("ArtifactPolicy().Available() = true, want false")
+	}
+	if got := policy.Diagnostic(); !strings.Contains(got, `"/System/templates"`) {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
+	}
+}
+
+func TestArtifactPolicyRejectsBackslashDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, `
+[artifacts]
+non_instance_dirs = ["System\\templates"]
+`)
+	policy := s.ArtifactPolicy()
+	if policy.Available() {
+		t.Fatal("ArtifactPolicy().Available() = true, want false")
+	}
+	if got := policy.Diagnostic(); !strings.Contains(got, `System\\templates`) {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want offending value named", got)
+	}
+}
+
+func TestArtifactPolicyRejectsNonLocalNormalizedDirectory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		directory string
+	}{
+		{name: "slash normalizes to current directory", directory: "./"},
+		{name: "components normalize to current directory", directory: "a/.."},
+		{name: "parent prefix", directory: "../outside"},
+		{name: "components normalize to parent prefix", directory: "a/../../outside"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, fmt.Sprintf(`
+[artifacts]
+non_instance_dirs = [%s]
+`, strconv.Quote(tt.directory)))
+			policy := s.ArtifactPolicy()
+			if policy.Available() {
+				t.Fatal("ArtifactPolicy().Available() = true, want false")
+			}
+			if got, want := policy.Diagnostic(), strconv.Quote(tt.directory); !strings.Contains(got, want) {
+				t.Errorf("ArtifactPolicy().Diagnostic() = %q, want original offending value %s named", got, want)
+			}
+		})
+	}
+}
+
+func TestArtifactPolicyAllowsLocalPathAfterNormalization(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, `
+[artifacts]
+non_instance_dirs = ["a/../b"]
+`)
+	policy := s.ArtifactPolicy()
+	if !policy.Available() {
+		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+	}
+	if !policy.IsNonInstance("b/card.md") {
+		t.Error("ArtifactPolicy().IsNonInstance(\"b/card.md\") = false, want normalized directory to match")
+	}
+}
+
+func TestArtifactPolicyNormalizesAndMatchesComponentPrefixes(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, `
+[artifacts]
+non_instance_dirs = ["System//./templates", "Cafe\u0301/models"]
+`)
+	policy := s.ArtifactPolicy()
+	if !policy.Available() {
+		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+	}
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "normalized directory", path: "System/templates", want: true},
+		{name: "normalized child", path: "System/templates/card.md", want: true},
+		{name: "component sibling", path: "System/templates-old/card.md", want: false},
+		{name: "NFC query", path: "Café/models/card.md", want: true},
+		{name: "NFD query", path: "Café/models/card.md", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := policy.IsNonInstance(tt.path); got != tt.want {
+				t.Errorf("ArtifactPolicy().IsNonInstance(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCapabilitiesAllowEmptyLists(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = []
+map_types = []
+`, `
+[artifacts]
+non_instance_dirs = []
+`)
+	roles := s.NavigationRoles()
+	if !roles.Available() {
+		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
+	}
+	if roles.IsPathType("study-path") || roles.IsMapType("moc") {
+		t.Error("NavigationRoles() classifies a type with empty role lists, want neither role")
+	}
+	policy := s.ArtifactPolicy()
+	if !policy.Available() {
+		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+	}
+	if policy.IsNonInstance("System/templates/card.md") {
+		t.Error("ArtifactPolicy().IsNonInstance() = true with empty directory list, want false")
+	}
+}
+
+func TestNavigationRolesRemainDerivedAfterSchemaMutation(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	s.Enums.Type = []string{"lesson"}
+
+	roles := s.NavigationRoles()
+	if !roles.IsPathType("study-path") || !roles.IsMapType("moc") {
+		t.Error("NavigationRoles() changed after mutating Schema.Enums.Type, want load-time derived membership")
+	}
+}
+
+func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
+	t.Parallel()
+
+	for _, capability := range []any{schema.NavigationRoles{}, schema.ArtifactPolicy{}} {
+		typ := reflect.TypeOf(capability)
+		for fieldIndex := range typ.NumField() {
+			field := typ.Field(fieldIndex)
+			if field.IsExported() && (field.Type.Kind() == reflect.Map || field.Type.Kind() == reflect.Slice) {
+				t.Errorf("%s.%s exposes mutable %s backing state", typ.Name(), field.Name, field.Type.Kind())
+			}
+		}
+	}
 }
 
 func TestSealStatusPinned(t *testing.T) {

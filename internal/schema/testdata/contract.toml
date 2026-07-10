@@ -31,6 +31,13 @@ knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"
 skip_basenames = ["README.md"]
 no_frontmatter_is_legal = true
 
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
 [[lifecycle]]
 status = "captured"
 applies_to = ["inbox", "transcript", "source-note"]
