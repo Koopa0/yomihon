@@ -392,8 +392,7 @@ func productionGoFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "-f", format, ".")
 	out, err := cmd.Output()
 	if err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
+		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			t.Fatalf("go list -deps .: %v\n%s", err, exit.Stderr)
 		}
 		t.Fatalf("go list -deps .: %v", err)
