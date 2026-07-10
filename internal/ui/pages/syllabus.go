@@ -158,8 +158,8 @@ func fillBucket(ready, total int) int {
 	return (pct + 2) / 5 * 5
 }
 
-// countLabel is a metarow figure with a correctly-pluralised English noun:
-// "1 part", "5 modules", "20 entries". Functional chrome stays pure English;
+// countLabel is a syllabus metarow figure for regular English nouns:
+// "1 part", "5 modules", "20 lessons". Functional chrome stays pure English;
 // bilingual text is reserved for ritual identity markers.
 func countLabel(n int, noun string) string {
 	if n == 1 {
