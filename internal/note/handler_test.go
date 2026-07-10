@@ -558,6 +558,67 @@ func TestHome(t *testing.T) {
 	}
 }
 
+// TestReadingRoutesRenderAgainstRequestSnapshot is the coherence guard for a
+// scanner swap during a request. The long-lived Renderer below is deliberately
+// bound to a stale Store whose graph does not contain Target, while the request
+// Snapshot does. Both Home and the ordinary note page must resolve the README's
+// wikilink from the request snapshot, alongside that same snapshot's navigation
+// and counts, rather than consulting the stale live resolver independently.
+func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nSee [[Target]].\n"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+
+	log := slog.New(slog.DiscardHandler)
+	staleStore := snapshot.New(root, log)
+	renderer := render.New(root, staleStore.Resolver())
+
+	conceptDir := filepath.Join(root, "Concepts")
+	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
+		t.Fatalf("mkdir Concepts: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(conceptDir, "Target.md"), []byte("# Target\n"), 0o644); err != nil {
+		t.Fatalf("write Target: %v", err)
+	}
+	currentStore := snapshot.New(root, log)
+
+	mux := http.NewServeMux()
+	h := note.NewHandler(note.Deps{
+		Root:       root,
+		Renderer:   renderer,
+		Status:     status.NewService(root, nil),
+		Snapshot:   currentStore.Current,
+		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Log:        log,
+	})
+	h.Register(mux)
+
+	for _, tt := range []struct {
+		name string
+		path string
+	}{
+		{name: "home", path: "/"},
+		{name: "note", path: "/notes/README.md"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
+			mux.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want %d", tt.path, rr.Code, http.StatusOK)
+			}
+			want := `<a href="/notes/Concepts/Target.md" class="wikilink">Target</a>`
+			if !strings.Contains(rr.Body.String(), want) {
+				t.Errorf("GET %s did not resolve against the request snapshot; want %q in body", tt.path, want)
+			}
+		})
+	}
+}
+
 // TestHomeDashboardUsesSnapshotData pins the four blocks beyond their site
 // markers. Recently changed is the newest seven typed notes in mtime order;
 // Lifecycle links the contract-provided statuses; Study paths reports the same

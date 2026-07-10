@@ -137,6 +137,19 @@ func New(root string, idx Resolver) *Renderer {
 	}
 }
 
+// WithResolver returns a Renderer that shares this configured markdown
+// pipeline but resolves wikilinks and embeds through idx. The receiver is not
+// mutated, so a request can bind rendering to one immutable graph snapshot
+// without changing the long-lived Renderer used by concurrent requests.
+func (r *Renderer) WithResolver(idx Resolver) *Renderer {
+	if idx == nil {
+		panic("render: WithResolver requires a non-nil Resolver")
+	}
+	bound := *r
+	bound.idx = idx
+	return &bound
+}
+
 // HTML renders one note's body: the markdown-to-HTML pipeline, plus the
 // two passes that only make sense once at the top level (never
 // recursively, for callouts or embeds — see their doc comments): the

@@ -116,6 +116,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	snap := h.deps.Snapshot()
+	renderer := h.deps.Renderer.WithResolver(snap.Graph)
 	readme, err := h.readNote("README.md")
 	switch {
 	case errors.Is(err, errUnreadable):
@@ -128,7 +129,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := h.deps.Renderer.HTML(readme.Body)
+	result := renderer.HTML(readme.Body)
 	pending, pendingKnown := h.pending(snap)
 	lifecycle := h.lifecycle(snap, "")
 	view := pages.HomeView{
@@ -180,9 +181,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	snap := h.deps.Snapshot()
+	renderer := h.deps.Renderer.WithResolver(snap.Graph)
 	// render.Renderer.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
-	result := h.deps.Renderer.HTML(n.Body)
+	result := renderer.HTML(n.Body)
 
 	// Lesson bodies get the read-aloud affordance: wrap each ruby-bearing
 	// sentence with a speak button whose text has the furigana stripped
@@ -197,10 +200,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		result.HTML = h.injectSlotMachine(r.Context(), rel, n.Slug(), result.HTML)
 		var refs []string
 		result.HTML, refs = render.InjectConceptTriggers(result.HTML, h.deps.Concepts.SlugForPath)
-		concepts = h.loadConcepts(refs)
+		concepts = h.loadConcepts(renderer, refs)
 	}
 
-	snap := h.deps.Snapshot()
 	pending, pendingKnown := h.pending(snap)
 	view := pages.NoteView{
 		Title:             n.Title(),
@@ -274,11 +276,11 @@ func (h *Handler) injectSlotMachine(ctx context.Context, rel, slug, body string)
 // of its own), so its wikilinks stay ordinary links and the sheet never nests. A
 // concept that fails to load is skipped — its trigger stays a working link to
 // the note, so no dead sheet ships: degrade, never break.
-func (h *Handler) loadConcepts(refs []string) []lesson.ConceptDoc {
+func (h *Handler) loadConcepts(renderer *render.Renderer, refs []string) []lesson.ConceptDoc {
 	if len(refs) == 0 {
 		return nil
 	}
-	renderBody := func(body string) string { return h.deps.Renderer.HTML(body).HTML }
+	renderBody := func(body string) string { return renderer.HTML(body).HTML }
 	docs := make([]lesson.ConceptDoc, 0, len(refs))
 	for _, rel := range refs {
 		if d, ok := lesson.LoadConcept(renderBody, h.deps.Concepts, h.deps.Root, rel); ok {
