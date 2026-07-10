@@ -15,9 +15,13 @@
 // the first frame is not, and no assertion below should be read as saying so.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (a note page
-// with a sidebar, requested directly — the strip-inline route matches the
-// exact page URL, so a redirecting path would dodge it). MUTATE names one of
-// the self-test modes below; MUTATE=list prints them.
+// with a sidebar, named directly). The mutations route on exactly the URL the
+// browser is sent to and answer it with the body they rewrote. Aim PAGE_PATH at
+// a path that redirects and the rewrite still lands — the fetch behind the route
+// follows the redirect — but the browser is then handed that body at the
+// original URL and never performs the redirect, so a mutated run stops loading
+// the page the way the plain run does. MUTATE names one of the self-test modes
+// below; MUTATE=list prints them.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
