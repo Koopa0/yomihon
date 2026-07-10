@@ -36,7 +36,15 @@ fail() {
 # the silence this whole file exists to break.
 [ "${#probes[@]}" -gt 0 ] || fail "the probe table is empty, so a run of it proves nothing"
 listed=()
-for entry in "${probes[@]}"; do listed+=("${entry%%|*}"); done
+for entry in "${probes[@]}"; do
+  # Without the separator both halves of the entry read as the whole of it, and
+  # the run would drive a probe named after a page path.
+  case "$entry" in
+  *"|"*) ;;
+  *) fail "the table entry ${entry} has no | between the probe and the page it needs" ;;
+  esac
+  listed+=("${entry%%|*}")
+done
 present=()
 for file in "$here"/*.mjs; do
   [ -f "$file" ] || fail "no probe files sit beside this script"
@@ -60,7 +68,12 @@ run_mutations() {
   for entry in "${probes[@]}"; do
     probe="${entry%%|*}"
     page="${entry#*|}"
-    modes="$(MUTATE=list node "${here}/${probe}")"
+    # A probe that cannot even name its modes — a refused table, a syntax error —
+    # would otherwise stop this script with the interpreter's message and no clue
+    # which probe it came from.
+    if ! modes="$(MUTATE=list node "${here}/${probe}")"; then
+      fail "${probe} could not name its mutation modes"
+    fi
     [ -n "$modes" ] || fail "${probe} names no mutation modes, so nothing shows it can fail"
     while IFS= read -r mode; do
       [ -n "$mode" ] || continue

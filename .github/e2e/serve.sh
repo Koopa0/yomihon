@@ -50,9 +50,22 @@ dump_log() {
 # and it does so only once the vault has been scanned and the routes are live.
 # Polling a served answer rather than the open socket is what proves the server
 # can serve, not merely that it has bound a port.
+#
+# A server that has already exited will never answer, so the loop asks whether it
+# is still alive before it asks whether it is ready. Otherwise a bind that failed
+# in the first millisecond costs fifteen seconds of polling and reports a timeout,
+# which reads as a slow server rather than a dead one.
 ready=""
 for _ in $(seq 1 60); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' "${base}/" || true)"
+  if ! kill -0 "$server_pid" 2>/dev/null; then
+    echo "serve.sh: the server exited before it answered on ${base}" >&2
+    dump_log
+    exit 1
+  fi
+  # A bound port is not a promise of an answer: something else listening there
+  # and staying silent would hold an untimed request open until the whole job
+  # expired, with nothing said about why. Each poll gives up quickly instead.
+  code="$(curl -s -o /dev/null --connect-timeout 1 --max-time 2 -w '%{http_code}' "${base}/" || true)"
   if [ "$code" = "302" ]; then
     ready=1
     break
