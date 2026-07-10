@@ -171,6 +171,14 @@ jobs:
   # corpus already runs under race in the verify job; this job briefly explores
   # new inputs without it. Go takes one fuzz pattern per invocation, so the
   # targets are looped.
+  #
+  # The targets are asked for rather than written down. A pattern that matches no
+  # target is not an error to Go: it prints "no fuzz tests to fuzz" and exits 0,
+  # so a written-down name that a rename left behind would quietly fuzz nothing
+  # and the job would stay green over the loss. Listing them means a renamed
+  # target keeps being fuzzed and a new one is fuzzed the day it lands; the
+  # warning is refused as well, so nothing can reach the end of a pass having
+  # explored no inputs.
   fuzz:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -183,8 +191,18 @@ jobs:
 
       - name: Fuzz each diagnostics target briefly
         run: |
-          for t in FuzzSplitFrontmatter FuzzParseNote FuzzExtractLinks FuzzWriteJSONL FuzzStripTarget; do
-            go test ./internal/judge -run='^$' -fuzz="^${t}\$" -fuzztime=30s || exit 1
+          targets="$(go test ./internal/judge -run='^$' -list='^Fuzz' | grep '^Fuzz')"
+          [ -n "$targets" ] || { echo "the diagnostics package names no fuzz targets" >&2; exit 1; }
+          echo "fuzzing: $(echo "$targets" | tr '\n' ' ')"
+          for t in $targets; do
+            out="$(go test ./internal/judge -run='^$' -fuzz="^${t}\$" -fuzztime=30s 2>&1)" || { printf '%s\n' "$out"; exit 1; }
+            printf '%s\n' "$out"
+            case "$out" in
+            *"no fuzz tests to fuzz"*)
+              echo "the ${t} pattern explored no inputs" >&2
+              exit 1
+              ;;
+            esac
           done
 
       - name: Smoke-run the benchmarks
