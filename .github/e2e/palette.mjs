@@ -1,7 +1,10 @@
 // Behavior lock: the command palette opens centered and paints an opaque
 // panel over the dimmed backdrop. Regression class: a universal CSS reset
-// zeroing dialog margins (pins it to the left edge), or a later rule
-// zeroing the panel fill (transparent body over the backdrop).
+// zeroing dialog margins (pins it to the left edge), a later rule zeroing the
+// panel fill (transparent body over the backdrop), and a fade that never
+// finishes — the panel enters by transitioning its opacity from zero, so a
+// broken transition leaves an element that paints nothing while its fill is
+// still perfectly opaque.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (any page).
 // MUTATE names one of the self-test modes below; MUTATE=list prints them. Each
@@ -102,6 +105,10 @@ const MUTATIONS = {
     target: 'opaque',
     apply: (page) => injectRule(page, 'dialog.y-searchdialog', 'background: oklch(0.988 0.003 106 / 0.5) !important;'),
   },
+  'palette-fade': {
+    target: 'opaque',
+    apply: (page) => injectRule(page, 'dialog.y-searchdialog', 'opacity: 0.4 !important;'),
+  },
 };
 
 // A mutation aiming at a site no assertion carries could never be caught, and
@@ -151,12 +158,35 @@ try {
     fail('centered', `not centered: dialog center ${dialogCenter}px vs viewport center ${viewportCenter}px`);
   }
 
+  // The panel fades in: opacity is what the open transition animates, and the
+  // first-frame style starts it at zero. An element left at opacity 0 paints
+  // nothing at all, however opaque the colour behind it — so the fill's alpha
+  // alone cannot say whether anything was painted. Wait for the fade to land,
+  // and read the value it stopped at when it does not.
+  let opacity = 1;
+  try {
+    await dialog.evaluate(
+      (el) => new Promise((resolve, reject) => {
+        const settle = () => {
+          if (getComputedStyle(el).opacity === '1') resolve();
+          else requestAnimationFrame(settle);
+        };
+        settle();
+        setTimeout(reject, 2000);
+      }),
+    );
+  } catch {
+    opacity = Number(await dialog.evaluate((el) => getComputedStyle(el).opacity));
+  }
+  if (!Number.isFinite(opacity)) broken('cannot read a computed opacity from the palette dialog');
+  if (opacity < 1) fail('opaque', `panel never became opaque: computed opacity ${opacity}`);
+
   const bg = await dialog.evaluate((el) => getComputedStyle(el).backgroundColor);
   const alpha = alphaOf(bg);
   if (!Number.isFinite(alpha)) broken(`cannot read an alpha from computed background ${bg}`);
   if (alpha < 1) fail('opaque', `panel not opaque: computed background ${bg}`);
 
-  console.log(`PASS palette: centered (${dialogCenter}px) and opaque (${bg})`);
+  console.log(`PASS palette: centered (${dialogCenter}px) and opaque (${bg}, opacity ${opacity})`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
