@@ -149,7 +149,7 @@ jobs:
 
   # Builds the server, drives each reading face against a small fixture vault,
   # and checks the live listening socket is bound to loopback and nothing else.
-  e2e-smoke:
+  e2e-http:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -162,16 +162,31 @@ jobs:
       - name: Build the server
         run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
 
+      # A real server binds loopback, so the socket assertion below can only ever
+      # come back green. This drives the same verdict over recorded listings that
+      # widen the bind, and requires each to be refused — the lock's proof that
+      # it is able to fail.
+      - name: Prove the loopback socket assertion refuses a widened bind
+        run: bash .github/e2e/smoke.sh --self-test
+
       - name: Drive the reading faces and check the listening socket
-        run: bash .github/e2e/smoke.sh "${RUNNER_TEMP}/yomihon"
+        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19733 -- bash .github/e2e/smoke.sh
 
   # Runs a short live fuzz pass over each diagnostics target and smoke-runs the
   # benchmarks, so a crash or invariant break in the hand-rolled frontmatter and
   # link parsing surfaces on a pull request rather than in a later run. The seed
-  # corpus already runs under race in the main job; this job briefly explores new
-  # inputs without it. Go takes one fuzz pattern per invocation, so the targets
-  # are looped.
-  fuzz-smoke:
+  # corpus already runs under race in the verify job; this job briefly explores
+  # new inputs without it. Go takes one fuzz pattern per invocation, so the
+  # targets are looped.
+  #
+  # The targets are asked for rather than written down. A pattern that matches no
+  # target is not an error to Go: it prints "no fuzz tests to fuzz" and exits 0,
+  # so a written-down name that a rename left behind would quietly fuzz nothing
+  # and the job would stay green over the loss. Listing them means a renamed
+  # target keeps being fuzzed and a new one is fuzzed the day it lands; the
+  # warning is refused as well, so nothing can reach the end of a pass having
+  # explored no inputs.
+  fuzz:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -183,8 +198,26 @@ jobs:
 
       - name: Fuzz each diagnostics target briefly
         run: |
-          for t in FuzzSplitFrontmatter FuzzParseNote FuzzExtractLinks FuzzWriteJSONL FuzzStripTarget; do
-            go test ./internal/judge -run='^$' -fuzz="^${t}\$" -fuzztime=30s || exit 1
+          # Listing and filtering are two steps because the runner's shell exits
+          # on the first command that fails. A grep matching nothing fails, so
+          # asking for the names and sieving them in one breath would end the
+          # step on the empty case — before the line below could say which
+          # emptiness it was. The listing is left to fail on its own, carrying
+          # the toolchain's message; only the sieve is allowed to come back with
+          # nothing to show.
+          listing="$(go test ./internal/judge -run='^$' -list='^Fuzz')"
+          targets="$(printf '%s\n' "$listing" | grep '^Fuzz' || true)"
+          [ -n "$targets" ] || { echo "the diagnostics package names no fuzz targets" >&2; exit 1; }
+          echo "fuzzing: $(echo "$targets" | tr '\n' ' ')"
+          for t in $targets; do
+            out="$(go test ./internal/judge -run='^$' -fuzz="^${t}\$" -fuzztime=30s 2>&1)" || { printf '%s\n' "$out"; exit 1; }
+            printf '%s\n' "$out"
+            case "$out" in
+            *"no fuzz tests to fuzz"*)
+              echo "the ${t} pattern explored no inputs" >&2
+              exit 1
+              ;;
+            esac
           done
 
       - name: Smoke-run the benchmarks
@@ -194,12 +227,11 @@ jobs:
   # like the frontend linters — no package.json, no downloaded browser, no
   # pixel comparison) against the fixture vault and locks live reading
   # behaviors that plain HTTP assertions cannot see: the command palette opens
-  # centered and opaque; the sidebar filter is revealed before first paint by
-  # the inline script alone and stays hidden with JavaScript off; and a held R
-  # inside a focused select never starts the seal hold. Each probe carries
-  # MUTATE self-test modes, runnable locally, that inject the regression it
-  # exists to catch and prove the probe goes red.
-  e2e-reading-behavior:
+  # centered and opaque; the sidebar filter is revealed by the document's own
+  # inline script rather than the deferred one, and stays hidden with
+  # JavaScript off; and a held R inside a focused select never starts the seal
+  # hold, with the picker closed or open.
+  e2e-behavior:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -220,19 +252,36 @@ jobs:
         run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
 
       - name: Run the behavior probes against the fixture vault
-        env:
-          YOMIHON_BASE: http://127.0.0.1:19734
-        run: |
-          YOMIHON_ROOT="${GITHUB_WORKSPACE}/.github/e2e/vault" YOMIHON_PORT=19734 "${RUNNER_TEMP}/yomihon" serve &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          ready=""
-          for _ in $(seq 1 60); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "${YOMIHON_BASE}/" || true)"
-            if [ "$code" = "302" ]; then ready=1; break; fi
-            sleep 0.25
-          done
-          [ -n "$ready" ] || { echo "server never answered the reading redirect on ${YOMIHON_BASE}" >&2; exit 1; }
-          node .github/e2e/palette.mjs
-          PAGE_PATH=/notes/README.md node .github/e2e/filter-prepaint.mjs
-          PAGE_PATH=/notes/Writing/lessons/japanese/L01.md node .github/e2e/seal-select-guard.mjs
+        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19734 -- bash .github/e2e/probes.sh
+
+  # Proves the probes above can fail. Each one names its own self-test modes;
+  # every mode injects the regression that probe exists to catch, and the run is
+  # required to exit 1 and print the marker naming the mode it caught. Exit 0
+  # means the injected regression walked past the probe. Exit 2 means the
+  # mutation's needle matched nothing — which is how a self-test that quietly
+  # died against a rewritten source turns red here, on the day it dies, rather
+  # than on the day someone next runs it by hand. That has already happened once:
+  # a needle written against one branch no longer matched the script it landed
+  # beside, and only a run by hand revealed it.
+  e2e-mutations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the browser driver
+        run: npm install --no-save --no-package-lock playwright-core@1.61.1
+
+      - name: Build the server
+        run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
+
+      - name: Prove every probe catches the regression it watches for
+        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19735 -- bash .github/e2e/probes.sh --mutate
