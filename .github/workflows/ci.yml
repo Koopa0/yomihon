@@ -162,6 +162,13 @@ jobs:
       - name: Build the server
         run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
 
+      # A real server binds loopback, so the socket assertion below can only ever
+      # come back green. This drives the same verdict over recorded listings that
+      # widen the bind, and requires each to be refused — the lock's proof that
+      # it is able to fail.
+      - name: Prove the loopback socket assertion refuses a widened bind
+        run: bash .github/e2e/smoke.sh --self-test
+
       - name: Drive the reading faces and check the listening socket
         run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19733 -- bash .github/e2e/smoke.sh
 
