@@ -399,7 +399,7 @@ func productionGoFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 	}
 	var files []*ast.File
 	var paths []string
-	for _, path := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for path := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		if path == "" {
 			continue
 		}

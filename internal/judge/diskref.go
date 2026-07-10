@@ -64,12 +64,12 @@ func classifyPathRef(n *note, noteDir string, pref pathRef, root string) (Findin
 // vault-relative path, or false when the reference climbs above the root.
 func resolveWithinRoot(baseDir, dest string) (string, bool) {
 	var comps []string
-	for _, c := range strings.Split(baseDir, "/") {
+	for c := range strings.SplitSeq(baseDir, "/") {
 		if c != "" {
 			comps = append(comps, c)
 		}
 	}
-	for _, part := range strings.Split(dest, "/") {
+	for part := range strings.SplitSeq(dest, "/") {
 		switch part {
 		case "", ".":
 			// A no-op segment.
