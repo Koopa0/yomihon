@@ -128,13 +128,13 @@ func TestFlipHappyPath(t *testing.T) {
 	commitAll(t, root)
 	before := commitCount(t, root)
 
-	if err := svc.Flip(t.Context(), testRel, "draft", "ready"); err != nil {
+	if err := svc.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
 
 	// The single highest-stakes assertion in this feature: everything but
 	// the status line's content must be byte-identical.
-	want := strings.Replace(original, "status: draft", "status: ready", 1)
+	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
 	got := readNote(t, root)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("file mismatch after flip (-want +got):\n%s", diff)
@@ -144,7 +144,7 @@ func TestFlipHappyPath(t *testing.T) {
 		t.Fatalf("commit count = %d, want %d (exactly one new commit)", after, before+1)
 	}
 
-	wantSubject := "status(" + testRel + "): draft → ready (via yomihon)"
+	wantSubject := "status(" + testRel + "): draft → " + schema.SealStatus + " (via yomihon)"
 	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != wantSubject {
 		t.Errorf("commit subject = %q, want %q", got, wantSubject)
 	}
@@ -176,21 +176,21 @@ func TestFlipRefusals(t *testing.T) {
 			name:         "stale form: from does not match actual current status",
 			onDiskStatus: "draft",
 			from:         "imported",
-			to:           "ready",
+			to:           schema.SealStatus,
 			wantErr:      status.ErrStale,
 		},
 		{
 			name:         "illegal transition: skips a required intermediate status",
 			onDiskStatus: "imported",
 			from:         "imported",
-			to:           "ready",
+			to:           schema.SealStatus,
 			wantErr:      schema.ErrIllegalTransition,
 		},
 		{
 			name:         "dirty file: unrelated uncommitted edit already present",
 			onDiskStatus: "draft",
 			from:         "draft",
-			to:           "ready",
+			to:           schema.SealStatus,
 			dirtyEdit:    true,
 			wantErr:      status.ErrDirty,
 		},
@@ -300,9 +300,9 @@ func TestFlipFailClosed(t *testing.T) {
 		name          string
 		rel, from, to string
 	}{
-		{"well-formed args", "Writing/lessons/japanese/L05.md", "draft", "ready"},
+		{"well-formed args", "Writing/lessons/japanese/L05.md", "draft", schema.SealStatus},
 		{"garbage args", "does/not/exist.md", "", ""},
-		{"path escape attempt", "../outside.md", "draft", "ready"},
+		{"path escape attempt", "../outside.md", "draft", schema.SealStatus},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -340,7 +340,7 @@ func TestTransitions(t *testing.T) {
 		//   draft:    from=[imported] owner=[claude,koopa]
 		//   ready:    from=[draft] owner=[koopa]
 		//   archived: from=[*] applies_to=[*] owner=[claude,koopa]
-		{"lesson from draft", "lesson", "draft", []string{"ready", "archived"}},
+		{"lesson from draft", "lesson", "draft", []string{schema.SealStatus, "archived"}},
 		{"lesson from imported", "lesson", "imported", []string{"draft", "archived"}},
 		{"empty note type", "", "draft", nil},
 		{"empty current status", "lesson", "", nil},
@@ -442,7 +442,7 @@ func TestFlipByteIdentical(t *testing.T) {
 			writeNote(t, root, tt.content)
 			commitAll(t, root)
 
-			if err := svc.Flip(t.Context(), testRel, "draft", "ready"); err != nil {
+			if err := svc.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
 				t.Fatalf("Flip() = %v, want nil", err)
 			}
 
@@ -477,7 +477,7 @@ func TestFlipGitAddFailureWrapsErrCommitFailed(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Remove(lockPath) })
 
-	err := svc.Flip(t.Context(), testRel, "draft", "ready")
+	err := svc.Flip(t.Context(), testRel, "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrCommitFailed) {
 		t.Fatalf("Flip() = %v, want an error wrapping %v", err, status.ErrCommitFailed)
 	}
@@ -513,7 +513,7 @@ func TestFlipConcurrentNeverLiesInTheCommitMessage(t *testing.T) {
 
 	var errReady, errArchived error
 	var wg sync.WaitGroup
-	wg.Go(func() { errReady = svc.Flip(t.Context(), testRel, "draft", "ready") })
+	wg.Go(func() { errReady = svc.Flip(t.Context(), testRel, "draft", schema.SealStatus) })
 	wg.Go(func() { errArchived = svc.Flip(t.Context(), testRel, "draft", "archived") })
 	wg.Wait()
 
@@ -528,7 +528,7 @@ func TestFlipConcurrentNeverLiesInTheCommitMessage(t *testing.T) {
 		t.Fatalf("exactly one concurrent Flip should succeed, got %d (errReady=%v, errArchived=%v)", succeeded, errReady, errArchived)
 	}
 
-	loser, wantStatus := errArchived, "ready"
+	loser, wantStatus := errArchived, schema.SealStatus
 	if errReady != nil {
 		loser, wantStatus = errReady, "archived"
 	}

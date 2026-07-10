@@ -13,19 +13,15 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
-// sealStatus is the one primary status — the koopa-only seal. Only a ready note
-// carries the seal display, so the handler gates its git-provenance read and the
-// one-shot seal signal on this value; it duplicates no schema enum.
-const sealStatus = "ready"
-
 // typeLesson is the one note type the reading page enriches with lesson-body
 // interactions (the TTS speak buttons today; the slot machine and concept
-// drawer next). Like sealStatus, it names in one place the single spot the
-// handler treats a type specially, and it duplicates no enum: the type
+// drawer next). It names in one place the single spot the handler treats a
+// type specially, and it duplicates no enum: the type
 // vocabulary lives in the schema contract's enums.type (vault-schema.toml),
 // the single source of schema truth. render.HTML stays generic — the lesson decision is
 // made here, so a non-lesson note never grows lesson affordances.
@@ -190,6 +186,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		RelPath:           n.RelPath,
 		Type:              n.Type(),
 		Status:            n.Status(),
+		SealTarget:        schema.SealStatus,
+		Sealed:            n.Status() == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
@@ -209,9 +207,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		view.Transitions = h.deps.Status.Transitions(n.Type(), n.Status())
 	}
 
-	// A ready note shows the seal, so only then spend a git read for the commit
+	// A sealed note shows provenance, so only then spend a git read for the commit
 	// short-hash and honor the one-shot ?sealed=1 ceremony signal.
-	if n.Status() == sealStatus {
+	if view.Sealed {
 		view.JustSealed = r.URL.Query().Get("sealed") == "1"
 		if hash, herr := h.deps.Provenance(r.Context(), rel); herr == nil {
 			view.SealedHash = hash
@@ -285,6 +283,7 @@ func (h *Handler) lifecycle(current string) []pages.LifecycleItem {
 			Name:   s,
 			Count:  counts[s],
 			Active: s == current,
+			Sealed: s == schema.SealStatus,
 		})
 	}
 	return items
@@ -301,7 +300,7 @@ func (h *Handler) pending() (count int, known bool) {
 		return 0, false
 	}
 	for ts, n := range h.deps.TypeStatusCounts() {
-		if ts.Status == sealStatus {
+		if ts.Status == schema.SealStatus {
 			continue
 		}
 		if h.deps.Status.Advanceable(ts.Type, ts.Status) {

@@ -21,15 +21,15 @@ func TestPending(t *testing.T) {
 	// so only the seal exclusion, not a lack of onward move, keeps seal notes out.
 	contract := &schema.Schema{Lifecycle: []schema.Stage{
 		{Status: "advance", AppliesTo: []string{"lesson"}, From: []string{"start"}, Owner: []string{"koopa"}},
-		{Status: sealStatus, AppliesTo: []string{"lesson"}, From: []string{"advance"}, Owner: []string{"koopa"}},
-		{Status: "beyond", AppliesTo: []string{"lesson"}, From: []string{sealStatus}, Owner: []string{"koopa"}},
+		{Status: schema.SealStatus, AppliesTo: []string{"lesson"}, From: []string{"advance"}, Owner: []string{"koopa"}},
+		{Status: "beyond", AppliesTo: []string{"lesson"}, From: []string{schema.SealStatus}, Owner: []string{"koopa"}},
 	}}
 
 	counts := map[search.TypeStatus]int{
-		{Type: "lesson", Status: "start"}:    2, // onward: start -> advance
-		{Type: "lesson", Status: "advance"}:  4, // onward: advance -> seal
-		{Type: "lesson", Status: sealStatus}: 3, // onward exists (-> beyond) but is the seal
-		{Type: "lesson", Status: "beyond"}:   9, // no named onward move
+		{Type: "lesson", Status: "start"}:           2, // onward: start -> advance
+		{Type: "lesson", Status: "advance"}:         4, // onward: advance -> seal
+		{Type: "lesson", Status: schema.SealStatus}: 3, // onward exists (-> beyond) but is the seal
+		{Type: "lesson", Status: "beyond"}:          9, // no named onward move
 	}
 	h := &Handler{deps: Deps{
 		Status:           status.NewService(t.TempDir(), contract),

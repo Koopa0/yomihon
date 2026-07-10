@@ -84,11 +84,13 @@ func reportRawHref(name string) string {
 
 // LifecycleItem is one row of the status-first Lifecycle rail: a schema status
 // (the vocabulary comes from the toml contract), its live snapshot
-// count, and whether it is the current note's status.
+// count, whether it is the current note's status, and whether it is the
+// schema-owned seal target.
 type LifecycleItem struct {
 	Name   string
 	Count  int
 	Active bool
+	Sealed bool
 }
 
 // ChromeFromRequest builds the shell Chrome from the request: the page title

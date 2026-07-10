@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -33,7 +34,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 	}{
 		{
 			name:     "no aids, open contract: the seal bar carries the seal form",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{"ready"}},
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
@@ -63,7 +64,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "headings keep the rail and add the inline disclosure",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{"ready"}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
 			wantAids: true,
 			wantPresent: []string{
 				"y-statuspanel",
@@ -85,7 +86,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "render diagnostics alone keep the rail",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{"ready"}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
 			wantAids: true,
 			wantPresent: []string{
 				"Diagnostics",
@@ -122,6 +123,29 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 	}
 }
 
+func TestSealFormUsesViewTarget(t *testing.T) {
+	t.Parallel()
+
+	v := NoteView{
+		Title:       "T",
+		RelPath:     "a.md",
+		Status:      "draft",
+		SealTarget:  "candidate",
+		Transitions: []string{"candidate"},
+	}
+	var buf bytes.Buffer
+	if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, "data-seal") {
+		t.Fatalf("rendered page has no seal form: %q", html)
+	}
+	if want := `name="to" value="candidate"`; !strings.Contains(html, want) {
+		t.Errorf("seal form is missing %q", want)
+	}
+}
+
 // TestSealToastRidesTheRedirectSignal locks the toast's one-shot contract:
 // it renders exactly when the page carries the seal redirect's signal, so
 // the confirmation is server-rendered CSS that plays with or without the
@@ -139,7 +163,7 @@ func TestSealToastRidesTheRedirectSignal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := NoteView{Title: "T", RelPath: "a.md", Status: "ready", JustSealed: tt.justSealed}
+			v := NoteView{Title: "T", RelPath: "a.md", Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true, JustSealed: tt.justSealed}
 			var buf bytes.Buffer
 			if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render: %v", err)
@@ -164,10 +188,10 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 		view        NoteView
 		wantSealBar bool
 	}{
-		{name: "open contract", view: NoteView{Status: "draft", Transitions: []string{"ready"}}, wantSealBar: true},
+		{name: "open contract", view: NoteView{Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: true},
 		{name: "closed contract", view: NoteView{Status: "draft", WriteClosed: true}, wantSealBar: true},
 		{name: "no frontmatter", view: NoteView{NoFrontmatter: true}, wantSealBar: true},
-		{name: "sealed note", view: NoteView{Status: "ready"}, wantSealBar: true},
+		{name: "sealed note", view: NoteView{Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true}, wantSealBar: true},
 		{name: "frontmatter diagnostic", view: NoteView{Diagnostic: "bad yaml"}, wantSealBar: false},
 	}
 	for _, tt := range tests {

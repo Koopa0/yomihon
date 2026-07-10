@@ -42,8 +42,7 @@ import (
 // does not load the schema contract to check it: the reading/navigation face
 // must keep working even when the contract cannot be read (reading is
 // fail-open; only the write face is fail-closed), and
-// the status.go write face already carries the same shape (its `actor`
-// constant and note.templ's literal "ready").
+// the write face gets its distinguished seal target from the schema package.
 const typeStudyPath = "study-path"
 
 // Resolver is the minimal wikilink-resolution capability nav needs to turn
