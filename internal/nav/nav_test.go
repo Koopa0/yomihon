@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // resolver builds a real *graph.Index (testing.md's "real first") from
@@ -32,7 +33,7 @@ func TestParseSectionsGoShape(t *testing.T) {
 	idx := resolver(t, "L/Lesson A.md", "L/Lesson B.md", "L/Lesson C.md")
 	statusByPath := map[string]string{
 		"L/Lesson A.md": "draft",
-		"L/Lesson B.md": "ready",
+		"L/Lesson B.md": schema.SealStatus,
 		// Lesson C intentionally absent -> empty status badge.
 	}
 
@@ -66,7 +67,7 @@ func TestParseSectionsGoShape(t *testing.T) {
 					Level:   3,
 					Lessons: []Lesson{
 						{Text: "Lesson A", Target: "Lesson A", RelPath: "L/Lesson A.md", Status: "draft", Resolution: graph.Unique},
-						{Text: "Lesson B", Target: "Lesson B", RelPath: "L/Lesson B.md", Status: "ready", Resolution: graph.Unique},
+						{Text: "Lesson B", Target: "Lesson B", RelPath: "L/Lesson B.md", Status: schema.SealStatus, Resolution: graph.Unique},
 					},
 				},
 				{
@@ -100,7 +101,7 @@ func TestParseSectionsMinnaShape(t *testing.T) {
 	statusByPath := map[string]string{
 		"jp/L01 Intro.md": "draft",
 		"jp/L02 Next.md":  "draft",
-		"jp/L03 Verbs.md": "ready",
+		"jp/L03 Verbs.md": schema.SealStatus,
 	}
 
 	body := "# Doc Title (an H1, ignored)\n" +
@@ -152,7 +153,7 @@ func TestParseSectionsMinnaShape(t *testing.T) {
 					Heading: "Verbs",
 					Level:   3,
 					Lessons: []Lesson{
-						{Text: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: "ready", Resolution: graph.Unique},
+						{Text: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus, Resolution: graph.Unique},
 					},
 				},
 			},

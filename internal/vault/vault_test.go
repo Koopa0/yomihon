@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -81,7 +82,7 @@ func TestReadNote(t *testing.T) {
 			name:       "concept resolver cannot corrupt frontmatter status",
 			content:    "---\ntitle: L00 テスト課\ntype: lesson\nstatus: ready\nbased_on: \"[[大家的日本語 第1課]]\"\nslug: jp-minna-l00\n---\n\nSee [[は]] and [[です]].\n",
 			wantTitle:  "L00 テスト課",
-			wantStatus: "ready",
+			wantStatus: schema.SealStatus,
 			wantSlug:   "jp-minna-l00",
 			wantInBody: "[[は]]",
 		},

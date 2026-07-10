@@ -2,11 +2,14 @@ package note_test
 
 import (
 	"context"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -68,6 +71,7 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	if err != nil {
 		t.Fatalf("search.Build(%q) = %v", root, err)
 	}
+	log := slog.New(slog.DiscardHandler)
 	h := note.NewHandler(note.Deps{
 		Root:             root,
 		Renderer:         render.New(root, idx),
@@ -76,11 +80,12 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 		Counts:           func() map[string]int { return nil },
 		TypeStatusCounts: func() map[search.TypeStatus]int { return searchIdx.CountByTypeStatus() },
 		Provenance:       func(context.Context, string) (string, error) { return "", nil },
-		Log:              slog.New(slog.DiscardHandler),
+		Log:              log,
 		Slots:            slots,
 		Concepts:         concepts,
 	})
 	h.Register(mux)
+	status.NewHandler(svc, log).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -98,15 +103,41 @@ func loadContract(t *testing.T) *schema.Schema {
 	return s
 }
 
-func get(t *testing.T, url string) (code int, body string) {
+func runGit(t *testing.T, root string, args ...string) string {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
+	cmdArgs := append([]string{"-C", root}, args...)
+	cmd := exec.CommandContext(t.Context(), "git", cmdArgs...) // #nosec G204 -- test-controlled arguments are passed directly, never through a shell
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("new request %s: %v", url, err)
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return string(out)
+}
+
+func hiddenValue(t *testing.T, form, name string) string {
+	t.Helper()
+	marker := `name="` + name + `" value="`
+	start := strings.Index(form, marker)
+	if start < 0 {
+		t.Fatalf("form has no hidden %q value: %q", name, form)
+	}
+	start += len(marker)
+	end := strings.IndexByte(form[start:], '"')
+	if end < 0 {
+		t.Fatalf("form has an unterminated hidden %q value: %q", name, form)
+	}
+	return html.UnescapeString(form[start : start+end])
+}
+
+func get(t *testing.T, urlStr string) (code int, body string) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, urlStr, http.NoBody)
+	if err != nil {
+		t.Fatalf("new request %s: %v", urlStr, err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		t.Fatalf("GET %s: %v", url, err)
+		t.Fatalf("GET %s: %v", urlStr, err)
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(resp.Body)
@@ -544,6 +575,10 @@ func TestShowNoFrontmatter(t *testing.T) {
 func TestShowTransitions(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
+	runGit(t, root, "init", "--initial-branch=main")
+	runGit(t, root, "config", "user.name", "Test Vault")
+	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
+	runGit(t, root, "config", "commit.gpgsign", "false")
 	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -552,7 +587,11 @@ func TestShowTransitions(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	srv := newServerWithContract(t, root, loadContract(t))
+	runGit(t, root, "add", "Writing/lessons/japanese/L01.md")
+	runGit(t, root, "commit", "-m", "seed lesson")
+	before := len(strings.Split(strings.TrimSpace(runGit(t, root, "log", "--oneline")), "\n"))
+	contract := loadContract(t)
+	srv := newServerWithContract(t, root, contract)
 
 	code, body := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
@@ -561,10 +600,62 @@ func TestShowTransitions(t *testing.T) {
 	// draft -> [ready, archived] for actor "koopa" per
 	// testdata/contract.toml's lifecycle table (cross-checked by hand,
 	// mirroring internal/status/status_test.go's TestTransitions).
-	for _, want := range []string{`value="ready"`, `value="archived"`} {
+	transitions := status.NewService(root, contract).Transitions("lesson", "draft")
+	if len(transitions) != 2 {
+		t.Fatalf("Transitions() = %v, want two targets", transitions)
+	}
+	for _, target := range transitions {
+		want := `value="` + target + `"`
 		if !strings.Contains(body, want) {
 			t.Errorf("page missing transition key %s; body = %q", want, body)
 		}
+	}
+	start := strings.Index(body, "<form class=\"y-statusform\" method=\"post\" action=\"/status\" data-seal>")
+	if start < 0 {
+		t.Fatalf("page missing the primary seal form for contract target %q", transitions[0])
+	}
+	end := strings.Index(body[start:], "</form>")
+	if end < 0 {
+		t.Fatalf("primary seal form is unterminated; body = %q", body[start:])
+	}
+	sealForm := body[start : start+end]
+	if want := `name="to" value="` + transitions[0] + `"`; !strings.Contains(sealForm, want) {
+		t.Errorf("primary seal form is missing the contract's first target %q; form = %q", want, sealForm)
+	}
+	form := url.Values{
+		"path": {hiddenValue(t, sealForm, "path")},
+		"from": {hiddenValue(t, sealForm, "from")},
+		"to":   {hiddenValue(t, sealForm, "to")},
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatalf("new status request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /status: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /status = %d, want %d; body = %q", resp.StatusCode, http.StatusSeeOther, b)
+	}
+	if got, want := resp.Header.Get("Location"), "/notes/Writing/lessons/japanese/L01.md?sealed=1"; got != want {
+		t.Errorf("POST /status Location = %q, want %q", got, want)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "L01.md")) // #nosec G304 -- dir is under t.TempDir and the filename is fixed by this test
+	if err != nil {
+		t.Fatalf("read flipped lesson: %v", err)
+	}
+	want := strings.Replace(lessonMD, "status: draft", "status: "+transitions[0], 1)
+	if string(got) != want {
+		t.Errorf("lesson after POST differs outside the one status line:\ngot:  %q\nwant: %q", got, want)
+	}
+	after := len(strings.Split(strings.TrimSpace(runGit(t, root, "log", "--oneline")), "\n"))
+	if after != before+1 {
+		t.Errorf("commit count = %d, want %d (exactly one new commit)", after, before+1)
 	}
 	if strings.Contains(body, "Contract unavailable") || strings.Contains(body, "fail-closed") || strings.Contains(body, "No frontmatter") {
 		t.Errorf("page shows the wrong status-panel branch; body = %q", body)

@@ -11,24 +11,22 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
-// sealStatus is the one primary status — the koopa-only seal (落款／鈐印).
-// Naming it in one place documents the single spot the UI treats a status
-// specially; it duplicates no enum — those live in the schema toml.
-const sealStatus = "ready"
-
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
 // and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
 // what it found, and a human edits the file.
 //
 // Transitions, WriteClosed, and NoFrontmatter drive the status panel (the only
 // UI through which the vault is written). Lifecycle is the status-first sidebar axis;
-// JustSealed / SealedHash are the seal-provenance signals (only meaningful when
-// Status == "ready").
+// SealTarget and Sealed carry the schema-owned seal semantics into the
+// template. JustSealed / SealedHash are the seal-provenance signals and are
+// meaningful only when Sealed is true.
 type NoteView struct {
 	Title      string
 	RelPath    string
 	Type       string
 	Status     string
+	SealTarget string
+	Sealed     bool
 	Diagnostic string
 	BodyHTML   string
 
@@ -46,7 +44,7 @@ type NoteView struct {
 	NoFrontmatter bool
 
 	// JustSealed is set from a one-shot ?sealed=1 PRG signal; SealedHash is the
-	// read-only git short hash of the sealing commit. Both apply only to a ready
+	// read-only git short hash of the sealing commit. Both apply only to a sealed
 	// note.
 	JustSealed bool
 	SealedHash string
@@ -116,7 +114,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 // sealed URL replaying it is accepted for a single-operator local tool).
 templ sealToast(v NoteView) {
 	if v.JustSealed {
-		<div class="y-toast" role="status">済 · sealed ready</div>
+		<div class="y-toast" role="status">済 · sealed { v.SealTarget }</div>
 	}
 }
 
@@ -234,7 +232,7 @@ templ sidebar(sb Sidebar) {
 					<div class="y-railgroup">
 						for _, it := range sb.Lifecycle {
 							<a class={ "ui-navitem", templ.KV("is-active", it.Active) } href={ templ.URL(statusHref(it.Name)) }>
-								<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Name == sealStatus) } aria-hidden="true"></span>
+								<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
 								{ it.Name }
 								<span class="ui-navitem__count">{ strconv.Itoa(it.Count) }</span>
 							</a>
@@ -452,8 +450,8 @@ templ inlineAids(v NoteView) {
 }
 
 // statusPanel is the write face's entire UI: one plain form per
-// legal transition (the PRG pattern, no JS dependency). ready is the only
-// primary — the koopa seal, with the press-and-hold ceremony layered on by JS;
+// legal transition (the PRG pattern, no JS dependency). The schema-owned seal
+// target is the only primary, with the press-and-hold ceremony layered on by JS;
 // every other legal transition is a quiet one-click form. The legal set is only
 // what the schema contract returns — never a fabricated key.
 templ statusPanel(v NoteView) {
@@ -463,7 +461,7 @@ templ statusPanel(v NoteView) {
 				<span class="ui-side__label">Status</span>
 				<span class="y-actor">actor · koopa</span>
 			</div>
-			if v.Status == sealStatus {
+			if v.Sealed {
 				@sealedBadge(v)
 			} else if v.Status != "" {
 				<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
@@ -475,13 +473,13 @@ templ statusPanel(v NoteView) {
 			case v.NoFrontmatter:
 				<p class="y-statuspanel__notice">No frontmatter (valid).</p>
 			case len(v.Transitions) == 0:
-				if v.Status != sealStatus {
+				if !v.Sealed {
 					<p class="y-statuspanel__notice">No legal transitions.</p>
 				}
 			default:
 				<div class="y-statuspanel__forms">
 					for _, to := range v.Transitions {
-						if to == sealStatus {
+						if to == v.SealTarget {
 							@sealForm(v)
 						} else {
 							@transitionForm(v, to)
@@ -492,14 +490,14 @@ templ statusPanel(v NoteView) {
 	</section>
 }
 
-// sealedBadge is the 済 seal display for a ready note: the stamp, the kintsugi
+// sealedBadge is the 済 display for a sealed note: the stamp, the kintsugi
 // hairline, and the paired CJK · English provenance line with the read-only git
 // short hash. Its one-shot animation fires from y-justsealed (added when
 // ?sealed=1) via CSS.
 templ sealedBadge(v NoteView) {
 	<div class="y-sealed">
 		<span class="y-sealed__stamp" lang="ja" aria-hidden="true">済</span>
-		<span class="y-sealed__label">ready</span>
+		<span class="y-sealed__label">{ v.SealTarget }</span>
 	</div>
 	<div class="y-sealline" aria-hidden="true"></div>
 	<div class="y-sealby">
@@ -514,18 +512,18 @@ templ sealedBadge(v NoteView) {
 	}
 }
 
-// sealForm is the koopa-only seal (ready): a plain POST form (no-JS: one press
+// sealForm is the koopa-only seal: a plain POST form (no-JS: one press
 // submits) that JS upgrades into a press-and-hold. requestSubmit on completion,
 // never fetch — the server sees exactly the no-JS request.
 templ sealForm(v NoteView) {
 	<form class="y-statusform" method="post" action="/status" data-seal>
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
-		<input type="hidden" name="to" value={ sealStatus }/>
-		<button class="y-sealbtn" type="submit" data-seal-btn aria-label="Hold to certify ready">
+		<input type="hidden" name="to" value={ v.SealTarget }/>
+		<button class="y-sealbtn" type="submit" data-seal-btn aria-label={ "Hold to certify " + v.SealTarget }>
 			<span class="y-sealfill" aria-hidden="true"></span>
 			<span class="y-sealbtn__stamp" lang="ja" aria-hidden="true">印</span>
-			<span>Certify ready</span>
+			<span>Certify { v.SealTarget }</span>
 			<span class="y-sealbtn__hint" aria-hidden="true">hold R</span>
 		</button>
 	</form>
@@ -595,10 +593,10 @@ templ sealBar(v NoteView) {
 					<p class="y-sealbar__notice">Contract unavailable — the write face is closed (fail-closed).</p>
 				case v.NoFrontmatter:
 					<p class="y-sealbar__notice">No frontmatter (valid).</p>
-				case v.Status == sealStatus:
+				case v.Sealed:
 					<div class="y-sealed">
 						<span class="y-sealed__stamp" lang="ja" aria-hidden="true">済</span>
-						<span class="y-sealed__label">ready</span>
+						<span class="y-sealed__label">{ v.SealTarget }</span>
 					</div>
 					<span class="y-actor">鈐印 · sealed</span>
 				default:
@@ -606,7 +604,7 @@ templ sealBar(v NoteView) {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
-					if hasSeal(v.Transitions) {
+					if hasSeal(v.Transitions, v.SealTarget) {
 						@sealForm(v)
 					}
 			}
@@ -614,10 +612,10 @@ templ sealBar(v NoteView) {
 	}
 }
 
-// hasSeal reports whether ready is among the legal transitions.
-func hasSeal(transitions []string) bool {
+// hasSeal reports whether target is among the legal transitions.
+func hasSeal(transitions []string, target string) bool {
 	for _, t := range transitions {
-		if t == sealStatus {
+		if t == target {
 			return true
 		}
 	}

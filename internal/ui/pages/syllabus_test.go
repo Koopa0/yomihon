@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestBuildSyllabusView pins the pure transform's contract: a section's
@@ -29,7 +30,7 @@ func TestBuildSyllabusView(t *testing.T) {
 					{
 						Heading: "Text", Level: 3,
 						Lessons: []nav.Lesson{
-							{Text: "Slices", RelPath: "Writing/Slices.md", Status: "ready", Resolution: graph.Unique},
+							{Text: "Slices", RelPath: "Writing/Slices.md", Status: schema.SealStatus, Resolution: graph.Unique},
 							{Text: "Arrays", RelPath: "Writing/Arrays.md", Status: "draft", Resolution: graph.Unique},
 							{Text: "Ghost", Target: "Ghost", Resolution: graph.Unresolved},
 						},
@@ -39,7 +40,7 @@ func TestBuildSyllabusView(t *testing.T) {
 			{
 				Heading: "Memory", Level: 2,
 				Lessons: []nav.Lesson{
-					{Text: "GC", RelPath: "Writing/GC.md", Status: "ready", Resolution: graph.Unique},
+					{Text: "GC", RelPath: "Writing/GC.md", Status: schema.SealStatus, Resolution: graph.Unique},
 				},
 			},
 		},
@@ -48,8 +49,9 @@ func TestBuildSyllabusView(t *testing.T) {
 	got := BuildSyllabusView(syl, []nav.Syllabus{syl})
 
 	want := SyllabusView{
-		Title:   "Go path",
-		RelPath: "Maps/Go path.md",
+		Title:      "Go path",
+		RelPath:    "Maps/Go path.md",
+		SealTarget: schema.SealStatus,
 		Paths: []SyllabusLink{
 			{Title: "Go path", RelPath: "Maps/Go path.md", Lessons: 4, Active: true},
 		},
@@ -65,7 +67,7 @@ func TestBuildSyllabusView(t *testing.T) {
 					{
 						Num: 1, Heading: "Text", Depth: 1, Ready: 1, Total: 3,
 						Lessons: []LessonView{
-							{Text: "Slices", Href: "/notes/Writing/Slices.md", Status: "ready"},
+							{Text: "Slices", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true},
 							{Text: "Arrays", Href: "/notes/Writing/Arrays.md", Status: "draft"},
 							{Text: "Ghost", Mark: "unresolved"},
 						},
@@ -76,7 +78,7 @@ func TestBuildSyllabusView(t *testing.T) {
 				Anchor: "part-2", Ordinal: "II", Num: 2, Heading: "Memory", Depth: 0,
 				Ready: 1, Total: 1,
 				Lessons: []LessonView{
-					{Text: "GC", Href: "/notes/Writing/GC.md", Status: "ready"},
+					{Text: "GC", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true},
 				},
 			},
 		},

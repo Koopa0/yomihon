@@ -16,8 +16,16 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// ContractRelPath is where the contract lives inside the vault.
-const ContractRelPath = "System/schemas/vault-schema.toml"
+const (
+	// ContractRelPath is where the contract lives inside the vault.
+	ContractRelPath = "System/schemas/vault-schema.toml"
+
+	// SealStatus is the status rendered as the koopa-only seal. It remains
+	// pinned here until vault-schema.toml declares an explicit seal marker;
+	// ownership alone is ambiguous because the published transition is also
+	// koopa-only.
+	SealStatus = "ready"
+)
 
 // Sentinel errors for state-machine answers. Callers match with errors.Is.
 var (

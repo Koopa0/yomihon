@@ -15,11 +15,6 @@ import (
 // need more than this.
 const maxFormBytes = 4096
 
-// sealStatus is the one status that wears the seal — the same value the reading
-// UI styles as primary. It names that single distinguished value in one place;
-// which transitions are legal still comes from the contract, not this constant.
-const sealStatus = "ready"
-
 // Handler serves the write face's single HTTP endpoint.
 type Handler struct {
 	svc *Service
@@ -67,7 +62,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		// transition redirects plainly. The query suffix is appended after the
 		// path is escaped, so it stays the URL's own query, not part of a name.
 		target := notesHref(path)
-		if to == sealStatus {
+		if to == schema.SealStatus {
 			target += "?sealed=1"
 		}
 		// #nosec G710 -- Flip already succeeded, meaning path passed

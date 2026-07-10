@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // SyllabusView is everything the study-path page needs: the current path's
@@ -14,15 +15,15 @@ import (
 // tallies and anchors precomputed), the switcher across every study-path in
 // the vault, and the path-level figures the header and progress bar read.
 //
-// It duplicates no schema enum: "ready" comes from sealStatus (the same single
-// constant the reading page keys the seal on), and lesson resolution comes from
-// nav's already-parsed graph.Kind — the page only reports what nav resolved,
-// never re-resolves.
+// The seal target comes from schema, and lesson resolution comes from nav's
+// already-parsed graph.Kind — the page only reports what nav resolved, never
+// re-resolves.
 type SyllabusView struct {
-	Title    string
-	RelPath  string
-	Paths    []SyllabusLink
-	Sections []SectionView
+	Title      string
+	RelPath    string
+	SealTarget string
+	Paths      []SyllabusLink
+	Sections   []SectionView
 
 	// Path-level figures, precomputed so the header metarow and progress bar
 	// are dumb reads. Lessons is the whole-path lesson total; Ready the subset
@@ -58,6 +59,7 @@ type LessonView struct {
 	Text   string
 	Href   string
 	Status string
+	Sealed bool
 	Mark   string
 }
 
@@ -78,9 +80,10 @@ type SyllabusLink struct {
 // preserved at every level (nav already guarantees it).
 func BuildSyllabusView(current nav.Syllabus, all []nav.Syllabus) SyllabusView {
 	v := SyllabusView{
-		Title:   current.Title,
-		RelPath: current.RelPath,
-		Paths:   buildPaths(current.RelPath, all),
+		Title:      current.Title,
+		RelPath:    current.RelPath,
+		SealTarget: schema.SealStatus,
+		Paths:      buildPaths(current.RelPath, all),
 	}
 	for i, sec := range current.Sections {
 		sv := buildSection(sec, 0, i+1)
@@ -104,9 +107,10 @@ func buildSection(sec nav.Section, depth, num int) SectionView {
 	}
 	for i := range sec.Lessons {
 		l := &sec.Lessons[i]
-		sv.Lessons = append(sv.Lessons, buildLesson(l))
+		lesson := buildLesson(l)
+		sv.Lessons = append(sv.Lessons, lesson)
 		sv.Total++
-		if l.Status == sealStatus {
+		if lesson.Sealed {
 			sv.Ready++
 		}
 	}
@@ -126,7 +130,7 @@ func buildSection(sec nav.Section, depth, num int) SectionView {
 func buildLesson(l *nav.Lesson) LessonView {
 	switch l.Resolution {
 	case graph.Unique:
-		return LessonView{Text: l.Text, Href: notesHref(l.RelPath), Status: l.Status}
+		return LessonView{Text: l.Text, Href: notesHref(l.RelPath), Status: l.Status, Sealed: l.Status == schema.SealStatus}
 	case graph.Ambiguous:
 		return LessonView{Text: l.Text, Mark: "ambiguous"}
 	case graph.Unresolved:

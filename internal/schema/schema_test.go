@@ -29,6 +29,14 @@ func loadFixture(t *testing.T) *schema.Schema {
 	return s
 }
 
+func TestSealStatusPinned(t *testing.T) {
+	t.Parallel()
+
+	if got := schema.SealStatus; got != "ready" {
+		t.Errorf("SealStatus = %q, want %q", got, "ready")
+	}
+}
+
 // TestStatusValuesAreNeverHardcodedOutsideSchema guards the single-source rule
 // for the status state machine. The legal status values are defined once, in
 // the vault contract that this package alone reads; no other package under

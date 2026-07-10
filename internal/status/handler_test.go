@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
 )
 
@@ -58,7 +59,7 @@ func TestHandlerSuccess(t *testing.T) {
 	commitAll(t, root)
 	srv := newHandlerServer(t, svc)
 
-	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}})
+	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
 	if code != http.StatusSeeOther {
 		t.Errorf("status = %d, want %d", code, http.StatusSeeOther)
 	}
@@ -79,10 +80,10 @@ func TestHandlerMissingFields(t *testing.T) {
 		name string
 		form url.Values
 	}{
-		{"missing path", url.Values{"from": {"draft"}, "to": {"ready"}}},
-		{"missing from", url.Values{"path": {"a.md"}, "to": {"ready"}}},
+		{"missing path", url.Values{"from": {"draft"}, "to": {schema.SealStatus}}},
+		{"missing from", url.Values{"path": {"a.md"}, "to": {schema.SealStatus}}},
 		{"missing to", url.Values{"path": {"a.md"}, "from": {"draft"}}},
-		{"blank path", url.Values{"path": {"  "}, "from": {"draft"}, "to": {"ready"}}},
+		{"blank path", url.Values{"path": {"  "}, "from": {"draft"}, "to": {schema.SealStatus}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,7 +105,7 @@ func TestHandlerClosed(t *testing.T) {
 	svc := status.NewService(root, nil) // no contract: fail-closed
 	srv := newHandlerServer(t, svc)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {"ready"}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {schema.SealStatus}})
 	if code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
 	}
@@ -123,7 +124,7 @@ func TestHandlerStale(t *testing.T) {
 	srv := newHandlerServer(t, svc)
 
 	// The page claims "imported"; the file actually says "draft".
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {"ready"}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}})
 	if code != http.StatusConflict {
 		t.Errorf("status = %d, want %d", code, http.StatusConflict)
 	}
@@ -143,7 +144,7 @@ func TestHandlerDirty(t *testing.T) {
 	writeNote(t, root, committed+"<!-- uncommitted -->\n")
 	srv := newHandlerServer(t, svc)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
 	if code != http.StatusConflict {
 		t.Errorf("status = %d, want %d", code, http.StatusConflict)
 	}
@@ -172,7 +173,7 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	srv := newHandlerServer(t, svc)
 
 	// imported -> ready skips the required "draft" stage.
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {"ready"}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}})
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
 	}
@@ -181,7 +182,7 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	// ("transition not allowed by lifecycle: imported → ready for type
 	// \"lesson\"") must survive to the response, not just a fixed string
 	// that would be identical for every 422 regardless of cause.
-	for _, want := range []string{"transition not allowed by lifecycle", "imported", "ready", "lesson"} {
+	for _, want := range []string{"transition not allowed by lifecycle", "imported", schema.SealStatus, "lesson"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body = %q, want it to contain the schema's own rejection reason (missing %q)", body, want)
 		}
@@ -196,7 +197,7 @@ func TestHandlerGenericFailure(t *testing.T) {
 	writeNote(t, root, lessonContent("draft"))
 	srv := newHandlerServer(t, svc)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
 	if code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want %d", code, http.StatusInternalServerError)
 	}
@@ -226,7 +227,7 @@ func TestHandlerCommitFailedRoutesGitAddFailure(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Remove(lockPath) })
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
 	if code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want %d", code, http.StatusInternalServerError)
 	}

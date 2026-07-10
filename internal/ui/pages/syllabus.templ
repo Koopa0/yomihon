@@ -47,7 +47,7 @@ templ syllabusHead(v SyllabusView) {
 		if v.Ready > 0 {
 			<span class="y-syl-ready">
 				<span class="y-navdot y-navdot--ready" aria-hidden="true"></span>
-				{ strconv.Itoa(v.Ready) } ready
+				{ strconv.Itoa(v.Ready) } { v.SealTarget }
 			</span>
 		}
 	</div>
@@ -103,7 +103,7 @@ templ moduleBlock(sec SectionView) {
 templ lessonRow(l LessonView) {
 	if l.Href != "" {
 		<a class="y-lesson" href={ templ.URL(l.Href) }>
-			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Status == sealStatus) } aria-hidden="true"></span>
+			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
 			<span class="y-lesson__title">{ l.Text }</span>
 			if l.Status != "" {
 				<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
