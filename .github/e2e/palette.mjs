@@ -105,12 +105,19 @@ const MUTATIONS = {
 };
 
 // A mutation aiming at a site no assertion carries could never be caught, and
-// the run would read as a probe that let the regression walk past it. Checked
-// before anything else, so even MUTATE=list refuses to answer for a broken
-// table.
+// the run would read as a probe that let the regression walk past it. An
+// assertion no mutation aims at is a lock nothing has ever watched fail. Both
+// are checked before anything else, so even MUTATE=list refuses to answer for a
+// table that has drifted from the assertions it is supposed to cover.
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mutation.target)) {
     console.error(`palette: mutation ${name} aims at the unknown assertion site ${mutation.target}`);
+    process.exit(2);
+  }
+}
+for (const site of SITES) {
+  if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
+    console.error(`palette: the ${site} assertion is aimed at by no mutation, so nothing shows it can fail`);
     process.exit(2);
   }
 }

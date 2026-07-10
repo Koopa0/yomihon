@@ -54,41 +54,62 @@ const fail = (site, msg) => {
 const broken = (msg) => { throw new ProbeBroken(`BROKEN filter-inline-reveal: ${msg}`); };
 const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-inline-reveal: ${msg}`); };
 
+// Serves the document with a needle removed, and hands back the proof it removed
+// something. A mutation is installed on one page and answers for that page
+// alone: one matching nothing leaves the document whole, and the case would then
+// watch the very behavior the mutation meant to prevent and call it a self-test.
+const rewriteDocument = (needle, replacement) => async (page) => {
+  let applied = false;
+  await page.route(BASE + PAGE, async (route) => {
+    const res = await route.fetch();
+    const original = await res.text();
+    const body = original.replace(needle, replacement);
+    if (body !== original) applied = true;
+    return route.fulfill({ response: res, body });
+  });
+  return () => applied;
+};
+
 // Every mutation this probe can inject lives in this table; the dispatch below
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
-// is not listed cannot happen. strip-inline serves the document with its inline
-// scripts removed, leaving the deferred file as the only thing that could
-// reveal the filter — and the case it aims at blocks that file, so that case
-// must go red.
+// is not listed cannot happen. Each names the assertion site it aims at, which
+// picks the case it is installed on and is the only site whose firing that mode
+// may report as a catch.
 //
-// A mutation is installed on one page and answers for that page alone: it hands
-// back the proof that it really removed something from what that page loaded. A
-// mutation matching nothing leaves the document whole, and the case would then
-// watch the reveal it meant to prevent and call the result a self-test.
+// Removing the inline scripts leaves the deferred file as the only thing that
+// could reveal the filter, and it never does — so the reveal fails on a normal
+// load, and fails again when the deferred file is blocked as well. Serving the
+// filter without its hidden attribute makes the control show a face no script
+// can work, which is what the third case exists to refuse.
 const MUTATIONS = {
-  'strip-inline': {
+  'strip-inline-normal': {
+    target: 'reveal-on-normal-load',
+    apply: rewriteDocument(/<script>[\s\S]*?<\/script>/g, ''),
+  },
+  'strip-inline-blocked': {
     target: 'reveal-without-the-deferred-script',
-    apply: async (page) => {
-      let applied = false;
-      await page.route(BASE + PAGE, async (route) => {
-        const res = await route.fetch();
-        const original = await res.text();
-        const body = original.replace(/<script>[\s\S]*?<\/script>/g, '');
-        if (body !== original) applied = true;
-        return route.fulfill({ response: res, body });
-      });
-      return () => applied;
-    },
+    apply: rewriteDocument(/<script>[\s\S]*?<\/script>/g, ''),
+  },
+  'unhide-filter': {
+    target: 'hidden-without-javascript',
+    apply: rewriteDocument('data-nav-filter hidden>', 'data-nav-filter>'),
   },
 };
 
 // A mutation aiming at a site no assertion carries could never be caught, and
-// the run would read as a probe that let the regression walk past it. Checked
-// before anything else, so even MUTATE=list refuses to answer for a broken
-// table.
+// the run would read as a probe that let the regression walk past it. An
+// assertion no mutation aims at is a lock nothing has ever watched fail. Both
+// are checked before anything else, so even MUTATE=list refuses to answer for a
+// table that has drifted from the assertions it is supposed to cover.
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mutation.target)) {
     console.error(`filter-inline-reveal: mutation ${name} aims at the unknown assertion site ${mutation.target}`);
+    process.exit(2);
+  }
+}
+for (const site of SITES) {
+  if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
+    console.error(`filter-inline-reveal: the ${site} assertion is aimed at by no mutation, so nothing shows it can fail`);
     process.exit(2);
   }
 }
