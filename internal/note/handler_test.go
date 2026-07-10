@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -604,6 +605,9 @@ func TestShowTransitions(t *testing.T) {
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
+	if !slices.Contains(transitions, schema.SealStatus) {
+		t.Fatalf("Transitions() = %v; fixture must keep a draft→seal edge to %q for this test", transitions, schema.SealStatus)
+	}
 	for _, target := range transitions {
 		want := `value="` + target + `"`
 		if !strings.Contains(body, want) {
@@ -612,15 +616,15 @@ func TestShowTransitions(t *testing.T) {
 	}
 	start := strings.Index(body, "<form class=\"y-statusform\" method=\"post\" action=\"/status\" data-seal>")
 	if start < 0 {
-		t.Fatalf("page missing the primary seal form for contract target %q", transitions[0])
+		t.Fatalf("page missing the primary seal form for contract target %q", schema.SealStatus)
 	}
 	end := strings.Index(body[start:], "</form>")
 	if end < 0 {
 		t.Fatalf("primary seal form is unterminated; body = %q", body[start:])
 	}
 	sealForm := body[start : start+end]
-	if want := `name="to" value="` + transitions[0] + `"`; !strings.Contains(sealForm, want) {
-		t.Errorf("primary seal form is missing the contract's first target %q; form = %q", want, sealForm)
+	if want := `name="to" value="` + schema.SealStatus + `"`; !strings.Contains(sealForm, want) {
+		t.Errorf("primary seal form is missing the schema seal target %q; form = %q", want, sealForm)
 	}
 	form := url.Values{
 		"path": {hiddenValue(t, sealForm, "path")},
@@ -649,7 +653,7 @@ func TestShowTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read flipped lesson: %v", err)
 	}
-	want := strings.Replace(lessonMD, "status: draft", "status: "+transitions[0], 1)
+	want := strings.Replace(lessonMD, "status: draft", "status: "+schema.SealStatus, 1)
 	if string(got) != want {
 		t.Errorf("lesson after POST differs outside the one status line:\ngot:  %q\nwant: %q", got, want)
 	}
