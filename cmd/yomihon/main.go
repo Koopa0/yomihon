@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/report"
@@ -30,6 +29,7 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 func main() {
@@ -249,7 +249,7 @@ func run(log *slog.Logger) error {
 		contract = nil
 	} else {
 		log.Info("vault contract loaded",
-			"version", contract.Version, "lifecycle_stages", len(contract.Lifecycle))
+			"version", contract.Version, "lifecycle_statuses", len(contract.Lifecycle))
 	}
 
 	statusSvc := status.NewService(cfg.root, contract)
@@ -292,13 +292,22 @@ func run(log *slog.Logger) error {
 	store := snapshot.New(cfg.root, log)
 	go store.Run(ctx)
 
-	// The renderer resolves wikilinks against the store's live graph on every
-	// call (store.Resolver reads the current Snapshot), so it is built once yet
-	// always current. The reading and search handlers read the current
-	// Snapshot's Nav / Search per request through provider closures.
-	renderer := render.New(cfg.root, store.Resolver())
-	navProvider := func() *nav.Model { return store.Current().Nav }
-	searchProvider := func() *search.Index { return store.Current().Search }
+	// The long-lived renderer starts with the initial graph, then each rendering
+	// request explicitly rebinds it to that request's captured graph. It holds no
+	// store-backed resolver that could perform a hidden second atomic read.
+	// Every shell provider below likewise reads the store once and returns all
+	// values a handler needs from that one snapshot generation.
+	renderer := render.New(cfg.root, store.Current().Graph)
+	shellForSnapshot := func(snap *snapshot.Snapshot) pages.ShellData {
+		return note.ShellData(statusSvc, snap)
+	}
+	shellProvider := func() pages.ShellData {
+		return shellForSnapshot(store.Current())
+	}
+	searchProvider := func() search.RequestSnapshot {
+		snap := store.Current()
+		return search.RequestSnapshot{Index: snap.Search, Shell: shellForSnapshot(snap)}
+	}
 
 	mux := http.NewServeMux()
 	note.NewHandler(note.Deps{
@@ -312,9 +321,9 @@ func run(log *slog.Logger) error {
 		Concepts:   concepts,
 	}).Register(mux)
 	status.NewHandler(statusSvc, log).Register(mux)
-	search.NewHandler(searchProvider, navProvider, log).Register(mux)
-	syllabus.NewHandler(syllabus.Deps{Nav: navProvider, Log: log}).Register(mux)
-	report.NewHandler(report.Deps{Root: cfg.root, Nav: navProvider, Log: log}).Register(mux)
+	search.NewHandler(searchProvider, log).Register(mux)
+	syllabus.NewHandler(syllabus.Deps{Shell: shellProvider, Log: log}).Register(mux)
+	report.NewHandler(report.Deps{Root: cfg.root, Shell: shellProvider, Log: log}).Register(mux)
 	asset.Register(mux)
 
 	// Browser-only hardening: a same-origin form POST

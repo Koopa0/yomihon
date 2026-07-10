@@ -1,0 +1,44 @@
+package layouts
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+func TestHeaderPendingChip(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		chrome      Chrome
+		wantChip    bool
+		wantLabel   string
+		wantVisible string
+	}{
+		{name: "known count", chrome: Chrome{Pending: 7, PendingKnown: true}, wantChip: true, wantLabel: `aria-label="7 to decide"`, wantVisible: ">7</a>"},
+		{name: "closed policy", chrome: Chrome{}, wantChip: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := header(tt.chrome).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render header: %v", err)
+			}
+			html := buf.String()
+			hasChip := strings.Contains(html, "data-pending-chip")
+			if hasChip != tt.wantChip {
+				t.Errorf("header pending chip present = %t, want %t; html = %q", hasChip, tt.wantChip, html)
+			}
+			if tt.wantLabel != "" && !strings.Contains(html, tt.wantLabel) {
+				t.Errorf("header missing %q; html = %q", tt.wantLabel, html)
+			}
+			if tt.wantVisible != "" && !strings.Contains(html, tt.wantVisible) {
+				t.Errorf("header missing visible count %q; html = %q", tt.wantVisible, html)
+			}
+			if hasChip && !strings.Contains(html, `href="/"`) {
+				t.Errorf("header pending chip does not link Home; html = %q", html)
+			}
+		})
+	}
+}

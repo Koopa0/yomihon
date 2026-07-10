@@ -5,71 +5,66 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestBuildSyllabusView pins the pure transform's contract: a section's
-// lesson count equals the number of resolved lesson
-// list-items beneath it, document order is preserved at every level, and an
-// unresolved lesson is STILL present, carrying its mark instead of a link
-// — never dropped. The fixture is two parts, one with a module and a
-// broken lesson, one with a lesson attached directly (no module), so the
+// TestBuildPathView pins the pure transform's contract: a branch's entry count
+// equals the resolved entries beneath it and document order is preserved at
+// every level. The fixture is two parts, one with a module and one with an
+// entry attached directly (no module), so the
 // tallies and the modules count are hand-derivable and non-tautological.
-func TestBuildSyllabusView(t *testing.T) {
+func TestBuildPathView(t *testing.T) {
 	t.Parallel()
 
-	syl := nav.Syllabus{
+	path := nav.Map{
 		Title:   "Go path",
 		RelPath: "Maps/Go path.md",
-		Sections: []nav.Section{
+		Branches: []nav.Branch{
 			{
 				Heading: "Data", Level: 2,
-				Sub: []nav.Section{
+				Sub: []nav.Branch{
 					{
 						Heading: "Text", Level: 3,
-						Lessons: []nav.Lesson{
-							{Text: "Slices", RelPath: "Writing/Slices.md", Status: schema.SealStatus, Resolution: graph.Unique},
-							{Text: "Arrays", RelPath: "Writing/Arrays.md", Status: "draft", Resolution: graph.Unique},
-							{Text: "Ghost", Target: "Ghost", Resolution: graph.Unresolved},
+						Entries: []nav.Entry{
+							{Text: "Slices", RelPath: "Writing/Slices.md", Status: schema.SealStatus},
+							{Text: "Arrays", RelPath: "Writing/Arrays.md", Status: "draft"},
 						},
 					},
 				},
 			},
 			{
 				Heading: "Memory", Level: 2,
-				Lessons: []nav.Lesson{
-					{Text: "GC", RelPath: "Writing/GC.md", Status: schema.SealStatus, Resolution: graph.Unique},
+				Entries: []nav.Entry{
+					{Text: "GC", RelPath: "Writing/GC.md", Status: schema.SealStatus},
 				},
 			},
 		},
 	}
 
-	got := BuildSyllabusView(syl, []nav.Syllabus{syl})
+	got := BuildPathView(&path, []nav.Map{path})
 
-	want := SyllabusView{
+	want := PathView{
 		Title:      "Go path",
 		RelPath:    "Maps/Go path.md",
 		SealTarget: schema.SealStatus,
-		Paths: []SyllabusLink{
-			{Title: "Go path", RelPath: "Maps/Go path.md", Lessons: 4, Active: true},
+		Paths: []PathLink{
+			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 3, Active: true},
 		},
 		Parts:   2,
-		Modules: 1, // only "Data" has a sub-section; "Memory" holds a lesson directly
-		Lessons: 4,
-		Ready:   2, // Slices + GC; Arrays is draft, Ghost is unresolved
-		Sections: []SectionView{
+		Modules: 1, // only "Data" has a sub-branch; "Memory" holds an entry directly
+		Entries: 3,
+		Ready:   2, // Slices + GC; Arrays is draft
+		Branches: []PathBranchView{
 			{
 				Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Data", Depth: 0,
-				Ready: 1, Total: 3,
-				Sub: []SectionView{
+				Ready: 1, Total: 2,
+				Sub: []PathBranchView{
 					{
-						Num: 1, Heading: "Text", Depth: 1, Ready: 1, Total: 3,
-						Lessons: []LessonView{
+						Num: 1, Heading: "Text", Depth: 1, Ready: 1, Total: 2,
+						Entries: []PathEntryView{
 							{Text: "Slices", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true},
 							{Text: "Arrays", Href: "/notes/Writing/Arrays.md", Status: "draft"},
-							{Text: "Ghost", Mark: "unresolved"},
 						},
 					},
 				},
@@ -77,7 +72,7 @@ func TestBuildSyllabusView(t *testing.T) {
 			{
 				Anchor: "part-2", Ordinal: "II", Num: 2, Heading: "Memory", Depth: 0,
 				Ready: 1, Total: 1,
-				Lessons: []LessonView{
+				Entries: []PathEntryView{
 					{Text: "GC", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true},
 				},
 			},
@@ -85,30 +80,7 @@ func TestBuildSyllabusView(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("BuildSyllabusView() mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestBuildSyllabusViewAmbiguous pins the other never-drop branch: an ambiguous
-// lesson is listed too, marked "ambiguous" and unlinked (a link would silently
-// pick one of the collision's targets).
-func TestBuildSyllabusViewAmbiguous(t *testing.T) {
-	t.Parallel()
-
-	syl := nav.Syllabus{
-		Title: "P", RelPath: "Maps/P.md",
-		Sections: []nav.Section{{
-			Heading: "Only", Level: 2,
-			Lessons: []nav.Lesson{
-				{Text: "Dup", Target: "Dup", Resolution: graph.Ambiguous, Candidates: []string{"a/Dup.md", "b/Dup.md"}},
-			},
-		}},
-	}
-
-	got := BuildSyllabusView(syl, nil)
-	want := []LessonView{{Text: "Dup", Mark: "ambiguous"}}
-	if diff := cmp.Diff(want, got.Sections[0].Lessons); diff != "" {
-		t.Errorf("ambiguous lesson mismatch (-want +got):\n%s", diff)
+		t.Errorf("BuildPathView() mismatch (-want +got):\n%s", diff)
 	}
 }
 

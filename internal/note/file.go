@@ -212,13 +212,13 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string) {
 
 	name := path.Base(rel)
 	snap := h.deps.Snapshot()
-	pending, pendingKnown := h.pending(snap)
+	shell := ShellData(h.deps.Status, snap)
 	view := pages.FileView{
 		Title:       name,
 		RelPath:     rel,
 		Size:        info.Size(),
 		ContentType: fileContentType(rel, f),
-		Sidebar:     pages.NewSidebar(snap.Nav, rel, nil, pending, pendingKnown),
+		Sidebar:     pages.NewSidebar(snap.Nav, rel),
 	}
 
 	ext := strings.ToLower(path.Ext(rel))
@@ -246,7 +246,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string) {
 		view.SourceHTML = render.SourceHTML(name, string(data))
 	}
 
-	if err := pages.File(view, pages.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
+	if err := pages.File(view, shell.Chrome(r, name)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("render file page", "path", rel, "error", err)
 	}
 }

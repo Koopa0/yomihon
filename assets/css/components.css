@@ -122,6 +122,14 @@ html, body { margin: 0; background: var(--bg); }
 .y-brand__dot { width: 5px; height: 5px; border-radius: 1px; background: var(--accent); align-self: center; }
 .y-brand__tag { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); letter-spacing: 0.11em; }
 
+.y-pendingchip {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px;
+  padding: 0 7px; border: 1px solid var(--border-faint); border-radius: var(--r-sm);
+  background: var(--elevated); color: var(--fg-faint); font-family: var(--font-mono);
+  font-size: var(--fs-11); line-height: 1; flex: none;
+}
+.y-pendingchip:hover { color: var(--accent); border-color: var(--border); }
+
 .y-searchbtn {
   display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px 0 11px;
   background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
@@ -181,6 +189,7 @@ html, body { margin: 0; background: var(--bg); }
   font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em;
   color: var(--fg-faint); text-transform: uppercase;
 }
+.y-railsummary--label { margin: 0; font-weight: inherit; }
 .y-railgroup { padding: 0 0 10px; }
 .y-railsep { height: 1px; background: var(--border-faint); margin: 2px 8px; }
 .y-chevron { transition: transform var(--dur-base) var(--ease-standard); opacity: .7; flex: none; }
@@ -225,13 +234,7 @@ html, body { margin: 0; background: var(--bg); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* the pending-decision figure on the collapsed Lifecycle summary */
-.y-pending {
-  margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0;
-  color: var(--accent); background: var(--accent-muted); border-radius: var(--r-sm); padding: 1px 7px;
-}
-
-/* syllabus tree — nested course / section disclosures */
+/* map tree — nested heading disclosures */
 .y-tree { padding-left: 12px; border-left: 1px solid var(--border); margin-left: 8px; }
 .y-navmark { font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); }
 .y-navmark--warn { color: var(--warn); }
@@ -638,9 +641,9 @@ html, body { margin: 0; background: var(--bg); }
 @media (prefers-reduced-motion: reduce) { .yomihon *:not(.y-sealfill):not(.y-readline), .yomihon *::before, .yomihon *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ============================================================
-   Syllabus page (study-path) — a full-page render of nav.Syllabus.
+   Syllabus page (study-path) — a full-page render of nav.Map.
    Two-column shell (no right rail). Reuses ui-status / ui-navitem /
-   y-metarow / y-seam / y-navdot; broken lessons reuse y-navmark--warn.
+   y-metarow / y-seam / y-navdot; warning markers reuse y-navmark--warn.
    The progress bar width is a data-fill bucket — no inline style, no JS,
    the same data-* -> CSS contract the reading page's TOC uses.
    ============================================================ */

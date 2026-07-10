@@ -2,28 +2,26 @@ package nav
 
 import (
 	"slices"
-
-	"github.com/koopa0/yomihon/internal/graph"
 )
 
-// Placement records one appearance of a note as a syllabus lesson: the
-// study-path that lists it, and the chain of section headings from that
-// study-path's root down to the section the lesson sits under. A note listed by
-// several sections yields several placements, so the sidebar can open every
-// containing path and mark each occurrence instead of choosing one.
+// Placement records one appearance of a note as a map entry: the map that lists
+// it and the chain of branch headings from that map's root down to the branch
+// the entry sits under. A note listed by
+// several branches yields several placements, so the sidebar can open every
+// containing map and mark each occurrence instead of choosing one.
 type Placement struct {
-	// SyllabusRelPath identifies the containing study-path by its own note path.
-	SyllabusRelPath string
-	// Headings is the section-heading chain from the study-path root down to the
-	// lesson's own section, outermost first.
+	// MapRelPath identifies the containing map by its own note path.
+	MapRelPath string
+	// Headings is the branch-heading chain from the map root down to the
+	// entry's own branch, outermost first.
 	Headings []string
 }
 
-// Placements returns every syllabus placement that lists the note at relPath, or
-// nil when no study-path references it. relPath is a vault-relative NFC path, the
+// Placements returns every map placement that lists the note at relPath, or nil
+// when no map references it. relPath is a vault-relative NFC path, the
 // same form the rest of the model uses, so no re-normalization is needed.
 func (m *Model) Placements(relPath string) []Placement {
-	return m.lessonIndex[relPath]
+	return m.placementIndex[relPath]
 }
 
 // Siblings returns the files sharing a directory with the note at relPath — the
@@ -49,34 +47,30 @@ func buildDirNotes(paths []string) map[string][]NoteRef {
 	return byDir
 }
 
-// buildLessonIndex inverts the syllabus trees into a note-path -> placements map,
-// so a note page can find the study-path sections that reference it in one lookup
-// instead of re-walking every study-path. Only a uniquely-resolved lesson has a
-// path; an ambiguous or unresolved lesson has none and is skipped here (it still
-// shows in the tree, carrying its diagnostic mark).
-func buildLessonIndex(syllabi []Syllabus) map[string][]Placement {
+// buildPlacementIndex inverts the map trees into a note-path -> placements map,
+// so a note page can find every containing branch in one lookup instead of
+// re-walking every map. Map entries are uniquely resolved by construction.
+func buildPlacementIndex(maps []Map) map[string][]Placement {
 	index := make(map[string][]Placement)
-	for i := range syllabi {
-		relPath := syllabi[i].RelPath
-		var walk func(sections []Section, chain []string)
-		walk = func(sections []Section, chain []string) {
-			for _, sec := range sections {
-				// Concat always returns a fresh slice, so sibling sections never
+	for i := range maps {
+		relPath := maps[i].RelPath
+		var walk func(branches []Branch, chain []string)
+		walk = func(branches []Branch, chain []string) {
+			for _, branch := range branches {
+				// Concat always returns a fresh slice, so sibling branches never
 				// overwrite each other's heading chain and the stored value is
 				// never mutated afterward.
-				here := slices.Concat(chain, []string{sec.Heading})
-				for _, l := range sec.Lessons {
-					if l.Resolution == graph.Unique && l.RelPath != "" {
-						index[l.RelPath] = append(index[l.RelPath], Placement{
-							SyllabusRelPath: relPath,
-							Headings:        here,
-						})
-					}
+				here := slices.Concat(chain, []string{branch.Heading})
+				for _, entry := range branch.Entries {
+					index[entry.RelPath] = append(index[entry.RelPath], Placement{
+						MapRelPath: relPath,
+						Headings:   here,
+					})
 				}
-				walk(sec.Sub, here)
+				walk(branch.Sub, here)
 			}
 		}
-		walk(syllabi[i].Sections, nil)
+		walk(maps[i].Branches, nil)
 	}
 	return index
 }

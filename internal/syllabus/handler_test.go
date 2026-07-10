@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/syllabus"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // newServer builds a real nav.Model from a temp vault (real-first: no fakes)
@@ -29,8 +30,8 @@ func newServer(t *testing.T, root string) *httptest.Server {
 	}
 	mux := http.NewServeMux()
 	syllabus.NewHandler(syllabus.Deps{
-		Nav: func() *nav.Model { return model },
-		Log: slog.New(slog.DiscardHandler),
+		Shell: func() pages.ShellData { return pages.ShellData{Nav: model} },
+		Log:   slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -55,9 +56,8 @@ func get(t *testing.T, url string) (code int, body string) {
 	return resp.StatusCode, string(b)
 }
 
-// writeVault lays down one study-path with a resolvable lesson (ready) and a
-// broken lesson (no such note), so the assertions below are hand-derived: the
-// resolved lesson must be a link, the broken one must still be listed + marked.
+// writeVault lays down one study-path with a resolved lesson and an unwritten
+// row, so the route proves navigation includes only the note that exists.
 func writeVault(t *testing.T, root string) {
 	t.Helper()
 
@@ -99,16 +99,38 @@ func TestShow(t *testing.T) {
 		"Data",             // the pipe-format H2's English label (a part)
 		"Text",             // the module heading
 		`href="/notes/Writing/lessons/golang/Slices.md"`, // the resolved lesson is a link
-		"Ghost Lesson", // the broken lesson is STILL listed
-		"unresolved",   // ...and marked, never silently dropped
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("study-path page missing %q; body = %q", want, body)
 		}
 	}
-	// The broken lesson must NOT be a link to a note that does not exist.
-	if strings.Contains(body, `href="/notes/Ghost Lesson`) {
-		t.Errorf("broken lesson rendered as a link; body = %q", body)
+	if strings.Contains(body, "Ghost Lesson") {
+		t.Errorf("study-path page contains the unwritten map row; body = %q", body)
+	}
+}
+
+func TestShowReadsOneShellSnapshot(t *testing.T) {
+	t.Parallel()
+	model := &nav.Model{Paths: []nav.Map{{Title: "P", RelPath: "Maps/P.md"}}}
+	calls := 0
+	mux := http.NewServeMux()
+	syllabus.NewHandler(syllabus.Deps{
+		Shell: func() pages.ShellData {
+			calls++
+			return pages.ShellData{Nav: model, Pending: 3, PendingKnown: true}
+		},
+		Log: slog.New(slog.DiscardHandler),
+	}).Register(mux)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/P.md", http.NoBody))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	if calls != 1 {
+		t.Errorf("shell snapshot reads = %d, want 1", calls)
+	}
+	if !strings.Contains(rr.Body.String(), `aria-label="3 to decide"`) {
+		t.Errorf("response missing pending chip; body = %q", rr.Body.String())
 	}
 }
 
@@ -131,15 +153,15 @@ func TestShowNotFound(t *testing.T) {
 	}
 }
 
-// TestNewHandlerPanicsOnNilNav mirrors internal/note's nil-dependency coverage:
-// a provider returning an empty *nav.Model is valid, but a nil provider is a
+// TestNewHandlerPanicsOnNilShell mirrors internal/note's nil-dependency coverage:
+// a provider returning an empty shell is valid, but a nil provider is a
 // wiring bug that must fail at construction, not on the first request.
-func TestNewHandlerPanicsOnNilNav(t *testing.T) {
+func TestNewHandlerPanicsOnNilShell(t *testing.T) {
 	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatal("NewHandler(nil Nav) did not panic")
+			t.Fatal("NewHandler(nil Shell) did not panic")
 		}
 	}()
-	syllabus.NewHandler(syllabus.Deps{Nav: nil, Log: slog.New(slog.DiscardHandler)})
+	syllabus.NewHandler(syllabus.Deps{Shell: nil, Log: slog.New(slog.DiscardHandler)})
 }

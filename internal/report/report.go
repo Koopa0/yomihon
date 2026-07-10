@@ -24,18 +24,17 @@ import (
 	"log/slog"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
-// Deps is everything the reports feature reads from: the current navigation
-// model (read fresh per request, since the report allowlist lives behind the
-// scanner's atomic snapshot and is rebuilt when the vault changes), the vault
-// root the /raw endpoint reads briefing files from, and a
-// logger. Nav is a plain closure because "give me the current model" is a
-// closure, not a method set — mirroring the reading and syllabus features.
+// Deps is everything the reports feature reads from: the shared shell
+// projection captured once per request, the vault root the /raw endpoint reads
+// briefing files from, and a logger. A concrete shell value carries the report
+// allowlist and chrome state without introducing a cross-package interface.
 type Deps struct {
-	Root string
-	Nav  func() *nav.Model
-	Log  *slog.Logger
+	Root  string
+	Shell func() pages.ShellData
+	Log   *slog.Logger
 }
 
 // Handler serves the reports face for a vault rooted at Deps.Root.
@@ -50,8 +49,8 @@ func NewHandler(d Deps) *Handler {
 	if d.Root == "" {
 		panic("report: NewHandler requires a non-empty Root")
 	}
-	if d.Nav == nil {
-		panic("report: NewHandler requires a non-nil Nav provider")
+	if d.Shell == nil {
+		panic("report: NewHandler requires a non-nil Shell provider")
 	}
 	if d.Log == nil {
 		panic("report: NewHandler requires a non-nil Log")

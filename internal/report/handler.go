@@ -22,15 +22,15 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // an enumerated briefing) is a silent 404 — the same fail-quiet stance the
 // reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	model := h.deps.Nav()
-	rep, ok := resolveReport(model, r.PathValue("name"))
+	shell := h.deps.Shell()
+	rep, ok := resolveReport(shell.Nav, r.PathValue("name"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
-	view := pages.ReportView{Name: rep.Name, Nav: model}
-	if err := pages.Report(view, pages.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
+	view := pages.ReportView{Name: rep.Name, Nav: shell.Nav}
+	if err := pages.Report(view, shell.Chrome(r, rep.Name)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write report page", "name", rep.Name, "error", err)
 	}
 }
@@ -44,7 +44,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // 404, not a 500: the report list is a snapshot, so a gone file is a not-found,
 // fail-open — degrade, never break.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	rep, ok := resolveReport(h.deps.Nav(), r.PathValue("name"))
+	shell := h.deps.Shell()
+	rep, ok := resolveReport(shell.Nav, r.PathValue("name"))
 	if !ok {
 		http.NotFound(w, r)
 		return

@@ -8,10 +8,10 @@ import (
 
 // Syllabus is the study-path page: the whole tree of one study-path rendered on
 // a single fully-expanded page (no per-part page, no disclosure), with a left
-// rail that switches paths and jumps to parts. It is the full-page sibling of
-// note.templ's sidebar `syllabus` component — same nav.Syllabus data, editorial
-// scale. All styling is shipped y-* / ui-* classes; no inline style.
-templ Syllabus(v SyllabusView, c layouts.Chrome) {
+// rail that switches paths and jumps to parts. It is the editorial full-page
+// projection of the same nav.Map data the shared sidebar uses. All styling is
+// shipped y-* / ui-* classes; no inline style.
+templ Syllabus(v PathView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
@@ -19,7 +19,7 @@ templ Syllabus(v SyllabusView, c layouts.Chrome) {
 			<main class="y-main">
 				<div class="y-syl">
 					@syllabusHead(v)
-					for _, sec := range v.Sections {
+					for _, sec := range v.Branches {
 						@partBlock(sec)
 					}
 				</div>
@@ -29,10 +29,10 @@ templ Syllabus(v SyllabusView, c layouts.Chrome) {
 }
 
 // syllabusHead is the path kicker, title, and the derived metarow (parts /
-// modules / lessons / ready). No path dek (subtitle) is rendered: there is no
+// modules / entries / ready). No path dek (subtitle) is rendered: there is no
 // backing field for it, and no data means no render — the same treatment the
 // reading page gives a note's subtitle.
-templ syllabusHead(v SyllabusView) {
+templ syllabusHead(v PathView) {
 	<div class="y-syl-kicker">SYLLABUS · 学習パス</div>
 	<h1 class="y-title">{ v.Title }</h1>
 	<div class="y-metarow">
@@ -42,7 +42,7 @@ templ syllabusHead(v SyllabusView) {
 			<span>{ countLabel(v.Modules, "module") }</span>
 		}
 		<span aria-hidden="true">·</span>
-		<span>{ countLabel(v.Lessons, "lesson") }</span>
+		<span>{ countLabel(v.Entries, "lesson") }</span>
 		<span class="y-syl-metaspacer"></span>
 		if v.Ready > 0 {
 			<span class="y-syl-ready">
@@ -56,19 +56,19 @@ templ syllabusHead(v SyllabusView) {
 
 // ============================ MAIN — the path ============================
 
-// partBlock renders one top-level section (a part): an anchored editorial
-// heading, then its lessons and modules fully expanded inline. There is no
+// partBlock renders one top-level branch (a part): an anchored editorial
+// heading, then its entries and modules fully expanded inline. There is no
 // per-part page (yomihon has no reading-progress model), so every part —
 // completed or not — expands the same.
-templ partBlock(sec SectionView) {
+templ partBlock(sec PathBranchView) {
 	<section class="y-part-block">
 		<div class="y-part" id={ sec.Anchor }>
 			<span class="y-part__num">{ sec.Ordinal }</span>
 			<span class="y-part__name">{ sec.Heading }</span>
-			@sectionCount(sec.Ready, sec.Total, "y-partcount")
+			@branchCount(sec.Ready, sec.Total, "y-partcount")
 		</div>
-		for _, l := range sec.Lessons {
-			@lessonRow(l)
+		for _, l := range sec.Entries {
+			@entryRow(l)
 		}
 		for _, sub := range sec.Sub {
 			@moduleBlock(sub)
@@ -76,19 +76,19 @@ templ partBlock(sec SectionView) {
 	</section>
 }
 
-// moduleBlock renders a nested section (a module). It recurses for any deeper
-// nesting the vault happens to have — the two real syllabi are three levels
-// deep (part → module → lesson), and a deeper one keeps the module style rather
+// moduleBlock renders a nested branch (a module). It recurses for any deeper
+// nesting the vault happens to have — the two real study paths are three levels
+// deep (part → module → entry), and a deeper one keeps the module style rather
 // than being flattened (nav's tree is rendered as-is, never forced to a shape).
-templ moduleBlock(sec SectionView) {
+templ moduleBlock(sec PathBranchView) {
 	<div class="y-module">
 		<div class="y-module__label">
 			<span class="y-module__tag">MODULE { strconv.Itoa(sec.Num) }</span>
 			<span class="y-module__name">{ sec.Heading }</span>
 			<span class="y-module__rule" aria-hidden="true"></span>
 		</div>
-		for _, l := range sec.Lessons {
-			@lessonRow(l)
+		for _, l := range sec.Entries {
+			@entryRow(l)
 		}
 		for _, sub := range sec.Sub {
 			@moduleBlock(sub)
@@ -96,26 +96,16 @@ templ moduleBlock(sec SectionView) {
 	</div>
 }
 
-// lessonRow renders one lesson. A uniquely-resolved lesson is a link carrying
-// its note status; an ambiguous or unresolved lesson is STILL listed (the
-// reading face is fail-open) as a non-link row with the same warn mark the
-// sidebar uses.
-templ lessonRow(l LessonView) {
-	if l.Href != "" {
-		<a class="y-lesson" href={ templ.URL(l.Href) }>
-			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
-			<span class="y-lesson__title">{ l.Text }</span>
-			if l.Status != "" {
-				<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
-			}
-		</a>
-	} else {
-		<div class="y-lesson y-lesson--broken">
-			<span class="y-navdot" aria-hidden="true"></span>
-			<span class="y-lesson__title">{ l.Text }</span>
-			<span class="y-navmark y-navmark--warn">{ l.Mark }</span>
-		</div>
-	}
+// entryRow renders one resolved study-path entry as a lesson link carrying its
+// note status.
+templ entryRow(l PathEntryView) {
+	<a class="y-lesson" href={ templ.URL(l.Href) }>
+		<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
+		<span class="y-lesson__title">{ l.Text }</span>
+		if l.Status != "" {
+			<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
+		}
+	</a>
 }
 
 // ============================ LEFT RAIL ============================
@@ -123,19 +113,19 @@ templ lessonRow(l LessonView) {
 // syllabusRail is the left rail: the path switcher (every study-path, the
 // current one active) over the "On this path" part jump-nav and the path-level
 // progress bar.
-templ syllabusRail(v SyllabusView) {
+templ syllabusRail(v PathView) {
 	<aside class="y-rail-left" id="nav-rail">
 		<div class="ui-side__label y-syl-raillabel">Study paths</div>
 		for _, p := range v.Paths {
 			@pathSwitch(p)
 		}
-		if len(v.Sections) > 0 {
+		if len(v.Branches) > 0 {
 			<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">On this path</div>
-			for _, sec := range v.Sections {
+			for _, sec := range v.Branches {
 				<a class="ui-navitem y-pathitem" href={ templ.URL("#" + sec.Anchor) }>
 					<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
 					<span class="y-pathitem__name">{ sec.Heading }</span>
-					@sectionCount(sec.Ready, sec.Total, "y-pathcount")
+					@branchCount(sec.Ready, sec.Total, "y-pathcount")
 				</a>
 			}
 			@pathProgress(v)
@@ -145,36 +135,36 @@ templ syllabusRail(v SyllabusView) {
 
 // pathSwitch is one row of the path switcher: a link to another study-path, or
 // the active (non-link) marker for the one shown.
-templ pathSwitch(p SyllabusLink) {
+templ pathSwitch(p PathLink) {
 	if p.Active {
 		<span class="ui-navitem is-active" aria-current="page">
 			@pathIcon()
 			<span class="y-pathitem__name">{ p.Title }</span>
-			<span class="ui-navitem__count">{ strconv.Itoa(p.Lessons) }</span>
+			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
 		</span>
 	} else {
 		<a class="ui-navitem" href={ templ.URL(syllabusHref(p.RelPath)) }>
 			@pathIcon()
 			<span class="y-pathitem__name">{ p.Title }</span>
-			<span class="ui-navitem__count">{ strconv.Itoa(p.Lessons) }</span>
+			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
 		</a>
 	}
 }
 
 // pathProgress is the whole-path ready/total figure and its bar. The bar width
 // is a data-fill bucket (nearest 5%) resolved by CSS — no inline style, no JS.
-templ pathProgress(v SyllabusView) {
+templ pathProgress(v PathView) {
 	<div class="y-progress">
-		<div class="y-progress__label">{ strconv.Itoa(v.Ready) } / { strconv.Itoa(v.Lessons) } ready</div>
+		<div class="y-progress__label">{ strconv.Itoa(v.Ready) } / { strconv.Itoa(v.Entries) } ready</div>
 		<div class="y-progress__track">
-			<div class="y-progress__fill" data-fill={ strconv.Itoa(fillBucket(v.Ready, v.Lessons)) }></div>
+			<div class="y-progress__fill" data-fill={ strconv.Itoa(fillBucket(v.Ready, v.Entries)) }></div>
 		</div>
 	</div>
 }
 
-// sectionCount is a ready/total badge, sage when a section is fully sealed. cls
+// branchCount is a ready/total badge, sage when a branch is fully sealed. cls
 // picks the badge shape (a part badge vs the leaner rail count).
-templ sectionCount(ready, total int, cls string) {
+templ branchCount(ready, total int, cls string) {
 	if total > 0 && ready == total {
 		<span class={ cls, "is-complete" }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) } ready</span>
 	} else {

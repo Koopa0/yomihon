@@ -1,13 +1,12 @@
 # A small vault for the smoke test and the browser behavior probes. The
 # reading faces load this contract but do not validate notes against it, so
-# most notes here exercise the faces (including a study-path syllabus, a type
-# kept out of the enum on purpose) without conforming to the required fields.
+# most notes here exercise the faces without conforming to every required field.
 # The lifecycle entries carry one real edge — draft to ready, owned by the
 # human actor — so the lesson note renders a live seal form for the
 # seal-select-guard probe without ever committing a transition.
 schema_version = "1"
 [enums]
-type = ["concept", "lesson", "system"]
+type = ["concept", "lesson", "moc", "source-map", "study-path", "system", "topic-map"]
 domain = ["golang", "japanese"]
 source_kind = ["course"]
 source_provider = ["example-provider"]

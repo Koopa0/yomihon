@@ -10,8 +10,23 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
+
+// ShellData is the snapshot-derived state shared by the topbar and sidebar.
+// A handler receives it as one value so navigation and the pending count cannot
+// come from different atomic snapshot reads.
+type ShellData struct {
+	Nav          *nav.Model
+	Pending      int
+	PendingKnown bool
+}
+
+// Chrome builds the request-cookie state around this snapshot-derived shell.
+func (s ShellData) Chrome(r *http.Request, title string) layouts.Chrome {
+	return ChromeFromRequest(r, title, s.Pending, s.PendingKnown)
+}
 
 // notesHref builds the reading-page URL for a vault-relative path,
 // percent-escaping each segment individually (so a literal "/" in an
@@ -58,8 +73,8 @@ func syllabusHref(p string) string {
 	return "/syllabus/" + strings.Join(segments, "/")
 }
 
-// statusHref builds the pure-filter browse URL for a status: the Lifecycle rail
-// links each status to the search results filtered to it. url.Values escapes
+// statusHref builds the pure-filter browse URL for a status: Home's Lifecycle
+// block links each status to the search results filtered to it. url.Values escapes
 // the colon, yielding e.g. /search?q=status%3Adraft.
 func statusHref(status string) string {
 	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
@@ -82,7 +97,7 @@ func reportRawHref(name string) string {
 	return "/reports/" + url.PathEscape(name) + "/raw"
 }
 
-// LifecycleItem is one row of the status-first Lifecycle rail: a schema status
+// LifecycleItem is one row of Home's Lifecycle block: a schema status
 // (the vocabulary comes from the toml contract), its live snapshot
 // count, whether it is the current note's status, and whether it is the
 // schema-owned seal target.
@@ -98,7 +113,7 @@ type LifecycleItem struct {
 // root element renders the correct state on the first byte (no FOUC). Only the
 // two known cookie values are honored; anything else falls to the default —
 // input hygiene, since a cookie is user-controllable.
-func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
+func ChromeFromRequest(r *http.Request, title string, pending int, pendingKnown bool) layouts.Chrome {
 	theme := "light"
 	if c, err := r.Cookie("yomihon_theme"); err == nil && c.Value == "dark" {
 		theme = "dark"
@@ -107,5 +122,5 @@ func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
 	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
 		ruby = "off"
 	}
-	return layouts.Chrome{Title: title, Theme: theme, Ruby: ruby}
+	return layouts.Chrome{Title: title, Theme: theme, Ruby: ruby, Pending: pending, PendingKnown: pendingKnown}
 }

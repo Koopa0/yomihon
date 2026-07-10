@@ -619,6 +619,54 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 	}
 }
 
+func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nHome body.\n"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "plain.txt"), []byte("plain source\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	log := slog.New(slog.DiscardHandler)
+	store := snapshot.New(root, log)
+
+	for _, tt := range []struct {
+		name, path string
+	}{
+		{name: "home", path: "/"},
+		{name: "note", path: "/notes/README.md"},
+		{name: "file", path: "/notes/plain.txt"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			mux := http.NewServeMux()
+			note.NewHandler(note.Deps{
+				Root:     root,
+				Renderer: render.New(root, store.Current().Graph),
+				Status:   status.NewService(root, nil),
+				Snapshot: func() *snapshot.Snapshot {
+					calls++
+					return store.Current()
+				},
+				Provenance: func(context.Context, string) (string, error) { return "", nil },
+				Log:        log,
+			}).Register(mux)
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
+			mux.ServeHTTP(rr, req)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want %d", tt.path, rr.Code, http.StatusOK)
+			}
+			if calls != 1 {
+				t.Errorf("GET %s snapshot reads = %d, want 1", tt.path, calls)
+			}
+		})
+	}
+}
+
 // TestHomeDashboardUsesSnapshotData pins the four blocks beyond their site
 // markers. Recently changed is the newest seven typed notes in mtime order;
 // Lifecycle links the contract-provided statuses; Study paths reports the same
@@ -717,6 +765,9 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 	if !strings.Contains(body, "Dashboard README sentinel.") {
 		t.Error("Home is missing the rendered vault README body")
+	}
+	if !strings.Contains(body, `aria-label="1 to decide"`) {
+		t.Error("Home topbar is missing the snapshot-derived pending chip")
 	}
 }
 

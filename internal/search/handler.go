@@ -4,35 +4,37 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
-// Handler serves the search face: GET /search?q=... . It reads the CURRENT
-// index each request through the provider closure (main wires it to the live
-// Snapshot's Search), so an edited note is reflected within one scan
-// cycle. All business logic stays in this package (Parse + Index.Search); the
-// handler only parses the query, calls, and renders. The nav provider feeds
-// the shared sidebar, so the results page carries the same shell as every
-// other page.
-type Handler struct {
-	index func() *Index
-	nav   func() *nav.Model
-	log   *slog.Logger
+// RequestSnapshot is the search index and shell state captured from one atomic
+// vault snapshot read at request entry.
+type RequestSnapshot struct {
+	Index *Index
+	Shell pages.ShellData
 }
 
-// NewHandler wires the search HTTP surface. index and nav must not be nil —
-// they are the live-Snapshot accessors, always real closures (a wiring bug
-// otherwise, caught here rather than three calls deep in the first request;
-// mirrors the other handlers' nil-dependency guards).
-func NewHandler(index func() *Index, navProvider func() *nav.Model, log *slog.Logger) *Handler {
-	if index == nil {
-		panic("search: NewHandler requires a non-nil index provider")
+// Handler serves the search face: GET /search?q=... . It reads one request
+// snapshot through the provider closure (main projects it from one Store read),
+// so an edited note is reflected within one scan cycle and the index, sidebar,
+// Journal, and pending chip cannot come from different generations. All
+// business logic stays in this package (Parse + Index.Search); the handler only
+// parses the query, calls, and renders.
+type Handler struct {
+	snapshot func() RequestSnapshot
+	log      *slog.Logger
+}
+
+// NewHandler wires the search HTTP surface. snapshot must return both values
+// from one store read so a request cannot combine two scanner generations.
+func NewHandler(snapshotProvider func() RequestSnapshot, log *slog.Logger) *Handler {
+	if snapshotProvider == nil {
+		panic("search: NewHandler requires a non-nil snapshot provider")
 	}
-	if navProvider == nil {
-		panic("search: NewHandler requires a non-nil nav provider")
+	if log == nil {
+		panic("search: NewHandler requires a non-nil logger")
 	}
-	return &Handler{index: index, nav: navProvider, log: log}
+	return &Handler{snapshot: snapshotProvider, log: log}
 }
 
 // Register mounts the search route.
@@ -44,11 +46,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // page. An empty or whitespace-only q parses to an empty Query, which
 // Index.Search answers with no results (before any scanning).
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
+	snap := h.snapshot()
 	q := r.URL.Query().Get("q")
-	results := h.index().Search(Parse(q))
+	results := snap.Index.Search(Parse(q))
 
-	view := pages.SearchView{Query: q, Results: viewResults(results), Nav: h.nav()}
-	if err := pages.Search(view, pages.ChromeFromRequest(r, "Search")).Render(r.Context(), w); err != nil {
+	view := pages.SearchView{Query: q, Results: viewResults(results), Nav: snap.Shell.Nav}
+	if err := pages.Search(view, snap.Shell.Chrome(r, "Search")).Render(r.Context(), w); err != nil {
 		h.log.Error("write search page", "query", q, "error", err)
 	}
 }

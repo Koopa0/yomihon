@@ -23,8 +23,8 @@ type ReportView struct {
 	Nav  *nav.Model
 }
 
-// Report is the report shell page: the shared header and navigation sidebar (a
-// nil Lifecycle — a report carries no status axis), a title, and one iframe that
+// Report is the report shell page: the shared header and content navigation
+// sidebar, a title, and one iframe that
 // fills the reading column. The iframe is sandboxed allow-scripts and never
 // allow-same-origin — even with scripts running, the content lands in an opaque
 // origin that cannot reach yomihon's pages or endpoints; its src is this report's
@@ -66,7 +66,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = sidebar(NewSidebar(v.Nav, "", nil, 0, false)).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = sidebar(NewSidebar(v.Nav, "")).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

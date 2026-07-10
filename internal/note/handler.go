@@ -37,9 +37,9 @@ const homeRecentLimit = 7
 
 // StatusPolicy is the read-only projection of the write face the reading page
 // needs: whether the face is closed (Closed), which transition keys to offer
-// (Transitions), the stable note-status axis the Lifecycle rail lists (Order),
-// and whether a note still has an owner-held onward move (Advanceable), for the
-// sidebar's pending-decision count. It is a genuine slice of *status.Service —
+// (Transitions), the stable note-status axis Home lists (Order), and whether a
+// note still has an owner-held onward move (Advanceable), for the topbar's
+// pending-decision count. It is a genuine slice of *status.Service —
 // never its write path: Flip, the single status write, stays out of the reading
 // page's reach. *status.Service satisfies this.
 type StatusPolicy interface {
@@ -130,16 +130,16 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := renderer.HTML(readme.Body)
-	pending, pendingKnown := h.pending(snap)
+	shell := ShellData(h.deps.Status, snap)
 	lifecycle := h.lifecycle(snap, "")
 	view := pages.HomeView{
 		Recent:     recentHomeNotes(snap.Nav.KnowledgeNotes),
 		Lifecycle:  lifecycle,
-		Paths:      homePaths(snap.Nav.Syllabi),
+		Paths:      homePaths(snap.Nav.Paths),
 		ReadmeHTML: result.HTML,
-		Sidebar:    pages.NewSidebar(snap.Nav, "", lifecycle, pending, pendingKnown),
+		Sidebar:    pages.NewSidebar(snap.Nav, ""),
 	}
-	if err := pages.Home(view, pages.ChromeFromRequest(r, "Home")).Render(r.Context(), w); err != nil {
+	if err := pages.Home(view, shell.Chrome(r, "Home")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
 	}
 }
@@ -203,7 +203,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		concepts = h.loadConcepts(renderer, refs)
 	}
 
-	pending, pendingKnown := h.pending(snap)
+	shell := ShellData(h.deps.Status, snap)
 	view := pages.NoteView{
 		Title:             n.Title(),
 		RelPath:           n.RelPath,
@@ -215,7 +215,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
-		Sidebar:           pages.NewSidebar(snap.Nav, n.RelPath, h.lifecycle(snap, n.Status()), pending, pendingKnown),
+		Sidebar:           pages.NewSidebar(snap.Nav, n.RelPath),
 		WriteClosed:       h.deps.Status.Closed(),
 		Concepts:          concepts,
 	}
@@ -241,7 +241,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := pages.Note(view, pages.ChromeFromRequest(r, n.Title())).Render(r.Context(), w); err != nil {
+	if err := pages.Note(view, shell.Chrome(r, n.Title())).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}
 }
@@ -290,7 +290,7 @@ func (h *Handler) loadConcepts(renderer *render.Renderer, refs []string) []lesso
 	return docs
 }
 
-// lifecycle assembles the status-first Lifecycle rail: the note group's statuses
+// lifecycle assembles Home's Lifecycle block: the note group's statuses
 // in the contract's toml order (Status.Order — never hardcoded), each with its
 // live snapshot count and whether it is the current note's status. Empty when
 // the write face is closed.
@@ -312,21 +312,29 @@ func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) []pages.Lif
 	return items
 }
 
+// ShellData projects the shared sidebar model and pending count from one request
+// snapshot. Callers capture the snapshot before calling it, so this function
+// cannot perform another atomic store read.
+func ShellData(status StatusPolicy, snap *snapshot.Snapshot) pages.ShellData {
+	count, known := pending(status, snap)
+	return pages.ShellData{Nav: snap.Nav, Pending: count, PendingKnown: known}
+}
+
 // pending counts the notes still awaiting a decision: those whose (type, status)
 // still has an owner-held onward move in the contract, excluding the seal itself
 // — the final human act on a note is not something still pending. It returns
-// known = false when the write face is closed, so the sidebar shows no figure
+// known = false when the write face is closed, so the topbar shows no figure
 // rather than a misleading zero. The predicate reuses the write face's own
 // contract reading; the seal is named in one place, never a second status list.
-func (h *Handler) pending(snap *snapshot.Snapshot) (count int, known bool) {
-	if h.deps.Status.Closed() {
+func pending(status StatusPolicy, snap *snapshot.Snapshot) (count int, known bool) {
+	if status.Closed() {
 		return 0, false
 	}
 	for ts, n := range snap.Search.CountByTypeStatus() {
 		if ts.Status == schema.SealStatus {
 			continue
 		}
-		if h.deps.Status.Advanceable(ts.Type, ts.Status) {
+		if status.Advanceable(ts.Type, ts.Status) {
 			count += n
 		}
 	}
@@ -366,17 +374,18 @@ func recentHomeNotes(notes []nav.NoteSummary) []pages.HomeNote {
 }
 
 // homePaths maps the snapshot's parsed study paths onto the small progress
-// figures Home displays. BuildSyllabusView owns the ready/total derivation used
+// figures Home displays. BuildPathView owns the ready/total derivation used
 // by the full study-path page, so the landing card cannot drift from it.
-func homePaths(syllabi []nav.Syllabus) []pages.HomePath {
-	out := make([]pages.HomePath, 0, len(syllabi))
-	for _, s := range syllabi {
-		view := pages.BuildSyllabusView(s, nil)
+func homePaths(paths []nav.Map) []pages.HomePath {
+	out := make([]pages.HomePath, 0, len(paths))
+	for i := range paths {
+		path := &paths[i]
+		view := pages.BuildPathView(path, nil)
 		out = append(out, pages.HomePath{
-			Title:   s.Title,
-			RelPath: s.RelPath,
+			Title:   path.Title,
+			RelPath: path.RelPath,
 			Ready:   view.Ready,
-			Total:   view.Lessons,
+			Total:   view.Entries,
 		})
 	}
 	return out

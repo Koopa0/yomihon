@@ -18,15 +18,17 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "strconv"
 
-// Chrome is the per-request shell state the shell renders server-side: the page
-// title, and the persisted theme / furigana signals stamped onto the root as
-// data-* attributes so the correct state paints on the first byte (no FOUC).
+// Chrome is the per-request shell state rendered server-side: the page title,
+// pending-decision figure, and persisted theme / furigana signals stamped onto
+// the root so the correct state paints on the first byte (no FOUC).
 // data-* is the single HTML↔JS contract; yomihon.js flips these attributes and
 // their cookies, CSS reacts (see assets/css/*).
 type Chrome struct {
-	Title string // page title (before " — yomihon")
-	Theme string // "light" | "dark"
-	Ruby  string // "on" | "off"
+	Title        string // page title (before " — yomihon")
+	Theme        string // "light" | "dark"
+	Ruby         string // "on" | "off"
+	Pending      int    // notes awaiting an owner decision
+	PendingKnown bool   // false when the write contract is closed
 }
 
 func Base(c Chrome) templ.Component {
@@ -57,7 +59,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(c.Theme)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 22, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 24, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -70,7 +72,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(c.Ruby)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 22, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 24, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -83,7 +85,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(c.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 26, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 28, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -113,8 +115,8 @@ func Base(c Chrome) templ.Component {
 	})
 }
 
-// header is the shared top chrome: the wordmark, the ⌘K search entry, and the
-// furigana + theme toggles. The toggles are plain <button>s whose glyph state
+// header is the shared top chrome: the wordmark, pending-decision Home link,
+// ⌘K search entry, and furigana + theme toggles. The toggles are plain <button>s whose glyph state
 // is CSS-driven from the root data-* attributes (no JS needed just to show the
 // right icon); yomihon.js only flips the attribute + cookie on click. The search
 // entry is a real link to /search (the no-JS fallback) that JS upgrades into
@@ -140,33 +142,69 @@ func header(c Chrome) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<header class=\"y-header\"><button class=\"y-iconbtn y-hamburger\" type=\"button\" data-nav-toggle aria-label=\"Toggle navigation\" aria-expanded=\"false\" aria-controls=\"nav-rail\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"y-brand\"><a class=\"y-brand__name\" href=\"/\">yomihon</a> <span class=\"y-brand__dot\" aria-hidden=\"true\"></span> <span class=\"y-brand__tag\">STOREHOUSE</span></div><div class=\"y-header__spacer\"></div><a class=\"y-searchbtn\" href=\"/search\" data-search-open><svg aria-hidden=\"true\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"y-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"y-iconbtn y-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\" aria-pressed=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<header class=\"y-header\"><button class=\"y-iconbtn y-hamburger\" type=\"button\" data-nav-toggle aria-label=\"Toggle navigation\" aria-expanded=\"false\" aria-controls=\"nav-rail\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"y-brand\"><a class=\"y-brand__name\" href=\"/\">yomihon</a> <span class=\"y-brand__dot\" aria-hidden=\"true\"></span> <span class=\"y-brand__tag\">STOREHOUSE</span></div><div class=\"y-header__spacer\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatBool(c.Ruby == "on"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 63, Col: 147}
+		if c.PendingKnown {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<a class=\"y-pendingchip\" href=\"/\" aria-label=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var6 string
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(c.Pending) + " to decide")
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 61, Col: 88}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" data-pending-chip>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var7 string
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(c.Pending))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 61, Col: 134}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</a> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<a class=\"y-searchbtn\" href=\"/search\" data-search-open><svg aria-hidden=\"true\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"y-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"y-iconbtn y-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\" aria-pressed=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"><span class=\"y-rubybtn__glyph\" aria-hidden=\"true\">振</span> <span class=\"y-rubybtn__on\">ON</span> <span class=\"y-rubybtn__off\">OFF</span></button> <button class=\"y-iconbtn y-themebtn\" type=\"button\" data-theme-toggle aria-label=\"Toggle theme\" aria-pressed=\"")
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatBool(c.Ruby == "on"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 68, Col: 147}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatBool(c.Theme == "dark"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 68, Col: 149}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"><span class=\"y-rubybtn__glyph\" aria-hidden=\"true\">振</span> <span class=\"y-rubybtn__on\">ON</span> <span class=\"y-rubybtn__off\">OFF</span></button> <button class=\"y-iconbtn y-themebtn\" type=\"button\" data-theme-toggle aria-label=\"Toggle theme\" aria-pressed=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><svg class=\"y-ico-sun\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"></path></svg> <svg class=\"y-ico-moon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"></path></svg></button> <span class=\"y-readline\" aria-hidden=\"true\"></span></header>")
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatBool(c.Theme == "dark"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 73, Col: 149}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"><svg class=\"y-ico-sun\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"></path></svg> <svg class=\"y-ico-moon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"></path></svg></button> <span class=\"y-readline\" aria-hidden=\"true\"></span></header>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -194,12 +232,12 @@ func searchDialog() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var8 == nil {
-			templ_7745c5c3_Var8 = templ.NopComponent
+		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var10 == nil {
+			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<dialog class=\"y-searchdialog ui-dialog\" data-search closedby=\"any\"><form class=\"y-searchdialog__form\" method=\"get\" action=\"/search\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <input class=\"y-searchdialog__input\" type=\"search\" name=\"q\" placeholder=\"Search the storehouse…\" aria-label=\"Search notes\" autofocus> <span class=\"ui-kbd\">esc</span></form><div class=\"y-searchdialog__foot\"><span>↵ search</span> <span>esc close</span></div></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<dialog class=\"y-searchdialog ui-dialog\" data-search closedby=\"any\"><form class=\"y-searchdialog__form\" method=\"get\" action=\"/search\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <input class=\"y-searchdialog__input\" type=\"search\" name=\"q\" placeholder=\"Search the storehouse…\" aria-label=\"Search notes\" autofocus> <span class=\"ui-kbd\">esc</span></form><div class=\"y-searchdialog__foot\"><span>↵ search</span> <span>esc close</span></div></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

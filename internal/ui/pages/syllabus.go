@@ -1,45 +1,42 @@
 package pages
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// SyllabusView is everything the study-path page needs: the current path's
-// tree flattened into render-ready sections (with per-section ready/total
+// PathView is everything the study-path page needs: the current path's
+// tree flattened into render-ready branches (with per-branch ready/total
 // tallies and anchors precomputed), the switcher across every study-path in
 // the vault, and the path-level figures the header and progress bar read.
 //
-// The seal target comes from schema, and lesson resolution comes from nav's
-// already-parsed graph.Kind — the page only reports what nav resolved, never
-// re-resolves.
-type SyllabusView struct {
+// The seal target comes from schema. Every nav entry is already resolved, so
+// the page only maps values and never resolves a wikilink itself.
+type PathView struct {
 	Title      string
 	RelPath    string
 	SealTarget string
-	Paths      []SyllabusLink
-	Sections   []SectionView
+	Paths      []PathLink
+	Branches   []PathBranchView
 
 	// Path-level figures, precomputed so the header metarow and progress bar
-	// are dumb reads. Lessons is the whole-path lesson total; Ready the subset
+	// are dumb reads. Entries is the whole-path entry total; Ready the subset
 	// that has reached the seal.
 	Parts   int
 	Modules int
-	Lessons int
+	Entries int
 	Ready   int
 }
 
-// SectionView is one heading in the flattened tree. A top-level section is a
+// PathBranchView is one heading in the flattened tree. A top-level branch is a
 // part (Depth 0): it carries an Anchor the "On this path" rail jumps to and an
-// Ordinal (roman numeral). A nested section is a module (Depth >= 1): it carries
-// a Num (its 1-based position among its siblings). Ready/Total are the lesson
-// tallies for this section and everything beneath it.
-type SectionView struct {
+// Ordinal (roman numeral). A nested branch is a module (Depth >= 1): it carries
+// a Num (its 1-based position among its siblings). Ready/Total are the entry
+// tallies for this branch and everything beneath it.
+type PathBranchView struct {
 	Anchor  string
 	Ordinal string
 	Num     int
@@ -47,75 +44,71 @@ type SectionView struct {
 	Depth   int
 	Ready   int
 	Total   int
-	Lessons []LessonView
-	Sub     []SectionView
+	Entries []PathEntryView
+	Sub     []PathBranchView
 }
 
-// LessonView is one lesson row. A uniquely-resolved lesson has an Href and,
-// when the target note carries one, a Status; an ambiguous or unresolved lesson
-// has an empty Href and a Mark ("ambiguous" / "unresolved") instead — still
-// listed, never dropped: a broken link is surfaced to the reader, not hidden.
-type LessonView struct {
+// PathEntryView is one resolved entry row and its optional note status.
+type PathEntryView struct {
 	Text   string
 	Href   string
 	Status string
 	Sealed bool
-	Mark   string
 }
 
-// SyllabusLink is one entry in the path switcher: a study-path's title, the
-// URL to its page, its whole-path lesson count, and whether it is the path
+// PathLink is one entry in the path switcher: a study-path's title, the
+// URL to its page, its whole-path entry count, and whether it is the path
 // currently shown.
-type SyllabusLink struct {
+type PathLink struct {
 	Title   string
 	RelPath string
-	Lessons int
+	Entries int
 	Active  bool
 }
 
-// BuildSyllabusView flattens one parsed study-path (current) into the page
+// BuildPathView flattens one parsed study-path (current) into the page
 // view, and builds the switcher from every study-path in the vault (all). It is
-// pure: the lesson count it reports for a section equals the number of resolved
-// lesson list-items beneath it, and document order is
+// pure: the entry count it reports for a branch equals the number of resolved
+// entry list-items beneath it, and document order is
 // preserved at every level (nav already guarantees it).
-func BuildSyllabusView(current nav.Syllabus, all []nav.Syllabus) SyllabusView {
-	v := SyllabusView{
+func BuildPathView(current *nav.Map, all []nav.Map) PathView {
+	v := PathView{
 		Title:      current.Title,
 		RelPath:    current.RelPath,
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 	}
-	for i, sec := range current.Sections {
-		sv := buildSection(sec, 0, i+1)
-		v.Sections = append(v.Sections, sv)
+	for i, sec := range current.Branches {
+		sv := buildPathBranch(sec, 0, i+1)
+		v.Branches = append(v.Branches, sv)
 		v.Parts++
 		v.Modules += len(sv.Sub)
-		v.Lessons += sv.Total
+		v.Entries += sv.Total
 		v.Ready += sv.Ready
 	}
 	return v
 }
 
-// buildSection converts one nav.Section (and its subtree) into a SectionView,
-// tallying lessons on the way up. depth 0 is a part (anchored, roman-numbered);
-// deeper sections are modules (numbered by sibling position).
-func buildSection(sec nav.Section, depth, num int) SectionView {
-	sv := SectionView{Heading: sec.Heading, Depth: depth, Num: num}
+// buildPathBranch converts one nav.Branch (and its subtree) into a PathBranchView,
+// tallying entries on the way up. depth 0 is a part (anchored, roman-numbered);
+// deeper branches are modules (numbered by sibling position).
+func buildPathBranch(sec nav.Branch, depth, num int) PathBranchView {
+	sv := PathBranchView{Heading: sec.Heading, Depth: depth, Num: num}
 	if depth == 0 {
 		sv.Anchor = "part-" + strconv.Itoa(num)
 		sv.Ordinal = roman(num)
 	}
-	for i := range sec.Lessons {
-		l := &sec.Lessons[i]
-		lesson := buildLesson(l)
-		sv.Lessons = append(sv.Lessons, lesson)
+	for i := range sec.Entries {
+		l := &sec.Entries[i]
+		entry := buildPathEntry(l)
+		sv.Entries = append(sv.Entries, entry)
 		sv.Total++
-		if lesson.Sealed {
+		if entry.Sealed {
 			sv.Ready++
 		}
 	}
 	for i, sub := range sec.Sub {
-		child := buildSection(sub, depth+1, i+1)
+		child := buildPathBranch(sub, depth+1, i+1)
 		sv.Sub = append(sv.Sub, child)
 		sv.Total += child.Total
 		sv.Ready += child.Ready
@@ -123,45 +116,33 @@ func buildSection(sec nav.Section, depth, num int) SectionView {
 	return sv
 }
 
-// buildLesson maps a nav.Lesson's resolution to a row: a link when unique, a
-// warn-marked non-link when ambiguous or unresolved. The default panics
-// because a new graph.Kind must force this switch to be updated, not silently
-// render a blank row.
-func buildLesson(l *nav.Lesson) LessonView {
-	switch l.Resolution {
-	case graph.Unique:
-		return LessonView{Text: l.Text, Href: notesHref(l.RelPath), Status: l.Status, Sealed: l.Status == schema.SealStatus}
-	case graph.Ambiguous:
-		return LessonView{Text: l.Text, Mark: "ambiguous"}
-	case graph.Unresolved:
-		return LessonView{Text: l.Text, Mark: "unresolved"}
-	default:
-		panic(fmt.Sprintf("pages: unknown graph.Kind %d", l.Resolution))
-	}
+// buildPathEntry maps one resolved nav entry onto the study-path row.
+func buildPathEntry(entry *nav.Entry) PathEntryView {
+	return PathEntryView{Text: entry.Text, Href: notesHref(entry.RelPath), Status: entry.Status, Sealed: entry.Status == schema.SealStatus}
 }
 
 // buildPaths builds the switcher: every study-path in vault order, each with
-// its whole-path lesson count and whether it is the one currently shown.
-func buildPaths(currentRel string, all []nav.Syllabus) []SyllabusLink {
-	links := make([]SyllabusLink, 0, len(all))
+// its whole-path entry count and whether it is the one currently shown.
+func buildPaths(currentRel string, all []nav.Map) []PathLink {
+	links := make([]PathLink, 0, len(all))
 	for _, s := range all {
-		links = append(links, SyllabusLink{
+		links = append(links, PathLink{
 			Title:   s.Title,
 			RelPath: s.RelPath,
-			Lessons: lessonTotal(s.Sections),
+			Entries: entryTotal(s.Branches),
 			Active:  s.RelPath == currentRel,
 		})
 	}
 	return links
 }
 
-// lessonTotal counts every resolved lesson list-item in a section slice, at any
-// depth — the same count BuildSyllabusView tallies, kept separate so the
+// entryTotal counts every resolved entry list-item in a branch slice, at any
+// depth — the same count BuildPathView tallies, kept separate so the
 // switcher can label a path it is not flattening.
-func lessonTotal(sections []nav.Section) int {
+func entryTotal(branches []nav.Branch) int {
 	n := 0
-	for _, sec := range sections {
-		n += len(sec.Lessons) + lessonTotal(sec.Sub)
+	for _, sec := range branches {
+		n += len(sec.Entries) + entryTotal(sec.Sub)
 	}
 	return n
 }
@@ -178,7 +159,7 @@ func fillBucket(ready, total int) int {
 }
 
 // countLabel is a metarow figure with a correctly-pluralised English noun:
-// "1 part", "5 modules", "20 lessons". Functional chrome stays pure English;
+// "1 part", "5 modules", "20 entries". Functional chrome stays pure English;
 // bilingual text is reserved for ritual identity markers.
 func countLabel(n int, noun string) string {
 	if n == 1 {

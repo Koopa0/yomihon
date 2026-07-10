@@ -35,11 +35,16 @@ home_markers=(
   'study-paths|data-home-block="study-paths"'
   'search|data-home-block="search"'
   'vault-readme|Home, linking to'
+  'sidebar-paths|data-sidebar-group="paths"'
+  'sidebar-maps|data-sidebar-group="maps"'
+  'sidebar-map-fixture|data-map-tree="Maps/reading.md"'
+  'sidebar-journal|data-sidebar-group="journal"'
+  'topbar-pending|data-pending-chip'
 )
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(recent lifecycle study-paths search vault-readme)
+required_home_sites=(recent lifecycle study-paths search vault-readme sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal topbar-pending)
 
 check_home_marker_table() {
   local actual required

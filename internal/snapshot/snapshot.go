@@ -54,9 +54,9 @@ type Snapshot struct {
 }
 
 // Store holds the current Snapshot behind an atomic.Pointer and drives the
-// scanner. Current() and Resolver() are safe for concurrent use by request
-// handlers; prev is touched only by the single scanner goroutine (and set once
-// by New before that goroutine starts), so it needs no lock.
+// scanner. Current and Resolver are safe for concurrent use; prev is touched
+// only by the single scanner goroutine (and set once by New before that
+// goroutine starts), so it needs no lock.
 type Store struct {
 	ptr  atomic.Pointer[Snapshot]
 	root string
@@ -75,7 +75,9 @@ func New(root string, log *slog.Logger) *Store {
 	s.ptr.Store(snap)
 	log.Info("vault snapshot built",
 		"notes_indexed", snap.Search.Len(),
-		"syllabi", len(snap.Nav.Syllabi),
+		"paths", len(snap.Nav.Paths),
+		"maps", len(snap.Nav.Maps),
+		"journal", len(snap.Nav.Journal),
 		"reports", len(snap.Nav.Reports))
 	return s
 }
@@ -101,26 +103,10 @@ func (s *Store) Run(ctx context.Context) {
 	}
 }
 
-// rescan compares the current mtime set to the previous one and, on any add,
-// removal, or mtime change, rebuilds the Snapshot and swaps the pointer once.
-func (s *Store) rescan() {
-	now := scanMtimes(s.root)
-	if mtimesEqual(s.prev, now) {
-		return
-	}
-	snap := buildSnapshot(s.root, s.log, now)
-	s.ptr.Store(snap)
-	s.prev = now
-	s.log.Info("vault snapshot rebuilt",
-		"notes_indexed", snap.Search.Len(),
-		"syllabi", len(snap.Nav.Syllabi),
-		"reports", len(snap.Nav.Reports))
-}
-
-// Resolver returns a wikilink resolver bound to this store's live graph, so a
-// renderer built once at startup always resolves against the current snapshot.
-// Returned concrete (never an interface — consumers define what they need);
-// render.New / nav.Build accept it structurally.
+// Resolver returns a wikilink resolver bound to this store's live graph. It is
+// useful to consumers that intentionally want independent live resolution; a
+// request renderer must instead bind the graph from its already-captured
+// Snapshot so resolution cannot cross snapshot generations.
 func (s *Store) Resolver() *Resolver {
 	return &Resolver{store: s}
 }
@@ -135,6 +121,24 @@ type Resolver struct {
 // is Unresolved — the fail-open reading behavior.
 func (r *Resolver) Resolve(name string) graph.Resolution {
 	return r.store.Current().Graph.Resolve(name)
+}
+
+// rescan compares the current mtime set to the previous one and, on any add,
+// removal, or mtime change, rebuilds the Snapshot and swaps the pointer once.
+func (s *Store) rescan() {
+	now := scanMtimes(s.root)
+	if mtimesEqual(s.prev, now) {
+		return
+	}
+	snap := buildSnapshot(s.root, s.log, now)
+	s.ptr.Store(snap)
+	s.prev = now
+	s.log.Info("vault snapshot rebuilt",
+		"notes_indexed", snap.Search.Len(),
+		"paths", len(snap.Nav.Paths),
+		"maps", len(snap.Nav.Maps),
+		"journal", len(snap.Nav.Journal),
+		"reports", len(snap.Nav.Reports))
 }
 
 // buildSnapshot rebuilds all three models from the vault in dependency order

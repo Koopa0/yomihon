@@ -6,15 +6,17 @@ package layouts
 
 import "strconv"
 
-// Chrome is the per-request shell state the shell renders server-side: the page
-// title, and the persisted theme / furigana signals stamped onto the root as
-// data-* attributes so the correct state paints on the first byte (no FOUC).
+// Chrome is the per-request shell state rendered server-side: the page title,
+// pending-decision figure, and persisted theme / furigana signals stamped onto
+// the root so the correct state paints on the first byte (no FOUC).
 // data-* is the single HTML↔JS contract; yomihon.js flips these attributes and
 // their cookies, CSS reacts (see assets/css/*).
 type Chrome struct {
-	Title string // page title (before " — yomihon")
-	Theme string // "light" | "dark"
-	Ruby  string // "on" | "off"
+	Title        string // page title (before " — yomihon")
+	Theme        string // "light" | "dark"
+	Ruby         string // "on" | "off"
+	Pending      int    // notes awaiting an owner decision
+	PendingKnown bool   // false when the write contract is closed
 }
 
 templ Base(c Chrome) {
@@ -38,8 +40,8 @@ templ Base(c Chrome) {
 	</html>
 }
 
-// header is the shared top chrome: the wordmark, the ⌘K search entry, and the
-// furigana + theme toggles. The toggles are plain <button>s whose glyph state
+// header is the shared top chrome: the wordmark, pending-decision Home link,
+// ⌘K search entry, and furigana + theme toggles. The toggles are plain <button>s whose glyph state
 // is CSS-driven from the root data-* attributes (no JS needed just to show the
 // right icon); yomihon.js only flips the attribute + cookie on click. The search
 // entry is a real link to /search (the no-JS fallback) that JS upgrades into
@@ -55,6 +57,9 @@ templ header(c Chrome) {
 			<span class="y-brand__tag">STOREHOUSE</span>
 		</div>
 		<div class="y-header__spacer"></div>
+		if c.PendingKnown {
+			<a class="y-pendingchip" href="/" aria-label={ strconv.Itoa(c.Pending) + " to decide" } data-pending-chip>{ strconv.Itoa(c.Pending) }</a>
+		}
 		<a class="y-searchbtn" href="/search" data-search-open>
 			<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 			<span class="y-searchbtn__label">Search notes…</span>
