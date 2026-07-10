@@ -30,6 +30,23 @@ fail() {
   exit 1
 }
 
+# The table has to name every probe file beside it, and no others. A probe wired
+# to nothing would never run and nothing would say so; a table emptied by a bad
+# edit would let both runs below announce success over no work at all, which is
+# the silence this whole file exists to break.
+[ "${#probes[@]}" -gt 0 ] || fail "the probe table is empty, so a run of it proves nothing"
+listed=()
+for entry in "${probes[@]}"; do listed+=("${entry%%|*}"); done
+present=()
+for file in "$here"/*.mjs; do
+  [ -f "$file" ] || fail "no probe files sit beside this script"
+  present+=("$(basename "$file")")
+done
+undriven="$(comm -23 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${listed[@]}" | sort) | tr '\n' ' ')"
+absent="$(comm -13 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${listed[@]}" | sort) | tr '\n' ' ')"
+[ -z "${undriven// /}" ] || fail "these probe files are driven by nothing: ${undriven}"
+[ -z "${absent// /}" ] || fail "the table names probes that are not here: ${absent}"
+
 run_locks() {
   local entry
   for entry in "${probes[@]}"; do
