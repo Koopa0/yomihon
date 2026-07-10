@@ -163,16 +163,30 @@ try {
   // nothing at all, however opaque the colour behind it — so the fill's alpha
   // alone cannot say whether anything was painted. Wait for the fade to land,
   // and read the value it stopped at when it does not.
+  //
+  // Each side of the race stops the other: the frame loop cancels the deadline
+  // when the fade lands, and the deadline cancels the frame loop when it does
+  // not. Leaving the loop running past a rejection would keep asking a torn-down
+  // page for a style it has stopped computing, on exactly the runs that are
+  // already failing and least want the noise.
   let opacity = 1;
   try {
     await dialog.evaluate(
       (el) => new Promise((resolve, reject) => {
+        let frame = 0;
+        const deadline = setTimeout(() => {
+          cancelAnimationFrame(frame);
+          reject(new Error('the palette panel never reached full opacity'));
+        }, 2000);
         const settle = () => {
-          if (getComputedStyle(el).opacity === '1') resolve();
-          else requestAnimationFrame(settle);
+          if (getComputedStyle(el).opacity === '1') {
+            clearTimeout(deadline);
+            resolve();
+            return;
+          }
+          frame = requestAnimationFrame(settle);
         };
         settle();
-        setTimeout(reject, 2000);
       }),
     );
   } catch {
