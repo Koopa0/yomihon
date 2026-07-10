@@ -62,12 +62,16 @@ const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-inline-re
 // something. A mutation is installed on one page and answers for that page
 // alone: one matching nothing leaves the document whole, and the case would then
 // watch the very behavior the mutation meant to prevent and call it a self-test.
+//
+// Every occurrence goes, not the first. A document that grew a second inline
+// script, or a second hidden control, would otherwise be rewritten in part and
+// reported as rewritten whole.
 const rewriteDocument = (needle, replacement) => async (page) => {
   let applied = false;
   await page.route(BASE + PAGE, async (route) => {
     const res = await route.fetch();
     const original = await res.text();
-    const body = original.replace(needle, replacement);
+    const body = original.replaceAll(needle, replacement);
     if (body !== original) applied = true;
     return route.fulfill({ response: res, body });
   });

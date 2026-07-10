@@ -63,12 +63,17 @@ const GUARD_NEEDLE = "t.closest('select')";
 // script unchanged inherit the other page's success — and that case would then
 // hold R against the guard it believed it had removed, find nothing leaking, and
 // call the silence a pass.
+//
+// Every occurrence is rewritten, not the first. Replacing one of two would leave
+// the guard standing behind the clause it did not touch, and the run would still
+// call the mutation applied — then find nothing leaking, and blame the probe for
+// a regression it never actually injected.
 const rewriteGuard = (replacement) => async (page) => {
   let applied = false;
   await page.route('**/yomihon.js', async (route) => {
     const res = await route.fetch();
     const original = await res.text();
-    const body = original.replace(GUARD_NEEDLE, replacement);
+    const body = original.replaceAll(GUARD_NEEDLE, replacement);
     if (body !== original) applied = true;
     return route.fulfill({ response: res, body });
   });
