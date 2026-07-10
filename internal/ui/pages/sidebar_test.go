@@ -92,7 +92,7 @@ func buildModel(t *testing.T) *nav.Model {
 	if err != nil {
 		t.Fatalf("graph.Build: %v", err)
 	}
-	model, err := nav.Build(root, idx)
+	model, err := nav.Build(root, idx, nil)
 	if err != nil {
 		t.Fatalf("nav.Build: %v", err)
 	}

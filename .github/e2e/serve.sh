@@ -14,6 +14,59 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ready_status is the single readiness rule: Home answers directly only after
+# the synchronous vault scan has completed and the routes are live. Callers do
+# not restate the code; they ask this verdict.
+ready_status() {
+  [ "$1" = "200" ]
+}
+
+# The cases exercise the verdict; the required set is separate so removing a
+# redirect or missing-route control cannot weaken the self-test silently.
+readiness_cases=(
+  '200|accepted'
+  '302|refused'
+  '404|refused'
+  '000|refused'
+)
+required_readiness_codes=(200 302 404 000)
+
+check_readiness_cases() {
+  local actual required
+  actual="$(printf '%s\n' "${readiness_cases[@]%%|*}" | sort)"
+  required="$(printf '%s\n' "${required_readiness_codes[@]}" | sort)"
+  [ "$actual" = "$required" ] || {
+    echo "serve.sh: readiness controls differ from the required 200, 302, 404, and no-response set" >&2
+    exit 1
+  }
+}
+
+# A live yomihon can only show the accepted case, so recorded status codes prove
+# the verdict refuses the two regressions most likely to masquerade as startup:
+# the retired redirect and a missing route.
+self_test() {
+  local failures=0 entry code want got
+  check_readiness_cases
+  for entry in "${readiness_cases[@]}"; do
+    code="${entry%%|*}"
+    want="${entry#*|}"
+    if ready_status "$code"; then got=accepted; else got=refused; fi
+    if [ "$got" != "$want" ]; then
+      echo "  SELF-TEST FAIL: HTTP ${code} was ${got}, want ${want}" >&2
+      failures=1
+    else
+      echo "  ok: HTTP ${code} -> ${got}"
+    fi
+  done
+  [ "$failures" -eq 0 ] || { echo "serve.sh: readiness accepts a response other than Home's direct 200" >&2; exit 1; }
+  echo "self-test passed: readiness accepts Home's direct 200 and refuses redirect, missing, and no-response signals"
+}
+
+if [ "${1:-}" = "--self-test" ]; then
+  self_test
+  exit 0
+fi
+
 if [ "$#" -lt 3 ] || [ "$3" != "--" ]; then
   echo "usage: serve.sh <yomihon-binary> <port> -- <command> [args...]" >&2
   exit 2
@@ -50,8 +103,8 @@ dump_log() {
   fi
 }
 
-# Readiness: the home path answers with a redirect to the vault's reading page,
-# and it does so only once the vault has been scanned and the routes are live.
+# Readiness: Home answers directly with 200 only once the vault has been scanned
+# and the routes are live.
 # Polling a served answer rather than the open socket is what proves the server
 # can serve, not merely that it has bound a port.
 #
@@ -60,6 +113,7 @@ dump_log() {
 # in the first millisecond costs fifteen seconds of polling and reports a timeout,
 # which reads as a slow server rather than a dead one.
 ready=""
+code="000"
 for _ in $(seq 1 60); do
   if ! kill -0 "$server_pid" 2>/dev/null; then
     echo "serve.sh: the server exited before it answered on ${base}" >&2
@@ -70,14 +124,14 @@ for _ in $(seq 1 60); do
   # and staying silent would hold an untimed request open until the whole job
   # expired, with nothing said about why. Each poll gives up quickly instead.
   code="$(curl -s -o /dev/null --connect-timeout 1 --max-time 2 -w '%{http_code}' "${base}/" || true)"
-  if [ "$code" = "302" ]; then
+  if ready_status "$code"; then
     ready=1
     break
   fi
   sleep 0.25
 done
 if [ -z "$ready" ]; then
-  echo "serve.sh: the server never answered the reading redirect on ${base}" >&2
+  echo "serve.sh: the server never answered Home's direct 200 readiness signal on ${base} (last HTTP status: ${code})" >&2
   dump_log
   exit 1
 fi

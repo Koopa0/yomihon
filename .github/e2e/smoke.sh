@@ -10,8 +10,8 @@
 #
 #   bash .github/e2e/serve.sh ./bin/yomihon 19733 -- bash .github/e2e/smoke.sh
 #
-# The socket assertion can never go red against a real server, because a real
-# server binds loopback. So it carries its own proof that it can:
+# The socket and Home assertions can never go red against a correct live server,
+# so they carry their own recorded proofs that they can:
 #
 #   bash .github/e2e/smoke.sh --self-test
 #
@@ -24,6 +24,40 @@ set -euo pipefail
 fail() {
   echo "FAIL: $*" >&2
   exit 1
+}
+
+# One named site per dashboard block, plus one content marker that only the
+# fixture vault's rendered README can supply. The live verdict and its self-test
+# share this table, so neither can silently stop checking one block.
+home_markers=(
+  'recent|data-home-block="recent"'
+  'lifecycle|data-home-block="lifecycle"'
+  'study-paths|data-home-block="study-paths"'
+  'search|data-home-block="search"'
+  'vault-readme|Home, linking to'
+)
+
+# This is a set comparison, not an order oracle: deleting a marker from the
+# live table must not also delete its self-test by construction.
+required_home_sites=(recent lifecycle study-paths search vault-readme)
+
+check_home_marker_table() {
+  local actual required
+  actual="$(printf '%s\n' "${home_markers[@]%%|*}" | sort)"
+  required="$(printf '%s\n' "${required_home_sites[@]}" | sort)"
+  [ "$actual" = "$required" ] || fail "Home marker sites differ from the required block and README set"
+}
+
+home_body_error() {
+  local content="$1" entry site marker
+  for entry in "${home_markers[@]}"; do
+    site="${entry%%|*}"
+    marker="${entry#*|}"
+    if ! grep -qF "$marker" <<<"$content"; then
+      echo "missing ${site} marker: ${marker}"
+      return 1
+    fi
+  done
 }
 
 # Reads a listing of listening sockets and reports whether it describes a socket
@@ -65,6 +99,7 @@ loopback_only() {
 # this file's live pass, against a server that binds loopback, goes on passing.
 self_test() {
   local port=19733 failures=0
+  check_home_marker_table
   check() { # <name> <want: accepted|the reason> <listing>
     local name="$1" want="$2" listing="$3" reason status
     reason="$(loopback_only "$listing" "$port")" && status=accepted || status=refused
@@ -118,8 +153,42 @@ yomihon 1 koopa 7u IPv4 0x2 0t0 TCP *:19733 (LISTEN)"
     "something 1 koopa 6u IPv4 0x1 0t0 TCP 127.0.0.1:197330 (LISTEN)
 yomihon   2 koopa 7u IPv4 0x2 0t0 TCP 192.168.1.5:19733 (LISTEN)"
 
-  [ "$failures" -eq 0 ] || fail "the loopback socket verdict no longer refuses a widened bind"
-  echo "self-test passed: every widened bind it was shown was refused, each for its own reason"
+  # Build one complete Home recording from the same marker table the live
+  # verdict reads. Then remove each named invariant in turn. This proves a blank
+  # 200, a dashboard missing any block, and a dashboard missing only the README
+  # content all go red for the invariant that was removed, regardless of table
+  # order.
+  local complete="" entry site marker broken reason
+  for entry in "${home_markers[@]}"; do
+    complete+="${entry#*|}"$'\n'
+  done
+  if ! home_body_error "$complete" >/dev/null; then
+    echo "  SELF-TEST FAIL: the complete Home recording was refused" >&2
+    failures=1
+  fi
+  if home_body_error "" >/dev/null 2>&1; then
+    echo "  SELF-TEST FAIL: a blank 200 body was accepted as Home" >&2
+    failures=1
+  else
+    echo "  ok: blank 200 -> refused"
+  fi
+  for entry in "${home_markers[@]}"; do
+    site="${entry%%|*}"
+    marker="${entry#*|}"
+    broken="${complete//"$marker"/}"
+    if reason="$(home_body_error "$broken")"; then
+      echo "  SELF-TEST FAIL: Home without ${site} was accepted" >&2
+      failures=1
+    elif [ "$reason" != "missing ${site} marker: ${marker}" ]; then
+      echo "  SELF-TEST FAIL: Home without ${site} failed at '${reason}'" >&2
+      failures=1
+    else
+      echo "  ok: Home without ${site} -> refused at ${site}"
+    fi
+  done
+
+  [ "$failures" -eq 0 ] || fail "an HTTP smoke verdict accepted a recorded regression"
+  echo "self-test passed: widened binds and incomplete Home bodies were refused at their named invariants"
 }
 
 if [ "${1:-}" = "--self-test" ]; then
@@ -129,10 +198,11 @@ fi
 
 base="${YOMIHON_BASE:?smoke.sh needs a running server; start it with serve.sh}"
 port="${YOMIHON_PORT:?smoke.sh needs a running server; start it with serve.sh}"
+check_home_marker_table
 body="$(mktemp "${TMPDIR:-/tmp}/yomihon-smoke.XXXXXX")"
 trap 'rm -f "$body"' EXIT
 
-# Each face: 200 after following redirects, plus a marker that proves the right
+# Each non-Home face: 200 after following redirects, plus a marker that proves the right
 # page rendered rather than a blank 200.
 assert_face() {
   local path="$1" marker="$2" code
@@ -142,14 +212,15 @@ assert_face() {
   echo "ok: ${path}"
 }
 
-# Home redirects to the reading page for the vault's README.
-loc="$(curl -fsS -o /dev/null -w '%{redirect_url}' "${base}/")"
-case "$loc" in
-*/notes/README.md) echo "ok: / -> ${loc}" ;;
-*) fail "/ redirected to '${loc}', want the README reading page" ;;
-esac
-
-assert_face "/" "<title>README"
+# Home is fetched without redirect following: a retired 302 must not borrow the
+# README page's 200 and markers. Its body then proves every dashboard block and
+# the fixture vault README are both present.
+code="$(curl -fsS -o "$body" -w '%{http_code}' "${base}/")" || fail "GET / did not return success"
+[ "$code" = "200" ] || fail "GET / status ${code}, want direct 200"
+if ! reason="$(home_body_error "$(<"$body")")"; then
+  fail "GET / rendered but is incomplete: ${reason}"
+fi
+echo "ok: /"
 assert_face "/notes/Notes/alpha.md" "tortoise"
 assert_face "/syllabus/Maps/study.md" "<title>Study Path"
 assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'

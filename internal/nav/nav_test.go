@@ -1,13 +1,50 @@
 package nav
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 )
+
+// TestBuildCarriesScannerMtimes proves Home's freshness data comes from the
+// scanner-owned capture handed to Build, not from another stat inside nav or a
+// request handler. The recorded time deliberately differs from the file's real
+// mtime, so reading the disk through a second path makes this test fail.
+func TestBuildCarriesScannerMtimes(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	rel := "Concepts/go/Channels.md"
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	content := "---\ntitle: Channels\ntype: concept\nstatus: growing\n---\n\nbody\n"
+	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+
+	captured := time.Date(2026, time.July, 9, 14, 30, 0, 0, time.UTC)
+	model, err := Build(root, resolver(t, rel), map[string]time.Time{rel: captured})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	want := []NoteSummary{{
+		Title:    "Channels",
+		RelPath:  rel,
+		Type:     "concept",
+		Status:   "growing",
+		Modified: captured,
+	}}
+	if diff := cmp.Diff(want, model.KnowledgeNotes); diff != "" {
+		t.Errorf("Build KnowledgeNotes mismatch (-want +got):\n%s", diff)
+	}
+}
 
 // resolver builds a real *graph.Index (testing.md's "real first") from
 // in-memory note paths — no disk — so parseSections resolves lesson

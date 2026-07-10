@@ -1,10 +1,12 @@
 package note
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 )
 
@@ -31,12 +33,22 @@ func TestPending(t *testing.T) {
 		{Type: "lesson", Status: schema.SealStatus}: 3, // onward exists (-> beyond) but is the seal
 		{Type: "lesson", Status: "beyond"}:          9, // no named onward move
 	}
+	var docs []search.Doc
+	for ts, n := range counts {
+		for i := range n {
+			docs = append(docs, search.Doc{
+				RelPath:  fmt.Sprintf("%s/%s-%d.md", ts.Type, ts.Status, i),
+				NoteType: ts.Type,
+				Status:   ts.Status,
+			})
+		}
+	}
+	snap := &snapshot.Snapshot{Search: search.BuildFromDocs(docs)}
 	h := &Handler{deps: Deps{
-		Status:           status.NewService(t.TempDir(), contract),
-		TypeStatusCounts: func() map[search.TypeStatus]int { return counts },
+		Status: status.NewService(t.TempDir(), contract),
 	}}
 
-	count, known := h.pending()
+	count, known := h.pending(snap)
 	if !known {
 		t.Fatal("pending() known = false on an open write face, want true")
 	}
@@ -45,10 +57,9 @@ func TestPending(t *testing.T) {
 	}
 
 	closed := &Handler{deps: Deps{
-		Status:           status.NewService(t.TempDir(), nil),
-		TypeStatusCounts: func() map[search.TypeStatus]int { return counts },
+		Status: status.NewService(t.TempDir(), nil),
 	}}
-	if _, known := closed.pending(); known {
+	if _, known := closed.pending(snap); known {
 		t.Error("pending() known = true on a closed write face, want false")
 	}
 }

@@ -23,7 +23,7 @@ func newServer(t *testing.T, root string) *httptest.Server {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	model, err := nav.Build(root, idx)
+	model, err := nav.Build(root, idx, nil)
 	if err != nil {
 		t.Fatalf("nav.Build(%q) = %v", root, err)
 	}

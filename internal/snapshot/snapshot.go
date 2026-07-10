@@ -69,8 +69,9 @@ type Store struct {
 // against. Start the scanner with Run.
 func New(root string, log *slog.Logger) *Store {
 	s := &Store{root: root, log: log}
-	s.prev = scanMtimes(root)
-	snap := buildSnapshot(root, log)
+	mtimes := scanMtimes(root)
+	s.prev = mtimes
+	snap := buildSnapshot(root, log, mtimes)
 	s.ptr.Store(snap)
 	log.Info("vault snapshot built",
 		"notes_indexed", snap.Search.Len(),
@@ -107,7 +108,7 @@ func (s *Store) rescan() {
 	if mtimesEqual(s.prev, now) {
 		return
 	}
-	snap := buildSnapshot(s.root, s.log)
+	snap := buildSnapshot(s.root, s.log, now)
 	s.ptr.Store(snap)
 	s.prev = now
 	s.log.Info("vault snapshot rebuilt",
@@ -140,14 +141,14 @@ func (r *Resolver) Resolve(name string) graph.Resolution {
 // (graph, then nav against that graph, then search). Each build failure is
 // tolerated independently: it logs and substitutes an empty model, so a single
 // failing model never takes the others — or reading — down.
-func buildSnapshot(root string, log *slog.Logger) *Snapshot {
+func buildSnapshot(root string, log *slog.Logger, mtimes map[string]time.Time) *Snapshot {
 	idx, err := graph.Build(root)
 	if err != nil {
 		log.Warn("vault graph unavailable; wikilinks will render as unresolved", "error", err)
 		idx = graph.BuildFromNotes(nil, nil)
 	}
 
-	navModel, err := nav.Build(root, idx)
+	navModel, err := nav.Build(root, idx, mtimes)
 	if err != nil {
 		log.Warn("vault navigation unavailable; serving an empty sidebar", "error", err)
 		navModel = &nav.Model{}

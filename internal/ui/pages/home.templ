@@ -1,0 +1,144 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+)
+
+// HomeView is the read-only landing surface: four dashboard blocks assembled
+// from one vault snapshot, then the rendered vault README. Sidebar carries the
+// shared shell navigation; no write-face state or form appears in Home itself.
+type HomeView struct {
+	Recent     []HomeNote
+	Lifecycle []LifecycleItem
+	Paths      []HomePath
+	ReadmeHTML string
+	Sidebar    Sidebar
+}
+
+// HomeNote is one item in the recently-changed block. Modified is the compact
+// display date; ModifiedAt is its machine-readable RFC 3339 value.
+type HomeNote struct {
+	Title      string
+	RelPath    string
+	Type       string
+	Status     string
+	Modified   string
+	ModifiedAt string
+}
+
+// HomePath is one study-path card with its sealed and total lesson counts.
+type HomePath struct {
+	Title   string
+	RelPath string
+	Ready   int
+	Total   int
+}
+
+// Home renders the landing page inside the standard shell. The four
+// data-home-block markers are the HTTP smoke sites: each names a block by its
+// invariant, independent of where the layout places it.
+templ Home(v HomeView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar)
+			<main class="y-main">
+				<div class="y-home">
+					<header class="y-home__head">
+						<div class="y-home__kicker">THE READING DESK</div>
+						<h1 class="y-title">Home</h1>
+						<p>What changed, what awaits judgment, and where study continues.</p>
+					</header>
+					<div class="y-homegrid">
+						<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
+							@homeBlockHead("home-recent-title", "Recently changed", "What changed on disk")
+							if len(v.Recent) > 0 {
+								<div class="y-homerecent">
+									for _, n := range v.Recent {
+										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
+											<span class="y-homenote__main">
+												<span class="y-homenote__title">{ n.Title }</span>
+												<span class="y-homenote__path">{ n.RelPath }</span>
+											</span>
+											<span class="y-homenote__meta">
+												if n.Status != "" {
+													<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
+												}
+												if n.Modified != "" {
+													<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
+												}
+											</span>
+										</a>
+									}
+								</div>
+							} else {
+								<p class="y-homeempty">No typed notes are in the current snapshot.</p>
+							}
+						</section>
+
+						<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
+							@homeBlockHead("home-lifecycle-title", "Lifecycle", "Open a status queue")
+							if len(v.Lifecycle) > 0 {
+								<div class="y-homechips">
+									for _, it := range v.Lifecycle {
+										<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
+											<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
+											<span>{ it.Name }</span>
+											<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " notes" }>{ strconv.Itoa(it.Count) }</span>
+										</a>
+									}
+								</div>
+							} else {
+								<p class="y-homeempty">Lifecycle is unavailable while the contract is closed.</p>
+							}
+						</section>
+
+						<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
+							@homeBlockHead("home-paths-title", "Study paths", "Continue through the vault's courses")
+							if len(v.Paths) > 0 {
+								<div class="y-homepaths">
+									for _, p := range v.Paths {
+										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
+											<span class="y-homepath__title">{ p.Title }</span>
+											<span class="y-homepath__progress">{ strconv.Itoa(p.Ready) } / { strconv.Itoa(p.Total) } ready</span>
+										</a>
+									}
+								</div>
+							} else {
+								<p class="y-homeempty">No study paths are in the current snapshot.</p>
+							}
+						</section>
+
+						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
+							@homeBlockHead("home-search-title", "Search", "Find a note or filter the vault")
+							<form class="y-homesearch" method="get" action="/search" role="search">
+								<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+								<input type="search" name="q" placeholder="Search the storehouse…" aria-label="Search notes" autofocus/>
+								<button type="submit" class="y-xbtn">Search</button>
+							</form>
+						</section>
+					</div>
+
+					<section class="y-homereadme" data-home-readme aria-labelledby="home-readme-title">
+						<div class="y-homereadme__head">
+							<span class="y-homereadme__kicker">FROM THE VAULT</span>
+							<h2 id="home-readme-title">README</h2>
+						</div>
+						<div class="y-prose">
+							@templ.Raw(v.ReadmeHTML)
+						</div>
+					</section>
+				</div>
+			</main>
+		</div>
+	}
+}
+
+templ homeBlockHead(id, title, note string) {
+	<header class="y-homeblock__head">
+		<h2 id={ id }>{ title }</h2>
+		<p>{ note }</p>
+	</header>
+}

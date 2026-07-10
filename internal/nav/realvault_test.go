@@ -34,7 +34,7 @@ func TestBuildRealVault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	m, err := Build(root, idx)
+	m, err := Build(root, idx, nil)
 	if err != nil {
 		t.Fatalf("Build(%q) = %v", root, err)
 	}

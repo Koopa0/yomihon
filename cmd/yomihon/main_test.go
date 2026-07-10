@@ -60,8 +60,6 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	store := snapshot.New(root, log)
 	navProvider := func() *nav.Model { return store.Current().Nav }
 	searchProvider := func() *search.Index { return store.Current().Search }
-	countsProvider := func() map[string]int { return store.Current().Search.CountByStatus() }
-	typeStatusCountsProvider := func() map[search.TypeStatus]int { return store.Current().Search.CountByTypeStatus() }
 
 	// A fail-closed writing service: reachable by the reading page as a
 	// dependency, but never driven here.
@@ -73,15 +71,13 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 
 	mux := http.NewServeMux()
 	note.NewHandler(note.Deps{
-		Root:             root,
-		Renderer:         render.New(root, store.Resolver()),
-		Status:           svc,
-		Nav:              navProvider,
-		Counts:           countsProvider,
-		TypeStatusCounts: typeStatusCountsProvider,
-		Provenance:       svc.LastCommitHash,
-		Log:              log,
-		Concepts:         concepts,
+		Root:       root,
+		Renderer:   render.New(root, store.Resolver()),
+		Status:     svc,
+		Snapshot:   store.Current,
+		Provenance: svc.LastCommitHash,
+		Log:        log,
+		Concepts:   concepts,
 	}).Register(mux)
 	search.NewHandler(searchProvider, navProvider, log).Register(mux)
 	syllabus.NewHandler(syllabus.Deps{Nav: navProvider, Log: log}).Register(mux)
@@ -91,7 +87,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// Drive each read/render route at least once, covering its disk-touching
-	// path: the home redirect, notes, a study-path syllabus, search, both the
+	// path: the direct-render Home, notes, a study-path syllabus, search, both the
 	// report shell and its verbatim raw read, and the faces that open a file
 	// that is not a note — a text file rendered as source, a picture, and the
 	// unchanged bytes behind each of them.
@@ -399,7 +395,7 @@ func productionGoFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 	}
 	var files []*ast.File
 	var paths []string
-	for _, path := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for path := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		if path == "" {
 			continue
 		}
