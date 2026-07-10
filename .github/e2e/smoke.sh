@@ -21,6 +21,8 @@
 # live pass.
 set -euo pipefail
 
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 fail() {
   echo "FAIL: $*" >&2
   exit 1
@@ -201,6 +203,18 @@ if [ "${1:-}" = "--self-test" ]; then
   exit 0
 fi
 
+out_of_contract_note="${here}/vault/Notes/out-of-contract.md"
+fixture_contract="${here}/vault/System/schemas/vault-schema.toml"
+out_of_contract_type="$(sed -n 's/^type: //p' "$out_of_contract_note")"
+contract_types="$(sed -n 's/^type = //p' "$fixture_contract")"
+[ -n "$out_of_contract_type" ] || fail "the out-of-contract fixture has no type"
+[ -n "$contract_types" ] || fail "the fixture contract has no type enum"
+case "$contract_types" in
+*\"${out_of_contract_type}\"*)
+  fail "the out-of-contract fixture type ${out_of_contract_type} is present in the fixture enum"
+  ;;
+esac
+
 base="${YOMIHON_BASE:?smoke.sh needs a running server; start it with serve.sh}"
 port="${YOMIHON_PORT:?smoke.sh needs a running server; start it with serve.sh}"
 check_home_marker_table
@@ -227,6 +241,7 @@ if ! reason="$(home_body_error "$(<"$body")")"; then
 fi
 echo "ok: /"
 assert_face "/notes/Notes/alpha.md" "tortoise"
+assert_face "/notes/Notes/out-of-contract.md" "out-of-contract reading sentinel"
 assert_face "/syllabus/Maps/study.md" "<title>Study Path"
 assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'
 

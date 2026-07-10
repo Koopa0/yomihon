@@ -316,12 +316,39 @@ func TestSidebarContentGrouping(t *testing.T) {
 	if got := strings.Count(html, `data-map-tree=`); got != 2 {
 		t.Errorf("rendered sidebar map disclosures = %d, want 2 (one Path and one Map)", got)
 	}
-	if strings.Contains(html, `<details open data-key="map:Maps/Reading map.md"`) {
-		t.Error("Reading map starts open without a current entry")
+	for _, tt := range []struct {
+		name string
+		key  string
+	}{
+		{name: "map", key: "map:Maps/Reading map.md"},
+		{name: "journal", key: "journal"},
+	} {
+		t.Run(tt.name+" starts closed", func(t *testing.T) {
+			t.Parallel()
+			tag := detailsTagByKey(t, html, tt.key)
+			if strings.Contains(tag, " open") {
+				t.Errorf("detailsTagByKey(%q) = %q, want no open attribute", tt.key, tag)
+			}
+		})
 	}
-	if strings.Contains(html, `<details open data-key="journal"`) {
-		t.Error("Journal starts open")
+}
+
+func detailsTagByKey(t *testing.T, html, key string) string {
+	t.Helper()
+	marker := `data-key="` + key + `"`
+	markerAt := strings.Index(html, marker)
+	if markerAt < 0 {
+		t.Fatalf("rendered sidebar has no details tag with %s", marker)
 	}
+	start := strings.LastIndex(html[:markerAt], "<details")
+	if start < 0 {
+		t.Fatalf("rendered sidebar has %s outside a details tag", marker)
+	}
+	endFromMarker := strings.IndexByte(html[markerAt:], '>')
+	if endFromMarker < 0 {
+		t.Fatalf("rendered sidebar details tag with %s has no closing bracket", marker)
+	}
+	return html[start : markerAt+endFromMarker+1]
 }
 
 // TestNewSidebarNoCurrentNote is the report-page shape: with no current note,
