@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Drives every live-browser probe against a server that is already running (see
+# serve.sh). One table below pairs each probe with the page it needs, so a probe
+# added to the plain run cannot be forgotten by the mutation run.
+#
+#   probes.sh            # the locks themselves, all expected to pass
+#   probes.sh --mutate   # each probe's self-tests, all expected to be caught
+#
+# The second form enforces the contract every probe owes. `MUTATE=list` names a
+# probe's modes; running one of them injects the regression that probe exists to
+# catch, and the run must then exit 1 and print "MUTATE-RESULT: caught <mode>".
+# Exit 0 means the injected regression walked past the probe. Exit 2 means the
+# mutation's needle matched nothing — which is how a self-test that quietly died
+# against a rewritten source turns red here, rather than on the day a human next
+# runs it by hand.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${YOMIHON_BASE:?probes.sh needs a running server; start it with serve.sh}"
+
+# probe file | the page path it must be driven against
+probes=(
+  "palette.mjs|/"
+  "filter-prepaint.mjs|/notes/README.md"
+  "seal-select-guard.mjs|/notes/Writing/lessons/japanese/L01.md"
+)
+
+fail() {
+  echo "FAIL probes.sh: $*" >&2
+  exit 1
+}
+
+run_locks() {
+  local entry
+  for entry in "${probes[@]}"; do
+    PAGE_PATH="${entry#*|}" node "${here}/${entry%%|*}"
+  done
+  echo "probes.sh: every lock passed"
+}
+
+run_mutations() {
+  local entry probe page modes mode out status
+  for entry in "${probes[@]}"; do
+    probe="${entry%%|*}"
+    page="${entry#*|}"
+    modes="$(MUTATE=list node "${here}/${probe}")"
+    [ -n "$modes" ] || fail "${probe} names no mutation modes, so nothing shows it can fail"
+    while IFS= read -r mode; do
+      [ -n "$mode" ] || continue
+      echo "--- ${probe} MUTATE=${mode}"
+      if out="$(PAGE_PATH="$page" MUTATE="$mode" node "${here}/${probe}")"; then status=0; else status=$?; fi
+      printf '%s\n' "$out"
+      [ "$status" -eq 1 ] || fail "${probe} MUTATE=${mode} exited ${status}, want 1 (0: the regression walked past the probe; 2: the mutation matched nothing)"
+      printf '%s\n' "$out" | grep -qF "MUTATE-RESULT: caught ${mode}" ||
+        fail "${probe} MUTATE=${mode} exited 1 without the caught marker, so its exit code proves nothing"
+    done <<<"$modes"
+  done
+  echo "probes.sh: every mutation was caught"
+}
+
+case "${1:-}" in
+"") run_locks ;;
+--mutate) run_mutations ;;
+*)
+  echo "usage: probes.sh [--mutate]" >&2
+  exit 2
+  ;;
+esac

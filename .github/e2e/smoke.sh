@@ -1,42 +1,25 @@
 #!/usr/bin/env bash
-# Drives a real yomihon server against the fixture vault next to this script and
-# asserts that each reading face renders, then asserts the listening socket is
-# bound to loopback and to nothing else. The socket assertion is the live form
-# of the promise that the server is reachable only from this machine: if the
-# bind address ever widens to 0.0.0.0 or ::, this turns red. Runs on Linux (ss)
-# and macOS (lsof) so it can be exercised locally as well as on the runner.
+# Asserts that each reading face renders on an already-running yomihon server,
+# then asserts the listening socket is bound to loopback and to nothing else.
+# The socket assertion is the live form of the promise that the server is
+# reachable only from this machine: if the bind address ever widens to 0.0.0.0
+# or ::, this turns red. Runs on Linux (ss) and macOS (lsof) so it can be
+# exercised locally as well as on the runner.
+#
+# serve.sh starts the server and exports the two variables this reads:
+#
+#   bash .github/e2e/serve.sh ./bin/yomihon 19733 -- bash .github/e2e/smoke.sh
 set -euo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-bin="${1:-${YOMIHON_BIN:-}}"
-if [ -z "$bin" ]; then
-  echo "usage: smoke.sh <path-to-yomihon-binary>   (or set YOMIHON_BIN)" >&2
-  exit 2
-fi
-vault="$here/vault"
-port="${YOMIHON_SMOKE_PORT:-19733}"
-base="http://127.0.0.1:${port}"
-log="$(mktemp)"
+base="${YOMIHON_BASE:?smoke.sh needs a running server; start it with serve.sh}"
+port="${YOMIHON_PORT:?smoke.sh needs a running server; start it with serve.sh}"
 body="$(mktemp)"
+trap 'rm -f "$body"' EXIT
 
-YOMIHON_ROOT="$vault" YOMIHON_PORT="$port" "$bin" serve >"$log" 2>&1 &
-server_pid=$!
-cleanup() {
-  kill "$server_pid" 2>/dev/null || true
-  wait "$server_pid" 2>/dev/null || true
-  rm -f "$log" "$body"
+fail() {
+  echo "FAIL: $*" >&2
+  exit 1
 }
-trap cleanup EXIT
-
-fail() { echo "FAIL: $*" >&2; [ -s "$log" ] && { echo "--- server log ---" >&2; cat "$log" >&2; }; exit 1; }
-
-# Readiness: poll a face that needs only the running server until it answers.
-ready=""
-for _ in $(seq 1 60); do
-  if curl -fsS -o /dev/null "${base}/search" 2>/dev/null; then ready=1; break; fi
-  sleep 0.25
-done
-[ -n "$ready" ] || fail "server never became ready on ${base}"
 
 # Each face: 200 after following redirects, plus a marker that proves the right
 # page rendered rather than a blank 200.
@@ -51,14 +34,14 @@ assert_face() {
 # Home redirects to the reading page for the vault's README.
 loc="$(curl -fsS -o /dev/null -w '%{redirect_url}' "${base}/")"
 case "$loc" in
-  */notes/README.md) echo "ok: / -> ${loc}" ;;
-  *) fail "/ redirected to '${loc}', want the README reading page" ;;
+*/notes/README.md) echo "ok: / -> ${loc}" ;;
+*) fail "/ redirected to '${loc}', want the README reading page" ;;
 esac
 
-assert_face "/"                       "<title>README"
-assert_face "/notes/Notes/alpha.md"   "tortoise"
+assert_face "/" "<title>README"
+assert_face "/notes/Notes/alpha.md" "tortoise"
 assert_face "/syllabus/Maps/study.md" "<title>Study Path"
-assert_face "/search?q=tortoise"      'href="/notes/Notes/alpha.md"'
+assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'
 
 # The reachability promise, checked on the live socket.
 echo "checking the listening socket is loopback-only..."

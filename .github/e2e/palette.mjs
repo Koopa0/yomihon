@@ -4,17 +4,26 @@
 // zeroing the panel fill (transparent body over the backdrop).
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (any page).
-// Set MUTATE to palette-margins, palette-fill (a fully transparent panel) or
-// palette-fill-partial (a half-transparent one) to self-test that the probe can
-// fail: each injects the regression it exists to catch and must then exit
-// non-zero.
+// MUTATE names one of the self-test modes below; MUTATE=list prints them. Each
+// injects the regression this probe exists to catch, so a mutated run that
+// stayed green would mean the lock is worth nothing.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 
-const fail = (msg) => { throw new Error(`FAIL palette: ${msg}`); };
+// Three outcomes a caller has to tell apart: the lock fired, the probe cannot
+// see the thing it claims to watch, and a mutation whose needle matched
+// nothing. Only the first is ever reported as a caught mutation — otherwise a
+// crash that happens to exit 1 would read as a detection.
+class LockFired extends Error {}
+class ProbeBroken extends Error {}
+class NotApplied extends Error {}
+
+const fail = (msg) => { throw new LockFired(`FAIL palette: ${msg}`); };
+const broken = (msg) => { throw new ProbeBroken(`BROKEN palette: ${msg}`); };
+const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED palette: ${msg}`); };
 
 // The alpha of a computed CSS color, whatever notation the browser chose.
 //
@@ -48,28 +57,48 @@ const alphaOf = (color) => {
   return t.endsWith('%') ? n / 100 : n;
 };
 
+// Injects one rule, first proving its selector matches something. A rule that
+// styles no element — because the panel was renamed, say — leaves the page
+// exactly as it was, and the probe would then pass the self-test while showing
+// nothing at all about its ability to fail.
+const injectRule = async (page, selector, declarations) => {
+  const matched = await page.evaluate((s) => document.querySelectorAll(s).length, selector);
+  if (matched === 0) notApplied(`no element matches ${selector}, so the injected rule styles nothing`);
+  await page.addStyleTag({ content: `${selector} { ${declarations} }` });
+};
+
+// Every mutation this probe can inject lives in this table; the dispatch below
+// is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
+// is not listed cannot happen.
+const MUTATIONS = {
+  'palette-margins': (page) => injectRule(page, '.y-searchdialog', 'margin-left: 0 !important; margin-right: auto !important;'),
+  'palette-fill': (page) => injectRule(page, 'dialog.y-searchdialog', 'background: transparent !important;'),
+  'palette-fill-partial': (page) => injectRule(page, 'dialog.y-searchdialog', 'background: oklch(0.988 0.003 106 / 0.5) !important;'),
+};
+
+if (MUTATE === 'list') {
+  for (const name of Object.keys(MUTATIONS)) console.log(name);
+  process.exit(0);
+}
+if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
+  console.error(`palette: unknown MUTATE mode ${MUTATE}`);
+  process.exit(2);
+}
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.goto(BASE + PAGE, { waitUntil: 'load' });
   await page.waitForSelector('html[data-js]');
 
-  if (MUTATE === 'palette-margins') {
-    await page.addStyleTag({ content: '.y-searchdialog { margin-left: 0 !important; margin-right: auto !important; }' });
-  }
-  if (MUTATE === 'palette-fill') {
-    await page.addStyleTag({ content: 'dialog.y-searchdialog { background: transparent !important; }' });
-  }
-  if (MUTATE === 'palette-fill-partial') {
-    await page.addStyleTag({ content: 'dialog.y-searchdialog { background: oklch(0.988 0.003 106 / 0.5) !important; }' });
-  }
+  if (MUTATE) await MUTATIONS[MUTATE](page);
 
   await page.keyboard.press('ControlOrMeta+k');
   const dialog = page.locator('dialog.y-searchdialog[open]');
   await dialog.waitFor({ state: 'visible', timeout: 3000 });
 
   const box = await dialog.boundingBox();
-  if (!box) fail('palette dialog has no box');
+  if (!box) broken('the palette dialog has no box, so nothing can be measured on it');
   const viewportCenter = 1280 / 2;
   const dialogCenter = box.x + box.width / 2;
   if (Math.abs(dialogCenter - viewportCenter) > 2) {
@@ -78,13 +107,26 @@ try {
 
   const bg = await dialog.evaluate((el) => getComputedStyle(el).backgroundColor);
   const alpha = alphaOf(bg);
-  if (!Number.isFinite(alpha)) fail(`cannot read an alpha from computed background ${bg}`);
+  if (!Number.isFinite(alpha)) broken(`cannot read an alpha from computed background ${bg}`);
   if (alpha < 1) fail(`panel not opaque: computed background ${bg}`);
 
   console.log(`PASS palette: centered (${dialogCenter}px) and opaque (${bg})`);
 } catch (err) {
-  console.error(err instanceof Error && err.message.startsWith('FAIL') ? err.message : err);
-  process.exitCode = 1;
+  if (err instanceof NotApplied) {
+    console.error(err.message);
+    console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
+    process.exitCode = 2;
+  } else if (err instanceof LockFired) {
+    console.error(err.message);
+    if (MUTATE) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+    process.exitCode = 1;
+  } else if (err instanceof ProbeBroken) {
+    console.error(err.message);
+    process.exitCode = 1;
+  } else {
+    console.error(err);
+    process.exitCode = 1;
+  }
 } finally {
   await browser.close();
 }

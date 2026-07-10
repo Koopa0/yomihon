@@ -9,32 +9,56 @@
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (a note page
 // with a sidebar, requested directly — the strip-inline route matches the
-// exact page URL, so a redirecting path would dodge it).
+// exact page URL, so a redirecting path would dodge it). MUTATE names one of
+// the self-test modes below; MUTATE=list prints them.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/';
 const FILTER = 'input[data-nav-filter]';
-// MUTATE=strip-inline self-tests the probe: the document is served with its
-// inline scripts removed, so the pre-paint reveal never runs and case 2
-// (deferred script blocked) must go red.
 const MUTATE = process.env.MUTATE || '';
 
-const fail = (msg) => { throw new Error(`FAIL filter-prepaint: ${msg}`); };
+// Three outcomes a caller has to tell apart: the lock fired, the probe cannot
+// see the thing it claims to watch, and a mutation whose needle matched
+// nothing. Only the first is ever reported as a caught mutation — otherwise a
+// crash that happens to exit 1 would read as a detection.
+class LockFired extends Error {}
+class ProbeBroken extends Error {}
+class NotApplied extends Error {}
 
-// Tracks that the strip-inline mutation really removed something: a
-// mutation that matches nothing produces a green self-test that means
-// nothing, so case 2 checks this flag before trusting its own result.
-let stripped = false;
-const stripInline = async (page) => {
-  await page.route(BASE + PAGE, async (route) => {
-    const res = await route.fetch();
-    const original = await res.text();
-    const body = original.replace(/<script>[\s\S]*?<\/script>/g, '');
-    if (body !== original) stripped = true;
-    return route.fulfill({ response: res, body });
-  });
+const fail = (msg) => { throw new LockFired(`FAIL filter-prepaint: ${msg}`); };
+const broken = (msg) => { throw new ProbeBroken(`BROKEN filter-prepaint: ${msg}`); };
+const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-prepaint: ${msg}`); };
+
+// Tracks that the mutation really removed something: a mutation that matches
+// nothing produces a green self-test that means nothing, so case 2 checks this
+// flag before trusting its own result.
+let mutated = false;
+
+// Every mutation this probe can inject lives in this table; the dispatch below
+// is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
+// is not listed cannot happen. strip-inline serves the document with its inline
+// scripts removed, so the pre-paint reveal never runs and case 2 must go red.
+const MUTATIONS = {
+  'strip-inline': async (page) => {
+    await page.route(BASE + PAGE, async (route) => {
+      const res = await route.fetch();
+      const original = await res.text();
+      const body = original.replace(/<script>[\s\S]*?<\/script>/g, '');
+      if (body !== original) mutated = true;
+      return route.fulfill({ response: res, body });
+    });
+  },
 };
+
+if (MUTATE === 'list') {
+  for (const name of Object.keys(MUTATIONS)) console.log(name);
+  process.exit(0);
+}
+if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
+  console.error(`filter-prepaint: unknown MUTATE mode ${MUTATE}`);
+  process.exit(2);
+}
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -48,21 +72,22 @@ try {
   }
 
   // Case 2: deferred script blocked — the inline pre-paint script alone
-  // must have revealed the filter.
+  // must have revealed the filter. Every mutation this probe carries belongs
+  // to this case, because this is the case that carries the lock.
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    // The same reason the strip-inline flag exists: a route that matches
+    // The same reason the mutated flag exists: a route that matches
     // nothing blocks nothing, and this case would then watch the deferred
     // script run and call it proof that it never did.
     let blocked = false;
     await page.route('**/yomihon.js', (route) => { blocked = true; return route.abort(); });
-    if (MUTATE === 'strip-inline') await stripInline(page);
+    if (MUTATE) await MUTATIONS[MUTATE](page);
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (!blocked) {
-      fail('case 2 blocked nothing: the deferred enhancement script was never requested, so a visible filter proves nothing about the inline script');
+      broken('case 2 blocked nothing: the deferred enhancement script was never requested, so a visible filter proves nothing about the inline script');
     }
-    if (MUTATE === 'strip-inline' && !stripped) {
-      fail('strip-inline mutation did not apply: no inline script block was removed');
+    if (MUTATE && !mutated) {
+      notApplied(`the ${MUTATE} mutation changed nothing in the served document`);
     }
     const hidden = await page.$eval(FILTER, (el) => el.hidden);
     if (hidden) fail('case 2 (deferred blocked): reveal depends on the deferred script');
@@ -81,8 +106,21 @@ try {
 
   console.log('PASS filter-prepaint: visible pre-paint (normal + blocked), hidden with JS off');
 } catch (err) {
-  console.error(err instanceof Error && err.message.startsWith('FAIL') ? err.message : err);
-  process.exitCode = 1;
+  if (err instanceof NotApplied) {
+    console.error(err.message);
+    console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
+    process.exitCode = 2;
+  } else if (err instanceof LockFired) {
+    console.error(err.message);
+    if (MUTATE) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+    process.exitCode = 1;
+  } else if (err instanceof ProbeBroken) {
+    console.error(err.message);
+    process.exitCode = 1;
+  } else {
+    console.error(err);
+    process.exitCode = 1;
+  }
 } finally {
   await browser.close();
 }

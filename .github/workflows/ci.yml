@@ -163,7 +163,7 @@ jobs:
         run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
 
       - name: Drive the reading faces and check the listening socket
-        run: bash .github/e2e/smoke.sh "${RUNNER_TEMP}/yomihon"
+        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19733 -- bash .github/e2e/smoke.sh
 
   # Runs a short live fuzz pass over each diagnostics target and smoke-runs the
   # benchmarks, so a crash or invariant break in the hand-rolled frontmatter and
@@ -220,19 +220,4 @@ jobs:
         run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
 
       - name: Run the behavior probes against the fixture vault
-        env:
-          YOMIHON_BASE: http://127.0.0.1:19734
-        run: |
-          YOMIHON_ROOT="${GITHUB_WORKSPACE}/.github/e2e/vault" YOMIHON_PORT=19734 "${RUNNER_TEMP}/yomihon" serve &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          ready=""
-          for _ in $(seq 1 60); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "${YOMIHON_BASE}/" || true)"
-            if [ "$code" = "302" ]; then ready=1; break; fi
-            sleep 0.25
-          done
-          [ -n "$ready" ] || { echo "server never answered the reading redirect on ${YOMIHON_BASE}" >&2; exit 1; }
-          node .github/e2e/palette.mjs
-          PAGE_PATH=/notes/README.md node .github/e2e/filter-prepaint.mjs
-          PAGE_PATH=/notes/Writing/lessons/japanese/L01.md node .github/e2e/seal-select-guard.mjs
+        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19734 -- bash .github/e2e/probes.sh
