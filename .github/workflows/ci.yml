@@ -198,7 +198,15 @@ jobs:
 
       - name: Fuzz each diagnostics target briefly
         run: |
-          targets="$(go test ./internal/judge -run='^$' -list='^Fuzz' | grep '^Fuzz')"
+          # Listing and filtering are two steps because the runner's shell exits
+          # on the first command that fails. A grep matching nothing fails, so
+          # asking for the names and sieving them in one breath would end the
+          # step on the empty case — before the line below could say which
+          # emptiness it was. The listing is left to fail on its own, carrying
+          # the toolchain's message; only the sieve is allowed to come back with
+          # nothing to show.
+          listing="$(go test ./internal/judge -run='^$' -list='^Fuzz')"
+          targets="$(printf '%s\n' "$listing" | grep '^Fuzz' || true)"
           [ -n "$targets" ] || { echo "the diagnostics package names no fuzz targets" >&2; exit 1; }
           echo "fuzzing: $(echo "$targets" | tr '\n' ' ')"
           for t in $targets; do
