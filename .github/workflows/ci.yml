@@ -162,6 +162,9 @@ jobs:
       - name: Build the server
         run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
 
+      - name: Prove readiness refuses redirect and missing-route responses
+        run: bash .github/e2e/serve.sh --self-test
+
       # A real server binds loopback, so the socket assertion below can only ever
       # come back green. This drives the same verdict over recorded listings that
       # widen the bind, and requires each to be refused — the lock's proof that
