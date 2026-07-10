@@ -13,15 +13,33 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 
+// The assertions that can fire the lock, each named for what it guards. This
+// flow reaches two of them in turn, so "the lock fired" does not say which. A
+// mutation declares the site it aims at, and only that site's firing is a
+// detection: break the centering and run the mutation that makes the panel
+// transparent, and the centering assertion stops the run before the panel is
+// ever measured. Reported as a catch, it would say the opacity lock still works
+// on the day it stopped being reached at all.
+const SITES = ['centered', 'opaque'];
+
 // Three outcomes a caller has to tell apart: the lock fired, the probe cannot
 // see the thing it claims to watch, and a mutation whose needle matched
 // nothing. Only the first is ever reported as a caught mutation — otherwise a
-// crash that happens to exit 1 would read as a detection.
-class LockFired extends Error {}
+// crash that happens to exit 1 would read as a detection — and only when the
+// site that fired is the site the mode aimed at.
+class LockFired extends Error {
+  constructor(site, message) {
+    super(message);
+    this.site = site;
+  }
+}
 class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
-const fail = (msg) => { throw new LockFired(`FAIL palette: ${msg}`); };
+const fail = (site, msg) => {
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN palette: an assertion names the unknown site ${site}`);
+  throw new LockFired(site, `FAIL palette: ${msg}`);
+};
 const broken = (msg) => { throw new ProbeBroken(`BROKEN palette: ${msg}`); };
 const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED palette: ${msg}`); };
 
@@ -69,12 +87,33 @@ const injectRule = async (page, selector, declarations) => {
 
 // Every mutation this probe can inject lives in this table; the dispatch below
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
-// is not listed cannot happen.
+// is not listed cannot happen. Each names the assertion site it aims at, which
+// is the only site whose firing that mode may report as a catch.
 const MUTATIONS = {
-  'palette-margins': (page) => injectRule(page, '.y-searchdialog', 'margin-left: 0 !important; margin-right: auto !important;'),
-  'palette-fill': (page) => injectRule(page, 'dialog.y-searchdialog', 'background: transparent !important;'),
-  'palette-fill-partial': (page) => injectRule(page, 'dialog.y-searchdialog', 'background: oklch(0.988 0.003 106 / 0.5) !important;'),
+  'palette-margins': {
+    target: 'centered',
+    apply: (page) => injectRule(page, '.y-searchdialog', 'margin-left: 0 !important; margin-right: auto !important;'),
+  },
+  'palette-fill': {
+    target: 'opaque',
+    apply: (page) => injectRule(page, 'dialog.y-searchdialog', 'background: transparent !important;'),
+  },
+  'palette-fill-partial': {
+    target: 'opaque',
+    apply: (page) => injectRule(page, 'dialog.y-searchdialog', 'background: oklch(0.988 0.003 106 / 0.5) !important;'),
+  },
 };
+
+// A mutation aiming at a site no assertion carries could never be caught, and
+// the run would read as a probe that let the regression walk past it. Checked
+// before anything else, so even MUTATE=list refuses to answer for a broken
+// table.
+for (const [name, mutation] of Object.entries(MUTATIONS)) {
+  if (!SITES.includes(mutation.target)) {
+    console.error(`palette: mutation ${name} aims at the unknown assertion site ${mutation.target}`);
+    process.exit(2);
+  }
+}
 
 if (MUTATE === 'list') {
   for (const name of Object.keys(MUTATIONS)) console.log(name);
@@ -91,7 +130,7 @@ try {
   await page.goto(BASE + PAGE, { waitUntil: 'load' });
   await page.waitForSelector('html[data-js]');
 
-  if (MUTATE) await MUTATIONS[MUTATE](page);
+  if (MUTATE) await MUTATIONS[MUTATE].apply(page);
 
   await page.keyboard.press('ControlOrMeta+k');
   const dialog = page.locator('dialog.y-searchdialog[open]');
@@ -102,13 +141,13 @@ try {
   const viewportCenter = 1280 / 2;
   const dialogCenter = box.x + box.width / 2;
   if (Math.abs(dialogCenter - viewportCenter) > 2) {
-    fail(`not centered: dialog center ${dialogCenter}px vs viewport center ${viewportCenter}px`);
+    fail('centered', `not centered: dialog center ${dialogCenter}px vs viewport center ${viewportCenter}px`);
   }
 
   const bg = await dialog.evaluate((el) => getComputedStyle(el).backgroundColor);
   const alpha = alphaOf(bg);
   if (!Number.isFinite(alpha)) broken(`cannot read an alpha from computed background ${bg}`);
-  if (alpha < 1) fail(`panel not opaque: computed background ${bg}`);
+  if (alpha < 1) fail('opaque', `panel not opaque: computed background ${bg}`);
 
   console.log(`PASS palette: centered (${dialogCenter}px) and opaque (${bg})`);
 } catch (err) {
@@ -118,7 +157,11 @@ try {
     process.exitCode = 2;
   } else if (err instanceof LockFired) {
     console.error(err.message);
-    if (MUTATE) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+    if (MUTATE) {
+      const { target } = MUTATIONS[MUTATE];
+      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+      else console.error(`no catch: ${MUTATE} injects a regression the ${target} assertion watches for, but the ${err.site} assertion fired first — something unrelated is broken`);
+    }
     process.exitCode = 1;
   } else if (err instanceof ProbeBroken) {
     console.error(err.message);

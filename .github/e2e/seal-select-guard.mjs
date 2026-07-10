@@ -24,15 +24,31 @@ const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 const SELECT = 'select.y-slotselect';
 
+// The assertions that can fire the lock, each named for what it guards. This
+// probe reaches only one: both cases feed a single verdict, and both are aimed
+// at by the one mutation. Naming the site anyway is what keeps that true — a
+// second assertion added later cannot quietly report itself as a catch for a
+// mutation that was never about it.
+const SITES = ['no-fill-from-inside-the-select'];
+
 // Three outcomes a caller has to tell apart: the lock fired, the probe cannot
 // see the thing it claims to watch, and a mutation whose needle matched
 // nothing. Only the first is ever reported as a caught mutation — otherwise a
-// crash that happens to exit 1 would read as a detection.
-class LockFired extends Error {}
+// crash that happens to exit 1 would read as a detection — and only when the
+// site that fired is the site the mode aimed at.
+class LockFired extends Error {
+  constructor(site, message) {
+    super(message);
+    this.site = site;
+  }
+}
 class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
-const fail = (msg) => { throw new LockFired(`FAIL seal-select-guard: ${msg}`); };
+const fail = (site, msg) => {
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN seal-select-guard: an assertion names the unknown site ${site}`);
+  throw new LockFired(site, `FAIL seal-select-guard: ${msg}`);
+};
 const broken = (msg) => { throw new ProbeBroken(`BROKEN seal-select-guard: ${msg}`); };
 const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED seal-select-guard: ${msg}`); };
 
@@ -52,18 +68,32 @@ const GUARD_NEEDLE = "t.closest('select')";
 // guard it believed it had removed, find nothing leaking, and call the silence a
 // pass.
 const MUTATIONS = {
-  'unguard-select': async (page) => {
-    let applied = false;
-    await page.route('**/yomihon.js', async (route) => {
-      const res = await route.fetch();
-      const original = await res.text();
-      const body = original.replace(GUARD_NEEDLE, 'false');
-      if (body !== original) applied = true;
-      return route.fulfill({ response: res, body });
-    });
-    return () => applied;
+  'unguard-select': {
+    target: 'no-fill-from-inside-the-select',
+    apply: async (page) => {
+      let applied = false;
+      await page.route('**/yomihon.js', async (route) => {
+        const res = await route.fetch();
+        const original = await res.text();
+        const body = original.replace(GUARD_NEEDLE, 'false');
+        if (body !== original) applied = true;
+        return route.fulfill({ response: res, body });
+      });
+      return () => applied;
+    },
   },
 };
+
+// A mutation aiming at a site no assertion carries could never be caught, and
+// the run would read as a probe that let the regression walk past it. Checked
+// before anything else, so even MUTATE=list refuses to answer for a broken
+// table.
+for (const [name, mutation] of Object.entries(MUTATIONS)) {
+  if (!SITES.includes(mutation.target)) {
+    console.error(`seal-select-guard: mutation ${name} aims at the unknown assertion site ${mutation.target}`);
+    process.exit(2);
+  }
+}
 
 if (MUTATE === 'list') {
   for (const name of Object.keys(MUTATIONS)) console.log(name);
@@ -125,7 +155,7 @@ async function guardCase({ name, arrange }) {
     return route.continue();
   });
   let mutationApplied = null;
-  if (MUTATE) mutationApplied = await MUTATIONS[MUTATE](page);
+  if (MUTATE) mutationApplied = await MUTATIONS[MUTATE].apply(page);
   await page.goto(BASE + PAGE, { waitUntil: 'load' });
   await page.waitForSelector('html[data-js]');
   if (MUTATE && !mutationApplied()) {
@@ -209,7 +239,7 @@ try {
     if (leaked) leaks.push(`with ${c.name}`);
     if (submitted) leaks.push(`with ${c.name}, far enough to submit the form`);
   }
-  if (leaks.length > 0) fail(`held R started the seal fill ${leaks.join('; and ')}`);
+  if (leaks.length > 0) fail('no-fill-from-inside-the-select', `held R started the seal fill ${leaks.join('; and ')}`);
 
   console.log('PASS seal-select-guard: control fill started from the body; no fill from a focused select, closed or with its picker open');
 } catch (err) {
@@ -219,7 +249,11 @@ try {
     process.exitCode = 2;
   } else if (err instanceof LockFired) {
     console.error(err.message);
-    if (MUTATE) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+    if (MUTATE) {
+      const { target } = MUTATIONS[MUTATE];
+      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+      else console.error(`no catch: ${MUTATE} injects a regression the ${target} assertion watches for, but the ${err.site} assertion fired first — something unrelated is broken`);
+    }
     process.exitCode = 1;
   } else if (err instanceof ProbeBroken) {
     console.error(err.message);

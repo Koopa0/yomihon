@@ -25,15 +25,32 @@ const PAGE = process.env.PAGE_PATH || '/';
 const FILTER = 'input[data-nav-filter]';
 const MUTATE = process.env.MUTATE || '';
 
+// The assertions that can fire the lock, one per case, each named for what it
+// guards. The three cases run in turn, so "the lock fired" does not say which
+// one: a regression in the first case stops the run before the second is ever
+// entered. A mutation names the site it aims at, and that name does two jobs —
+// it picks the case the mutation is installed on, and it is the only site whose
+// firing that mode may report as a catch.
+const SITES = ['reveal-on-normal-load', 'reveal-without-the-deferred-script', 'hidden-without-javascript'];
+
 // Three outcomes a caller has to tell apart: the lock fired, the probe cannot
 // see the thing it claims to watch, and a mutation whose needle matched
 // nothing. Only the first is ever reported as a caught mutation — otherwise a
-// crash that happens to exit 1 would read as a detection.
-class LockFired extends Error {}
+// crash that happens to exit 1 would read as a detection — and only when the
+// site that fired is the site the mode aimed at.
+class LockFired extends Error {
+  constructor(site, message) {
+    super(message);
+    this.site = site;
+  }
+}
 class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
-const fail = (msg) => { throw new LockFired(`FAIL filter-inline-reveal: ${msg}`); };
+const fail = (site, msg) => {
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN filter-inline-reveal: an assertion names the unknown site ${site}`);
+  throw new LockFired(site, `FAIL filter-inline-reveal: ${msg}`);
+};
 const broken = (msg) => { throw new ProbeBroken(`BROKEN filter-inline-reveal: ${msg}`); };
 const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-inline-reveal: ${msg}`); };
 
@@ -41,25 +58,40 @@ const notApplied = (msg) => { throw new NotApplied(`NOT-APPLIED filter-inline-re
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
 // is not listed cannot happen. strip-inline serves the document with its inline
 // scripts removed, leaving the deferred file as the only thing that could
-// reveal the filter — and case 2 blocks that file, so case 2 must go red.
+// reveal the filter — and the case it aims at blocks that file, so that case
+// must go red.
 //
 // A mutation is installed on one page and answers for that page alone: it hands
 // back the proof that it really removed something from what that page loaded. A
 // mutation matching nothing leaves the document whole, and the case would then
 // watch the reveal it meant to prevent and call the result a self-test.
 const MUTATIONS = {
-  'strip-inline': async (page) => {
-    let applied = false;
-    await page.route(BASE + PAGE, async (route) => {
-      const res = await route.fetch();
-      const original = await res.text();
-      const body = original.replace(/<script>[\s\S]*?<\/script>/g, '');
-      if (body !== original) applied = true;
-      return route.fulfill({ response: res, body });
-    });
-    return () => applied;
+  'strip-inline': {
+    target: 'reveal-without-the-deferred-script',
+    apply: async (page) => {
+      let applied = false;
+      await page.route(BASE + PAGE, async (route) => {
+        const res = await route.fetch();
+        const original = await res.text();
+        const body = original.replace(/<script>[\s\S]*?<\/script>/g, '');
+        if (body !== original) applied = true;
+        return route.fulfill({ response: res, body });
+      });
+      return () => applied;
+    },
   },
 };
+
+// A mutation aiming at a site no assertion carries could never be caught, and
+// the run would read as a probe that let the regression walk past it. Checked
+// before anything else, so even MUTATE=list refuses to answer for a broken
+// table.
+for (const [name, mutation] of Object.entries(MUTATIONS)) {
+  if (!SITES.includes(mutation.target)) {
+    console.error(`filter-inline-reveal: mutation ${name} aims at the unknown assertion site ${mutation.target}`);
+    process.exit(2);
+  }
+}
 
 if (MUTATE === 'list') {
   for (const name of Object.keys(MUTATIONS)) console.log(name);
@@ -70,20 +102,36 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
+// Installs the mutation on this case's page when the mode aims at this case's
+// assertion, and hands back the proof it applied. A case the mode does not aim
+// at runs untouched: a lock that fires there is a real regression, not a catch.
+const arm = async (page, site) => {
+  if (!MUTATE || MUTATIONS[MUTATE].target !== site) return null;
+  return MUTATIONS[MUTATE].apply(page);
+};
+
+// A mutation that was armed on this page has to show it changed something: one
+// matching nothing leaves the document whole, and the case would go on to watch
+// the very behavior the mutation meant to remove.
+const proveApplied = (proof) => {
+  if (proof && !proof()) notApplied(`the ${MUTATE} mutation changed nothing in the document this page loaded`);
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   // Case 1: normal load — revealed by the time the document is parsed.
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const applied = await arm(page, 'reveal-on-normal-load');
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    proveApplied(applied);
     const hidden = await page.$eval(FILTER, (el) => el.hidden);
-    if (hidden) fail('case 1 (normal): filter still hidden once the document was parsed');
+    if (hidden) fail('reveal-on-normal-load', 'case 1 (normal): filter still hidden once the document was parsed');
     await page.close();
   }
 
   // Case 2: deferred script blocked — the document's own inline script alone
-  // must have revealed the filter. Every mutation this probe carries belongs
-  // to this case, because this is the case that carries the lock.
+  // must have revealed the filter.
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     // The same reason a mutation proves it applied: a route that matches
@@ -91,17 +139,14 @@ try {
     // script run and call it proof that it never did.
     let blocked = false;
     await page.route('**/yomihon.js', (route) => { blocked = true; return route.abort(); });
-    let mutationApplied = null;
-    if (MUTATE) mutationApplied = await MUTATIONS[MUTATE](page);
+    const applied = await arm(page, 'reveal-without-the-deferred-script');
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (!blocked) {
       broken('case 2 blocked nothing: the deferred enhancement script was never requested, so a visible filter proves nothing about the inline script');
     }
-    if (MUTATE && !mutationApplied()) {
-      notApplied(`the ${MUTATE} mutation changed nothing in the document this page loaded`);
-    }
+    proveApplied(applied);
     const hidden = await page.$eval(FILTER, (el) => el.hidden);
-    if (hidden) fail('case 2 (deferred blocked): reveal depends on the deferred script');
+    if (hidden) fail('reveal-without-the-deferred-script', 'case 2 (deferred blocked): reveal depends on the deferred script');
     await page.close();
   }
 
@@ -109,9 +154,11 @@ try {
   {
     const ctx = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 800 } });
     const page = await ctx.newPage();
+    const applied = await arm(page, 'hidden-without-javascript');
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    proveApplied(applied);
     const hidden = await page.$eval(FILTER, (el) => el.hidden);
-    if (!hidden) fail('case 3 (JS off): filter visible without the script that makes it work');
+    if (!hidden) fail('hidden-without-javascript', 'case 3 (JS off): filter visible without the script that makes it work');
     await ctx.close();
   }
 
@@ -123,7 +170,11 @@ try {
     process.exitCode = 2;
   } else if (err instanceof LockFired) {
     console.error(err.message);
-    if (MUTATE) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+    if (MUTATE) {
+      const { target } = MUTATIONS[MUTATE];
+      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+      else console.error(`no catch: ${MUTATE} injects a regression the ${target} assertion watches for, but the ${err.site} assertion fired first — something unrelated is broken`);
+    }
     process.exitCode = 1;
   } else if (err instanceof ProbeBroken) {
     console.error(err.message);
