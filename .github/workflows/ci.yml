@@ -194,9 +194,10 @@ jobs:
   # like the frontend linters — no package.json, no downloaded browser, no
   # pixel comparison) against the fixture vault and locks live reading
   # behaviors that plain HTTP assertions cannot see: the command palette opens
-  # centered and opaque; the sidebar filter is revealed before first paint by
-  # the inline script alone and stays hidden with JavaScript off; and a held R
-  # inside a focused select never starts the seal hold. Each probe carries
+  # centered and opaque; the sidebar filter is revealed by the document's own
+  # inline script rather than the deferred one, and stays hidden with
+  # JavaScript off; and a held R inside a focused select never starts the seal
+  # hold, with the picker closed or open. Each probe carries
   # MUTATE self-test modes, runnable locally, that inject the regression it
   # exists to catch and prove the probe goes red.
   e2e-reading-behavior:

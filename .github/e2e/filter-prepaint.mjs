@@ -1,11 +1,18 @@
-// Behavior lock: the sidebar filter box is revealed by the sidebar's
-// pre-paint inline script, not by the deferred enhancement file, and it
-// stays hidden when JavaScript is off. Three cases pin that together:
-//   1. normal load        -> visible at DOMContentLoaded
-//   2. yomihon.js aborted -> still visible (only the inline script ran)
+// Behavior lock: the sidebar filter box is revealed by the document's own
+// inline script and not by the deferred enhancement file, and it stays hidden
+// when JavaScript is off. Three cases pin that together:
+//   1. normal load        -> visible once the document is parsed
+//   2. yomihon.js aborted -> still visible, so the inline script revealed it
 //   3. JavaScript off     -> stays hidden (an inert control shows no face)
-// Case 2 is the one that catches the regression class (the reveal drifting
-// back into the deferred file, which paints a pop-in after every navigation).
+// Case 2 is the one that catches the regression class: the reveal drifting back
+// into the deferred file, which shows a hidden control on every navigation and
+// then pops it open once the file has run.
+//
+// What this probe does not watch is the paint. It reads the hidden attribute
+// after the document has been parsed, so a reveal that the inline script
+// deferred onto a timer would read as visible here just the same. Which script
+// performs the reveal is what these cases establish; when it lands relative to
+// the first frame is not, and no assertion below should be read as saying so.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (a note page
 // with a sidebar, requested directly — the strip-inline route matches the
@@ -38,7 +45,8 @@ let mutated = false;
 // Every mutation this probe can inject lives in this table; the dispatch below
 // is a lookup into it, and MUTATE=list prints its keys. A mode that exists but
 // is not listed cannot happen. strip-inline serves the document with its inline
-// scripts removed, so the pre-paint reveal never runs and case 2 must go red.
+// scripts removed, leaving the deferred file as the only thing that could
+// reveal the filter — and case 2 blocks that file, so case 2 must go red.
 const MUTATIONS = {
   'strip-inline': async (page) => {
     await page.route(BASE + PAGE, async (route) => {
@@ -62,16 +70,16 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  // Case 1: normal load — visible by DOMContentLoaded.
+  // Case 1: normal load — revealed by the time the document is parsed.
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     const hidden = await page.$eval(FILTER, (el) => el.hidden);
-    if (hidden) fail('case 1 (normal): filter still hidden at DOMContentLoaded');
+    if (hidden) fail('case 1 (normal): filter still hidden once the document was parsed');
     await page.close();
   }
 
-  // Case 2: deferred script blocked — the inline pre-paint script alone
+  // Case 2: deferred script blocked — the document's own inline script alone
   // must have revealed the filter. Every mutation this probe carries belongs
   // to this case, because this is the case that carries the lock.
   {
@@ -104,7 +112,7 @@ try {
     await ctx.close();
   }
 
-  console.log('PASS filter-prepaint: visible pre-paint (normal + blocked), hidden with JS off');
+  console.log('PASS filter-prepaint: revealed without the deferred script (so the inline script reveals it), hidden with JS off');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
