@@ -19,7 +19,7 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 	log := discardLogger()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = buildSnapshot(root, log)
+		_ = buildSnapshot(root, log, scanMtimes(root))
 	}
 }
 

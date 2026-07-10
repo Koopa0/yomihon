@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/search"
@@ -50,6 +51,9 @@ func TestNewBuildsSnapshot(t *testing.T) {
 	if got := store.Resolver().Resolve("Alpha"); got.Kind != graph.Unique {
 		t.Errorf("Resolver().Resolve(Alpha).Kind = %v, want Unique", got.Kind)
 	}
+	if got := snap.Nav.KnowledgeNotes; len(got) != 1 || got[0].Modified.IsZero() {
+		t.Errorf("snapshot KnowledgeNotes = %+v, want the scanner-captured mtime published with Alpha", got)
+	}
 }
 
 // TestRescanDetectsChange pins the freshness contract: a vault change (here,
@@ -65,11 +69,30 @@ func TestRescanDetectsChange(t *testing.T) {
 		t.Fatalf("widgets matched %d before the note existed", len(got))
 	}
 
-	writeNote(t, root, "Concepts/Beta.md", "---\ntitle: Beta\ntype: concept\n---\n\nbeta mentions widgets\n")
+	const betaRel = "Concepts/Beta.md"
+	writeNote(t, root, betaRel, "---\ntitle: Beta\ntype: concept\n---\n\nbeta mentions widgets\n")
+	betaModified := time.Date(2026, time.July, 10, 8, 45, 0, 0, time.UTC)
+	betaPath := filepath.Join(root, filepath.FromSlash(betaRel))
+	if err := os.Chtimes(betaPath, betaModified, betaModified); err != nil {
+		t.Fatalf("set Beta mtime: %v", err)
+	}
 	store.rescan()
 
 	if got := store.Current().Search.Search(search.Parse("widgets")); len(got) == 0 {
 		t.Error("rescan did not pick up the added note")
+	}
+	foundBeta := false
+	for _, note := range store.Current().Nav.KnowledgeNotes {
+		if note.RelPath != betaRel {
+			continue
+		}
+		foundBeta = true
+		if !note.Modified.Equal(betaModified) {
+			t.Errorf("rescanned Beta mtime = %v, want scanner capture %v", note.Modified, betaModified)
+		}
+	}
+	if !foundBeta {
+		t.Error("rescanned navigation has no Beta knowledge-note summary")
 	}
 }
 
@@ -100,7 +123,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 	var swapper sync.WaitGroup
 	swapper.Go(func() {
 		for range 100 {
-			store.ptr.Store(buildSnapshot(root, discardLogger()))
+			store.ptr.Store(buildSnapshot(root, discardLogger(), scanMtimes(root)))
 		}
 	})
 	swapper.Wait()

@@ -1,17 +1,16 @@
-// Package nav builds the vault's navigation model: the reading page's
-// sidebar. It has one responsibility — turn the vault on disk into the
-// three read-only structures the sidebar shows:
+// Package nav builds the vault's read-only navigation model. It turns the
+// vault on disk into the structures used by the sidebar and Home:
 //
 //  1. a lifecycle folder tree (browse every note without typing a URL),
-//  2. the parsed study-path syllabus trees (part -> module/stage -> lesson,
+//  2. the parsed study-path syllabus trees (part -> module/section -> lesson,
 //     in document order — the rendered order must match the file's own
 //     listing order), and
-//  3. a flat list of the reports under System/reports/.
+//  3. a flat list of the reports under System/reports/, and
+//  4. knowledge-note summaries carrying scanner-captured modification times.
 //
-// The Model is built once at process startup and never mutated afterward
-// (mirroring how graph.Index is built in cmd/yomihon/main.go), so every
-// request hands out the same immutable value with no per-request work and
-// no locking.
+// Each Model is immutable after construction and is published as part of the
+// atomic vault snapshot, so requests need no locking or filesystem metadata
+// reads.
 //
 // Two invariants shape every decision here:
 //
@@ -30,6 +29,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -71,6 +71,10 @@ type Model struct {
 	// Reports enumerates System/reports/ — the .md reports first, then the
 	// daily-briefing/ HTML briefings; contents are never parsed.
 	Reports []Report
+	// KnowledgeNotes are typed markdown notes in vault path order. Home sorts a
+	// copy by Modified for its recent-changes block; the time is the scanner's
+	// captured value, so rendering never stats a note.
+	KnowledgeNotes []NoteSummary
 
 	// lessonIndex maps a note's rel-path to the syllabus placements that list it
 	// — the reverse of Syllabi — built once so the sidebar can open to the
@@ -81,6 +85,17 @@ type Model struct {
 	// once so the sidebar can show a note's same-directory siblings without
 	// descending the folder tree per request. Read it through Siblings.
 	dirNotes map[string][]NoteRef
+}
+
+// NoteSummary is the navigation metadata Home needs for one knowledge note.
+// Modified is captured by the snapshot scanner before the model build; it is
+// zero only when that scan could not stat a note which remained readable.
+type NoteSummary struct {
+	Title    string
+	RelPath  string
+	Type     string
+	Status   string
+	Modified time.Time
 }
 
 // Folder is one directory in the browse tree: its display name, its
@@ -141,8 +156,10 @@ func lifecycleRank(name string) int {
 // unreadable note, a broken lesson link, a malformed syllabus) is tolerated
 // and surfaced in the model rather than returned. cmd/yomihon/main.go
 // treats a returned error the same asymmetric way it treats a graph build
-// failure: log and serve an empty model, never abort the server.
-func Build(root string, idx Resolver) (*Model, error) {
+// failure: log and serve an empty model, never abort the server. mtimes is the
+// scanner-owned path-to-mtime capture for this snapshot; Build copies values
+// from it and never stats files itself.
+func Build(root string, idx Resolver, mtimes map[string]time.Time) (*Model, error) {
 	if idx == nil {
 		panic("nav: Build requires a non-nil Resolver")
 	}
@@ -171,6 +188,15 @@ func Build(root string, idx Resolver) (*Model, error) {
 		}
 		if s := n.Status(); s != "" {
 			statusByPath[p] = s
+		}
+		if noteType := n.Type(); noteType != "" {
+			m.KnowledgeNotes = append(m.KnowledgeNotes, NoteSummary{
+				Title:    n.Title(),
+				RelPath:  n.RelPath,
+				Type:     noteType,
+				Status:   n.Status(),
+				Modified: mtimes[p],
+			})
 		}
 		if n.Type() == typeStudyPath {
 			studyPaths = append(studyPaths, n)
