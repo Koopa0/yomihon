@@ -250,3 +250,22 @@ indexes every non-markdown file as a wikilink resolution target, extensions
 kept, pinned by test. It is the graph's *note set* that stays
 markdown-only; this ruling makes those already-resolving links open instead
 of 404.)
+
+## D46 The seal status has one source (guide, 2026-07-10, under Koopa's same-day delegation)
+
+`sealStatus = "ready"` is written three times — `internal/note/handler.go`,
+`internal/status/handler.go`, `internal/ui/pages/note.templ` — each with a
+comment explaining that it is the one true copy. Three true copies are a
+hardcoded enum wearing an apology, and wall 3 admits none: the schema toml is
+the single source of schema understanding, and `internal/schema` is the only
+package that reads it.
+
+The literal moves to `internal/schema` and the three packages consume it from
+there. Derivation from the state machine was the preferred form — the seal is
+the koopa-only transition — but the owner does not identify it: `ready` and
+`published` both carry `owner = ["koopa"]`, so "the koopa-only status" names
+two. Deriving from a predicate that is not unique would encode a coincidence.
+It is therefore one pinned constant in `internal/schema`, named for the seal
+and not for its owner, with the toml as its citation. Should the schema ever
+mark the seal explicitly, the constant becomes a derivation and the consumers
+do not move.
