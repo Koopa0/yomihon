@@ -646,6 +646,53 @@ html, body { margin: 0; background: var(--bg); }
    ============================================================ */
 .y-shell2 { display: grid; grid-template-columns: 264px minmax(0, 1fr); flex: 1; min-height: 0; }
 
+/* Home — a quiet reading-desk dashboard, then the vault README in the same
+   prose measure as every note. The block markers live in markup for the HTTP
+   probe; layout may move without changing their identity. */
+.y-home { max-width: 980px; margin: 0 auto; padding: 42px 48px 120px; }
+.y-home__head { margin-bottom: 26px; }
+.y-home__kicker, .y-homereadme__kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em; color: var(--fg-faint); }
+.y-home__head .y-title { margin-top: 10px; }
+.y-home__head > p { max-width: 600px; margin: 10px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg-subtle); }
+.y-homegrid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+.y-homeblock { min-width: 0; padding: 20px 22px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
+.y-homeblock--recent, .y-homeblock--paths { grid-column: span 7; }
+.y-homeblock--lifecycle, .y-homeblock--search { grid-column: span 5; }
+.y-homeblock__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.y-homeblock__head h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--fg); }
+.y-homeblock__head p { margin: 0 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); text-align: right; }
+.y-homeempty { margin: 4px 0 0; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-13); color: var(--fg-faint); }
+.y-homerecent, .y-homepaths { display: flex; flex-direction: column; }
+.y-homenote { display: flex; align-items: center; gap: 16px; min-width: 0; padding: 10px 2px; border-top: 1px solid var(--border-faint); }
+.y-homenote:first-child { border-top: 0; }
+.y-homenote:hover .y-homenote__title, .y-homepath:hover .y-homepath__title { color: var(--link); }
+.y-homenote__main { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
+.y-homenote__title { overflow: hidden; font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); text-overflow: ellipsis; white-space: nowrap; }
+.y-homenote__path { overflow: hidden; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); text-overflow: ellipsis; white-space: nowrap; }
+.y-homenote__meta { display: flex; flex: none; align-items: center; gap: 9px; }
+.y-homenote__meta time { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.y-homechips { display: flex; flex-wrap: wrap; gap: 8px; }
+.y-homechip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--border-faint); border-radius: var(--r-sm); background: var(--elevated); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); }
+.y-homechip:hover { border-color: var(--border-strong); color: var(--fg); }
+.y-homechip__count { min-width: 1.35em; color: var(--fg-faint); text-align: right; }
+.y-homepath { display: flex; align-items: baseline; gap: 14px; padding: 11px 2px; border-top: 1px solid var(--border-faint); }
+.y-homepath:first-child { border-top: 0; }
+.y-homepath__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); }
+.y-homepath__progress { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.y-homesearch { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--elevated); }
+.y-homesearch:focus-within { border-color: var(--accent); }
+.y-homesearch svg { flex: none; color: var(--fg-subtle); }
+.y-homesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
+.y-homesearch input:focus-visible { outline: 0; }
+.y-homesearch .y-xbtn { width: auto; height: 30px; padding: 0 13px; flex: none; }
+.y-homereadme { max-width: var(--measure-article); margin: 58px auto 0; padding-top: 34px; border-top: 1px solid var(--border); }
+.y-homereadme__head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+.y-homereadme__head h2 { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); font-weight: var(--fw-regular); color: var(--fg); }
+
+@media (max-width: 1180px) {
+  .y-homeblock--recent, .y-homeblock--paths, .y-homeblock--lifecycle, .y-homeblock--search { grid-column: 1 / -1; }
+}
+
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
    /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
@@ -848,6 +895,11 @@ html, body { margin: 0; background: var(--bg); }
 }
 @media (max-width: 900px) {
   .y-shell, .y-shell2 { grid-template-columns: 1fr; }
+  .y-home { padding: 32px 20px 120px; }
+  .y-homeblock__head { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .y-homeblock__head p { margin-left: 0; text-align: left; }
+  .y-homenote { align-items: flex-start; }
+  .y-homenote__meta { align-items: flex-end; flex-direction: column; }
   .y-syl { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lesson { gap: 10px; }

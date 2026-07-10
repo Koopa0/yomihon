@@ -4,17 +4,20 @@ package note
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
@@ -26,6 +29,11 @@ import (
 // the single source of schema truth. render.HTML stays generic — the lesson decision is
 // made here, so a non-lesson note never grows lesson affordances.
 const typeLesson = "lesson"
+
+// homeRecentLimit keeps the landing page a trailhead rather than another
+// browse surface. The complete vault remains reachable through navigation and
+// search.
+const homeRecentLimit = 7
 
 // StatusPolicy is the read-only projection of the write face the reading page
 // needs: whether the face is closed (Closed), which transition keys to offer
@@ -42,25 +50,17 @@ type StatusPolicy interface {
 }
 
 // Deps is everything the reading feature reads from. Grouping the providers in a
-// struct keeps the constructor within the parameter budget as the page grew a
-// per-status count source (Counts, from the snapshot's search index) and a
-// read-only git-provenance source (Provenance, from the write face). Counts,
-// Provenance, and Nav are plain closures because "give me the current value" is
-// a closure, not a method set — the models live behind the atomic snapshot and
-// must be read fresh per request.
+// struct keeps the constructor within the parameter budget. Snapshot is one
+// closure because a request must read the atomic pointer once and derive its
+// navigation and counts from that coherent value. Provenance is a closure over
+// the read-only git query owned by the write package.
 type Deps struct {
-	Root     string
-	Renderer *render.Renderer
-	Status   StatusPolicy
-	Nav      func() *nav.Model
-	Counts   func() map[string]int
-	// TypeStatusCounts tallies notes by (type, status) from the current
-	// snapshot, so the sidebar can weigh each note's onward transitions against
-	// the contract for its pending-decision count. Kept apart from Counts because
-	// that pairing, not the flat status tally, is what the count needs.
-	TypeStatusCounts func() map[search.TypeStatus]int
-	Provenance       func(ctx context.Context, rel string) (string, error)
-	Log              *slog.Logger
+	Root       string
+	Renderer   *render.Renderer
+	Status     StatusPolicy
+	Snapshot   func() *snapshot.Snapshot
+	Provenance func(ctx context.Context, rel string) (string, error)
+	Log        *slog.Logger
 	// Slots is the lesson slot-machine sidecar index, loaded once at
 	// startup. Unlike the closures above it is static (slot sidecars are never
 	// indexed as notes and never enter the scanner's rebuilt-on-change snapshot
@@ -92,14 +92,8 @@ func NewHandler(d Deps) *Handler {
 	if d.Status == nil {
 		panic("note: NewHandler requires a non-nil Status")
 	}
-	if d.Nav == nil {
-		panic("note: NewHandler requires a non-nil Nav provider")
-	}
-	if d.Counts == nil {
-		panic("note: NewHandler requires a non-nil Counts provider")
-	}
-	if d.TypeStatusCounts == nil {
-		panic("note: NewHandler requires a non-nil TypeStatusCounts provider")
+	if d.Snapshot == nil {
+		panic("note: NewHandler requires a non-nil Snapshot provider")
 	}
 	if d.Provenance == nil {
 		panic("note: NewHandler requires a non-nil Provenance provider")
@@ -117,10 +111,36 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", h.home)
 }
 
-// home redirects to the vault README. The Vault-Index home page is deferred by
-// design; until it is built, / lands on README.md.
+// home renders the four landing blocks from one coherent snapshot, followed by
+// the vault README through the same markdown pipeline used by a note page. It
+// is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/notes/README.md", http.StatusFound)
+	snap := h.deps.Snapshot()
+	readme, err := h.readNote("README.md")
+	switch {
+	case errors.Is(err, errUnreadable):
+		h.deps.Log.Error("read home README", "error", err)
+		http.Error(w, "cannot read home", http.StatusInternalServerError)
+		return
+	case err != nil:
+		h.deps.Log.Warn("read home README", "error", err)
+		http.NotFound(w, r)
+		return
+	}
+
+	result := h.deps.Renderer.HTML(readme.Body)
+	pending, pendingKnown := h.pending(snap)
+	lifecycle := h.lifecycle(snap, "")
+	view := pages.HomeView{
+		Recent:     recentHomeNotes(snap.Nav.KnowledgeNotes),
+		Lifecycle:  lifecycle,
+		Paths:      homePaths(snap.Nav.Syllabi),
+		ReadmeHTML: result.HTML,
+		Sidebar:    pages.NewSidebar(snap.Nav, "", lifecycle, pending, pendingKnown),
+	}
+	if err := pages.Home(view, pages.ChromeFromRequest(r, "Home")).Render(r.Context(), w); err != nil {
+		h.deps.Log.Error("write home page", "error", err)
+	}
 }
 
 // show serves one entry of the browse tree. Every file the tree lists opens
@@ -180,7 +200,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		concepts = h.loadConcepts(refs)
 	}
 
-	pending, pendingKnown := h.pending()
+	snap := h.deps.Snapshot()
+	pending, pendingKnown := h.pending(snap)
 	view := pages.NoteView{
 		Title:             n.Title(),
 		RelPath:           n.RelPath,
@@ -192,7 +213,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
-		Sidebar:           pages.NewSidebar(h.deps.Nav(), n.RelPath, h.lifecycle(n.Status()), pending, pendingKnown),
+		Sidebar:           pages.NewSidebar(snap.Nav, n.RelPath, h.lifecycle(snap, n.Status()), pending, pendingKnown),
 		WriteClosed:       h.deps.Status.Closed(),
 		Concepts:          concepts,
 	}
@@ -271,12 +292,12 @@ func (h *Handler) loadConcepts(refs []string) []lesson.ConceptDoc {
 // in the contract's toml order (Status.Order — never hardcoded), each with its
 // live snapshot count and whether it is the current note's status. Empty when
 // the write face is closed.
-func (h *Handler) lifecycle(current string) []pages.LifecycleItem {
+func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) []pages.LifecycleItem {
 	order := h.deps.Status.Order()
 	if len(order) == 0 {
 		return nil
 	}
-	counts := h.deps.Counts()
+	counts := snap.Search.CountByStatus()
 	items := make([]pages.LifecycleItem, 0, len(order))
 	for _, s := range order {
 		items = append(items, pages.LifecycleItem{
@@ -295,11 +316,11 @@ func (h *Handler) lifecycle(current string) []pages.LifecycleItem {
 // known = false when the write face is closed, so the sidebar shows no figure
 // rather than a misleading zero. The predicate reuses the write face's own
 // contract reading; the seal is named in one place, never a second status list.
-func (h *Handler) pending() (count int, known bool) {
+func (h *Handler) pending(snap *snapshot.Snapshot) (count int, known bool) {
 	if h.deps.Status.Closed() {
 		return 0, false
 	}
-	for ts, n := range h.deps.TypeStatusCounts() {
+	for ts, n := range snap.Search.CountByTypeStatus() {
 		if ts.Status == schema.SealStatus {
 			continue
 		}
@@ -308,4 +329,53 @@ func (h *Handler) pending() (count int, known bool) {
 		}
 	}
 	return count, true
+}
+
+// recentHomeNotes selects the newest knowledge notes from the snapshot's
+// scanner-captured timestamps. It sorts a clone, leaving the published model
+// immutable for concurrent readers. Equal mtimes fall back to path order so a
+// rebuild produces stable output.
+func recentHomeNotes(notes []nav.NoteSummary) []pages.HomeNote {
+	notes = slices.Clone(notes)
+	slices.SortStableFunc(notes, func(a, b nav.NoteSummary) int {
+		switch {
+		case a.Modified.Equal(b.Modified):
+			return cmp.Compare(a.RelPath, b.RelPath)
+		case a.Modified.After(b.Modified):
+			return -1
+		default:
+			return 1
+		}
+	})
+	if len(notes) > homeRecentLimit {
+		notes = notes[:homeRecentLimit]
+	}
+
+	out := make([]pages.HomeNote, 0, len(notes))
+	for _, n := range notes {
+		item := pages.HomeNote{Title: n.Title, RelPath: n.RelPath, Type: n.Type, Status: n.Status}
+		if !n.Modified.IsZero() {
+			item.Modified = n.Modified.Format("2006-01-02")
+			item.ModifiedAt = n.Modified.Format(time.RFC3339)
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+// homePaths maps the snapshot's parsed study paths onto the small progress
+// figures Home displays. BuildSyllabusView owns the ready/total derivation used
+// by the full study-path page, so the landing card cannot drift from it.
+func homePaths(syllabi []nav.Syllabus) []pages.HomePath {
+	out := make([]pages.HomePath, 0, len(syllabi))
+	for _, s := range syllabi {
+		view := pages.BuildSyllabusView(s, nil)
+		out = append(out, pages.HomePath{
+			Title:   s.Title,
+			RelPath: s.RelPath,
+			Ready:   view.Ready,
+			Total:   view.Lessons,
+		})
+	}
+	return out
 }

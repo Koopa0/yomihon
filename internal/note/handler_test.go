@@ -2,6 +2,7 @@ package note_test
 
 import (
 	"context"
+	"fmt"
 	"html"
 	"io"
 	"log/slog"
@@ -14,14 +15,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lesson"
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 )
 
@@ -47,17 +47,12 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	t.Helper()
 	mux := http.NewServeMux()
 	svc := status.NewService(root, contract)
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build(%q) = %v", root, err)
-	}
-	navModel, err := nav.Build(root, idx)
-	if err != nil {
-		t.Fatalf("nav.Build(%q) = %v", root, err)
-	}
+	log := slog.New(slog.DiscardHandler)
+	store := snapshot.New(root, log)
 	// Build the slot index when the temp vault has a System/slots dir; a test
 	// without one leaves Slots nil (the legal "no slot machines" state).
 	var slots lesson.SlotIndex
+	var err error
 	if slotsDir := filepath.Join(root, "System", "slots"); dirExists(slotsDir) {
 		slots, err = lesson.BuildSlotIndex(slotsDir)
 		if err != nil {
@@ -68,22 +63,15 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	if err != nil {
 		t.Fatalf("lesson.BuildConceptIndex(%q) = %v", root, err)
 	}
-	searchIdx, err := search.Build(root)
-	if err != nil {
-		t.Fatalf("search.Build(%q) = %v", root, err)
-	}
-	log := slog.New(slog.DiscardHandler)
 	h := note.NewHandler(note.Deps{
-		Root:             root,
-		Renderer:         render.New(root, idx),
-		Status:           svc,
-		Nav:              func() *nav.Model { return navModel },
-		Counts:           func() map[string]int { return nil },
-		TypeStatusCounts: func() map[search.TypeStatus]int { return searchIdx.CountByTypeStatus() },
-		Provenance:       func(context.Context, string) (string, error) { return "", nil },
-		Log:              log,
-		Slots:            slots,
-		Concepts:         concepts,
+		Root:       root,
+		Renderer:   render.New(root, store.Resolver()),
+		Status:     svc,
+		Snapshot:   store.Current,
+		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Log:        log,
+		Slots:      slots,
+		Concepts:   concepts,
 	})
 	h.Register(mux)
 	status.NewHandler(svc, log).Register(mux)
@@ -100,6 +88,18 @@ func loadContract(t *testing.T) *schema.Schema {
 	s, err := schema.LoadFile(filepath.Join("testdata", "contract.toml"))
 	if err != nil {
 		t.Fatalf("LoadFile(testdata/contract.toml) = %v", err)
+	}
+	return s
+}
+
+// loadHomeContract reuses the complete schema loader fixture because Home's
+// lifecycle strip needs the default note-status group, not the lesson-only
+// group exercised by the reading-page tests above.
+func loadHomeContract(t *testing.T) *schema.Schema {
+	t.Helper()
+	s, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("LoadFile(schema test contract) = %v", err)
 	}
 	return s
 }
@@ -504,22 +504,25 @@ func TestShowNotFound(t *testing.T) {
 	}
 }
 
-// TestHome pins the home route's contract. The navigation sidebar
-// already ships on every /notes page (see TestShowIncludesSidebar); the
-// Vault-Index home page (domain MOC entry points, cross-domain boards, the
-// mechanical-gate list) is deliberately deferred, so
-// until it lands GET / is a placeholder that redirects (302) to README.md.
-// A regression that changed the target, changed the status code, dropped the
-// route, or "re-implemented" home as something else is caught here.
+// TestHome pins the landing page's observable contract: a direct 200 in the
+// shared shell, one site marker for each dashboard block, and the vault README
+// rendered beneath them. The site markers are asserted by name rather than by
+// their position in the document, so rearranging the dashboard cannot blame a
+// correct page for violating a declaration-order accident.
 func TestHome(t *testing.T) {
 	t.Parallel()
-	srv := newServer(t, t.TempDir())
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nREADME body sentinel.\n"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	srv := newServer(t, root)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/", http.NoBody)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	// Assert on the 302 itself — do not let the client follow it.
+	// Refuse redirects: a followed README redirect can produce the same body
+	// while violating Home's direct-render contract.
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
@@ -529,12 +532,159 @@ func TestHome(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusFound {
-		t.Errorf("GET / status = %d, want %d", resp.StatusCode, http.StatusFound)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
-	if got := resp.Header.Get("Location"); got != "/notes/README.md" {
-		t.Errorf("GET / Location = %q, want %q", got, "/notes/README.md")
+	if got := resp.Header.Get("Location"); got != "" {
+		t.Errorf("GET / Location = %q, want no redirect", got)
 	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	pageHTML := string(body)
+	for name, marker := range map[string]string{
+		"recently changed": `data-home-block="recent"`,
+		"lifecycle":        `data-home-block="lifecycle"`,
+		"study paths":      `data-home-block="study-paths"`,
+		"search":           `data-home-block="search"`,
+		"vault README":     "README body sentinel.",
+		"topbar":           `class="y-header"`,
+		"command palette":  `data-search`,
+	} {
+		if !strings.Contains(pageHTML, marker) {
+			t.Errorf("GET / is missing the %s marker %q", name, marker)
+		}
+	}
+}
+
+// TestHomeDashboardUsesSnapshotData pins the four blocks beyond their site
+// markers. Recently changed is the newest seven typed notes in mtime order;
+// Lifecycle links the contract-provided statuses; Study paths reports the same
+// ready/total tally as its full page. The recent section is scoped by its own
+// section marker, never by whichever block happens to follow it.
+func TestHomeDashboardUsesSnapshotData(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nDashboard README sentinel.\n"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+
+	conceptDir := filepath.Join(root, "Concepts")
+	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
+		t.Fatalf("mkdir concepts: %v", err)
+	}
+	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	for i := range 8 {
+		name := fmt.Sprintf("Note %d", i)
+		full := filepath.Join(conceptDir, fmt.Sprintf("note-%d.md", i))
+		content := fmt.Sprintf("---\ntitle: %s\ntype: concept\nstatus: draft\n---\n\nbody\n", name)
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		modified := base.Add(time.Duration(i) * 24 * time.Hour)
+		if err := os.Chtimes(full, modified, modified); err != nil {
+			t.Fatalf("set %s mtime: %v", name, err)
+		}
+	}
+
+	lessonDir := filepath.Join(root, "Writing", "lessons")
+	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
+		t.Fatalf("mkdir lessons: %v", err)
+	}
+	for name, statusName := range map[string]string{"Open": "draft", "Sealed": schema.SealStatus} {
+		content := fmt.Sprintf("---\ntitle: %s\ntype: lesson\nstatus: %s\n---\n\nbody\n", name, statusName)
+		full := filepath.Join(lessonDir, name+".md")
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatalf("write lesson %s: %v", name, err)
+		}
+		if err := os.Chtimes(full, base.Add(-24*time.Hour), base.Add(-24*time.Hour)); err != nil {
+			t.Fatalf("set lesson %s mtime: %v", name, err)
+		}
+	}
+	mapDir := filepath.Join(root, "Maps")
+	if err := os.MkdirAll(mapDir, 0o750); err != nil {
+		t.Fatalf("mkdir maps: %v", err)
+	}
+	pathBody := "---\ntitle: Test path\ntype: study-path\n---\n\n## Part\n\n- [[Open]]\n- [[Sealed]]\n"
+	pathFile := filepath.Join(mapDir, "path.md")
+	if err := os.WriteFile(pathFile, []byte(pathBody), 0o644); err != nil {
+		t.Fatalf("write study path: %v", err)
+	}
+	if err := os.Chtimes(pathFile, base.Add(-24*time.Hour), base.Add(-24*time.Hour)); err != nil {
+		t.Fatalf("set study path mtime: %v", err)
+	}
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+
+	recent := homeSection(t, body, `data-home-block="recent"`)
+	if got := strings.Count(recent, "data-home-recent-note"); got != 7 {
+		t.Errorf("recent note rows = %d, want 7", got)
+	}
+	previous := -1
+	for i := 7; i >= 1; i-- {
+		marker := fmt.Sprintf("Note %d", i)
+		at := strings.Index(recent, marker)
+		if at < 0 {
+			t.Errorf("recent section is missing %q", marker)
+			continue
+		}
+		if previous >= 0 && at <= previous {
+			t.Errorf("recent section order places %q at %d after the prior newer note at %d", marker, at, previous)
+		}
+		previous = at
+	}
+	if strings.Contains(recent, "Note 0") {
+		t.Error("recent section includes the eighth-newest note, want the newest seven")
+	}
+
+	lifecycle := homeSection(t, body, `data-home-block="lifecycle"`)
+	for _, marker := range []string{"status%3Adraft", "status%3Aready", "draft", schema.SealStatus} {
+		if !strings.Contains(lifecycle, marker) {
+			t.Errorf("Lifecycle block is missing %q", marker)
+		}
+	}
+	paths := homeSection(t, body, `data-home-block="study-paths"`)
+	for _, marker := range []string{"Test path", "1 / 2 ready", "/syllabus/Maps/path.md"} {
+		if !strings.Contains(paths, marker) {
+			t.Errorf("Study paths block is missing %q", marker)
+		}
+	}
+	if !strings.Contains(body, "Dashboard README sentinel.") {
+		t.Error("Home is missing the rendered vault README body")
+	}
+}
+
+// TestHomeWithoutReadmeIsNotReady ensures a missing README is an honest 404,
+// not a blank dashboard 200 that the readiness poll could mistake for Home.
+func TestHomeWithoutReadmeIsNotReady(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, t.TempDir())
+	code, _ := get(t, srv.URL+"/")
+	if code != http.StatusNotFound {
+		t.Errorf("GET / without README status = %d, want %d", code, http.StatusNotFound)
+	}
+}
+
+func homeSection(t *testing.T, body, marker string) string {
+	t.Helper()
+	markerAt := strings.Index(body, marker)
+	if markerAt < 0 {
+		t.Fatalf("Home body is missing section marker %q", marker)
+	}
+	openAt := strings.LastIndex(body[:markerAt], "<section")
+	if openAt < 0 {
+		t.Fatalf("Home marker %q is not inside a section", marker)
+	}
+	closeAt := strings.Index(body[markerAt:], "</section>")
+	if closeAt < 0 {
+		t.Fatalf("Home section %q has no closing tag", marker)
+	}
+	return body[openAt : markerAt+closeAt+len("</section>")]
 }
 
 // TestShowNoFrontmatter exercises handler.go's NoFrontmatter branch with a
@@ -680,48 +830,38 @@ func TestNewHandlerPanicsOnNilStatusPolicy(t *testing.T) {
 		}
 	}()
 	root := t.TempDir()
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build(%q) = %v", root, err)
-	}
+	log := slog.New(slog.DiscardHandler)
+	store := snapshot.New(root, log)
 	note.NewHandler(note.Deps{
 		Root:       root,
-		Renderer:   render.New(root, idx),
+		Renderer:   render.New(root, store.Resolver()),
 		Status:     nil, // the nil under test
-		Nav:        func() *nav.Model { return &nav.Model{} },
-		Counts:     func() map[string]int { return nil },
+		Snapshot:   store.Current,
 		Provenance: func(context.Context, string) (string, error) { return "", nil },
-		Log:        slog.New(slog.DiscardHandler),
+		Log:        log,
 	})
 }
 
-// TestNewHandlerPanicsOnNilNavigation mirrors the StatusPolicy check: a
-// provider returning an empty *nav.Model is valid (an empty sidebar renders —
-// reading is fail-open), but a nil provider is a wiring bug that must fail at
-// construction, not three calls deep inside the first reading request. The nav
-// model lives behind the scanner's atomic snapshot, so the sidebar is
-// read live per request through this closure (never a captured startup value),
-// and the guard is on the closure being present, not on the model it returns.
-func TestNewHandlerPanicsOnNilNavigation(t *testing.T) {
+// TestNewHandlerPanicsOnNilSnapshot mirrors the StatusPolicy check: a provider
+// returning an empty-but-valid snapshot is legal, but a nil provider is a
+// wiring bug that must fail at construction rather than inside the first read.
+func TestNewHandlerPanicsOnNilSnapshot(t *testing.T) {
 	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatal("NewHandler(nil navigation provider) did not panic")
+			t.Fatal("NewHandler(nil Snapshot provider) did not panic")
 		}
 	}()
 	root := t.TempDir()
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build(%q) = %v", root, err)
-	}
+	log := slog.New(slog.DiscardHandler)
+	store := snapshot.New(root, log)
 	note.NewHandler(note.Deps{
 		Root:       root,
-		Renderer:   render.New(root, idx),
+		Renderer:   render.New(root, store.Resolver()),
 		Status:     status.NewService(root, nil),
-		Nav:        nil, // the nil under test
-		Counts:     func() map[string]int { return nil },
+		Snapshot:   nil, // the nil under test
 		Provenance: func(context.Context, string) (string, error) { return "", nil },
-		Log:        slog.New(slog.DiscardHandler),
+		Log:        log,
 	})
 }
 

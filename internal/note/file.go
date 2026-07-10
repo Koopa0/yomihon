@@ -211,13 +211,14 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string) {
 	defer f.Close() //nolint:errcheck // a read-only handle; a close error cannot affect the response
 
 	name := path.Base(rel)
-	pending, pendingKnown := h.pending()
+	snap := h.deps.Snapshot()
+	pending, pendingKnown := h.pending(snap)
 	view := pages.FileView{
 		Title:       name,
 		RelPath:     rel,
 		Size:        info.Size(),
 		ContentType: fileContentType(rel, f),
-		Sidebar:     pages.NewSidebar(h.deps.Nav(), rel, nil, pending, pendingKnown),
+		Sidebar:     pages.NewSidebar(snap.Nav, rel, nil, pending, pendingKnown),
 	}
 
 	ext := strings.ToLower(path.Ext(rel))
