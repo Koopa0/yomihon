@@ -43,7 +43,7 @@ func TestPending(t *testing.T) {
 			})
 		}
 	}
-	snap := &snapshot.Snapshot{Search: search.BuildFromDocs(docs)}
+	snap := &snapshot.Snapshot{Search: search.BuildFromDocs(docs, contract.ArtifactPolicy())}
 	policy := status.NewService(t.TempDir(), contract)
 
 	count, known := pending(policy, snap)
@@ -57,5 +57,14 @@ func TestPending(t *testing.T) {
 	closed := status.NewService(t.TempDir(), nil)
 	if _, known := pending(closed, snap); known {
 		t.Error("pending() known = true on a closed write face, want false")
+	}
+
+	unavailable := &snapshot.Snapshot{Search: search.BuildFromDocs(docs, schema.ArtifactPolicy{})}
+	if _, known := pending(policy, unavailable); known {
+		t.Error("pending() known = true without artifact metadata capability, want false")
+	}
+	h := &Handler{deps: Deps{Status: policy}}
+	if got, _ := h.lifecycle(unavailable, ""); got != nil {
+		t.Errorf("lifecycle() = %+v without artifact metadata capability, want nil", got)
 	}
 }

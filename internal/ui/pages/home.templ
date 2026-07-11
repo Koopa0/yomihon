@@ -8,13 +8,15 @@ import (
 
 // HomeView is the read-only landing surface: four dashboard blocks assembled
 // from one vault snapshot, then the rendered vault README. Sidebar carries the
-// shared shell navigation; no write-face state or form appears in Home itself.
+// shared shell navigation; lifecycle availability is diagnostic state and no
+// mutation form appears in Home.
 type HomeView struct {
-	Recent     []HomeNote
-	Lifecycle []LifecycleItem
-	Paths      []HomePath
-	ReadmeHTML string
-	Sidebar    Sidebar
+	Recent              []HomeNote
+	Lifecycle           []LifecycleItem
+	LifecycleDiagnostic string
+	Paths               []HomePath
+	ReadmeHTML          string
+	Sidebar             Sidebar
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -80,7 +82,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 
 						<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
 							@homeBlockHead("home-lifecycle-title", "Lifecycle", "Open a status queue")
-							if len(v.Lifecycle) > 0 {
+							if v.LifecycleDiagnostic != "" {
+								<p class="y-homeempty" data-home-lifecycle-diagnostic>{ v.LifecycleDiagnostic }</p>
+							} else if len(v.Lifecycle) > 0 {
 								<div class="y-homechips">
 									for _, it := range v.Lifecycle {
 										<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
@@ -90,8 +94,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 										</a>
 									}
 								</div>
-							} else {
-								<p class="y-homeempty">Lifecycle is unavailable while the contract is closed.</p>
 							}
 						</section>
 

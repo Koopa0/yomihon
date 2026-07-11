@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -42,15 +43,23 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /search", h.search)
 }
 
-// search parses q, queries the current index, and renders the plain results
-// page. An empty or whitespace-only q parses to an empty Query, which
-// Index.Search answers with no results (before any scanning).
+// search parses q, queries the current index, and renders results or a named
+// metadata-capability diagnostic. An empty or whitespace-only q parses to an
+// empty Query, which Index.Search answers with no results.
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	snap := h.snapshot()
 	q := r.URL.Query().Get("q")
-	results := snap.Index.Search(Parse(q))
+	results, err := snap.Index.Search(Parse(q))
+	diagnostic := ""
+	if errors.Is(err, ErrMetadataUnavailable) {
+		diagnostic = err.Error()
+	} else if err != nil {
+		h.log.Error("search query", "query", q, "error", err)
+		results = nil
+		diagnostic = "Search is temporarily unavailable."
+	}
 
-	view := pages.SearchView{Query: q, Results: viewResults(results), Nav: snap.Shell.Nav}
+	view := pages.SearchView{Query: q, Results: viewResults(results), Diagnostic: diagnostic, Nav: snap.Shell.Nav}
 	if err := pages.Search(view, snap.Shell.Chrome(r, "Search")).Render(r.Context(), w); err != nil {
 		h.log.Error("write search page", "query", q, "error", err)
 	}

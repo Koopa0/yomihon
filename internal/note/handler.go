@@ -131,13 +131,14 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 
 	result := renderer.HTML(readme.Body)
 	shell := ShellData(h.deps.Status, snap)
-	lifecycle := h.lifecycle(snap, "")
+	lifecycle, lifecycleDiagnostic := h.lifecycle(snap, "")
 	view := pages.HomeView{
-		Recent:     recentHomeNotes(snap.Nav.KnowledgeNotes),
-		Lifecycle:  lifecycle,
-		Paths:      homePaths(snap.Nav.Paths),
-		ReadmeHTML: result.HTML,
-		Sidebar:    pages.NewSidebar(snap.Nav, ""),
+		Recent:              recentHomeNotes(snap.Nav.KnowledgeNotes),
+		Lifecycle:           lifecycle,
+		LifecycleDiagnostic: lifecycleDiagnostic,
+		Paths:               homePaths(snap.Nav.Paths),
+		ReadmeHTML:          result.HTML,
+		Sidebar:             pages.NewSidebar(snap.Nav, ""),
 	}
 	if err := pages.Home(view, shell.Chrome(r, "Home")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
@@ -290,17 +291,24 @@ func (h *Handler) loadConcepts(renderer *render.Renderer, refs []string) []lesso
 	return docs
 }
 
-// lifecycle assembles Home's Lifecycle block: the note group's statuses
-// in the contract's toml order (Status.Order — never hardcoded), each with its
-// live snapshot count and whether it is the current note's status. Empty when
-// the write face is closed.
-func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) []pages.LifecycleItem {
+// lifecycle assembles Home's Lifecycle block: the note group's statuses in the
+// contract's toml order, each with its live snapshot count and whether it is
+// current. The diagnostic distinguishes an unavailable write contract from an
+// unavailable artifact-metadata capability, so Home never presents either as a
+// successful empty projection.
+func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) (items []pages.LifecycleItem, diagnostic string) {
+	if h.deps.Status.Closed() {
+		return nil, "Lifecycle is unavailable while the contract is closed."
+	}
 	order := h.deps.Status.Order()
 	if len(order) == 0 {
-		return nil
+		return nil, "Lifecycle is unavailable because the contract declares no note statuses."
 	}
-	counts := snap.Search.CountByStatus()
-	items := make([]pages.LifecycleItem, 0, len(order))
+	counts, err := snap.Search.CountByStatus()
+	if err != nil {
+		return nil, err.Error()
+	}
+	items = make([]pages.LifecycleItem, 0, len(order))
 	for _, s := range order {
 		items = append(items, pages.LifecycleItem{
 			Name:   s,
@@ -309,7 +317,7 @@ func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) []pages.Lif
 			Sealed: s == schema.SealStatus,
 		})
 	}
-	return items
+	return items, ""
 }
 
 // ShellData projects the shared sidebar model and pending count from one request
@@ -323,14 +331,19 @@ func ShellData(status StatusPolicy, snap *snapshot.Snapshot) pages.ShellData {
 // pending counts the notes still awaiting a decision: those whose (type, status)
 // still has an owner-held onward move in the contract, excluding the seal itself
 // — the final human act on a note is not something still pending. It returns
-// known = false when the write face is closed, so the topbar shows no figure
-// rather than a misleading zero. The predicate reuses the write face's own
-// contract reading; the seal is named in one place, never a second status list.
+// known = false when either the write contract or artifact-metadata capability
+// is unavailable, so the topbar shows no figure rather than a misleading zero.
+// The predicate reuses the write face's own contract reading; the seal is named
+// in one place, never a second status list.
 func pending(status StatusPolicy, snap *snapshot.Snapshot) (count int, known bool) {
 	if status.Closed() {
 		return 0, false
 	}
-	for ts, n := range snap.Search.CountByTypeStatus() {
+	counts, err := snap.Search.CountByTypeStatus()
+	if err != nil {
+		return 0, false
+	}
+	for ts, n := range counts {
 		if ts.Status == schema.SealStatus {
 			continue
 		}

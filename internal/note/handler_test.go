@@ -110,6 +110,29 @@ func loadHomeContract(t *testing.T) *schema.Schema {
 	return s
 }
 
+func loadHomeContractWithArtifactSection(t *testing.T, artifactSection string) *schema.Schema {
+	t.Helper()
+	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema test contract: %v", err)
+	}
+	const validSection = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	contractText := strings.Replace(string(base), validSection, artifactSection, 1)
+	if contractText == string(base) {
+		t.Fatal("schema test contract artifact section was not replaced")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err = os.WriteFile(path, []byte(contractText), 0o600) // #nosec G703 -- path is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	return contract
+}
+
 func runGit(t *testing.T, root string, args ...string) string {
 	t.Helper()
 	cmdArgs := append([]string{"-C", root}, args...)
@@ -774,6 +797,59 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 	if !strings.Contains(body, `aria-label="1 to decide"`) {
 		t.Error("Home topbar is missing the snapshot-derived pending chip")
+	}
+}
+
+func TestHomeLifecycleDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		contract func(*testing.T) *schema.Schema
+		want     string
+	}{
+		{
+			name:     "closed core contract",
+			contract: func(*testing.T) *schema.Schema { return nil },
+			want:     "Lifecycle is unavailable while the contract is closed.",
+		},
+		{
+			name: "missing artifact policy",
+			contract: func(t *testing.T) *schema.Schema {
+				t.Helper()
+				return loadHomeContractWithArtifactSection(t, "")
+			},
+			want: "contract declares no artifact policy; instance projections disabled until it does",
+		},
+		{
+			name: "invalid artifact policy",
+			contract: func(t *testing.T) *schema.Schema {
+				t.Helper()
+				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
+			},
+			want: `invalid artifact policy: non_instance_dirs contains "."`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+				t.Fatalf("write README: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract(t))
+			code, body := get(t, srv.URL+"/")
+			if code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want 200", code)
+			}
+			lifecycle := html.UnescapeString(homeSection(t, body, `data-home-block="lifecycle"`))
+			for _, want := range []string{"data-home-lifecycle-diagnostic", tt.want} {
+				if !strings.Contains(lifecycle, want) {
+					t.Errorf("Lifecycle diagnostic missing %q; section = %q", want, lifecycle)
+				}
+			}
+		})
 	}
 }
 

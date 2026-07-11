@@ -16,6 +16,32 @@ import (
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
+func snapshotSearch(tb testing.TB, idx *search.Index, query string) []search.Result {
+	tb.Helper()
+	results, err := idx.Search(search.Parse(query))
+	if err != nil {
+		tb.Fatalf("Search(%q) error: %v", query, err)
+	}
+	return results
+}
+
+func assertSearchArtifactPolicy(tb testing.TB, snap *Snapshot) {
+	tb.Helper()
+	if got := snapshotSearch(tb, snap.Search, "status:ready"); len(got) != 0 {
+		tb.Errorf("metadata search returned non-instance template: %+v", got)
+	}
+	if got := snapshotSearch(tb, snap.Search, "Card"); len(got) != 1 || got[0].RelPath != "System/templates/Card.md" {
+		tb.Errorf("plain search = %+v, want readable template", got)
+	}
+	counts, err := snap.Search.CountByStatus()
+	if err != nil {
+		tb.Fatalf("CountByStatus() error: %v", err)
+	}
+	if counts["ready"] != 0 || counts["draft"] != 1 {
+		tb.Errorf("status counts = %v, want draft instance only", counts)
+	}
+}
+
 func testCapabilities(tb testing.TB) (schema.NavigationRoles, schema.ArtifactPolicy) {
 	tb.Helper()
 	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
@@ -52,7 +78,7 @@ func TestNewBuildsSnapshot(t *testing.T) {
 	if snap.Search.Len() == 0 {
 		t.Error("snapshot search index is empty")
 	}
-	if got := snap.Search.Search(search.Parse("kafka")); len(got) == 0 {
+	if got := snapshotSearch(t, snap.Search, "kafka"); len(got) == 0 {
 		t.Error("kafka not found in the freshly built snapshot")
 	}
 	if got := snap.Graph.Resolve("Alpha"); got.Kind != graph.Unique {
@@ -77,7 +103,7 @@ func TestRescanDetectsChange(t *testing.T) {
 
 	roles, policy := testCapabilities(t)
 	store := New(root, discardLogger(), roles, policy)
-	if got := store.Current().Search.Search(search.Parse("widgets")); len(got) != 0 {
+	if got := snapshotSearch(t, store.Current().Search, "widgets"); len(got) != 0 {
 		t.Fatalf("widgets matched %d before the note existed", len(got))
 	}
 
@@ -90,7 +116,7 @@ func TestRescanDetectsChange(t *testing.T) {
 	}
 	store.rescan()
 
-	if got := store.Current().Search.Search(search.Parse("widgets")); len(got) == 0 {
+	if got := snapshotSearch(t, store.Current().Search, "widgets"); len(got) == 0 {
 		t.Error("rescan did not pick up the added note")
 	}
 	foundBeta := false
@@ -125,6 +151,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if !first.ArtifactPolicy.IsNonInstance("System/templates/Card.md") {
 		t.Fatal("initial snapshot artifact policy does not classify the template")
 	}
+	assertSearchArtifactPolicy(t, first)
 
 	// A malformed contract written after startup triggers a filesystem rescan
 	// but cannot replace the already-derived process capabilities.
@@ -141,6 +168,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if !got.ArtifactPolicy.IsNonInstance("System/templates/Card.md") {
 		t.Error("rescanned snapshot artifact policy lost the startup boundary")
 	}
+	assertSearchArtifactPolicy(t, got)
 }
 
 func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {

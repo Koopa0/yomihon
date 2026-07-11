@@ -28,7 +28,7 @@ type Chrome struct {
 	Theme        string // "light" | "dark"
 	Ruby         string // "on" | "off"
 	Pending      int    // notes awaiting an owner decision
-	PendingKnown bool   // false when the write contract is closed
+	PendingKnown bool   // false when the write contract or metadata capability is unavailable
 }
 
 func Base(c Chrome) templ.Component {

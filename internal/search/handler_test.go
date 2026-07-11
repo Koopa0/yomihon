@@ -1,6 +1,7 @@
 package search
 
 import (
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
@@ -19,7 +21,7 @@ func TestSearchHandler(t *testing.T) {
 
 	idx := BuildFromDocs([]Doc{
 		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft", PlainText: "kafka is a distributed log"},
-	})
+	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
 		return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
@@ -51,12 +53,55 @@ func TestSearchHandler(t *testing.T) {
 		if !strings.Contains(body, "No results") {
 			t.Errorf(`search page missing "No results"; body = %q`, body)
 		}
+		if strings.Contains(body, "data-search-diagnostic") {
+			t.Errorf("ordinary no-results page rendered a capability diagnostic; body = %q", body)
+		}
 	})
+}
+
+func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	missingPolicy := schema.ArtifactPolicy{}
+	invalidPolicy := invalidArtifactPolicy(t)
+	tests := []struct {
+		name       string
+		idx        *Index
+		diagnostic string
+	}{
+		{name: "missing", idx: BuildFromDocs([]Doc{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, missingPolicy), diagnostic: missingPolicy.Diagnostic()},
+		{name: "invalid", idx: BuildFromDocs([]Doc{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, invalidPolicy), diagnostic: invalidPolicy.Diagnostic()},
+		{name: "zero value index", idx: &Index{}, diagnostic: missingPolicy.Diagnostic()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := NewHandler(func() RequestSnapshot {
+				return RequestSnapshot{Index: tt.idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+			}, slog.New(slog.DiscardHandler))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=type:concept", http.NoBody)
+			rr := httptest.NewRecorder()
+			h.search(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rr.Code)
+			}
+			body := html.UnescapeString(rr.Body.String())
+			for _, want := range []string{"data-search-diagnostic", tt.diagnostic, "y-rail-left"} {
+				if !strings.Contains(body, want) {
+					t.Errorf("search diagnostic page missing %q; body = %q", want, body)
+				}
+			}
+			if strings.Contains(body, "No results") {
+				t.Errorf("search capability diagnostic rendered ordinary no-results copy; body = %q", body)
+			}
+		})
+	}
 }
 
 func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	t.Parallel()
-	idx := BuildFromDocs([]Doc{{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"}})
+	idx := BuildFromDocs([]Doc{{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"}}, validArtifactPolicy(t))
 	calls := 0
 	h := NewHandler(func() RequestSnapshot {
 		calls++

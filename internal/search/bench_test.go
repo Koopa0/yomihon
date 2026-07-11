@@ -8,11 +8,11 @@ import "testing"
 // build. The corpus and query are stable so the number is meaningful across
 // runs of a single machine.
 func BenchmarkSearch(b *testing.B) {
-	idx := BuildFromDocs(benchDocs())
+	idx := BuildFromDocs(benchDocs(), validArtifactPolicy(b))
 	q := Parse("kafka concept")
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = idx.Search(q)
+		_, _ = idx.Search(q)
 	}
 }
 

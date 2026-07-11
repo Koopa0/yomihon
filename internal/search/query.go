@@ -20,16 +20,43 @@ type Query struct {
 	Filters []Filter
 }
 
+func (q Query) requiresMetadata() bool {
+	for _, f := range q.Filters {
+		kind, ok := classifyFilterKey(f.Key)
+		if ok && kind == filterMetadata {
+			return true
+		}
+	}
+	return false
+}
+
+type filterKind uint8
+
+const (
+	filterUnknown filterKind = iota
+	filterMetadata
+	filterPath
+)
+
+// classifyFilterKey is the shared grammar and capability classification for
+// structured filters. Every recognized key receives a capability kind here.
+func classifyFilterKey(key string) (filterKind, bool) {
+	switch key {
+	case "type", "status", "domain", "topic", "slug":
+		return filterMetadata, true
+	case "folder":
+		return filterPath, true
+	default:
+		return filterUnknown, false
+	}
+}
+
 // isFilterKey reports whether key is exactly one of the six lowercase filter
 // keys. The check is on the raw, pre-fold text: "Type:" or "TOPIC:" have
 // a key outside this set, so the whole token is a bare token instead.
 func isFilterKey(key string) bool {
-	switch key {
-	case "type", "status", "domain", "slug", "topic", "folder":
-		return true
-	default:
-		return false
-	}
+	_, ok := classifyFilterKey(key)
+	return ok
 }
 
 // Parse turns a raw query string into a Query under four rules:

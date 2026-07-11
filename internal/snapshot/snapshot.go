@@ -173,10 +173,10 @@ func buildSnapshot(
 		navModel = &nav.Model{}
 	}
 
-	searchIdx, err := search.Build(root)
+	searchIdx, err := search.Build(root, policy)
 	if err != nil {
 		log.Warn("vault search index unavailable; search will return nothing", "error", err)
-		searchIdx = search.BuildFromDocs(nil)
+		searchIdx = search.BuildFromDocs(nil, policy)
 	}
 
 	return &Snapshot{Graph: idx, Nav: navModel, Search: searchIdx, ArtifactPolicy: policy}
