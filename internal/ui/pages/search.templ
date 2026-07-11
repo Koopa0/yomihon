@@ -5,13 +5,16 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
-// SearchView is everything the search results page needs. Its fields are plain
-// values (not internal/search types) so internal/ui/pages does not import
-// internal/search — the search handler maps its results onto SearchResult,
-// keeping the import one-directional (search → pages), like the reading page.
+// SearchView is everything the search results page needs. Diagnostic names a
+// metadata capability failure and is distinct from an ordinary empty result.
+// Its fields are plain values (not internal/search types) so internal/ui/pages
+// does not import internal/search — the search handler maps its results onto
+// SearchResult, keeping the import one-directional (search → pages), like the
+// reading page.
 type SearchView struct {
-	Query   string
-	Results []SearchResult
+	Query      string
+	Results    []SearchResult
+	Diagnostic string
 
 	// Nav is the whole-vault navigation model for the shared sidebar: the
 	// search page renders inside the same shell as every other page, so a
@@ -46,7 +49,12 @@ templ Search(v SearchView, c layouts.Chrome) {
 						<input type="search" name="q" value={ v.Query } placeholder="Search notes" aria-label="Search notes" autofocus/>
 						<button type="submit" class="y-xbtn">Search</button>
 					</form>
-					if len(v.Results) > 0 {
+					if v.Diagnostic != "" {
+						<div class="y-searchpage__empty" data-search-diagnostic>
+							<p>Metadata search unavailable.</p>
+							<p class="y-searchpage__hint">{ v.Diagnostic }</p>
+						</div>
+					} else if len(v.Results) > 0 {
 						<div class="y-results">
 							for _, r := range v.Results {
 								<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>

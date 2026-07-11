@@ -16,12 +16,11 @@
 //
 //   - Fault-tolerant. A malformed map, a broken entry link,
 //     an unreadable note, an odd folder — none may panic or drop the rest.
-//     A wikilink that does not resolve remains visible on its map note but is
-//     absent from navigation, which links only to notes that exist.
-//   - DB-independent. nav reads only files (vault.List /
-//     vault.ReadNote) and the wikilink index; it never touches PostgreSQL
-//     or the schema contract, so the sidebar renders whether or not those
-//     are available.
+//     Study paths retain unresolved, ambiguous, and non-instance targets as
+//     warnings because their order is a curriculum; general maps omit warnings
+//     because their tree is link navigation.
+//   - Contract-derived. Navigation roles and artifact boundaries are immutable
+//     values derived by internal/schema at startup; nav never reads the contract.
 package nav
 
 import (
@@ -32,21 +31,9 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-const (
-	mapTypeMOC       = "moc"
-	mapTypeSource    = "source-map"
-	mapTypeStudyPath = "study-path"
-	mapTypeTopic     = "topic-map"
-)
-
-// mapNoteTypes is the complete set of note types whose headings and resolved
-// wikilinks form navigation trees. These stable values name one subset of the
-// contract's type enum; nav does not load the contract because reading remains
-// available when the write contract is closed.
-var mapNoteTypes = [...]string{mapTypeMOC, mapTypeSource, mapTypeStudyPath, mapTypeTopic}
 
 // Resolver is the minimal wikilink-resolution capability nav needs to turn
 // an entry's [[wikilink]] into a note path (and to distinguish unique /
@@ -61,6 +48,13 @@ type Resolver interface {
 // Model is the whole navigation model, built
 // once and read-only afterward.
 type Model struct {
+	// NavigationDiagnostic explains why contract-derived Paths and Maps are
+	// unavailable. It is empty when navigation roles are valid.
+	NavigationDiagnostic string
+	// ArtifactDiagnostic explains why instance projections are unavailable. It
+	// is empty when the artifact policy is valid.
+	ArtifactDiagnostic string
+
 	// Folders are the top-level lifecycle folders in the vault's own
 	// artifact-lifecycle order (see lifecycleOrder), each holding its notes
 	// and subfolders recursively.
@@ -80,7 +74,8 @@ type Model struct {
 	Reports []Report
 	// KnowledgeNotes are typed markdown notes in vault path order. Home sorts a
 	// copy by Modified for its recent-changes block; the time is the scanner's
-	// captured value, so rendering never stats a note.
+	// captured value, so rendering never stats a note. This projection is empty
+	// when the artifact policy is unavailable.
 	KnowledgeNotes []NoteSummary
 
 	// placementIndex maps a note's rel-path to every map placement that lists it,
@@ -173,7 +168,13 @@ func lifecycleRank(name string) int {
 // failure: log and serve an empty model, never abort the server. mtimes is the
 // scanner-owned path-to-mtime capture for this snapshot; Build copies values
 // from it and never stats files itself.
-func Build(root string, idx Resolver, mtimes map[string]time.Time) (*Model, error) {
+func Build(
+	root string,
+	idx Resolver,
+	mtimes map[string]time.Time,
+	roles schema.NavigationRoles,
+	policy schema.ArtifactPolicy,
+) (*Model, error) {
 	if idx == nil {
 		panic("nav: Build requires a non-nil Resolver")
 	}
@@ -189,13 +190,24 @@ func Build(root string, idx Resolver, mtimes map[string]time.Time) (*Model, erro
 	}
 	m.Folders, m.RootNotes = buildFolderTree(paths)
 	m.dirNotes = buildDirNotes(paths)
+	if !roles.Available() {
+		m.NavigationDiagnostic = roles.Diagnostic()
+	}
+	if !policy.Available() {
+		m.ArtifactDiagnostic = policy.Diagnostic()
+		return m, nil
+	}
 
-	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(root, paths, mtimes)
+	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(root, paths, mtimes, roles, policy)
 	m.KnowledgeNotes = knowledgeNotes
+	if !roles.Available() {
+		return m, nil
+	}
 
 	for _, n := range mapNotes {
-		tree := parseMap(n, idx, statusByPath)
-		if tree.Type == mapTypeStudyPath {
+		isPath := roles.IsPathType(n.Type())
+		tree := parseMap(n, idx, statusByPath, policy, isPath)
+		if isPath {
 			m.Paths = append(m.Paths, tree)
 		} else {
 			m.Maps = append(m.Maps, tree)
@@ -218,12 +230,18 @@ func Build(root string, idx Resolver, mtimes map[string]time.Time) (*Model, erro
 // records statuses for entry badges, typed-note summaries for Home, and the map
 // notes whose bodies Build parses next. An unreadable note is skipped without
 // affecting its neighbors.
-func collectNavigationNotes(root string, paths []string, mtimes map[string]time.Time) (map[string]string, []*vault.Note, []NoteSummary) {
+func collectNavigationNotes(
+	root string,
+	paths []string,
+	mtimes map[string]time.Time,
+	roles schema.NavigationRoles,
+	policy schema.ArtifactPolicy,
+) (map[string]string, []*vault.Note, []NoteSummary) {
 	statusByPath := make(map[string]string)
 	var mapNotes []*vault.Note
 	var knowledgeNotes []NoteSummary
 	for _, p := range paths {
-		if !strings.HasSuffix(p, ".md") {
+		if !strings.HasSuffix(p, ".md") || policy.IsNonInstance(p) {
 			continue
 		}
 		n, err := vault.ReadNote(root, p)
@@ -242,15 +260,11 @@ func collectNavigationNotes(root string, paths []string, mtimes map[string]time.
 				Modified: mtimes[p],
 			})
 		}
-		if isMapNoteType(n.Type()) {
+		if roles.IsPathType(n.Type()) || roles.IsMapType(n.Type()) {
 			mapNotes = append(mapNotes, n)
 		}
 	}
 	return statusByPath, mapNotes, knowledgeNotes
-}
-
-func isMapNoteType(noteType string) bool {
-	return slices.Contains(mapNoteTypes[:], noteType)
 }
 
 // buildJournal selects markdown files below Diary from the scanner's path and

@@ -12,7 +12,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	pathpkg "path"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -26,6 +29,15 @@ var (
 	// tolerates a missing contract, but a write without one could destroy
 	// a file, so writing refuses outright.
 	ErrClosed = errors.New("status: write face is closed, no contract")
+	// ErrArtifactPolicyUnavailable means the core contract loaded but its
+	// artifact policy is unavailable, so instance writes cannot be classified.
+	ErrArtifactPolicyUnavailable = errors.New("status: artifact policy unavailable")
+	// ErrNonInstance means the requested path is a readable artifact rather
+	// than a governed note instance.
+	ErrNonInstance = errors.New(NonInstanceReason)
+	// ErrInvalidPath means a status request did not name a local vault-relative
+	// slash path.
+	ErrInvalidPath = errors.New("status: invalid vault-relative path")
 	// ErrStale means the submitted form's "from" no longer matches the
 	// note's on-disk status: the page was loaded before someone else
 	// changed the file.
@@ -54,6 +66,31 @@ var (
 	ErrCommitFailed = errors.New("status: note rewritten but git commit failed")
 )
 
+const (
+	// CoreUnavailableDiagnostic is the reading page's stable explanation for a
+	// write face closed by an unavailable core contract.
+	CoreUnavailableDiagnostic = "Contract unavailable — the write face is closed (fail-closed)."
+	// NonInstanceReason is the stable status-face explanation for readable
+	// artifacts that are outside lifecycle governance.
+	NonInstanceReason = "not a governable artifact"
+)
+
+// ArtifactPolicyUnavailableError carries the contract-derived diagnostic for
+// a write refused because instance classification is unavailable.
+type ArtifactPolicyUnavailableError struct {
+	diagnostic string
+}
+
+// Error returns the artifact policy diagnostic verbatim.
+func (e *ArtifactPolicyUnavailableError) Error() string {
+	return e.diagnostic
+}
+
+// Unwrap makes the error identifiable with ErrArtifactPolicyUnavailable.
+func (e *ArtifactPolicyUnavailableError) Unwrap() error {
+	return ErrArtifactPolicyUnavailable
+}
+
 // actor is the single local operator yomihon writes on behalf of. yomihon is
 // a local-only, single-user tool; there is no multi-user concept.
 const actor = "koopa"
@@ -64,6 +101,7 @@ const actor = "koopa"
 type Service struct {
 	root     string
 	contract *schema.Schema
+	policy   schema.ArtifactPolicy
 	// mu serializes Flip: the vault's git repo (index, HEAD) is one shared
 	// resource, and two concurrent flips racing its read-check-write-commit
 	// sequence can produce a commit whose message asserts a from→to
@@ -74,26 +112,41 @@ type Service struct {
 	mu sync.Mutex
 }
 
-// NewService wires the write face for the vault rooted at root. A nil
-// contract closes the write face (Closed reports true): no transitions are
-// offered and every Flip is rejected. Reading elsewhere in yomihon does not
-// go through this package and is unaffected by a nil contract.
-func NewService(root string, contract *schema.Schema) *Service {
-	return &Service{root: root, contract: contract}
+// NewService wires the write face for the vault rooted at root. A nil core
+// contract or unavailable artifact policy closes the write face: no
+// transitions are offered and every Flip is rejected. Both values are derived
+// once by startup wiring and remain immutable for the process lifetime.
+func NewService(root string, contract *schema.Schema, policy schema.ArtifactPolicy) *Service {
+	return &Service{root: root, contract: contract, policy: policy}
 }
 
-// Closed reports whether the write face is fail-closed: true when the
-// vault contract is unavailable.
+// Closed reports whether the write face is fail-closed because either the
+// core contract or artifact policy is unavailable.
 func (s *Service) Closed() bool {
-	return s.contract == nil
+	return s.contract == nil || !s.policy.Available()
+}
+
+// WriteDiagnostic explains why the write face is closed. An empty result
+// means writes are available.
+func (s *Service) WriteDiagnostic() string {
+	switch {
+	case s.contract == nil:
+		return CoreUnavailableDiagnostic
+	case !s.policy.Available():
+		return s.policy.Diagnostic()
+	default:
+		return ""
+	}
 }
 
 // Transitions returns the legal target statuses for the operator from a
-// note's current status, in the contract's declared order. It returns nil
-// when the write face is closed or either argument is empty — callers use
-// this to decide whether to render any transition keys at all.
-func (s *Service) Transitions(noteType, current string) []string {
-	if s.Closed() || noteType == "" || current == "" {
+// note's current status, in the contract's declared order. It returns nil when
+// the path is not a governed instance, the write face is closed, or a status
+// argument is empty. Callers use this to decide whether to render transition
+// keys at all.
+func (s *Service) Transitions(relPath, noteType, current string) []string {
+	relPath, _, err := normalizeRelPath(relPath)
+	if err != nil || s.Closed() || s.policy.IsNonInstance(relPath) || noteType == "" || current == "" {
 		return nil
 	}
 	var legal []string
@@ -107,15 +160,18 @@ func (s *Service) Transitions(noteType, current string) []string {
 
 // Order returns the default note group's statuses in the contract's declared
 // toml order (schema.Statuses("")) — the stable status axis Home's Lifecycle
-// block lists, independent of any one note. It returns nil when the
-// write face is closed. This is read-only schema vocabulary, not a transition
-// decision, and the enum still traces to the toml: nothing is
-// hardcoded here.
+// block lists, independent of any one note. It returns nil only when the core
+// contract is unavailable; artifact-policy closure does not hide read-only
+// lifecycle vocabulary. The enum still traces to the toml.
 func (s *Service) Order() []string {
-	if s.Closed() {
+	if s.contract == nil {
 		return nil
 	}
-	return s.contract.Statuses("")
+	order := slices.Clone(s.contract.Statuses(""))
+	if order == nil {
+		return []string{}
+	}
+	return order
 }
 
 // Advanceable reports whether the operator still has a legal onward move for a
@@ -158,15 +214,19 @@ func (s *Service) LastCommitHash(ctx context.Context, rel string) (string, error
 // Flip holds the Service's lock for its entire duration (see the mu field
 // doc): concurrent callers are serialized, never interleaved.
 func (s *Service) Flip(ctx context.Context, rel, from, to string) error {
-	if s.Closed() {
+	relSlash, rel, err := normalizeRelPath(rel)
+	if err != nil {
+		return err
+	}
+	if s.contract == nil {
 		return ErrClosed
 	}
-
-	rel = filepath.FromSlash(rel)
-	if !filepath.IsLocal(rel) {
-		return fmt.Errorf("status: flip %q: path escapes vault root", rel)
+	if !s.policy.Available() {
+		return &ArtifactPolicyUnavailableError{diagnostic: s.policy.Diagnostic()}
 	}
-	relSlash := filepath.ToSlash(rel)
+	if s.policy.IsNonInstance(relSlash) {
+		return ErrNonInstance
+	}
 	path := filepath.Join(s.root, rel)
 
 	s.mu.Lock()
@@ -217,6 +277,20 @@ func (s *Service) Flip(ctx context.Context, rel, from, to string) error {
 		return err
 	}
 	return nil
+}
+
+// normalizeRelPath validates and normalizes the external slash path before any
+// contract, filesystem, or git decision. It returns both slash and OS forms.
+func normalizeRelPath(rel string) (relSlash, osPath string, err error) {
+	if rel == "" || strings.Contains(rel, `\`) || pathpkg.IsAbs(rel) {
+		return "", "", fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+	normalized := pathpkg.Clean(rel)
+	osPath = filepath.FromSlash(normalized)
+	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") || !filepath.IsLocal(osPath) {
+		return "", "", fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+	return normalized, osPath, nil
 }
 
 // checkUnmodifiedSince reports whether path's mtime still matches before —

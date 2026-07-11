@@ -53,7 +53,7 @@ func postStatus(t *testing.T, srv *httptest.Server, form url.Values) (statusCode
 func TestHandlerSuccess(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
 	commitAll(t, root)
@@ -73,7 +73,7 @@ func TestHandlerSuccess(t *testing.T) {
 func TestHandlerMissingFields(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 	srv := newHandlerServer(t, svc)
 
 	tests := []struct {
@@ -102,7 +102,7 @@ func TestHandlerMissingFields(t *testing.T) {
 func TestHandlerClosed(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, nil) // no contract: fail-closed
+	svc := newService(t, root, nil) // no contract: fail-closed
 	srv := newHandlerServer(t, svc)
 
 	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {schema.SealStatus}})
@@ -114,10 +114,82 @@ func TestHandlerClosed(t *testing.T) {
 	}
 }
 
+func TestHandlerPathValidationPrecedesClosure(t *testing.T) {
+	t.Parallel()
+	srv := newHandlerServer(t, status.NewService(t.TempDir(), nil, schema.ArtifactPolicy{}))
+	code, _, body := postStatus(t, srv, url.Values{
+		"path": {"../outside.md"},
+		"from": {"draft"},
+		"to":   {schema.SealStatus},
+	})
+	if code != http.StatusUnprocessableEntity {
+		t.Errorf("POST path escape on closed service status = %d, want %d", code, http.StatusUnprocessableEntity)
+	}
+	if !strings.Contains(body, "vault-relative slash path") {
+		t.Errorf("POST path escape body = %q, want path-shape reason", body)
+	}
+	if strings.Contains(body, "contract is unavailable") {
+		t.Errorf("POST path escape reached closure before path validation: %q", body)
+	}
+}
+
+func TestHandlerNonInstance(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	srv := newHandlerServer(t, newService(t, root, loadContract(t)))
+
+	code, _, body := postStatus(t, srv, url.Values{
+		"path": {"System/templates/Missing.md"},
+		"from": {"draft"},
+		"to":   {schema.SealStatus},
+	})
+	if code != http.StatusUnprocessableEntity {
+		t.Errorf("POST non-instance status = %d, want %d", code, http.StatusUnprocessableEntity)
+	}
+	if got, want := strings.TrimSpace(body), "not a governable artifact"; got != want {
+		t.Errorf("POST non-instance body = %q, want %q", got, want)
+	}
+}
+
+func TestHandlerArtifactPolicyUnavailable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		contract *schema.Schema
+		want     string
+	}{
+		{name: "missing", contract: loadContractWithArtifactSection(t, ""), want: "contract declares no artifact policy; instance projections disabled until it does"},
+		{name: "invalid", contract: loadContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n"), want: `invalid artifact policy: non_instance_dirs contains "."`},
+		{name: "incomplete", contract: loadContractWithArtifactSection(t, "[artifacts]\n"), want: `invalid artifact policy: missing required key "non_instance_dirs"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			policy := tt.contract.ArtifactPolicy()
+			svc := status.NewService(t.TempDir(), tt.contract, policy)
+			srv := newHandlerServer(t, svc)
+			code, _, body := postStatus(t, srv, url.Values{
+				"path": {testRel},
+				"from": {"draft"},
+				"to":   {schema.SealStatus},
+			})
+			if code != http.StatusServiceUnavailable {
+				t.Errorf("POST with unavailable artifact policy status = %d, want %d", code, http.StatusServiceUnavailable)
+			}
+			if got, want := strings.TrimSpace(body), tt.want; got != want {
+				t.Errorf("POST with unavailable artifact policy body = %q, want exact diagnostic %q", got, want)
+			}
+			if strings.Contains(body, "the vault contract is unavailable") {
+				t.Errorf("artifact-policy response collapsed into core-contract response: %q", body)
+			}
+		})
+	}
+}
+
 func TestHandlerStale(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
 	commitAll(t, root)
@@ -136,7 +208,7 @@ func TestHandlerStale(t *testing.T) {
 func TestHandlerDirty(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	committed := lessonContent("draft")
 	writeNote(t, root, committed)
@@ -166,7 +238,7 @@ func TestHandlerDirty(t *testing.T) {
 func TestHandlerIllegalTransition(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("imported"))
 	commitAll(t, root)
@@ -192,7 +264,7 @@ func TestHandlerIllegalTransition(t *testing.T) {
 func TestHandlerGenericFailure(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir() // deliberately not a git repo
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
 	srv := newHandlerServer(t, svc)
@@ -215,7 +287,7 @@ func TestHandlerGenericFailure(t *testing.T) {
 func TestHandlerCommitFailedRoutesGitAddFailure(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
 	commitAll(t, root)

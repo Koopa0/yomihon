@@ -1,6 +1,6 @@
 # Reading-surface UX plan (navigation, motion, and the sidebar)
 
-Status: **ruled 2026-07-06; consolidated 2026-07-07** after a three-source
+Status: **ruled 2026-07-06; consolidated 2026-07-07; amended 2026-07-11** after a three-source
 adversarial round (two internal lenses plus an external reviewer, 32 findings
 triaged) — the amendments that had accumulated as sediment are folded into one
 coherent design. §9 keeps the ruling record; §14 records the round. This is
@@ -21,10 +21,12 @@ including per-note resume state — §14.6) and the ⌘K panel's retrieval conte
   vault; the server renders it; the page works with JavaScript disabled —
   the write path especially (D27). Enhancement never becomes a requirement.
 - **The platform ladder (D41).** For any interactive need, in order: semantic
-  HTML → CSS → a Chromium-native Web API (this app runs in the owner's
-  Chromium; Baseline-wide support is not a constraint) → a small vanilla-JS
-  enhancement → a mature, vendorable library when it genuinely earns its
-  place. Admission criteria are in D41; mermaid is the standing precedent.
+  HTML → CSS → a Baseline Web API → a small vanilla-JS progressive enhancement
+  when a concrete need remains or it is materially clearer than the native
+  alternative → a mature, vendorable library when it genuinely earns its place.
+  JavaScript is allowed, not the default; htmx, Alpine, and other client
+  abstractions require the D41 necessity and admission discussion. mermaid is
+  the standing precedent.
 - **Motion is meaning.** Transitions exist to preserve context, signal
   success, or mask real latency — never decoration. Decorative motion dies
   under `prefers-reduced-motion`; **essential progress feedback survives it**
@@ -88,7 +90,10 @@ snapshot (no new state *store*; the reading-tracker stays cockpit territory):
 2. **Lifecycle strip** — the status counts as one row of chips, each linking
    to its filtered list. The board's trailhead, not the board.
 3. **Study paths** — one card per path: title, sealed/total count, link.
-4. **Search** — the same field as the topbar, autofocused.
+4. **Search** — the same plain GET field as the topbar, without native
+   autofocus. Home always starts at the top; the topbar/⌘K route is the fast
+   search path. Input-driven results belong to the B lexical surface and remain
+   progressive enhancement over Enter, the submit button, and the no-JS GET.
 
 Below the blocks, the README body renders through the same pipeline as any
 note; `/notes/README.md` and every direct link keep working.
@@ -361,19 +366,25 @@ The vault keeps sprouting pillars; hand-coded sidebar categories go stale
 the day a new one lands. **The vault's own maps are the navigation.**
 
 1. **Generalize the tree-builder.** The path tree (headings → sections,
-   resolved wikilinks → entries) is how any map note works. Extend the nav
-   model to build the same tree for every map-typed note (`moc`,
-   `topic-map`, `source-map`, alongside `study-path`), from the types the
-   contract already defines. **The rename cascade is part of the work**:
+   resolved wikilinks → entries) is how any map note works. The nav model builds
+   it for the types assigned to `[navigation].path_types` and
+   `[navigation].map_types`; the current contract assigns `study-path` to Paths
+   and `moc`, `topic-map`, and `source-map` to Maps. Consumers never repeat that
+   role table. **The rename cascade is part of the work**:
    the nav model's path-flavored names (`Syllabus`, `Section`, `Lesson`,
    `typeStudyPath`, `Placement.SyllabusRelPath`, `openSyllabi`, the "Open
    study path" label) generalize honestly per this repo's naming rules — a
    `moc` served by a type named `Syllabus` is the kind of lie the naming
    rules exist to prevent. The `/syllabus/` route keeps its name (it renders
    study-paths; maps are notes and already have a page).
-2. **Only what exists appears.** A tree entry is a resolved wikilink; the
-   reading map's hundreds of unwritten rows stay on the map's own page. The
-   sidebar shows the written vault and grows as fast as the writing does.
+2. **Resolution is role-specific, and templates are not instances.** General
+   maps keep uniquely resolved governed destinations only; study paths retain
+   unresolved, ambiguous, and uniquely resolved non-instance targets in source
+   order as warning, non-link rows. A non-instance warning has no link, status,
+   placement, or ready credit. `System/templates` has no navigation destination
+   or other instance projection, but remains present in Folders and direct
+   reading. Zero-entry maps keep the current `<details>` plus “Open map”
+   presentation this round.
 3. **Wayfinding generalizes.** The reverse index extends to every map:
    reading a humanities 心得 auto-opens the reading map at its theme
    section, current entry marked — the same arrival a lesson gets.

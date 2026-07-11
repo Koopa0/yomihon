@@ -117,7 +117,7 @@ Grouping and labels are **schema-sourced, never hardcoded** (wall 3). One correc
 
 ## D27 The seal is progressive enhancement; the write path has zero JS dependency (2026-07-03)
 
-Koopa ruled: pressing `ready` is 落款／鈐印 — a deliberate, koopa-only, one-way seal — and the design's press-and-hold (~430 ms) ritual is legitimate, but it may not become a JS dependency. The mechanism is unchanged to the byte: every legal transition is one `<form method="post" action="/status">`, PRG (spec §4 step 8), the error vocabulary as-is; JS only intercepts pointer / `R` / Enter to run the hold and, on completion, calls `form.requestSubmit()` — **not `fetch`** — so the server sees exactly what a no-JS submit sends. With JS off the button is a one-press submit, fully functional. Spec §4's `one form per key, no JS` is amended to **"one form per key; the write path has zero JS dependency — JS may only add ceremony on top of a working plain form"** (consistent with spec §1's vanilla-JS-only principle). This overrides the phrasing, not the algorithm.
+Koopa ruled: pressing `ready` is 落款／鈐印 — a deliberate, koopa-only, one-way seal — and the design's press-and-hold (~430 ms) ritual is legitimate, but it may not become a JS dependency. The mechanism is unchanged to the byte: every legal transition is one `<form method="post" action="/status">`, PRG (spec §4 step 10), the error vocabulary as-is; JS only intercepts pointer / `R` / Enter to run the hold and, on completion, calls `form.requestSubmit()` — **not `fetch`** — so the server sees exactly what a no-JS submit sends. With JS off the button is a one-press submit, fully functional. Spec §4's `one form per key, no JS` is amended to **"one form per key; the write path has zero JS dependency — JS may only add ceremony on top of a working plain form"**. This overrides the phrasing, not the algorithm.
 
 Two consequences. (1) D13 still governs the panel: `ready` is the only primary — the seal button; **every other legal transition renders as its own quiet secondary form** (the Archive style), one press, no hold — the ritual is reserved for the sealing moment, not spread across all transitions. (2) The post-seal ink-bloom / hairline / 済 animation is driven by a **one-time signal on the PRG redirect**, implementer's choice, recorded: a `?sealed=1` query param on the `303 → /notes/<path>` target that `kurodo.js` strips via `history.replaceState` once the animation plays, so a manual refresh never replays it (no cookie, no server flash state). The `git · commit <hash>` provenance line is a **read-only** `git log -1 --format=%h -- <path>` in `internal/status` — the only package that touches git; read-only is no exception.
 
@@ -197,9 +197,27 @@ Koopa ruled the end state plainly: when this project completes, both reference i
 
 After both declarations, kurodo owns every format it emits and is free to improve them: byte-compatibility was migration discipline while a second engine existed, not deference to it.
 
-## D41 The interaction ladder: Chromium-native first, vanilla enhancement, mature libraries admissible on need (2026-07-06)
+## D41 The interaction ladder: native first, justified JavaScript, mature libraries admissible on need (2026-07-06; amended 2026-07-11)
 
-Koopa ruled the UI posture in two halves. First, the ladder stands, and he named it elegant: semantic HTML, then CSS, then Chromium-native Web APIs (the app serves one owner on his own Chromium; Baseline-wide compatibility is not a constraint), then small vanilla-JS enhancements. Motion and loading polish — view transitions, deliberate animation, busy states — are **in-scope quality, not gold-plating**; `ux-plan.md` owns that inventory. Second, the ladder's top rung is opened: **a mature, useful library may be introduced when it genuinely earns its place** — over-constraining and wheel-reinventing are both defects. Admission criteria, all required: (1) a real need a reasonable vanilla implementation cannot meet at proportionate cost; (2) maturity — stable API, maintained, widely deployed; (3) vendorable, served from this repo (the loopback promise admits no CDN); (4) size proportionate to the need; (5) it must not take over rendering — the app stays a server-rendered MPA with no client-framework runtime (React/Vue/htmx/Alpine stay out not by dogma but because their use cases are covered; a concrete unmet need reopens that sentence); (6) each admission is recorded as a decision here, need named. mermaid is the standing precedent. This supersedes the harsher "any library request is a stop-and-surface" phrasing wherever older text carries it.
+Koopa ruled the UI posture in two halves. First, the ladder stands: semantic
+HTML, then CSS, then Baseline Web APIs, then a small vanilla-JS progressive
+enhancement only when a concrete need remains or the script is materially
+clearer than the native alternative. JavaScript is allowed, not the default;
+the working no-JS core path remains. Motion and loading polish — view
+transitions, deliberate animation, busy states — are **in-scope quality, not
+gold-plating**; `ux-plan.md` owns that inventory. Second, the ladder's top rung
+is opened: **a mature, useful library may be introduced when it genuinely earns
+its place** — over-constraining and wheel-reinventing are both defects. Admission
+criteria, all required: (1) a real need a reasonable vanilla implementation
+cannot meet at proportionate cost; (2) maturity — stable API, maintained, widely
+deployed; (3) vendorable, served from this repo (the loopback promise admits no
+CDN); (4) size proportionate to the need; (5) it must not take over rendering —
+the app stays a server-rendered MPA with no client-framework runtime; htmx,
+Alpine, and any other client abstraction require a concrete unmet need and this
+same admission discussion; (6) each admission is recorded as a decision here,
+need named. mermaid is the standing precedent. This supersedes the harsher "any
+library request is a stop-and-surface" phrasing and the earlier Chromium-only
+reading of this decision.
 
 ## D42 The journal influences no egress verdict; a public note's own words remain its own (2026-07-06)
 
@@ -269,3 +287,69 @@ It is therefore one pinned constant in `internal/schema`, named for the seal
 and not for its owner, with the toml as its citation. Should the schema ever
 mark the seal explicitly, the constant becomes a derivation and the consumers
 do not move.
+
+## D47 The instance contract separates paths, maps, and artifacts (Koopa, 2026-07-11; amended after review the same day)
+
+The vault contract now declares navigation roles and non-instance locality.
+Study paths retain unresolved, ambiguous, and uniquely resolved non-instance
+targets in source order as warning, non-link rows; general maps expose only
+uniquely resolved governed targets in navigation, while their reading pages keep
+every row. A non-instance study-path warning carries its source text and target
+only: no governed path, status, placement, readiness, or write identity. It
+counts as a path row but never as ready. `[navigation]` accepts only disjoint,
+duplicate-free `path_types` and `map_types` drawn from `[enums].type`; one bad
+value invalidates the whole role set.
+
+`[navigation]` and `[artifacts]` validate and degrade independently. Missing,
+invalid, or incomplete navigation roles disable Paths and Maps with a named
+diagnostic, without closing aggregates or writes. Missing, invalid, or incomplete
+artifact policy disables Paths/Maps, Home recent/lifecycle/advanceable
+projections, metadata-filtered search, and the write face identically, with no
+all-files fallback; Folders, direct and raw reading, reports, and text search
+remain available. Each declared section has required keys: `path_types` and
+`map_types` for `[navigation]`, `non_instance_dirs` for `[artifacts]`. An explicit
+empty list is a valid declaration of none; an omitted key makes that capability
+invalid rather than defaulting it to empty. Diagnostics distinguish the states:
+
+- missing navigation: `contract declares no navigation roles; Paths and Maps disabled until it does`;
+- missing artifacts: `contract declares no artifact policy; instance projections disabled until it does`;
+- incomplete navigation names missing `path_types`, `map_types`, or both and ends `Paths and Maps disabled`;
+- incomplete artifacts: `invalid artifact policy: missing required key "non_instance_dirs"`;
+- an invalid value names that value.
+
+Core TOML or lifecycle failure keeps the standing whole-contract degradation.
+
+Artifact locality is frozen as NFC-normalized, vault-relative component-prefix
+matching. Empty, `.`, `..`, absolute, and backslash paths are rejected; a path
+matches directory `D` only when it equals `D` or begins with `D + "/"`, so
+`System/templates-old` does not match `System/templates`.
+
+A non-instance file has no Paths/Maps destination or reverse placement and is
+absent from Home recent, structured-search results, lifecycle and advanceable
+counts, and lesson reading enhancements. The sole navigation exception is the
+source-order warning representation above when a study path names it. Its status
+UI is a quiet non-governable state with no forms, and `/status` rejects it. It
+remains present in Folders, direct note/file/raw reading, bare-text and folder
+search, and unchanged wikilink resolution and diagnostics; judge keeps its own
+scan policy. Metadata filters (`type`, `status`, `domain`, `topic`, `slug`)
+require valid artifact policy. Without it, any query containing one — including
+a mixed metadata-and-text query — is explicitly unavailable, never treated as an
+ignored filter or zero results; bare-text and folder queries continue.
+
+Status writes parse the form, normalize and validate the path, then reject a
+non-instance before stat/read/git: `ErrNonInstance` is HTTP 422 with the fixed
+reason `not a governable artifact`, including for a nonexistent target. Missing
+or invalid or incomplete artifact policy is a distinct HTTP 503 from core-contract closure.
+Zero-entry maps keep the current `<details>` plus “Open map” presentation in this
+round. 4M remains prohibited; only a concrete user task blocked by the current
+presentation may reopen it.
+
+**Amendment record.** The original ruling did not enumerate the
+role × resolution × target-instance-state row for a uniquely resolved
+non-instance study-path target, nor the section-present × required-key-omitted
+configuration state. Implementation and tests chose answers, then the first D47
+wording repeated them; that was conformance to an assumption, not authority.
+The amended rows above are Koopa's correction after review. `standards.md` now
+requires the full predicate cross-product with authority labels before dispatch
+and forbids tests, mutations, campaigns, or later prose from manufacturing a
+ruling.

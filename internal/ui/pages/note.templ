@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -14,10 +15,10 @@ import (
 // and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
 // what it found, and a human edits the file.
 //
-// Transitions, WriteClosed, and NoFrontmatter drive the status panel (the only
-// UI through which the vault is written). SealTarget and Sealed carry the schema-owned seal semantics into the
-// template. JustSealed / SealedHash are the seal-provenance signals and are
-// meaningful only when Sealed is true.
+// Transitions, WriteDiagnostic, NonInstance, and NoFrontmatter drive the rail
+// status panel and responsive seal bar, the reading page's two status faces.
+// SealTarget and Sealed carry the schema-owned seal semantics into both.
+// JustSealed / SealedHash are meaningful only when Sealed is true.
 type NoteView struct {
 	Title      string
 	RelPath    string
@@ -36,9 +37,10 @@ type NoteView struct {
 	// map and folder branches to open, and the entry to mark.
 	Sidebar Sidebar
 
-	Transitions   []string
-	WriteClosed   bool
-	NoFrontmatter bool
+	Transitions     []string
+	NonInstance     bool
+	WriteDiagnostic string
+	NoFrontmatter   bool
 
 	// JustSealed is set from a one-shot ?sealed=1 PRG signal; SealedHash is the
 	// read-only git short hash of the sealing commit. Both apply only to a sealed
@@ -201,6 +203,18 @@ templ sidebar(sb Sidebar) {
 						>{ n.Name }</a>
 					}
 				</nav>
+			}
+			if sb.Model.NavigationDiagnostic != "" || sb.Model.ArtifactDiagnostic != "" {
+				<div class="y-railsep" aria-hidden="true"></div>
+				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
+					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">Paths and Maps</h2>
+					if sb.Model.NavigationDiagnostic != "" {
+						<p>{ sb.Model.NavigationDiagnostic }</p>
+					}
+					if sb.Model.ArtifactDiagnostic != "" {
+						<p>{ sb.Model.ArtifactDiagnostic }</p>
+					}
+				</section>
 			}
 			if len(sb.Model.Paths) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
@@ -369,19 +383,32 @@ templ branchNode(sb Sidebar, mapPath string, chain []string, branch nav.Branch) 
 	</details>
 }
 
-// entryLink renders one resolved map entry and marks the current note.
+// entryLink renders one map row: governed unique targets link and may mark the
+// current note; study-path warning rows remain non-interactive.
 templ entryLink(sb Sidebar, entry nav.Entry) {
-	<a
-		class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
-		href={ templ.URL(notesHref(entry.RelPath)) }
-		{ currentAttr(sb.current(entry.RelPath))... }
-	>
-		<span class="y-navdot" aria-hidden="true"></span>
-		{ entry.Text }
-		if entry.Status != "" {
-			<span class="ui-navitem__count">{ entry.Status }</span>
-		}
-	</a>
+	if entry.Kind == nav.EntryResolved {
+		<a
+			class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
+			href={ templ.URL(notesHref(entry.RelPath)) }
+			{ currentAttr(sb.current(entry.RelPath))... }
+		>
+			<span class="y-navdot" aria-hidden="true"></span>
+			{ entry.Text }
+			if entry.Status != "" {
+				<span class="ui-navitem__count">{ entry.Status }</span>
+			}
+		</a>
+	} else {
+		<span
+			class="ui-navitem y-navitem--broken"
+			data-resolution={ entryResolutionLabel(entry.Kind) }
+			title={ entryResolutionTitle(entry.Kind) }
+		>
+			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
+			{ entry.Text }
+			<span class="ui-navitem__count y-navmark--warn">{ entryResolutionLabel(entry.Kind) }</span>
+		</span>
+	}
 }
 
 // ============================ RIGHT RAIL ============================
@@ -394,7 +421,7 @@ templ rightRail(v NoteView) {
 				@tocList(v)
 			</nav>
 		}
-		if v.Diagnostic == "" {
+		if v.Diagnostic == "" || v.NonInstance {
 			@statusPanel(v)
 		}
 		@diagnostics(v)
@@ -432,43 +459,50 @@ templ inlineAids(v NoteView) {
 	}
 }
 
-// statusPanel is the write face's entire UI: one plain form per
-// legal transition (the PRG pattern, no JS dependency). The schema-owned seal
-// target is the only primary, with the press-and-hold ceremony layered on by JS;
-// every other legal transition is a quiet one-click form. The legal set is only
-// what the schema contract returns — never a fabricated key.
+// statusPanel is the rail status face: one plain form per legal transition (the
+// PRG pattern, no JS dependency). The responsive seal bar is the second status
+// face. The schema-owned seal target is the only primary, with the
+// press-and-hold ceremony layered on by JS; every other legal transition is a
+// quiet one-click form. The legal set is only what the schema contract returns —
+// never a fabricated key.
 templ statusPanel(v NoteView) {
-	<section class={ "y-statuspanel", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel>
-		<div class="y-statuspanel__head">
-			<div class="y-statuspanel__row">
-				<span class="ui-side__label">Status</span>
-				<span class="y-actor">actor · koopa</span>
-			</div>
-			if v.Sealed {
-				@sealedBadge(v)
-			} else if v.Status != "" {
-				<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
-			}
-		</div>
-		switch {
-			case v.WriteClosed:
-				<p class="y-statuspanel__notice">Contract unavailable — the write face is closed (fail-closed).</p>
-			case v.NoFrontmatter:
-				<p class="y-statuspanel__notice">No frontmatter (valid).</p>
-			case len(v.Transitions) == 0:
-				if !v.Sealed {
-					<p class="y-statuspanel__notice">No legal transitions.</p>
-				}
-			default:
-				<div class="y-statuspanel__forms">
-					for _, to := range v.Transitions {
-						if to == v.SealTarget {
-							@sealForm(v)
-						} else {
-							@transitionForm(v, to)
-						}
+	<section class={ "y-statuspanel", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel data-status-state={ statusState(v) }>
+		if v.NonInstance {
+			<p class="y-statuspanel__notice">{ status.NonInstanceReason }</p>
+		} else {
+			<div class="y-statuspanel__head">
+				<div class="y-statuspanel__row">
+					<span class="ui-side__label">Status</span>
+					if v.WriteDiagnostic == "" {
+						<span class="y-actor">actor · koopa</span>
 					}
 				</div>
+				if v.Sealed {
+					@sealedBadge(v)
+				} else if v.Status != "" {
+					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+				}
+			</div>
+			switch {
+				case v.WriteDiagnostic != "":
+					<p class="y-statuspanel__notice">{ v.WriteDiagnostic }</p>
+				case v.NoFrontmatter:
+					<p class="y-statuspanel__notice">No frontmatter (valid).</p>
+				case len(v.Transitions) == 0:
+					if !v.Sealed {
+						<p class="y-statuspanel__notice">No legal transitions.</p>
+					}
+				default:
+					<div class="y-statuspanel__forms">
+						for _, to := range v.Transitions {
+							if to == v.SealTarget {
+								@sealForm(v)
+							} else {
+								@transitionForm(v, to)
+							}
+						}
+					</div>
+			}
 		}
 	</section>
 }
@@ -564,16 +598,18 @@ templ diagnostics(v NoteView) {
 // column entirely. It mirrors the status panel's states — the sealed badge,
 // the current chip with the seal form when legal (shared data-seal hook, so
 // the hold ceremony behaves identically), and the closed-face notices — so
-// the write face's state always has somewhere to appear. Only a frontmatter
-// diagnostic suppresses it, exactly as it suppresses the status panel: a
-// note whose frontmatter did not parse has no status to show, and the
-// diagnostics list is the face that explains why.
+// the write face's state always has somewhere to appear. A frontmatter
+// diagnostic suppresses governance state because no status was parsed; a
+// non-instance remains named because that classification comes from its path,
+// independent of frontmatter.
 templ sealBar(v NoteView) {
-	if v.Diagnostic == "" {
-		<div class={ "y-sealbar", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel>
+	if v.Diagnostic == "" || v.NonInstance {
+		<div class={ "y-sealbar", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel data-status-state={ statusState(v) }>
 			switch {
-				case v.WriteClosed:
-					<p class="y-sealbar__notice">Contract unavailable — the write face is closed (fail-closed).</p>
+				case v.NonInstance:
+					<p class="y-sealbar__notice">{ status.NonInstanceReason }</p>
+				case v.WriteDiagnostic != "":
+					<p class="y-sealbar__notice">{ v.WriteDiagnostic }</p>
 				case v.NoFrontmatter:
 					<p class="y-sealbar__notice">No frontmatter (valid).</p>
 				case v.Sealed:
@@ -592,6 +628,17 @@ templ sealBar(v NoteView) {
 					}
 			}
 		</div>
+	}
+}
+
+func statusState(v NoteView) string {
+	switch {
+	case v.NonInstance:
+		return "non-instance"
+	case v.WriteDiagnostic != "":
+		return "unavailable"
+	default:
+		return "instance"
 	}
 }
 

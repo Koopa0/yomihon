@@ -237,22 +237,24 @@ func run(log *slog.Logger) error {
 	}
 
 	// Fault tolerance is asymmetric by direction: a missing/broken contract
-	// must never abort the server. Reading has no dependency on it at all;
-	// only the write face (internal/status) does, and it fails closed on
-	// a nil contract — no transition keys shown, every POST /status
-	// rejected. Do not turn this back into a fatal error: a closed write
-	// face is harmless, but losing the reading face over a schema problem
-	// is not.
+	// must never abort the server. Core note and file reading remains available;
+	// contract-derived projections and the write face report their own degraded
+	// states. Losing the reading face over a schema problem would hide the source
+	// material needed to repair it.
 	contract, err := schema.Load(cfg.root)
+	var roles schema.NavigationRoles
+	var artifactPolicy schema.ArtifactPolicy
 	if err != nil {
 		log.Warn("vault contract unavailable; write face is closed (fail-closed)", "error", err)
 		contract = nil
 	} else {
+		roles = contract.NavigationRoles()
+		artifactPolicy = contract.ArtifactPolicy()
 		log.Info("vault contract loaded",
 			"version", contract.Version, "lifecycle_statuses", len(contract.Lifecycle))
 	}
 
-	statusSvc := status.NewService(cfg.root, contract)
+	statusSvc := status.NewService(cfg.root, contract, artifactPolicy)
 
 	// Lesson slot sidecars load once from System/slots/, a separate read
 	// path from the vault scanner (slots are never indexed as notes). Fail-open
@@ -289,7 +291,7 @@ func run(log *slog.Logger) error {
 	// the ~2s mtime scanner that rebuilds and swaps on any vault change, so an
 	// edited note stops going stale until restart. It is
 	// cancellable via ctx for graceful shutdown.
-	store := snapshot.New(cfg.root, log)
+	store := snapshot.New(cfg.root, log, roles, artifactPolicy)
 	go store.Run(ctx)
 
 	// The long-lived renderer starts with the initial graph, then each rendering

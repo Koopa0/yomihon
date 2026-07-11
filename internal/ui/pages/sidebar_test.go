@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 func TestAncestorDirs(t *testing.T) {
@@ -68,7 +69,7 @@ func buildModel(t *testing.T) *nav.Model {
 		"Maps/Go path.md": "---\ntype: study-path\n---\n" +
 			"## decode | Decode | 解碼\n\n" +
 			"### bytes | Bytes | 位元\n\n" +
-			"- [[L01]]\n- [[L02]]\n\n" +
+			"- [[L01]]\n- [[L02]]\n- [[Template target]]\n- [[Unwritten Lesson]]\n- [[Repeat|Ambiguous Lesson]]\n\n" +
 			"## review | Review | 複習\n\n" +
 			"- [[L01]]\n",
 		// A newly added topic map lists a concept. No application registration
@@ -80,6 +81,11 @@ func buildModel(t *testing.T) *nav.Model {
 		// A concept note not listed by any study-path.
 		"Concepts/go/C01.md": "---\ntype: concept\n---\nbody\n",
 		"Concepts/go/C02.md": "---\ntype: concept\n---\nbody\n",
+		"A/Repeat.md":        "body\n",
+		"B/Repeat.md":        "body\n",
+		"System/templates/Template map.md": "---\ntitle: TEMPLATE MAP SENTINEL\ntype: topic-map\n---\n" +
+			"## Shelf\n- [[L01]]\n",
+		"System/templates/Template target.md": "---\ntitle: TEMPLATE TARGET SENTINEL\ntype: concept\nstatus: ready\n---\nbody\n",
 		// A Sources note with no frontmatter at all (a legal shape).
 		"Sources/articles/Other.md": "just prose, no frontmatter\n",
 		"Sources/articles/Raw.md":   "raw clipping, no frontmatter\n",
@@ -104,7 +110,11 @@ func buildModel(t *testing.T) *nav.Model {
 		"Diary/2026-07-09.md": time.Date(2026, time.July, 9, 8, 0, 0, 0, time.UTC),
 		"Diary/2026-07-10.md": time.Date(2026, time.July, 10, 8, 0, 0, 0, time.UTC),
 	}
-	model, err := nav.Build(root, idx, mtimes)
+	contract, err := schema.LoadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	model, err := nav.Build(root, idx, mtimes, contract.NavigationRoles(), contract.ArtifactPolicy())
 	if err != nil {
 		t.Fatalf("nav.Build: %v", err)
 	}
@@ -302,6 +312,11 @@ func TestSidebarContentGrouping(t *testing.T) {
 		`data-key="journal"`,
 		`data-sidebar-journal-entry>2026-07-10</a>`,
 		`data-sidebar-journal-entry>2026-07-09</a>`,
+		`data-resolution="unresolved"`,
+		`data-resolution="ambiguous"`,
+		"Unwritten Lesson",
+		"Ambiguous Lesson",
+		"y-navmark--warn",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered sidebar is missing %q", want)
@@ -309,6 +324,14 @@ func TestSidebarContentGrouping(t *testing.T) {
 	}
 	if strings.Contains(html, "Ghost") {
 		t.Error("rendered sidebar contains unresolved map row Ghost")
+	}
+	if strings.Contains(html, `href="/notes/"`) {
+		t.Error("rendered sidebar fabricates an empty note href for a broken study-path row")
+	}
+	unwrittenAt := strings.Index(html, "Unwritten Lesson")
+	ambiguousAt := strings.Index(html, "Ambiguous Lesson")
+	if unwrittenAt < 0 || ambiguousAt < 0 || unwrittenAt >= ambiguousAt {
+		t.Errorf("broken study-path row order = unresolved:%d ambiguous:%d, want document order", unwrittenAt, ambiguousAt)
 	}
 	if strings.Contains(html, ">Lifecycle<") {
 		t.Error("rendered sidebar still contains the Lifecycle section")
@@ -330,6 +353,99 @@ func TestSidebarContentGrouping(t *testing.T) {
 				t.Errorf("detailsTagByKey(%q) = %q, want no open attribute", tt.key, tag)
 			}
 		})
+	}
+}
+
+func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	model := &nav.Model{
+		NavigationDiagnostic: "invalid navigation roles: type unavailable",
+		ArtifactDiagnostic:   "invalid artifact policy: directory unavailable",
+		Folders: []nav.Folder{{
+			Name:    "Writing",
+			RelPath: "Writing",
+			Notes:   []nav.NoteRef{{Name: "Note", RelPath: "Writing/Note.md"}},
+		}},
+	}
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(model, "")).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	for _, want := range []string{
+		`data-sidebar-group="navigation-diagnostics"`,
+		"Paths and Maps",
+		model.NavigationDiagnostic,
+		model.ArtifactDiagnostic,
+		"Folders",
+		`href="/notes/Writing/Note.md"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered degraded sidebar is missing %q", want)
+		}
+	}
+	if strings.Contains(html, `data-map-tree=`) {
+		t.Error("rendered degraded sidebar contains a map disclosure")
+	}
+}
+
+func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing.T) {
+	t.Parallel()
+
+	model := buildModel(t)
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(model, "")).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	if strings.Contains(html, `data-map-tree="System/templates/Template map.md"`) {
+		t.Error("sidebar Maps contains the non-instance template map document")
+	}
+	pathsAt := strings.Index(html, `data-sidebar-group="paths"`)
+	mapsAt := strings.Index(html, `data-sidebar-group="maps"`)
+	if pathsAt < 0 || mapsAt < 0 || pathsAt >= mapsAt {
+		t.Fatalf("sidebar path/map markers = %d/%d, want ordered groups", pathsAt, mapsAt)
+	}
+	paths := html[pathsAt:mapsAt]
+	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">non-instance</span>"} {
+		if !strings.Contains(paths, want) {
+			t.Errorf("sidebar Paths is missing non-instance warning output %q", want)
+		}
+	}
+	if strings.Contains(paths, `href="/notes/System/templates/Template%20target.md"`) || strings.Contains(paths, "ui-status--ready") {
+		t.Error("sidebar Paths turns a non-instance warning into a linked or status-bearing entry")
+	}
+	for _, want := range []string{
+		`href="/notes/System/templates/Template%20map.md">Template map</a>`,
+		`href="/notes/System/templates/Template%20target.md">Template target</a>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("sidebar Folders is missing readable non-instance artifact %q", want)
+		}
+	}
+}
+
+func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
+	t.Parallel()
+
+	model := &nav.Model{Maps: []nav.Map{{Title: "Empty map", RelPath: "Maps/Empty.md"}}}
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(model, "")).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	tag := detailsTagByKey(t, html, "map:Maps/Empty.md")
+	if !strings.Contains(tag, `data-map-tree="Maps/Empty.md"`) {
+		t.Errorf("zero-entry map details tag = %q, want selected map marker", tag)
+	}
+	for _, want := range []string{
+		"Empty map",
+		`href="/notes/Maps/Empty.md">Open map</a>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered zero-entry map is missing %q", want)
+		}
 	}
 }
 

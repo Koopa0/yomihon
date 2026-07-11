@@ -9,7 +9,7 @@ the sources below, they win, in this order.
 |---|---|
 | Why the product exists, its modes, its aesthetic | `product.md` (positioning, the constitutional queue, the taste charter) |
 | What the finished system is | `spec.md` (goals §0, per-face specs and acceptance) |
-| Why it is the way it is | `decisions.md` (D01–D41; a ruling that is not there did not happen) |
+| Why it is the way it is | `decisions.md` (D01–D47; a ruling that is not there did not happen) |
 | What order and why | `roadmap.md` (dependency and leverage; no milestone fences, D15) |
 | How well work must be done | `standards.md` (testing, CI, taste, verification protocol) |
 | Per-face contracts | that face's plan doc (`judge-plan.md`, `search-plan.md`, `ux-plan.md`, and the B/H/D docs to come) |
@@ -114,12 +114,33 @@ old directory.
    **done (PR #32)** — with the embed refusal pinned to the bytes it must put on
    the wire — **done (PR #33)**. One Safari glance at a slot lesson is still
    owed, to turn PR #34's button-in-select assumption into a fact.
-9b. `PR-ux-b2h` — Home v0.5 (ux-plan §3): the mtime plumbing and the
-    landing page; smaller and separable from the experience batch.
-9c. `PR-ux-b3` — the content-driven sidebar (ux-plan §13): every map note
+9b. `PR-ux-b2h` — **done (PR #40)**: Home v0.5, including scanner-owned mtime
+    plumbing, four snapshot-backed dashboard blocks, and the rendered vault
+    README below them.
+9c. `PR-ux-b3` — **done (PR #42)**: the content-driven sidebar; every map note
     renders as a navigable tree, wayfinding generalizes to all pillars, the
-    journal gets its door, lifecycle retires to Home's strip and a topbar
-    chip.
+    journal gets its door, and lifecycle moves to Home's strip and a topbar
+    aggregate.
+9c-i. `PR-instance-contract` — **in review (PR #43)**: schema-declared Paths and
+    Maps roles, the non-instance artifact boundary, differentiated map
+    resolution, metadata capability degradation, and fail-closed writes.
+9c-ii. `PR-home-search-behavior` — Home's start-at-top/no-autofocus correction
+    lands with #43 while its form remains plain GET. The remaining B lexical
+    work adds input-driven results to ⌘K and `/search` as progressive enhancement
+    while preserving Enter, the submit button, and the no-JS GET path.
+9c-iii. `PR-published-receipt-boundary` — urgent: hide and service-reject the
+    generic `ready → published` transition until a publisher path can present a
+    verifiable external-success receipt. UI hiding alone is insufficient.
+9c-iv. `PR-advanceable-chip-truth` — stop presenting lifecycle advanceability as
+    a proven pending-decision queue; rename or hide the aggregate until an
+    independent pending signal exists, then let the D plan own real queue
+    semantics.
+9c-v. `PR-canon-reconciliation` — reconcile the remaining preexisting drift in
+    `program.md`, `roadmap.md`, `judge-plan.md`, `vault-model.md`, and historical
+    design inputs; install any vault-side governance rule before repo canon says
+    it is active. This unit also records explicit supersessions for the retired
+    Lifecycle-first sidebar, old file-surface and harness assumptions, and the
+    current judge authority pointers.
 9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.

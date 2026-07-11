@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/report"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
@@ -57,11 +58,15 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	before := hashTree(t, root)
 
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	contract, err := schema.LoadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("schema.LoadFile: %v", err)
+	}
+	store := snapshot.New(root, log, contract.NavigationRoles(), contract.ArtifactPolicy())
 
 	// A fail-closed writing service: reachable by the reading page as a
 	// dependency, but never driven here.
-	svc := status.NewService(root, nil)
+	svc := status.NewService(root, nil, schema.ArtifactPolicy{})
 	shellForSnapshot := func(snap *snapshot.Snapshot) pages.ShellData { return note.ShellData(svc, snap) }
 	shellProvider := func() pages.ShellData { return shellForSnapshot(store.Current()) }
 	searchProvider := func() search.RequestSnapshot {

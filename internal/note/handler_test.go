@@ -31,8 +31,8 @@ import (
 // whether the write face is available (reading stays fail-open even when
 // the write face is fail-closed) — NOT for exercising
 // handler.go's NoFrontmatter/Transitions branch selection, since a
-// fail-closed Service makes WriteClosed true and note.templ's statusPanel
-// switches on WriteClosed first, before either of those ever matters. Use
+// fail-closed Service supplies a write diagnostic and note.templ's statusPanel
+// switches on it first, before either of those ever matters. Use
 // newServerWithContract for anything that needs to distinguish them.
 func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
@@ -40,15 +40,31 @@ func newServer(t *testing.T, root string) *httptest.Server {
 }
 
 // newServerWithContract is newServer with an explicit contract, so tests
-// can put the write face in its non-fail-closed state (WriteClosed ==
-// false) and actually observe which of NoFrontmatter / Transitions /
+// can put the write face in its non-fail-closed state (no write diagnostic)
+// and actually observe which of NoFrontmatter / Transitions /
 // "no legal transitions" handler.go's show() selected.
 func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *httptest.Server {
 	t.Helper()
+	return newServerWithProvenance(t, root, contract, func(context.Context, string) (string, error) { return "", nil })
+}
+
+func newServerWithProvenance(
+	t *testing.T,
+	root string,
+	contract *schema.Schema,
+	provenance func(context.Context, string) (string, error),
+) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
-	svc := status.NewService(root, contract)
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	var roles schema.NavigationRoles
+	var policy schema.ArtifactPolicy
+	if contract != nil {
+		roles = contract.NavigationRoles()
+		policy = contract.ArtifactPolicy()
+	}
+	svc := status.NewService(root, contract, policy)
+	store := snapshot.New(root, log, roles, policy)
 	// Build the slot index when the temp vault has a System/slots dir; a test
 	// without one leaves Slots nil (the legal "no slot machines" state).
 	var slots lesson.SlotIndex
@@ -68,7 +84,7 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 		Renderer:   render.New(root, store.Resolver()),
 		Status:     svc,
 		Snapshot:   store.Current,
-		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Provenance: provenance,
 		Log:        log,
 		Slots:      slots,
 		Concepts:   concepts,
@@ -78,6 +94,269 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+const (
+	loudLessonSlug     = "jp-template-loud"
+	loudLessonSentinel = "LOUD LESSON RAW SENTINEL"
+)
+
+func writeLoudLessonFixture(t *testing.T, root, rel string) {
+	t.Helper()
+	conceptDir := filepath.Join(root, "Concepts", "japanese")
+	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
+		t.Fatalf("mkdir concepts: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("---\ntitle: は\ntype: writing\n---\n\nConcept body.\n"), 0o644); err != nil {
+		t.Fatalf("write concept: %v", err)
+	}
+
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir lesson directory: %v", err)
+	}
+	body := "---\ntitle: Loud lesson template\ntype: lesson\nstatus: ready\nslug: " + loudLessonSlug + "\n---\n\n" +
+		"| A | B |\n|---|---|\n| x | y |\n\n" +
+		"<ruby>今日<rt>きょう</rt></ruby>は晴れ。 [[は]] " + loudLessonSentinel + "\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("write loud lesson: %v", err)
+	}
+
+	slotsDir := filepath.Join(root, "System", "slots")
+	if err := os.MkdirAll(slotsDir, 0o750); err != nil {
+		t.Fatalf("mkdir slots: %v", err)
+	}
+	sidecar := "lesson: Template\nslug: " + loudLessonSlug + "\ntitle: loud\npatterns:\n" +
+		"  - id: p1\n    template: \"{A}は {B}です\"\n    gloss_zh: \"A is B\"\n    slots:\n" +
+		"      A: {label_zh: \"主題\", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}\n" +
+		"      B: {label_zh: \"述語\", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}]}\n"
+	if err := os.WriteFile(filepath.Join(slotsDir, "template.yaml"), []byte(sidecar), 0o644); err != nil {
+		t.Fatalf("write slot sidecar: %v", err)
+	}
+}
+
+func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const templateRel = "System/templates/Loud lesson.md"
+	writeLoudLessonFixture(t, root, templateRel)
+
+	provenanceCalls := 0
+	srv := newServerWithProvenance(t, root, loadContract(t), func(context.Context, string) (string, error) {
+		provenanceCalls++
+		return "should-not-render", nil
+	})
+	code, page := get(t, srv.URL+"/notes/System/templates/Loud%20lesson.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET template lesson status = %d, want 200", code)
+	}
+	main := noteMain(t, page)
+	for _, want := range []string{
+		loudLessonSentinel,
+		`href="/notes/Concepts/japanese/%E3%81%AF.md" class="wikilink"`,
+	} {
+		if !strings.Contains(main, want) {
+			t.Errorf("non-instance lesson main is missing %q", want)
+		}
+	}
+	for _, want := range []string{
+		`data-status-state="non-instance"`,
+		"not a governable artifact",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("non-instance lesson page is missing %q", want)
+		}
+	}
+	for _, absent := range []string{
+		`action="/status"`,
+		`data-tts=`,
+		"y-slotmachine",
+		`data-concept=`,
+		`data-concept-sheet`,
+		"actor · koopa",
+		"sealed by koopa",
+		"git · commit",
+		"ui-status--ready",
+	} {
+		if strings.Contains(page, absent) {
+			t.Errorf("non-instance lesson page unexpectedly contains %q", absent)
+		}
+	}
+	if provenanceCalls != 0 {
+		t.Errorf("non-instance lesson provenance reads = %d, want 0", provenanceCalls)
+	}
+}
+
+func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		section string
+		want    string
+	}{
+		{name: "missing", section: "", want: "contract declares no artifact policy; instance projections disabled until it does"},
+		{name: "invalid", section: "[artifacts]\nnon_instance_dirs = [\".\"]\n", want: `invalid artifact policy: non_instance_dirs contains "."`},
+		{name: "incomplete", section: "[artifacts]\n", want: `invalid artifact policy: missing required key "non_instance_dirs"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			const rel = "Writing/lessons/japanese/Loud lesson.md"
+			writeLoudLessonFixture(t, root, rel)
+
+			provenanceCalls := 0
+			contract := loadHomeContractWithArtifactSection(t, tt.section)
+			srv := newServerWithProvenance(t, root, contract, func(context.Context, string) (string, error) {
+				provenanceCalls++
+				return "should-not-render", nil
+			})
+			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md?sealed=1")
+			if code != http.StatusOK {
+				t.Fatalf("GET lesson with unavailable artifact policy status = %d, want 200", code)
+			}
+			main := noteMain(t, page)
+			for _, want := range []string{
+				loudLessonSentinel,
+				`href="/notes/Concepts/japanese/%E3%81%AF.md" class="wikilink"`,
+			} {
+				if !strings.Contains(main, want) {
+					t.Errorf("lesson main is missing readable content %q", want)
+				}
+			}
+			for _, surface := range statusSurfaces(t, html.UnescapeString(page)) {
+				for _, want := range []string{`data-status-state="unavailable"`, tt.want} {
+					if !strings.Contains(surface.body, want) {
+						t.Errorf("%s is missing %q", surface.name, want)
+					}
+				}
+			}
+			for _, absent := range []string{
+				`action="/status"`,
+				"actor · koopa",
+				`data-tts=`,
+				"y-slotmachine",
+				`data-concept=`,
+				`data-concept-sheet`,
+				"sealed by koopa",
+				"git · commit",
+				"y-toast",
+			} {
+				if strings.Contains(page, absent) {
+					t.Errorf("lesson with unavailable artifact policy unexpectedly contains %q", absent)
+				}
+			}
+			if provenanceCalls != 0 {
+				t.Errorf("lesson provenance reads = %d, want 0 without artifact policy", provenanceCalls)
+			}
+		})
+	}
+}
+
+func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		contract   func(*testing.T) *schema.Schema
+		want       string
+		wantAbsent string
+	}{
+		{
+			name:       "core contract unavailable",
+			contract:   func(*testing.T) *schema.Schema { return nil },
+			want:       "Contract unavailable — the write face is closed (fail-closed).",
+			wantAbsent: "contract declares no artifact policy; instance projections disabled until it does",
+		},
+		{
+			name: "artifact policy missing",
+			contract: func(t *testing.T) *schema.Schema {
+				t.Helper()
+				return loadHomeContractWithArtifactSection(t, "")
+			},
+			want:       "contract declares no artifact policy; instance projections disabled until it does",
+			wantAbsent: "Contract unavailable — the write face is closed (fail-closed).",
+		},
+		{
+			name: "artifact policy invalid",
+			contract: func(t *testing.T) *schema.Schema {
+				t.Helper()
+				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
+			},
+			want:       `invalid artifact policy: non_instance_dirs contains "."`,
+			wantAbsent: "Contract unavailable — the write face is closed (fail-closed).",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+				t.Fatalf("write note: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract(t))
+			code, page := get(t, srv.URL+"/notes/Note.md")
+			if code != http.StatusOK {
+				t.Fatalf("GET note status = %d, want 200", code)
+			}
+			page = html.UnescapeString(page)
+			for _, surface := range statusSurfaces(t, page) {
+				for _, want := range []string{`data-status-state="unavailable"`, tt.want} {
+					if !strings.Contains(surface.body, want) {
+						t.Errorf("%s is missing %q", surface.name, want)
+					}
+				}
+				for _, absent := range []string{tt.wantAbsent, `action="/status"`} {
+					if strings.Contains(surface.body, absent) {
+						t.Errorf("%s contains forbidden closure output %q", surface.name, absent)
+					}
+				}
+			}
+		})
+	}
+}
+
+func noteMain(t *testing.T, page string) string {
+	t.Helper()
+	openAt := strings.Index(page, `<main class="y-main">`)
+	if openAt < 0 {
+		t.Fatal("note page has no main reading surface")
+	}
+	closeAt := strings.Index(page[openAt:], "</main>")
+	if closeAt < 0 {
+		t.Fatal("note page main has no closing tag")
+	}
+	return page[openAt : openAt+closeAt+len("</main>")]
+}
+
+type renderedStatusSurface struct {
+	name string
+	body string
+}
+
+func statusSurfaces(t *testing.T, page string) []renderedStatusSurface {
+	t.Helper()
+	definitions := []struct {
+		name, open, close string
+	}{
+		{name: "status panel", open: `<section class="y-statuspanel`, close: "</section>"},
+		{name: "seal bar", open: `<div class="y-sealbar`, close: "</div>"},
+	}
+	surfaces := make([]renderedStatusSurface, 0, len(definitions))
+	for _, definition := range definitions {
+		openAt := strings.Index(page, definition.open)
+		if openAt < 0 {
+			t.Fatalf("note page has no %s", definition.name)
+		}
+		closeAt := strings.Index(page[openAt:], definition.close)
+		if closeAt < 0 {
+			t.Fatalf("note page %s has no closing tag", definition.name)
+		}
+		surfaces = append(surfaces, renderedStatusSurface{
+			name: definition.name,
+			body: page[openAt : openAt+closeAt+len(definition.close)],
+		})
+	}
+	return surfaces
 }
 
 // loadContract is a loader fixture, not a second schema: it reuses
@@ -102,6 +381,54 @@ func loadHomeContract(t *testing.T) *schema.Schema {
 		t.Fatalf("LoadFile(schema test contract) = %v", err)
 	}
 	return s
+}
+
+func loadHomeContractWithArtifactSection(t *testing.T, artifactSection string) *schema.Schema {
+	t.Helper()
+	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema test contract: %v", err)
+	}
+	const validSection = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	contractText := strings.Replace(string(base), validSection, artifactSection, 1)
+	if contractText == string(base) {
+		t.Fatal("schema test contract artifact section was not replaced")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err = os.WriteFile(path, []byte(contractText), 0o600) // #nosec G703 -- path is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	return contract
+}
+
+func loadHomeContractWithSections(t *testing.T, navigationSection, artifactSection string) *schema.Schema {
+	t.Helper()
+	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema test contract: %v", err)
+	}
+	const validNavigation = "[navigation]\npath_types = [\"study-path\"]\nmap_types = [\"moc\", \"source-map\", \"topic-map\"]\n"
+	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	contractText := strings.Replace(string(base), validNavigation, navigationSection, 1)
+	contractText = strings.Replace(contractText, validArtifact, artifactSection, 1)
+	if contractText == string(base) {
+		t.Fatal("contract section replacements did not apply")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err = os.WriteFile(path, []byte(contractText), 0o600) // #nosec G703 -- path is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	return contract
 }
 
 func runGit(t *testing.T, root string, args ...string) string {
@@ -266,7 +593,7 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 		t.Fatalf("write source: %v", err)
 	}
 
-	srv := newServer(t, root)
+	srv := newServerWithContract(t, root, loadContract(t))
 
 	_, lessonBody := get(t, srv.URL+"/notes/Writing/lessons/japanese/L00.md")
 	if !strings.Contains(lessonBody, `data-tts="今日は晴れ。"`) {
@@ -376,7 +703,7 @@ func TestShowSlotMachine(t *testing.T) {
 		t.Fatalf("write sidecar: %v", err)
 	}
 
-	srv := newServer(t, root)
+	srv := newServerWithContract(t, root, loadContract(t))
 	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -411,7 +738,7 @@ func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "L02.md"), []byte(body), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	srv := newServer(t, root)
+	srv := newServerWithContract(t, root, loadContract(t))
 	_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L02.md")
 	if strings.Contains(page, "y-slotmachine") {
 		t.Errorf("lesson with no matching sidecar still rendered a slot machine; body = %q", page)
@@ -445,7 +772,7 @@ func TestShowConceptSheet(t *testing.T) {
 		t.Fatalf("write lesson: %v", err)
 	}
 
-	srv := newServer(t, root)
+	srv := newServerWithContract(t, root, loadContract(t))
 	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -487,7 +814,7 @@ func TestShowNonLessonNoConceptTriggers(t *testing.T) {
 		t.Fatalf("write source: %v", err)
 	}
 
-	srv := newServer(t, root)
+	srv := newServerWithContract(t, root, loadContract(t))
 	_, page := get(t, srv.URL+"/notes/Sources/S.md")
 	if strings.Contains(page, "data-concept") || strings.Contains(page, "data-concept-sheet") {
 		t.Errorf("non-lesson note grew a concept trigger/sheet — the gate failed; body = %q", page)
@@ -572,7 +899,7 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 	}
 
 	log := slog.New(slog.DiscardHandler)
-	staleStore := snapshot.New(root, log)
+	staleStore := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 	renderer := render.New(root, staleStore.Resolver())
 
 	conceptDir := filepath.Join(root, "Concepts")
@@ -582,13 +909,13 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(conceptDir, "Target.md"), []byte("# Target\n"), 0o644); err != nil {
 		t.Fatalf("write Target: %v", err)
 	}
-	currentStore := snapshot.New(root, log)
+	currentStore := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 
 	mux := http.NewServeMux()
 	h := note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   renderer,
-		Status:     status.NewService(root, nil),
+		Status:     status.NewService(root, nil, schema.ArtifactPolicy{}),
 		Snapshot:   currentStore.Current,
 		Provenance: func(context.Context, string) (string, error) { return "", nil },
 		Log:        log,
@@ -630,7 +957,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	}
 
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 
 	for _, tt := range []struct {
 		name, path string
@@ -646,7 +973,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			note.NewHandler(note.Deps{
 				Root:     root,
 				Renderer: render.New(root, store.Current().Graph),
-				Status:   status.NewService(root, nil),
+				Status:   status.NewService(root, nil, schema.ArtifactPolicy{}),
 				Snapshot: func() *snapshot.Snapshot {
 					calls++
 					return store.Current()
@@ -771,6 +1098,229 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 }
 
+func TestHomeLifecycleDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		contract func(*testing.T) *schema.Schema
+		want     string
+	}{
+		{
+			name:     "closed core contract",
+			contract: func(*testing.T) *schema.Schema { return nil },
+			want:     "Lifecycle is unavailable while the contract is closed.",
+		},
+		{
+			name: "missing artifact policy",
+			contract: func(t *testing.T) *schema.Schema {
+				t.Helper()
+				return loadHomeContractWithArtifactSection(t, "")
+			},
+			want: "contract declares no artifact policy; instance projections disabled until it does",
+		},
+		{
+			name: "invalid artifact policy",
+			contract: func(t *testing.T) *schema.Schema {
+				t.Helper()
+				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
+			},
+			want: `invalid artifact policy: non_instance_dirs contains "."`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+				t.Fatalf("write README: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract(t))
+			code, body := get(t, srv.URL+"/")
+			if code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want 200", code)
+			}
+			lifecycle := html.UnescapeString(homeSection(t, body, `data-home-block="lifecycle"`))
+			for _, want := range []string{"data-home-lifecycle-diagnostic", tt.want} {
+				if !strings.Contains(lifecycle, want) {
+					t.Errorf("Lifecycle diagnostic missing %q; section = %q", want, lifecycle)
+				}
+			}
+		})
+	}
+}
+
+func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		contract *schema.Schema
+		want     string
+	}{
+		{name: "missing", contract: loadHomeContractWithArtifactSection(t, ""), want: "contract declares no artifact policy; instance projections disabled until it does"},
+		{name: "invalid", contract: loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n"), want: `invalid artifact policy: non_instance_dirs contains "."`},
+		{name: "incomplete", contract: loadHomeContractWithArtifactSection(t, "[artifacts]\n"), want: `invalid artifact policy: missing required key "non_instance_dirs"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+				t.Fatalf("write README: %v", err)
+			}
+			if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
+				t.Fatalf("mkdir Writing: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "Writing", "Draft.md"), []byte("---\ntitle: Draft\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+				t.Fatalf("write note: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract)
+			code, page := get(t, srv.URL+"/")
+			if code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want 200", code)
+			}
+			diagnostic := tt.want
+			for _, block := range []struct {
+				marker, diagnosticMarker string
+			}{
+				{marker: `data-home-block="recent"`, diagnosticMarker: `data-home-recent-diagnostic`},
+				{marker: `data-home-block="lifecycle"`, diagnosticMarker: `data-home-lifecycle-diagnostic`},
+				{marker: `data-home-block="study-paths"`, diagnosticMarker: `data-home-paths-diagnostic`},
+			} {
+				section := html.UnescapeString(homeSection(t, page, block.marker))
+				for _, want := range []string{block.diagnosticMarker, diagnostic} {
+					if !strings.Contains(section, want) {
+						t.Errorf("Home block %s is missing %q; section = %q", block.marker, want, section)
+					}
+				}
+			}
+			if strings.Contains(page, `data-pending-chip`) {
+				t.Error("Home pending chip remained available without artifact metadata")
+			}
+			if !strings.Contains(page, `data-home-block="search"`) {
+				t.Error("Home search block disappeared during artifact degradation")
+			}
+		})
+	}
+}
+
+func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
+	t.Parallel()
+	const invalidNavigation = "[navigation]\npath_types = [\"missing-type\"]\nmap_types = []\n"
+	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	contract := loadHomeContractWithSections(t, invalidNavigation, validArtifact)
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
+		t.Fatalf("mkdir Writing: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Writing", "Draft.md"), []byte("---\ntitle: Aggregate sentinel\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	srv := newServerWithContract(t, root, contract)
+	code, page := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, page, `data-home-block="recent"`)
+	if !strings.Contains(recent, "Aggregate sentinel") || strings.Contains(recent, "data-home-recent-diagnostic") {
+		t.Errorf("Recent degraded with navigation roles; section = %q", recent)
+	}
+	lifecycle := homeSection(t, page, `data-home-block="lifecycle"`)
+	if strings.Contains(lifecycle, "data-home-lifecycle-diagnostic") {
+		t.Errorf("Lifecycle degraded with navigation roles; section = %q", lifecycle)
+	}
+	draftRow := homeLifecycleRow(t, lifecycle, "draft")
+	if !strings.Contains(draftRow, `aria-label="1 notes">1</span>`) {
+		t.Errorf("Lifecycle draft count degraded with navigation roles; row = %q", draftRow)
+	}
+	paths := html.UnescapeString(homeSection(t, page, `data-home-block="study-paths"`))
+	for _, want := range []string{`data-home-paths-diagnostic`, `missing-type`} {
+		if !strings.Contains(paths, want) {
+			t.Errorf("Study Paths is missing navigation diagnostic %q; section = %q", want, paths)
+		}
+	}
+	if strings.Contains(paths, "contract declares no artifact policy; instance projections disabled until it does") {
+		t.Errorf("Study Paths falsely reports artifact failure: %q", paths)
+	}
+	if !strings.Contains(page, `aria-label="1 to decide"`) {
+		t.Error("pending chip was suppressed by navigation-only failure")
+	}
+}
+
+func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
+	t.Parallel()
+	const invalidNavigation = "[navigation]\npath_types = [\"missing-type\"]\nmap_types = []\n"
+	const invalidArtifact = "[artifacts]\nnon_instance_dirs = [\".\"]\n"
+	contract := loadHomeContractWithSections(t, invalidNavigation, invalidArtifact)
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	srv := newServerWithContract(t, root, contract)
+	code, page := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	paths := html.UnescapeString(homeSection(t, page, `data-home-block="study-paths"`))
+	for _, want := range []string{
+		`data-home-paths-diagnostic`,
+		`missing-type`,
+		`invalid artifact policy: non_instance_dirs contains "."`,
+	} {
+		if !strings.Contains(paths, want) {
+			t.Errorf("Study Paths is missing concurrent capability diagnostic %q; section = %q", want, paths)
+		}
+	}
+	if got := strings.Count(paths, `data-home-paths-diagnostic`); got != 2 {
+		t.Errorf("Study Paths diagnostic rows = %d, want 2", got)
+	}
+}
+
+func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	for rel, title := range map[string]string{
+		"Writing/Instance.md":          "Governed draft sentinel",
+		"System/templates/Template.md": "LOUD TEMPLATE DRAFT SENTINEL",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		content := fmt.Sprintf("---\ntitle: %s\ntype: writing\nstatus: draft\n---\n\nbody\n", title)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, page := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, page, `data-home-block="recent"`)
+	if !strings.Contains(recent, "Governed draft sentinel") {
+		t.Error("Recent is missing the governed instance")
+	}
+	if strings.Contains(recent, "LOUD TEMPLATE DRAFT SENTINEL") {
+		t.Error("Recent includes a non-instance template")
+	}
+	lifecycle := homeSection(t, page, `data-home-block="lifecycle"`)
+	draftRow := homeLifecycleRow(t, lifecycle, "draft")
+	if !strings.Contains(draftRow, `aria-label="1 notes">1</span>`) {
+		t.Errorf("draft lifecycle count includes the template or misses the instance; row = %q", draftRow)
+	}
+	if !strings.Contains(page, `aria-label="1 to decide"`) {
+		t.Error("pending count includes the template or misses the instance")
+	}
+}
+
 // TestHomeWithoutReadmeIsNotReady ensures a missing README is an honest 404,
 // not a blank dashboard 200 that the readiness poll could mistake for Home.
 func TestHomeWithoutReadmeIsNotReady(t *testing.T) {
@@ -799,8 +1349,26 @@ func homeSection(t *testing.T, body, marker string) string {
 	return body[openAt : markerAt+closeAt+len("</section>")]
 }
 
+func homeLifecycleRow(t *testing.T, section, statusName string) string {
+	t.Helper()
+	marker := `href="/search?q=` + url.QueryEscape("status:"+statusName) + `"`
+	markerAt := strings.Index(section, marker)
+	if markerAt < 0 {
+		t.Fatalf("Lifecycle has no %q row", statusName)
+	}
+	openAt := strings.LastIndex(section[:markerAt], "<a")
+	if openAt < 0 {
+		t.Fatalf("Lifecycle %q marker is not inside a row", statusName)
+	}
+	closeAt := strings.Index(section[markerAt:], "</a>")
+	if closeAt < 0 {
+		t.Fatalf("Lifecycle %q row has no closing tag", statusName)
+	}
+	return section[openAt : markerAt+closeAt+len("</a>")]
+}
+
 // TestShowNoFrontmatter exercises handler.go's NoFrontmatter branch with a
-// loaded (non-nil) contract, so WriteClosed is false and note.templ's
+// loaded (non-nil) contract, so no write diagnostic masks note.templ's
 // statusPanel cannot fall into the "Contract unavailable" fail-closed case first —
 // the only way to actually observe that show() set view.NoFrontmatter
 // instead of leaving it false.
@@ -831,7 +1399,7 @@ func TestShowNoFrontmatter(t *testing.T) {
 }
 
 // TestShowTransitions exercises handler.go's default branch (view.Transitions
-// = h.statusSvc.Transitions(n.Type(), n.Status())) with a loaded contract.
+// = h.statusSvc.Transitions(n.RelPath, n.Type(), n.Status())) with a loaded contract.
 // Getting the argument order backwards (Transitions(current, noteType)) or
 // swapping the switch's case order would silently render the wrong panel —
 // this test is the only one in the repo that would catch either.
@@ -863,7 +1431,7 @@ func TestShowTransitions(t *testing.T) {
 	// draft -> [ready, archived] for actor "koopa" per
 	// testdata/contract.toml's lifecycle table (cross-checked by hand,
 	// mirroring internal/status/status_test.go's TestTransitions).
-	transitions := status.NewService(root, contract).Transitions("lesson", "draft")
+	transitions := status.NewService(root, contract, contract.ArtifactPolicy()).Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
@@ -943,7 +1511,7 @@ func TestNewHandlerPanicsOnNilStatusPolicy(t *testing.T) {
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 	note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   render.New(root, store.Resolver()),
@@ -966,11 +1534,11 @@ func TestNewHandlerPanicsOnNilSnapshot(t *testing.T) {
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 	note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   render.New(root, store.Resolver()),
-		Status:     status.NewService(root, nil),
+		Status:     status.NewService(root, nil, schema.ArtifactPolicy{}),
 		Snapshot:   nil, // the nil under test
 		Provenance: func(context.Context, string) (string, error) { return "", nil },
 		Log:        log,
@@ -1005,7 +1573,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 		t.Fatalf("write syllabus: %v", err)
 	}
 
-	srv := newServer(t, root)
+	srv := newServerWithContract(t, root, loadHomeContract(t))
 
 	code, body := get(t, srv.URL+"/notes/Maps/Go path.md")
 	if code != http.StatusOK {
@@ -1022,5 +1590,46 @@ func TestShowIncludesSidebar(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("reading page sidebar missing %q; body = %q", want, body)
 		}
+	}
+}
+
+func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	mapDir := filepath.Join(root, "Maps")
+	if err := os.MkdirAll(mapDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	mapNote := "---\ntitle: Reading map\ntype: topic-map\ndomain: humanities\n---\n\n## Themes\n\n- [[Ghost Essay]]\n"
+	if err := os.WriteFile(filepath.Join(mapDir, "Reading map.md"), []byte(mapNote), 0o644); err != nil {
+		t.Fatalf("write map: %v", err)
+	}
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/notes/Maps/Reading map.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for _, want := range []string{
+		`data-map-tree="Maps/Reading map.md"`,
+		`class="wikilink-broken">Ghost Essay</span>`,
+		`wikilink &#34;Ghost Essay&#34; does not resolve to any note or file`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("general map note page is missing %q", want)
+		}
+	}
+	asideStart := strings.Index(body, `<aside class="y-rail-left"`)
+	if asideStart < 0 {
+		t.Fatal("response has no left sidebar")
+	}
+	asideEnd := strings.Index(body[asideStart:], `</aside>`)
+	if asideEnd < 0 {
+		t.Fatalf("response has no complete left sidebar")
+	}
+	sidebar := body[asideStart : asideStart+asideEnd]
+	if strings.Contains(sidebar, "Ghost Essay") {
+		t.Error("general map unresolved row appears in sidebar navigation")
 	}
 }

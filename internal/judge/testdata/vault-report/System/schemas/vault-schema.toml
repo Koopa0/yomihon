@@ -25,5 +25,13 @@ forbid_tag_with_slash = true
 [scan]
 knowledge_dirs = ["Concepts", "Sources"]
 skip_basenames = ["README.md"]
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
 [[lifecycle]]
 status = "seedling"

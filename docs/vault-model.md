@@ -106,6 +106,35 @@ The main flow: `Inbox → Sources → Concepts → Maps / Synthesis → Writing`
 - The `domain` value must equal the name of the folder the note lives in (kura `schema.domain_folder`).
 - The schema is **closed**: any key outside `fields.known` is an error.
 
+### Instance authority is separate from frontmatter
+
+The same toml declares which note types become navigation structures and which
+vault directories hold readable artifacts rather than governed note instances:
+
+```toml
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc", "source-map", "topic-map"]
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+```
+
+`path_types` and `map_types` are disjoint, duplicate-free subsets of
+`[enums].type`. `non_instance_dirs` uses NFC-normalized, vault-relative component
+prefixes: `System/templates` matches itself and descendants, never
+`System/templates-old`. All three keys are required when their section exists;
+an explicit `=[]` is valid authority declaring an empty set, while an omitted
+key makes that capability unavailable. Navigation and artifact validation are
+independent.
+
+A non-instance file is still readable through direct/raw routes, Folders,
+bare-text search, and `folder:` search. It has no instance metadata, lifecycle,
+status-write, lesson, Home-recent, or governed navigation identity. If a study
+path names one uniquely, its source-order row survives only as a non-link
+`non-instance` warning with no status, placement, or ready credit; general maps
+omit that row.
+
 ### status is a grouped state machine (not one flat enum)
 
 The toml's `[fields.status_group]` maps types into three groups:
@@ -127,6 +156,9 @@ Only lessons need one. Pattern `^[a-z0-9]+(-[a-z0-9]+)*$` (built into the toml);
 
 - `Maps/Go 課綱.md`: H2 = part, H3 = module, both in the pipe format `slug | English | Chinese`; list items = lessons (wikilinks); row order = sequence.
 - `Maps/大家的日本語 初級I 學習路徑.md`: **the structure differs slightly** — under the H2 「課程序列」, the H3s are learning stages (解碼期, 動詞入門, …) and list items are lessons. The two invariants — list item = lesson, row order = sequence — hold for both, but do not assume the two syllabi are isomorphic.
+- The current parser also preserves direct wikilink list rows under an H2 before
+  any H3 subgroup; task checkboxes and rows without wikilinks are not path
+  entries. Do not narrow the second path back to a single named H2.
 - When rendering a syllabus page, this structure *is* the navigation tree.
 
 ### Japanese-material specifics

@@ -49,7 +49,8 @@ func buildDirNotes(paths []string) map[string][]NoteRef {
 
 // buildPlacementIndex inverts the map trees into a note-path -> placements map,
 // so a note page can find every containing branch in one lookup instead of
-// re-walking every map. Map entries are uniquely resolved by construction.
+// re-walking every map. Study paths may also contain warning rows, so only
+// explicitly resolved entries with non-empty paths enter the reverse index.
 func buildPlacementIndex(maps []Map) map[string][]Placement {
 	index := make(map[string][]Placement)
 	for i := range maps {
@@ -62,6 +63,9 @@ func buildPlacementIndex(maps []Map) map[string][]Placement {
 				// never mutated afterward.
 				here := slices.Concat(chain, []string{branch.Heading})
 				for _, entry := range branch.Entries {
+					if entry.Kind != EntryResolved || entry.RelPath == "" {
+						continue
+					}
 					index[entry.RelPath] = append(index[entry.RelPath], Placement{
 						MapRelPath: relPath,
 						Headings:   here,

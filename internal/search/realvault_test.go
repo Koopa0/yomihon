@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestBuildRealVault builds the search index from the real vault (~/obsidian or
@@ -20,7 +22,12 @@ func TestBuildRealVault(t *testing.T) {
 	t.Parallel()
 	root := realVaultRoot(t)
 
-	idx, err := Build(root)
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Fatalf("schema.Load(%q) = %v", root, err)
+	}
+	policy := contract.ArtifactPolicy()
+	idx, err := Build(root, policy)
 	if err != nil {
 		t.Fatalf("Build(%q) = %v", root, err)
 	}
@@ -28,20 +35,34 @@ func TestBuildRealVault(t *testing.T) {
 		t.Fatalf("real vault index is empty (root %q)", root)
 	}
 
-	got := idx.Search(Parse("slug:jp-minna-l01"))
-	if len(got) == 0 {
-		t.Fatalf("slug:jp-minna-l01 matched nothing; index has %d notes", idx.Len())
-	}
-	if !strings.Contains(got[0].RelPath, "japanese/L01") {
-		t.Errorf("slug:jp-minna-l01 top hit = %q, want a Writing/lessons/japanese/L01 note", got[0].RelPath)
-	}
+	t.Run("bare text", func(t *testing.T) {
+		t.Parallel()
+		bodyHits, searchErr := idx.Search(Parse("goroutine"))
+		if searchErr != nil {
+			t.Fatalf("Search(goroutine) = %v", searchErr)
+		}
+		if len(bodyHits) == 0 {
+			t.Error(`body term "goroutine" matched nothing in the real vault`)
+		}
+	})
 
-	// A plain body term also hits (spot check against the corpus).
-	if len(idx.Search(Parse("goroutine"))) == 0 {
-		t.Error(`body term "goroutine" matched nothing in the real vault`)
-	}
-
-	t.Logf("real vault: %d notes indexed; slug:jp-minna-l01 -> %q", idx.Len(), got[0].RelPath)
+	t.Run("metadata", func(t *testing.T) {
+		t.Parallel()
+		if !policy.Available() {
+			t.Skipf("real vault metadata search unavailable: %s", policy.Diagnostic())
+		}
+		got, searchErr := idx.Search(Parse("slug:jp-minna-l01"))
+		if searchErr != nil {
+			t.Fatalf("Search(slug:jp-minna-l01) = %v", searchErr)
+		}
+		if len(got) == 0 {
+			t.Fatalf("slug:jp-minna-l01 matched nothing; index has %d notes", idx.Len())
+		}
+		if !strings.Contains(got[0].RelPath, "japanese/L01") {
+			t.Errorf("slug:jp-minna-l01 top hit = %q, want a Writing/lessons/japanese/L01 note", got[0].RelPath)
+		}
+		t.Logf("real vault: %d notes indexed; slug:jp-minna-l01 -> %q", idx.Len(), got[0].RelPath)
+	})
 }
 
 func realVaultRoot(t *testing.T) string {

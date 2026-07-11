@@ -3,7 +3,7 @@
 schema_version = "1"
 
 [enums]
-type = ["inbox", "transcript", "source-note", "concept", "writing", "lesson", "system", "guide", "template"]
+type = ["inbox", "transcript", "source-note", "concept", "writing", "lesson", "system", "guide", "template", "moc", "source-map", "study-path", "topic-map"]
 domain = ["golang", "japanese", "meta"]
 
 [enums.status]
@@ -30,6 +30,13 @@ forbid_tag_with_slash = true
 knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]
 skip_basenames = ["README.md"]
 no_frontmatter_is_legal = true
+
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc", "source-map", "topic-map"]
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
 
 [[lifecycle]]
 status = "captured"

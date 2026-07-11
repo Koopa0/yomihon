@@ -31,6 +31,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		wantAids    bool
 		wantPresent []string
 		wantAbsent  []string
+		wantCounts  map[string]int
 	}{
 		{
 			name:     "no aids, open contract: the seal bar carries the seal form",
@@ -40,16 +41,46 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"y-shell--rail-empty",
 				"y-sealbar",
 				"data-seal",
+				"actor · koopa",
 			},
 		},
 		{
 			name:     "no aids, closed contract: the seal bar carries the fail-closed notice",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", WriteClosed: true},
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus, "archived"}, WriteDiagnostic: "Contract unavailable — the write face is closed (fail-closed)."},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
 				"y-sealbar",
+				"ui-status--draft",
 				"the write face is closed (fail-closed)",
+			},
+			wantAbsent: []string{`action="/status"`, "actor · koopa"},
+			wantCounts: map[string]int{
+				`data-status-state="unavailable"`:                                2,
+				"Contract unavailable — the write face is closed (fail-closed).": 2,
+			},
+		},
+		{
+			name: "malformed non-instance suppresses every status form even if transitions leak into the view",
+			view: NoteView{
+				Title:       "Template",
+				RelPath:     "System/templates/T.md",
+				Status:      "draft",
+				SealTarget:  schema.SealStatus,
+				Transitions: []string{schema.SealStatus, "archived"},
+				NonInstance: true,
+				Diagnostic:  "bad yaml",
+			},
+			wantAids: true,
+			wantPresent: []string{
+				"y-statuspanel",
+				"y-sealbar",
+				"Diagnostics",
+			},
+			wantAbsent: []string{`action="/status"`, "actor · koopa", "ui-status--draft"},
+			wantCounts: map[string]int{
+				`data-status-state="non-instance"`: 2,
+				"not a governable artifact":        2,
 			},
 		},
 		{
@@ -119,6 +150,11 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 					t.Errorf("rendered page unexpectedly contains %q", absent)
 				}
 			}
+			for marker, want := range tt.wantCounts {
+				if got := strings.Count(html, marker); got != want {
+					t.Errorf("rendered page count for %q = %d, want %d", marker, got, want)
+				}
+			}
 		})
 	}
 }
@@ -177,9 +213,9 @@ func TestSealToastRidesTheRedirectSignal(t *testing.T) {
 
 // TestSealBarMirrorsTheStatusPanelGuard records the seal bar's render
 // condition as the invariant it is: the bar renders exactly when the status
-// panel does — whenever the frontmatter parsed — because at narrow widths and
-// on no-aid notes it is the only status face on the page. A frontmatter
-// diagnostic suppresses both, and the diagnostics list explains why.
+// panel does. A frontmatter diagnostic ordinarily suppresses both because no
+// status was parsed; a path-classified non-instance is the exception and keeps
+// both quiet notices visible beside the frontmatter diagnostic.
 func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 	t.Parallel()
 
@@ -189,10 +225,11 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 		wantSealBar bool
 	}{
 		{name: "open contract", view: NoteView{Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: true},
-		{name: "closed contract", view: NoteView{Status: "draft", WriteClosed: true}, wantSealBar: true},
+		{name: "closed contract", view: NoteView{Status: "draft", WriteDiagnostic: "Contract unavailable — the write face is closed (fail-closed)."}, wantSealBar: true},
 		{name: "no frontmatter", view: NoteView{NoFrontmatter: true}, wantSealBar: true},
 		{name: "sealed note", view: NoteView{Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true}, wantSealBar: true},
 		{name: "frontmatter diagnostic", view: NoteView{Diagnostic: "bad yaml"}, wantSealBar: false},
+		{name: "non-instance remains named beside frontmatter diagnostic", view: NoteView{Diagnostic: "bad yaml", NonInstance: true}, wantSealBar: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

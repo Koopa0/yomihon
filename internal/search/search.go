@@ -10,12 +10,14 @@ package search
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -49,45 +51,80 @@ type Doc struct {
 // canonical value. There is no content hash: change detection is the
 // scanner's job by mtime.
 type entry struct {
-	RelPath   string
-	Title     string
-	TitleFold string
-	NoteType  string
-	Domain    string
-	Status    string
-	Slug      string
-	Topics    []string
-	PlainText string
-	PlainFold string
+	RelPath         string
+	Title           string
+	TitleFold       string
+	NoteType        string
+	Domain          string
+	Status          string
+	Slug            string
+	Topics          []string
+	PlainText       string
+	PlainFold       string
+	metadataCapable bool
 }
 
 // Index is the whole in-memory search index: entries kept sorted by RelPath so
 // each result bucket is naturally rel_path-ordered without a sort call.
-// Read-only once built. Entries are held by pointer
-// so a query iterates 8-byte pointers rather than copying each ~180-byte entry.
+// Read-only once built. Each entry records whether its frontmatter is instance
+// metadata, while the index records whether metadata projections are available
+// at all. Entries are held by pointer so a query iterates 8-byte pointers rather
+// than copying each ~180-byte entry.
 type Index struct {
-	entries []*entry
+	entries            []*entry
+	metadataAvailable  bool
+	metadataDiagnostic string
 }
 
-// BuildFromDocs builds an Index from already-extracted note data, with no disk
-// access — the pure indexing logic Build delegates to. Entries are sorted by
-// RelPath at build time, which is the sole source of result ordering.
-func BuildFromDocs(docs []Doc) *Index {
+// ErrMetadataUnavailable identifies a query or aggregate that requires
+// instance metadata while the artifact policy is unavailable.
+var ErrMetadataUnavailable = errors.New("search metadata unavailable")
+
+type metadataUnavailableError struct {
+	diagnostic string
+}
+
+func (e metadataUnavailableError) Error() string {
+	return e.diagnostic
+}
+
+func (e metadataUnavailableError) Unwrap() error {
+	return ErrMetadataUnavailable
+}
+
+func (idx *Index) metadataUnavailableError() error {
+	diagnostic := idx.metadataDiagnostic
+	if diagnostic == "" {
+		diagnostic = (schema.ArtifactPolicy{}).Diagnostic()
+	}
+	return metadataUnavailableError{diagnostic: diagnostic}
+}
+
+// BuildFromDocs builds an Index from already-extracted note data and a startup-
+// derived artifact policy, with no disk access. Every document remains in the
+// text and folder corpus; policy marks which entries may answer metadata
+// projections. Entries are sorted by RelPath at build time, which is the sole
+// source of result ordering.
+func BuildFromDocs(docs []Doc, policy schema.ArtifactPolicy) *Index {
 	entries := make([]*entry, 0, len(docs))
 	for i := range docs {
-		e := entryFromDoc(&docs[i])
+		e := entryFromDoc(&docs[i], policy)
 		entries = append(entries, &e)
 	}
 	slices.SortFunc(entries, func(a, b *entry) int {
 		return cmp.Compare(a.RelPath, b.RelPath)
 	})
-	return &Index{entries: entries}
+	idx := &Index{entries: entries, metadataAvailable: policy.Available()}
+	if !policy.Available() {
+		idx.metadataDiagnostic = policy.Diagnostic()
+	}
+	return idx
 }
 
 // entryFromDoc derives one entry from a Doc, applying the storage rules:
 // Title/PlainText stored NFC (display), the *Fold copies fold()ed, the
 // structured field values stored NFC (case-preserving).
-func entryFromDoc(d *Doc) entry {
+func entryFromDoc(d *Doc, policy schema.ArtifactPolicy) entry {
 	title := graph.NormalizeNFC(d.Title)
 	plain := graph.NormalizeNFC(d.PlainText)
 	topics := make([]string, len(d.Topics))
@@ -95,24 +132,26 @@ func entryFromDoc(d *Doc) entry {
 		topics[i] = graph.NormalizeNFC(t)
 	}
 	return entry{
-		RelPath:   d.RelPath,
-		Title:     title,
-		TitleFold: fold(title),
-		NoteType:  graph.NormalizeNFC(d.NoteType),
-		Domain:    graph.NormalizeNFC(d.Domain),
-		Status:    graph.NormalizeNFC(d.Status),
-		Slug:      graph.NormalizeNFC(d.Slug),
-		Topics:    topics,
-		PlainText: plain,
-		PlainFold: fold(plain),
+		RelPath:         d.RelPath,
+		Title:           title,
+		TitleFold:       fold(title),
+		NoteType:        graph.NormalizeNFC(d.NoteType),
+		Domain:          graph.NormalizeNFC(d.Domain),
+		Status:          graph.NormalizeNFC(d.Status),
+		Slug:            graph.NormalizeNFC(d.Slug),
+		Topics:          topics,
+		PlainText:       plain,
+		PlainFold:       fold(plain),
+		metadataCapable: policy.Available() && !policy.IsNonInstance(d.RelPath),
 	}
 }
 
-// Build walks root (via vault.List) and indexes every markdown note. A note
-// whose read fails is skipped rather than aborting the whole build:
+// Build walks root (via vault.List) and indexes every readable markdown note
+// under the startup-derived artifact policy. A note whose read fails is skipped
+// rather than aborting the whole build:
 // one bad file must not narrow what the rest of the index can find. It is the
 // disk entry point the Snapshot rebuild calls.
-func Build(root string) (*Index, error) {
+func Build(root string, policy schema.ArtifactPolicy) (*Index, error) {
 	paths, err := vault.List(root)
 	if err != nil {
 		return nil, fmt.Errorf("search: build index: %w", err)
@@ -128,7 +167,7 @@ func Build(root string) (*Index, error) {
 		}
 		docs = append(docs, docFromNote(n))
 	}
-	return BuildFromDocs(docs), nil
+	return BuildFromDocs(docs, policy), nil
 }
 
 // docFromNote extracts a Doc from a parsed note: the structured fields from
@@ -158,13 +197,21 @@ func (idx *Index) Len() int {
 // Home's Lifecycle block uses to show a live count beside each schema
 // status, instead of running a full Search per status value. The status
 // vocabulary the caller displays still comes from the schema contract;
-// this only counts what the index already holds.
-func (idx *Index) CountByStatus() map[string]int {
+// this only counts metadata-capable entries the index already holds. An
+// unavailable artifact policy returns ErrMetadataUnavailable with its contract
+// diagnostic instead of a misleading empty map.
+func (idx *Index) CountByStatus() (map[string]int, error) {
+	if !idx.metadataAvailable {
+		return nil, idx.metadataUnavailableError()
+	}
 	counts := make(map[string]int, len(idx.entries))
 	for _, e := range idx.entries {
+		if !e.metadataCapable {
+			continue
+		}
 		counts[e.Status]++
 	}
-	return counts
+	return counts, nil
 }
 
 // TypeStatus is a note's (type, status) pair. Which onward transitions a status
@@ -176,18 +223,25 @@ type TypeStatus struct {
 	Status string
 }
 
-// CountByTypeStatus tallies indexed notes by their (type, status) pair in a
-// single pass. It is the primitive the reading page uses to weigh each note's
+// CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
+// in a single pass. It is the primitive the reading page uses to weigh each note's
 // onward transitions against the schema contract without re-reading the vault:
 // the transition rules key on type as well as status, so the flatter
 // CountByStatus does not carry enough. A note missing either field lands in that
-// field's "" bucket.
-func (idx *Index) CountByTypeStatus() map[TypeStatus]int {
+// field's "" bucket. An unavailable artifact policy returns
+// ErrMetadataUnavailable with its contract diagnostic.
+func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
+	if !idx.metadataAvailable {
+		return nil, idx.metadataUnavailableError()
+	}
 	counts := make(map[TypeStatus]int, len(idx.entries))
 	for _, e := range idx.entries {
+		if !e.metadataCapable {
+			continue
+		}
 		counts[TypeStatus{Type: e.NoteType, Status: e.Status}]++
 	}
-	return counts
+	return counts, nil
 }
 
 // stringField reads a string frontmatter value, empty when absent or not a

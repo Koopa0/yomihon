@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestBuildRealVault builds the navigation model against the real vault
@@ -18,13 +21,14 @@ import (
 // internal/schema's TestLoadRealContract, so it runs whenever the vault is
 // present and is skipped loudly (not vacuously green) when it is not.
 //
-// The exact entry counts (115 Go, 20 大家) are hand-derived from the two
-// files on 2026-07-02: 115 "- [[...]]" bullets in Maps/Go 課綱.md, and 20
-// wikilink-bearing "- **L..**" bullets in Maps/大家...學習路徑.md (L1-L20;
-// L21-L25 are "待建" with no wikilink, and the daily-loop/table/gaps
-// branches carry no entry bullets). Update these literals if the study paths
-// grow — a mismatch means the parser dropped or gained an entry, which is
-// exactly what this guards.
+// The exact entry counts (119 Go, 27 大家) are hand-derived from the two
+// files on 2026-07-11: 119 "- [[...]]" bullets in Maps/Go 課綱.md, plus 7
+// wikilink-bearing "- **P..**" warm-up bullets and 20 "- **L..**" course
+// bullets in Maps/大家...學習路徑.md. The L21-L25 course rows remain ordinary
+// bullets without wikilinks; the separate gaps branch uses task checkboxes.
+// Daily-loop/table/gaps branches therefore carry no navigation entries. Update
+// these literals if the study paths grow — a mismatch means the parser dropped
+// or gained an entry, which is exactly what this guards.
 func TestBuildRealVault(t *testing.T) {
 	t.Parallel()
 
@@ -34,7 +38,15 @@ func TestBuildRealVault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	m, err := Build(root, idx, nil)
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Skipf("real vault contract unavailable: %v", err)
+	}
+	roles, policy := contract.NavigationRoles(), contract.ArtifactPolicy()
+	if !roles.Available() || !policy.Available() {
+		t.Skipf("real vault instance contract unavailable: navigation=%q artifacts=%q", roles.Diagnostic(), policy.Diagnostic())
+	}
+	m, err := Build(root, idx, nil, roles, policy)
 	if err != nil {
 		t.Fatalf("Build(%q) = %v", root, err)
 	}
@@ -43,49 +55,81 @@ func TestBuildRealVault(t *testing.T) {
 	minnaPath := findPath(t, m, "大家")
 
 	// --- structure: 大家 is NOT isomorphic to Go ---
-	// Go: 9 H2 parts, 27 H3 modules, 115 entries — all headings kept.
+	// Go: 9 H2 parts, 28 H3 modules, 119 entries — all headings kept.
 	if got := len(goPath.Branches); got != 9 {
 		t.Errorf("Go syllabus top-level parts = %d, want 9", got)
 	}
-	if got := countSubBranches(goPath.Branches); got != 27 {
-		t.Errorf("Go syllabus modules (H3) = %d, want 27", got)
+	if got := countSubBranches(goPath.Branches); got != 28 {
+		t.Errorf("Go syllabus modules (H3) = %d, want 28", got)
 	}
-	if got := countEntries(goPath.Branches); got != 115 {
-		t.Errorf("Go syllabus entries = %d, want 115", got)
+	if got := countEntries(goPath.Branches); got != 119 {
+		t.Errorf("Go syllabus entries = %d, want 119", got)
 	}
-	// 大家: only the course-sequence part survives pruning (loop/table/gaps
-	// drop out), with 5 learning-level H3s and 20 entries.
-	if got := len(minnaPath.Branches); got != 1 {
-		t.Errorf("大家 syllabus top-level parts = %d, want 1 (only the course sequence)", got)
+	// 大家: the direct-entry warm-up and nested course-sequence parts survive;
+	// loop/table/gaps drop out. Together they hold 7 + 20 entries.
+	if got := len(minnaPath.Branches); got != 2 {
+		t.Errorf("大家 syllabus top-level parts = %d, want 2 (warm-up and course sequence)", got)
 	}
-	if got := countEntries(minnaPath.Branches); got != 20 {
-		t.Errorf("大家 syllabus entries = %d, want 20", got)
+	gotMinnaHeadings := make([]string, 0, len(minnaPath.Branches))
+	for _, branch := range minnaPath.Branches {
+		gotMinnaHeadings = append(gotMinnaHeadings, branch.Heading)
 	}
-	if len(minnaPath.Branches) == 1 {
-		if got := len(minnaPath.Branches[0].Sub); got != 5 {
-			t.Errorf("大家 course-sequence levels = %d, want 5", got)
-		}
+	wantMinnaHeadings := []string{
+		"L1 前假名閱讀暖身(順序 = 行序)",
+		"課程序列(順序 = 行序)",
+	}
+	if diff := cmp.Diff(wantMinnaHeadings, gotMinnaHeadings); diff != "" {
+		t.Errorf("大家 top-level branch order mismatch (-want +got):\n%s", diff)
+	}
+	if got := countEntries(minnaPath.Branches); got != 27 {
+		t.Errorf("大家 syllabus entries = %d, want 27", got)
+	}
+	warmup := findBranch(t, minnaPath.Branches, "L1 前假名閱讀暖身(順序 = 行序)")
+	if got := len(warmup.Entries); got != 7 {
+		t.Errorf("大家 warm-up entries = %d, want 7", got)
+	}
+	course := findBranch(t, minnaPath.Branches, "課程序列(順序 = 行序)")
+	if got := len(course.Sub); got != 5 {
+		t.Errorf("大家 course-sequence levels = %d, want 5", got)
+	}
+	if got := countEntries(course.Sub); got != 20 {
+		t.Errorf("大家 course-sequence entries = %d, want 20", got)
 	}
 
 	// --- order matches file order (the sidebar must mirror the file's own listing order) ---
 	goEntries := flattenEntries(goPath.Branches)
 	wantGoHead := []string{
-		"Slices- Strings and Slices", "Arrays- Mechanical Sympathy",
-		"Variables", "Constants", "Struct Types",
+		"Bits, Bytes, and Words", "Integers- Two's Complement and Overflow",
+		"Slices- Strings and Slices", "Arrays- Mechanical Sympathy", "Variables",
+		"Constants", "constant-promotion", "iota- The Compile-Time Constant Generator",
+		"Struct Types",
 	}
 	assertLeadingTargets(t, "Go", goEntries, wantGoHead)
 
 	minnaEntries := flattenEntries(minnaPath.Branches)
-	wantMinnaHead := []string{
+	wantWarmupHead := []string{
+		"P01 清音基礎", "P02 濁音・半濁音", "P03 拗音",
+	}
+	assertLeadingTargets(t, "大家 warm-up", warmup.Entries, wantWarmupHead)
+	wantCourseHead := []string{
 		"L01 〜は〜です", "L02 これ・それ・あれ", "L03 ここ・そこ・あそこ",
 	}
-	assertLeadingTargets(t, "大家", minnaEntries, wantMinnaHead)
+	assertLeadingTargets(t, "大家 course sequence", flattenEntries(course.Sub), wantCourseHead)
 
-	// Every entry in navigation is resolved by construction; these real lesson
-	// targets also carry their status badges.
+	// Resolved lessons carry status badges. Warning rows deliberately carry no
+	// guessed path or status; the real vault need not contain one today.
 	for _, entry := range minnaEntries {
-		if entry.Status == "" {
-			t.Errorf("大家 entry %q has no status", entry.Target)
+		switch entry.Kind {
+		case EntryResolved:
+			if entry.Status == "" {
+				t.Errorf("大家 resolved entry %q has no status", entry.Target)
+			}
+		case EntryUnresolved, EntryAmbiguous, EntryNonInstance:
+			if entry.RelPath != "" || entry.Status != "" {
+				t.Errorf("大家 warning entry %q = path %q status %q, want neither fabricated", entry.Target, entry.RelPath, entry.Status)
+			}
+		default:
+			t.Fatalf("大家 entry %q has unknown EntryKind %d", entry.Target, entry.Kind)
 		}
 	}
 
@@ -132,6 +176,17 @@ func findPath(t *testing.T, m *Model, relPathSubstr string) Map {
 	}
 	t.Fatalf("no study-path note whose path contains %q; found %d paths", relPathSubstr, len(m.Paths))
 	return Map{}
+}
+
+func findBranch(t *testing.T, branches []Branch, heading string) Branch {
+	t.Helper()
+	for _, branch := range branches {
+		if branch.Heading == heading {
+			return branch
+		}
+	}
+	t.Fatalf("no top-level branch whose heading is %q; found %d branches", heading, len(branches))
+	return Branch{}
 }
 
 func countEntries(branches []Branch) int {

@@ -5,8 +5,6 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
-
-	"github.com/koopa0/yomihon/internal/search"
 )
 
 // TestRunSwapsOnlyOnChange pins the scanner's timing behavior on a fake clock:
@@ -22,7 +20,8 @@ func TestRunSwapsOnlyOnChange(t *testing.T) {
 		root := t.TempDir()
 		writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\n\nalpha body\n")
 
-		store := New(root, discardLogger())
+		roles, policy := testCapabilities(t)
+		store := New(root, discardLogger(), roles, policy)
 		first := store.Current()
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -47,7 +46,7 @@ func TestRunSwapsOnlyOnChange(t *testing.T) {
 		if store.Current() == first {
 			t.Error("snapshot pointer did not swap after a vault change")
 		}
-		if got := store.Current().Search.Search(search.Parse("widgets")); len(got) == 0 {
+		if got := snapshotSearch(t, store.Current().Search, "widgets"); len(got) == 0 {
 			t.Error("rescan did not reflect the added note")
 		}
 

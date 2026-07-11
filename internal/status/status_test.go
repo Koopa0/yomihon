@@ -32,6 +32,43 @@ func loadContract(t *testing.T) *schema.Schema {
 	return s
 }
 
+func loadContractWithArtifactSection(t *testing.T, section string) *schema.Schema {
+	t.Helper()
+	return loadFixtureWithArtifactSection(t, filepath.Join("testdata", "contract.toml"), section)
+}
+
+func loadFixtureWithArtifactSection(t *testing.T, fixturePath, section string) *schema.Schema {
+	t.Helper()
+	data, err := os.ReadFile(fixturePath) // #nosec G304 -- callers pass fixed in-package fixture paths
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	const valid = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	modified := strings.Replace(string(data), valid, section, 1)
+	if modified == string(data) {
+		t.Fatal("artifact section replacement did not apply")
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err = os.WriteFile(contractPath, []byte(modified), 0o600) // #nosec G703 -- contractPath is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write test contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
+	}
+	return contract
+}
+
+func newService(t *testing.T, root string, contract *schema.Schema) *status.Service {
+	t.Helper()
+	var policy schema.ArtifactPolicy
+	if contract != nil {
+		policy = contract.ArtifactPolicy()
+	}
+	return status.NewService(root, contract, policy)
+}
+
 // newVault creates a temp git repo standing in for the vault, with a fake
 // local git identity scoped to that repo only. The flip's commit author
 // must come from this config — never anything yomihon hardcodes —
@@ -110,7 +147,7 @@ func lessonContent(noteStatus string) string {
 func TestFlipHappyPath(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	original := "---\n" +
 		"title: L05 助詞の使い方\n" +
@@ -162,6 +199,107 @@ func TestFlipHappyPath(t *testing.T) {
 	}
 }
 
+func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	contract := loadContract(t)
+	svc := newService(t, root, contract)
+
+	nonInstanceRel := "System/templates/Loud lesson.md"
+	path := filepath.Join(root, filepath.FromSlash(nonInstanceRel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir template directory: %v", err)
+	}
+	original := lessonContent("draft")
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatalf("write template note: %v", err)
+	}
+	commitAll(t, root)
+	beforeCommits := commitCount(t, root)
+
+	err := svc.Flip(t.Context(), nonInstanceRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrNonInstance) {
+		t.Fatalf("Flip(non-instance) = %v, want %v", err, status.ErrNonInstance)
+	}
+	got, readErr := os.ReadFile(path) // #nosec G304 -- path is a fixed test-relative file under newVault's TempDir
+	if readErr != nil {
+		t.Fatalf("read template note: %v", readErr)
+	}
+	if diff := cmp.Diff(original, string(got)); diff != "" {
+		t.Errorf("non-instance bytes changed (-want +got):\n%s", diff)
+	}
+	if after := commitCount(t, root); after != beforeCommits {
+		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
+	}
+
+	err = svc.Flip(t.Context(), "System/templates/Missing.md", "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrNonInstance) {
+		t.Errorf("Flip(nonexistent non-instance) = %v, want %v before stat", err, status.ErrNonInstance)
+	}
+	err = svc.Flip(t.Context(), "System/temporary/../templates/Normalized.md", "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrNonInstance) {
+		t.Errorf("Flip(normalized non-instance) = %v, want %v before stat", err, status.ErrNonInstance)
+	}
+
+	err = svc.Flip(t.Context(), "System/templates-old/Missing.md", "draft", schema.SealStatus)
+	if errors.Is(err, status.ErrNonInstance) {
+		t.Errorf("Flip(component-boundary sibling) = %v, must reach filesystem instead of non-instance gate", err)
+	}
+}
+
+func TestFlipValidatesPathBeforeClosure(t *testing.T) {
+	t.Parallel()
+	svc := status.NewService(t.TempDir(), nil, schema.ArtifactPolicy{})
+	for _, rel := range []string{"", ".", "..", "../outside.md", "/absolute.md", `System\templates\T.md`} {
+		err := svc.Flip(t.Context(), rel, "draft", schema.SealStatus)
+		if !errors.Is(err, status.ErrInvalidPath) {
+			t.Errorf("Flip(%q on closed service) = %v, want %v", rel, err, status.ErrInvalidPath)
+		}
+		if errors.Is(err, status.ErrClosed) {
+			t.Errorf("Flip(%q on closed service) = %v, path validation must precede closure", rel, err)
+		}
+	}
+}
+
+func TestArtifactPolicyClosureIsDistinct(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		contract *schema.Schema
+		want     string
+	}{
+		{name: "missing", contract: loadFixtureWithArtifactSection(t, filepath.Join("..", "schema", "testdata", "contract.toml"), ""), want: "contract declares no artifact policy; instance projections disabled until it does"},
+		{name: "invalid", contract: loadFixtureWithArtifactSection(t, filepath.Join("..", "schema", "testdata", "contract.toml"), "[artifacts]\nnon_instance_dirs = [\".\"]\n"), want: `invalid artifact policy: non_instance_dirs contains "."`},
+		{name: "incomplete", contract: loadFixtureWithArtifactSection(t, filepath.Join("..", "schema", "testdata", "contract.toml"), "[artifacts]\n"), want: `invalid artifact policy: missing required key "non_instance_dirs"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			policy := tt.contract.ArtifactPolicy()
+			svc := status.NewService(t.TempDir(), tt.contract, policy)
+			if !svc.Closed() {
+				t.Fatal("Closed() = false, want artifact-policy closure")
+			}
+			if got, want := svc.WriteDiagnostic(), tt.want; got != want {
+				t.Errorf("WriteDiagnostic() = %q, want %q", got, want)
+			}
+			if got := svc.Order(); len(got) == 0 {
+				t.Error("Order() is empty with valid core contract, want lifecycle vocabulary despite write closure")
+			}
+			if svc.Advanceable("lesson", "draft") {
+				t.Error("Advanceable() = true while artifact policy closes writes")
+			}
+			err := svc.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+			if !errors.Is(err, status.ErrArtifactPolicyUnavailable) {
+				t.Errorf("Flip() = %v, want %v", err, status.ErrArtifactPolicyUnavailable)
+			}
+			if got, want := err.Error(), tt.want; got != want {
+				t.Errorf("Flip() error = %q, want exact diagnostic %q", got, want)
+			}
+		})
+	}
+}
+
 func TestFlipRefusals(t *testing.T) {
 	t.Parallel()
 
@@ -200,7 +338,7 @@ func TestFlipRefusals(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := newVault(t)
-			svc := status.NewService(root, loadContract(t))
+			svc := newService(t, root, loadContract(t))
 
 			committed := lessonContent(tt.onDiskStatus)
 			writeNote(t, root, committed)
@@ -259,7 +397,7 @@ func TestFlipMalformedStatusLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := newVault(t)
-			svc := status.NewService(root, loadContract(t))
+			svc := newService(t, root, loadContract(t))
 
 			writeNote(t, root, tt.content)
 			commitAll(t, root)
@@ -287,12 +425,12 @@ func TestFlipMalformedStatusLine(t *testing.T) {
 func TestFlipFailClosed(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, nil)
+	svc := newService(t, root, nil)
 
 	if !svc.Closed() {
 		t.Fatal("Closed() = false, want true for a nil contract")
 	}
-	if got := svc.Transitions("lesson", "draft"); got != nil {
+	if got := svc.Transitions(testRel, "lesson", "draft"); got != nil {
 		t.Errorf("Transitions() = %v, want nil", got)
 	}
 
@@ -302,7 +440,6 @@ func TestFlipFailClosed(t *testing.T) {
 	}{
 		{"well-formed args", "Writing/lessons/japanese/L05.md", "draft", schema.SealStatus},
 		{"garbage args", "does/not/exist.md", "", ""},
-		{"path escape attempt", "../outside.md", "draft", schema.SealStatus},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -316,20 +453,35 @@ func TestFlipFailClosed(t *testing.T) {
 
 func TestClosed(t *testing.T) {
 	t.Parallel()
-	if !status.NewService(t.TempDir(), nil).Closed() {
+	if !newService(t, t.TempDir(), nil).Closed() {
 		t.Error("Closed() = false, want true for nil contract")
 	}
-	if status.NewService(t.TempDir(), loadContract(t)).Closed() {
+	if newService(t, t.TempDir(), loadContract(t)).Closed() {
 		t.Error("Closed() = true, want false for a loaded contract")
+	}
+}
+
+func TestOrderDistinguishesUnavailableCoreFromEmptyGroup(t *testing.T) {
+	t.Parallel()
+	if got := newService(t, t.TempDir(), nil).Order(); got != nil {
+		t.Errorf("Order() with unavailable core = %v, want nil", got)
+	}
+	got := newService(t, t.TempDir(), loadContract(t)).Order()
+	if got == nil {
+		t.Error("Order() with valid core and no default group = nil, want available empty slice")
+	}
+	if len(got) != 0 {
+		t.Errorf("Order() with no default group = %v, want empty", got)
 	}
 }
 
 func TestTransitions(t *testing.T) {
 	t.Parallel()
-	svc := status.NewService(t.TempDir(), loadContract(t))
+	svc := newService(t, t.TempDir(), loadContract(t))
 
 	tests := []struct {
 		name     string
+		relPath  string
 		noteType string
 		current  string
 		want     []string
@@ -340,17 +492,20 @@ func TestTransitions(t *testing.T) {
 		//   draft:    from=[imported] owner=[claude,koopa]
 		//   ready:    from=[draft] owner=[koopa]
 		//   archived: from=[*] applies_to=[*] owner=[claude,koopa]
-		{"lesson from draft", "lesson", "draft", []string{schema.SealStatus, "archived"}},
-		{"lesson from imported", "lesson", "imported", []string{"draft", "archived"}},
-		{"empty note type", "", "draft", nil},
-		{"empty current status", "lesson", "", nil},
+		{name: "lesson from draft", relPath: testRel, noteType: "lesson", current: "draft", want: []string{schema.SealStatus, "archived"}},
+		{name: "lesson from imported", relPath: testRel, noteType: "lesson", current: "imported", want: []string{"draft", "archived"}},
+		{name: "non-instance path", relPath: "System/templates/Lesson.md", noteType: "lesson", current: "draft", want: nil},
+		{name: "normalized non-instance path", relPath: "System/temporary/../templates/Lesson.md", noteType: "lesson", current: "draft", want: nil},
+		{name: "component-boundary sibling remains governed", relPath: "System/templates-old/Lesson.md", noteType: "lesson", current: "draft", want: []string{schema.SealStatus, "archived"}},
+		{name: "empty note type", relPath: testRel, noteType: "", current: "draft", want: nil},
+		{name: "empty current status", relPath: testRel, noteType: "lesson", current: "", want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := svc.Transitions(tt.noteType, tt.current)
+			got := svc.Transitions(tt.relPath, tt.noteType, tt.current)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("Transitions(%q, %q) mismatch (-want +got):\n%s", tt.noteType, tt.current, diff)
+				t.Errorf("Transitions(%q, %q, %q) mismatch (-want +got):\n%s", tt.relPath, tt.noteType, tt.current, diff)
 			}
 		})
 	}
@@ -371,11 +526,11 @@ func TestAdvanceable(t *testing.T) {
 		{Status: "c", AppliesTo: []string{"doc"}, From: []string{"b"}, Owner: []string{"bot"}},
 	}}
 
-	if status.NewService(t.TempDir(), nil).Advanceable("doc", "a") {
+	if newService(t, t.TempDir(), nil).Advanceable("doc", "a") {
 		t.Error("Advanceable on a closed write face = true, want false")
 	}
 
-	svc := status.NewService(t.TempDir(), contract)
+	svc := status.NewService(t.TempDir(), contract, loadContract(t).ArtifactPolicy())
 	tests := []struct {
 		name   string
 		status string
@@ -437,7 +592,7 @@ func TestFlipByteIdentical(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := newVault(t)
-			svc := status.NewService(root, loadContract(t))
+			svc := newService(t, root, loadContract(t))
 
 			writeNote(t, root, tt.content)
 			commitAll(t, root)
@@ -466,7 +621,7 @@ func TestFlipByteIdentical(t *testing.T) {
 func TestFlipGitAddFailureWrapsErrCommitFailed(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
 	commitAll(t, root)
@@ -505,7 +660,7 @@ func TestFlipGitAddFailureWrapsErrCommitFailed(t *testing.T) {
 func TestFlipConcurrentNeverLiesInTheCommitMessage(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
-	svc := status.NewService(root, loadContract(t))
+	svc := newService(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
 	commitAll(t, root)

@@ -2,9 +2,11 @@ package nav
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -36,25 +38,48 @@ type Branch struct {
 	Sub     []Branch
 }
 
-// Entry is one uniquely resolved wikilink list-item. Unwritten or ambiguous
-// rows remain on the map note itself and do not become sidebar destinations.
+// EntryKind distinguishes a linked entry from each warning-row reason.
+type EntryKind uint8
+
+const (
+	// EntryResolved is a unique wikilink target that can be navigated to.
+	EntryResolved EntryKind = iota
+	// EntryUnresolved has no matching vault target.
+	EntryUnresolved
+	// EntryAmbiguous has several candidates and deliberately names none of them.
+	EntryAmbiguous
+	// EntryNonInstance resolves uniquely to a readable artifact that is outside
+	// the governed instance set.
+	EntryNonInstance
+)
+
+// Entry is one wikilink list-item. Study paths retain warning rows for honest
+// sequencing; general maps contain only governed, resolved entries.
 type Entry struct {
-	Text    string
-	Target  string
-	RelPath string
-	Status  string
+	Text       string
+	Target     string
+	RelPath    string
+	Status     string
+	Kind       EntryKind
+	Candidates []string
 }
 
 // parseMap parses one map-typed note into a Map. It reads the
 // already-frontmatter-stripped body (vault.Parse split it out), so a
 // frontmatter list value cannot look like an entry bullet.
-func parseMap(n *vault.Note, idx Resolver, statusByPath map[string]string) Map {
+func parseMap(
+	n *vault.Note,
+	idx Resolver,
+	statusByPath map[string]string,
+	policy schema.ArtifactPolicy,
+	preserveUnresolved bool,
+) Map {
 	return Map{
 		Title:    n.Title(),
 		RelPath:  n.RelPath,
 		Domain:   n.Domain(),
 		Type:     n.Type(),
-		Branches: parseBranches(n.Body, idx, statusByPath),
+		Branches: parseBranches(n.Body, idx, statusByPath, policy, preserveUnresolved),
 	}
 }
 
@@ -83,15 +108,23 @@ type branchNode struct {
 //
 // That predicate is what distinguishes the two files' non-navigation
 // branches without naming them: the Go map's parts/modules hold plain
-// "- [[Entry]]" bullets (all kept); the 大家 map's course-sequence
-// levels hold "- **L1** ... · [[L01 ...]]" bullets (kept), while its
-// daily-loop branch uses an ordered list (excluded — not a bullet), its
-// learning-level branch is a table (no list items), and its gaps branch
-// uses task checkboxes (excluded — even the one carrying a [[wikilink]]),
-// so all three prune away for having no entries. A "待建" bullet with no
-// wikilink is not counted (there is no entry to link to) — the entry
-// count is exactly the number of uniquely resolved wikilink list-items.
-func parseBranches(body string, idx Resolver, statusByPath map[string]string) []Branch {
+// "- [[Entry]]" bullets (all kept); the 大家 map's warm-up part holds direct
+// "- **P01** ... [[P01 ...]]" entries and its course-sequence levels hold
+// "- **L1** ... · [[L01 ...]]" entries (both kept), while its daily-loop
+// branch uses an ordered list (excluded — not a bullet), its learning-level
+// branch is a table (no list items), and its gaps branch uses task checkboxes
+// (excluded — even the one carrying a [[wikilink]]), so all three prune away
+// for having no entries. A "待建" bullet with no wikilink is not counted
+// because it names no target. General maps keep only uniquely resolved governed
+// rows; study paths also keep unresolved, ambiguous, and uniquely resolved
+// non-instance targets as warnings in their original position.
+func parseBranches(
+	body string,
+	idx Resolver,
+	statusByPath map[string]string,
+	policy schema.ArtifactPolicy,
+	preserveUnresolved bool,
+) []Branch {
 	var roots []*branchNode
 	var stack []*branchNode
 
@@ -114,10 +147,11 @@ func parseBranches(body string, idx Resolver, statusByPath map[string]string) []
 		if !ok {
 			continue
 		}
-		entry, ok := makeEntry(inner, idx, statusByPath)
+		entry, ok := makeEntry(inner, idx, statusByPath, policy)
 		if !ok || len(stack) == 0 {
-			// An unresolved target, or an entry before any heading, has no
-			// navigable placement. The original row stays on the map note.
+			continue
+		}
+		if entry.Kind != EntryResolved && !preserveUnresolved {
 			continue
 		}
 		top := stack[len(stack)-1]
@@ -241,10 +275,10 @@ func firstWikilink(s string) (inner string, ok bool) {
 // uses) and idx.Resolve (the same normalization and ambiguity rules applied
 // to in-body wikilinks), so a sidebar entry link and the in-body wikilink
 // to the same note agree exactly. ok is false when the link has no note target
-// (a same-file anchor such as [[#heading]]) or when its target is ambiguous or
-// unresolved. Those rows remain visible in the rendered map note but do not
-// become navigation entries.
-func makeEntry(inner string, idx Resolver, statusByPath map[string]string) (Entry, bool) {
+// (a same-file anchor such as [[#heading]]). Unresolved, ambiguous, and unique
+// non-instance targets return distinct warning kinds so the caller can preserve
+// or omit them according to map role.
+func makeEntry(inner string, idx Resolver, statusByPath map[string]string, policy schema.ArtifactPolicy) (Entry, bool) {
 	target, display, ok := graph.SplitWikilink(inner)
 	if !ok {
 		return Entry{}, false
@@ -252,9 +286,14 @@ func makeEntry(inner string, idx Resolver, statusByPath map[string]string) (Entr
 	res := idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unique:
-		return Entry{Text: display, Target: target, RelPath: res.Path, Status: statusByPath[res.Path]}, true
-	case graph.Ambiguous, graph.Unresolved:
-		return Entry{}, false
+		if policy.IsNonInstance(res.Path) {
+			return Entry{Text: display, Target: target, Kind: EntryNonInstance}, true
+		}
+		return Entry{Text: display, Target: target, RelPath: res.Path, Status: statusByPath[res.Path], Kind: EntryResolved}, true
+	case graph.Ambiguous:
+		return Entry{Text: display, Target: target, Kind: EntryAmbiguous, Candidates: slices.Clone(res.Candidates)}, true
+	case graph.Unresolved:
+		return Entry{Text: display, Target: target, Kind: EntryUnresolved}, true
 	default:
 		panic(fmt.Sprintf("nav: unknown graph.Kind %d", res.Kind))
 	}

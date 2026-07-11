@@ -77,3 +77,32 @@ func TestParseFilterValueNFD(t *testing.T) {
 		t.Errorf("Parse NFD filter value mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestFilterCapabilityClassification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		key        string
+		wantKind   filterKind
+		wantFilter bool
+	}{
+		{name: "type metadata", key: "type", wantKind: filterMetadata, wantFilter: true},
+		{name: "status metadata", key: "status", wantKind: filterMetadata, wantFilter: true},
+		{name: "domain metadata", key: "domain", wantKind: filterMetadata, wantFilter: true},
+		{name: "topic metadata", key: "topic", wantKind: filterMetadata, wantFilter: true},
+		{name: "slug metadata", key: "slug", wantKind: filterMetadata, wantFilter: true},
+		{name: "folder path", key: "folder", wantKind: filterPath, wantFilter: true},
+		{name: "bare token", key: "unknown", wantKind: filterUnknown, wantFilter: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gotKind, gotFilter := classifyFilterKey(tt.key)
+			if gotKind != tt.wantKind || gotFilter != tt.wantFilter {
+				t.Errorf("classifyFilterKey(%q) = (%v, %v), want (%v, %v)", tt.key, gotKind, gotFilter, tt.wantKind, tt.wantFilter)
+			}
+		})
+	}
+}

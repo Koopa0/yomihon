@@ -18,6 +18,15 @@ the four walls (`README`, decisions D02), the walls win.
   get Koopa's approval, then build. `judge-plan.md` is the reference for what
   a plan doc owes: byte-exact contracts, testing strategy, a divergence or
   open-decision register, acceptance criteria.
+- **Verification proves conformance, never authority.** Before dispatching code
+  that combines independent predicates, enumerate their cross-product (for
+  example role × resolution × target-instance state) and give every row an
+  authority label: `REAL-OBSERVED`, `EXPLICIT-RULING`, `CANON-DERIVED`, or
+  `NEEDS-RULING`. A `NEEDS-RULING` row stops implementation. Tests, fixtures,
+  mutations, campaigns, and later documentation may prove that code follows a
+  row; none may manufacture the row's authority. The owning canon lands before
+  the first behavior commit, or a later correction is recorded honestly as an
+  amendment with the missed row and prevention mechanism named.
 - **Builder and acceptor are different contexts.** The implementer
   self-verifies (below), then an independent session re-verifies from scratch
   before anything is pushed: re-run the gates, re-read the diff, and re-run
@@ -132,18 +141,21 @@ pattern every installer step follows.
   and env names; the docs that record the gates are the one exception and are
   rewritten at declaration time.
 - **UI work climbs the interaction ladder (D41)**: semantic HTML, then CSS,
-  then Chromium-native Web APIs, then a small vanilla-JS enhancement, then —
-  when it genuinely earns its place — a mature, vendorable library admitted
-  per D41's criteria and recorded as a decision. The app stays a
-  server-rendered MPA; no client-framework runtime. Motion, loading, and
-  transition polish are in-scope quality (`ux-plan.md`), held to the same
-  ladder and to `prefers-reduced-motion`.
+  then Baseline Web APIs, then a small vanilla-JS progressive enhancement only
+  when a concrete need remains or the script is materially clearer than the
+  native alternative. JavaScript is allowed, but it is not the default and may
+  not take over a working no-JS core path. htmx, Alpine, and any other client
+  abstraction require a concrete unmet need and D41's dependency-admission
+  discussion before use. The app stays a server-rendered MPA; no
+  client-framework runtime. Motion, loading, and transition polish are in-scope
+  quality (`ux-plan.md`), held to the same ladder and to
+  `prefers-reduced-motion`.
 - **Web platform baseline (Koopa, 2026-07-08): the target is Baseline 2026.**
   Core UX prefers Baseline Widely-available features; Newly-available
   features are welcome as progressive enhancement; Limited-availability
   features require explicit justification and a fallback, recorded where
-  they are used. The ladder's Chromium-native rung reads through this lens:
-  a Chromium-only API may enhance a core action, never carry it alone.
+  they are used. The Web-API rung reads through this lens: a browser-specific
+  API may enhance a core action, never carry it alone.
 
 ## 5. Verification protocol (before any push)
 

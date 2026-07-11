@@ -6,8 +6,9 @@ import (
 	"unicode/utf8"
 )
 
-// Result is one search hit: the note's path, display title, status badge, and
-// a snippet centered on the earliest matched-token offset.
+// Result is one search hit: the note's path, display title, optional status
+// badge, and a snippet centered on the earliest matched-token offset. Status is
+// empty when the hit is not metadata-capable.
 type Result struct {
 	RelPath string
 	Title   string
@@ -31,12 +32,23 @@ const (
 // An empty query (no tokens and no filters) returns nothing. A pure-filter
 // query is legal: with no tokens the title-bucket token test is vacuously true,
 // so every filter match lands in the (rel_path-ordered) title bucket.
-func (idx *Index) Search(q Query) []Result {
+// Metadata filters exclude non-instance artifacts. If the artifact policy is
+// unavailable, a query containing such a filter returns
+// ErrMetadataUnavailable with the contract diagnostic; text and folder queries
+// continue against the complete readable corpus.
+func (idx *Index) Search(q Query) ([]Result, error) {
 	if len(q.Tokens) == 0 && len(q.Filters) == 0 {
-		return nil
+		return nil, nil
+	}
+	requiresMetadata := q.requiresMetadata()
+	if requiresMetadata && !idx.metadataAvailable {
+		return nil, idx.metadataUnavailableError()
 	}
 	var titleHits, bodyHits []Result
 	for _, e := range idx.entries {
+		if requiresMetadata && !e.metadataCapable {
+			continue
+		}
 		if !e.matchesFilters(q.Filters) {
 			continue
 		}
@@ -47,7 +59,7 @@ func (idx *Index) Search(q Query) []Result {
 			bodyHits = append(bodyHits, e.result(q.Tokens))
 		}
 	}
-	return append(titleHits, bodyHits...)
+	return append(titleHits, bodyHits...), nil
 }
 
 // allContain reports whether hay contains every token (AND). Tokens are already
@@ -102,10 +114,14 @@ func (e *entry) matchesFilter(f Filter) bool {
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
 func (e *entry) result(tokens []string) Result {
+	status := e.Status
+	if !e.metadataCapable {
+		status = ""
+	}
 	return Result{
 		RelPath: e.RelPath,
 		Title:   e.Title,
-		Status:  e.Status,
+		Status:  status,
 		Snippet: snippet(e.PlainText, e.PlainFold, tokens),
 	}
 }

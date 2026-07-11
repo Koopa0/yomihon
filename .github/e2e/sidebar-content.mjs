@@ -1,23 +1,31 @@
 // Behavior lock: the sidebar grows from the fixture vault's map and Diary
-// content, opens the map that contains the current note, omits unresolved rows,
-// and leaves lifecycle state in Home plus the shared topbar chip.
+// content, opens the map that contains the current note, omits unresolved rows
+// from general maps while retaining study-path warnings, and leaves lifecycle
+// state in Home plus the shared topbar chip.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
+const HOME = '/';
 const MAP_PAGE = '/notes/Maps/reading.md';
+const STUDY_PAGE = '/syllabus/Maps/study.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = [
   'group-order',
   'map-present',
   'map-open',
   'current-entry',
-  'resolved-only',
+  'map-resolved-only',
+  'path-noninstance-warning',
+  'path-unresolved-warning',
   'map-page-unwritten-kept',
+  'path-page-unresolved-kept',
+  'path-page-noninstance-kept',
   'journal-present',
   'journal-collapsed',
   'lifecycle-retired',
   'pending-chip',
+  'home-start-top',
 ];
 
 class LockFired extends Error {
@@ -73,13 +81,29 @@ const MUTATIONS = {
     target: 'current-entry',
     apply: replaceEvery(' aria-current="page"', ''),
   },
-  'inject-unwritten': {
-    target: 'resolved-only',
-    apply: replaceEvery('id="nav-rail">', 'id="nav-rail"><span>Unwritten Note</span>'),
+  'inject-unwritten-map-row': {
+    target: 'map-resolved-only',
+    apply: replaceEvery('<span class="y-railitem__name">Reading Map</span>', '<span class="y-railitem__name">Reading Map</span><span>Unwritten Note</span>'),
+  },
+  'drop-path-warning': {
+    target: 'path-unresolved-warning',
+    apply: replaceEvery('Unwritten Lesson', 'Removed path warning'),
+  },
+  'drop-path-noninstance-warning': {
+    target: 'path-noninstance-warning',
+    apply: replaceEvery('Template-only lesson', 'Removed non-instance warning'),
   },
   'drop-unwritten-map-row': {
     target: 'map-page-unwritten-kept',
     apply: rewritePath(MAP_PAGE, (body) => body.replaceAll('Unwritten Note', 'Removed map row')),
+  },
+  'drop-unwritten-path-row': {
+    target: 'path-page-unresolved-kept',
+    apply: rewritePath(STUDY_PAGE, (body) => body.replaceAll('Unwritten Lesson', 'Removed path row')),
+  },
+  'drop-noninstance-path-row': {
+    target: 'path-page-noninstance-kept',
+    apply: rewritePath(STUDY_PAGE, (body) => body.replaceAll('Template-only lesson', 'Removed non-instance row')),
   },
   'drop-journal': {
     target: 'journal-present',
@@ -96,6 +120,13 @@ const MUTATIONS = {
   'rename-pending': {
     target: 'pending-chip',
     apply: replaceEvery('aria-label="1 to decide"', 'aria-label="pending"'),
+  },
+  'autofocus-home-search': {
+    target: 'home-start-top',
+    apply: rewritePath(HOME, (body) => body.replaceAll(
+      'placeholder="Search the storehouse…" aria-label="Search notes">',
+      'placeholder="Search the storehouse…" aria-label="Search notes" autofocus>',
+    )),
   },
 };
 
@@ -122,9 +153,10 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 }
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
+let proof = null;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+  proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
 
   const sidebar = page.locator('aside.y-rail-left');
@@ -141,8 +173,20 @@ try {
   if (await map.locator('a[aria-current="page"][href="/notes/Notes/alpha.md"]').count() !== 1) {
     fail('current-entry', 'the current map entry is not marked');
   }
-  if ((await sidebar.textContent()).includes('Unwritten Note')) {
-    fail('resolved-only', 'an unresolved map row appears in navigation');
+  if ((await map.textContent()).includes('Unwritten Note')) {
+    fail('map-resolved-only', 'an unresolved general-map row appears in navigation');
+  }
+
+  const studyPath = sidebar.locator('details[data-map-tree="Maps/study.md"]');
+  const policyWarning = studyPath.locator('[data-resolution="non-instance"]', { hasText: 'Template-only lesson' });
+  const policyOrder = await studyPath.locator('a[href="/notes/Notes/alpha.md"], [data-resolution="non-instance"], [data-resolution="unresolved"], a[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.dataset.resolution || row.getAttribute('href')));
+  if (await studyPath.count() !== 1 || await policyWarning.count() !== 1 || await policyWarning.locator('.y-navmark--warn').count() === 0 || await studyPath.getByRole('link', { name: 'Template-only lesson', exact: true }).count() !== 0 || policyOrder.join(',') !== '/notes/Notes/alpha.md,non-instance,unresolved,/notes/Notes/beta.md') {
+    fail('path-noninstance-warning', 'the non-instance study-path row is not one ordered, non-link policy warning in navigation');
+  }
+  const pathWarning = studyPath.locator('[data-resolution="unresolved"]', { hasText: 'Unwritten Lesson' });
+  const sidebarPathOrder = await studyPath.locator('a[href="/notes/Notes/alpha.md"], [data-resolution="unresolved"], a[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.hasAttribute('data-resolution') ? 'warning' : row.getAttribute('href')));
+  if (await studyPath.count() !== 1 || await pathWarning.count() !== 1 || await pathWarning.locator('.y-navmark--warn').count() === 0 || await studyPath.getByRole('link', { name: 'Unwritten Lesson', exact: true }).count() !== 0 || sidebarPathOrder.join(',') !== '/notes/Notes/alpha.md,warning,/notes/Notes/beta.md') {
+    fail('path-unresolved-warning', 'the unresolved study-path row is not one ordered, non-link warning in navigation');
   }
 
   const journal = sidebar.locator('details[data-sidebar-group="journal"]');
@@ -159,13 +203,34 @@ try {
     fail('pending-chip', 'the shared topbar chip is absent, mislabeled, or does not link Home');
   }
 
+  await page.setViewportSize({ width: 1270, height: 720 });
+  await page.goto(BASE + HOME, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const homeMain = page.locator('main.y-main');
+  const homeSearch = page.locator('form.y-homesearch input[type="search"]');
+  if (await homeMain.count() !== 1 || await homeSearch.count() !== 1 || await homeSearch.getAttribute('autofocus') !== null || await homeMain.evaluate((element) => element.scrollTop) !== 0) {
+    fail('home-start-top', 'Home did not start at the top without native search autofocus at 1270×720');
+  }
+
   await page.goto(BASE + MAP_PAGE, { waitUntil: 'domcontentloaded' });
   if (!((await page.locator('main').textContent()).includes('Unwritten Note'))) {
     fail('map-page-unwritten-kept', 'the unresolved row vanished from the map note itself');
   }
+
+  await page.goto(BASE + STUDY_PAGE, { waitUntil: 'domcontentloaded' });
+  const syllabusPolicyWarning = page.locator('main .y-lesson--broken[data-resolution="non-instance"]', { hasText: 'Template-only lesson' });
+  const syllabusPolicyOrder = await page.locator('main a[href="/notes/Notes/alpha.md"], main [data-resolution="non-instance"], main [data-resolution="unresolved"], main a[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.dataset.resolution || row.getAttribute('href')));
+  if (await syllabusPolicyWarning.count() !== 1 || await syllabusPolicyWarning.locator('.y-navmark--warn').count() === 0 || await page.locator('main a', { hasText: 'Template-only lesson' }).count() !== 0 || syllabusPolicyOrder.join(',') !== '/notes/Notes/alpha.md,non-instance,unresolved,/notes/Notes/beta.md') {
+    fail('path-page-noninstance-kept', 'the non-instance study-path row is not one ordered, non-link policy warning on the syllabus page');
+  }
+  const syllabusWarning = page.locator('main .y-lesson--broken[data-resolution="unresolved"]', { hasText: 'Unwritten Lesson' });
+  const syllabusPathOrder = await page.locator('main a[href="/notes/Notes/alpha.md"], main [data-resolution="unresolved"], main a[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.hasAttribute('data-resolution') ? 'warning' : row.getAttribute('href')));
+  if (await syllabusWarning.count() !== 1 || await syllabusWarning.locator('.y-navmark--warn').count() === 0 || await page.locator('main a', { hasText: 'Unwritten Lesson' }).count() !== 0 || syllabusPathOrder.join(',') !== '/notes/Notes/alpha.md,warning,/notes/Notes/beta.md') {
+    fail('path-page-unresolved-kept', 'the unresolved study-path row is not one ordered, non-link warning on the syllabus page');
+  }
   if (proof && !proof()) notApplied(`the ${MUTATE} mutation changed nothing in the document`);
 
-  console.log('PASS sidebar-content: Paths then Maps then collapsed Journal; map wayfinding, resolved-only navigation, unwritten map rows, and Home pending chip hold');
+  console.log('PASS sidebar-content: Paths then Maps then collapsed Journal; general maps resolve only, study paths retain warnings, map pages retain source rows, and Home starts at the top');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
@@ -173,12 +238,17 @@ try {
     process.exitCode = 2;
   } else if (err instanceof LockFired) {
     console.error(err.message);
-    if (MUTATE) {
-      const { target } = MUTATIONS[MUTATE];
-      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
-      else console.error(`no catch: ${MUTATE} targets ${target}, but ${err.site} fired first`);
+    if (MUTATE && (!proof || !proof())) {
+      console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
+      process.exitCode = 2;
+    } else {
+      if (MUTATE) {
+        const { target } = MUTATIONS[MUTATE];
+        if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+        else console.error(`no catch: ${MUTATE} targets ${target}, but ${err.site} fired first`);
+      }
+      process.exitCode = 1;
     }
-    process.exitCode = 1;
   } else if (err instanceof ProbeBroken) {
     console.error(err.message);
     process.exitCode = 1;

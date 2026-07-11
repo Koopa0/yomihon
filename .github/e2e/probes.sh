@@ -23,6 +23,7 @@ probes=(
   "palette.mjs|/"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
+  "instance-contract.mjs|/notes/Notes/alpha.md"
   "seal-select-guard.mjs|/notes/Writing/lessons/japanese/L01.md"
 )
 

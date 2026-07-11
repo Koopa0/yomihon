@@ -50,12 +50,12 @@ Configuration (the config struct follows go-spec config-management): `YOMIHON_RO
 ```
 cmd/yomihon/        wiring only: config, deps, routes, graceful shutdown
 internal/vault/     fs walk (NFC-normalize paths), frontmatter splitting and fault-tolerant parsing
-internal/schema/    load vault-schema.toml (enum, status_group, lifecycle, slug pattern) — the only reader of the toml (wall 3)
+internal/schema/    load vault-schema.toml (enums, lifecycle, navigation roles, artifact policy) — the only reader of the toml (wall 3)
 internal/render/    Obsidian dialect → HTML: goldmark pipeline (following yomihon-dev parser.go) plus the ==highlight== and ![[embed]] that yomihon-dev lacks
 internal/graph/     wikilink resolution (following kura graph.rs semantics), link index, diagnostics
-internal/nav/       navigation model: lifecycle folder tree, syllabus trees (Maps parsing), reports
-internal/search/    in-memory search: build the index from vault text, NFC-folded substring query + structured filters, handler
-internal/snapshot/  the Snapshot{Graph, Nav, Search} + the ~2s rescanner behind an atomic.Pointer (D25); handlers read the current snapshot
+internal/nav/       content navigation: Paths, Maps, Journal, reports, Folders, and reverse placements
+internal/search/    in-memory search: readable text/path corpus plus policy-gated instance metadata filters and aggregates
+internal/snapshot/  Snapshot{Graph, Nav, Search, ArtifactPolicy} + the ~2s rescanner behind an atomic.Pointer; handlers read one generation
 internal/status/    the only write: state machine validation, surgical single-line rewrite, git commit (wall 1)
 internal/note/      reading feature: load + render + TOC + diagnostics panel
 internal/ui/        templ: layouts / pages / blocks (yomihon-dev's three-layer convention)
@@ -65,9 +65,19 @@ How the walls grow into code: `internal/status` is the only package with file-wr
 
 ## 5. Data flow
 
-**Read**: full scan at startup → `vault` parsing → the graph, nav, and search indexes built in memory into one `Snapshot` → a ~2s mtime scan rebuilds and swaps them on any change (D21, D25). Rendering is per-request (millisecond-scale at the 419-file scale; add an HTML cache only if measurements actually show it is slow — convergent).
+**Read**: load the vault contract once → derive immutable navigation roles and
+artifact policy → full scan at startup → build graph, nav, and search into one
+`Snapshot` → a ~2s mtime scan rebuilds and swaps the derived models on any change
+without re-reading the contract (D21, D25, D47). Rendering is per-request
+(millisecond-scale at the 419-file scale; add an HTML cache only if measurements
+actually show it is slow — convergent).
 
-**Write (the one and only path)**: the formal algorithm, UI, error vocabulary, and acceptance all live in `spec.md` §4. The skeleton: read the file for its current state → state machine validation (from + owner, actor=koopa) → dirty check → surgical single-line rewrite → atomic write-back → git commit (author = Koopa's identity, `(via yomihon)`) → PRG redirect.
+**Write (the one and only path)**: the formal algorithm, UI, error vocabulary,
+and acceptance all live in `spec.md` §4. The skeleton: normalize path → require
+artifact authority and reject non-instances before filesystem access → read the
+file for its current state → state-machine validation (from + owner,
+actor=koopa) → dirty check → surgical single-line rewrite → atomic write-back →
+git commit (author = Koopa's identity, `(via yomihon)`) → PRG redirect.
 
 ## 6. Derived state — in-memory (D24, D25)
 
@@ -76,9 +86,10 @@ held in one snapshot behind an `atomic.Pointer`:
 
 ```go
 type Snapshot struct {
-    Graph  *graph.Index   // wikilink resolution
-    Nav    *nav.Model     // folder tree, syllabus trees, reports
-    Search *search.Index  // per-note fields + NFC-folded plain_text for substring search
+    Graph          *graph.Index          // wikilink resolution over readable files
+    Nav            *nav.Model            // policy-aware content navigation
+    Search         *search.Index         // text/path corpus + metadata capability
+    ArtifactPolicy schema.ArtifactPolicy // startup authority used by request faces
 }
 // atomic.Pointer[Snapshot]; every handler reads the pointer once per request
 ```
@@ -92,10 +103,13 @@ where an edited note stayed stale in the sidebar and wikilink resolution until
 a restart.
 
 The search index holds only what search reads (D23): per note, `rel_path`,
-`title`, `note_type`, `domain`, `status`, `slug`, `topics`, and the NFC-folded
-`plain_text`. No link structure (that serves the H-face backlinks, `roadmap.md`)
-and no raw frontmatter — added when a real consumer arrives, at zero cost since
-the whole thing rebuilds from the vault.
+`title`, `note_type`, `domain`, `status`, `slug`, `topics`, NFC-folded
+`plain_text`, and whether the entry is governed instance metadata. The index also
+records whether metadata projections are available at all. Non-instances remain
+in readable text and folder search but cannot answer metadata filters or counts.
+No link structure (that serves the H-face backlinks, `roadmap.md`) and no raw
+frontmatter — added when a real consumer arrives, at zero cost since the whole
+thing rebuilds from the vault.
 
 No status history: `git log` is the history (vault-model §3). The reading and
 judge faces never depend on any persistent store (spec §0.1); search is as
