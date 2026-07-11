@@ -1,7 +1,7 @@
 # yomihon functional spec (final form)
 
 > **No milestone fences** (decisions D15): this document defines "what done looks like," not "what to build first." Each feature face has its own spec and acceptance criteria; every remaining face ships (D37), ordered by dependency and leverage — the sequencing view and the plan-doc obligations for faces not yet specified here live in `roadmap.md`.
-> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a)); amended 2026-07-05 (D31/D32/D37: semantic search committed, scope ruling, dead-rule cleanup); amended 2026-07-06 (D40: the yomihon-dev gate closed, retirement recorded as discard, the kura gate gains the differential-campaign prerequisite — judge-plan §13)**.
+> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a)); amended 2026-07-05 (D31/D32/D37: semantic search committed, scope ruling, dead-rule cleanup); amended 2026-07-06 (D40: the yomihon-dev gate closed, retirement recorded as discard, the kura gate gains the differential-campaign prerequisite — judge-plan §13); amended 2026-07-11 (D47: navigation roles, non-instance artifacts, and metadata-capability degradation)**.
 
 ## 0. Goals
 
@@ -19,6 +19,13 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 - **Files are the truth; a derived index only accelerates. No face may depend on a persistent store**: v0 has no database at all — the graph, nav, and search indexes are in-memory, rebuilt from the vault (D24, D25), so search is as available as reading. The principle stands for any future persistent index (SQLite, D24): it may only accelerate, and the "read every day" habit MUST NOT inherit a daemon dependency — otherwise the tool-absorption law would kill it.
 - **`check` / `exists` / `coverage` are stateless file scans that never touch the DB**: what the four pipelines and vault-side agents consume must be a zero-dependency binary (kura's deployment shape). If the judge face required PG to be present = a deployability regression = a covert tightening of the retirement gate — forbidden.
 - **The single source of schema truth = `~/obsidian/System/schemas/vault-schema.toml` (wall 3), and fault tolerance is asymmetric by direction**: the reading face is fail-open on schema problems (render anyway + diagnostic — under-reporting a lint is harmless); **the write face is fail-closed** (if the schema can't be read or is broken → show no transition keys, reject every POST — under-reporting on read is fine, but a bad write destroys a file).
+- **The same contract declares instance authority.** `[navigation]` assigns
+  disjoint note types to study paths and general maps; `[artifacts]` declares
+  readable directories whose files are not governed instances. Each section's
+  keys must be present even when explicitly empty. A missing, invalid, or
+  incomplete artifact policy disables every instance projection and the write
+  face rather than treating all readable files as instances; direct/raw reading,
+  Folders, reports, bare-text search, and `folder:` lookup stay available.
 - **Privacy boundary** (`System/agent-guides/Privacy-Boundary.md`, draft pending Koopa's final review): the top-level `Diary/` never egresses. yomihon is local-only, so **rendering it for Koopa himself is legitimate**; but every egress face — `export`, `check` (findings written to a report will be read by agents), any snapshot — unconditionally excludes `Diary/`, `--all` included (D39: an enforced drop at the output layer, stricter than the reference engine ever was). The exclusion covers **influence, not only output** (D42): journal content never changes an egress surface's verdict about a public note — its edges do not mount public concepts, its planned lists do not soften public broken links. What stays visible is what a public note wrote itself: a link naming a journal title, and that link's resolution, are the author's own words. Mechanical source: once toml `[privacy] never_egress_dirs` lands, read it from the toml, not hardcoded (wall 3).
 
 ---
@@ -33,7 +40,11 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 - Diagnostics pane: broken YAML, unresolved / ambiguous link, corrections ledger — display only.
 - Reports: `System/reports/` contains daily-briefing HTML, presented verbatim in a sandboxed iframe. Sandbox policy: **no `allow-same-origin`** — even with scripts allowed it lands in an opaque origin, forming a double layer of defense with the same-origin protection.
 - `.base` / `.canvas` link back to open in Obsidian; D2 is not rendered (already decided for koopa0.dev).
-- Code highlighting is server-side (chroma). JS principle: **zero client frameworks; interactivity climbs the D41 ladder** — Chromium-native APIs, then hand-written vanilla (the five interactions are the precedent), then a mature vendored library when a D41 admission is recorded (mermaid is the standing one).
+- Code highlighting is server-side (chroma). UI principle: interactivity climbs
+  the D41 ladder — semantic HTML, CSS, Baseline Web APIs, then a small vanilla-JS
+  progressive enhancement for a concrete need or materially clearer solution.
+  A library or client abstraction requires D41 admission; no client framework
+  takes over the server-rendered MPA.
 
 **Body leading-H1 policy**: the page title comes from frontmatter `title`; a leading H1 in the body is removed so it isn't shown twice (following yomihon-dev's already-verified behavior).
 
@@ -45,17 +56,34 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 
 ## 2. The navigation face
 
-**Spec** (status-first, D26): the sidebar leads with a **Lifecycle** list — the schema's `note`-group statuses in toml array order, each with a live snapshot count and a link to the pure-filter browse page (`/search?q=status:<name>`) — then the syllabus tree, then Reports (daily-briefing HTML), then a **collapsed** Folders tree (the lifecycle folder browse, vault order, top level ≤9). Grouping, labels, and counts trace to the toml and the snapshot, never hardcoded (wall 3). The ≤3-click acceptance below is preserved by the Folders tree.
+**Spec**: the sidebar is wayfinding, ordered **Here → Paths → Maps → Journal →
+Reports → Folders**. Paths and Maps derive their role membership from
+`[navigation]`, never type literals in a consumer. Paths preserve source-order
+warning rows; general maps expose governed, uniquely resolved destinations only.
+Journal is a small collapsed recent list under `Diary/`; Folders remains the
+complete collapsed path-truth fallback. Lifecycle counts live on Home, sourced
+from the snapshot and schema rather than hardcoded. The ≤3-click acceptance below
+is preserved by Folders.
 
 **Home-page spec** (finalized by the vault side's 2026-07-02 reply; **layout superseded 2026-07-05**: the D face lands the adjudication cockpit as the landing surface — status queues lead, and the four blocks below survive as cockpit content; the reconciliation is the D plan doc's job, `roadmap.md` §3): four stable blocks — five domain MOC entry points, four cross-domain boards (reusing the **questions** the boards answer, not hardcoding campaign-flavored labels), the mechanical-gate list, and pointers to the governing documents. **The two-layer IA is not flattened**: cross-domain boards live on the home page; domain workspace views (e.g. `日本語課程.base`) hang under that domain's MOC block. The facts of the status vocabulary always trace back to the toml (that section of Vault-Index is a human copy). The v0 division of labor for `.base` (linking back to Obsidian) is confirmed on the vault side — reimplementing it = a second query engine that also inherits the drift of the hardcoded schema inside `.base`; if a frontmatter query lands later, the boards could derive a native rendering from the toml, to be revisited then.
 
 **Syllabus-tree parsing spec** (mechanically decidable):
 
-- A syllabus is identified by frontmatter `type: study-path` (a toml enum), **not by hardcoding filenames**.
+- A path is identified by a frontmatter type declared in
+  `[navigation].path_types` (currently `study-path`), **not by a consumer's type
+  literal or by hardcoded filenames**.
 - Go syllabus shape: H2 = part, H3 = module, both in the pipe format `slug | English | Chinese` (split into three, trimmed); a list item = a lesson.
-- 大家的日本語 shape: only the "課程序列" H2 has a navigation tree beneath it (H3 = learning stage); the other H2s (每日 loop, 學習階段, 缺口) are not navigation and are not parsed.
-- A lesson's link = the **first wikilink** in the list item, resolved by graph semantics (vault-model layer 1); an unresolved / ambiguous lesson is **still listed + given the diagnostic styling**, never dropped (reading face is fail-open).
-- Lesson nodes carry a status badge.
+- 大家的日本語 shape: H2 may contain direct lesson rows and H3 learning-stage
+  groups; both are source-order path branches. Task checkboxes and rows without a
+  wikilink are not lesson entries.
+- A lesson's link = the **first wikilink** in the list item, resolved by graph
+  semantics (vault-model layer 1). Unresolved and ambiguous targets stay listed
+  with diagnostic styling. A uniquely resolved non-instance target also stays in
+  position as a `non-instance` warning, but has no href, governed path, status,
+  placement, or ready credit. Only governed unique targets become links and carry
+  status badges.
+- General-map navigation drops every warning row, including non-instance
+  targets; the map's own reading page still presents its source rows.
 
 **Acceptance**: any vault file reachable in ≤3 clicks; syllabus-page order = the in-file listing order; the two real syllabi each render into a tree with a lesson count matching the number of list items in the file; deliberately write a broken-link lesson → it is still listed + marked.
 
@@ -65,7 +93,13 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 
 - Deterministic substring over an **in-memory index** (no database, D24) + structured filters; a ⌘K panel.
 - **Query semantics** (deterministic, reproducible): whitespace tokenization; a bare word matches by substring after `fold(s) = strings.ToLower(nfc(s))` — the single match definer, applied to both the stored text and the query; multiple words = AND. Six fixed filter keys: `type:` `status:` `domain:` `topic:` (single-value containment on `topics`) `folder:` (rel_path prefix, `/`-boundary — `folder:Writing` does not match `Writing-old/`) `slug:`, values compared by literal equality, no enum validation. A pure-filter query (no bare word) is legal — it is structured browsing; an empty query (no word, no filter) returns nothing. No magic syntax, no quoted phrases (a whitespace-free CJK run is inherently one token, i.e. a contiguous substring).
-- **Results and ordering** (deterministic): title hits (all tokens match the title) rank before body hits; within a group, rel_path lexicographic order — guaranteed by keeping the index entries sorted by rel_path, not by a sort call. Each entry = path + title + status badge + a context snippet around the earliest matched-token offset. No result limit in v0 (the corpus is small; any truncation is the panel's concern).
+- **Capability split**: bare terms and `folder:` query readable text/path truth,
+  include non-instance files, and remain available without artifact policy. The
+  other five filters (`type`, `status`, `domain`, `topic`, `slug`) query instance
+  metadata: valid policy excludes non-instances; missing, invalid, or incomplete
+  policy returns its explicit capability diagnostic for pure or mixed metadata
+  queries, never an ignored filter or misleading zero results.
+- **Results and ordering** (deterministic): title hits (all tokens match the title) rank before body hits; within a group, rel_path lexicographic order — guaranteed by keeping the index entries sorted by rel_path, not by a sort call. Each entry = path + title + an optional governed-instance status badge + a context snippet around the earliest matched-token offset. No result limit in v0 (the corpus is small; any truncation is the panel's concern).
 - The index is fully derived and in-memory (see `design.md` §6): it is rebuilt from the vault, and a ~2s mtime scan applies incremental updates (D21) — no fsnotify, no persistent store. Change detection is by mtime: the scan compares the current `{path → mtime}` set to the previous one and, on any change, rebuilds; it handles create/delete/rename uniformly. There is no content hash — at this scale a full rebuild is ~100 ms, and mtime avoids reading every file on every scan (reconsider past ~10k files).
 - Semantic / vector: committed scope (D32) — Gemini embeddings + RRF fusion with the deterministic layer above; it composes with, never replaces, the lexical semantics of this section. Design, storage shape, and escalation ladders in `roadmap.md`.
 
@@ -75,7 +109,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 
 **Premise (wall 3)**: the single source of the state machine = `internal/schema`, loaded at runtime from vault-schema.toml, with zero hardcoding in the repo. If the schema fails to load → the write face is **fail-closed**: show no transition keys, reject every `POST /status`; the reading face works as usual (the asymmetric fault tolerance of §0.1).
 
-**The audit boundary (stated plainly)**: the `author=Koopa` audit claim is bounded by the **local trust boundary** — local processes under the same account (the browser, curl, an agent) are cryptographically indistinguishable, and yomihon does not over-engineer this with tokens. CrossOriginProtection blocks a browser's cross-site form POST, not local processes. Governance reinforcement: the vault-side agent-guides set a hard rule that "an agent never calls yomihon's write endpoint" (already added to `obsidian-cc-questions.md` §5).
+**The audit boundary (stated plainly)**: the `author=Koopa` audit claim is bounded by the **local trust boundary** — local processes under the same account (the browser, curl, an agent) are cryptographically indistinguishable, and yomihon does not over-engineer this with tokens. CrossOriginProtection blocks a browser's cross-site form POST, not local processes. The intended vault-side rule that agents never call this endpoint is not currently installed; `program.md` tracks that governance gap, so the repository does not represent it as an active control.
 
 **Ruled**: a flip **does not touch the `updated` field** (D16=(a)) — the semantics of `updated` are content freshness, and certifying does not revise understanding.
 
@@ -86,28 +120,31 @@ POST /status (path, from, to)
  1. Same-origin check (Go 1.26 http.CrossOriginProtection — any website can send
     a form POST to 127.0.0.1 without triggering a CORS preflight; this protection
     is the necessary deepening of wall 2)
- 2. Read the file → split off the frontmatter → current status = from_actual
+ 2. Parse the form; normalize and validate the vault-relative path shape
+ 3. Require an available artifact policy; reject a known non-instance as HTTP
+    422 before any stat/read/git operation, including when that path does not exist
+ 4. Read the file → split off the frontmatter → current status = from_actual
     · from_actual ≠ form.from → 409 "page out of date", no write
- 3. schema.Transition(type, from_actual, to, "koopa") → on failure 422 with the reason, no write
- 4. Pre-flight: the vault is a git repo and the file is clean
+ 5. schema.Transition(type, from_actual, to, "koopa") → on failure 422 with the reason, no write
+ 6. Pre-flight: the vault is a git repo and the file is clean
     · `git status --porcelain -- <file>` non-empty → abort with "this file has
       uncommitted changes; a flip would pollute the audit" (better to press once
       more than to pollute git history)
- 5. Surgical rewrite: only within the frontmatter block, matching the `status:`
+ 7. Surgical rewrite: only within the frontmatter block, matching the `status:`
     line at line start
     · exactly one line → replace the whole line with `status: <to>`; zero or
       multiple lines → abort (a schema violation, left to kura / a human — yomihon
       does not fix files)
     · byte-identical outside that line; never re-serialize the YAML
- 6. Atomic write-back (temp + rename, preserving permissions); before writing,
-    stat and compare against step 2's mtime, abort on any change
- 7. git add <file> && git commit -m "status(<relpath>): <from> → <to> (via yomihon)"
+ 8. Atomic write-back (temp + rename, preserving permissions); before writing,
+    stat and compare against step 4's mtime, abort on any change
+ 9. git add <file> && git commit -m "status(<relpath>): <from> → <to> (via yomihon)"
     · run at the vault root; set no author, so it = the vault git config (= Koopa's identity, D07)
     · commit failure → explicitly show "file changed, commit failed" + the raw text; no automatic rollback
- 8. 302 → the reading page (PRG)
+10. 303 See Other → the reading page (PRG)
 ```
 
-**Spec — UI**: the status panel lists the **currently legal** transitions (`schema` computes them with actor=`koopa`; show only the legal keys, never a disabled one); all legal transitions are open, and `ready` is the only primary style (D13); one form per key; the write path has zero JS dependency (D27 — JS may only add the seal's ~430 ms hold ceremony on top of a working plain form, and calls `form.requestSubmit()`, never `fetch`); no frontmatter (drills) → "No frontmatter (valid)" with no keys; broken YAML → show only a diagnostic and no keys (if the read is unreliable, don't write); schema load failure → show a "Contract unavailable" diagnostic and no keys (fail-closed).
+**Spec — UI**: the status panel lists the **currently legal** transitions (`schema` computes them with actor=`koopa`; show only the legal keys, never a disabled one); all legal transitions are open, and `ready` is the only primary style (D13); one form per key; the write path has zero JS dependency (D27 — JS may only add the seal's ~430 ms hold ceremony on top of a working plain form, and calls `form.requestSubmit()`, never `fetch`); no frontmatter (drills) → "No frontmatter (valid)" with no keys; broken YAML → show only a diagnostic and no keys (if the read is unreliable, don't write); schema or artifact-policy unavailability → preserve any raw status badge as read truth, but show no actor or transition controls and render the named fail-closed diagnostic; a known non-instance gets the quiet "not a governable artifact" state with no form.
 
 **Known trade-off**: the dirty-file abort blocks the real flow of "halfway through reading, fix a typo in Obsidian → flip." v0 ships first; the two-step "commit the manual edit first, then flip" is decided by pain per D15.
 
@@ -117,6 +154,8 @@ POST /status (path, from, to)
 | ------------------------------------ | ---- | ----------------------------------------------------------------- |
 | form.from ≠ current                  | 409  | Page out of date — reload and press again                         |
 | illegal transition / owner-forbidden | 422  | The schema's rejection reason, verbatim                           |
+| known non-instance target             | 422  | not a governable artifact                                         |
+| artifact policy unavailable           | 503  | The policy's missing/invalid/incomplete diagnostic                 |
 | file dirty                           | 409  | Has uncommitted changes; a flip would pollute the audit           |
 | status line zero or multiple         | 422  | Schema violation, left to kura / a human                          |
 | mtime changed                        | 409  | The file was modified between read and write                      |

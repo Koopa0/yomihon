@@ -18,11 +18,14 @@ the tests.
 
 `internal/search` owns the index and query; it does **not** own freshness.
 `internal/snapshot` holds `Snapshot{Graph *graph.Index, Nav *nav.Model, Search
-*search.Index}` behind an `atomic.Pointer[Snapshot]` and runs one scanner that,
-about every 2 seconds, `stat`-walks the vault and — on any mtime or file-set
-change — rebuilds all three and swaps the pointer once. The search handler reads
-the pointer once per request and queries `snap.Search`. This closes the existing
-gap where graph/nav were built once at startup and never refreshed (D25).
+*search.Index, ArtifactPolicy schema.ArtifactPolicy}` behind an
+`atomic.Pointer[Snapshot]` and runs one scanner that, about every 2 seconds,
+`stat`-walks the vault and — on any mtime or file-set change — rebuilds all three
+and swaps the pointer once. Navigation roles and artifact policy are derived once
+from the startup schema and reused on every rebuild; a rescan never re-reads the
+contract. The search handler reads the pointer once per request and queries
+`snap.Search`. This closes the existing gap where graph/nav were built once at
+startup and never refreshed (D25).
 
 ## 3. The index (D23 — only what search reads)
 
@@ -40,12 +43,19 @@ type entry struct {
     Topics     []string
     PlainText  string   // original case (for snippet)
     PlainFold  string   // fold(PlainText) — for matching
+    metadataCapable bool // governed instance metadata, not merely readable text
 }
-type Index struct { entries []entry } // sorted by RelPath at build time
+type Index struct {
+    entries []*entry // sorted by RelPath at build time
+    metadataAvailable bool
+    metadataDiagnostic string
+}
 ```
 
-No link structure (future backlinks, design §10), no raw frontmatter. The `fold`
-copies double the text in memory (a few MB) to buy a zero-config match; worth it.
+No link structure (future backlinks, design §10), no raw frontmatter. Every
+readable note stays in the text corpus; `metadataCapable` only governs whether
+its frontmatter may answer instance-metadata projections. The `fold` copies
+double the text in memory (a few MB) to buy a zero-config match; worth it.
 
 ## 4. The single match definer — `fold` (determinism's core)
 
@@ -83,7 +93,19 @@ func fold(s string) string { return strings.ToLower(norm.NFC.String(s)) }
 - A **pure-filter** query (no bare token) is legal — structured browsing. An
   **empty** query (no token, no filter) returns nothing (handled before scanning).
 
-### 5a. Parse rules — pinned (Koopa, 2026-07-03); the table below is the acceptance basis
+### 5a. Capability split — text/path truth versus instance metadata
+
+- Bare terms and `folder:` use readable content and vault paths. They remain
+  available when artifact policy is unavailable and include non-instance files.
+- `type:`, `status:`, `domain:`, `topic:`, and `slug:` use instance metadata.
+  With valid policy they exclude non-instance entries. With missing, invalid, or
+  incomplete policy, any query containing one of these filters returns the
+  policy diagnostic as `ErrMetadataUnavailable`; a mixed metadata-and-text query
+  does not silently discard its filter or pretend there were zero matches.
+- An explicit empty `non_instance_dirs = []` is valid policy and therefore keeps
+  metadata search available. Omitting that required key is not equivalent.
+
+### 5b. Parse rules — pinned (Koopa, 2026-07-03); the table below is the acceptance basis
 
 - **R1 — classify before folding.** Whether a raw token is a filter is decided on
   the *original* text: `Type:lesson` / `TOPIC:x` have a key that is not one of the
@@ -142,8 +164,9 @@ match-layer semantics.
   is kept sorted by `RelPath`, each bucket is naturally in rel_path order — concat
   (title bucket, then body bucket) is the final order. Ordering is guaranteed by
   the data structure, not a sort call.
-- Each result = `RelPath` + `Title` + `Status` badge + a snippet centered on the
-  earliest matched-token offset in `PlainText`.
+- Each result = `RelPath` + `Title` + a snippet centered on the earliest
+  matched-token offset in `PlainText`; the `Status` badge appears only for a
+  metadata-capable governed entry.
 - No result limit in v0 (small corpus); truncation, if ever, is the panel's job.
 
 ## 7. `plain_text` extraction (pinned — otherwise "match `rg`" is undecidable)
@@ -172,7 +195,9 @@ design, not a bug.
   rebuild is ~100 ms at this scale, and hashing would force reading every file on
   every scan — mtime is both simpler and cheaper (reconsider past ~10k files).
 - On a change, the Snapshot rebuilds all three models by **three independent
-  walks** — `graph.Build`, `nav.Build`, `search.Build` — not one shared pass.
+  walks** — `graph.Build`, `nav.Build`, `search.Build(root, artifactPolicy)` —
+  not one shared pass. Search indexes non-instance documents for bare-text and
+  `folder:` lookup while marking them ineligible for metadata projections.
   Rationale (D25 accepts it): a shared pass would couple the three packages'
   build APIs through a common intermediate type, while three walks of ~437 files
   stay well inside the ≤3s freshness bound and cost nothing while the vault is
@@ -188,7 +213,9 @@ design, not a bug.
 
 `internal/search` exposes a query function over an `Index` and an HTTP handler
 that reads the current Snapshot, parses the query, and returns the ordered
-results. Business logic stays in `search`; the handler is parse-call-render. A
+results. Business logic stays in `search`; the handler is parse-call-render.
+Metadata capability errors render the artifact-policy diagnostic rather than an
+empty result set; text and folder queries do not inherit that dependency. A
 minimal plain results page (like the nav sidebar) exercises it end to end; the
 ⌘K panel is Koopa's frontend design (out of scope here).
 
@@ -202,6 +229,11 @@ No Docker, no testcontainers, no `//go:build integration`.
   before-body then rel_path order; a `%`-literal query; NFD-form content hit;
   the `folder:` `/`-boundary (`folder:Writing` excludes `Writing-old/`; define and
   test `folder:Writing/` with the trailing slash too).
+- Artifact capability: valid policy excludes a non-instance from every metadata
+  filter and aggregate while retaining it for bare text and `folder:`; missing,
+  invalid, and present-but-incomplete policy reject pure and mixed metadata
+  queries with their exact diagnostic while text/folder queries stay available;
+  explicit empty policy remains available.
 - Determinism/concurrency: **rebuild the index twice → `cmp.Diff` identical**; a
   concurrent read during a Snapshot swap is race-free under `-race`.
 - A real-vault test (`t.Skipf` when `~/obsidian` absent): the index builds, a
