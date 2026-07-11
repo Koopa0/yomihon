@@ -84,7 +84,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 								<p class="y-homeempty">No typed notes are in the current snapshot.</p>
 							}
 						</section>
-
 						<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
 							@homeBlockHead("home-lifecycle-title", "Lifecycle", "Open a status queue")
 							if v.LifecycleDiagnostic != "" {
@@ -101,7 +100,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 								</div>
 							}
 						</section>
-
 						<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
 							@homeBlockHead("home-paths-title", "Study paths", "Continue through the vault's courses")
 							if len(v.PathDiagnostics) > 0 {
@@ -121,7 +119,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 								<p class="y-homeempty">No study paths are in the current snapshot.</p>
 							}
 						</section>
-
 						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
 							@homeBlockHead("home-search-title", "Search", "Find a note or filter the vault")
 							<form class="y-homesearch" method="get" action="/search" role="search">
@@ -131,7 +128,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 							</form>
 						</section>
 					</div>
-
 					<section class="y-homereadme" data-home-readme aria-labelledby="home-readme-title">
 						<div class="y-homereadme__head">
 							<span class="y-homereadme__kicker">FROM THE VAULT</span>

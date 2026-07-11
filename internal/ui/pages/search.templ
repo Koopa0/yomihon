@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"strconv"
+
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
@@ -34,52 +36,61 @@ type SearchResult struct {
 // Search is the results page: a GET form and a flat list of hits, rendered in
 // the shared shell — header and navigation sidebar included, mounted with no
 // current note so every branch renders closed, the same wiring the report
-// shell uses. The incremental ⌘K panel is a later round; this is the
-// pure-filter browse target Home's Lifecycle block and the header search link
-// both reach.
+// shell uses. The form remains the no-JavaScript path; the live-search data
+// hooks let the shared script refresh only the result region while typing.
 templ Search(v SearchView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(NewSidebar(v.Nav, ""))
 			<main class="y-main">
-				<div class="y-searchpage">
-					<form class="y-searchpage__form" method="get" action="/search" role="search">
+				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results">
+					<form class="y-searchpage__form" method="get" action="/search" role="search" data-live-search-form>
 						<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-						<input type="search" name="q" value={ v.Query } placeholder="Search notes" aria-label="Search notes" autofocus/>
+						<input type="search" name="q" value={ v.Query } placeholder="Search notes" aria-label="Search notes" data-live-search-input autofocus/>
 						<button type="submit" class="y-xbtn">Search</button>
 					</form>
-					if v.Diagnostic != "" {
-						<div class="y-searchpage__empty" data-search-diagnostic>
-							<p>Metadata search unavailable.</p>
-							<p class="y-searchpage__hint">{ v.Diagnostic }</p>
-						</div>
-					} else if len(v.Results) > 0 {
-						<div class="y-results">
-							for _, r := range v.Results {
-								<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
-									<span class="y-result__title">{ r.Title }</span>
-									<span class="y-result__meta">
-										{ r.RelPath }
-										if r.Status != "" {
-											<span class="y-result__sep" aria-hidden="true">·</span>
-											{ r.Status }
-										}
-									</span>
-									if r.Snippet != "" {
-										<span class="y-result__snippet">{ r.Snippet }</span>
-									}
-								</a>
-							}
-						</div>
-					} else if v.Query != "" {
-						<div class="y-searchpage__empty">
-							<p>No results for &quot;{ v.Query }&quot;.</p>
-							<p class="y-searchpage__hint">Try fewer or different words, or narrow by lifecycle with status:draft.</p>
-						</div>
-					}
+					<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
+					@SearchResults(v.Query, v.Results, v.Diagnostic)
 				</div>
 			</main>
 		</div>
 	}
+}
+
+// SearchResults is the server-rendered lexical-results fragment shared by the
+// full results page and the progressive search fields. The outer data marker is
+// the HTML-to-JavaScript contract; the result links remain ordinary navigation.
+templ SearchResults(query string, results []SearchResult, diagnostic string) {
+	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(len(results)) } aria-busy="false">
+		if diagnostic != "" {
+			<div class="y-searchpage__empty" data-search-diagnostic>
+				<p>Metadata search unavailable.</p>
+				<p class="y-searchpage__hint">{ diagnostic }</p>
+			</div>
+		} else if len(results) > 0 {
+			<div class="y-results">
+				for _, r := range results {
+					<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
+						<span class="y-result__title">{ r.Title }</span>
+						<span class="y-result__meta">
+							{ r.RelPath }
+							if r.Status != "" {
+								<span class="y-result__sep" aria-hidden="true">·</span>
+								{ r.Status }
+							}
+						</span>
+						if r.Snippet != "" {
+							<span class="y-result__snippet">{ r.Snippet }</span>
+						}
+					</a>
+				}
+			</div>
+		} else if query != "" {
+			<div class="y-searchpage__empty">
+				<p>No results for &quot;{ query }&quot;.</p>
+				<p class="y-searchpage__hint">Try fewer or different words, or narrow by lifecycle with status:draft.</p>
+			</div>
+		}
+	</div>
 }

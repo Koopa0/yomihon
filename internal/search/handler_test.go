@@ -42,6 +42,20 @@ func TestSearchHandler(t *testing.T) {
 				t.Errorf("search page missing %q; body = %q", want, body)
 			}
 		}
+		searchPage := searchPageHTML(t, body)
+		for _, want := range []string{
+			`data-live-search-endpoint="/search/results"`,
+			`data-live-search-form`,
+			`data-live-search-input`,
+			`data-live-search-status`,
+			`role="status"`,
+			`aria-live="polite"`,
+			`aria-atomic="true"`,
+		} {
+			if !strings.Contains(searchPage, want) {
+				t.Errorf("search page region missing %q; region = %q", want, searchPage)
+			}
+		}
 	})
 
 	t.Run("non-matching query shows no results", func(t *testing.T) {
@@ -123,7 +137,110 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	}
 }
 
+func TestSearchResultsFragment(t *testing.T) {
+	t.Parallel()
+
+	idx := BuildFromDocs([]Doc{
+		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", Status: "draft", PlainText: "kafka is a distributed log"},
+	}, validArtifactPolicy(t))
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	code, header, body := getBodyWithHeaders(t, srv.URL+"/search/results?q=kafka")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for name, want := range map[string]string{
+		"Content-Type":           "text/html; charset=utf-8",
+		"Cache-Control":          "no-store",
+		"X-Content-Type-Options": "nosniff",
+	} {
+		if got := header.Get(name); got != want {
+			t.Errorf("search results %s = %q, want %q", name, got, want)
+		}
+	}
+	for _, want := range []string{`data-live-search-results`, `data-result-count="1"`, "Kafka Basics"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("search results fragment missing %q; body = %q", want, body)
+		}
+	}
+	for _, absent := range []string{"<!DOCTYPE html>", "y-rail-left"} {
+		if strings.Contains(body, absent) {
+			t.Errorf("search results fragment unexpectedly contains %q; body = %q", absent, body)
+		}
+	}
+}
+
+func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	policy := schema.ArtifactPolicy{}
+	idx := BuildFromDocs([]Doc{
+		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"},
+	}, policy)
+	h := NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+	}, slog.New(slog.DiscardHandler))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=type:concept", http.NoBody)
+	rr := httptest.NewRecorder()
+	h.results(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("results() status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	body := html.UnescapeString(rr.Body.String())
+	for _, want := range []string{"data-live-search-results", "data-search-diagnostic", policy.Diagnostic()} {
+		if !strings.Contains(body, want) {
+			t.Errorf("results() diagnostic fragment missing %q; body = %q", want, body)
+		}
+	}
+	if strings.Contains(body, "No results") {
+		t.Errorf("results() capability diagnostic rendered ordinary no-results copy; body = %q", body)
+	}
+}
+
+func TestSearchHandlerRejectsInvalidQuery(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: BuildFromDocs(nil, validArtifactPolicy(t)), Shell: pages.ShellData{Nav: &nav.Model{}}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "full page rejects a control character", path: "/search?q=%00"},
+		{name: "fragment rejects a control character", path: "/search/results?q=%00"},
+		{name: "full page rejects an oversized query", path: "/search?q=" + strings.Repeat("a", maxQueryBytes+1)},
+		{name: "fragment rejects an oversized query", path: "/search/results?q=" + strings.Repeat("a", maxQueryBytes+1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			code, _ := getBody(t, srv.URL+tt.path)
+			if code != http.StatusBadRequest {
+				t.Errorf("GET %s status = %d, want %d", tt.path, code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
 func getBody(t *testing.T, url string) (code int, body string) {
+	t.Helper()
+	code, _, body = getBodyWithHeaders(t, url)
+	return code, body
+}
+
+func getBodyWithHeaders(t *testing.T, url string) (code int, header http.Header, body string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
 	if err != nil {
@@ -138,5 +255,19 @@ func getBody(t *testing.T, url string) (code int, body string) {
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}
-	return resp.StatusCode, string(b)
+	return resp.StatusCode, resp.Header.Clone(), string(b)
+}
+
+func searchPageHTML(t *testing.T, pageHTML string) string {
+	t.Helper()
+
+	start := strings.Index(pageHTML, `<div class="y-searchpage"`)
+	if start < 0 {
+		t.Fatalf("search response has no search page region; html = %q", pageHTML)
+	}
+	end := strings.Index(pageHTML[start:], "</main>")
+	if end < 0 {
+		t.Fatalf("search page region has no closing main; html = %q", pageHTML)
+	}
+	return pageHTML[start : start+end]
 }

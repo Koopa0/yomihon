@@ -42,3 +42,30 @@ func TestHeaderPendingChip(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchDialogKeepsGETFallbackAroundLiveResults(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	if err := searchDialog().Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render search dialog: %v", err)
+	}
+	html := buf.String()
+	for _, want := range []string{
+		`data-live-search-endpoint="/search/results"`,
+		`data-live-search-form`,
+		`method="get" action="/search"`,
+		`name="q"`,
+		`data-live-search-input`,
+		`autofocus`,
+		`data-live-search-status`,
+		`role="status"`,
+		`aria-live="polite"`,
+		`aria-atomic="true"`,
+		`data-live-search-results`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("searchDialog() is missing %q; html = %q", want, html)
+		}
+	}
+}

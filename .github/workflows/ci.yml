@@ -229,12 +229,13 @@ jobs:
   # Drives the runner's system Chrome (playwright-core, installed runner-only
   # like the frontend linters — no package.json, no downloaded browser, no
   # pixel comparison) against the fixture vault and locks live reading
-  # behaviors that plain HTTP assertions cannot see: the command palette opens
-  # centered and opaque; the sidebar filter is revealed by the document's own
-  # inline script rather than the deferred one, and stays hidden with
-  # JavaScript off; content-derived Paths, Maps, and Journal preserve grouping
-  # and wayfinding; and a held R inside a focused select never starts the seal
-  # hold, with the picker closed or open.
+  # behaviors that plain HTTP assertions cannot see: Home starts at the top and
+  # stays a plain GET form; /search and ⌘K debounce input without weakening
+  # native GET; the command palette opens centered and opaque; the sidebar filter is revealed
+  # by the document's own inline script rather than the deferred one, and stays
+  # hidden with JavaScript off; content-derived Paths, Maps, and Journal preserve
+  # grouping and wayfinding; and a held R inside a focused select never starts
+  # the seal hold, with the picker closed or open.
   e2e-behavior:
     runs-on: ubuntu-latest
     timeout-minutes: 10

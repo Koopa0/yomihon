@@ -107,6 +107,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		"/notes/Notes/beta.md",
 		"/syllabus/Maps/study.md",
 		"/search?q=tortoise",
+		"/search/results?q=tortoise",
 		"/reports/latest.html",
 		"/reports/latest.html/raw",
 		"/notes/Makefile",

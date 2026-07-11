@@ -455,10 +455,14 @@ html, body { margin: 0; background: var(--bg); }
 .y-searchdialog__form svg { width: 17px; height: 17px; color: var(--fg-subtle); flex: none; }
 .y-searchdialog__input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
 .y-searchdialog__input:focus-visible { outline: none; }
+.y-searchdialog .y-live-search__status { margin-inline: 18px; }
+.y-searchdialog .y-searchresults { max-height: min(52vh, 480px); padding: 0 6px 12px; overflow-y: auto; overscroll-behavior: contain; }
+.y-searchdialog .y-results { margin-top: 10px; }
+.y-searchdialog .y-searchpage__empty { margin: 18px 12px 8px; }
 .y-searchdialog__foot { padding: 10px 18px; background: var(--elevated); font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); display: flex; align-items: center; gap: 14px; }
 
 /* ============================================================
-   Search results page (the pure-filter browse target; ⌘K panel is later)
+   Lexical search results — shared by the full page and ⌘K panel
    ============================================================ */
 .y-searchpage { max-width: 720px; margin: 0 auto; padding: 40px 24px 96px; }
 .y-searchpage__form { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
@@ -467,6 +471,9 @@ html, body { margin: 0; background: var(--bg); }
 .y-searchpage__form input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
 .y-searchpage__form input:focus-visible { outline: none; }
 .y-searchpage__form .y-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
+.y-live-search__status { min-height: 1.4em; margin: 8px 4px 0; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-muted); }
+.y-live-search__status:empty { min-height: 0; margin-block: 0; }
+.y-searchresults[aria-busy="true"] { opacity: 0.58; }
 .y-searchpage__empty { margin: 28px 4px; font-family: var(--font-serif); color: var(--fg-subtle); }
 .y-searchpage__empty p { margin: 0; }
 .y-searchpage__empty .y-searchpage__hint { margin-top: 6px; font-size: var(--fs-12); color: var(--fg-faint); }

@@ -244,6 +244,7 @@ assert_face "/notes/Notes/alpha.md" "tortoise"
 assert_face "/notes/Notes/out-of-contract.md" "out-of-contract reading sentinel"
 assert_face "/syllabus/Maps/study.md" "<title>Study Path"
 assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'
+assert_face "/search/results?q=tortoise" 'data-live-search-results'
 
 # The reachability promise, checked on the live socket.
 echo "checking the listening socket is loopback-only..."
