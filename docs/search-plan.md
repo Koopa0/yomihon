@@ -216,8 +216,9 @@ that reads the current Snapshot, parses the query, and returns the ordered
 results. Business logic stays in `search`; the handler is parse-call-render.
 Metadata capability errors render the artifact-policy diagnostic rather than an
 empty result set; text and folder queries do not inherit that dependency. A
-minimal plain results page (like the nav sidebar) exercises it end to end; the
-⌘K panel is Koopa's frontend design (out of scope here).
+minimal plain results page (like the nav sidebar) exercises it end to end. The
+live `/search` and ⌘K presentation is outside this engine plan and is
+governed by `docs/ux-plan.md`; Home deliberately remains a plain GET form.
 
 ## 10. Testing — all pure unit tests (a dividend of dropping PG)
 

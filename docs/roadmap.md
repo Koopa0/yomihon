@@ -28,9 +28,8 @@
 - **Done** (2026-07-08): the sidebar wayfinding rebuild (PR #25) and the
   experience batch (PR #27 — view transitions, the smoothness inventory, seal
   feedback, disclosure persistence, the search shell, the rail redesign), which
-  also fixed the concept-sheet-over-TOC and search-layout bugs. **Next is the
-  rename to yomihon (D44, `rename-plan.md`)** — a solo sweep before the next
-  feature branch.
+  also fixed the concept-sheet-over-TOC and search-layout bugs. The coordinated
+  rename to yomihon then completed and was accepted (D44, `rename-plan.md`).
 - **The two retirement gates** (evidence-based, D11; refined by D38/D40),
   stated precisely:
   - **kura gate — met; declared retired 2026-07-07 (D43)** = spec §5 acceptance
@@ -61,6 +60,9 @@ acceptance per unit — is `program.md`.
 
 ## 2. Capability ↔ UI mapping (yomihon has a UI; nothing ships CLI-only unless it is agent-only)
 
+The current command inventory is `serve`, `check`, `coverage`, and `exists`.
+Every other CLI spelling below remains planned until its owning face lands.
+
 | Capability | Agent surface (CLI) | Human surface (UI) |
 |---|---|---|
 | Hybrid search | `yomihon search` (see degraded-mode rules, §4a) | ⌘K panel + `/search` page (B) |
@@ -69,6 +71,7 @@ acceptance per unit — is `program.md`.
 | Coverage | `yomihon coverage` | Cockpit tile (domains / pending / orphans) |
 | Status flow | — (the write is human-only, wall 1) | Lifecycle queues + per-note seal (D26/D27); cockpit queue flow (§3) |
 | Dreaming proposals | Agent writes report files | Reports face today; adjudication inbox in the cockpit (D35, §3) |
+| Reading preferences | — (presentation is human-only, D48) | Aa popover or existing header toggles may suffice; a Settings page is allowed only when persistent preferences need grouping and explanation — pain-driven, unscheduled |
 
 **Standing contract rule (D37)**: every agent-facing CLI output is a frozen
 public interface (D14's principle, generalized): its JSON field set, ordering,

@@ -11,12 +11,12 @@ the next window.
 yomihon is **the human terminal of a human-and-agent knowledge system**. The
 vault is not a folder of notes; it is a living pipeline — agents draft,
 translate, examine, and propose; one human reads, decides, and directs.
-Obsidian renders *files*. yomihon renders *the work*: what changed, what
-needs a decision, what an agent claims, how knowledge connects, how far a
-course of study has come. The seal — reading a thing and ruling on it in
-the same breath — is the product's heart, and everything else is built
-around getting the owner to that moment with less friction and more
-context.
+Obsidian is the authoring and revision workbench. yomihon renders *the
+work*: what changed, what needs a decision, what an agent claims, how
+knowledge connects, how far a course of study has come. The seal — reading
+a thing and ruling on it in the same breath — is the product's heart, and
+everything else is built around getting the owner to that moment with less
+friction and more context.
 
 It is deliberately **not an editor**. Authoring and revising prose belongs
 to Obsidian, which is excellent at it; yomihon writes exactly one
@@ -24,6 +24,17 @@ frontmatter field under a state machine (wall 1) and renders everything
 else faithfully (wall 4). This division is not a limitation to apologize
 for — it is the product architecture: the editor and the terminal stay
 different tools with different postures, and each is better for it.
+
+Nor is it a guesser. yomihon deterministically interprets **one
+contract-bearing vault**: vault-schema.toml, maps, paths, links, status, and
+git. `vault-model.md` deliberately scopes that interpretation to this vault,
+not any knowledge base. The human UI and every agent-facing CLI derive their
+semantics from the same vault authority even when their execution paths
+differ; the diagnostics CLI's frozen byte contract is a format boundary, not
+a second interpretation. Semantic and AI capabilities may suggest related
+content, rankings, summaries, diagnoses, and classifications, but never own
+schema truth, authoritative membership, privacy, mode existence, content
+hiding, status, or a write.
 
 ## 2. Why HTML beats an "advanced Obsidian"
 
@@ -46,7 +57,7 @@ principle, not the last.
 
 | Mode | What the owner is doing | Serving it today | Coming |
 |---|---|---|---|
-| **Study** | Working through lessons, drilling patterns, sealing what is finished | Reading page + five interactions; syllabus wayfinding (Here, auto-opened paths); the seal | Smoothness batch (§12), hover layer (§11), view transitions |
+| **Study** | Working through lessons, drilling patterns, sealing what is finished | Reading page + five interactions; syllabus wayfinding (Here, auto-opened paths); smoothness and view-transition layer; the seal | Hover layer (§11); further study UX is pain-driven |
 | **Adjudicate** | Triaging what agents produced; deciding statuses in batches | Per-note status panel; the backlog number as the doorway | The cockpit (D): queue, decide-in-place, proposal inbox — the throughput face |
 | **Observe** | Reading system reports, diagnostics, coverage; asking "is the vault healthy" | Sandboxed reports (E); per-note diagnostics; `check`/`coverage` CLI | In-place diagnostic cards (§11); H's graph verbs for "what references what" |
 | **Reflect** | Humanities reading — book reviews, term studies; rereading the private journal | All render today (journal reading is local, never egress) | Library-map affordances ride H's relation verbs; reflection UX is pain-driven |
@@ -70,13 +81,16 @@ in advance, ruled only by Koopa, and only when real usage makes the case.
    losing the thought while switching tools is real friction. If ever
    ruled in, its shape is **append-only creation**: new file, or append to
    today's journal file; never editing existing content, never a prose
-   editor. Until the ruling, capture stays in Obsidian and this entry
-   exists so the idea has a disciplined landing zone instead of an
-   improvised one.
+   editor — and human-only in any first shape: no agent-facing capture
+   write enters with it. Until the ruling, capture stays in Obsidian and
+   this entry exists so the idea has a disciplined landing zone instead of
+   an improvised one.
 
 Reading the journal in yomihon needs no amendment — local rendering is not
 egress (D39/D42 guard the machine-readable outputs, not the owner's own
-eyes).
+eyes). Any future diary capture inherits that fail-closed boundary: local
+only, never embedded, sent to an LLM or agent context, or exposed to an
+external API.
 
 ## 5. The aesthetic charter (delegated to the guide, 2026-07-07)
 
@@ -99,14 +113,19 @@ a sovereign's reading room. Decisions that follow from it:
 - **The design bundle remains the visual source** for components; this
   charter governs what new surfaces may look like when the bundle is
   silent.
+- **The owner tunes the reading, never the meaning.** A bounded set of
+  reading preferences (D48) may adjust presentation — theme, type, measure,
+  ruby — within this charter's house style. The default stays complete on
+  its own, and no preference moves interpretation, membership, or a wall.
 
 ## 6. Product principles (the short list)
 
 1. The seal moment is sacred: fewer steps to it, more context around it.
 2. Terminal, not editor — capture may someday enter by amendment; editing
    never.
-3. Every capability gets its human surface and its agent surface (roadmap
-   §6); neither is an afterthought.
+3. Human UI and agent CLI share one vault interpretation. An agent surface
+   exists only when an agent is a legitimate actor; human-only actions do
+   not gain agent writes for symmetry.
 4. The interface adapts to the activity; the activity is never forced
    through a generic surface twice in a row without someone noticing the
    friction.

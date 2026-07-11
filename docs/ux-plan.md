@@ -90,10 +90,21 @@ snapshot (no new state *store*; the reading-tracker stays cockpit territory):
 2. **Lifecycle strip** — the status counts as one row of chips, each linking
    to its filtered list. The board's trailhead, not the board.
 3. **Study paths** — one card per path: title, sealed/total count, link.
-4. **Search** — the same plain GET field as the topbar, without native
-   autofocus. Home always starts at the top; the topbar/⌘K route is the fast
-   search path. Input-driven results belong to the B lexical surface and remain
-   progressive enhancement over Enter, the submit button, and the no-JS GET.
+4. **Search** — the same field as the topbar, **not autofocused** (amended
+   2026-07-11, guide ruling under the standing UI delegation): a landing
+   page's header is content, and an autofocused field below the fold scrolls
+   it away on laptop viewports (reproduced at 1270×720 — 76px pushed down).
+   Home always renders from the top; ⌘K and the topbar field remain the
+   fast paths to search. Home stays a plain `GET /search` form: typing alone
+   neither requests nor replaces results, while Enter and the Search button
+   navigate normally with or without JavaScript. The `/search` field and ⌘K
+   palette share the B-scope progressive lexical-results enhancement: `input`
+   schedules a short debounced GET for a server-rendered results fragment, IME
+   composition waits until composition ends, and an older response can never
+   replace the current query's results. One polite live region announces the
+   settled count or an actionable recovery message when live results are
+   unavailable. The script never intercepts submit, so both enhanced surfaces
+   retain their ordinary GET path too.
 
 Below the blocks, the README body renders through the same pipeline as any
 note; `/notes/README.md` and every direct link keep working.

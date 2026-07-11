@@ -62,8 +62,11 @@ sandbox, and HTTP range support.
 ### Search
 
 An in-memory lexical index over titles and bodies, opened from anywhere with
-`⌘K` (a plain `/search` form is the no-JS fallback). Bare words AND-match as
-substrings; structured filters narrow by frontmatter:
+`⌘K`. The `/search` page and command palette update server-rendered results
+after a short input debounce; their ordinary GET forms remain the Enter,
+button, and no-JavaScript path. Home intentionally provides only that plain GET
+form. Bare words AND-match as substrings; structured filters narrow by
+frontmatter:
 
 ```
 kanji type:lesson status:ready folder:Sources

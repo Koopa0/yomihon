@@ -9,7 +9,7 @@ the sources below, they win, in this order.
 |---|---|
 | Why the product exists, its modes, its aesthetic | `product.md` (positioning, the constitutional queue, the taste charter) |
 | What the finished system is | `spec.md` (goals §0, per-face specs and acceptance) |
-| Why it is the way it is | `decisions.md` (D01–D47; a ruling that is not there did not happen) |
+| Why it is the way it is | `decisions.md` (D01–D48; a ruling that is not there did not happen) |
 | What order and why | `roadmap.md` (dependency and leverage; no milestone fences, D15) |
 | How well work must be done | `standards.md` (testing, CI, taste, verification protocol) |
 | Per-face contracts | that face's plan doc (`judge-plan.md`, `search-plan.md`, `ux-plan.md`, and the B/H/D docs to come) |
@@ -121,7 +121,7 @@ old directory.
     renders as a navigable tree, wayfinding generalizes to all pillars, the
     journal gets its door, and lifecycle moves to Home's strip and a topbar
     aggregate.
-9c-i. `PR-instance-contract` — **in review (PR #43)**: schema-declared Paths and
+9c-i. `PR-instance-contract` — **done (PR #43)**: schema-declared Paths and
     Maps roles, the non-instance artifact boundary, differentiated map
     resolution, metadata capability degradation, and fail-closed writes.
 9c-ii. `PR-home-search-behavior` — Home's start-at-top/no-autofocus correction

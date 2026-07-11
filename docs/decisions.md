@@ -353,3 +353,34 @@ The amended rows above are Koopa's correction after review. `standards.md` now
 requires the full predicate cross-product with authority labels before dispatch
 and forbids tests, mutations, campaigns, or later prose from manufacturing a
 ruling.
+
+## D48 Personalization is bounded: presentation, never interpretation (Koopa, 2026-07-11)
+
+The owner may tune how the page reads; nothing the owner tunes changes what
+the vault means. Candidate dimensions — not build commitments — are the
+classic reading controls: theme (light/dark/system), a curated set of
+reading font presets, size, line height, measure, paragraph spacing, ruby
+visibility/size/contrast, reading density, plus the system accessibility
+preferences already honored. Constraints, all load-bearing:
+
+- The default remains the complete, quiet scholar's desk; preferences serve
+  taste, never repair a broken default.
+- Preferences are user-initiated, reversible, and can always return to the
+  default. "Typography" means article reading typography — the application
+  shell is not user-rearrangeable.
+- No preference changes schema truth, note membership, navigation
+  predicates, mode existence, route behavior, semantic ranking, privacy or
+  egress, the status lifecycle, or any vault file.
+- AI never auto-restyles: no theme, font, layout, or mode changes from
+  inferred content, persona, or mood.
+- Fonts stay self-hosted or system-stack (the shipped woff2 discipline);
+  no appearance setting may introduce a third-party network request.
+- Keyboard, focus, zoom, contrast, ruby readability, and reduced-motion
+  are never sacrificed to a preference.
+- Preferences are local and per-device (the theme/furigana cookie is the
+  shipped precedent); an app-side settings file, cross-device sync, or any
+  vault write is a separate storage ruling.
+- Out of scope unless separately ruled: theme marketplaces, arbitrary
+  custom CSS, remote font URLs, drag-and-drop panel layouts, per-mode
+  workspace layouts, layout DSLs, and any setting that hides authoritative
+  content.

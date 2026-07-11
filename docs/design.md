@@ -41,7 +41,10 @@ A single binary `yomihon`; `cmd/yomihon` does wiring only (go-spec doctrine). It
 | `yomihon serve`               | The workbench itself, `127.0.0.1:9610` (9610 is goroawase for ku-ro-do, this project's former name; only the port is configurable) |
 | `yomihon check`               | A Go rewrite of kura check, JSONL golden comparison (yomihon-dev SPEC §13's check plan is retired; lint moves here) |
 | `yomihon exists` / `coverage` | Absorbed in sync from kura's agent toolbox; further extensions enter the yard per real vault-side needs         |
-| `yomihon export`              | Absorbs yomihon-dev's SSG export mode                                                                            |
+
+This is the current command surface. `search`, graph relation/export verbs,
+frontmatter query, and SSG `export` remain planned in `roadmap.md`; none is a
+command contract until its plan and golden tests land.
 
 Configuration (the config struct follows go-spec config-management): `YOMIHON_ROOT` (vault path, default `~/obsidian`), `YOMIHON_PORT` (default 9610). There is no `YOMIHON_DB` (the index is in-memory, D24) and **no `YOMIHON_ADDR`** — hard-wiring loopback is what wall 2 looks like once it has grown into code.
 
