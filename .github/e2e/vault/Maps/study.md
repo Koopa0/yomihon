@@ -8,4 +8,5 @@ domain: golang
 ## Notes
 
 - [[Alpha]]
+- [[Unwritten Lesson]]
 - [[Beta]]
