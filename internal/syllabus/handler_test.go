@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
@@ -24,7 +25,11 @@ func newServer(t *testing.T, root string) *httptest.Server {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	model, err := nav.Build(root, idx, nil)
+	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	model, err := nav.Build(root, idx, nil, contract.NavigationRoles(), contract.ArtifactPolicy())
 	if err != nil {
 		t.Fatalf("nav.Build(%q) = %v", root, err)
 	}
@@ -56,8 +61,10 @@ func get(t *testing.T, url string) (code int, body string) {
 	return resp.StatusCode, string(b)
 }
 
-// writeVault lays down one study-path with a resolved lesson and an unwritten
-// row, so the route proves navigation includes only the note that exists.
+// writeVault lays down one study-path with, in order, a resolved lesson, an
+// unresolved row, an ambiguous same-basename row, and a trailing resolved
+// lesson. The ambiguity candidates remain real, browsable files; only the
+// study-path row must refuse to guess between them.
 func writeVault(t *testing.T, root string) {
 	t.Helper()
 
@@ -69,13 +76,27 @@ func writeVault(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lesson), 0o644); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
+	after := "---\ntitle: After\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(lessonDir, "After.md"), []byte(after), 0o644); err != nil {
+		t.Fatalf("write trailing lesson: %v", err)
+	}
+	for _, rel := range []string{"A/Repeated.md", "B/Repeated.md"} {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir ambiguous candidate %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte("candidate\n"), 0o644); err != nil {
+			t.Fatalf("write ambiguous candidate %s: %v", rel, err)
+		}
+	}
 
 	mapsDir := filepath.Join(root, "Maps")
 	if err := os.MkdirAll(mapsDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	path := "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" +
-		"## data | Data | 資料\n\n### text | Text | 文字\n\n- [[Slices]]\n- [[Ghost Lesson]]\n"
+		"## data | Data | 資料\n\n### text | Text | 文字\n\n" +
+		"- [[Slices]]\n- [[Ghost Lesson]]\n- [[Repeated|Ambiguous Lesson]]\n- [[After]]\n"
 	if err := os.WriteFile(filepath.Join(mapsDir, "Go path.md"), []byte(path), 0o644); err != nil {
 		t.Fatalf("write study-path: %v", err)
 	}
@@ -91,22 +112,67 @@ func TestShow(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
+	main := syllabusMain(t, body)
 	for _, want := range []string{
 		`class="y-shell2"`, // the study-path shell rendered
-		"Go path",          // the path title
-		"Study paths",      // the switcher label
-		"On this path",     // the part jump-nav
-		"Data",             // the pipe-format H2's English label (a part)
-		"Text",             // the module heading
-		`href="/notes/Writing/lessons/golang/Slices.md"`, // the resolved lesson is a link
+		"Study paths",      // the switcher label outside main
+		"On this path",     // the part jump-nav outside main
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("study-path page missing %q; body = %q", want, body)
+			t.Errorf("study-path shell missing %q; body = %q", want, body)
 		}
 	}
-	if strings.Contains(body, "Ghost Lesson") {
-		t.Errorf("study-path page contains the unwritten map row; body = %q", body)
+	for _, want := range []string{
+		`<h1 class="y-title">Go path</h1>`,               // the path title
+		`<span class="y-part__name">Data</span>`,         // the pipe-format H2's English label
+		`<span class="y-module__name">Text</span>`,       // the module heading
+		`href="/notes/Writing/lessons/golang/Slices.md"`, // the resolved lesson is a link
+		`href="/notes/Writing/lessons/golang/After.md"`,  // the row after the ambiguity keeps its place
+		`>Ghost Lesson</span>`,                           // the unwritten row keeps its sequence position
+		`data-resolution="unresolved"`,                   // the row names why it cannot link
+		`>Ambiguous Lesson</span>`,
+		`<span class="y-lesson y-lesson--broken" data-resolution="ambiguous" title="Target is ambiguous"><span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>`,
+		`>ambiguous</span>`,
+		"y-navmark--warn", // warning is visible without color alone
+	} {
+		if !strings.Contains(main, want) {
+			t.Errorf("study-path content missing %q; main = %q", want, main)
+		}
 	}
+	if strings.Contains(main, `href="/notes/"`) {
+		t.Errorf("study-path content fabricates an empty note link; main = %q", main)
+	}
+	for _, candidate := range []string{`href="/notes/A/Repeated.md"`, `href="/notes/B/Repeated.md"`} {
+		if strings.Contains(main, candidate) {
+			t.Errorf("study-path content guesses ambiguous candidate %q; main = %q", candidate, main)
+		}
+	}
+	order := []string{"Slices</span>", "Ghost Lesson</span>", "Ambiguous Lesson</span>", "After</span>"}
+	previous := -1
+	for _, marker := range order {
+		at := strings.Index(main, marker)
+		if at < 0 || at <= previous {
+			t.Errorf("study-path row %q at %d after %d, want original order", marker, at, previous)
+		}
+		previous = at
+	}
+}
+
+// syllabusMain returns only the study-path projection. Candidate notes may
+// legitimately be linked by other page navigation; those links do not mean the
+// ambiguous curriculum row guessed a target.
+func syllabusMain(t *testing.T, body string) string {
+	t.Helper()
+	const opening = `<main class="y-main">`
+	_, after, ok := strings.Cut(body, opening)
+	if !ok {
+		t.Fatalf("syllabus response missing %q; body = %q", opening, body)
+	}
+	main, _, ok := strings.Cut(after, "</main>")
+	if !ok {
+		t.Fatalf("syllabus response has no closing main element; body = %q", body)
+	}
+	return main
 }
 
 func TestShowReadsOneShellSnapshot(t *testing.T) {

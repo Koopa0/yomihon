@@ -17,9 +17,10 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 		writeBenchNote(b, root, rel, content)
 	}
 	log := discardLogger()
+	roles, policy := testCapabilities(b)
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = buildSnapshot(root, log, scanMtimes(root))
+		_ = buildSnapshot(root, log, scanMtimes(root), roles, policy)
 	}
 }
 

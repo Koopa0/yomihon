@@ -13,8 +13,8 @@ import (
 // tallies and anchors precomputed), the switcher across every study-path in
 // the vault, and the path-level figures the header and progress bar read.
 //
-// The seal target comes from schema. Every nav entry is already resolved, so
-// the page only maps values and never resolves a wikilink itself.
+// The seal target comes from schema. nav has already classified every entry as
+// resolved, unresolved, or ambiguous, so the page never resolves a wikilink.
 type PathView struct {
 	Title      string
 	RelPath    string
@@ -48,12 +48,14 @@ type PathBranchView struct {
 	Sub     []PathBranchView
 }
 
-// PathEntryView is one resolved entry row and its optional note status.
+// PathEntryView is one linked or warning row. Only resolved rows have an href,
+// status, or sealed state.
 type PathEntryView struct {
 	Text   string
 	Href   string
 	Status string
 	Sealed bool
+	Kind   nav.EntryKind
 }
 
 // PathLink is one entry in the path switcher: a study-path's title, the
@@ -68,9 +70,9 @@ type PathLink struct {
 
 // BuildPathView flattens one parsed study-path (current) into the page
 // view, and builds the switcher from every study-path in the vault (all). It is
-// pure: the entry count it reports for a branch equals the number of resolved
-// entry list-items beneath it, and document order is
-// preserved at every level (nav already guarantees it).
+// pure: entry totals include linked and warning rows, Ready includes only
+// resolved rows at the seal status, and document order is preserved at every
+// level (nav already guarantees it).
 func BuildPathView(current *nav.Map, all []nav.Map) PathView {
 	v := PathView{
 		Title:      current.Title,
@@ -116,9 +118,42 @@ func buildPathBranch(sec nav.Branch, depth, num int) PathBranchView {
 	return sv
 }
 
-// buildPathEntry maps one resolved nav entry onto the study-path row.
+// buildPathEntry maps one nav entry onto a linked or warning study-path row.
 func buildPathEntry(entry *nav.Entry) PathEntryView {
-	return PathEntryView{Text: entry.Text, Href: notesHref(entry.RelPath), Status: entry.Status, Sealed: entry.Status == schema.SealStatus}
+	v := PathEntryView{Text: entry.Text, Kind: entry.Kind}
+	if entry.Kind != nav.EntryResolved {
+		return v
+	}
+	v.Href = notesHref(entry.RelPath)
+	v.Status = entry.Status
+	v.Sealed = entry.Status == schema.SealStatus
+	return v
+}
+
+func entryResolutionLabel(kind nav.EntryKind) string {
+	switch kind {
+	case nav.EntryUnresolved:
+		return "unresolved"
+	case nav.EntryAmbiguous:
+		return "ambiguous"
+	case nav.EntryResolved:
+		return "resolved"
+	default:
+		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+	}
+}
+
+func entryResolutionTitle(kind nav.EntryKind) string {
+	switch kind {
+	case nav.EntryUnresolved:
+		return "Target not found"
+	case nav.EntryAmbiguous:
+		return "Target is ambiguous"
+	case nav.EntryResolved:
+		return ""
+	default:
+		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+	}
 }
 
 // buildPaths builds the switcher: every study-path in vault order, each with
@@ -136,9 +171,9 @@ func buildPaths(currentRel string, all []nav.Map) []PathLink {
 	return links
 }
 
-// entryTotal counts every resolved entry list-item in a branch slice, at any
-// depth — the same count BuildPathView tallies, kept separate so the
-// switcher can label a path it is not flattening.
+// entryTotal counts every linked or warning row in a branch slice, at any depth
+// — the same count BuildPathView tallies, kept separate so the switcher can
+// label a path it is not flattening.
 func entryTotal(branches []nav.Branch) int {
 	n := 0
 	for _, sec := range branches {

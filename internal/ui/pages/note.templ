@@ -202,6 +202,18 @@ templ sidebar(sb Sidebar) {
 					}
 				</nav>
 			}
+			if sb.Model.NavigationDiagnostic != "" || sb.Model.ArtifactDiagnostic != "" {
+				<div class="y-railsep" aria-hidden="true"></div>
+				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
+					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">Paths and Maps</h2>
+					if sb.Model.NavigationDiagnostic != "" {
+						<p>{ sb.Model.NavigationDiagnostic }</p>
+					}
+					if sb.Model.ArtifactDiagnostic != "" {
+						<p>{ sb.Model.ArtifactDiagnostic }</p>
+					}
+				</section>
+			}
 			if len(sb.Model.Paths) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<details open data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
@@ -369,19 +381,32 @@ templ branchNode(sb Sidebar, mapPath string, chain []string, branch nav.Branch) 
 	</details>
 }
 
-// entryLink renders one resolved map entry and marks the current note.
+// entryLink renders one map row: unique targets link and may mark the current
+// note; path-only unresolved or ambiguous rows remain non-interactive.
 templ entryLink(sb Sidebar, entry nav.Entry) {
-	<a
-		class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
-		href={ templ.URL(notesHref(entry.RelPath)) }
-		{ currentAttr(sb.current(entry.RelPath))... }
-	>
-		<span class="y-navdot" aria-hidden="true"></span>
-		{ entry.Text }
-		if entry.Status != "" {
-			<span class="ui-navitem__count">{ entry.Status }</span>
-		}
-	</a>
+	if entry.Kind == nav.EntryResolved {
+		<a
+			class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
+			href={ templ.URL(notesHref(entry.RelPath)) }
+			{ currentAttr(sb.current(entry.RelPath))... }
+		>
+			<span class="y-navdot" aria-hidden="true"></span>
+			{ entry.Text }
+			if entry.Status != "" {
+				<span class="ui-navitem__count">{ entry.Status }</span>
+			}
+		</a>
+	} else {
+		<span
+			class="ui-navitem y-navitem--broken"
+			data-resolution={ entryResolutionLabel(entry.Kind) }
+			title={ entryResolutionTitle(entry.Kind) }
+		>
+			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
+			{ entry.Text }
+			<span class="ui-navitem__count y-navmark--warn">{ entryResolutionLabel(entry.Kind) }</span>
+		</span>
+	}
 }
 
 // ============================ RIGHT RAIL ============================

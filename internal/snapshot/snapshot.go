@@ -29,6 +29,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -42,15 +43,16 @@ const scanInterval = 2 * time.Second
 // independent walks (simpler than a shared pass, and cheap at this scale) and
 // published together via one atomic pointer swap. Because the walks read the filesystem at three
 // moments, a note edited mid-rebuild can leave the models momentarily
-// inconsistent about that note — but rescan captures the mtime set BEFORE the
+// inconsistent about that note — but rescan captures the mtime set before the
 // rebuild (see rescan), so the edit is not recorded in s.prev and the next scan
 // detects it and rebuilds: the skew self-heals within one scan cycle. Any field
 // may be an empty (never nil) model when its build failed — reading tolerates
 // that (fail-open).
 type Snapshot struct {
-	Graph  *graph.Index
-	Nav    *nav.Model
-	Search *search.Index
+	Graph          *graph.Index
+	Nav            *nav.Model
+	Search         *search.Index
+	ArtifactPolicy schema.ArtifactPolicy
 }
 
 // Store holds the current Snapshot behind an atomic.Pointer and drives the
@@ -58,20 +60,27 @@ type Snapshot struct {
 // only by the single scanner goroutine (and set once by New before that
 // goroutine starts), so it needs no lock.
 type Store struct {
-	ptr  atomic.Pointer[Snapshot]
-	root string
-	log  *slog.Logger
-	prev map[string]time.Time
+	ptr            atomic.Pointer[Snapshot]
+	root           string
+	log            *slog.Logger
+	roles          schema.NavigationRoles
+	artifactPolicy schema.ArtifactPolicy
+	prev           map[string]time.Time
 }
 
 // New builds the initial Snapshot synchronously (so Current() is non-nil before
 // the first request) and records the initial mtime set the scanner compares
 // against. Start the scanner with Run.
-func New(root string, log *slog.Logger) *Store {
-	s := &Store{root: root, log: log}
+func New(
+	root string,
+	log *slog.Logger,
+	roles schema.NavigationRoles,
+	policy schema.ArtifactPolicy,
+) *Store {
+	s := &Store{root: root, log: log, roles: roles, artifactPolicy: policy}
 	mtimes := scanMtimes(root)
 	s.prev = mtimes
-	snap := buildSnapshot(root, log, mtimes)
+	snap := buildSnapshot(root, log, mtimes, roles, policy)
 	s.ptr.Store(snap)
 	log.Info("vault snapshot built",
 		"notes_indexed", snap.Search.Len(),
@@ -130,7 +139,7 @@ func (s *Store) rescan() {
 	if mtimesEqual(s.prev, now) {
 		return
 	}
-	snap := buildSnapshot(s.root, s.log, now)
+	snap := buildSnapshot(s.root, s.log, now, s.roles, s.artifactPolicy)
 	s.ptr.Store(snap)
 	s.prev = now
 	s.log.Info("vault snapshot rebuilt",
@@ -145,14 +154,20 @@ func (s *Store) rescan() {
 // (graph, then nav against that graph, then search). Each build failure is
 // tolerated independently: it logs and substitutes an empty model, so a single
 // failing model never takes the others — or reading — down.
-func buildSnapshot(root string, log *slog.Logger, mtimes map[string]time.Time) *Snapshot {
+func buildSnapshot(
+	root string,
+	log *slog.Logger,
+	mtimes map[string]time.Time,
+	roles schema.NavigationRoles,
+	policy schema.ArtifactPolicy,
+) *Snapshot {
 	idx, err := graph.Build(root)
 	if err != nil {
 		log.Warn("vault graph unavailable; wikilinks will render as unresolved", "error", err)
 		idx = graph.BuildFromNotes(nil, nil)
 	}
 
-	navModel, err := nav.Build(root, idx, mtimes)
+	navModel, err := nav.Build(root, idx, mtimes, roles, policy)
 	if err != nil {
 		log.Warn("vault navigation unavailable; serving an empty sidebar", "error", err)
 		navModel = &nav.Model{}
@@ -164,7 +179,7 @@ func buildSnapshot(root string, log *slog.Logger, mtimes map[string]time.Time) *
 		searchIdx = search.BuildFromDocs(nil)
 	}
 
-	return &Snapshot{Graph: idx, Nav: navModel, Search: searchIdx}
+	return &Snapshot{Graph: idx, Nav: navModel, Search: searchIdx, ArtifactPolicy: policy}
 }
 
 // scanMtimes returns the current {rel_path → mtime} set, reusing vault.List so

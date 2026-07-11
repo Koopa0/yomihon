@@ -9,10 +9,10 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestBuildPathView pins the pure transform's contract: a branch's entry count
-// equals the resolved entries beneath it and document order is preserved at
-// every level. The fixture is two parts, one with a module and one with an
-// entry attached directly (no module), so the
+// TestBuildPathView pins the pure transform's contract: a branch's total counts
+// linked and warning rows, Ready counts only sealed resolved entries, and
+// document order is preserved at every level. The fixture is two parts, one
+// with a module and one with entries attached directly (no module), so the
 // tallies and the modules count are hand-derivable and non-tautological.
 func TestBuildPathView(t *testing.T) {
 	t.Parallel()
@@ -37,6 +37,7 @@ func TestBuildPathView(t *testing.T) {
 				Heading: "Memory", Level: 2,
 				Entries: []nav.Entry{
 					{Text: "GC", RelPath: "Writing/GC.md", Status: schema.SealStatus},
+					{Text: "Unwritten", Target: "Unwritten", Kind: nav.EntryUnresolved},
 				},
 			},
 		},
@@ -49,11 +50,11 @@ func TestBuildPathView(t *testing.T) {
 		RelPath:    "Maps/Go path.md",
 		SealTarget: schema.SealStatus,
 		Paths: []PathLink{
-			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 3, Active: true},
+			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 4, Active: true},
 		},
 		Parts:   2,
 		Modules: 1, // only "Data" has a sub-branch; "Memory" holds an entry directly
-		Entries: 3,
+		Entries: 4,
 		Ready:   2, // Slices + GC; Arrays is draft
 		Branches: []PathBranchView{
 			{
@@ -71,9 +72,10 @@ func TestBuildPathView(t *testing.T) {
 			},
 			{
 				Anchor: "part-2", Ordinal: "II", Num: 2, Heading: "Memory", Depth: 0,
-				Ready: 1, Total: 1,
+				Ready: 1, Total: 2,
 				Entries: []PathEntryView{
 					{Text: "GC", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true},
+					{Text: "Unwritten", Kind: nav.EntryUnresolved},
 				},
 			},
 		},

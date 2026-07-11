@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestBuildRealVault builds the navigation model against the real vault
@@ -34,7 +35,15 @@ func TestBuildRealVault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graph.Build(%q) = %v", root, err)
 	}
-	m, err := Build(root, idx, nil)
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Skipf("real vault contract unavailable: %v", err)
+	}
+	roles, policy := contract.NavigationRoles(), contract.ArtifactPolicy()
+	if !roles.Available() || !policy.Available() {
+		t.Skipf("real vault instance contract unavailable: navigation=%q artifacts=%q", roles.Diagnostic(), policy.Diagnostic())
+	}
+	m, err := Build(root, idx, nil, roles, policy)
 	if err != nil {
 		t.Fatalf("Build(%q) = %v", root, err)
 	}
@@ -81,11 +90,20 @@ func TestBuildRealVault(t *testing.T) {
 	}
 	assertLeadingTargets(t, "大家", minnaEntries, wantMinnaHead)
 
-	// Every entry in navigation is resolved by construction; these real lesson
-	// targets also carry their status badges.
+	// Resolved lessons carry status badges. Warning rows deliberately carry no
+	// guessed path or status; the real vault need not contain one today.
 	for _, entry := range minnaEntries {
-		if entry.Status == "" {
-			t.Errorf("大家 entry %q has no status", entry.Target)
+		switch entry.Kind {
+		case EntryResolved:
+			if entry.Status == "" {
+				t.Errorf("大家 resolved entry %q has no status", entry.Target)
+			}
+		case EntryUnresolved, EntryAmbiguous:
+			if entry.RelPath != "" || entry.Status != "" {
+				t.Errorf("大家 warning entry %q = path %q status %q, want neither fabricated", entry.Target, entry.RelPath, entry.Status)
+			}
+		default:
+			t.Fatalf("大家 entry %q has unknown EntryKind %d", entry.Target, entry.Kind)
 		}
 	}
 

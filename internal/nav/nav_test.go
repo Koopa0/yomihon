@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +23,54 @@ func writeNavFixture(t *testing.T, root, rel, content string) {
 	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", rel, err)
 	}
+}
+
+func testCapabilities(t *testing.T) (schema.NavigationRoles, schema.ArtifactPolicy) {
+	t.Helper()
+	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("schema.LoadFile: %v", err)
+	}
+	return contract.NavigationRoles(), contract.ArtifactPolicy()
+}
+
+func testArtifactPolicy(t *testing.T) schema.ArtifactPolicy {
+	t.Helper()
+	_, policy := testCapabilities(t)
+	return policy
+}
+
+func loadCapabilityContract(t *testing.T, navigation, artifacts string) *schema.Schema {
+	t.Helper()
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	text := `schema_version = "1"
+
+[enums]
+type = ["concept", "moc", "study-path"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+
+[scan]
+knowledge_dirs = ["Concepts", "Maps"]
+` + navigation + artifacts + `
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+`
+	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
+		t.Fatalf("write capability contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("schema.LoadFile: %v", err)
+	}
+	return contract
 }
 
 func TestBuildMapTypesAndReversePlacements(t *testing.T) {
@@ -47,22 +96,36 @@ func TestBuildMapTypesAndReversePlacements(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graph.Build: %v", err)
 	}
-	model, err := Build(root, idx, nil)
+	roles, policy := testCapabilities(t)
+	model, err := Build(root, idx, nil, roles, policy)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 
+	resolvedBranches := []Branch{{
+		Heading: "Shelf",
+		Level:   2,
+		Entries: []Entry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
+	}}
 	wantPaths := []Map{{
 		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path",
-		Branches: []Branch{{Heading: "Shelf", Level: 2, Entries: []Entry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing"}}}},
+		Branches: []Branch{{
+			Heading: "Shelf",
+			Level:   2,
+			Entries: []Entry{
+				{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved},
+				{Text: "Ghost", Target: "Ghost", Kind: EntryUnresolved},
+				{Text: "Dup", Target: "Dup", Kind: EntryAmbiguous, Candidates: []string{"A/Dup.md", "B/Dup.md"}},
+			},
+		}},
 	}}
 	if diff := cmp.Diff(wantPaths, model.Paths); diff != "" {
 		t.Errorf("Build Paths mismatch (-want +got):\n%s", diff)
 	}
 	wantMaps := []Map{
-		{Title: "Alpha", RelPath: "Maps/Z-alpha.md", Domain: "golang", Type: "source-map", Branches: wantPaths[0].Branches},
-		{Title: "Zeta", RelPath: "Maps/A-zeta.md", Domain: "golang", Type: "moc", Branches: wantPaths[0].Branches},
-		{Title: "Beta", RelPath: "Maps/Beta.md", Domain: "japanese", Type: "topic-map", Branches: wantPaths[0].Branches},
+		{Title: "Alpha", RelPath: "Maps/Z-alpha.md", Domain: "golang", Type: "source-map", Branches: resolvedBranches},
+		{Title: "Zeta", RelPath: "Maps/A-zeta.md", Domain: "golang", Type: "moc", Branches: resolvedBranches},
+		{Title: "Beta", RelPath: "Maps/Beta.md", Domain: "japanese", Type: "topic-map", Branches: resolvedBranches},
 	}
 	if diff := cmp.Diff(wantMaps, model.Maps); diff != "" {
 		t.Errorf("Build Maps mismatch (-want +got):\n%s", diff)
@@ -80,6 +143,168 @@ func TestBuildMapTypesAndReversePlacements(t *testing.T) {
 	if got := model.Placements("Ghost"); len(got) != 0 {
 		t.Errorf("Placements(Ghost) = %v, want empty", got)
 	}
+	if got := model.Placements(""); len(got) != 0 {
+		t.Errorf("Placements(empty path) = %v, want no unresolved or ambiguous rows indexed", got)
+	}
+}
+
+func TestBuildExcludesNonInstanceNavigationProjections(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/Instance.md", "---\ntitle: Instance\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntitle: Template target\ntype: concept\nstatus: ready\n---\nbody\n")
+	writeNavFixture(t, root, "System/templates/Template map.md", "---\ntitle: Template map\ntype: moc\n---\n## Shelf\n- [[Instance]]\n")
+	writeNavFixture(t, root, "Maps/Course.md", "---\ntitle: Course\ntype: study-path\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
+
+	idx, err := graph.Build(root)
+	if err != nil {
+		t.Fatalf("graph.Build: %v", err)
+	}
+	roles, policy := testCapabilities(t)
+	model, err := Build(root, idx, nil, roles, policy)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	if len(model.Maps) != 0 {
+		t.Errorf("Build Maps = %+v, want non-instance map document absent", model.Maps)
+	}
+	if len(model.Paths) != 1 || len(model.Paths[0].Branches) != 1 {
+		t.Fatalf("Build Paths = %+v, want one course branch", model.Paths)
+	}
+	wantEntries := []Entry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
+	if diff := cmp.Diff(wantEntries, model.Paths[0].Branches[0].Entries); diff != "" {
+		t.Errorf("Build path entries mismatch (-want +got):\n%s", diff)
+	}
+	for _, note := range model.KnowledgeNotes {
+		if note.RelPath == "System/templates/Template target.md" || note.RelPath == "System/templates/Template map.md" {
+			t.Errorf("Build KnowledgeNotes contains non-instance %q", note.RelPath)
+		}
+	}
+	if got := model.Placements("System/templates/Template target.md"); len(got) != 0 {
+		t.Errorf("Placements(non-instance target) = %+v, want empty", got)
+	}
+	if got := model.Placements("Concepts/Instance.md"); len(got) != 1 {
+		t.Errorf("Placements(instance target) = %+v, want one", got)
+	}
+	dir, siblings := model.Siblings("System/templates/Template target.md")
+	if dir != "System/templates" || len(siblings) != 2 {
+		t.Errorf("Siblings(non-instance target) = (%q, %+v), want unchanged folder presence", dir, siblings)
+	}
+}
+
+func TestBuildReportsIndependentCapabilityDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNavFixture(t, root, "Maps/Map.md", "---\ntitle: Map\ntype: moc\n---\n## Shelf\n- [[Target]]\n")
+	idx, err := graph.Build(root)
+	if err != nil {
+		t.Fatalf("graph.Build: %v", err)
+	}
+	validRoles, validPolicy := testCapabilities(t)
+	invalidNavigation := loadCapabilityContract(t, `
+[navigation]
+path_types = ["missing-type"]
+map_types = ["moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	invalidArtifact := loadCapabilityContract(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["../templates"]
+`)
+
+	tests := []struct {
+		name               string
+		roles              schema.NavigationRoles
+		policy             schema.ArtifactPolicy
+		wantNavigation     string
+		wantArtifact       string
+		wantKnowledgeNotes int
+	}{
+		{
+			name:               "missing navigation",
+			roles:              schema.NavigationRoles{},
+			policy:             validPolicy,
+			wantNavigation:     "contract declares no navigation roles",
+			wantKnowledgeNotes: 2,
+		},
+		{
+			name:               "invalid navigation",
+			roles:              invalidNavigation.NavigationRoles(),
+			policy:             validPolicy,
+			wantNavigation:     `missing-type`,
+			wantKnowledgeNotes: 2,
+		},
+		{
+			name:         "missing artifact policy",
+			roles:        validRoles,
+			policy:       schema.ArtifactPolicy{},
+			wantArtifact: "contract declares no artifact policy",
+		},
+		{
+			name:         "invalid artifact policy",
+			roles:        validRoles,
+			policy:       invalidArtifact.ArtifactPolicy(),
+			wantArtifact: `../templates`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			model, err := Build(root, idx, nil, tt.roles, tt.policy)
+			if err != nil {
+				t.Fatalf("Build: %v", err)
+			}
+			if tt.wantNavigation == "" && model.NavigationDiagnostic != "" {
+				t.Errorf("NavigationDiagnostic = %q, want exactly empty while artifact policy is unavailable", model.NavigationDiagnostic)
+			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationDiagnostic, tt.wantNavigation) {
+				t.Errorf("NavigationDiagnostic = %q, want substring %q", model.NavigationDiagnostic, tt.wantNavigation)
+			}
+			if tt.wantArtifact == "" && model.ArtifactDiagnostic != "" {
+				t.Errorf("ArtifactDiagnostic = %q, want exactly empty while navigation roles are unavailable", model.ArtifactDiagnostic)
+			} else if tt.wantArtifact != "" && !strings.Contains(model.ArtifactDiagnostic, tt.wantArtifact) {
+				t.Errorf("ArtifactDiagnostic = %q, want substring %q", model.ArtifactDiagnostic, tt.wantArtifact)
+			}
+			if len(model.Paths) != 0 || len(model.Maps) != 0 {
+				t.Errorf("degraded navigation = %d paths, %d maps; want unavailable", len(model.Paths), len(model.Maps))
+			}
+			if got := len(model.KnowledgeNotes); got != tt.wantKnowledgeNotes {
+				t.Errorf("degraded KnowledgeNotes = %d, want %d", got, tt.wantKnowledgeNotes)
+			}
+			if len(model.Folders) == 0 {
+				t.Error("degraded Folders is empty, want browsing preserved")
+			}
+		})
+	}
+}
+
+func TestBuildKeepsZeroEntryMap(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Maps/Empty.md", "---\ntitle: Empty map\ntype: moc\n---\n## Shelf\n- [[Unwritten]]\n")
+	idx, err := graph.Build(root)
+	if err != nil {
+		t.Fatalf("graph.Build: %v", err)
+	}
+	roles, policy := testCapabilities(t)
+	model, err := Build(root, idx, nil, roles, policy)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	want := []Map{{Title: "Empty map", RelPath: "Maps/Empty.md", Type: "moc"}}
+	if diff := cmp.Diff(want, model.Maps); diff != "" {
+		t.Errorf("Build zero-entry Maps mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestBuildJournalFromScannerMtimes(t *testing.T) {
@@ -94,7 +319,8 @@ func TestBuildJournalFromScannerMtimes(t *testing.T) {
 			writeNavFixture(t, root, rel, fmt.Sprintf("# Day %d\n", day))
 			mtimes[rel] = time.Date(2026, time.July, day, 8, 0, 0, 0, time.UTC)
 		}
-		model, err := Build(root, resolver(t), mtimes)
+		roles, policy := testCapabilities(t)
+		model, err := Build(root, resolver(t), mtimes, roles, policy)
 		if err != nil {
 			t.Fatalf("Build: %v", err)
 		}
@@ -120,7 +346,8 @@ func TestBuildJournalFromScannerMtimes(t *testing.T) {
 					t.Fatalf("mkdir Diary: %v", err)
 				}
 			}
-			model, err := Build(root, resolver(t), nil)
+			roles, policy := testCapabilities(t)
+			model, err := Build(root, resolver(t), nil, roles, policy)
 			if err != nil {
 				t.Fatalf("Build: %v", err)
 			}
@@ -149,7 +376,8 @@ func TestBuildCarriesScannerMtimes(t *testing.T) {
 	}
 
 	captured := time.Date(2026, time.July, 9, 14, 30, 0, 0, time.UTC)
-	model, err := Build(root, resolver(t, rel), map[string]time.Time{rel: captured})
+	roles, policy := testCapabilities(t)
+	model, err := Build(root, resolver(t, rel), map[string]time.Time{rel: captured}, roles, policy)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -237,7 +465,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath)
+	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t), false)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (Go shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -316,7 +544,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath)
+	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t), false)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (大家 shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -359,9 +587,55 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{})
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t), false)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fault tolerance) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestParseBranchesPathRetainsUnresolvedEntry(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Writing/Existing.md")
+	body := "## Course\n- [[Existing]]\n- [[Unwritten Lesson]]\n"
+	want := []Branch{{
+		Heading: "Course",
+		Level:   2,
+		Entries: []Entry{
+			{Text: "Existing", Target: "Existing", RelPath: "Writing/Existing.md"},
+			{Text: "Unwritten Lesson", Target: "Unwritten Lesson", Kind: EntryUnresolved},
+		},
+	}}
+
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t), true)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parseBranches(path) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestParseBranchesPathRetainsAmbiguousEntryInOrder(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Writing/First.md", "A/Repeated.md", "B/Repeated.md", "Writing/Last.md")
+	body := "## Course\n- [[First]]\n- [[Repeated|Unresolved choice]]\n- [[Last]]\n"
+	want := []Branch{{
+		Heading: "Course",
+		Level:   2,
+		Entries: []Entry{
+			{Text: "First", Target: "First", RelPath: "Writing/First.md", Kind: EntryResolved},
+			{
+				Text:       "Unresolved choice",
+				Target:     "Repeated",
+				Kind:       EntryAmbiguous,
+				Candidates: []string{"A/Repeated.md", "B/Repeated.md"},
+			},
+			{Text: "Last", Target: "Last", RelPath: "Writing/Last.md", Kind: EntryResolved},
+		},
+	}}
+
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t), true)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parseBranches(path ambiguity) mismatch (-want +got):\n%s", diff)
 	}
 }
 

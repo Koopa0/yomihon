@@ -22,7 +22,8 @@ func TestRunSwapsOnlyOnChange(t *testing.T) {
 		root := t.TempDir()
 		writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\n\nalpha body\n")
 
-		store := New(root, discardLogger())
+		roles, policy := testCapabilities(t)
+		store := New(root, discardLogger(), roles, policy)
 		first := store.Current()
 
 		ctx, cancel := context.WithCancel(t.Context())

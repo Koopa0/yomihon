@@ -48,7 +48,13 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *
 	mux := http.NewServeMux()
 	svc := status.NewService(root, contract)
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	var roles schema.NavigationRoles
+	var policy schema.ArtifactPolicy
+	if contract != nil {
+		roles = contract.NavigationRoles()
+		policy = contract.ArtifactPolicy()
+	}
+	store := snapshot.New(root, log, roles, policy)
 	// Build the slot index when the temp vault has a System/slots dir; a test
 	// without one leaves Slots nil (the legal "no slot machines" state).
 	var slots lesson.SlotIndex
@@ -572,7 +578,7 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 	}
 
 	log := slog.New(slog.DiscardHandler)
-	staleStore := snapshot.New(root, log)
+	staleStore := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 	renderer := render.New(root, staleStore.Resolver())
 
 	conceptDir := filepath.Join(root, "Concepts")
@@ -582,7 +588,7 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(conceptDir, "Target.md"), []byte("# Target\n"), 0o644); err != nil {
 		t.Fatalf("write Target: %v", err)
 	}
-	currentStore := snapshot.New(root, log)
+	currentStore := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 
 	mux := http.NewServeMux()
 	h := note.NewHandler(note.Deps{
@@ -630,7 +636,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	}
 
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 
 	for _, tt := range []struct {
 		name, path string
@@ -943,7 +949,7 @@ func TestNewHandlerPanicsOnNilStatusPolicy(t *testing.T) {
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 	note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   render.New(root, store.Resolver()),
@@ -966,7 +972,7 @@ func TestNewHandlerPanicsOnNilSnapshot(t *testing.T) {
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log)
+	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 	note.NewHandler(note.Deps{
 		Root:       root,
 		Renderer:   render.New(root, store.Resolver()),
@@ -1005,7 +1011,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 		t.Fatalf("write syllabus: %v", err)
 	}
 
-	srv := newServer(t, root)
+	srv := newServerWithContract(t, root, loadHomeContract(t))
 
 	code, body := get(t, srv.URL+"/notes/Maps/Go path.md")
 	if code != http.StatusOK {
@@ -1022,5 +1028,46 @@ func TestShowIncludesSidebar(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("reading page sidebar missing %q; body = %q", want, body)
 		}
+	}
+}
+
+func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	mapDir := filepath.Join(root, "Maps")
+	if err := os.MkdirAll(mapDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	mapNote := "---\ntitle: Reading map\ntype: topic-map\ndomain: humanities\n---\n\n## Themes\n\n- [[Ghost Essay]]\n"
+	if err := os.WriteFile(filepath.Join(mapDir, "Reading map.md"), []byte(mapNote), 0o644); err != nil {
+		t.Fatalf("write map: %v", err)
+	}
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/notes/Maps/Reading map.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for _, want := range []string{
+		`data-map-tree="Maps/Reading map.md"`,
+		`class="wikilink-broken">Ghost Essay</span>`,
+		`wikilink &#34;Ghost Essay&#34; does not resolve to any note or file`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("general map note page is missing %q", want)
+		}
+	}
+	asideStart := strings.Index(body, `<aside class="y-rail-left"`)
+	if asideStart < 0 {
+		t.Fatal("response has no left sidebar")
+	}
+	asideEnd := strings.Index(body[asideStart:], `</aside>`)
+	if asideEnd < 0 {
+		t.Fatalf("response has no complete left sidebar")
+	}
+	sidebar := body[asideStart : asideStart+asideEnd]
+	if strings.Contains(sidebar, "Ghost Essay") {
+		t.Error("general map unresolved row appears in sidebar navigation")
 	}
 }
