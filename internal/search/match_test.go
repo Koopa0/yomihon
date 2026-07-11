@@ -23,6 +23,16 @@ func validArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 
 func invalidArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 	tb.Helper()
+	return artifactPolicyFromSection(tb, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
+}
+
+func incompleteArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
+	tb.Helper()
+	return artifactPolicyFromSection(tb, "[artifacts]\n")
+}
+
+func artifactPolicyFromSection(tb testing.TB, section string) schema.ArtifactPolicy {
+	tb.Helper()
 	path := filepath.Join(tb.TempDir(), "vault-schema.toml")
 	contract := `schema_version = "1"
 
@@ -32,9 +42,7 @@ type = ["concept"]
 [enums.status]
 note = ["draft"]
 
-[artifacts]
-non_instance_dirs = ["."]
-
+` + section + `
 [[lifecycle]]
 status = "draft"
 applies_to = ["concept"]
@@ -119,6 +127,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 	}{
 		{name: "missing", policy: schema.ArtifactPolicy{}},
 		{name: "invalid", policy: invalidArtifactPolicy(t)},
+		{name: "incomplete", policy: incompleteArtifactPolicy(t)},
 	}
 	metadataQueries := []string{
 		"type:concept",
@@ -375,6 +384,7 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	}{
 		{name: "missing", policy: schema.ArtifactPolicy{}},
 		{name: "invalid", policy: invalidArtifactPolicy(t)},
+		{name: "incomplete", policy: incompleteArtifactPolicy(t)},
 	}
 	for _, tt := range policies {
 		t.Run(tt.name, func(t *testing.T) {

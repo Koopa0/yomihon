@@ -393,8 +393,8 @@ func moduleBlock(sec PathBranchView) templ.Component {
 	})
 }
 
-// entryRow links unique targets and leaves unresolved or ambiguous rows as
-// visible, non-interactive warnings in their original sequence position.
+// entryRow links governed unique targets and leaves every warning reason visible
+// and non-interactive in its original sequence position.
 func entryRow(l PathEntryView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

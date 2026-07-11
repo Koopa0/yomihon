@@ -136,6 +136,8 @@ func entryResolutionLabel(kind nav.EntryKind) string {
 		return "unresolved"
 	case nav.EntryAmbiguous:
 		return "ambiguous"
+	case nav.EntryNonInstance:
+		return "non-instance"
 	case nav.EntryResolved:
 		return "resolved"
 	default:
@@ -149,6 +151,8 @@ func entryResolutionTitle(kind nav.EntryKind) string {
 		return "Target not found"
 	case nav.EntryAmbiguous:
 		return "Target is ambiguous"
+	case nav.EntryNonInstance:
+		return "Target is not a governable artifact"
 	case nav.EntryResolved:
 		return ""
 	default:

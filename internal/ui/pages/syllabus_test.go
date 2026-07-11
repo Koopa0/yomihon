@@ -37,6 +37,7 @@ func TestBuildPathView(t *testing.T) {
 				Heading: "Memory", Level: 2,
 				Entries: []nav.Entry{
 					{Text: "GC", RelPath: "Writing/GC.md", Status: schema.SealStatus},
+					{Text: "Template", Target: "Template", Kind: nav.EntryNonInstance},
 					{Text: "Unwritten", Target: "Unwritten", Kind: nav.EntryUnresolved},
 				},
 			},
@@ -50,11 +51,11 @@ func TestBuildPathView(t *testing.T) {
 		RelPath:    "Maps/Go path.md",
 		SealTarget: schema.SealStatus,
 		Paths: []PathLink{
-			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 4, Active: true},
+			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 5, Active: true},
 		},
 		Parts:   2,
 		Modules: 1, // only "Data" has a sub-branch; "Memory" holds an entry directly
-		Entries: 4,
+		Entries: 5,
 		Ready:   2, // Slices + GC; Arrays is draft
 		Branches: []PathBranchView{
 			{
@@ -72,9 +73,10 @@ func TestBuildPathView(t *testing.T) {
 			},
 			{
 				Anchor: "part-2", Ordinal: "II", Num: 2, Heading: "Memory", Depth: 0,
-				Ready: 1, Total: 2,
+				Ready: 1, Total: 3,
 				Entries: []PathEntryView{
 					{Text: "GC", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true},
+					{Text: "Template", Kind: nav.EntryNonInstance},
 					{Text: "Unwritten", Kind: nav.EntryUnresolved},
 				},
 			},

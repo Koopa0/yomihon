@@ -108,15 +108,24 @@ func Load(root string) (*Schema, error) {
 // LoadFile reads the contract from an explicit path.
 func LoadFile(path string) (*Schema, error) {
 	var decoded contractFile
-	if _, err := toml.DecodeFile(path, &decoded); err != nil {
+	metadata, err := toml.DecodeFile(path, &decoded)
+	if err != nil {
 		return nil, fmt.Errorf("decode vault contract %s: %w", path, err)
 	}
 	s := &decoded.Schema
 	if len(s.Lifecycle) == 0 {
 		return nil, fmt.Errorf("vault contract %s: no lifecycle stages", path)
 	}
-	s.navigationRoles = deriveNavigationRoles(decoded.Navigation, s.Enums.Type)
-	s.artifactPolicy = deriveArtifactPolicy(decoded.Artifacts)
+	s.navigationRoles = deriveNavigationRoles(
+		decoded.Navigation,
+		s.Enums.Type,
+		metadata.IsDefined("navigation", "path_types"),
+		metadata.IsDefined("navigation", "map_types"),
+	)
+	s.artifactPolicy = deriveArtifactPolicy(
+		decoded.Artifacts,
+		metadata.IsDefined("artifacts", "non_instance_dirs"),
+	)
 	return s, nil
 }
 

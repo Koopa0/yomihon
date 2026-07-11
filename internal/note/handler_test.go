@@ -196,6 +196,7 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 	}{
 		{name: "missing", section: "", want: "contract declares no artifact policy; instance projections disabled until it does"},
 		{name: "invalid", section: "[artifacts]\nnon_instance_dirs = [\".\"]\n", want: `invalid artifact policy: non_instance_dirs contains "."`},
+		{name: "incomplete", section: "[artifacts]\n", want: `invalid artifact policy: missing required key "non_instance_dirs"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -232,6 +233,7 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 			}
 			for _, absent := range []string{
 				`action="/status"`,
+				"actor · koopa",
 				`data-tts=`,
 				"y-slotmachine",
 				`data-concept=`,
@@ -1158,6 +1160,7 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 	}{
 		{name: "missing", contract: loadHomeContractWithArtifactSection(t, ""), want: "contract declares no artifact policy; instance projections disabled until it does"},
 		{name: "invalid", contract: loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n"), want: `invalid artifact policy: non_instance_dirs contains "."`},
+		{name: "incomplete", contract: loadHomeContractWithArtifactSection(t, "[artifacts]\n"), want: `invalid artifact policy: missing required key "non_instance_dirs"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

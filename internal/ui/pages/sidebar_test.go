@@ -390,7 +390,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	}
 }
 
-func TestSidebarExcludesNonInstanceNavigationProjections(t *testing.T) {
+func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing.T) {
 	t.Parallel()
 
 	model := buildModel(t)
@@ -407,8 +407,14 @@ func TestSidebarExcludesNonInstanceNavigationProjections(t *testing.T) {
 	if pathsAt < 0 || mapsAt < 0 || pathsAt >= mapsAt {
 		t.Fatalf("sidebar path/map markers = %d/%d, want ordered groups", pathsAt, mapsAt)
 	}
-	if strings.Contains(html[pathsAt:mapsAt], "Template target") {
-		t.Error("sidebar Paths contains a resolved non-instance template target")
+	paths := html[pathsAt:mapsAt]
+	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">non-instance</span>"} {
+		if !strings.Contains(paths, want) {
+			t.Errorf("sidebar Paths is missing non-instance warning output %q", want)
+		}
+	}
+	if strings.Contains(paths, `href="/notes/System/templates/Template%20target.md"`) || strings.Contains(paths, "ui-status--ready") {
+		t.Error("sidebar Paths turns a non-instance warning into a linked or status-bearing entry")
 	}
 	for _, want := range []string{
 		`href="/notes/System/templates/Template%20map.md">Template map</a>`,

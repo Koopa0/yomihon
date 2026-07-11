@@ -124,7 +124,7 @@ func TestBuildRealVault(t *testing.T) {
 			if entry.Status == "" {
 				t.Errorf("大家 resolved entry %q has no status", entry.Target)
 			}
-		case EntryUnresolved, EntryAmbiguous:
+		case EntryUnresolved, EntryAmbiguous, EntryNonInstance:
 			if entry.RelPath != "" || entry.Status != "" {
 				t.Errorf("大家 warning entry %q = path %q status %q, want neither fabricated", entry.Target, entry.RelPath, entry.Status)
 			}

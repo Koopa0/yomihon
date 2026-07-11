@@ -100,9 +100,22 @@ func (p ArtifactPolicy) IsNonInstance(rel string) bool {
 	return false
 }
 
-func deriveNavigationRoles(section *navigationSection, enumTypes []string) NavigationRoles {
+func deriveNavigationRoles(
+	section *navigationSection,
+	enumTypes []string,
+	pathTypesDefined bool,
+	mapTypesDefined bool,
+) NavigationRoles {
 	if section == nil {
 		return NavigationRoles{}
+	}
+	switch {
+	case !pathTypesDefined && !mapTypesDefined:
+		return invalidNavigationRoles(`missing required keys "path_types", "map_types"`)
+	case !pathTypesDefined:
+		return invalidNavigationRoles(`missing required key "path_types"`)
+	case !mapTypesDefined:
+		return invalidNavigationRoles(`missing required key "map_types"`)
 	}
 	known := make(map[string]struct{}, len(enumTypes))
 	for _, noteType := range enumTypes {
@@ -138,9 +151,12 @@ func invalidNavigationRoles(format string, args ...any) NavigationRoles {
 	return NavigationRoles{diagnostic: fmt.Sprintf("invalid navigation roles: "+format+"; Paths and Maps disabled", args...)}
 }
 
-func deriveArtifactPolicy(section *artifactSection) ArtifactPolicy {
+func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool) ArtifactPolicy {
 	if section == nil {
 		return ArtifactPolicy{}
+	}
+	if !nonInstanceDirsDefined {
+		return ArtifactPolicy{diagnostic: `invalid artifact policy: missing required key "non_instance_dirs"`}
 	}
 	dirs := make([]string, 0, len(section.NonInstanceDirs))
 	for _, original := range section.NonInstanceDirs {

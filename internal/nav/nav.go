@@ -16,8 +16,9 @@
 //
 //   - Fault-tolerant. A malformed map, a broken entry link,
 //     an unreadable note, an odd folder — none may panic or drop the rest.
-//     Study paths retain unresolved rows as warnings because their order is a
-//     curriculum; general maps omit them because their tree is link navigation.
+//     Study paths retain unresolved, ambiguous, and non-instance targets as
+//     warnings because their order is a curriculum; general maps omit warnings
+//     because their tree is link navigation.
 //   - Contract-derived. Navigation roles and artifact boundaries are immutable
 //     values derived by internal/schema at startup; nav never reads the contract.
 package nav

@@ -148,7 +148,7 @@ func TestBuildMapTypesAndReversePlacements(t *testing.T) {
 	}
 }
 
-func TestBuildExcludesNonInstanceNavigationProjections(t *testing.T) {
+func TestBuildRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -173,7 +173,10 @@ func TestBuildExcludesNonInstanceNavigationProjections(t *testing.T) {
 	if len(model.Paths) != 1 || len(model.Paths[0].Branches) != 1 {
 		t.Fatalf("Build Paths = %+v, want one course branch", model.Paths)
 	}
-	wantEntries := []Entry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
+	wantEntries := []Entry{
+		{Text: "Template target", Target: "Template target", Kind: EntryNonInstance},
+		{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved},
+	}
 	if diff := cmp.Diff(wantEntries, model.Paths[0].Branches[0].Entries); diff != "" {
 		t.Errorf("Build path entries mismatch (-want +got):\n%s", diff)
 	}
@@ -191,6 +194,36 @@ func TestBuildExcludesNonInstanceNavigationProjections(t *testing.T) {
 	dir, siblings := model.Siblings("System/templates/Template target.md")
 	if dir != "System/templates" || len(siblings) != 2 {
 		t.Errorf("Siblings(non-instance target) = (%q, %+v), want unchanged folder presence", dir, siblings)
+	}
+}
+
+func TestBuildOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/Instance.md", "---\ntitle: Instance\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntitle: Template target\ntype: concept\nstatus: ready\n---\nbody\n")
+	writeNavFixture(t, root, "Maps/General.md", "---\ntitle: General\ntype: moc\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
+
+	idx, err := graph.Build(root)
+	if err != nil {
+		t.Fatalf("graph.Build: %v", err)
+	}
+	roles, policy := testCapabilities(t)
+	model, err := Build(root, idx, nil, roles, policy)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	if len(model.Maps) != 1 || len(model.Maps[0].Branches) != 1 {
+		t.Fatalf("Build Maps = %+v, want one general-map branch", model.Maps)
+	}
+	wantEntries := []Entry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
+	if diff := cmp.Diff(wantEntries, model.Maps[0].Branches[0].Entries); diff != "" {
+		t.Errorf("Build general-map entries mismatch (-want +got):\n%s", diff)
+	}
+	if got := model.Placements("System/templates/Template target.md"); len(got) != 0 {
+		t.Errorf("Placements(non-instance general-map target) = %+v, want empty", got)
 	}
 }
 
@@ -213,6 +246,13 @@ map_types = ["moc"]
 [artifacts]
 non_instance_dirs = ["System/templates"]
 `)
+	incompleteNavigation := loadCapabilityContract(t, `
+[navigation]
+path_types = ["study-path"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
 	invalidArtifact := loadCapabilityContract(t, `
 [navigation]
 path_types = ["study-path"]
@@ -220,6 +260,13 @@ map_types = ["moc"]
 `, `
 [artifacts]
 non_instance_dirs = ["../templates"]
+`)
+	incompleteArtifact := loadCapabilityContract(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+`, `
+[artifacts]
 `)
 
 	tests := []struct {
@@ -245,6 +292,13 @@ non_instance_dirs = ["../templates"]
 			wantKnowledgeNotes: 2,
 		},
 		{
+			name:               "incomplete navigation",
+			roles:              incompleteNavigation.NavigationRoles(),
+			policy:             validPolicy,
+			wantNavigation:     `missing required key "map_types"`,
+			wantKnowledgeNotes: 2,
+		},
+		{
 			name:         "missing artifact policy",
 			roles:        validRoles,
 			policy:       schema.ArtifactPolicy{},
@@ -255,6 +309,12 @@ non_instance_dirs = ["../templates"]
 			roles:        validRoles,
 			policy:       invalidArtifact.ArtifactPolicy(),
 			wantArtifact: `../templates`,
+		},
+		{
+			name:         "incomplete artifact policy",
+			roles:        validRoles,
+			policy:       incompleteArtifact.ArtifactPolicy(),
+			wantArtifact: `missing required key "non_instance_dirs"`,
 		},
 	}
 	for _, tt := range tests {

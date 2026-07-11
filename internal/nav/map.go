@@ -38,7 +38,7 @@ type Branch struct {
 	Sub     []Branch
 }
 
-// EntryKind distinguishes a linked entry from an unresolved or ambiguous row.
+// EntryKind distinguishes a linked entry from each warning-row reason.
 type EntryKind uint8
 
 const (
@@ -48,10 +48,13 @@ const (
 	EntryUnresolved
 	// EntryAmbiguous has several candidates and deliberately names none of them.
 	EntryAmbiguous
+	// EntryNonInstance resolves uniquely to a readable artifact that is outside
+	// the governed instance set.
+	EntryNonInstance
 )
 
-// Entry is one wikilink list-item. Study paths retain unresolved and ambiguous
-// rows for honest sequencing; general maps contain only resolved entries.
+// Entry is one wikilink list-item. Study paths retain warning rows for honest
+// sequencing; general maps contain only governed, resolved entries.
 type Entry struct {
 	Text       string
 	Target     string
@@ -112,9 +115,9 @@ type branchNode struct {
 // branch is a table (no list items), and its gaps branch uses task checkboxes
 // (excluded — even the one carrying a [[wikilink]]), so all three prune away
 // for having no entries. A "待建" bullet with no wikilink is not counted
-// because it names no target. General maps keep only uniquely resolved rows;
-// study paths keep every resolvable, unresolved, or ambiguous wikilink row in
-// its original position.
+// because it names no target. General maps keep only uniquely resolved governed
+// rows; study paths also keep unresolved, ambiguous, and uniquely resolved
+// non-instance targets as warnings in their original position.
 func parseBranches(
 	body string,
 	idx Resolver,
@@ -272,9 +275,9 @@ func firstWikilink(s string) (inner string, ok bool) {
 // uses) and idx.Resolve (the same normalization and ambiguity rules applied
 // to in-body wikilinks), so a sidebar entry link and the in-body wikilink
 // to the same note agree exactly. ok is false when the link has no note target
-// (a same-file anchor such as [[#heading]]) or its unique target belongs to a
-// non-instance artifact directory. Ambiguous and unresolved rows return their
-// explicit kind so the caller can preserve or omit them according to map role.
+// (a same-file anchor such as [[#heading]]). Unresolved, ambiguous, and unique
+// non-instance targets return distinct warning kinds so the caller can preserve
+// or omit them according to map role.
 func makeEntry(inner string, idx Resolver, statusByPath map[string]string, policy schema.ArtifactPolicy) (Entry, bool) {
 	target, display, ok := graph.SplitWikilink(inner)
 	if !ok {
@@ -284,7 +287,7 @@ func makeEntry(inner string, idx Resolver, statusByPath map[string]string, polic
 	switch res.Kind {
 	case graph.Unique:
 		if policy.IsNonInstance(res.Path) {
-			return Entry{}, false
+			return Entry{Text: display, Target: target, Kind: EntryNonInstance}, true
 		}
 		return Entry{Text: display, Target: target, RelPath: res.Path, Status: statusByPath[res.Path], Kind: EntryResolved}, true
 	case graph.Ambiguous:

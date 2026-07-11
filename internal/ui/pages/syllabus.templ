@@ -97,8 +97,8 @@ templ moduleBlock(sec PathBranchView) {
 	</div>
 }
 
-// entryRow links unique targets and leaves unresolved or ambiguous rows as
-// visible, non-interactive warnings in their original sequence position.
+// entryRow links governed unique targets and leaves every warning reason visible
+// and non-interactive in its original sequence position.
 templ entryRow(l PathEntryView) {
 	if l.Kind == nav.EntryResolved {
 		<a class="y-lesson" href={ templ.URL(l.Href) }>

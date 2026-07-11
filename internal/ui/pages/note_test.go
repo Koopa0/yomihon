@@ -41,6 +41,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"y-shell--rail-empty",
 				"y-sealbar",
 				"data-seal",
+				"actor · koopa",
 			},
 		},
 		{
@@ -50,9 +51,10 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantPresent: []string{
 				"y-shell--rail-empty",
 				"y-sealbar",
+				"ui-status--draft",
 				"the write face is closed (fail-closed)",
 			},
-			wantAbsent: []string{`action="/status"`},
+			wantAbsent: []string{`action="/status"`, "actor · koopa"},
 			wantCounts: map[string]int{
 				`data-status-state="unavailable"`:                                2,
 				"Contract unavailable — the write face is closed (fail-closed).": 2,

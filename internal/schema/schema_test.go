@@ -129,6 +129,104 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 	}
 }
 
+func TestCapabilitiesRejectOmittedRequiredKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		navigation     string
+		artifacts      string
+		capability     func(*schema.Schema) (bool, string)
+		otherAvailable func(*schema.Schema) bool
+		wantDiagnostic string
+	}{
+		{
+			name: "navigation path types",
+			navigation: `
+[navigation]
+map_types = ["moc"]
+`,
+			artifacts: `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`,
+			capability: func(s *schema.Schema) (bool, string) {
+				roles := s.NavigationRoles()
+				return roles.Available(), roles.Diagnostic()
+			},
+			otherAvailable: func(s *schema.Schema) bool { return s.ArtifactPolicy().Available() },
+			wantDiagnostic: `invalid navigation roles: missing required key "path_types"; Paths and Maps disabled`,
+		},
+		{
+			name: "navigation map types",
+			navigation: `
+[navigation]
+path_types = ["study-path"]
+`,
+			artifacts: `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`,
+			capability: func(s *schema.Schema) (bool, string) {
+				roles := s.NavigationRoles()
+				return roles.Available(), roles.Diagnostic()
+			},
+			otherAvailable: func(s *schema.Schema) bool { return s.ArtifactPolicy().Available() },
+			wantDiagnostic: `invalid navigation roles: missing required key "map_types"; Paths and Maps disabled`,
+		},
+		{
+			name: "navigation both keys",
+			navigation: `
+[navigation]
+`,
+			artifacts: `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`,
+			capability: func(s *schema.Schema) (bool, string) {
+				roles := s.NavigationRoles()
+				return roles.Available(), roles.Diagnostic()
+			},
+			otherAvailable: func(s *schema.Schema) bool { return s.ArtifactPolicy().Available() },
+			wantDiagnostic: `invalid navigation roles: missing required keys "path_types", "map_types"; Paths and Maps disabled`,
+		},
+		{
+			name: "artifact directories",
+			navigation: `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+`,
+			artifacts: `
+[artifacts]
+`,
+			capability: func(s *schema.Schema) (bool, string) {
+				policy := s.ArtifactPolicy()
+				return policy.Available(), policy.Diagnostic()
+			},
+			otherAvailable: func(s *schema.Schema) bool { return s.NavigationRoles().Available() },
+			wantDiagnostic: `invalid artifact policy: missing required key "non_instance_dirs"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := loadContractText(t, tt.navigation, tt.artifacts)
+			available, diagnostic := tt.capability(s)
+			if available {
+				t.Fatal("capability Available() = true with omitted required key, want false")
+			}
+			if diagnostic != tt.wantDiagnostic {
+				t.Errorf("capability Diagnostic() = %q, want %q", diagnostic, tt.wantDiagnostic)
+			}
+			if !tt.otherAvailable(s) {
+				t.Error("independent capability Available() = false, want true")
+			}
+		})
+	}
+}
+
 func TestNavigationRolesRejectUnknownPathType(t *testing.T) {
 	t.Parallel()
 
@@ -455,12 +553,18 @@ non_instance_dirs = []
 	if !roles.Available() {
 		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
 	}
+	if got := roles.Diagnostic(); got != "" {
+		t.Errorf("NavigationRoles().Diagnostic() = %q with explicit empty lists, want empty", got)
+	}
 	if roles.IsPathType("study-path") || roles.IsMapType("moc") {
 		t.Error("NavigationRoles() classifies a type with empty role lists, want neither role")
 	}
 	policy := s.ArtifactPolicy()
 	if !policy.Available() {
 		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+	}
+	if got := policy.Diagnostic(); got != "" {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q with explicit empty list, want empty", got)
 	}
 	if policy.IsNonInstance("System/templates/card.md") {
 		t.Error("ArtifactPolicy().IsNonInstance() = true with empty directory list, want false")

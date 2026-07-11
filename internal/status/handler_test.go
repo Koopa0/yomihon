@@ -160,6 +160,7 @@ func TestHandlerArtifactPolicyUnavailable(t *testing.T) {
 	}{
 		{name: "missing", contract: loadContractWithArtifactSection(t, ""), want: "contract declares no artifact policy; instance projections disabled until it does"},
 		{name: "invalid", contract: loadContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n"), want: `invalid artifact policy: non_instance_dirs contains "."`},
+		{name: "incomplete", contract: loadContractWithArtifactSection(t, "[artifacts]\n"), want: `invalid artifact policy: missing required key "non_instance_dirs"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
