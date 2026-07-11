@@ -471,18 +471,19 @@ func TestParseBranchesGoShape(t *testing.T) {
 	}
 }
 
-// TestParseBranchesMinnaShape covers the 大家 shape: only the
-// course-sequence branch holds an entry tree; the daily-loop (ordered
-// list), learning levels (a table), and gaps (task checkboxes) branches
-// carry no entry bullets and must prune away — even the gap task item that
-// contains a [[wikilink]], and even the loop's ordered item that contains
-// one. Entry bullets are "- **Lx** ... · [[Lxx]]"; a "待建" bullet with no
-// wikilink is not an entry. The H1 title is ignored.
+// TestParseBranchesMinnaShape covers the 大家 shape: the warm-up branch holds
+// direct P entries and the course-sequence branch holds a nested L entry tree;
+// the daily-loop (ordered list), learning levels (a table), and gaps (task
+// checkboxes) branches carry no entry bullets and must prune away — even the
+// gap task item that contains a [[wikilink]], and even the loop's ordered item
+// that contains one. A "待建" bullet with no wikilink is not an entry. The H1
+// title is ignored.
 func TestParseBranchesMinnaShape(t *testing.T) {
 	t.Parallel()
 
-	idx := resolver(t, "jp/L01 Intro.md", "jp/L02 Next.md", "jp/L03 Verbs.md")
+	idx := resolver(t, "jp/P01 Kana.md", "jp/L01 Intro.md", "jp/L02 Next.md", "jp/L03 Verbs.md")
 	statusByPath := map[string]string{
+		"jp/P01 Kana.md":  "draft",
 		"jp/L01 Intro.md": "draft",
 		"jp/L02 Next.md":  "draft",
 		"jp/L03 Verbs.md": schema.SealStatus,
@@ -491,6 +492,10 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 	body := "# Doc Title (an H1, ignored)\n" +
 		"\n" +
 		"> [!info] callout prose that mentions [[Loop Link]]\n" +
+		"\n" +
+		"## Kana warm-up (order = lines)\n" +
+		"\n" +
+		"- **P01** kana · [[P01 Kana]]\n" +
 		"\n" +
 		"## Daily loop\n" +
 		"\n" +
@@ -521,6 +526,13 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		"- [ ] todo (spec [[Another Guide]])\n"
 
 	want := []Branch{
+		{
+			Heading: "Kana warm-up (order = lines)",
+			Level:   2,
+			Entries: []Entry{
+				{Text: "P01 Kana", Target: "P01 Kana", RelPath: "jp/P01 Kana.md", Status: "draft"},
+			},
+		},
 		{
 			Heading: "Course sequence (order = lines)",
 			Level:   2,

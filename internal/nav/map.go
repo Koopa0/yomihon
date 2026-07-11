@@ -105,15 +105,16 @@ type branchNode struct {
 //
 // That predicate is what distinguishes the two files' non-navigation
 // branches without naming them: the Go map's parts/modules hold plain
-// "- [[Entry]]" bullets (all kept); the 大家 map's course-sequence
-// levels hold "- **L1** ... · [[L01 ...]]" bullets (kept), while its
-// daily-loop branch uses an ordered list (excluded — not a bullet), its
-// learning-level branch is a table (no list items), and its gaps branch
-// uses task checkboxes (excluded — even the one carrying a [[wikilink]]),
-// so all three prune away for having no entries. A "待建" bullet with no
-// wikilink is not counted because it names no target. General maps keep only
-// uniquely resolved rows; study paths keep every resolvable, unresolved, or
-// ambiguous wikilink row in its original position.
+// "- [[Entry]]" bullets (all kept); the 大家 map's warm-up part holds direct
+// "- **P01** ... [[P01 ...]]" entries and its course-sequence levels hold
+// "- **L1** ... · [[L01 ...]]" entries (both kept), while its daily-loop
+// branch uses an ordered list (excluded — not a bullet), its learning-level
+// branch is a table (no list items), and its gaps branch uses task checkboxes
+// (excluded — even the one carrying a [[wikilink]]), so all three prune away
+// for having no entries. A "待建" bullet with no wikilink is not counted
+// because it names no target. General maps keep only uniquely resolved rows;
+// study paths keep every resolvable, unresolved, or ambiguous wikilink row in
+// its original position.
 func parseBranches(
 	body string,
 	idx Resolver,
