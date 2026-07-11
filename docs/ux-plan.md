@@ -371,9 +371,12 @@ the day a new one lands. **The vault's own maps are the navigation.**
    `moc` served by a type named `Syllabus` is the kind of lie the naming
    rules exist to prevent. The `/syllabus/` route keeps its name (it renders
    study-paths; maps are notes and already have a page).
-2. **Only what exists appears.** A tree entry is a resolved wikilink; the
-   reading map's hundreds of unwritten rows stay on the map's own page. The
-   sidebar shows the written vault and grows as fast as the writing does.
+2. **Resolution is role-specific, and templates are not instances.** General
+   maps keep resolved-only navigation; study paths retain unresolved and
+   ambiguous entries in source order as warning, non-link rows.
+   `System/templates` is excluded from instance projections but remains
+   present in Folders and direct reading. Zero-entry maps keep the current
+   `<details>` plus “Open map” presentation this round.
 3. **Wayfinding generalizes.** The reverse index extends to every map:
    reading a humanities 心得 auto-opens the reading map at its theme
    section, current entry marked — the same arrival a lesson gets.

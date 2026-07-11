@@ -269,3 +269,47 @@ It is therefore one pinned constant in `internal/schema`, named for the seal
 and not for its owner, with the toml as its citation. Should the schema ever
 mark the seal explicitly, the constant becomes a derivation and the consumers
 do not move.
+
+## D47 The instance contract separates paths, maps, and artifacts (Koopa, 2026-07-11)
+
+The vault contract now declares navigation roles and non-instance locality.
+Study paths retain unresolved and ambiguous entries in source order as warning,
+non-link rows; general maps expose uniquely resolved entries only in navigation,
+while their reading pages keep every row. `[navigation]` accepts only disjoint,
+duplicate-free `path_types` and `map_types` drawn from `[enums].type`; one bad
+value invalidates the whole role set.
+
+`[navigation]` and `[artifacts]` validate and degrade independently. Missing or
+invalid navigation roles disable Paths and Maps with a named diagnostic, without
+closing aggregates or writes. Missing or invalid artifact policy disables
+Paths/Maps, Home recent/lifecycle/pending projections, metadata-filtered search,
+and the write face identically, with no all-files fallback; Folders, direct and
+raw reading, reports, and text search remain available. Their diagnostics differ:
+missing is exactly
+`contract declares no artifact policy; instance projections disabled until it does`;
+invalid names the offending value. Core TOML or lifecycle failure keeps the
+standing whole-contract degradation.
+
+Artifact locality is frozen as NFC-normalized, vault-relative component-prefix
+matching. Empty, `.`, `..`, absolute, and backslash paths are rejected; a path
+matches directory `D` only when it equals `D` or begins with `D + "/"`, so
+`System/templates-old` does not match `System/templates`.
+
+A non-instance file is absent from Paths/Maps, reverse placements, Home recent,
+structured-search results, lifecycle and pending counts, and lesson reading
+enhancements; its status UI is a quiet non-governable state with no forms, and
+`/status` rejects it. It remains present in Folders, direct note/file/raw reading,
+bare-text and folder search, and unchanged wikilink resolution and diagnostics;
+judge keeps its own scan policy. Metadata filters (`type`, `status`, `domain`,
+`topic`, `slug`) require valid artifact policy. Without it, any query containing
+one — including a mixed metadata-and-text query — is explicitly unavailable,
+never treated as an ignored filter or zero results; bare-text and folder queries
+continue.
+
+Status writes parse the form, normalize and validate the path, then reject a
+non-instance before stat/read/git: `ErrNonInstance` is HTTP 422 with the fixed
+reason `not a governable artifact`, including for a nonexistent target. Missing
+or invalid artifact policy is a distinct HTTP 503 from core-contract closure.
+Zero-entry maps keep the current `<details>` plus “Open map” presentation in this
+round. 4M remains prohibited; only a concrete user task blocked by the current
+presentation may reopen it.
