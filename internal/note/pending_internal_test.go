@@ -44,7 +44,7 @@ func TestPending(t *testing.T) {
 		}
 	}
 	snap := &snapshot.Snapshot{Search: search.BuildFromDocs(docs, contract.ArtifactPolicy())}
-	policy := status.NewService(t.TempDir(), contract)
+	policy := status.NewService(t.TempDir(), contract, contract.ArtifactPolicy())
 
 	count, known := pending(policy, snap)
 	if !known {
@@ -54,7 +54,7 @@ func TestPending(t *testing.T) {
 		t.Errorf("pending() = %d, want 6 (imported 2 + draft 4; the seal is excluded, beyond has no onward move)", count)
 	}
 
-	closed := status.NewService(t.TempDir(), nil)
+	closed := status.NewService(t.TempDir(), nil, schema.ArtifactPolicy{})
 	if _, known := pending(closed, snap); known {
 		t.Error("pending() known = true on a closed write face, want false")
 	}

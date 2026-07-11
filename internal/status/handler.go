@@ -55,8 +55,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.svc.Flip(r.Context(), path, from, to)
-	switch {
-	case err == nil:
+	if err == nil {
 		// On the seal (→ ready) carry a one-shot ?sealed=1 so the reading page
 		// plays the settle animation once and then strips it; every other
 		// transition redirects plainly. The query suffix is appended after the
@@ -69,8 +68,13 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		// Service.Flip's filepath.IsLocal vault-escape check; "/notes/" and the
 		// query are fixed same-origin literals, not attacker-controlled.
 		http.Redirect(w, r, target, http.StatusSeeOther)
-	case errors.Is(err, ErrClosed):
-		http.Error(w, "the vault contract is unavailable; the write face is closed (fail-closed)", http.StatusServiceUnavailable)
+		return
+	}
+	if respondBoundaryError(w, err) {
+		return
+	}
+
+	switch {
 	case errors.Is(err, ErrStale):
 		http.Error(w, "this page is stale; reload and try again", http.StatusConflict)
 	case errors.Is(err, ErrConcurrentWrite):
@@ -103,6 +107,22 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("flip failed", "path", path, "from", from, "to", to, "error", err)
 		http.Error(w, "cannot flip status", http.StatusInternalServerError)
 	}
+}
+
+func respondBoundaryError(w http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, ErrInvalidPath):
+		http.Error(w, "path must be a local vault-relative slash path", http.StatusUnprocessableEntity)
+	case errors.Is(err, ErrClosed):
+		http.Error(w, "the vault contract is unavailable; the write face is closed (fail-closed)", http.StatusServiceUnavailable)
+	case errors.Is(err, ErrArtifactPolicyUnavailable):
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	case errors.Is(err, ErrNonInstance):
+		http.Error(w, NonInstanceReason, http.StatusUnprocessableEntity)
+	default:
+		return false
+	}
+	return true
 }
 
 // notesHref builds the reading-page location a successful flip redirects to. It

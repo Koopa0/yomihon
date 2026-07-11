@@ -8,13 +8,16 @@ import (
 
 // HomeView is the read-only landing surface: four dashboard blocks assembled
 // from one vault snapshot, then the rendered vault README. Sidebar carries the
-// shared shell navigation; lifecycle availability is diagnostic state and no
-// mutation form appears in Home.
+// shared shell navigation. Recent, Lifecycle, and Study Paths carry explicit
+// capability diagnostics rather than presenting unavailable projections as
+// empty; no mutation form appears in Home.
 type HomeView struct {
 	Recent              []HomeNote
+	RecentDiagnostic    string
 	Lifecycle           []LifecycleItem
 	LifecycleDiagnostic string
 	Paths               []HomePath
+	PathDiagnostics     []string
 	ReadmeHTML          string
 	Sidebar             Sidebar
 }
@@ -56,7 +59,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 					<div class="y-homegrid">
 						<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
 							@homeBlockHead("home-recent-title", "Recently changed", "What changed on disk")
-							if len(v.Recent) > 0 {
+							if v.RecentDiagnostic != "" {
+								<p class="y-homeempty" data-home-recent-diagnostic>{ v.RecentDiagnostic }</p>
+							} else if len(v.Recent) > 0 {
 								<div class="y-homerecent">
 									for _, n := range v.Recent {
 										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
@@ -99,7 +104,11 @@ templ Home(v HomeView, c layouts.Chrome) {
 
 						<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
 							@homeBlockHead("home-paths-title", "Study paths", "Continue through the vault's courses")
-							if len(v.Paths) > 0 {
+							if len(v.PathDiagnostics) > 0 {
+								for _, diagnostic := range v.PathDiagnostics {
+									<p class="y-homeempty" data-home-paths-diagnostic>{ diagnostic }</p>
+								}
+							} else if len(v.Paths) > 0 {
 								<div class="y-homepaths">
 									for _, p := range v.Paths {
 										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>

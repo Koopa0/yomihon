@@ -254,7 +254,7 @@ func run(log *slog.Logger) error {
 			"version", contract.Version, "lifecycle_statuses", len(contract.Lifecycle))
 	}
 
-	statusSvc := status.NewService(cfg.root, contract)
+	statusSvc := status.NewService(cfg.root, contract, artifactPolicy)
 
 	// Lesson slot sidecars load once from System/slots/, a separate read
 	// path from the vault scanner (slots are never indexed as notes). Fail-open

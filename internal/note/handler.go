@@ -36,15 +36,17 @@ const typeLesson = "lesson"
 const homeRecentLimit = 7
 
 // StatusPolicy is the read-only projection of the write face the reading page
-// needs: whether the face is closed (Closed), which transition keys to offer
-// (Transitions), the stable note-status axis Home lists (Order), and whether a
-// note still has an owner-held onward move (Advanceable), for the topbar's
-// pending-decision count. It is a genuine slice of *status.Service —
+// needs: whether the face is closed (Closed), its closure reason
+// (WriteDiagnostic), which path-aware transition keys to offer (Transitions),
+// the stable note-status axis Home lists (Order), and whether a note still has
+// an owner-held onward move (Advanceable), for the topbar's pending-decision
+// count. It is a genuine slice of *status.Service —
 // never its write path: Flip, the single status write, stays out of the reading
 // page's reach. *status.Service satisfies this.
 type StatusPolicy interface {
 	Closed() bool
-	Transitions(noteType, current string) []string
+	WriteDiagnostic() string
+	Transitions(relPath, noteType, current string) []string
 	Order() []string
 	Advanceable(noteType, current string) bool
 }
@@ -132,11 +134,26 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	result := renderer.HTML(readme.Body)
 	shell := ShellData(h.deps.Status, snap)
 	lifecycle, lifecycleDiagnostic := h.lifecycle(snap, "")
+	recent := recentHomeNotes(snap.Nav.KnowledgeNotes)
+	recentDiagnostic := ""
+	if !snap.ArtifactPolicy.Available() {
+		recent = nil
+		recentDiagnostic = snap.ArtifactPolicy.Diagnostic()
+	}
+	pathDiagnostics := make([]string, 0, 2)
+	if snap.Nav.NavigationDiagnostic != "" {
+		pathDiagnostics = append(pathDiagnostics, snap.Nav.NavigationDiagnostic)
+	}
+	if snap.Nav.ArtifactDiagnostic != "" {
+		pathDiagnostics = append(pathDiagnostics, snap.Nav.ArtifactDiagnostic)
+	}
 	view := pages.HomeView{
-		Recent:              recentHomeNotes(snap.Nav.KnowledgeNotes),
+		Recent:              recent,
+		RecentDiagnostic:    recentDiagnostic,
 		Lifecycle:           lifecycle,
 		LifecycleDiagnostic: lifecycleDiagnostic,
 		Paths:               homePaths(snap.Nav.Paths),
+		PathDiagnostics:     pathDiagnostics,
 		ReadmeHTML:          result.HTML,
 		Sidebar:             pages.NewSidebar(snap.Nav, ""),
 	}
@@ -184,19 +201,21 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 
 	snap := h.deps.Snapshot()
 	renderer := h.deps.Renderer.WithResolver(snap.Graph)
+	policy := snap.ArtifactPolicy
+	nonInstance := policy.Available() && policy.IsNonInstance(n.RelPath)
+	instance := policy.Available() && !nonInstance
 	// render.Renderer.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := renderer.HTML(n.Body)
 
-	// Lesson bodies get the read-aloud affordance: wrap each ruby-bearing
+	// Governed lesson bodies get the read-aloud affordance: wrap each ruby-bearing
 	// sentence with a speak button whose text has the furigana stripped
-	// server-side (render.InjectTTS). The gate is here, not in render, so
-	// render.HTML stays a generic note renderer — a diary or concept note that
-	// contains <ruby> never grows speaker buttons. A lesson with a slot sidecar
-	// (joined by slug, never filename) also gets its sentence-pattern machine spliced in,
-	// and its wikilinks to concept notes become in-app sheet triggers.
+	// server-side (render.InjectTTS). Both governed-instance classification and
+	// the lesson type are required here before any lesson affordance is added. A
+	// governed lesson with a slot sidecar also gets its sentence-pattern machine,
+	// and its concept wikilinks become in-app sheet triggers.
 	var concepts []lesson.ConceptDoc
-	if n.Type() == typeLesson {
+	if instance && n.Type() == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML)
 		result.HTML = h.injectSlotMachine(r.Context(), rel, n.Slug(), result.HTML)
 		var refs []string
@@ -211,40 +230,49 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Type:              n.Type(),
 		Status:            n.Status(),
 		SealTarget:        schema.SealStatus,
-		Sealed:            n.Status() == schema.SealStatus,
+		Sealed:            instance && n.Status() == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
 		Sidebar:           pages.NewSidebar(snap.Nav, n.RelPath),
-		WriteClosed:       h.deps.Status.Closed(),
+		NonInstance:       nonInstance,
+		WriteDiagnostic:   h.deps.Status.WriteDiagnostic(),
 		Concepts:          concepts,
 	}
-	switch {
-	case n.FMDiagnostic != "":
-		// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
-		// write.
-	case n.Frontmatter == nil:
-		// Legally no frontmatter (e.g. drills): no keys either.
-		view.NoFrontmatter = true
-	default:
-		view.Transitions = h.deps.Status.Transitions(n.Type(), n.Status())
-	}
-
-	// A sealed note shows provenance, so only then spend a git read for the commit
-	// short-hash and honor the one-shot ?sealed=1 ceremony signal.
-	if view.Sealed {
-		view.JustSealed = r.URL.Query().Get("sealed") == "1"
-		if hash, herr := h.deps.Provenance(r.Context(), rel); herr == nil {
-			view.SealedHash = hash
-		} else {
-			h.deps.Log.Warn("seal provenance", "path", rel, "error", herr)
+	if instance {
+		switch {
+		case n.FMDiagnostic != "":
+			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
+			// write.
+		case n.Frontmatter == nil:
+			// Legally no frontmatter (e.g. drills): no keys either.
+			view.NoFrontmatter = true
+		default:
+			view.Transitions = h.deps.Status.Transitions(n.RelPath, n.Type(), n.Status())
 		}
 	}
+
+	h.addSealProvenance(r.Context(), rel, r.URL.Query().Get("sealed") == "1", &view)
 
 	if err := pages.Note(view, shell.Chrome(r, n.Title())).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}
+}
+
+// addSealProvenance performs the git read only for a governed sealed note and
+// carries the redirect's one-shot ceremony signal into the view.
+func (h *Handler) addSealProvenance(ctx context.Context, rel string, justSealed bool, view *pages.NoteView) {
+	if !view.Sealed {
+		return
+	}
+	view.JustSealed = justSealed
+	hash, err := h.deps.Provenance(ctx, rel)
+	if err != nil {
+		h.deps.Log.Warn("seal provenance", "path", rel, "error", err)
+		return
+	}
+	view.SealedHash = hash
 }
 
 // injectSlotMachine splices this lesson's slot-pattern machine into its rendered
@@ -297,10 +325,10 @@ func (h *Handler) loadConcepts(renderer *render.Renderer, refs []string) []lesso
 // unavailable artifact-metadata capability, so Home never presents either as a
 // successful empty projection.
 func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) (items []pages.LifecycleItem, diagnostic string) {
-	if h.deps.Status.Closed() {
+	order := h.deps.Status.Order()
+	if order == nil {
 		return nil, "Lifecycle is unavailable while the contract is closed."
 	}
-	order := h.deps.Status.Order()
 	if len(order) == 0 {
 		return nil, "Lifecycle is unavailable because the contract declares no note statuses."
 	}

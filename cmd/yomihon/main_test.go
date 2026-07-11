@@ -66,7 +66,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 
 	// A fail-closed writing service: reachable by the reading page as a
 	// dependency, but never driven here.
-	svc := status.NewService(root, nil)
+	svc := status.NewService(root, nil, schema.ArtifactPolicy{})
 	shellForSnapshot := func(snap *snapshot.Snapshot) pages.ShellData { return note.ShellData(svc, snap) }
 	shellProvider := func() pages.ShellData { return shellForSnapshot(store.Current()) }
 	searchProvider := func() search.RequestSnapshot {
