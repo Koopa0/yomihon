@@ -491,8 +491,7 @@ func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
 
 	for _, capability := range []any{schema.NavigationRoles{}, schema.ArtifactPolicy{}} {
 		typ := reflect.TypeOf(capability)
-		for fieldIndex := range typ.NumField() {
-			field := typ.Field(fieldIndex)
+		for field := range typ.Fields() {
 			if field.IsExported() && (field.Type.Kind() == reflect.Map || field.Type.Kind() == reflect.Slice) {
 				t.Errorf("%s.%s exposes mutable %s backing state", typ.Name(), field.Name, field.Type.Kind())
 			}
