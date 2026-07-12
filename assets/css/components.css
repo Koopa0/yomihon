@@ -343,12 +343,19 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose .mermaid-diagram svg { max-width: 100%; height: auto; }
 /* Shimmer while the client render is genuinely coming: gated on the boot
    signal so a page without the script keeps the plain source text, and
-   released if a diagram fails to render (data-mermaid-error). */
-[data-js] .y-prose .mermaid-diagram:not([data-mermaid-error]):not(:has(svg)) {
+   released if the module or one diagram fails (data-mermaid-error on the
+   root or block). */
+[data-js]:not([data-mermaid-error]) .y-prose .mermaid-diagram:not([data-mermaid-error]):not(:has(svg)) {
   color: transparent;
   background: linear-gradient(100deg, var(--panel) 40%, var(--elevated) 50%, var(--panel) 60%);
   background-size: 200% 100%;
   animation: y-shimmer 1.4s linear infinite;
+}
+[data-js][data-mermaid-error] .y-prose .mermaid-diagram:not(:has(svg)),
+[data-js] .y-prose .mermaid-diagram[data-mermaid-error]:not(:has(svg)) {
+  color: var(--fg-subtle);
+  background: var(--panel);
+  animation: none;
 }
 @keyframes y-shimmer { from { background-position: 120% 0; } to { background-position: -80% 0; } }
 

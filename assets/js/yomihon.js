@@ -624,7 +624,10 @@
     initTTS();
     initSlots();
     initConceptSheet();
-    renderMermaidDiagrams();
+    renderMermaidDiagrams().catch((err) => {
+      root.setAttribute('data-mermaid-error', '');
+      console.warn('[yomihon] mermaid rendering failed outside a diagram:', err);
+    });
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
