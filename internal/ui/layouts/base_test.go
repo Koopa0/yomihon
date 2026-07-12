@@ -6,6 +6,17 @@ import (
 	"testing"
 )
 
+func TestBaseDeclaresTraditionalChineseDocumentLanguage(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{Title: "測試"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render base: %v", err)
+	}
+	if html := buf.String(); !strings.Contains(html, `<html lang="zh-Hant"`) {
+		t.Errorf("base does not declare the interface language; html = %q", html)
+	}
+}
+
 func TestHeaderAdvanceableChip(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
