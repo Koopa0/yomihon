@@ -53,6 +53,7 @@ func TestBuildRealVault(t *testing.T) {
 
 	goPath := findPath(t, m, "Go 課綱")
 	minnaPath := findPath(t, m, "大家")
+	kanaMap := findMap(t, m, "假名流暢度支線")
 
 	// --- structure: 大家 is NOT isomorphic to Go ---
 	// Go: 9 H2 parts, 28 H3 modules, 119 entries — all headings kept.
@@ -65,28 +66,28 @@ func TestBuildRealVault(t *testing.T) {
 	if got := countEntries(goPath.Branches); got != 119 {
 		t.Errorf("Go syllabus entries = %d, want 119", got)
 	}
-	// 大家: the direct-entry warm-up and nested course-sequence parts survive;
-	// loop/table/gaps drop out. Together they hold 7 + 20 entries.
-	if got := len(minnaPath.Branches); got != 2 {
-		t.Errorf("大家 syllabus top-level parts = %d, want 2 (warm-up and course sequence)", got)
+	// 大家 is the one course spine: only the nested L01-L20 sequence survives;
+	// loop/table/gaps drop out. P01-P07 live in a separate topic-map support
+	// lane, so they must not inflate the study-path progress denominator.
+	if got := len(minnaPath.Branches); got != 1 {
+		t.Errorf("大家 syllabus top-level parts = %d, want 1 course sequence", got)
 	}
 	gotMinnaHeadings := make([]string, 0, len(minnaPath.Branches))
 	for _, branch := range minnaPath.Branches {
 		gotMinnaHeadings = append(gotMinnaHeadings, branch.Heading)
 	}
 	wantMinnaHeadings := []string{
-		"L1 前假名閱讀暖身(順序 = 行序)",
 		"課程序列(順序 = 行序)",
 	}
 	if diff := cmp.Diff(wantMinnaHeadings, gotMinnaHeadings); diff != "" {
 		t.Errorf("大家 top-level branch order mismatch (-want +got):\n%s", diff)
 	}
-	if got := countEntries(minnaPath.Branches); got != 27 {
-		t.Errorf("大家 syllabus entries = %d, want 27", got)
+	if got := countEntries(minnaPath.Branches); got != 20 {
+		t.Errorf("大家 syllabus entries = %d, want 20", got)
 	}
-	warmup := findBranch(t, minnaPath.Branches, "L1 前假名閱讀暖身(順序 = 行序)")
-	if got := len(warmup.Entries); got != 7 {
-		t.Errorf("大家 warm-up entries = %d, want 7", got)
+	kanaSequence := findBranch(t, kanaMap.Branches, "假名解碼與流暢度(順序 = 行序)")
+	if got := len(kanaSequence.Entries); got != 7 {
+		t.Errorf("假名流暢度支線 sequence entries = %d, want 7", got)
 	}
 	course := findBranch(t, minnaPath.Branches, "課程序列(順序 = 行序)")
 	if got := len(course.Sub); got != 5 {
@@ -107,10 +108,10 @@ func TestBuildRealVault(t *testing.T) {
 	assertLeadingTargets(t, "Go", goEntries, wantGoHead)
 
 	minnaEntries := flattenEntries(minnaPath.Branches)
-	wantWarmupHead := []string{
+	wantKanaHead := []string{
 		"P01 清音基礎", "P02 濁音・半濁音", "P03 拗音",
 	}
-	assertLeadingTargets(t, "大家 warm-up", warmup.Entries, wantWarmupHead)
+	assertLeadingTargets(t, "假名流暢度支線", kanaSequence.Entries, wantKanaHead)
 	wantCourseHead := []string{
 		"L01 〜は〜です", "L02 これ・それ・あれ", "L03 ここ・そこ・あそこ",
 	}
@@ -175,6 +176,17 @@ func findPath(t *testing.T, m *Model, relPathSubstr string) Map {
 		}
 	}
 	t.Fatalf("no study-path note whose path contains %q; found %d paths", relPathSubstr, len(m.Paths))
+	return Map{}
+}
+
+func findMap(t *testing.T, m *Model, relPathSubstr string) Map {
+	t.Helper()
+	for _, candidate := range m.Maps {
+		if strings.Contains(candidate.RelPath, relPathSubstr) {
+			return candidate
+		}
+	}
+	t.Fatalf("no map note whose path contains %q; found %d maps", relPathSubstr, len(m.Maps))
 	return Map{}
 }
 
