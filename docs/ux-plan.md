@@ -128,8 +128,15 @@ chips kept), **Lifecycle** (collapsed, backlog count — retires per §13.6),
 **Reports**, **Folders** (ancestor chain auto-expanded, note marked). §13
 grows Paths into Paths & Maps and adds Journal.
 
-Width fixed at 264px; the ≤900px drawer stays; no resize handle (a single
-user restyles a CSS token; revisit only if daily use disproves it).
+Width fixed at 264px; the ≤900px drawer stays when JavaScript enhances the
+page; no resize handle (a single user restyles a CSS token; revisit only if
+daily use disproves it). T1b (2026-07-12) pins the fallback and focus contract:
+without JavaScript the sidebar remains stacked in normal flow and the hidden
+hamburger exposes no dead control. With JavaScript, the closed rail is inert
+and hidden from assistive technology, opening moves and contains focus inside,
+and toggle, scrim, or Escape closure restores focus to the trigger. When the
+filter holds text, its first Escape clears the filter; only the next Escape
+closes the drawer.
 
 `<details>` disclosure animates via `interpolate-size` + `::details-content`
 (CSS only); reduced-motion disables it.

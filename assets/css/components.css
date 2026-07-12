@@ -926,15 +926,21 @@ html, body { margin: 0; background: var(--bg); }
   .y-syl { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lesson { gap: 10px; }
-  .y-hamburger { display: inline-flex; }
+  /* The sidebar is ordinary stacked content until the enhancement runtime
+     marks the document. With JS off it therefore remains reachable, and the
+     drawer-only hamburger keeps no dead face in the header. */
   .y-rail-left {
+    position: static; width: auto; max-height: none;
+  }
+  html[data-js] .y-hamburger { display: inline-flex; }
+  html[data-js] .y-rail-left {
     position: fixed; top: 56px; bottom: 0; left: 0; width: min(300px, 86vw);
     max-height: none; z-index: 45; transform: translateX(-102%);
     transition: transform .18s var(--ease-standard); box-shadow: var(--shadow-2);
   }
-  [data-nav="open"] .y-rail-left { transform: none; }
-  [data-nav="open"] .y-nav-scrim { display: block; }
-  [data-nav="open"] .y-main { overflow: hidden; }
+  html[data-js][data-nav="open"] .y-rail-left { transform: none; }
+  html[data-js][data-nav="open"] .y-nav-scrim { display: block; }
+  html[data-js][data-nav="open"] .y-main { overflow: hidden; }
   .y-searchbtn { min-width: 0; }
   .y-searchbtn__label, .y-searchbtn .ui-kbd { display: none; }
   .y-article { padding: 32px 24px 120px; }

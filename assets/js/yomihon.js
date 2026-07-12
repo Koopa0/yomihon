@@ -5,7 +5,8 @@
      - theme / furigana toggles: flip the root data-* attribute + cookie; the
        server renders the correct state on first byte and CSS does the visual
        switch, so JS only persists the choice.
-     - nav drawer (narrow screens): open/close via the root data-nav attribute.
+     - nav drawer (narrow screens): the no-JS sidebar stays stacked and usable;
+       JS alone adds the root data-nav state, inert closed state, and focus cycle.
      - the seal: a press-and-hold gesture layered on a plain <form method="post">.
        On completion it calls form.requestSubmit() — never fetch — so the server
        sees exactly the no-JS submit; with JS off the button is a one-press seal.
@@ -54,20 +55,87 @@
   }
 
   // ---- nav drawer (≤900) ---------------------------------------------------
-  // One writer for the drawer state: flip the root data-nav attribute (CSS
-  // reveals or hides the rail as a drawer) and keep the hamburger's expanded
-  // state honest for assistive tech, from wherever the state is changed.
+  // Without this module the rail is ordinary stacked content and the hamburger
+  // is hidden. At narrow widths JS upgrades that baseline into a modal-like
+  // drawer: the closed rail is inert/hidden from AT, opening moves focus in,
+  // Tab wraps inside, and every close path restores the trigger. data-nav is
+  // client-only state; the server never stamps an initial value.
+  const drawerMedia = window.matchMedia('(max-width: 900px)');
+  let drawerRail = null;
+  let drawerToggle = null;
+  function drawerOpen() {
+    return drawerMedia.matches && root.dataset.nav === 'open';
+  }
+  function drawerFocusables() {
+    if (!drawerRail) return [];
+    return [...drawerRail.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [contenteditable], [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => el.tabIndex >= 0 && !el.hidden && el.getClientRects().length > 0);
+  }
   function setNav(open) {
     root.dataset.nav = open ? 'open' : 'closed';
-    const toggle = document.querySelector('[data-nav-toggle]');
-    if (toggle) toggle.setAttribute('aria-expanded', String(open));
+    if (drawerToggle) drawerToggle.setAttribute('aria-expanded', String(open));
+    if (!drawerRail) return;
+    if (!drawerMedia.matches) {
+      drawerRail.inert = false;
+      drawerRail.removeAttribute('aria-hidden');
+      return;
+    }
+    drawerRail.inert = !open;
+    if (open) { drawerRail.removeAttribute('aria-hidden'); } else { drawerRail.setAttribute('aria-hidden', 'true'); }
+  }
+  function focusDrawer() {
+    const target = drawerFocusables()[0] || drawerRail;
+    target?.focus();
+  }
+  function openDrawer() {
+    if (!drawerMedia.matches || !drawerRail) return;
+    setNav(true);
+    focusDrawer();
+  }
+  function closeDrawer(restoreFocus) {
+    setNav(false);
+    if (restoreFocus && drawerMedia.matches) drawerToggle?.focus();
+  }
+  function containDrawerFocus(e) {
+    if (!drawerOpen() || e.key !== 'Tab') return;
+    if (document.querySelector('dialog[open]')) return; // the native modal owns focus while it is open
+    const focusable = drawerFocusables();
+    if (focusable.length === 0) {
+      e.preventDefault();
+      drawerRail?.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !drawerRail.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !drawerRail.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
   }
   function initDrawer() {
-    document.querySelector('[data-nav-toggle]')?.addEventListener('click', () => {
-      setNav(root.dataset.nav !== 'open');
+    drawerRail = document.querySelector('#nav-rail');
+    drawerToggle = document.querySelector('[data-nav-toggle]');
+    if (!drawerRail || !drawerToggle) {
+      if (drawerToggle) drawerToggle.hidden = true;
+      return;
+    }
+    drawerRail.tabIndex = -1;
+    setNav(false);
+    drawerToggle.addEventListener('click', () => {
+      if (drawerOpen()) { closeDrawer(true); } else { openDrawer(); }
     });
     document.querySelector('[data-nav-close]')?.addEventListener('click', () => {
+      closeDrawer(true);
+    });
+    window.addEventListener('keydown', containDrawerFocus);
+    drawerMedia.addEventListener('change', () => {
+      const restoreFocus = drawerMedia.matches && drawerRail.contains(document.activeElement);
       setNav(false);
+      if (restoreFocus) drawerToggle.focus();
     });
   }
 
@@ -431,19 +499,25 @@
         return;
       }
       if (e.key === 'Escape') {
-        if (root.dataset.nav === 'open') setNav(false);
+        if (drawerOpen()) closeDrawer(true);
         holdEnd();
         return; // <dialog> closes itself on Escape
       }
       if (typing || (dialog && dialog.open)) return;
       if (e.key === '/') {
         const filter = document.querySelector('[data-nav-filter]');
-        if (filter && !filter.hidden) { e.preventDefault(); filter.focus(); }
+        if (filter && !filter.hidden) {
+          e.preventDefault();
+          if (drawerMedia.matches && !drawerOpen()) openDrawer();
+          filter.focus();
+        }
         return;
       }
       if (e.key === '[') {
-        e.preventDefault();
-        setNav(root.dataset.nav !== 'open');
+        if (drawerMedia.matches) {
+          e.preventDefault();
+          if (drawerOpen()) { closeDrawer(true); } else { openDrawer(); }
+        }
         return;
       }
       if ((e.key === 'r' || e.key === 'R') && !e.repeat && sealForm && !sealing) {

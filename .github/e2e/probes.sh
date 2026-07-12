@@ -23,6 +23,7 @@ probes=(
   "palette.mjs|/"
   "search-behavior.mjs|/"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
+  "drawer-contract.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
