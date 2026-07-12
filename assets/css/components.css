@@ -433,11 +433,13 @@ html, body { margin: 0; background: var(--bg); }
    viewports (the rail is hidden) and no-aid notes (the rail's column is
    dropped, the sibling rule under .y-shell--rail-empty reveals this bar).
    ============================================================ */
-.y-sealbar { display: none; align-items: center; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
+.y-sealbar { display: none; align-items: center; flex-wrap: wrap; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
   padding: 10px 16px; border-top: 1px solid var(--border);
   background: color-mix(in oklch, var(--panel) 92%, transparent); backdrop-filter: blur(10px); }
 .y-sealbar__spacer { flex: 1; }
 .y-sealbar .y-sealbtn { width: auto; height: 40px; padding: 0 16px; flex: none; }
+.y-sealbar .y-xbtn { width: auto; padding-inline: 14px; }
+.y-sealbar .y-sealpoem { display: none; }
 .y-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
 
 /* ============================================================

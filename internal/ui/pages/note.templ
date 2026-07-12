@@ -494,13 +494,7 @@ templ statusPanel(v NoteView) {
 					}
 				default:
 					<div class="y-statuspanel__forms">
-						for _, to := range v.Transitions {
-							if to == v.SealTarget {
-								@sealForm(v)
-							} else {
-								@transitionForm(v, to)
-							}
-						}
+						@legalTransitionForms(v)
 					</div>
 			}
 		}
@@ -558,6 +552,19 @@ templ transitionForm(v NoteView, to string) {
 	</form>
 }
 
+// legalTransitionForms renders the complete schema-provided set for either
+// status face. The seal target alone gets the hold ceremony; every other
+// target remains a quiet one-click form.
+templ legalTransitionForms(v NoteView) {
+	for _, to := range v.Transitions {
+		if to == v.SealTarget {
+			@sealForm(v)
+		} else {
+			@transitionForm(v, to)
+		}
+	}
+}
+
 // diagnostics is the read-only diagnostics rail: the frontmatter
 // diagnostic and every render diagnostic, amber, stated but never repaired.
 templ diagnostics(v NoteView) {
@@ -596,9 +603,9 @@ templ diagnostics(v NoteView) {
 // sealBar is the status face at every width where the right rail is absent:
 // narrow viewports hide the rail, and a note with no reading aids drops its
 // column entirely. It mirrors the status panel's states — the sealed badge,
-// the current chip with the seal form when legal (shared data-seal hook, so
-// the hold ceremony behaves identically), and the closed-face notices — so
-// the write face's state always has somewhere to appear. A frontmatter
+// the current chip with every legal transition (shared data-seal hook, so the
+// hold ceremony behaves identically), and the closed-face notices — so the
+// write face's state always has somewhere to appear. A frontmatter
 // diagnostic suppresses governance state because no status was parsed; a
 // non-instance remains named because that classification comes from its path,
 // independent of frontmatter.
@@ -618,14 +625,16 @@ templ sealBar(v NoteView) {
 						<span class="y-sealed__label">{ v.SealTarget }</span>
 					</div>
 					<span class="y-actor">鈐印 · sealed</span>
+					if len(v.Transitions) > 0 {
+						<span class="y-sealbar__spacer"></span>
+						@legalTransitionForms(v)
+					}
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
-					if hasSeal(v.Transitions, v.SealTarget) {
-						@sealForm(v)
-					}
+					@legalTransitionForms(v)
 			}
 		</div>
 	}
@@ -640,14 +649,4 @@ func statusState(v NoteView) string {
 	default:
 		return "instance"
 	}
-}
-
-// hasSeal reports whether target is among the legal transitions.
-func hasSeal(transitions []string, target string) bool {
-	for _, t := range transitions {
-		if t == target {
-			return true
-		}
-	}
-	return false
 }

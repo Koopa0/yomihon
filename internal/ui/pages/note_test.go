@@ -244,4 +244,61 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("unsealed note carries every legal transition", func(t *testing.T) {
+		t.Parallel()
+
+		v := NoteView{
+			RelPath:     "a.md",
+			Status:      "draft",
+			SealTarget:  schema.SealStatus,
+			Transitions: []string{schema.SealStatus, "archived"},
+		}
+		var buf bytes.Buffer
+		if err := sealBar(v).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render seal bar: %v", err)
+		}
+		html := buf.String()
+		for _, want := range []string{
+			`name="to" value="ready"`,
+			`name="to" value="archived"`,
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("seal bar is missing %q", want)
+			}
+		}
+		if got, want := strings.Count(html, `name="to"`), 2; got != want {
+			t.Errorf("seal bar transition form count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("sealed note carries onward transition after badge", func(t *testing.T) {
+		t.Parallel()
+
+		v := NoteView{
+			RelPath:     "a.md",
+			Status:      schema.SealStatus,
+			SealTarget:  schema.SealStatus,
+			Sealed:      true,
+			Transitions: []string{"archived"},
+		}
+		var buf bytes.Buffer
+		if err := sealBar(v).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render seal bar: %v", err)
+		}
+		html := buf.String()
+		badgeIndex := strings.Index(html, "y-sealed")
+		if badgeIndex < 0 {
+			t.Fatal("seal bar is missing the sealed badge")
+		}
+		toIndex := strings.Index(html, `name="to" value="archived"`)
+		if toIndex < 0 {
+			t.Error(`seal bar is missing name="to" value="archived"`)
+		} else if toIndex < badgeIndex {
+			t.Error("seal bar renders the onward transition before the sealed badge")
+		}
+		if got, want := strings.Count(html, `name="to"`), 1; got != want {
+			t.Errorf("seal bar transition form count = %d, want %d", got, want)
+		}
+	})
 }
