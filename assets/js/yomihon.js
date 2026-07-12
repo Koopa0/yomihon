@@ -585,7 +585,7 @@
   function resetSpeechButton() {
     if (!activeSpeakButton) return;
     activeSpeakButton.removeAttribute('data-speaking');
-    activeSpeakButton.setAttribute('aria-label', 'Read this sentence aloud');
+    activeSpeakButton.setAttribute('aria-label', '朗讀這段日文');
     activeSpeakButton = null;
   }
   function stopSpeech() {
@@ -609,7 +609,7 @@
     if (trigger) {
       activeSpeakButton = trigger;
       trigger.setAttribute('data-speaking', '');
-      trigger.setAttribute('aria-label', 'Stop reading aloud');
+      trigger.setAttribute('aria-label', '停止朗讀');
     }
     u.addEventListener('start', () => {
       if (generation === speechGeneration && speechStatus) speechStatus.textContent = '播放中';
@@ -638,7 +638,7 @@
     const toolbar = document.createElement('div');
     toolbar.className = 'y-ttsbar';
     toolbar.setAttribute('role', 'group');
-    toolbar.setAttribute('aria-label', 'Japanese read-aloud controls');
+    toolbar.setAttribute('aria-label', '日文朗讀控制');
     const label = document.createElement('span');
     label.className = 'y-ttsbar__label';
     label.textContent = '朗讀速度';

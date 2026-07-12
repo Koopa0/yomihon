@@ -43,3 +43,22 @@ func TestCSSCarriesTheMotionGuarantees(t *testing.T) {
 		t.Error("no reduced-motion view-transition rule sets navigation: none")
 	}
 }
+
+func TestJavaScriptUsesTraditionalChineseSpeechLabels(t *testing.T) {
+	t.Parallel()
+
+	b, err := os.ReadFile("js/yomihon.js")
+	if err != nil {
+		t.Fatalf("read JavaScript: %v", err)
+	}
+	js := string(b)
+	for _, label := range []string{
+		"'朗讀這段日文'",
+		"'停止朗讀'",
+		"'日文朗讀控制'",
+	} {
+		if !strings.Contains(js, label) {
+			t.Errorf("speech controls do not carry Traditional Chinese label %s", label)
+		}
+	}
+}
