@@ -565,15 +565,14 @@ func TestShow(t *testing.T) {
 	}
 }
 
-// TestShowTTSGatedToLessons is the landmine guard for the TTS lesson gate: a
-// lesson note's ruby paragraphs get a speak button, but a non-lesson note that
-// contains the identical ruby does NOT — render.HTML is generic and the gate
-// lives in the handler's type branch, so TTS must never leak into other note
-// types. The ruby markup itself must survive in both (only the wrapper is gated).
+// TestShowTTSGatedToLessons is the landmine guard for the TTS lesson gate: an
+// explicitly marked lesson paragraph gets a speak button, but a non-lesson
+// note containing the same marker and ruby does not. render.HTML is generic and
+// the type gate lives in the handler, so TTS must never leak into other types.
 func TestShowTTSGatedToLessons(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	const body = "<ruby>今日<rt>きょう</rt></ruby>は晴れ。\n"
+	const body = "<!-- read-aloud: ja -->\n<ruby>今日<rt>きょう</rt></ruby>は晴れ。\n"
 
 	lessonDir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
