@@ -2,12 +2,14 @@
 
 > Status: Part I (the lexical engine, /search page, ⌘K shell, and the live
 > lexical-results enhancement) is **built and merged**; it is kept as the
-> record of that plan. Part II (§§H1–H12) is the hybrid extension's plan,
-> **revised 2026-07-12 to the ruling sheet (D50)** after its adversarial
-> round returned RETHINK. Dispatch gate (D50.10): the vault contract's
-> privacy capability must land before any Part II behavior — cloud document
-> embedding, ranking/fusion, or agent-facing output. A delta-focused second
-> round reviews this revision before build.
+> record of that plan. Part II (§§H1–H14) is the hybrid extension's plan,
+> revised 2026-07-12 to the ruling sheet (D50) and **again 2026-07-13 to
+> the six delta clarifications** (walls text synced; the fourth legal
+> pair; privacy-unavailable emits no agent payload; the precedence gate;
+> the Embedding-2 protocol re-pinned from its own documentation; mismatch
+> and cutover as distinct states). Dispatch gate (D50.10): the vault
+> contract's privacy capability must land before any Part II behavior. A
+> scoped final check audits the delta round's closure table before build.
 > This refines `spec.md` §3 and `design.md` §6–7 into a concrete plan. The
 > engine is **in-memory, no database** (D24); the index is one of three models
 > in a shared vault Snapshot (D25); incremental freshness is a ~2s mtime scan
@@ -333,7 +335,7 @@ and every surface stays whole without it (roadmap §4a).
   note. The 18k-note extrapolation is ≈2.4×10⁵ chunks — **beyond the
   rung-1→2 trigger (D32: ~10⁵ chunks or p95 exact scan > ~100 ms) by
   ~2.4×**, so at that horizon rung 2 is the designed path, not a
-  surprise; H14 carries the envelope and names who measures the p95.
+  surprise; H13 carries the envelope and names who measures the p95.
 - **Cap**: `cap = floor(0.9 × model_input_limit)` proxy tokens, **prefix
   included** (the `Title › H2 › H3 — ` context prefix counts against the
   budget).
@@ -364,8 +366,9 @@ and every surface stays whole without it (roadmap §4a).
   refresh lands (stale-masking, never stale-serving). **Query embedding is
   a per-request act of whichever surface was explicitly asked** (D50.1):
   the UI's submitted semantic search and the CLI's `--semantic` each embed
-  exactly one query string per explicit action. The CLI embeds queries and
-  never documents; it never writes the cache.
+  **at most one** query string per explicit action — the precedence gate
+  (H7) may stop the request before any embedding happens. The CLI embeds
+  queries and never documents; it never writes the cache.
 - **The embedding protocol is pinned from the successor model's own
   documentation** (D50.4 clarification, 2026-07-13 — the first revision
   carried the predecessor generation's semantics, a verified error). What
@@ -400,10 +403,10 @@ and every surface stays whole without it (roadmap §4a).
   separate gates; each has its own lock.)
 - **Two storage layers, named separately.** The *durable vector cache* sits
   behind put / get / scan and is what the bake-off chooses — candidates:
-  the header+JSONL file format this section describes, SQLite (the storage
-  report's leading durable candidate), and a packed immutable generation
-  with an atomic manifest; the identity, atomicity, and cold-on-corruption
-  contract binds whichever wins. The *in-memory query engine* is the
+  a header-plus-rows file (one identity header line, then one row per
+  chunk vector), SQLite (the storage report's leading durable candidate),
+  and a packed immutable generation with an atomic manifest; the identity,
+  atomicity, and cold-on-corruption contract binds whichever wins. The *in-memory query engine* is the
   separate layer D32's put / get / top-k interface names: it loads from
   the durable cache at startup/epoch-swap and answers cosine top-k; the
   scale rungs govern it, not the cache file.

@@ -452,3 +452,20 @@ is their working-out, and every degraded-matrix cell traces to one of them.
     Part II** — no cloud document embedding, no agent-facing
     ranking/fusion/output ships before the vault contract declares it and
     `internal/schema` derives it, fail-closed.
+
+*(Amended 2026-07-13, closing the delta round's open cells: the four-walls
+text now names both egress exceptions, ending the conflict with item 1;
+`lexical/not-applicable` joins the CLI contract as the fourth legal pair —
+`--semantic` on a pure-filter or empty-text query answers lexically, exit
+0, zero embedding; with the privacy capability missing or invalid the
+strict CLI emits no result payload at all (exit 3, fixed privacy stderr) —
+agent output is fail-closed, and local UI lexical continues; every request
+walks the precedence gate privacy → artifact → semantic applicability →
+cache → query API, the first failure names the reason, and the query text
+never leaves the machine before the final stage; item 9's "one full
+re-embed and nothing else" is withdrawn — the successor's request protocol
+differs and re-pins from its own documentation into the cache identity;
+and unmanaged epoch-identity mismatch (cold) is distinct from managed
+cutover (old epoch serves while its embedder lives), with the background
+pipeline's condition enumerated as explicit cache substates rather than
+folded away.)*
