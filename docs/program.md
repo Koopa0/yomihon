@@ -150,6 +150,12 @@ old directory.
     lesson pages at 360, 450, and 900 px, prove `scrollWidth <= clientWidth`,
     keep every header control visible and keyboard reachable, and retain local
     horizontal scrolling inside wide code blocks rather than widening the page.
+9c-vii. `PR-interface-language-debt` — migrate the remaining legacy English
+    browser chrome to Traditional Chinese after D28's 2026-07-12 correction.
+    Inventory visible labels, instructional copy, browser-facing diagnostics,
+    status messages, counts, placeholders, titles, and accessible names; keep
+    Japanese and other authored content locally language-tagged; add browser
+    locks for the translated surfaces. Do not introduce an i18n framework.
 9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.

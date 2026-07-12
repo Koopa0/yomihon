@@ -261,8 +261,9 @@ No Docker, no testcontainers, no `//go:build integration`.
    makes graph/nav live — D25).
 7. The search handler + minimal plain results page.
 
-Each step has an independently verifiable output. All UI/error/comment text is
-English (D19), including "no results".
+Each step has an independently verifiable output. Browser UI and browser-facing
+errors follow the Traditional Chinese interface contract (D28), including the
+empty-results message; source comments and wire contracts remain English.
 
 ## 12. Cleaned up when PostgreSQL was dropped (D24)
 

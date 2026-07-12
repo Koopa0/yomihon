@@ -108,8 +108,8 @@ a sovereign's reading room. Decisions that follow from it:
   press-and-hold weight, a single settle pulse. Everything else moves only
   to preserve context (transitions, disclosure) or to answer (cards,
   previews). Motion is meaning; reduced-motion strips it all without loss.
-- **Chrome in English, content in its own language** (D28): the interface
-  whispers, the vault speaks.
+- **Chrome in Traditional Chinese, content in its own language** (D28): the
+  interface speaks to Koopa; the vault keeps the author's language.
 - **The design bundle remains the visual source** for components; this
   charter governs what new surfaces may look like when the bundle is
   silent.
