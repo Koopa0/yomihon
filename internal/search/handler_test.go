@@ -1,13 +1,19 @@
 package search
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -234,21 +240,114 @@ func TestSearchHandlerRejectsInvalidQuery(t *testing.T) {
 	}
 }
 
-func getBody(t *testing.T, url string) (code int, body string) {
+func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
+	t.Parallel()
+
+	const sentinel = "OWNER_THOUGHT_CANARY type:TYPE_PRIVATE status:STATUS_PRIVATE domain:DOMAIN_PRIVATE topic:TOPIC_PRIVATE slug:SLUG_PRIVATE folder:FOLDER_PRIVATE"
+	idx := BuildFromDocs(nil, validArtifactPolicy(t))
+	tests := []struct {
+		name      string
+		configure func(*Handler)
+		writer    func() http.ResponseWriter
+		invoke    func(*Handler, http.ResponseWriter, *http.Request)
+	}{
+		{name: "full page render error", invoke: (*Handler).search},
+		{name: "results fragment render error", invoke: (*Handler).results},
+		{
+			name: "search error",
+			configure: func(h *Handler) {
+				h.runQuery = func(*Index, Query) ([]Result, error) {
+					return nil, errors.New("injected search failure")
+				}
+			},
+			writer: func() http.ResponseWriter { return httptest.NewRecorder() },
+			invoke: (*Handler).search,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var recordedLogs bytes.Buffer
+			h := NewHandler(func() RequestSnapshot {
+				return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+			}, slog.New(slog.NewJSONHandler(&recordedLogs, nil)))
+			if tt.configure != nil {
+				tt.configure(h)
+			}
+			writer := http.ResponseWriter(&failingResponseWriter{header: make(http.Header)})
+			if tt.writer != nil {
+				writer = tt.writer()
+			}
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q="+url.QueryEscape(sentinel), http.NoBody)
+			tt.invoke(h, writer, req)
+
+			if recordedLogs.Len() == 0 {
+				t.Fatal("search handler recorded no error log")
+			}
+			for record := range strings.SplitSeq(strings.TrimSpace(recordedLogs.String()), "\n") {
+				for _, privateValue := range []string{
+					"OWNER_THOUGHT_CANARY",
+					"TYPE_PRIVATE",
+					"STATUS_PRIVATE",
+					"DOMAIN_PRIVATE",
+					"TOPIC_PRIVATE",
+					"SLUG_PRIVATE",
+					"FOLDER_PRIVATE",
+				} {
+					if strings.Contains(record, privateValue) {
+						t.Errorf("search handler log contains query-derived value %q", privateValue)
+					}
+				}
+				var gotAttrs map[string]any
+				if err := json.Unmarshal([]byte(record), &gotAttrs); err != nil {
+					t.Fatalf("decoding recorded search log: %v", err)
+				}
+				delete(gotAttrs, "time")
+				delete(gotAttrs, "level")
+				delete(gotAttrs, "msg")
+				wantAttrs := map[string]any{
+					"error_type":  "*errors.errorString",
+					"filter_keys": []any{"type", "status", "domain", "topic", "slug", "folder"},
+					"query_bytes": float64(len(sentinel)),
+				}
+				if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {
+					t.Errorf("search handler log attributes mismatch (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
+type failingResponseWriter struct {
+	header http.Header
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (*failingResponseWriter) Write([]byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func (*failingResponseWriter) WriteHeader(int) {}
+
+func getBody(t *testing.T, urlStr string) (code int, body string) {
 	t.Helper()
-	code, _, body = getBodyWithHeaders(t, url)
+	code, _, body = getBodyWithHeaders(t, urlStr)
 	return code, body
 }
 
-func getBodyWithHeaders(t *testing.T, url string) (code int, header http.Header, body string) {
+func getBodyWithHeaders(t *testing.T, urlStr string) (code int, header http.Header, body string) {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, urlStr, http.NoBody)
 	if err != nil {
-		t.Fatalf("new request %s: %v", url, err)
+		t.Fatalf("new request %s: %v", urlStr, err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		t.Fatalf("GET %s: %v", url, err)
+		t.Fatalf("GET %s: %v", urlStr, err)
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(resp.Body)
