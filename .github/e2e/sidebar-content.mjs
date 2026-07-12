@@ -1,7 +1,7 @@
 // Behavior lock: the sidebar grows from the fixture vault's map and Diary
 // content, opens the map that contains the current note, omits unresolved rows
 // from general maps while retaining study-path warnings, and leaves lifecycle
-// state in Home plus the shared topbar chip.
+// state in Home plus the shared advanceable-note topbar chip.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -24,7 +24,7 @@ const SITES = [
   'journal-present',
   'journal-collapsed',
   'lifecycle-retired',
-  'pending-chip',
+  'advanceable-chip',
   'home-start-top',
 ];
 
@@ -117,9 +117,9 @@ const MUTATIONS = {
     target: 'lifecycle-retired',
     apply: replaceEvery('id="nav-rail">', 'id="nav-rail"><span>Lifecycle</span>'),
   },
-  'rename-pending': {
-    target: 'pending-chip',
-    apply: replaceEvery('aria-label="1 to decide"', 'aria-label="pending"'),
+  'rename-advanceable': {
+    target: 'advanceable-chip',
+    apply: replaceEvery('aria-label="1 notes have a legal next status"', 'aria-label="advanceable"'),
   },
   'autofocus-home-search': {
     target: 'home-start-top',
@@ -198,9 +198,9 @@ try {
   if (await sidebar.getByText('Lifecycle', { exact: true }).count() !== 0) {
     fail('lifecycle-retired', 'Lifecycle still appears in the sidebar');
   }
-  const chip = page.locator('a[data-pending-chip]');
-  if (await chip.count() !== 1 || await chip.getAttribute('aria-label') !== '1 to decide' || await chip.getAttribute('href') !== '/') {
-    fail('pending-chip', 'the shared topbar chip is absent, mislabeled, or does not link Home');
+  const chip = page.locator('a[data-advanceable-chip]');
+  if (await chip.count() !== 1 || await chip.getAttribute('aria-label') !== '1 notes have a legal next status' || await chip.getAttribute('href') !== '/') {
+    fail('advanceable-chip', 'the shared advanceable-note chip is absent, mislabeled, or does not link Home');
   }
 
   await page.setViewportSize({ width: 1270, height: 720 });
