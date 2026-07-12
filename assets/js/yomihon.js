@@ -499,9 +499,15 @@
         return;
       }
       if (e.key === 'Escape') {
+        if (dialog && dialog.open) {
+          e.preventDefault();
+          dialog.close();
+          document.querySelector('[data-search-open]')?.focus();
+          return;
+        }
         if (drawerOpen()) closeDrawer(true);
         holdEnd();
-        return; // <dialog> closes itself on Escape
+        return;
       }
       if (typing || (dialog && dialog.open)) return;
       if (e.key === '/') {
@@ -572,11 +578,50 @@
   // ---- speech (Web Speech), shared by TTS sentences + the slot machine -----
   // No-op when there is no engine; the UI is gated on the data-speech signal
   // (set at boot) so speak controls never appear when they could not work.
-  function speakJa(text) {
+  let speechRate = 0.8;
+  let speechGeneration = 0;
+  let activeSpeakButton = null;
+  let speechStatus = null;
+  function resetSpeechButton() {
+    if (!activeSpeakButton) return;
+    activeSpeakButton.removeAttribute('data-speaking');
+    activeSpeakButton.setAttribute('aria-label', 'Read this sentence aloud');
+    activeSpeakButton = null;
+  }
+  function stopSpeech() {
+    if (!('speechSynthesis' in window)) return;
+    speechGeneration += 1;
+    speechSynthesis.cancel();
+    resetSpeechButton();
+    if (speechStatus) speechStatus.textContent = '已停止';
+  }
+  function speakJa(text, trigger = null) {
     if (!text || !('speechSynthesis' in window)) return;
-    speechSynthesis.cancel(); // stop any in-flight utterance first
+    if (trigger && trigger === activeSpeakButton) {
+      stopSpeech();
+      return;
+    }
+    stopSpeech(); // stop any in-flight utterance first
+    const generation = speechGeneration;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
+    u.rate = speechRate;
+    if (trigger) {
+      activeSpeakButton = trigger;
+      trigger.setAttribute('data-speaking', '');
+      trigger.setAttribute('aria-label', 'Stop reading aloud');
+    }
+    u.addEventListener('start', () => {
+      if (generation === speechGeneration && speechStatus) speechStatus.textContent = '播放中';
+    }, { once: true });
+    u.addEventListener('end', () => {
+      if (generation === speechGeneration && speechStatus) speechStatus.textContent = '播放完成';
+      if (generation === speechGeneration) resetSpeechButton();
+    }, { once: true });
+    u.addEventListener('error', () => {
+      if (generation === speechGeneration && speechStatus) speechStatus.textContent = '目前無法播放日語語音';
+      if (generation === speechGeneration) resetSpeechButton();
+    }, { once: true });
     speechSynthesis.speak(u);
   }
 
@@ -586,8 +631,49 @@
   // <rt>. CSS reveals them only under [data-speech], so with no JS or no engine
   // the affordance is simply absent and the sentence still reads.
   function initTTS() {
-    document.querySelectorAll('[data-tts]').forEach((btn) => {
-      btn.addEventListener('click', () => speakJa(btn.getAttribute('data-tts')));
+    if (!('speechSynthesis' in window)) return;
+    const buttons = [...document.querySelectorAll('[data-tts]')];
+    if (buttons.length === 0) return;
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'y-ttsbar';
+    toolbar.setAttribute('role', 'group');
+    toolbar.setAttribute('aria-label', 'Japanese read-aloud controls');
+    const label = document.createElement('span');
+    label.className = 'y-ttsbar__label';
+    label.textContent = '朗讀速度';
+    toolbar.append(label);
+    [0.8, 1].forEach((rate) => {
+      const rateButton = document.createElement('button');
+      rateButton.type = 'button';
+      rateButton.textContent = `${rate.toFixed(1)}×`;
+      rateButton.setAttribute('aria-pressed', String(rate === speechRate));
+      rateButton.addEventListener('click', () => {
+        speechRate = rate;
+        toolbar.querySelectorAll('button[data-speech-rate]').forEach((candidate) => {
+          candidate.setAttribute('aria-pressed', String(candidate === rateButton));
+        });
+        stopSpeech();
+        if (speechStatus) speechStatus.textContent = `速度 ${rate.toFixed(1)}×`;
+      });
+      rateButton.dataset.speechRate = String(rate);
+      toolbar.append(rateButton);
+    });
+    speechStatus = document.createElement('span');
+    speechStatus.className = 'y-ttsbar__status';
+    speechStatus.setAttribute('aria-live', 'polite');
+    toolbar.append(speechStatus);
+    const stopButton = document.createElement('button');
+    stopButton.type = 'button';
+    stopButton.className = 'y-ttsbar__stop';
+    stopButton.textContent = '停止';
+    stopButton.addEventListener('click', stopSpeech);
+    toolbar.append(stopButton);
+    const firstLine = buttons[0].closest('.y-reading');
+    if (firstLine) firstLine.before(toolbar);
+
+    buttons.forEach((btn) => {
+      btn.addEventListener('click', () => speakJa(btn.getAttribute('data-tts'), btn));
     });
   }
 

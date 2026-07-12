@@ -49,6 +49,7 @@ func TestBuildPathView(t *testing.T) {
 	want := PathView{
 		Title:      "Go path",
 		RelPath:    "Maps/Go path.md",
+		GuideHref:  "/notes/Maps/Go%20path.md",
 		SealTarget: schema.SealStatus,
 		Paths: []PathLink{
 			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 5, Active: true},

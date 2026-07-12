@@ -519,7 +519,9 @@ Ruled out, with reasons:
 - **Narrow-header overflow** (external finding). Real below roughly 450px
   viewports, but the listener is loopback-only — no phone reaches it, and
   desktop windows rarely tile that narrow. Parked; revisit if a real window
-  hits it.
+  hits it. **Reopened 2026-07-12:** a real-vault Chrome probe at 360 CSS px
+  reproduced 115 px of page-level horizontal travel on both Japanese and Go
+  lessons; `program.md` 9c-vi owns the ruling and acceptance contract.
 - **The inline sidebar restore script** (external finding: one-JS-file
   violation). Stays, and is hereby the recorded exception: it is a pre-paint
   state restorer, the one job a deferred file cannot do without flashing the

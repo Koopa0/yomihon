@@ -1093,7 +1093,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if !strings.Contains(body, "Dashboard README sentinel.") {
 		t.Error("Home is missing the rendered vault README body")
 	}
-	if !strings.Contains(body, `aria-label="1 to decide"`) {
+	if !strings.Contains(body, `aria-label="1 notes have a legal next status"`) {
 		t.Error("Home topbar is missing the snapshot-derived pending chip")
 	}
 }
@@ -1195,7 +1195,7 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 					}
 				}
 			}
-			if strings.Contains(page, `data-pending-chip`) {
+			if strings.Contains(page, `data-advanceable-chip`) {
 				t.Error("Home pending chip remained available without artifact metadata")
 			}
 			if !strings.Contains(page, `data-home-block="search"`) {
@@ -1246,7 +1246,7 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 	if strings.Contains(paths, "contract declares no artifact policy; instance projections disabled until it does") {
 		t.Errorf("Study Paths falsely reports artifact failure: %q", paths)
 	}
-	if !strings.Contains(page, `aria-label="1 to decide"`) {
+	if !strings.Contains(page, `aria-label="1 notes have a legal next status"`) {
 		t.Error("pending chip was suppressed by navigation-only failure")
 	}
 }
@@ -1316,7 +1316,7 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
 	if !strings.Contains(draftRow, `aria-label="1 notes">1</span>`) {
 		t.Errorf("draft lifecycle count includes the template or misses the instance; row = %q", draftRow)
 	}
-	if !strings.Contains(page, `aria-label="1 to decide"`) {
+	if !strings.Contains(page, `aria-label="1 notes have a legal next status"`) {
 		t.Error("pending count includes the template or misses the instance")
 	}
 }

@@ -7,7 +7,7 @@ package layouts
 import "strconv"
 
 // Chrome is the per-request shell state rendered server-side: the page title,
-// pending-decision figure, and persisted theme / furigana signals stamped onto
+// advanceable-note figure, and persisted theme / furigana signals stamped onto
 // the root so the correct state paints on the first byte (no FOUC).
 // data-* is the single HTML↔JS contract; yomihon.js flips these attributes and
 // their cookies, CSS reacts (see assets/css/*).
@@ -15,8 +15,8 @@ type Chrome struct {
 	Title        string // page title (before " — yomihon")
 	Theme        string // "light" | "dark"
 	Ruby         string // "on" | "off"
-	Pending      int    // notes awaiting an owner decision
-	PendingKnown bool   // false when the write contract or metadata capability is unavailable
+	Advanceable      int  // notes for which Koopa has at least one legal next status
+	AdvanceableKnown bool // false when the write contract or metadata capability is unavailable
 }
 
 templ Base(c Chrome) {
@@ -40,7 +40,7 @@ templ Base(c Chrome) {
 	</html>
 }
 
-// header is the shared top chrome: the wordmark, pending-decision Home link,
+// header is the shared top chrome: the wordmark, advanceable-note Home link,
 // ⌘K search entry, and furigana + theme toggles. The toggles are plain <button>s whose glyph state
 // is CSS-driven from the root data-* attributes (no JS needed just to show the
 // right icon); yomihon.js only flips the attribute + cookie on click. The search
@@ -57,10 +57,10 @@ templ header(c Chrome) {
 			<span class="y-brand__tag">STOREHOUSE</span>
 		</div>
 		<div class="y-header__spacer"></div>
-		if c.PendingKnown {
-			<a class="y-pendingchip" href="/" aria-label={ strconv.Itoa(c.Pending) + " to decide" } data-pending-chip>{ strconv.Itoa(c.Pending) }</a>
+		if c.AdvanceableKnown {
+			<a class="y-advancechip" href="/" aria-label={ strconv.Itoa(c.Advanceable) + " notes have a legal next status" } title="Advanceable notes" data-advanceable-chip>{ strconv.Itoa(c.Advanceable) }</a>
 		}
-		<a class="y-searchbtn" href="/search" data-search-open>
+		<a class="y-searchbtn" href="/search" data-search-open aria-label="Search notes">
 			<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 			<span class="y-searchbtn__label">Search notes…</span>
 			<span class="ui-kbd">⌘K</span>

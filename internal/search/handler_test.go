@@ -127,7 +127,7 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 		calls++
 		return RequestSnapshot{
 			Index: idx,
-			Shell: pages.ShellData{Nav: &nav.Model{}, Pending: 4, PendingKnown: true},
+			Shell: pages.ShellData{Nav: &nav.Model{}, Advanceable: 4, AdvanceableKnown: true},
 		}
 	}, slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
@@ -136,7 +136,7 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("request snapshot reads = %d, want 1", calls)
 	}
-	for _, want := range []string{"One", `aria-label="4 to decide"`} {
+	for _, want := range []string{"One", `aria-label="4 notes have a legal next status"`} {
 		if !strings.Contains(rr.Body.String(), want) {
 			t.Errorf("search response missing %q; body = %q", want, rr.Body.String())
 		}

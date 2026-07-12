@@ -183,7 +183,7 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	syllabus.NewHandler(syllabus.Deps{
 		Shell: func() pages.ShellData {
 			calls++
-			return pages.ShellData{Nav: model, Pending: 3, PendingKnown: true}
+			return pages.ShellData{Nav: model, Advanceable: 3, AdvanceableKnown: true}
 		},
 		Log: slog.New(slog.DiscardHandler),
 	}).Register(mux)
@@ -195,7 +195,7 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("shell snapshot reads = %d, want 1", calls)
 	}
-	if !strings.Contains(rr.Body.String(), `aria-label="3 to decide"`) {
+	if !strings.Contains(rr.Body.String(), `aria-label="3 notes have a legal next status"`) {
 		t.Errorf("response missing pending chip; body = %q", rr.Body.String())
 	}
 }

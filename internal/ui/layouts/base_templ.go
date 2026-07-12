@@ -19,16 +19,16 @@ import templruntime "github.com/a-h/templ/runtime"
 import "strconv"
 
 // Chrome is the per-request shell state rendered server-side: the page title,
-// pending-decision figure, and persisted theme / furigana signals stamped onto
+// advanceable-note figure, and persisted theme / furigana signals stamped onto
 // the root so the correct state paints on the first byte (no FOUC).
 // data-* is the single HTML↔JS contract; yomihon.js flips these attributes and
 // their cookies, CSS reacts (see assets/css/*).
 type Chrome struct {
-	Title        string // page title (before " — yomihon")
-	Theme        string // "light" | "dark"
-	Ruby         string // "on" | "off"
-	Pending      int    // notes awaiting an owner decision
-	PendingKnown bool   // false when the write contract or metadata capability is unavailable
+	Title            string // page title (before " — yomihon")
+	Theme            string // "light" | "dark"
+	Ruby             string // "on" | "off"
+	Advanceable      int    // notes for which Koopa has at least one legal next status
+	AdvanceableKnown bool   // false when the write contract or metadata capability is unavailable
 }
 
 func Base(c Chrome) templ.Component {
@@ -115,7 +115,7 @@ func Base(c Chrome) templ.Component {
 	})
 }
 
-// header is the shared top chrome: the wordmark, pending-decision Home link,
+// header is the shared top chrome: the wordmark, advanceable-note Home link,
 // ⌘K search entry, and furigana + theme toggles. The toggles are plain <button>s whose glyph state
 // is CSS-driven from the root data-* attributes (no JS needed just to show the
 // right icon); yomihon.js only flips the attribute + cookie on click. The search
@@ -146,28 +146,28 @@ func header(c Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if c.PendingKnown {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<a class=\"y-pendingchip\" href=\"/\" aria-label=\"")
+		if c.AdvanceableKnown {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<a class=\"y-advancechip\" href=\"/\" aria-label=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(c.Pending) + " to decide")
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(c.Advanceable) + " notes have a legal next status")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 61, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 61, Col: 113}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" data-pending-chip>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" title=\"Advanceable notes\" data-advanceable-chip>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(c.Pending))
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(c.Advanceable))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 61, Col: 134}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layouts/base.templ`, Line: 61, Col: 193}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -178,7 +178,7 @@ func header(c Chrome) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<a class=\"y-searchbtn\" href=\"/search\" data-search-open><svg aria-hidden=\"true\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"y-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"y-iconbtn y-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\" aria-pressed=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<a class=\"y-searchbtn\" href=\"/search\" data-search-open aria-label=\"Search notes\"><svg aria-hidden=\"true\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg> <span class=\"y-searchbtn__label\">Search notes…</span> <span class=\"ui-kbd\">⌘K</span></a> <button class=\"y-iconbtn y-rubybtn\" type=\"button\" data-ruby-toggle aria-label=\"Toggle furigana\" aria-pressed=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

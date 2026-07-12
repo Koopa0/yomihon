@@ -18,6 +18,7 @@ import (
 type PathView struct {
 	Title      string
 	RelPath    string
+	GuideHref  string
 	SealTarget string
 	Paths      []PathLink
 	Branches   []PathBranchView
@@ -77,6 +78,7 @@ func BuildPathView(current *nav.Map, all []nav.Map) PathView {
 	v := PathView{
 		Title:      current.Title,
 		RelPath:    current.RelPath,
+		GuideHref:  notesHref(current.RelPath),
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 	}

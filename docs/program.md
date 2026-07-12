@@ -141,6 +141,15 @@ old directory.
     it is active. This unit also records explicit supersessions for the retired
     Lifecycle-first sidebar, old file-surface and harness assumptions, and the
     current judge authority pointers.
+9c-vi. `PR-narrow-header-overflow` — **real-observed, needs ruling**: reopen the
+    overflow that ux-plan §15 parked. A 2026-07-12 real-vault Chrome probe at
+    360 CSS px rendered both a Japanese lesson and a Go lesson at 475 px document
+    width; the shared ruby and theme controls extended past the viewport and
+    `scrollX` reached 115 px. The old "no phone reaches loopback" premise does
+    not cover a narrow desktop window or webview. Acceptance must exercise real
+    lesson pages at 360, 450, and 900 px, prove `scrollWidth <= clientWidth`,
+    keep every header control visible and keyboard reachable, and retain local
+    horizontal scrolling inside wide code blocks rather than widening the page.
 9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.

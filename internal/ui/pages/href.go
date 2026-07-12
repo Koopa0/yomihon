@@ -15,17 +15,17 @@ import (
 )
 
 // ShellData is the snapshot-derived state shared by the topbar and sidebar.
-// A handler receives it as one value so navigation and the pending count cannot
-// come from different atomic snapshot reads.
+// A handler receives it as one value so navigation and the advanceable count
+// cannot come from different atomic snapshot reads.
 type ShellData struct {
-	Nav          *nav.Model
-	Pending      int
-	PendingKnown bool
+	Nav              *nav.Model
+	Advanceable      int
+	AdvanceableKnown bool
 }
 
 // Chrome builds the request-cookie state around this snapshot-derived shell.
 func (s ShellData) Chrome(r *http.Request, title string) layouts.Chrome {
-	return ChromeFromRequest(r, title, s.Pending, s.PendingKnown)
+	return ChromeFromRequest(r, title, s.Advanceable, s.AdvanceableKnown)
 }
 
 // notesHref builds the reading-page URL for a vault-relative path,
@@ -113,7 +113,7 @@ type LifecycleItem struct {
 // root element renders the correct state on the first byte (no FOUC). Only the
 // two known cookie values are honored; anything else falls to the default —
 // input hygiene, since a cookie is user-controllable.
-func ChromeFromRequest(r *http.Request, title string, pending int, pendingKnown bool) layouts.Chrome {
+func ChromeFromRequest(r *http.Request, title string, advanceable int, advanceableKnown bool) layouts.Chrome {
 	theme := "light"
 	if c, err := r.Cookie("yomihon_theme"); err == nil && c.Value == "dark" {
 		theme = "dark"
@@ -122,5 +122,5 @@ func ChromeFromRequest(r *http.Request, title string, pending int, pendingKnown 
 	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
 		ruby = "off"
 	}
-	return layouts.Chrome{Title: title, Theme: theme, Ruby: ruby, Pending: pending, PendingKnown: pendingKnown}
+	return layouts.Chrome{Title: title, Theme: theme, Ruby: ruby, Advanceable: advanceable, AdvanceableKnown: advanceableKnown}
 }

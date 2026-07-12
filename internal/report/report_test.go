@@ -82,7 +82,7 @@ func TestReportRoutesReadOneShellSnapshot(t *testing.T) {
 				Root: root,
 				Shell: func() pages.ShellData {
 					calls++
-					return pages.ShellData{Nav: fixtureModel(), Pending: 2, PendingKnown: true}
+					return pages.ShellData{Nav: fixtureModel(), Advanceable: 2, AdvanceableKnown: true}
 				},
 				Log: slog.New(slog.DiscardHandler),
 			}).Register(mux)
@@ -93,7 +93,7 @@ func TestReportRoutesReadOneShellSnapshot(t *testing.T) {
 			if calls != 1 {
 				t.Errorf("shell snapshot reads = %d, want 1", calls)
 			}
-			if tt.wantChip && !strings.Contains(rr.Body.String(), `aria-label="2 to decide"`) {
+			if tt.wantChip && !strings.Contains(rr.Body.String(), `aria-label="2 notes have a legal next status"`) {
 				t.Errorf("response missing pending chip; body = %q", rr.Body.String())
 			}
 		})

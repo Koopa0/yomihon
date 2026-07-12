@@ -39,7 +39,7 @@ const homeRecentLimit = 7
 // needs: whether the face is closed (Closed), its closure reason
 // (WriteDiagnostic), which path-aware transition keys to offer (Transitions),
 // the stable note-status axis Home lists (Order), and whether a note still has
-// an owner-held onward move (Advanceable), for the topbar's pending-decision
+// an owner-held onward move (Advanceable), for the topbar's advanceable-note
 // count. It is a genuine slice of *status.Service —
 // never its write path: Flip, the single status write, stays out of the reading
 // page's reach. *status.Service satisfies this.
@@ -353,7 +353,7 @@ func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) (items []pa
 // cannot perform another atomic store read.
 func ShellData(status StatusPolicy, snap *snapshot.Snapshot) pages.ShellData {
 	count, known := pending(status, snap)
-	return pages.ShellData{Nav: snap.Nav, Pending: count, PendingKnown: known}
+	return pages.ShellData{Nav: snap.Nav, Advanceable: count, AdvanceableKnown: known}
 }
 
 // pending counts the notes still awaiting a decision: those whose (type, status)
