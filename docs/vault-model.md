@@ -180,6 +180,29 @@ Revised lessons carry a **corrections ledger**: a frontmatter `corrections:` lis
 
 `System/schemas/vault-schema.toml` (schema_version 1) declares itself the SoT; its consumers are kura (the schema.* rules), `gen_fileclasses.py`, Note-Schema.md (the human doctrine, "change the toml before you change an enum"), and yomihon. yomihon only reads it, never hard-codes (wall 3).
 
+### The vault-side projection and authoring contracts
+
+`System/agent-guides/Yomihon-Obsidian-Projection-Contract.md` is the human
+semantic adapter between this consumer and the vault. It records the distinctions
+that must survive projection — artifact identity versus placement, provenance
+versus contextual links, lifecycle versus priority, and Base views versus canon.
+It does not outrank the toml and must not become a second machine schema.
+
+`System/agent-guides/Content-Production-Standard.md` and the templates under
+`System/templates/` govern how humans and agents author useful material. Their
+headings are authoring aids, not parser APIs. Yomihon must not infer that a note
+is verified, complete, important, human-written, or ready because it contains a
+heading such as `結論`, `來源`, or `評估`, nor infer Koopa's voice from prose
+style. A recurring reader job that needs queryable confidence, time scope, or
+assessment alignment first earns the smallest explicit toml field and then a
+consumer implementation; it does not begin as heading or style heuristics.
+
+Generated artifacts keep their own source-of-record boundary. D2 owns its SVG
+render, and a report generator plus input data own generated HTML. Yomihon may
+serve the output according to the existing raw/sandbox contract, but it does not
+edit generated output, parse it into a competing knowledge model, or treat the
+presence of a dashboard as evidence that its claims are correct.
+
 ### kura is the corpus judge (15 rules)
 
 7 link/graph rules (`link.title_not_alias`, `link.broken`, `link.broken.path`, `collision.alias`, `provenance.unresolved`, `map.disk_mismatch`, `map.disk_unlisted`) plus 8 schema.* rules (enum / required / unknown_key / slug / domain_folder / legacy_tag / provenance / frontmatter, all at error level). Gate semantics: `--deny error`; info never gates.
@@ -223,9 +246,10 @@ hermes goes through a worktree branch → the three QA-Gate layers (kura → Cod
 
 1. **Data model**: `System/schemas/vault-schema.toml` → `System/schemas/Note-Schema.md` → `System/schemas/Vault-Architecture.md`
 2. **System philosophy and the judge's spec**: `System/Vault-Index.md` → `System/Koopa-Knowledge-Compiler.md` → `System/vault-guard-spec.md` (note: the spec's filename is still the old name; the tool has been renamed kura) plus `System/kura-field-log.md`
-3. **The people, the division of labor, the gates**: `System/agent-guides/about-koopa.md` → `collaboration-charter.md` → `QA-Gate.md` → `Japanese-Companion-Guide.md` → `Privacy-Boundary.md` (draft) plus `System/schemas/Slug-Policy.md`
-4. **The three reference implementations**: `~/go/src/github.com/koopa0/yomihon-dev/internal/markdown/parser.go` (dialect handling) plus `kura/src/graph.rs`, `src/wikilink.rs` (the link-resolution spec) plus `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts` (an existing component; untrusted premise, a different context)
-5. **A sampling of real content (read the real files before writing your first line of rendering code)**:
+3. **Projection and authoring boundaries**: `System/agent-guides/Yomihon-Obsidian-Projection-Contract.md` → `System/agent-guides/Content-Production-Standard.md`; the former is required before changing aggregation or reader semantics, while the latter is required only when a product surface depends on an authoring convention.
+4. **The people, the division of labor, the gates**: `System/agent-guides/about-koopa.md` → `collaboration-charter.md` → `QA-Gate.md` → `Japanese-Companion-Guide.md` → `Privacy-Boundary.md` (draft) plus `System/schemas/Slug-Policy.md`
+5. **The three reference implementations**: `~/go/src/github.com/koopa0/yomihon-dev/internal/markdown/parser.go` (dialect handling) plus `kura/src/graph.rs`, `src/wikilink.rs` (the link-resolution spec) plus `~/koopa0.dev/frontend/src/app/core/services/markdown.service.ts` (an existing component; untrusted premise, a different context)
+6. **A sampling of real content (read the real files before writing your first line of rendering code)**:
    - `Writing/lessons/japanese/L20 普通形と常体.md` (an HTML-ruby lesson)
    - `Writing/lessons/golang/Garbage Collection Guide.md` (a corrections ledger)
    - `Maps/Go 課綱.md` plus `Maps/大家的日本語 初級I 學習路徑.md` (the two syllabus structures)
