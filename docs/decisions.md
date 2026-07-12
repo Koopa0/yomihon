@@ -149,6 +149,8 @@ The B face ships hybrid search, not just lexical. Shape:
 - **Retrieval**: heading-based chunking (reusing the judge face's goldmark extraction layer, inputs bounded to the model's token limit) + note-level vectors; exact cosine top-k fused with the lexical index via **RRF**. RRF's real knobs (the k constant, per-channel list depths, chunk→note aggregation) are pinned in the B plan doc — "no tuned weights" describes RRF's formula, not an absence of decisions. Surfaces: the ⌘K panel and `/search` page (UI), and a `kurodo search` CLI — lexical by default, `--semantic` opt-in with loud failure on cold cache or unreachable API (degraded-mode matrix: `roadmap.md` §4a).
 - **The scale rungs, with triggers** (so the storage engine swap is a designed path, not a rewrite): the store sits behind a narrow interface (put / get / top-k). Rung 1 = the in-process matrix above; **rung 1→2 trigger: ~10⁵ chunks or p95 exact-scan > ~100 ms**. Rung 2 = sqlite-vec (single file, serverless). Rung 3 = **pgvector** — entered when the embedded corpus grows beyond the vault (the dreaming ecosystem ingesting repos/clippings/logs), or queries need ANN + metadata filtering combined, or multiple processes write the index. Fusion, CLI, and UI do not change across rungs. A model or dimension swap is an **epoch cutover** (embed the new epoch in the background, flip when complete, delete the old) — the (model, dim) cache versioning detects mismatch, the epoch mechanism performs the swap; the dollar cost of a full re-embed is trivial at any plausible scale, the constraint is wall-clock under API rate limits, which the background epoch absorbs.
 
+*(Amended 2026-07-12 by D50: the embedder of record is now `gemini-embedding-2` — the 001 generation's retirement window opened before this plan could build, and embedding generations are incompatible, so the change costs one full re-embed and nothing else. The representation is chunk-only: note-level vectors are dropped, returning only if the eval set shows broad-topic recall failing. The epoch-cutover mechanism above additionally requires the old epoch's query embedder to still be available while it serves — a retired model means cold until the new epoch completes.)*
+
 ## D33 Relation queries are answered by the in-process graph: H grows query verbs and a whole-graph export; no graph database now (2026-07-05)
 
 The real requirement (Koopa, 2026-07-05): agents — hermes, Claude, the obsidian-side agent — must be able to ask *relationship* questions ("what connects to X", "how do X and Y relate", "what co-cites both") without reading the vault file by file; some of those answers are structural (graph) and unreachable by semantic similarity alone. The graph already exists in memory (D25), rebuilt every ~2s; what is missing is a **query surface**, not storage. So the H face grows:
@@ -384,3 +386,69 @@ preferences already honored. Constraints, all load-bearing:
   custom CSS, remote font URLs, drag-and-drop panel layouts, per-mode
   workspace layouts, layout DSLs, and any setting that hides authoritative
   content.
+
+## D49 Single-key shortcuts are an accepted deviation from WCAG 2.1.4, narrowly (Koopa, 2026-07-12)
+
+The global printable shortcuts (`/` filter, `[` drawer, held `R` seal) stay,
+without a disable or remap mechanism. This deviates from WCAG 2.1.4, which
+wants printable-character shortcuts turn-off-able, remappable, or
+focus-scoped — the deviation is recorded, not waved away, and it is narrow:
+
+- It holds only for the current product form: one operator, one machine,
+  shortcuts chosen by that operator for himself.
+- The suppression contexts are part of the deviation's terms: text entry,
+  select, contenteditable, and open dialogs always disarm single-key
+  bindings. A regression there is a defect, not a taste call.
+- Held `R` keeps its hold guard, and no shortcut path may ever bypass the
+  state machine's legality check — the shortcut is an entrance to the same
+  write face, never a side door.
+- Reopen conditions: the moment the product serves more than one user, a
+  remote surface, voice control, or alternative input methods, this
+  decision must be re-ruled, not extrapolated.
+- If disable/remap ever ships, its natural home is the D48 preferences
+  lane — but D48 as written forbids sacrificing keyboard invariants to a
+  preference and therefore does not pre-authorize it; that future needs its
+  own explicit exception here, so the canon never contradicts itself
+  silently.
+
+## D50 The hybrid-search ruling sheet (Koopa, 2026-07-12)
+
+Ten rulings closing the B plan's adversarial round; search-plan.md Part II
+is their working-out, and every degraded-matrix cell traces to one of them.
+
+1. **Query egress**: only an explicit action embeds a query — the UI's
+   submit/toggle and the CLI's `--semantic`, at most one send per action;
+   the live fragment is lexical always; raw query text never enters logs,
+   caches, errors, metrics, or traces.
+2. **Epoch cutover**: the old epoch serves until the new one completes and
+   swaps atomically — and only while the old model can still embed
+   queries; a query never scores against another model's vectors. No
+   usable old embedder → cold until the new epoch lands.
+3. **Representation**: chunk-only; D32's note-level vectors are dropped
+   (amended there). Reopens only if the eval set shows broad-topic recall
+   failing — not on token-limit grounds.
+4. **source_kind moves to the H face**: it is not a hybrid dependency; B
+   leaves the grammar untouched, and the canon sync (spec §3, Part I §3)
+   precedes H's implementation.
+5. **Strict CLI on a stale-partial cache exits 3** with a typed coverage
+   diagnostic; a partial answer never wears exit 0 — anything else smuggles
+   the killed best-effort mode back in.
+6. **Rate limiting**: query paths fail fast (429 = unavailable now); only
+   the background pipeline backs off, boundedly; the two never share an
+   offline latch.
+7. **`--semantic=best-effort` is dead**, including roadmap §4a's "may
+   exist".
+8. **Eval artifacts**: the repo commits only synthetic fixtures; real-vault
+   evaluation stays local with its per-query paired diffs; only
+   content-free aggregates may be committed or quoted.
+9. **Embedder of record: `gemini-embedding-2`** — the 001 generation's
+   retirement window opened before build (the listed date is the earliest
+   possible retirement, which already disqualifies it as a plan of
+   record), and embedding generations are incompatible, so the change
+   costs one full re-embed. Dimension and chunking are evaluated within
+   this model; an on-device comparison is not B's obligation and reopens
+   only on cloud-quality failure, an egress re-ruling, or an offline need.
+10. **The privacy capability is the dispatch prerequisite for all of
+    Part II** — no cloud document embedding, no agent-facing
+    ranking/fusion/output ships before the vault contract declares it and
+    `internal/schema` derives it, fail-closed.

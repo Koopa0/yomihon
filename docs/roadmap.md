@@ -194,8 +194,9 @@ only, and the design keeps semantic strictly an enhancement layer:
 - **`yomihon search` CLI**: lexical by default; `--semantic` adds the hybrid
   channel and **fails loudly** (nonzero exit, stderr says why) when the cache
   is cold or the API is unreachable — an agent must never get silently
-  different result sets with exit 0. A `--semantic=best-effort` mode may exist
-  for interactive use; the default for automation is deterministic.
+  different result sets with exit 0. There is no best-effort mode (ruled
+  2026-07-12, D50): strictness lives in the exit code, and a partial or
+  degraded answer never wears exit 0.
 - **Cache freshness has one owner**: the serve-process scanner embeds
   incrementally (content-hash diff → API call → cache write). The snapshot
   swap is **not** blocked on embedding: the swap carries fresh
@@ -280,7 +281,8 @@ then it correctly offers nothing). What the new pillar actually asks of the
 faces, by ownership:
 - Structured queries (domain × status × topics) are **already shipped** in
   the lexical search grammar; the one delta is `source_kind` — an index
-  field + filter key added when B or H builds (amending the index's
+  field + filter key added when H builds (ruled 2026-07-12, D50: not a
+  hybrid dependency — B leaves the grammar untouched; amending the index's
   only-what-search-reads list is part of that PR, not a side effect).
 - Topic-depth ranking is the H backlinks-aggregation verb above.
 - **Deferred, deliberately**: a "read but no review written" gap report

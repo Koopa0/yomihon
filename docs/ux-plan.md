@@ -70,6 +70,9 @@ including per-note resume state — §14.6) and the ⌘K panel's retrieval conte
   the drawer at narrow widths. Single-key bindings stay live when focus sits
   on links, summaries, or buttons (the keyboard-navigation convention
   everywhere else); they are suppressed only inside text entry and dialogs.
+  The single-key posture is a recorded, narrow deviation from WCAG 2.1.4 for
+  the single-operator local form — its terms and reopen conditions are D49
+  (decisions.md); the suppression contexts above are part of those terms.
 
 ## 3. Landing (`/`)
 
