@@ -149,8 +149,8 @@ const MUTATIONS = {
   },
   'unguard-open-search-dialog': {
     target: 'no-fill-while-search-dialog-open',
-    needle: '(dialog && dialog.open)',
-    replacement: 'false',
+    needle: 'if (typing || (dialog && dialog.open)) return;',
+    replacement: 'if (typing) return;',
   },
 };
 
