@@ -2,6 +2,7 @@ package search
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -28,6 +29,7 @@ type RequestSnapshot struct {
 type Handler struct {
 	snapshot func() RequestSnapshot
 	log      *slog.Logger
+	runQuery func(*Index, Query) ([]Result, error)
 }
 
 // NewHandler wires the search HTTP surface. snapshot must return both values
@@ -39,7 +41,7 @@ func NewHandler(snapshotProvider func() RequestSnapshot, log *slog.Logger) *Hand
 	if log == nil {
 		panic("search: NewHandler requires a non-nil logger")
 	}
-	return &Handler{snapshot: snapshotProvider, log: log}
+	return &Handler{snapshot: snapshotProvider, log: log, runQuery: (*Index).Search}
 }
 
 // Register mounts the search routes.
@@ -61,7 +63,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 
 	view := pages.SearchView{Query: q, Results: viewResults(results), Diagnostic: diagnostic, Nav: snap.Shell.Nav}
 	if err := pages.Search(view, snap.Shell.Chrome(r, "Search")).Render(r.Context(), w); err != nil {
-		h.log.Error("write search page", "query", q, "error", err)
+		h.logQueryError("write search page", q, err)
 	}
 }
 
@@ -79,20 +81,33 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if err := pages.SearchResults(q, viewResults(results), diagnostic).Render(r.Context(), w); err != nil {
-		h.log.Error("write search results", "query", q, "error", err)
+		h.logQueryError("write search results", q, err)
 	}
 }
 
 func (h *Handler) query(idx *Index, q string) (results []Result, diagnostic string) {
-	results, err := idx.Search(Parse(q))
+	results, err := h.runQuery(idx, Parse(q))
 	if errors.Is(err, ErrMetadataUnavailable) {
 		return nil, err.Error()
 	}
 	if err != nil {
-		h.log.Error("search query", "query", q, "error", err)
+		h.logQueryError("search query", q, err)
 		return nil, "Search is temporarily unavailable."
 	}
 	return results, ""
+}
+
+func (h *Handler) logQueryError(message, rawQuery string, err error) {
+	query := Parse(rawQuery)
+	filterKeys := make([]string, 0, len(query.Filters))
+	for _, filter := range query.Filters {
+		filterKeys = append(filterKeys, filter.Key)
+	}
+	h.log.Error(message,
+		"error_type", fmt.Sprintf("%T", err),
+		"query_bytes", len(rawQuery),
+		"filter_keys", filterKeys,
+	)
 }
 
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
