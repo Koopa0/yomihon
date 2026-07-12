@@ -7,6 +7,12 @@ import (
 )
 
 var (
+	// ttsMarkedParagraph is the explicit authoring contract for a speakable
+	// paragraph. A lesson author places <!-- read-aloud: ja --> immediately before
+	// the Markdown paragraph; goldmark preserves that trusted raw-HTML comment,
+	// and this pass consumes it into one read-aloud line. This is what lets pure
+	// kana practice opt in without pretending ruby is a language declaration.
+	ttsMarkedParagraph = regexp.MustCompile(`(?s)<!--\s*read-aloud:\s*ja\s*-->\s*<p>(.*?)</p>`)
 	// ttsParagraph matches one goldmark-emitted paragraph. goldmark emits a
 	// bare <p> (no attributes); a paragraph that somehow carried attributes
 	// simply would not match and is left untouched — safe by construction. A
@@ -50,8 +56,9 @@ var (
 // the repo's other inline SVGs).
 const ttsSpeaker = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`
 
-// InjectTTS gives every readable Japanese segment — a paragraph or a tight
-// list item containing <ruby> — a speak button whose data-tts attribute holds
+// InjectTTS gives every readable Japanese segment — an explicitly marked
+// paragraph, or a paragraph/tight list item containing <ruby> — a speak button
+// whose data-tts attribute holds
 // the segment's spoken text, computed HERE (server-side) with the furigana
 // stripped: the front end reads data-tts, it never crawls the DOM to
 // reconstruct reading-free text.
@@ -68,9 +75,29 @@ const ttsSpeaker = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 // decision in the handler, not here, is what keeps render unaware that "lesson"
 // exists at all.
 func InjectTTS(htmlOut string) string {
+	htmlOut = injectMarkedParagraphTTS(htmlOut)
 	htmlOut = injectParagraphTTS(htmlOut)
 	htmlOut = injectListItemTTS(htmlOut)
 	return htmlOut
+}
+
+// injectMarkedParagraphTTS consumes the explicit author marker and wraps the
+// following paragraph even when it contains no ruby. The paragraph gains
+// lang=ja both for assistive technology and to keep the later bare-<p> ruby
+// pass from wrapping the same segment a second time.
+func injectMarkedParagraphTTS(htmlOut string) string {
+	return ttsMarkedParagraph.ReplaceAllStringFunc(htmlOut, func(marked string) string {
+		inner := ttsMarkedParagraph.FindStringSubmatch(marked)[1]
+		if nestedParaOpen.MatchString(inner) {
+			return marked
+		}
+		spoken := spokenText(inner)
+		if spoken == "" {
+			return `<p lang="ja">` + inner + `</p>`
+		}
+		return `<div class="y-reading" lang="ja">` + speakButton(spoken) +
+			`<p lang="ja">` + inner + `</p></div>`
+	})
 }
 
 // injectParagraphTTS wraps each ruby-bearing paragraph in a reading line: the

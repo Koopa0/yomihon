@@ -47,6 +47,39 @@ func TestInjectTTSSkipsParagraphWithoutRuby(t *testing.T) {
 	}
 }
 
+func TestInjectTTSWrapsExplicitRubylessParagraph(t *testing.T) {
+	t.Parallel()
+	in := "<!-- read-aloud: ja -->\n<p>あさ、ひる、よる。</p>"
+	got := render.InjectTTS(in)
+	for _, want := range []string{
+		`<div class="y-reading" lang="ja">`,
+		`data-tts="あさ、ひる、よる。"`,
+		`<p lang="ja">あさ、ひる、よる。</p>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("explicit TTS paragraph missing %q; got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "read-aloud: ja") {
+		t.Errorf("explicit TTS marker leaked into rendered output; got:\n%s", got)
+	}
+	if n := strings.Count(got, "data-tts"); n != 1 {
+		t.Errorf("explicit TTS paragraph produced %d controls, want 1; got:\n%s", n, got)
+	}
+}
+
+func TestInjectTTSExplicitRubyParagraphDoesNotDoubleWrap(t *testing.T) {
+	t.Parallel()
+	in := `<!-- read-aloud: ja --><p><ruby>今日<rt>きょう</rt></ruby>です。</p>`
+	got := render.InjectTTS(in)
+	if n := strings.Count(got, "data-tts"); n != 1 {
+		t.Errorf("explicit ruby paragraph produced %d controls, want 1; got:\n%s", n, got)
+	}
+	if !strings.Contains(got, `data-tts="今日です。"`) {
+		t.Errorf("explicit ruby paragraph did not strip reading; got:\n%s", got)
+	}
+}
+
 func TestInjectTTSConcatenatesMultipleRuby(t *testing.T) {
 	t.Parallel()
 	in := `<p><ruby>私<rt>わたし</rt></ruby>は<ruby>学生<rt>がくせい</rt></ruby>です</p>`
