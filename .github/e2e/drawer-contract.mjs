@@ -100,7 +100,7 @@ const rewriteRuntime = (needle, replacement) => async (page) => {
 const MUTATIONS = {
   'stamp-server-nav-state': {
     target: 'server-nav-state-free',
-    apply: rewriteDocument('<html lang="en"', '<html lang="en" data-nav="closed"'),
+    apply: rewriteDocument('<html ', '<html data-nav="closed" '),
   },
   'hide-no-js-sidebar': {
     target: 'no-js-sidebar-navigation',

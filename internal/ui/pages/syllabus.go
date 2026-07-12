@@ -18,6 +18,7 @@ import (
 type PathView struct {
 	Title      string
 	RelPath    string
+	GuideHref  string
 	SealTarget string
 	Paths      []PathLink
 	Branches   []PathBranchView
@@ -77,6 +78,7 @@ func BuildPathView(current *nav.Map, all []nav.Map) PathView {
 	v := PathView{
 		Title:      current.Title,
 		RelPath:    current.RelPath,
+		GuideHref:  notesHref(current.RelPath),
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 	}
@@ -197,9 +199,8 @@ func fillBucket(ready, total int) int {
 	return (pct + 2) / 5 * 5
 }
 
-// countLabel is a syllabus metarow figure for regular English nouns:
-// "1 part", "5 modules", "20 lessons". Functional chrome stays pure English;
-// bilingual text is reserved for ritual identity markers.
+// countLabel formats a syllabus metarow figure for a supplied regular noun:
+// "1 part", "5 modules", "20 lessons".
 func countLabel(n int, noun string) string {
 	if n == 1 {
 		return "1 " + noun

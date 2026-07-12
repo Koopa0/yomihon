@@ -6,7 +6,18 @@ import (
 	"testing"
 )
 
-func TestHeaderPendingChip(t *testing.T) {
+func TestBaseDeclaresTraditionalChineseDocumentLanguage(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{Title: "測試"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render base: %v", err)
+	}
+	if html := buf.String(); !strings.Contains(html, `<html lang="zh-Hant"`) {
+		t.Errorf("base does not declare the interface language; html = %q", html)
+	}
+}
+
+func TestHeaderAdvanceableChip(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name        string
@@ -15,7 +26,7 @@ func TestHeaderPendingChip(t *testing.T) {
 		wantLabel   string
 		wantVisible string
 	}{
-		{name: "known count", chrome: Chrome{Pending: 7, PendingKnown: true}, wantChip: true, wantLabel: `aria-label="7 to decide"`, wantVisible: ">7</a>"},
+		{name: "known count", chrome: Chrome{Advanceable: 7, AdvanceableKnown: true}, wantChip: true, wantLabel: `aria-label="7 notes have a legal next status"`, wantVisible: ">7</a>"},
 		{name: "closed policy", chrome: Chrome{}, wantChip: false},
 	}
 	for _, tt := range tests {
@@ -26,9 +37,9 @@ func TestHeaderPendingChip(t *testing.T) {
 				t.Fatalf("render header: %v", err)
 			}
 			html := buf.String()
-			hasChip := strings.Contains(html, "data-pending-chip")
+			hasChip := strings.Contains(html, "data-advanceable-chip")
 			if hasChip != tt.wantChip {
-				t.Errorf("header pending chip present = %t, want %t; html = %q", hasChip, tt.wantChip, html)
+				t.Errorf("header advanceable chip present = %t, want %t; html = %q", hasChip, tt.wantChip, html)
 			}
 			if tt.wantLabel != "" && !strings.Contains(html, tt.wantLabel) {
 				t.Errorf("header missing %q; html = %q", tt.wantLabel, html)
@@ -37,9 +48,21 @@ func TestHeaderPendingChip(t *testing.T) {
 				t.Errorf("header missing visible count %q; html = %q", tt.wantVisible, html)
 			}
 			if hasChip && !strings.Contains(html, `href="/"`) {
-				t.Errorf("header pending chip does not link Home; html = %q", html)
+				t.Errorf("header advanceable chip does not link Home; html = %q", html)
 			}
 		})
+	}
+}
+
+func TestHeaderSearchKeepsAccessibleNameWhenLabelIsVisuallyHidden(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := header(Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render header: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, `class="y-searchbtn" href="/search" data-search-open aria-label="Search notes"`) {
+		t.Errorf("header search link has no stable accessible name; html = %q", html)
 	}
 }
 

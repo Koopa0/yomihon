@@ -17,7 +17,7 @@ list=$$(printf '%s\n' "$$list" | grep -vE '/node_modules(/|$$)' || true); \
 [ -n "$$list" ] || { echo 'go list is empty after filtering node_modules' >&2; exit 1; }
 endef
 
-.PHONY: build run test lint fmt vet gen css verify clean
+.PHONY: build run test lint fmt vet gen css verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -45,6 +45,22 @@ css:
 	tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
 
 verify: fmt vet lint test build
+
+verify-spec:
+	@test -f tests/test-hooks.sh \
+		-a -f tests/test-skill-format.sh \
+		-a -f tests/test-consistency.sh || { \
+		echo "ERROR: local go-spec harness is missing; install or refresh the bootstrap before verify-spec." >&2; \
+		exit 1; \
+	}
+	@echo "=== Hook Tests ==="
+	@bash tests/test-hooks.sh
+	@echo ""
+	@echo "=== Skill/Agent Format Tests ==="
+	@bash tests/test-skill-format.sh
+	@echo ""
+	@echo "=== Consistency Tests ==="
+	@bash tests/test-consistency.sh
 
 clean:
 	rm -rf bin tmp

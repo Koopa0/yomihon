@@ -240,10 +240,12 @@ only, and the design keeps semantic strictly an enhancement layer:
   plus cross-note link topology (collisions, NFC variants, ambiguous targets).
   Budget the generator as the bulk of the campaign.
 - **Retrieval quality is measured, not assumed**: the B plan doc includes a
-  small pinned eval set (~30–50 real queries, CJK-heavy, with expected-note
-  judgments) run as a test — not to gate CI on a score, but so a model swap or
+  pinned eval set (30–50 CJK-heavy queries with expected-note judgments)
+  run as a test — not to gate CI on a score, but so a model swap or
   chunking change shows its relevance diff instead of relying on Koopa's
-  gut-feel that "search got worse".
+  gut-feel that "search got worse". Fixture policy (D50.8): the committed
+  set is synthetic; real-vault queries and their paired diffs stay local,
+  and only content-free aggregates enter the repo.
 
 ## 5a. Plan-doc obligations (the judge-plan pattern, generalized)
 
@@ -342,10 +344,13 @@ each face at two widths, compare against a committed baseline.
 
 ## 6. Standing rules that survive this roadmap
 
-- The four walls (CLAUDE.md) stand; wall 2's text now carries D32's bounded
-  egress explicitly (note content to the embedding API, never `Diary/`, D18) —
-  the wall text and its authoritative reading are the same text again. Any
-  future widening of egress is a new ruling.
+- The four walls (CLAUDE.md) stand; wall 2's text carries both authorized
+  egress exceptions explicitly — instance, non-private note content to the
+  embedding API (D32, never `Diary/`, D18, never non-instance artifacts,
+  D47), and the query text of an explicitly requested semantic search
+  (D50.1, at most once per explicit action, never logged or stored) — so
+  the wall text and its authoritative reading are the same text (synced
+  2026-07-13). Any future widening of egress is a new ruling.
 - Every new capability gets both surfaces where it makes sense (§2) — the UI
   is not an afterthought to the CLI, nor vice versa.
 - Derived data stays disposable (D06): embedding caches can be deleted and

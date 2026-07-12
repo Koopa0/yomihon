@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 )
 
-// TestPending checks the pending-decision tally: a note counts when its
+// TestPending checks the advanceable-note tally: a note counts when its
 // (type, status) still has an owner-held onward move, except when its status is
 // the seal itself. The fixture extends the ordinary lesson flow beyond the seal
 // so the exclusion has an onward move to override rather than passing because

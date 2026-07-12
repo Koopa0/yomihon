@@ -2,12 +2,14 @@
 
 > Status: Part I (the lexical engine, /search page, ⌘K shell, and the live
 > lexical-results enhancement) is **built and merged**; it is kept as the
-> record of that plan. Part II (§§H1–H12) is the hybrid extension's plan,
-> **revised 2026-07-12 to the ruling sheet (D50)** after its adversarial
-> round returned RETHINK. Dispatch gate (D50.10): the vault contract's
-> privacy capability must land before any Part II behavior — cloud document
-> embedding, ranking/fusion, or agent-facing output. A delta-focused second
-> round reviews this revision before build.
+> record of that plan. Part II (§§H1–H14) is the hybrid extension's plan,
+> revised 2026-07-12 to the ruling sheet (D50) and **again 2026-07-13 to
+> the six delta clarifications** (walls text synced; the fourth legal
+> pair; privacy-unavailable emits no agent payload; the precedence gate;
+> the Embedding-2 protocol re-pinned from its own documentation; mismatch
+> and cutover as distinct states). Dispatch gate (D50.10): the vault
+> contract's privacy capability must land before any Part II behavior. A
+> scoped final check audits the delta round's closure table before build.
 > This refines `spec.md` §3 and `design.md` §6–7 into a concrete plan. The
 > engine is **in-memory, no database** (D24); the index is one of three models
 > in a shared vault Snapshot (D25); incremental freshness is a ~2s mtime scan
@@ -259,8 +261,9 @@ No Docker, no testcontainers, no `//go:build integration`.
    makes graph/nav live — D25).
 7. The search handler + minimal plain results page.
 
-Each step has an independently verifiable output. All UI/error/comment text is
-English (D19), including "no results".
+Each step has an independently verifiable output. Browser UI and browser-facing
+errors follow the Traditional Chinese interface contract (D28), including the
+empty-results message; source comments and wire contracts remain English.
 
 ## 12. Cleaned up when PostgreSQL was dropped (D24)
 
@@ -326,19 +329,29 @@ and every surface stays whole without it (roadmap §4a).
   class in this vault); wikilink targets contribute their display text,
   exactly as `plain_text` already resolves them.
 - **Drop rule**: a section whose body is empty or markup-only (heading
-  scaffolding, bare separators) produces no chunk. Measured 2026-07-12 on
-  the real vault: 448 eligible notes → 7,247 natural sections, of which
-  1,290 are empty → ≈5,960 chunks, ≈13.3 per note; ~2–3×10⁵ at the
-  18k-note horizon — inside rung 1, with the rung 1→2 trigger (D32: ~10⁵
-  chunks or p95 exact scan > ~100 ms) as the designed exit, and H14's
-  envelope naming who measures that p95.
-- **Cap**: the model input limit minus a 10% margin, **prefix included**
-  (the `Title › H2 › H3 — ` context prefix counts against the budget).
-- **Token counter**: a documented offline proxy (CJK characters ≈ 1
-  token each; ASCII ≈ 4 characters per token), with the 10% margin
-  absorbing proxy error — the count-tokens API is not called per chunk,
-  which would couple indexing to the network twice. If the proxy is shown
-  to under-count, the margin widens: a constant change, not a redesign.
+  scaffolding, bare separators) produces no chunk. Measured on the
+  2026-07-12 vault snapshot (the vault drifts; these are dated figures,
+  re-measured at build start): 448 eligible notes → 7,247 natural
+  sections − 1,290 empty − 20 markup-only → 5,937 chunks, ≈13.25 per
+  note. The 18k-note extrapolation is ≈2.4×10⁵ chunks — **beyond the
+  rung-1→2 trigger (D32: ~10⁵ chunks or p95 exact scan > ~100 ms) by
+  ~2.4×**, so at that horizon rung 2 is the designed path, not a
+  surprise; H13 carries the envelope and names who measures the p95.
+- **Cap**: `cap = floor(0.9 × model_input_limit)` proxy tokens, **prefix
+  included** (the `Title › H2 › H3 — ` context prefix counts against the
+  budget).
+- **Token counter**, the exact integer formula (table-tested):
+  `tokens(s) = cjk_count(s) + ceil(other_count(s) / 4)`, where `cjk_count`
+  is the number of runes in the CJK Unified Ideographs, Hiragana, Katakana,
+  and CJK punctuation ranges and `other_count` is every remaining rune.
+  The 10% margin absorbs proxy error; the count-tokens API is not called
+  per chunk. If the provider still rejects an input as oversized, the
+  bounded rule is: split that chunk once more at its midpoint line
+  boundary and retry each half once; a half that is rejected again is
+  recorded as a failed chunk with a named diagnostic and the epoch is
+  marked incomplete — loud, never silently dropped, never an unbounded
+  retry loop. If the proxy is shown to under-count systematically, the
+  margin constant widens: a constant change, not a redesign.
 - **Oversize fallback ladder**, in order: paragraph split → line split
   (tables and lists split at row/item boundaries) → hard rune split as the
   terminal case (a 313-line single fence exists in this vault). A fence
@@ -354,32 +367,50 @@ and every surface stays whole without it (roadmap §4a).
   refresh lands (stale-masking, never stale-serving). **Query embedding is
   a per-request act of whichever surface was explicitly asked** (D50.1):
   the UI's submitted semantic search and the CLI's `--semantic` each embed
-  exactly one query string per explicit action. The CLI embeds queries and
-  never documents; it never writes the cache.
-- **Cache identity**: (model, dimension, task types, normalization flag,
-  chunker epoch, format version, vault root). Any component mismatching
-  means this cache is not this corpus's cache — cold, never a partial read
-  and never a silent reuse.
-- **Embedding contract pinned**: task types `RETRIEVAL_DOCUMENT` /
-  `RETRIEVAL_QUERY`; non-native dimensions are re-normalized after
-  truncation (the API returns unnormalized vectors below the native
-  dimension); the full preprocess (prefix rule, drop rule, fallback
+  **at most one** query string per explicit action — the precedence gate
+  (H7) may stop the request before any embedding happens. The CLI embeds
+  queries and never documents; it never writes the cache.
+- **The embedding protocol is pinned from the successor model's own
+  documentation** (D50.4 clarification, 2026-07-13 — the first revision
+  carried the predecessor generation's semantics, a verified error). What
+  is already known from the official contract: `gemini-embedding-2` takes
+  no task-type field; output at a truncated dimension is normalized by the
+  API (no client-side renormalization); multi-input request semantics
+  differ from the predecessor, so this design sends **one chunk per
+  request row and never relies on any server-side aggregation**. The
+  build's first protocol step records, with an official-doc anchor per
+  clause: the exact request template for the document role and the query
+  role, the exact submitted bytes for a reference input, and the response
+  handling at the chosen dimension. The scoped review verifies each anchor.
+- **Cache identity**: (model, dimension, the protocol epoch — a hash over
+  the pinned request templates and preprocess rules — the chunker epoch,
+  format version, vault root). Any component mismatching means this cache
+  is not this corpus's cache — cold, never a partial read and never a
+  silent reuse. The full preprocess (prefix rule, drop rule, fallback
   ladder) is part of the chunker epoch.
 - **Publication contract**: one writer (the serve process); files `0600`;
   writes go temp + fsync + atomic rename; any malformed row means the whole
-  file is cold; rows are purged when their note is deleted or reclassified
-  (instance→non-instance, or into a privacy-declared directory).
+  file is cold. Before a row is committed, the publisher re-validates that
+  the embedded content hash still matches the current snapshot's bytes and
+  that the note is still eligible (instance ∧ non-private) in the current
+  snapshot generation — a response landing after its note changed or was
+  reclassified is discarded, not published. A policy change atomically
+  invalidates every affected row; deletion and reclassification purge.
 - **Final-send revalidation**: eligibility (instance ∧ non-private) is
   re-checked against the current snapshot at the choke point that performs
   the network send — a note reclassified between collection and send is
   dropped there, and the guard locks target that choke point (H5), not the
-  collector alone.
-- **Storage engine**: behind a narrow interface (put / get / scan). The
-  engine is an engineering call (D31) made inside the build with a
-  benchmark — the candidates are the JSONL file above, SQLite (the
-  storage report's leading durable candidate), and a packed immutable
-  generation with an atomic manifest; the identity, atomicity, and
-  cold-on-corruption contract binds whichever wins.
+  collector alone. (Send-side and publish-side revalidation are two
+  separate gates; each has its own lock.)
+- **Two storage layers, named separately.** The *durable vector cache* sits
+  behind put / get / scan and is what the bake-off chooses — candidates:
+  a header-plus-rows file (one identity header line, then one row per
+  chunk vector), SQLite (the storage report's leading durable candidate),
+  and a packed immutable generation with an atomic manifest; the identity,
+  atomicity, and cold-on-corruption contract binds whichever wins. The *in-memory query engine* is the
+  separate layer D32's put / get / top-k interface names: it loads from
+  the durable cache at startup/epoch-swap and answers cosine top-k; the
+  scale rungs govern it, not the cache file.
 - **Epoch cutover** (D50.2): the old epoch serves until the new epoch is
   complete and swaps atomically — and only while the old epoch's query
   embedder is still available; a query embedded on one model never scores
@@ -407,10 +438,10 @@ and every surface stays whole without it (roadmap §4a).
    typing against the fragment endpoint with a recording client and
    asserts zero requests). Pure-filter and empty-text queries never embed.
 3. **Logs and metrics**: raw query text appears in no log, cache, error,
-   metric, or trace — **including removing the shipped handler lines that
-   log full queries today** (a live Part I defect this ruling closes; see
-   the note in H11). Lock: a recording logger under error injection
-   asserts absence.
+   metric, or trace. The shipped handler lines that logged full queries
+   were removed as their own merged unit (2026-07-13), with a
+   recording-logger lock under error injection asserting absence; B's
+   surfaces inherit that lock and extend it to the new paths.
 4. **Error surfaces**: an embedder failure's user- or agent-visible text
    names the failure class; it never carries the query bytes or the key.
 5. **Key transport**: as pinned in H4; error-path fixtures assert the key's
@@ -431,12 +462,13 @@ source planted in a fixture must neither appear in agent-corpus output
   over the chunk matrix; **chunk→note max-similarity aggregation happens
   before the depth cut**, and the channel's depth is the top 50 *notes*.
   Chunk ties inside a note break by chunk ordinal.
-- Lexical channel: the shipped two-bucket ordering supplies its ranking,
-  stated honestly — within a bucket the order is the index's deterministic
-  fold-key-then-rel-path total order (the fold key is the index's
-  NFC-folded title), a completeness order rather than a relevance claim.
-  RRF's damping is the acknowledged treatment, and the eval set (H9) is
-  the check that this coarse rank does not degrade outcomes.
+- Lexical channel: the shipped ordering supplies its ranking **unchanged**
+  — title-match bucket before body-match bucket, rel-path order within
+  each bucket, exactly as Part I §6 ships it (the first revision invented
+  a fold-key order here; withdrawn). It is a completeness order rather
+  than a relevance claim; RRF's damping is the acknowledged treatment,
+  and the eval set (H9) is the check that this coarse rank does not
+  degrade outcomes.
 - Fusion: RRF with **k = 60** over each channel's top 50; score =
   Σ 1/(k + rank). A note absent from a channel contributes nothing — no
   imputed ranks. (RRF arithmetic is what it is: two deep agreements can
@@ -447,8 +479,9 @@ source planted in a fixture must neither appear in agent-corpus output
   after it in lexical order. A query with 80 lexical hits still answers
   `--limit 80` — fusion reorders the head, it never truncates the match
   set.
-- Determinism: cross-note ties break by fold-key then rel-path; identical
-  inputs give byte-identical output (the CLI golden depends on it).
+- Determinism: fused-score ties break by rel-path (the index's existing
+  total order); identical inputs give byte-identical output (the CLI
+  golden depends on it).
 - k and the depths are starting constants pinned for reproducibility, not
   tuned truths; changing them is an ordinary code change with the eval set
   as the regression floor.
@@ -463,59 +496,108 @@ lexical by default; `--semantic` is strict and there is no best-effort form
 (D50.7). The CLI embeds only the query (H4), reads the cache read-only, and
 never embeds documents.
 
+**The precedence gate** (ruled 2026-07-13; every request walks it in this
+order, and the first failing stage names the reason — nothing later runs):
+
+1. **privacy** — capability missing/invalid → fail-closed (see R1);
+2. **artifact** — policy missing/invalid → instance capabilities off (R2);
+3. **semantic applicability** — pure-filter or empty-text queries carry
+   nothing to embed: the semantic channel is *not applicable*, never
+   "degraded" (R4);
+4. **cache usability** — cold / mismatch / no old epoch → semantic cannot
+   be served, so **the query is never embedded** (no pointless egress);
+5. **query API** — only a request that passed 1–4 embeds the query;
+   network failures surface here.
+
 **JSON contract** (frozen at build, golden-pinned; the D37 rule): top-level
-`{query, mode, semantic, coverage, results}`. `mode` ∈ `lexical|hybrid`;
-`semantic` ∈ `off|ok|unavailable`; the legal pairs are exactly three —
-`lexical/off` (no `--semantic`, exit 0), `hybrid/ok` (exit 0), and
-`lexical/unavailable` (strict failure, exit 3: the body carries the lexical
-results honestly labeled, a typed `coverage` diagnostic naming the failure
-class and, for stale-partial, the masked-note count — the exit code, never
-the body, is what automation branches on; a partial answer never wears
-exit 0, D50.5). `results` is always present, `[]` on zero matches. Each
-result: `{rank, rel_path, title, status, snippet, heading, channels,
-channel_ranks}` — enough evidence to act without a second call; `channels`
-is ordered `[lexical, semantic]` filtered to those that fired. Ranks are
-1-based and dense. Exit codes (this command's own frozen table — each CLI
-command owns its exit vocabulary; `check`'s exit 1 means findings, this
-exit 1 means internal failure): 0 = ran, 1 = internal error, 2 = usage,
-3 = semantic required but unavailable. stderr on exit 3 is a single
-sentence naming the reason; goldens pin one example of each legal pair,
-and separate assertions pin exit code and stderr bytes.
+`{query, mode, semantic, coverage, results}`.
 
-**Collapsing rules** (each an explicit ruling; they close every cell the
-core table does not enumerate):
+- `mode` ∈ `lexical|hybrid`; `semantic` ∈ `off|ok|not-applicable|
+  unavailable`. The legal pairs are exactly four:
+  `lexical/off` (no `--semantic`; exit 0), `hybrid/ok` (exit 0),
+  `lexical/not-applicable` (`--semantic` on a pure-filter or empty-text
+  query, ruled 2026-07-13: nothing was degraded — the lexical answer is
+  complete; exit 0, zero embedding), and `lexical/unavailable` (strict
+  failure, exit 3).
+- `coverage`: present exactly when `semantic` ≠ `ok`; a typed object
+  `{reason, masked_notes?}` where `reason` is one of the frozen strings
+  (`privacy-capability-unavailable`, `artifact-policy-unavailable`,
+  `not-applicable`, `cache-cold`, `cache-mismatch`, `embedder-retired`,
+  `embedder-unreachable`, `rate-limited`, `stale-partial`) and
+  `masked_notes` (integer) appears only with `stale-partial`.
+- `results`: always present, `[]` on zero matches — with one ruled
+  exception: **privacy-unavailable emits no result payload at all**
+  (`results` absent, exit 3) — agent output is fail-closed under D50.10,
+  and an exit-3 body carrying lexical results would leak what the ruling
+  forbids. Every other exit-3 body carries the lexical results honestly
+  labeled; the exit code, never the body, is what automation branches on
+  (D50.5).
+- Each result: `{rank, rel_path, title, status, snippet, heading,
+  channels, channel_ranks}`. `rank` 1-based dense; `rel_path`/`title`
+  always present; `status` present iff governed; `snippet` present iff a
+  body match exists (title-only matches carry none); `heading` present
+  iff the best evidence sits under one; `channels` ⊆ `[lexical,
+  semantic]` in that fixed order, never empty; `channel_ranks` an object
+  keyed by the channels present, integer ranks.
+- Exit codes (this command's own frozen vocabulary; `check`'s exit 1
+  means findings — this exit 1 means internal failure): 0 = ran
+  (including zero results and not-applicable), 1 = internal error,
+  2 = usage, 3 = a required capability is unavailable (semantic, metadata
+  filters, or privacy-gated output — the stderr sentence and `coverage.
+  reason` name which). stderr on exit 3 is exactly one line:
+  `yomihon search: <reason>: <one frozen sentence>`. Goldens pin one
+  example of each legal pair plus the privacy-unavailable no-payload
+  shape; separate assertions pin exit codes and stderr bytes.
 
-- R1 (D50.10): privacy capability missing/invalid → all Part II behavior
-  off, fail-closed; Part I lexical continues.
-- R2 (D47): artifact policy missing/invalid → semantic off with the
-  instance projections; bare-text/`folder:` lexical continues.
-- R3 (D50.1): the live fragment is lexical in every cell.
-- R4 (D50.1): pure-filter and empty-text queries never embed, any cell.
-- R5 (D50.7): no best-effort surface exists.
+**Collapsing rules** (each labeled with its authority):
 
-**Core table** (artifact valid ∧ privacy valid; surfaces = UI explicit
-semantic search, CLI `--semantic` strict):
+- R1 — privacy capability missing/invalid: all Part II behavior off,
+  fail-closed [EXPLICIT-RULING D50.10]. Local UI continues lexical with a
+  named diagnostic [CANON-DERIVED, Part I availability]; **the search CLI
+  emits no result payload, exit 3, fixed privacy stderr** [EXPLICIT-RULING
+  2026-07-13].
+- R2 — artifact policy missing/invalid: semantic off with the instance
+  projections [CANON-DERIVED D47]; metadata-containing queries answer
+  with the capability diagnostic before any embedding — UI shows it, CLI
+  exits 3 with `artifact-policy-unavailable` [EXPLICIT-RULING D47 +
+  gate order 2026-07-13]; bare-text/`folder:` queries continue lexical
+  (UI normally; CLI `--semantic` still exits 3 — the semantic corpus is
+  instance-scoped and cannot exist) [CANON-DERIVED].
+- R3 — the live fragment is lexical in every cell [EXPLICIT-RULING D50.1].
+- R4 — pure-filter and empty-text queries never embed; with `--semantic`
+  they answer `lexical/not-applicable`, exit 0 [EXPLICIT-RULING
+  2026-07-13].
+- R5 — no best-effort surface exists [EXPLICIT-RULING D50.7].
 
-| Cache | API | UI (submitted) | CLI strict |
-|---|---|---|---|
-| cold | up | lexical + "semantic building" indicator | exit 3, reason: cache cold |
-| cold | down | lexical + offline indicator | exit 3, reason: embedder unreachable |
-| cold | 429 | lexical + rate-limited indicator | exit 3, reason: rate-limited (D50.6, fail-fast) |
-| warm | up | hybrid | hybrid, exit 0 |
-| warm | down | lexical + offline indicator (query cannot embed) | exit 3, reason: embedder unreachable |
-| warm | 429 | lexical + rate-limited indicator | exit 3, reason: rate-limited |
-| stale-partial | up | hybrid over the unmasked set + refresh indicator with pending count | exit 3 + typed coverage diagnostic (D50.5) |
-| stale-partial | down | lexical + offline indicator | exit 3 |
-| stale-partial | 429 | lexical + rate-limited indicator | exit 3 |
-| cutover | up | hybrid on the old epoch while its query embedder lives (D50.2); else as cold | same rule |
-| cutover | down | lexical + offline indicator | exit 3 |
-| cutover | 429 | lexical + rate-limited indicator | exit 3 |
+**Core table** (privacy valid ∧ artifact valid ∧ semantic applicable;
+surfaces = UI explicit semantic search, CLI `--semantic` strict). The
+cache axis carries the background pipeline's condition as explicit
+substates (ruled 2026-07-13: mixed states are enumerated, not folded);
+the API axis is the **query** API alone — the background pipeline's own
+backoff shares no latch with it (D50.6).
 
-Every cell above is EXPLICIT-RULING (D50.1/2/5/6) or CANON-DERIVED
-(roadmap §4a); with R1–R5 covering the remaining axes, NEEDS-RULING = 0.
-Query-side 429 is fail-fast and shares no offline latch with the background
-pipeline's bounded backoff (D50.6). Each row is an acceptance test in the
-build; the UI indicator texts are part of the locked strings.
+| # | Cache state | Query API | UI (submitted) | CLI strict | Authority |
+|---|---|---|---|---|---|
+| 1 | cold | up | lexical + "semantic index building" | exit 3 `cache-cold`; query never embedded (gate 4) | ER D50.5 + gate |
+| 2 | cold | down | same as 1 — gate 4 fails first, API never consulted | same as 1 | ER gate order |
+| 3 | cold | 429 | same as 1 | same as 1 | ER gate order |
+| 4 | warm, background idle | up | hybrid | hybrid, exit 0 | CD §4a |
+| 5 | warm, background idle | down | lexical + offline indicator (query cannot embed) | exit 3 `embedder-unreachable` | ER D50.5 |
+| 6 | warm, background idle | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast | ER D50.6 |
+| 7 | stale-partial, background refreshing | up | hybrid over unmasked + pending count | exit 3 `stale-partial` + `masked_notes` | ER D50.5 |
+| 8 | stale-partial, background refreshing | down/429 | lexical + offline/rate indicator | exit 3, reason = the query-API failure (gate 5 reached, failed there) | ER D50.5/6 |
+| 9 | stale-partial, background stalled (its own backoff) | up | as row 7 — identical serving; the indicator's pending count simply stops shrinking | as row 7 | ER D50.6 (no shared latch) |
+| 10 | stale-partial, background stalled | down/429 | as row 8 | as row 8 | ER D50.5/6 |
+| 11 | cutover, old embedder alive, new epoch building | up | hybrid on the old epoch | hybrid on the old epoch, exit 0 | ER D50.2 |
+| 12 | cutover, old embedder alive | down/429 | lexical + indicator | exit 3, query-API reason | ER D50.2/5/6 |
+| 13 | cutover, old embedder retired | any | as cold (rows 1–3): gate 4 fails, no old epoch to serve, query never embedded | as cold | ER D50.2 |
+| 14 | epoch-mismatch (unmanaged identity mismatch) | any | as cold — mismatch means this cache is not this corpus's cache (H4) | as cold | CD H4 identity |
+
+Rows 1–3, 13, 14 collapse to the same observable (cold semantics) by the
+gate — they are enumerated so nothing is folded silently. Each row is an
+acceptance test in the build; UI indicator texts are locked strings.
+NEEDS-RULING = 0 as of the 2026-07-13 clarifications; the scoped review
+re-audits that claim per row.
 
 ## H8. Removed — source_kind moved to the H face (D50.4)
 
@@ -602,6 +684,55 @@ H7's JSON is the spec they pin.
    and CLI `--semantic`, one send per action; the live fragment stays
    lexical; raw query text enters no log, cache, error, metric, or trace.
 
+The 2026-07-13 clarifications (Koopa, closing the delta round's open
+cells; recorded in D50's amendment note): the walls text now names both
+egress exceptions; `lexical/not-applicable` is the fourth legal pair
+(exit 0, zero embedding); privacy-unavailable strict CLI emits no result
+payload; the precedence gate is privacy → artifact → applicability →
+cache → query API, with no query egress before the final stage; the
+Embedding-2 protocol re-pins from the successor's own documentation; and
+unmanaged epoch-mismatch and managed cutover are distinct matrix states,
+with background-pipeline conditions enumerated as cache substates.
+
 Open engineering calls (not rulings): the storage engine bake-off (H4) and
 the token-proxy constants (H3) — both decided inside the build with
 measurements, both reversible behind their interfaces.
+
+## H13. Scale and capacity envelope (the numbers, dated 2026-07-12)
+
+- **Working set (RAM, the query engine)**: chunks × dim × 4 bytes.
+  Today at 5,937 chunks: ≈36 MiB at 1536, ≈73 MiB at 3072. A managed
+  cutover holds two epochs: peak is double the steady figure. At the
+  18k-note extrapolation (≈2.4×10⁵ chunks): ≈1.4 GiB at 1536 steady —
+  which is why that horizon is rung 2 territory by design (H3), not a
+  rung-1 promise.
+- **Durable cache (disk)**: the vector payload dominates; base64-encoded
+  float32 costs 4/3 of raw — ≈47 MiB at 1536 today, ≈95 MiB at 3072,
+  before row metadata; two epochs may coexist during cutover, so disk
+  peak is likewise double. A binary-payload engine (the bake-off's SQLite
+  or packed-generation candidates) stores raw and drops the 4/3 factor.
+- **Capacity failure is loud**: if the engine cannot build its matrix
+  (allocation failure, corrupt cache larger than expected), the semantic
+  channel reports `unavailable` with a named diagnostic and lexical
+  serving continues — never a crash of the reading face, never a silent
+  half-loaded matrix.
+- **The p95 observer, named**: (a) a repo benchmark
+  (`BenchmarkSemanticTopK`, synthetic corpus of pinned size) under the
+  standing benchstat discipline; (b) the serve process logs the measured
+  top-k p95 over the real corpus **at every epoch build** — owner: the
+  scanner; cadence: each epoch. The rung-1→2 trigger (D32) is therefore
+  observable in the serve log, not a folklore number.
+
+## H14. The §5a obligations, dispositioned
+
+| Obligation (roadmap §5a, B) | Status |
+|---|---|
+| Chunking rules, chunks-per-note assumption stated | MET (H3: rules, formulas, dated measurements) |
+| Cache file format versioned by (model, dim) | MET, widened (H4: full identity tuple; engine via bake-off) |
+| RRF specifics (k, depths, aggregation) | MET (H6) |
+| §4a degraded matrix as acceptance cases | MET (H7: gate + 14 rows + R1–R5, per-row authority) |
+| The eval set | MET (H9; synthetic-in-repo per D50.8) |
+| Egress guard test (Diary never reaches the embedder) | MET, widened (H5: five flows + influence lock; the log flow already shipped) |
+
+No obligation is PARTIAL or MISSING as of this revision; the scoped
+review audits this table against the text.
