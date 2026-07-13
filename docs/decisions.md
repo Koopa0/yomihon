@@ -469,3 +469,26 @@ and unmanaged epoch-identity mismatch (cold) is distinct from managed
 cutover (old epoch serves while its embedder lives), with the background
 pipeline's condition enumerated as explicit cache substates rather than
 folded away.)*
+
+*(Amended 2026-07-14, closing the last two open families. **The agent
+wire has two discriminated envelopes and never echoes the query** — a
+request the command can answer (even only lexically) carries
+`{mode, semantic, coverage?, results}`; a request it cannot answer at all
+— the privacy capability invalid, or a metadata filter that cannot be
+evaluated, with or without `--semantic` — carries `{"error": {"reason"}}`
+and nothing else, exit 3, with silent stdout in non-JSON mode. Echoing
+the query would have put raw query text into an error surface, which item
+1 forbids; that is why no envelope carries it. Item 10's boundary is
+therefore precise: a capability-only diagnostic may leave; a result or
+ranking payload may not. **Embedding-credential failure splits in two**: a
+missing key is a configuration-preflight state before the network —
+`embedder-unconfigured`, no client constructed, no query embedded,
+reading never blocked, logged once by serve without the key or any query
+— and it is checked only for a text-bearing request that explicitly asked
+for semantic, after the index state is known, so it can never mask a cold,
+mismatched, retired, or stale index. A provider refusal of the credential
+is `embedder-rejected`: at most one call per explicit action, no in-place
+retry, the provider's response body never forwarded, and no cross-request
+auth latch is authorized — the status-code classification is pinned from
+the successor's own error taxonomy at the protocol step, not hardcoded
+here.)*

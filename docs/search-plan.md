@@ -551,11 +551,47 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
    at all) → index presence → embedder availability for the epoch that
    would serve → completeness (CLI only). Capacity failure (H13) is a
    stage-4 failure.
-5. **query API** — only a request that passed 1–4 embeds the query;
-   credential and network failures surface here.
+4b. **configuration preflight** (ruled 2026-07-14) — checked **only for a
+   text-bearing request that explicitly asked for semantic**, and only
+   after stage 4 found the index usable for this surface: with no
+   embedding key configured, the state is `embedder-unconfigured` — no
+   client is constructed, **no query is embedded**, and reading is never
+   blocked. Serve logs the configuration diagnostic **once**, carrying
+   neither the key nor any query. Plain lexical and not-applicable
+   requests never reach this stage, so a missing key cannot change their
+   answer. Because it runs after stage 4, a cold / mismatched / retired /
+   stale-partial index keeps *its* reason: configuration never masks a
+   cache state.
+5. **query API** — only a request that passed 1–4b embeds the query; at
+   most one call per explicit action, no in-place retry. A provider
+   refusal of the credential is `embedder-rejected` (a non-retryable
+   client-side authorization failure per the successor's own error
+   taxonomy, pinned at the protocol step alongside the request templates
+   — this plan does not hardcode a status number); an unanswered call is
+   `embedder-unreachable`; a throttle is `rate-limited` (fail-fast,
+   D50.6). **No cross-request auth latch is authorized**: each explicit
+   action is judged on its own call. Introducing one would need its own
+   lifecycle and matrix states, ruled separately.
 
-**JSON contract** (frozen at build, golden-pinned; the D37 rule): top-level
-`{query, mode, semantic, coverage, results}`.
+**JSON contract** (frozen at build, golden-pinned; the D37 rule). **No
+envelope ever echoes the query** (ruled 2026-07-14 — the caller already
+knows its input, and echoing it would put raw query text into an error
+surface, which D50.1 and H5.4 forbid). Two discriminated envelopes:
+
+- **Answerable** — the command could answer, even if only lexically:
+  `{mode, semantic, coverage?, results}`.
+- **Unanswerable** — no honest answer exists (privacy capability invalid;
+  a metadata filter that cannot be evaluated), *with or without*
+  `--semantic`: `{"error": {"reason": "..."}}` — no `mode`, no
+  `semantic`, no `coverage`, no `results`. Exit 3.
+- **Non-JSON mode**: an unanswerable request prints **nothing** on stdout,
+  exits 3, and prints its one frozen stderr line.
+
+An agent's branch is therefore exact: exit 3 with `error` = there is no
+answer; exit 3 with `results` = a lexical answer exists and only the
+semantic channel failed.
+
+Fields of the answerable envelope:
 
 - `mode` ∈ `lexical|hybrid`; `semantic` ∈ `off|ok|not-applicable|
   unavailable`. The legal pairs are exactly four:
@@ -568,23 +604,22 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
   unavailable` — absent for `off` (semantic was never requested: there is
   nothing to explain) and for `ok`. A typed object `{reason,
   masked_notes?}`; `reason` is one of the frozen strings
-  (`privacy-capability-unavailable`, `metadata-filters-unavailable`,
-  `artifact-policy-unavailable`, `not-applicable`, `cache-cold`,
-  `cache-mismatch`, `embedder-retired`, `embedder-unreachable`,
-  `rate-limited`, `stale-partial`, `capacity`) and `masked_notes`
-  (integer) appears only with `stale-partial`. `capacity` is H13's
-  named allocation/build failure surfacing on the wire.
-- `results`: present with `[]` on zero matches — with two ruled
-  exceptions where the body carries **no** `results` field, because no
-  honest result set exists: `privacy-capability-unavailable` (agent
-  output is fail-closed under D50.10 — lexical results in an exit-3 body
-  would leak what the ruling forbids) and `metadata-filters-unavailable`
-  (the query itself is unanswerable — emitting unfiltered lexical results
-  would silently ignore the filter, and `[]` would fake zero; both are
-  what the shipped Part I behavior refuses). Every other exit-3 body
-  carries the **lexical-only** result list, honestly labeled — a partial
-  hybrid is not a legal shape, so exit-3 bodies never mix channels; the
-  exit code, never the body, is what automation branches on (D50.5).
+  (`not-applicable`, `artifact-policy-unavailable`, `cache-cold`,
+  `cache-mismatch`, `embedder-retired`, `capacity`,
+  `embedder-unconfigured`, `stale-partial`, `embedder-unreachable`,
+  `embedder-rejected`, `rate-limited`) and `masked_notes` (integer)
+  appears only with `stale-partial`.
+- The two **unanswerable** reasons — `privacy-capability-unavailable` and
+  `metadata-filters-unavailable` — never appear in `coverage`: they carry
+  the *error* envelope instead, because no honest result set exists
+  (agent output is fail-closed under D50.10; and a filter that cannot be
+  evaluated must never be silently ignored or faked as zero, which is
+  what the shipped Part I behavior refuses).
+- `results`: present with `[]` on zero matches, in every answerable
+  envelope. An exit-3 answerable body carries the **lexical-only** result
+  list, honestly labeled — a partial hybrid is not a legal shape, so
+  exit-3 bodies never mix channels; the exit code, never the body, is
+  what automation branches on (D50.5).
 - Each result: `{rank, rel_path, title, status, snippet, heading,
   channels, channel_ranks}`. `rank` 1-based dense; `rel_path`/`title`
   always present; `status` present iff governed; `snippet` present iff
@@ -608,11 +643,16 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
   - `yomihon search: cache-cold: no semantic index exists yet for this vault`
   - `yomihon search: cache-mismatch: the semantic index was built under a different configuration`
   - `yomihon search: embedder-retired: the old index's embedding model is no longer available`
+  - `yomihon search: embedder-unconfigured: no embedding key is configured, so semantic search is off`
   - `yomihon search: embedder-unreachable: the embedding API did not answer`
+  - `yomihon search: embedder-rejected: the embedding API refused the credential`
   - `yomihon search: rate-limited: the embedding API is rate-limiting; try again shortly`
   - `yomihon search: stale-partial: the semantic index is missing vectors for changed notes`
   - `yomihon search: capacity: the semantic index could not be loaded into memory`
-  Goldens pin one example of each legal pair plus both no-payload shapes;
+  A rejection's stderr carries that sentence and nothing else — the
+  provider's own response body is never forwarded (it could echo the
+  submitted text). Goldens pin one example of each legal pair, both
+  unanswerable error bodies, and the non-JSON silent-stdout shape;
   separate assertions pin exit codes and stderr bytes.
 
 **Collapsing rules** (each labeled with its authority; each is scoped to
@@ -653,9 +693,15 @@ the gate stage it implements, so no two rules can claim the same cell):
 - R5 — no best-effort surface exists [EXPLICIT-RULING D50.7].
 - R6 (**gate 4**) — capacity/build failure of the query engine: semantic
   `unavailable` with reason `capacity`; lexical serving unaffected; the
-  query is never embedded. Reachable only for semantic-applicable queries
-  (gate 3 already terminated the others) [CANON-DERIVED H13, wire shape
-  2026-07-13].
+  query is never embedded. Reachable **only for a request that explicitly
+  asked for semantic and carries text** — a plain lexical query (no
+  `--semantic`) is answered `lexical/off`, exit 0, whatever the engine's
+  capacity, because nothing it needed failed [CANON-DERIVED H13, wire
+  shape 2026-07-13; scope corrected 2026-07-14].
+- R7 (**gate 4b**) — no embedding key configured: semantic `unavailable`
+  with reason `embedder-unconfigured`; same scope as R6 (text-bearing ∧
+  explicitly semantic); no client, no egress; reading unaffected
+  [EXPLICIT-RULING 2026-07-14].
 
 **Core table** (privacy valid ∧ artifact valid ∧ semantic applicable;
 surfaces = UI explicit semantic search, CLI `--semantic` strict). Three
@@ -686,54 +732,39 @@ embedder-for-the-serving-epoch retired → capacity failure → incomplete
 (stale-partial) → complete. The first match names the state and its
 `coverage.reason`.
 
-| # | Index state | Background | Query API | UI (submitted) | CLI strict |
-|---|---|---|---|---|---|
-| 1 | **mismatch** — cache built under another identity | refreshing / backing-off / stalled / absent — the four differ only in whether a rebuild is progressing; UI says so, serving is identical | *n/a (gate 4)* — never embedded | lexical + `cache-mismatch` diagnostic | exit 3 `cache-mismatch` |
-| 2 | **absent** — no index | as row 1 (with *absent* = no builder: standalone CLI, or serve without one — the UI then says "not building" instead of "building") | *n/a (gate 4)* | lexical + `cache-cold` diagnostic | exit 3 `cache-cold` |
-| 3 | **embedder-retired** — old epoch's model gone, no successor epoch yet | as row 1 | *n/a (gate 4)* | lexical + `embedder-retired` diagnostic | exit 3 `embedder-retired` |
-| 4 | **capacity** — index exists but cannot be loaded/built in memory (H13) | as row 1 | *n/a (gate 4)* | lexical + `capacity` diagnostic | exit 3 `capacity` |
-| 5 | **stale-partial** — some notes missing vectors | refreshing (count shrinks) / backing-off (count holds, retry pending) / stalled (count holds, no retry) / absent (count holds, nothing will change) — serving identical in all four | up | hybrid over the unmasked set + pending-count indicator | *n/a (gate 4: the strict CLI requires a complete index)* → exit 3 `stale-partial` + `masked_notes` |
-| 6 | stale-partial | as row 5 | down / 429 | lexical + offline / rate-limited indicator (the UI reached gate 5 and failed there) | exit 3 `stale-partial` — **unchanged**: the CLI stopped at gate 4 and never consulted the API |
-| 7 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | idle / refreshing-next-epoch / backing-off / stalled — no effect on serving (D50.6) | up | hybrid | hybrid, exit 0 |
-| 8 | complete | as row 7 | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results |
-| 9 | complete | as row 7 | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
-| 10 | complete | as row 7 | credential failure | *see NEEDS-RULING 2 below* | *see NEEDS-RULING 2 below* |
+The **background** column names all four substates on every row; they
+differ only in whether a rebuild is progressing (which the UI reports),
+never in what is served — an invariant asserted as its own lock (H10).
+The **configuration** column is reachable only where the gate reaches
+stage 4b; the **query API** column only where it reaches stage 5.
+
+| # | Index state | Background | Config | Query API | UI (submitted) | CLI strict |
+|---|---|---|---|---|---|---|
+| 1 | **mismatch** — cache built under another identity | refreshing / backing-off / stalled / **absent (no builder: standalone CLI, or serve with none)** | *n/a (gate 4)* | *n/a* — never embedded | lexical + `cache-mismatch` diagnostic | exit 3 `cache-mismatch` |
+| 2 | **absent** — no index | all four (with *absent* the UI says "not building" rather than "building") | *n/a (gate 4)* | *n/a* | lexical + `cache-cold` diagnostic | exit 3 `cache-cold` |
+| 3 | **embedder-retired** — the serving epoch's model is gone, no successor epoch yet | all four | *n/a (gate 4)* | *n/a* | lexical + `embedder-retired` diagnostic | exit 3 `embedder-retired` |
+| 4 | **capacity** — index exists, cannot be loaded/built in memory (H13) | all four | *n/a (gate 4)* | *n/a* | lexical + `capacity` diagnostic | exit 3 `capacity` |
+| 5 | **stale-partial** — some notes missing vectors | refreshing (count shrinks) / backing-off (count holds, retry pending) / stalled (count holds, no retry) / **absent (count holds, nothing will change it)** | unconfigured | *n/a (gate 4b)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `stale-partial` — the CLI stopped at gate 4 first |
+| 6 | stale-partial | all four | configured | up | hybrid over the unmasked set + pending-count indicator | exit 3 `stale-partial` + `masked_notes` (*gate 4: strict requires a complete index; the API is never consulted*) |
+| 7 | stale-partial | all four | configured | down / 429 / rejected | lexical + the matching indicator (the UI reached stage 5 and failed there) | exit 3 `stale-partial` — **unchanged**; the CLI never reached the API |
+| 8 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | idle / refreshing-next-epoch / backing-off / stalled / **absent** — no effect on serving (D50.6) | unconfigured | *n/a (gate 4b)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `embedder-unconfigured` |
+| 9 | complete | all five | configured | up | hybrid | hybrid, exit 0 |
+| 10 | complete | all five | configured | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results |
+| 11 | complete | all five | configured | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
+| 12 | complete | all five | configured | **rejected** (the provider refused the credential) | lexical + `embedder-rejected` indicator | exit 3 `embedder-rejected`, body = lexical results; no retry, no provider body forwarded |
 
 Authorities, per row: 1 [CD H4 identity + ER gate order] · 2 [CD §4a
 "cold → loud" + ER gate order] · 3 [ER D50.2 + ER gate order] · 4 [CD H13
-+ ER gate order] · 5–6 [ER D50.5 (CLI exit 3 on stale-partial) + CD §4a
-(UI never blank) + ER gate order (the CLI's gate-4 stop is why the API
-state cannot change its answer)] · 7 [CD §4a; the cutover half ER D50.2] ·
-8 [CD §4a "unreachable → loud"] · 9 [ER D50.6] · 10 [NEEDS-RULING].
++ ER gate order] · 5, 8 [ER 2026-07-14 configuration preflight] · 6–7 [ER
+D50.5 (CLI exit 3 on stale-partial) + CD §4a (UI never blank) + ER gate
+order] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD §4a "unreachable
+→ loud"] · 11 [ER D50.6] · 12 [ER 2026-07-14 credential taxonomy].
 
 Rows 1–4 all present a cold face but carry distinct reasons, so the
-observable is never ambiguous. Each numbered row is an acceptance test,
-and each background substate is asserted to leave serving unchanged (that
-invariant is itself a lock, H10). UI indicator texts are locked strings.
-
-**NEEDS-RULING (2 families — dispatch stays blocked until Koopa rules):**
-
-1. **The wire shape of an unanswerable plain-CLI request.** With the
-   privacy capability invalid, or a metadata filter unanswerable, the CLI
-   fails with no result payload **even without `--semantic`** — but the
-   legal-pair table has no shape for that: `lexical/off` means "semantic
-   was never requested, and here is your answer, exit 0", which is now
-   false. Recommendation: **an unanswerable request emits a different
-   top-level body** — `{query, error: {reason}}`, no `mode`, no
-   `semantic`, no `results`, exit 3 — and the `mode`/`semantic`/`coverage`/
-   `results` shape is reserved for requests the command *could* answer
-   (including exit-3 answers where lexical results exist and only the
-   semantic channel failed). The bifurcation an agent branches on is then
-   honest: exit 3 + `error` = no answer exists; exit 3 + `results` = a
-   lexical answer, semantic missing.
-2. **Embedding-credential failure.** Missing key and rejected key (401/
-   403) are reachable and neither is "the API did not answer".
-   Recommendation: **missing key is a gate-4 state** — semantic simply is
-   not configured, the query is never embedded, reason
-   `embedder-unconfigured`, and serve logs it once at startup (reading is
-   never blocked by a missing key); **a rejected key is a gate-5 failure**
-   with reason `embedder-rejected` (the request left, the API refused —
-   an honest and separate class from `embedder-unreachable`).
+observable is never ambiguous. Each numbered row is an acceptance test.
+UI indicator texts are locked strings. **NEEDS-RULING = 0** as of the
+2026-07-14 rulings (recorded in D50's amendment); the final review
+re-audits per row.
 
 ## H8. Removed — source_kind moved to the H face (D50.4)
 
@@ -782,11 +813,22 @@ malformed-row-is-cold and purge-on-reclassify; the epoch atomic swap and
 its old-embedder guard (D50.2); filters-as-hard-constraints (a filtered-out
 semantic candidate never fuses); lexical completeness past the fusion depth
 (`--limit` beyond 50 answers); fusion determinism (the CLI golden bytes);
-**every legal JSON pair and both no-payload shapes**, each with its exit
-code and exact stderr line; the eval harness failing on identity mismatch;
-and the raw-query-absence lock inherited from the shipped log unit,
-extended to B's new paths. The CLI goldens are frozen contract per D37 —
-H7's JSON is the spec they pin.
+**every legal JSON pair, both unanswerable error envelopes, and the
+non-JSON silent-stdout shape**, each with its exit code and exact stderr
+line; **no envelope on any path carries the query text** (a sentinel query
+through every exit path, JSON and not, asserts absence); **the
+background-invariance lock** — for each index state, all four (five, for
+complete) background substates are driven and the served result is
+asserted byte-identical, the UI's pending-count text being the only
+permitted difference; **the configuration-preflight lock** — with no key,
+a recording client asserts zero requests were constructed for every
+surface, and a plain lexical query still answers exit 0; **the
+credential-taxonomy locks** — a refusing fake provider yields
+`embedder-rejected` with no retry and no provider bytes in the output, an
+unanswering one yields `embedder-unreachable`; the eval harness failing on
+identity mismatch; and the raw-query-absence lock inherited from the
+shipped log unit, extended to B's new paths. The CLI goldens are frozen
+contract per D37 — H7's JSON is the spec they pin.
 
 ## H11. Build order (dependency order, not a fence)
 
@@ -859,13 +901,17 @@ measurements, both reversible behind their interfaces.
   half-loaded matrix.
 - **The p95 observer, fully specified** (the rung-1→2 trigger is
   observable, not folklore):
-  - *Workload*, reproducible by construction: **the committed eval set's
-    40 queries (H9), embedded once at the measured dimension, each timed
-    3× in a fixed order → 120 timings**; each timing runs the full top-k
-    path (cosine over every chunk → max-aggregation → top 50 notes),
-    single-threaded, no I/O. p95 over those 120 samples. The workload is
-    exactly the eval fixture — if that fixture grows, the sample count
-    grows with it and the log line reports both.
+  - *Workload*, reproducible by construction and **embedding-free**: the
+    committed eval set's 40 query **vectors are read from the H9 recorded
+    fixture** — the observer never calls the embedding API, so a
+    measurement is not an egress event and needs no key. Each vector runs
+    the full top-k path (cosine over every chunk → max-aggregation → top
+    50 notes) **three times in one fixed order (query 1×3, query 2×3, …)
+    → 120 timings**, single-threaded, no I/O; the first repetition of the
+    first query is discarded as warm-up and re-run at the end, so the
+    sample count is exactly 120.
+  - *Estimator*: nearest-rank p95 — sort the 120 samples ascending and
+    take index `ceil(0.95 × 120) = 114` (1-based). No interpolation.
   - *Where*: (a) `BenchmarkSemanticTopK` in the repo, over a synthetic
     corpus of pinned size, under the standing benchstat discipline;
     (b) the serve process runs the same measurement over the **real**
@@ -883,7 +929,7 @@ measurements, both reversible behind their interfaces.
 | Chunking rules, chunks-per-note assumption stated | MET (H3: exact formulas, named Unicode boundaries, bounded provider fallback, two dated measurements) |
 | Cache file format versioned by (model, dim) | MET, widened (H4: full identity tuple incl. protocol epoch; engine via bake-off) |
 | RRF specifics (k, depths, aggregation) | MET (H6; shipped lexical ordering preserved) |
-| §4a degraded matrix as acceptance cases | **PARTIAL** — the gate, the scoped rules R1–R6, the index×background×query-API rows, and the wire vocabulary are written and authority-cited, but **two ruling families remain open** (H7's NEEDS-RULING: the unanswerable-plain-CLI body shape, and embedding-credential failure). Dispatch is blocked until they are ruled. |
+| §4a degraded matrix as acceptance cases | MET as of the 2026-07-14 rulings (H7: the gate incl. the configuration preflight, the scoped rules R1–R7, the index × background × config × query-API rows with per-row authority, the two discriminated envelopes, and the frozen wire vocabulary). The final review audits this claim; it was marked PARTIAL while two ruling families were open, and would be again. |
 | The eval set | MET (H9; synthetic-in-repo per D50.8) |
 | Egress guard test (Diary never reaches the embedder) | MET, widened (H5: five flows + influence lock + the linearized-publication race lock; the log flow already shipped) |
 
