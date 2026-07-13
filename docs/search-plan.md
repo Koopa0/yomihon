@@ -539,11 +539,20 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
    nothing to embed: with `--semantic` the channel is *not applicable*,
    never "degraded" — exit 0. Reachable only after stages 1–2 pass.
 4. **semantic corpus & cache usability** — the semantic corpus cannot
-   exist (artifact policy invalid), or the cache is cold / identity-
-   mismatched / retired-without-successor → semantic cannot be served,
-   so **the query is never embedded** (no pointless egress).
+   exist (artifact policy invalid), or the index cannot serve this
+   surface → semantic cannot be served, so **the query is never
+   embedded** (no pointless egress). *The serving bar is
+   surface-dependent, and this is the whole of the difference between
+   the two surfaces*: the **strict CLI requires a complete index** (a
+   stale-partial index fails here — D50.5 rules its answer is exit 3,
+   so there is nothing to embed for), while the **UI accepts a partial
+   index** and serves hybrid over the unmasked set. Evaluation order
+   inside this stage: identity mismatch (the cache is not this corpus's
+   at all) → index presence → embedder availability for the epoch that
+   would serve → completeness (CLI only). Capacity failure (H13) is a
+   stage-4 failure.
 5. **query API** — only a request that passed 1–4 embeds the query;
-   network failures surface here.
+   credential and network failures surface here.
 
 **JSON contract** (frozen at build, golden-pinned; the D37 rule): top-level
 `{query, mode, semantic, coverage, results}`.
@@ -623,63 +632,108 @@ the gate stage it implements, so no two rules can claim the same cell):
   and no `results` field [CANON-DERIVED from the shipped Part I refusal:
   a filter is never ignored and zero is never faked]. Bare-text and
   `folder:` queries pass this stage.
-- R2′ (gate 4) — artifact policy missing/invalid, bare/`folder:` queries
+- R2′ (gate 4) — artifact policy missing/invalid, **text-bearing** queries
   requesting semantic: the semantic corpus is instance-scoped and cannot
   exist — UI lexical + diagnostic; CLI `--semantic` exits 3 with
   `artifact-policy-unavailable`, body carrying the lexical results
   [CANON-DERIVED D47 + gate order]. Without `--semantic` these queries
-  are ordinary lexical, exit 0 [CANON-DERIVED Part I].
+  are ordinary lexical, exit 0 [CANON-DERIVED Part I]. A **pure-filter
+  query — including `folder:`-only — never reaches this stage**: it
+  fails applicability at gate 3 first (R4), so it can never be answered
+  twice.
 - R3 — the live fragment is lexical in every cell [EXPLICIT-RULING
   D50.1].
-- R4 (gate 3) — pure-filter and empty-text queries never embed; with
+- R4 (gate 3) — pure-filter (any filter-only query, `folder:` included,
+  per Part I §5's definition) and empty-text queries never embed; with
   `--semantic` they answer `lexical/not-applicable`, exit 0
-  [EXPLICIT-RULING 2026-07-13] — **reachable only when gates 1–2 passed**;
-  a privacy or metadata failure on the same query fails at its earlier
-  stage with that stage's shape.
+  [EXPLICIT-RULING 2026-07-13] — **reachable only when gates 1–2 passed,
+  and it terminates the semantic path**: no stage-4 or stage-5 condition
+  (artifact, cache, capacity, credential, network) can re-answer a query
+  that carries nothing to embed.
 - R5 — no best-effort surface exists [EXPLICIT-RULING D50.7].
-- R6 (H13) — capacity/build failure of the query engine: semantic
-  `unavailable` with reason `capacity`; lexical serving unaffected
-  [CANON-DERIVED H13, wire shape 2026-07-13].
+- R6 (**gate 4**) — capacity/build failure of the query engine: semantic
+  `unavailable` with reason `capacity`; lexical serving unaffected; the
+  query is never embedded. Reachable only for semantic-applicable queries
+  (gate 3 already terminated the others) [CANON-DERIVED H13, wire shape
+  2026-07-13].
 
 **Core table** (privacy valid ∧ artifact valid ∧ semantic applicable;
-surfaces = UI explicit semantic search, CLI `--semantic` strict). Two
-independent axes, enumerated in full — nothing folded (the round-1
-failure). **Serving state** is what the query engine can answer from
-right now; **query API** is the state of the one call a query embedding
-would make. The background pipeline's own condition is *not a third axis*:
-it only determines which serving state obtains and never shares a latch
-with the query API (D50.6) — so it is named in the serving-state column,
-not multiplied out.
+surfaces = UI explicit semantic search, CLI `--semantic` strict). Three
+axes, enumerated — **the background pipeline is its own axis** (D50's
+amendment requires its substates listed, not folded; the previous
+revision folded them and is corrected here): *index state* (what the
+engine holds), *background* (refreshing / backing-off / stalled /
+absent — no builder exists, as with a standalone CLI or a serve process
+that has not started one), and *query API* (the state of the single call
+a query embedding would make; it shares no latch with the background —
+D50.6).
 
-| # | Serving state (who set it) | Query API | UI (submitted) | CLI strict | Authority |
+Two facts collapse the product honestly, and are stated rather than
+assumed:
+
+- **Background never changes what is served.** It changes only how long a
+  state persists and what the UI's pending-count does. So each (index ×
+  query-API) row below carries a *background column* naming every
+  substate and its one observable difference; no row hides one.
+- **The strict CLI stops at gate 4 whenever the index is not complete**
+  (D50.5), so for that surface the query API is never consulted in the
+  cold, stale-partial, mismatch, retired, or capacity states — the API
+  column is marked *n/a (gate 4)* there, and nothing is embedded.
+
+**Index-state resolution** is a pure function, evaluated in this order
+(closing the row-4/5 overlap): identity mismatch → index absent →
+embedder-for-the-serving-epoch retired → capacity failure → incomplete
+(stale-partial) → complete. The first match names the state and its
+`coverage.reason`.
+
+| # | Index state | Background | Query API | UI (submitted) | CLI strict |
 |---|---|---|---|---|---|
-| 1 | cold — no index (never built, or builder absent: standalone CLI, or serve not yet finished) | up | lexical + "semantic index building" (UI) / plain lexical when no builder exists | exit 3 `cache-cold`; query never embedded (gate 4) | CD §4a (cold → loud) + ER gate order |
-| 2 | cold | down | as row 1 — gate 4 stops before the API | as row 1 | ER gate order |
-| 3 | cold | 429 | as row 1 | as row 1 | ER gate order |
-| 4 | cold — identity mismatch (unmanaged: cache built under another config) | any | as row 1, reason `cache-mismatch`; the stale file is ignored, a rebuild is scheduled if a builder exists | exit 3 `cache-mismatch`; query never embedded | CD H4 identity + ER gate order |
-| 5 | cold — old embedder retired, no successor epoch yet | any | as row 1, reason `embedder-retired` | exit 3 `embedder-retired`; query never embedded | ER D50.2 + ER gate order |
-| 6 | warm — complete index (background idle) | up | hybrid | hybrid, exit 0 | CD §4a |
-| 7 | warm | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results | CD §4a (unreachable → loud) |
-| 8 | warm | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results | ER D50.6 |
-| 9 | stale-partial — some notes missing vectors (background refreshing, OR stalled in its own backoff, OR no builder — same serving either way) | up | hybrid over the unmasked set + a pending-count indicator (CD §4a: never blank, never blocking; the count simply stops shrinking when nothing is refreshing) | exit 3 `stale-partial` + `masked_notes`, body = lexical results | ER D50.5 (CLI); CD §4a (UI) |
-| 10 | stale-partial | down | lexical + offline indicator | exit 3 `embedder-unreachable` — the query-API failure is where the gate stopped, and it names the reason | CD §4a + ER gate order |
-| 11 | stale-partial | 429 | lexical + rate-limited indicator | exit 3 `rate-limited` | ER D50.6 |
-| 12 | warm on the old epoch — managed cutover, old embedder alive, new epoch building (the background pipeline may itself be up, backing off, or stalled — no effect on serving, D50.6) | up | hybrid on the old epoch | hybrid on the old epoch, exit 0 | ER D50.2 |
-| 13 | old epoch, cutover | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results | ER D50.2 + CD §4a |
-| 14 | old epoch, cutover | 429 | lexical + rate-limited indicator | exit 3 `rate-limited` | ER D50.6 |
+| 1 | **mismatch** — cache built under another identity | refreshing / backing-off / stalled / absent — the four differ only in whether a rebuild is progressing; UI says so, serving is identical | *n/a (gate 4)* — never embedded | lexical + `cache-mismatch` diagnostic | exit 3 `cache-mismatch` |
+| 2 | **absent** — no index | as row 1 (with *absent* = no builder: standalone CLI, or serve without one — the UI then says "not building" instead of "building") | *n/a (gate 4)* | lexical + `cache-cold` diagnostic | exit 3 `cache-cold` |
+| 3 | **embedder-retired** — old epoch's model gone, no successor epoch yet | as row 1 | *n/a (gate 4)* | lexical + `embedder-retired` diagnostic | exit 3 `embedder-retired` |
+| 4 | **capacity** — index exists but cannot be loaded/built in memory (H13) | as row 1 | *n/a (gate 4)* | lexical + `capacity` diagnostic | exit 3 `capacity` |
+| 5 | **stale-partial** — some notes missing vectors | refreshing (count shrinks) / backing-off (count holds, retry pending) / stalled (count holds, no retry) / absent (count holds, nothing will change) — serving identical in all four | up | hybrid over the unmasked set + pending-count indicator | *n/a (gate 4: the strict CLI requires a complete index)* → exit 3 `stale-partial` + `masked_notes` |
+| 6 | stale-partial | as row 5 | down / 429 | lexical + offline / rate-limited indicator (the UI reached gate 5 and failed there) | exit 3 `stale-partial` — **unchanged**: the CLI stopped at gate 4 and never consulted the API |
+| 7 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | idle / refreshing-next-epoch / backing-off / stalled — no effect on serving (D50.6) | up | hybrid | hybrid, exit 0 |
+| 8 | complete | as row 7 | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results |
+| 9 | complete | as row 7 | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
+| 10 | complete | as row 7 | credential failure | *see NEEDS-RULING 2 below* | *see NEEDS-RULING 2 below* |
 
-Serving-state resolution is a pure function of (index presence, index
-completeness, identity match, old-embedder availability) — rows 1–5 all
-present the cold face but carry distinct `coverage.reason` strings, so the
-observable is never ambiguous. The `stale-partial` query-API-up row (9)
-serves **hybrid over the unmasked set** on the UI and **exit 3 with the
-lexical body** on the strict CLI — the strict CLI never serves a partial
-hybrid (that is not a legal pair); it reports the staleness and hands back
-the lexical answer. Each numbered row is an acceptance test; UI indicator
-texts are locked strings. With the gate-scoped rules R1–R6 covering the
-privacy/artifact/applicability/capacity axes and this table covering the
-serving×query-API axes, **NEEDS-RULING = 0**; the scoped review re-audits
-per row.
+Authorities, per row: 1 [CD H4 identity + ER gate order] · 2 [CD §4a
+"cold → loud" + ER gate order] · 3 [ER D50.2 + ER gate order] · 4 [CD H13
++ ER gate order] · 5–6 [ER D50.5 (CLI exit 3 on stale-partial) + CD §4a
+(UI never blank) + ER gate order (the CLI's gate-4 stop is why the API
+state cannot change its answer)] · 7 [CD §4a; the cutover half ER D50.2] ·
+8 [CD §4a "unreachable → loud"] · 9 [ER D50.6] · 10 [NEEDS-RULING].
+
+Rows 1–4 all present a cold face but carry distinct reasons, so the
+observable is never ambiguous. Each numbered row is an acceptance test,
+and each background substate is asserted to leave serving unchanged (that
+invariant is itself a lock, H10). UI indicator texts are locked strings.
+
+**NEEDS-RULING (2 families — dispatch stays blocked until Koopa rules):**
+
+1. **The wire shape of an unanswerable plain-CLI request.** With the
+   privacy capability invalid, or a metadata filter unanswerable, the CLI
+   fails with no result payload **even without `--semantic`** — but the
+   legal-pair table has no shape for that: `lexical/off` means "semantic
+   was never requested, and here is your answer, exit 0", which is now
+   false. Recommendation: **an unanswerable request emits a different
+   top-level body** — `{query, error: {reason}}`, no `mode`, no
+   `semantic`, no `results`, exit 3 — and the `mode`/`semantic`/`coverage`/
+   `results` shape is reserved for requests the command *could* answer
+   (including exit-3 answers where lexical results exist and only the
+   semantic channel failed). The bifurcation an agent branches on is then
+   honest: exit 3 + `error` = no answer exists; exit 3 + `results` = a
+   lexical answer, semantic missing.
+2. **Embedding-credential failure.** Missing key and rejected key (401/
+   403) are reachable and neither is "the API did not answer".
+   Recommendation: **missing key is a gate-4 state** — semantic simply is
+   not configured, the query is never embedded, reason
+   `embedder-unconfigured`, and serve logs it once at startup (reading is
+   never blocked by a missing key); **a rejected key is a gate-5 failure**
+   with reason `embedder-rejected` (the request left, the API refused —
+   an honest and separate class from `embedder-unreachable`).
 
 ## H8. Removed — source_kind moved to the H face (D50.4)
 
@@ -805,15 +859,19 @@ measurements, both reversible behind their interfaces.
   half-loaded matrix.
 - **The p95 observer, fully specified** (the rung-1→2 trigger is
   observable, not folklore):
-  - *Workload*: 100 query vectors drawn from the committed eval set's
-    queries (H9), embedded once at the measured dimension; each runs the
-    full top-k path (cosine over every chunk → max-aggregation → top 50
-    notes). p95 over those 100 timings, single-threaded, no I/O.
+  - *Workload*, reproducible by construction: **the committed eval set's
+    40 queries (H9), embedded once at the measured dimension, each timed
+    3× in a fixed order → 120 timings**; each timing runs the full top-k
+    path (cosine over every chunk → max-aggregation → top 50 notes),
+    single-threaded, no I/O. p95 over those 120 samples. The workload is
+    exactly the eval fixture — if that fixture grows, the sample count
+    grows with it and the log line reports both.
   - *Where*: (a) `BenchmarkSemanticTopK` in the repo, over a synthetic
     corpus of pinned size, under the standing benchstat discipline;
     (b) the serve process runs the same measurement over the **real**
     corpus at the end of every epoch build and logs
-    `semantic top-k p95 chunks=<n> dim=<d> p95_ms=<x>` — owner: the
+    `semantic top-k p95 chunks=<n> dim=<d> samples=<s> p95_ms=<x>` —
+    owner: the
     scanner; cadence: once per epoch build.
   - *Trigger*: the D32 rung-1→2 condition (≈10⁵ chunks or p95 > ~100 ms)
     is read straight off that log line.
@@ -825,7 +883,7 @@ measurements, both reversible behind their interfaces.
 | Chunking rules, chunks-per-note assumption stated | MET (H3: exact formulas, named Unicode boundaries, bounded provider fallback, two dated measurements) |
 | Cache file format versioned by (model, dim) | MET, widened (H4: full identity tuple incl. protocol epoch; engine via bake-off) |
 | RRF specifics (k, depths, aggregation) | MET (H6; shipped lexical ordering preserved) |
-| §4a degraded matrix as acceptance cases | MET (H7: gate-scoped rules R1–R6 + 14 serving×query-API rows, per-row authority, frozen wire vocabulary) |
+| §4a degraded matrix as acceptance cases | **PARTIAL** — the gate, the scoped rules R1–R6, the index×background×query-API rows, and the wire vocabulary are written and authority-cited, but **two ruling families remain open** (H7's NEEDS-RULING: the unanswerable-plain-CLI body shape, and embedding-credential failure). Dispatch is blocked until they are ruled. |
 | The eval set | MET (H9; synthetic-in-repo per D50.8) |
 | Egress guard test (Diary never reaches the embedder) | MET, widened (H5: five flows + influence lock + the linearized-publication race lock; the log flow already shipped) |
 
