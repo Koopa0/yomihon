@@ -395,18 +395,28 @@ and every surface stays whole without it (roadmap §4a).
   role, the exact submitted bytes for a reference input, the request
   cardinality above, the response handling at the chosen dimension
   (vector extraction and the normalization the API did or did not apply),
-  and **the error taxonomy → gate-state mapping, total by construction** —
-  every documented provider error class maps to exactly one local outcome,
-  cited to the successor's own error docs rather than a hardcoded status
-  number: the authorization refusal → `embedder-rejected` (gate 5,
-  non-retryable); the throttle → `rate-limited`; a transport non-answer →
-  `embedder-unreachable`; and **every remaining class — `INVALID_ARGUMENT`,
-  `NOT_FOUND`, `INTERNAL`, and any class the docs list that is none of the
-  above, plus any unknown/undocumented status — → the command's internal
-  error (exit 1)**, never silently folded into a credential or unreachable
-  state. The mapping's totality is itself asserted (H10). This plan pins
-  the structure; the concrete class names land at the build's protocol
-  step and are verified at its acceptance — they cannot exist earlier.
+  and **the error taxonomy → gate-state mapping, total by construction and
+  split by fault ownership** — every documented provider error class maps
+  to exactly one local outcome, cited to the successor's own error docs
+  rather than a hardcoded status number:
+  - **Provider-fault → semantic `unavailable`, exit 3, the lexical answer
+    preserved** (a provider failure is not a yomihon internal error —
+    calling a provider 500 our own bug would be dishonest): the
+    authorization refusal → `embedder-rejected` (gate 5, non-retryable);
+    the throttle → `rate-limited`; a transport non-answer →
+    `embedder-unreachable`; a provider server error (its `INTERNAL` / 5xx
+    class) → `embedder-failed`.
+  - **Our-fault → the command's internal error, exit 1** (loud, because it
+    is a build defect): a malformed-request class (`INVALID_ARGUMENT`,
+    `NOT_FOUND` — the request we sent was wrong), and **any unknown or
+    undocumented status** (conservative: an unclassified answer is treated
+    as our failure, never silently folded into a credential or unreachable
+    reason).
+  The mapping's totality is itself asserted (H10). This plan pins the
+  structure; the concrete class names land at the build's protocol step
+  and are verified at its acceptance — they cannot exist earlier. [Fault-
+  ownership split is CANON-DERIVED from D50.5 (a loud provider failure
+  keeps the lexical answer) + honesty; the final review re-audits it.]
 - **Cache identity**: (model, dimension, the protocol epoch — a hash over
   the pinned request templates, the request cardinality, the response
   handling, and the preprocess rules — the chunker epoch, format version,
@@ -632,8 +642,8 @@ Fields of the answerable envelope:
   (`not-applicable`, `artifact-policy-unavailable`, `cache-cold`,
   `cache-mismatch`, `embedder-retired`, `capacity`,
   `embedder-unconfigured`, `stale-partial`, `embedder-unreachable`,
-  `embedder-rejected`, `rate-limited`) and `masked_notes` (integer)
-  appears only with `stale-partial`.
+  `embedder-rejected`, `embedder-failed`, `rate-limited`) and
+  `masked_notes` (integer) appears only with `stale-partial`.
 - The two **unanswerable** reasons — `privacy-capability-unavailable` and
   `metadata-filters-unavailable` — never appear in `coverage`: they carry
   the *error* envelope instead, because no honest result set exists
@@ -672,6 +682,7 @@ Fields of the answerable envelope:
   - `yomihon search: embedder-retired: the old index's embedding model is no longer available`
   - `yomihon search: embedder-unconfigured: no embedding key is configured, so semantic search is off`
   - `yomihon search: embedder-unreachable: the embedding API did not answer`
+  - `yomihon search: embedder-failed: the embedding API returned a server-side error`
   - `yomihon search: embedder-rejected: the embedding API refused the credential`
   - `yomihon search: rate-limited: the embedding API is rate-limiting; try again shortly`
   - `yomihon search: stale-partial: the semantic index is missing vectors for changed notes`
@@ -770,11 +781,16 @@ embedder-for-the-serving-epoch retired → capacity failure → incomplete
 (stale-partial) → complete. The first match names the state and its
 `coverage.reason`.
 
-The **background** column names all four substates on every row; they
-differ only in whether a rebuild is progressing (which the UI reports),
-never in what is served — an invariant asserted as its own lock (H10).
-The **configuration** column is reachable only where the gate reaches
-stage 4b; the **query API** column only where it reaches stage 5.
+The **background** column's domain depends on the index state: a
+non-complete index has **four** substates (refreshing / backing-off /
+stalled / absent — a builder either progressing, waiting, stuck, or
+never present), while a **complete** index has **five** (idle /
+refreshing-the-next-epoch / backing-off / stalled / absent — it adds
+"idle", nothing to do). They differ only in whether and how a rebuild is
+progressing (which the UI reports), never in what is served — an
+invariant asserted as its own lock (H10). The **configuration** column is
+reachable only where the gate reaches stage 4b; the **query API** column
+only where it reaches stage 5.
 
 | # | Index state | Background | Config | Query API | UI (submitted) | CLI strict |
 |---|---|---|---|---|---|---|
@@ -790,6 +806,10 @@ stage 4b; the **query API** column only where it reaches stage 5.
 | 10 | complete | all five | configured | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results |
 | 11 | complete | all five | configured | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
 | 12 | complete | all five | configured | **rejected** (the provider refused the credential) | lexical + `embedder-rejected` indicator | exit 3 `embedder-rejected`, body = lexical results; no retry, no provider body forwarded |
+| 13 | complete | all five | configured | **server error** (provider 5xx / INTERNAL) | lexical + `embedder-failed` indicator | exit 3 `embedder-failed`, body = lexical results |
+
+(A malformed-request or unknown-status API answer is not in this table: it
+is a build defect, exit 1 internal error — H4's fault-ownership split.)
 
 Authorities, per row: 1 [CD H4 identity + ER gate order] · 2 [CD §4a
 "cold → loud" + ER gate order] · 3 [ER D50.2 + ER gate order] · 4 [CD H13
@@ -798,8 +818,8 @@ D50.5 (CLI exit 3 on stale-partial) + CD §4a (UI never blank) + ER gate
 order] · 7 [ER D50.5 (CLI stops at gate 4) + ER gate order; the UI's
 down/429/rejected outcomes = CD §4a / ER D50.6 / ER 2026-07-13 credential
 taxonomy respectively] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD
-§4a "unreachable → loud"] · 11 [ER D50.6] · 12 [ER 2026-07-13 credential
-taxonomy].
+§4a "unreachable → loud"] · 11 [ER D50.6] · 12, 13 [ER 2026-07-13
+credential + provider-fault taxonomy].
 
 Rows 1–4 all present a cold face but carry distinct reasons, so the
 observable is never ambiguous. Each numbered row is an acceptance test.
@@ -829,15 +849,20 @@ implements them. B leaves the grammar untouched.
 - **Two identities, not one** (the eval fixture and the p95 observer need
   different guarantees). Both are computed from the **raw protocol
   components** H4 pins — the model, the dimension, the query prompt
-  structure, the document prompt structure, and the preprocess rules —
-  *not* from the already-synthesized protocol-epoch hash (a hash cannot be
-  projected). The **full cache identity** hashes all of them plus the
-  corpus-specific fields (vault root, chunker epoch). The **query-vector
-  compatibility identity** hashes only the components that govern how a
-  *query* is turned into a vector — model, dimension, query prompt
-  structure — so a query embeds the same way regardless of which corpus it
-  scores against; it deliberately excludes the document prompt structure,
-  the chunker epoch, and the vault root. The eval harness needs the **full
+  structure, the document prompt structure, the request cardinality, the
+  response handling (vector extraction + normalization), the preprocess
+  rules, and the cache format version — *not* from the already-synthesized
+  protocol-epoch hash (a hash cannot be projected). The **full cache
+  identity** hashes all of those plus the corpus-specific fields (vault
+  root, chunker epoch); it is exactly the H4 identity, component for
+  component. The **query-vector compatibility identity** hashes only the
+  components that decide whether a query vector is numerically comparable
+  to a corpus vector — model, dimension, query prompt structure, and
+  response handling (a query and a corpus extracted or normalized
+  differently do not compare) — and deliberately excludes the document
+  prompt structure, the request cardinality (a single query is always one
+  input), the format version (the live query vector is never read from the
+  cache file), the chunker epoch, and the vault root. The eval harness needs the **full
   cache identity**: it scores recorded query vectors against **recorded
   corpus vectors**, and reds on any mismatch (never scoring new code
   against another epoch's vectors). The p95 observer needs only the
@@ -886,9 +911,15 @@ that need no key: `idle / stalled / absent`) are driven and the **result
 projection** (the ordered result list and its channels — not the whole
 rendered UI, whose pending-count text is allowed to differ) is asserted
 byte-identical across them; **and the fixture harness refuses to
-construct an unreachable combination** — an `unconfigured × refreshing`
-or `unconfigured × backing-off` UI state fails the test setup, so no
-lock can pass over a world the ownership rule forbids; **the configuration-preflight lock** — with no key, a
+construct an unreachable combination — but only for the UI surface**,
+whose builder and query key are the same serve-process key: an
+`unconfigured × refreshing` or `unconfigured × backing-off` **UI** state
+fails the test setup, so no lock passes over a world the ownership rule
+forbids. The **CLI** surface holds an independent key, so
+`unconfigured × refreshing` is legal for it (an external serve is
+refreshing while the CLI's own call has no key) and the refusal does not
+apply — the harness scopes the refusal to the UI, never rejecting a valid
+CLI combination; **the configuration-preflight lock** — with no key, a
 recording client factory asserts it was **never called** (not merely that
 zero requests were sent — the client is never constructed) for every
 surface, a plain lexical query still answers exit 0, and the serve
@@ -903,13 +934,15 @@ every terminal state — success, rejection, throttle, transport failure —
 and that two explicit actions produce two requests through one
 long-lived client (proving no cross-request auth latch and no retry
 amplification of the query bytes); **the taxonomy-totality lock** — a
-table with one row per documented provider error class (the authorization
-refusal → `embedder-rejected`; the throttle → `rate-limited`; a transport
-non-answer → `embedder-unreachable`; and every other documented class —
-`INVALID_ARGUMENT`, `NOT_FOUND`, `INTERNAL`, and any unlisted or unknown
-status — → the internal-error exit 1, never silently reclassified as a
-credential or unreachable state), asserting the mapping is total and each
-class yields exactly one local outcome; the eval harness failing on
+table with one row per documented provider error class, asserting the
+mapping is total, splits by fault ownership, and yields exactly one local
+outcome each: provider-fault classes (authorization refusal →
+`embedder-rejected`; throttle → `rate-limited`; transport non-answer →
+`embedder-unreachable`; provider server error → `embedder-failed`) each
+produce exit 3 with the lexical answer preserved; our-fault classes
+(`INVALID_ARGUMENT`, `NOT_FOUND`) and any unknown/undocumented status
+produce exit 1, never reclassified as a provider state — a synthetic
+unknown status is included in the table and asserted to land on exit 1; the eval harness failing on
 identity mismatch; and the raw-query-absence lock inherited from the
 shipped log unit, extended to B's new paths. The CLI goldens are frozen
 contract per D37 — H7's JSON is the spec they pin.

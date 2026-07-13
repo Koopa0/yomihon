@@ -500,4 +500,12 @@ is `embedder-rejected`: at most one call per explicit action, no in-place
 retry, the provider's response body never forwarded, and no cross-request
 auth latch is authorized — the status-code classification is pinned from
 the successor's own error taxonomy at the protocol step, not hardcoded
-here.)*
+here. The full provider error taxonomy splits by **fault ownership**: a
+provider-side failure — refusal, throttle, unanswered transport, or a
+provider server error — is a semantic-channel `unavailable` (exit 3,
+lexical answer preserved), never reported as a yomihon internal error;
+only a fault we own — a malformed request, or a status we cannot classify
+— is the command's internal error (exit 1). The single outbound request
+per action is counted at the HTTP boundary, not a client method, with
+automatic retry disabled, so a transient failure cannot amplify the query
+egress.)*
