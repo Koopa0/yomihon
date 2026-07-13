@@ -967,13 +967,27 @@ semantic candidate never fuses); lexical completeness past the fusion depth
 byte-exact internal-error body
 (`{"internal_error":{"detail":"the request could not be formed correctly"}}`),
 and the non-JSON silent-stdout shape**, each with its exit code, its
-compact byte framing (§the JSON contract), and its exact stderr line; **the
-escape-surface lock** — a fixture answer whose fields carry CJK, `<`/`>`/`&`,
-a raw U+2028 and U+2029, a literal backslash-`u2028`, and a control
-character is serialized and its bytes asserted: CJK and `<>&` raw, the two
-line separators raw (the shipped `unescapeLineSeparators` step ran), the
-literal backslash-`u2028` untouched, and the control still `\u`-escaped —
-the same divergence the judge wire pins, not a paraphrase of it; **no
+compact byte framing (H7's discriminated-envelope contract), and its exact
+stderr line; **the
+escape-surface lock** — a fixture answer whose fields carry each escape
+class by name is serialized and its **wire bytes** asserted, each class a
+separate watched-red:
+  - CJK and `<` / `>` / `&` → raw UTF-8 (no `\uXXXX`);
+  - U+2028 and U+2029 → raw UTF-8, i.e. the 3-byte sequences `e2 80 a8`
+    and `e2 80 a9` (the shipped `unescapeLineSeparators` step ran, not
+    `\u2028`/`\u2029`);
+  - a **short-escape control**, a literal newline in a field → the two
+    bytes `\` `n` on the wire (`\n`), not a raw 0x0a;
+  - a **hex-escape control**, U+0000 in a field → the six bytes `\u0000`
+    (JSON has no short form for it), proving controls without a short
+    escape are still `\uXXXX`;
+  - a **literal** backslash-`u2028` typed in the content (the string
+    `\u2028`, a backslash then `u2028`) → on the wire as `\\u2028`
+    (escaped backslash, then literal `u2028`), proving the rewrite touches
+    only the real separators, never text that merely looks like their
+    escape.
+  This is the same divergence the judge wire pins (judge-plan §3a), by
+  byte, not a paraphrase; **no
 envelope on any path carries the query text** (a sentinel query through
 every exit path, JSON and not, asserts absence); **the
 background-invariance lock** — for each index state, its **reachable**
