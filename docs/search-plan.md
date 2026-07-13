@@ -395,14 +395,18 @@ and every surface stays whole without it (roadmap §4a).
   role, the exact submitted bytes for a reference input, the request
   cardinality above, the response handling at the chosen dimension
   (vector extraction and the normalization the API did or did not apply),
-  and **the error taxonomy → gate-state mapping** — which documented
-  provider error classes are the non-retryable credential rejection
-  (`embedder-rejected`, gate 5), which are the transient throttle
-  (`rate-limited`), and which are the no-answer transport failure
-  (`embedder-unreachable`), each cited to the successor's own error docs
-  rather than a hardcoded status number. This plan pins the structure; the
-  anchors themselves land at that build step and are verified at its
-  acceptance — they cannot exist earlier.
+  and **the error taxonomy → gate-state mapping, total by construction** —
+  every documented provider error class maps to exactly one local outcome,
+  cited to the successor's own error docs rather than a hardcoded status
+  number: the authorization refusal → `embedder-rejected` (gate 5,
+  non-retryable); the throttle → `rate-limited`; a transport non-answer →
+  `embedder-unreachable`; and **every remaining class — `INVALID_ARGUMENT`,
+  `NOT_FOUND`, `INTERNAL`, and any class the docs list that is none of the
+  above, plus any unknown/undocumented status — → the command's internal
+  error (exit 1)**, never silently folded into a credential or unreachable
+  state. The mapping's totality is itself asserted (H10). This plan pins
+  the structure; the concrete class names land at the build's protocol
+  step and are verified at its acceptance — they cannot exist earlier.
 - **Cache identity**: (model, dimension, the protocol epoch — a hash over
   the pinned request templates, the request cardinality, the response
   handling, and the preprocess rules — the chunker epoch, format version,
@@ -781,8 +785,8 @@ stage 4b; the **query API** column only where it reaches stage 5.
 | 5 | **stale-partial** — some notes missing vectors | UI: **stalled / absent only** (unconfigured × refreshing is unreachable — a refreshing background proves a key). CLI: any (its config is independent) | unconfigured | *n/a (gate 4b for UI; gate 4 for CLI)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `stale-partial` — the CLI stopped at gate 4 first, so its own config is never read |
 | 6 | stale-partial | all four | configured | up | hybrid over the unmasked set + pending-count indicator | exit 3 `stale-partial` + `masked_notes` (*gate 4: strict requires a complete index; the API is never consulted*) |
 | 7 | stale-partial | all four | configured | down / 429 / rejected | lexical + the matching indicator (the UI reached stage 5 and failed there) | exit 3 `stale-partial` — **unchanged**; the CLI never reached the API |
-| 8 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | idle / refreshing-next-epoch / backing-off / stalled / **absent** — no effect on serving (D50.6) | unconfigured | *n/a (gate 4b)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `embedder-unconfigured` |
-| 9 | complete | all five | configured | up | hybrid | hybrid, exit 0 |
+| 8 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | UI: **idle / stalled / absent only** (unconfigured rules out refreshing-next-epoch and backing-off — both require a key). CLI: any (independent key) | unconfigured | *n/a (gate 4b for UI; gate 4 does not apply — index is complete — so CLI reaches 4b too)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `embedder-unconfigured` |
+| 9 | complete | all five substates | configured | up | hybrid | hybrid, exit 0 |
 | 10 | complete | all five | configured | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results |
 | 11 | complete | all five | configured | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
 | 12 | complete | all five | configured | **rejected** (the provider refused the credential) | lexical + `embedder-rejected` indicator | exit 3 `embedder-rejected`, body = lexical results; no retry, no provider body forwarded |
@@ -823,23 +827,31 @@ implements them. B leaves the grammar untouched.
   passes while a forbidden result rides along), the tie rule at rank 5, and
   the denominator.
 - **Two identities, not one** (the eval fixture and the p95 observer need
-  different guarantees): a query vector is comparable to a corpus when the
-  **query-vector compatibility identity** matches — `(model, dimension,
-  protocol epoch, RETRIEVAL_QUERY template)`, the projection of the full
-  cache identity (H4) that drops the corpus-specific fields (vault root,
-  chunker epoch, RETRIEVAL_DOCUMENT template): a query is embedded the same
-  way regardless of which corpus it will score against. The eval harness
-  needs *both* — it scores recorded query vectors against **recorded
-  corpus vectors**, so it asserts the full cache identity matches and reds
-  on any mismatch (it never scores new code against another epoch's
-  vectors). The p95 observer needs only the **query-vector compatibility
-  identity**: it replays recorded query vectors against the **live** real
-  corpus purely to time the top-k path, and asserts only that the query
-  vectors' compatibility identity matches the live corpus's — the vault
-  root and chunker epoch deliberately differ, and that is not a mismatch
-  because the observer measures latency, never relevance. Refreshing the
-  fixture is a two-sided change: the update commit carries the paired
-  before/after per-query diff.
+  different guarantees). Both are computed from the **raw protocol
+  components** H4 pins — the model, the dimension, the query prompt
+  structure, the document prompt structure, and the preprocess rules —
+  *not* from the already-synthesized protocol-epoch hash (a hash cannot be
+  projected). The **full cache identity** hashes all of them plus the
+  corpus-specific fields (vault root, chunker epoch). The **query-vector
+  compatibility identity** hashes only the components that govern how a
+  *query* is turned into a vector — model, dimension, query prompt
+  structure — so a query embeds the same way regardless of which corpus it
+  scores against; it deliberately excludes the document prompt structure,
+  the chunker epoch, and the vault root. The eval harness needs the **full
+  cache identity**: it scores recorded query vectors against **recorded
+  corpus vectors**, and reds on any mismatch (never scoring new code
+  against another epoch's vectors). The p95 observer needs only the
+  **query-vector compatibility identity**: it replays recorded query
+  vectors against the **live** real corpus purely to time the top-k path,
+  and asserts only that the query vectors' compatibility identity matches
+  the live corpus's — the vault root and chunker epoch differ by design,
+  and that is not a mismatch because the observer measures latency, never
+  relevance. (The two prompt structures are `gemini-embedding-2`'s query
+  and document forms — pinned at the protocol step from its own docs, not
+  the predecessor's `RETRIEVAL_QUERY`/`RETRIEVAL_DOCUMENT` task-type
+  fields, which this model does not accept.) Refreshing the fixture is a
+  two-sided change: the update commit carries the paired before/after
+  per-query diff.
 - **Real-vault evaluation stays local**: the harness runs against
   `~/obsidian` when present, keeps per-query paired diffs local, and only
   content-free aggregates may be quoted in a PR.
@@ -867,20 +879,37 @@ semantic candidate never fuses); lexical completeness past the fusion depth
 non-JSON silent-stdout shape**, each with its exit code and exact stderr
 line; **no envelope on any path carries the query text** (a sentinel query
 through every exit path, JSON and not, asserts absence); **the
-background-invariance lock** — for each index state, all four (five, for
-complete) background substates are driven and the **result projection**
-(the ordered result list and its channels — not the whole rendered UI,
-whose pending-count text is allowed to differ) is asserted byte-identical
-across them; **the configuration-preflight lock** — with no key, a
+background-invariance lock** — for each index state, its **reachable**
+background substates (four for the non-complete states, five for
+complete, and — when configuration is unconfigured — only the substates
+that need no key: `idle / stalled / absent`) are driven and the **result
+projection** (the ordered result list and its channels — not the whole
+rendered UI, whose pending-count text is allowed to differ) is asserted
+byte-identical across them; **and the fixture harness refuses to
+construct an unreachable combination** — an `unconfigured × refreshing`
+or `unconfigured × backing-off` UI state fails the test setup, so no
+lock can pass over a world the ownership rule forbids; **the configuration-preflight lock** — with no key, a
 recording client factory asserts it was **never called** (not merely that
 zero requests were sent — the client is never constructed) for every
 surface, a plain lexical query still answers exit 0, and the serve
 startup diagnostic is asserted to appear **exactly once** and to contain
-neither the key nor any query; **the credential-taxonomy locks** — two
-explicit actions against a refusing fake provider each produce exactly
-one call (proving no cross-request auth latch) and yield
-`embedder-rejected` with no retry and no provider bytes in the output, an
-unanswering one yields `embedder-unreachable`; the eval harness failing on
+neither the key nor any query; **the single-send lock** — the count is
+taken at the **HTTP boundary, not a client method** (a
+`http.RoundTripper`-level counter, or a local stub HTTP server): SDK
+retries live below the method call, so counting the method would miss
+them. Automatic retry is **disabled** at construction; the lock asserts
+that one explicit action produces exactly one outbound HTTP request in
+every terminal state — success, rejection, throttle, transport failure —
+and that two explicit actions produce two requests through one
+long-lived client (proving no cross-request auth latch and no retry
+amplification of the query bytes); **the taxonomy-totality lock** — a
+table with one row per documented provider error class (the authorization
+refusal → `embedder-rejected`; the throttle → `rate-limited`; a transport
+non-answer → `embedder-unreachable`; and every other documented class —
+`INVALID_ARGUMENT`, `NOT_FOUND`, `INTERNAL`, and any unlisted or unknown
+status — → the internal-error exit 1, never silently reclassified as a
+credential or unreachable state), asserting the mapping is total and each
+class yields exactly one local outcome; the eval harness failing on
 identity mismatch; and the raw-query-absence lock inherited from the
 shipped log unit, extended to B's new paths. The CLI goldens are frozen
 contract per D37 — H7's JSON is the spec they pin.
@@ -988,7 +1017,7 @@ measurements, both reversible behind their interfaces.
 | Chunking rules, chunks-per-note assumption stated | MET (H3: exact formulas, named Unicode boundaries, bounded provider fallback, two dated measurements) |
 | Cache file format versioned by (model, dim) | MET, widened (H4: full identity tuple incl. protocol epoch; engine via bake-off) |
 | RRF specifics (k, depths, aggregation) | MET (H6; shipped lexical ordering preserved) |
-| §4a degraded matrix as acceptance cases | MET as of the 2026-07-13 rulings (H7: the gate incl. the configuration preflight, the scoped rules R1–R7, the index × background × config × query-API rows with per-row authority, the two discriminated envelopes, and the frozen wire vocabulary). The final review audits this claim; it was marked PARTIAL while two ruling families were open, and would be again. |
+| §4a degraded matrix as acceptance cases | MET (H7: the gate incl. the semantic-request fork and the configuration preflight, the scoped rules R1–R7, the four-axis rows with per-surface reachability and per-row authority, the two discriminated envelopes, and the frozen wire vocabulary; the unreachable UI config×background combinations are excluded by row and enforced by the invariance lock's setup refusal). The final review audits this claim; it was PARTIAL while ruling families were open, and would be again if a reachable cell lost its answer. |
 | The eval set | MET (H9; synthetic-in-repo per D50.8) |
 | Egress guard test (Diary never reaches the embedder) | MET, widened (H5: five flows + influence lock + the linearized-publication race lock; the log flow already shipped) |
 

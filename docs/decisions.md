@@ -461,8 +461,14 @@ text now names both egress exceptions, ending the conflict with item 1;
 strict CLI emits no result payload at all (exit 3, fixed privacy stderr) —
 agent output is fail-closed, and local UI lexical continues; every request
 walks the precedence gate privacy → artifact → semantic applicability →
-cache → query API, the first failure names the reason, and the query text
-never leaves the machine before the final stage; item 9's "one full
+**semantic-request fork** → cache → configuration → query API, the first
+failure names the reason: the fork answers any request that did not
+explicitly ask for semantic (plain lexical) as `lexical/off`, exit 0,
+right there — so **the cache, configuration, and query-API stages are
+reached only by a text-bearing request that explicitly asked for
+semantic**, and a plain lexical query is never turned away by a cold
+cache, a missing key, or any network state. The query text never leaves
+the machine before the final stage; item 9's "one full
 re-embed and nothing else" is withdrawn — the successor's request protocol
 differs and re-pins from its own documentation into the cache identity;
 and unmanaged epoch-identity mismatch (cold) is distinct from managed
