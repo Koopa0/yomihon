@@ -409,7 +409,9 @@ and every surface stays whole without it (roadmap §4a).
     class) → `embedder-failed`; **and every remaining documented class the
     mapping cannot confidently attribute to our own request, plus every
     unknown or undocumented status → `embedder-failed`** (the catch-all is
-    provider-side, not ours).
+    provider-side, not ours; its diagnostic says only that the API returned
+    an error search could not recover from — it does not assert a
+    server-side cause it cannot confirm).
   - **Only a response we can confirm is a yomihon-formed malformed
     request → the command's internal error, exit 1** (loud, because it is a
     build defect): the classes the successor's docs attribute
@@ -603,21 +605,26 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
    invariant is per-surface: configuration never overrides the reason the
    *current surface* stopped at stage 4.
 5. **query API** — only a request that passed 1–4b embeds the query; at
-   most one call per explicit action, no in-place retry. A provider
-   refusal of the credential is `embedder-rejected` (a non-retryable
-   client-side authorization failure per the successor's own error
-   taxonomy, pinned at the protocol step alongside the request templates
-   — this plan does not hardcode a status number); an unanswered call is
-   `embedder-unreachable`; a throttle is `rate-limited` (fail-fast,
-   D50.6). **No cross-request auth latch is authorized**: each explicit
-   action is judged on its own call. Introducing one would need its own
-   lifecycle and matrix states, ruled separately.
+   most one call per explicit action, no in-place retry. Its outcome maps
+   by the H4 fault-ownership taxonomy: a credential refusal →
+   `embedder-rejected`; an unanswered call → `embedder-unreachable`; a
+   throttle → `rate-limited` (fail-fast, D50.6); a provider server error
+   **or any unknown/unclassifiable response** → `embedder-failed`; **only
+   a response the docs confirm is a yomihon-formed malformed request →
+   internal error, exit 1** (row 14). Every provider-fault outcome is exit
+   3 with the lexical answer preserved (never a claimed yomihon bug). The
+   class → outcome mapping is pinned at the protocol step from the
+   successor's own docs, not a hardcoded status number. **No cross-request
+   auth latch is authorized**: each explicit action is judged on its own
+   call. Introducing one would need its own lifecycle and matrix states,
+   ruled separately.
 
 **JSON contract** (frozen at build, golden-pinned; the D37 rule). **No
 envelope ever echoes the query** (ruled 2026-07-13 — the caller already
 knows its input, and echoing it would put raw query text into an error
 surface, which D50.1 and H5.4 forbid). Three discriminated envelopes,
-keyed by exit code:
+told apart by **which top-level key is present** (not by exit code — exit
+3 covers both the answerable and the capability-unanswerable shapes):
 
 - **Answerable (exit 0 or 3)** — the command could answer, even if only
   lexically: `{mode, semantic, coverage?, results}`.
@@ -698,7 +705,7 @@ Fields of the answerable envelope:
   - `yomihon search: embedder-retired: the old index's embedding model is no longer available`
   - `yomihon search: embedder-unconfigured: no embedding key is configured, so semantic search is off`
   - `yomihon search: embedder-unreachable: the embedding API did not answer`
-  - `yomihon search: embedder-failed: the embedding API returned a server-side error`
+  - `yomihon search: embedder-failed: the embedding API returned an error search could not recover from`
   - `yomihon search: embedder-rejected: the embedding API refused the credential`
   - `yomihon search: rate-limited: the embedding API is rate-limiting; try again shortly`
   - `yomihon search: stale-partial: the semantic index is missing vectors for changed notes`
@@ -706,8 +713,12 @@ Fields of the answerable envelope:
   A rejection's stderr carries that sentence and nothing else — the
   provider's own response body is never forwarded (it could echo the
   submitted text). Goldens pin one example of each legal pair, both
-  unanswerable error bodies, and the non-JSON silent-stdout shape;
-  separate assertions pin exit codes and stderr bytes.
+  unanswerable capability-error bodies, **the internal-error body
+  (`{"internal_error": {"detail": "the request could not be formed
+  correctly"}}`)**, and the non-JSON silent-stdout shape; separate
+  assertions pin exit codes and the exact stderr bytes for each — including
+  the exit-1 line `yomihon search: internal: the request could not be
+  formed correctly`.
 
 **Collapsing rules** (each labeled with its authority; each is scoped to
 the gate stage it implements, so no two rules can claim the same cell):
@@ -760,12 +771,14 @@ the gate stage it implements, so no two rules can claim the same cell):
 **Core table** (privacy valid ∧ artifact valid ∧ semantic applicable;
 surfaces = UI explicit semantic search, CLI `--semantic` strict). **Four
 axes**, enumerated — *index state* (what the engine holds), *background*
-(refreshing / backing-off / stalled / absent — no builder exists, as with
-a standalone CLI or a serve process that has not started one; the
-**background pipeline is its own axis**, D50's amendment requires its
-substates listed, not folded), *configuration* (is an embedding key
-present), and *query API* (the state of the single call a query embedding
-would make; it shares no latch with the background — D50.6).
+(its domain depends on the index state — four substates for an incomplete
+index: refreshing / backing-off / stalled / absent; five for a complete
+one, adding `idle`; *absent* = no builder, as with a standalone CLI or a
+serve process that has not started one; the **background pipeline is its
+own axis**, D50's amendment requires its substates listed, not folded),
+*configuration* (is an embedding key present), and *query API* (the state
+of the single call a query embedding would make; it shares no latch with
+the background — D50.6).
 
 **Configuration ownership differs by surface, and the column means the
 key that surface would use.** The UI is served by a serve process, and
@@ -826,7 +839,7 @@ only where it reaches stage 5.
 | 11 | complete | all five | configured | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
 | 12 | complete | all five | configured | **rejected** (the provider refused the credential) | lexical + `embedder-rejected` indicator | exit 3 `embedder-rejected`, body = lexical results; no retry, no provider body forwarded |
 | 13 | complete | all five | configured | **server error / unknown / unclassifiable** (provider 5xx / INTERNAL / any response we cannot confidently attribute to our own request) | lexical + `embedder-failed` indicator | exit 3 `embedder-failed`, body = lexical results |
-| 14 | complete | all five | configured | **confirmed-malformed request** (a class the docs pin unambiguously to a yomihon-formed bad request) | lexical reading continues + internal-error diagnostic | **exit 1** internal error — no `results`, no `error` semantic reason: `{"internal_error": {"detail": "…"}}`, stderr `yomihon search: internal: <one frozen sentence>` |
+| 14 | complete | all five | configured | **confirmed-malformed request** (a class the docs pin unambiguously to a yomihon-formed bad request) | lexical reading continues + internal-error diagnostic | **exit 1** internal error — `{"internal_error": {"detail": "the request could not be formed correctly"}}` (no `results`, no `error`), stderr exactly `yomihon search: internal: the request could not be formed correctly` |
 
 Row 14 is the one exit-1 wire shape (the answerable/error envelopes are for
 exit 0 and exit 3; a build defect is neither). The unknown/unclassifiable
@@ -837,10 +850,14 @@ Authorities, per row: 1 [CD H4 identity + ER gate order] · 2 [CD §4a
 "cold → loud" + ER gate order] · 3 [ER D50.2 + ER gate order] · 4 [CD H13
 + ER gate order] · 5, 8 [ER 2026-07-13 configuration preflight] · 6 [ER
 D50.5 (CLI exit 3 on stale-partial) + CD §4a (UI never blank) + ER gate
-order] · 7 [ER D50.5 (CLI stops at gate 4) + ER gate order; the UI's
-down/429/rejected outcomes = CD §4a / ER D50.6 / ER 2026-07-13 credential
-taxonomy respectively] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD
-§4a "unreachable → loud"] · 11 [ER D50.6] · 12, 13, 14 [ER 2026-07-13
+order] · 7 [ER D50.5 (CLI stops at gate 4, so its exit-3 stale-partial
+reason is unchanged by any query-API outcome) + ER gate order; the UI's
+down / 429 / rejected / server-error / malformed / unknown outcomes = CD
+§4a / ER D50.6 / ER 2026-07-13 credential taxonomy / ER 2026-07-13
+provider-fault (embedder-failed) / ER 2026-07-13 confirmed-malformed
+(internal error) / ER 2026-07-13 provider-fault (embedder-failed)
+respectively] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD §4a
+"unreachable → loud"] · 11 [ER D50.6] · 12, 13, 14 [ER 2026-07-13
 Koopa's credential + provider-fault taxonomy].
 
 Rows 1–4 all present a cold face but carry distinct reasons, so the
@@ -927,16 +944,19 @@ non-JSON silent-stdout shape**, each with its exit code and exact stderr
 line; **no envelope on any path carries the query text** (a sentinel query
 through every exit path, JSON and not, asserts absence); **the
 background-invariance lock** — for each index state, its **reachable**
-background substates (four for the non-complete states, five for
-complete, and — when configuration is unconfigured — only the substates
-that need no key: `idle / stalled / absent`) are driven and the **result
-projection** (the ordered result list and its channels — not the whole
-rendered UI, whose pending-count text is allowed to differ) is asserted
-byte-identical across them; **and the fixture harness refuses to
-construct an unreachable combination — but only for the UI surface**,
-whose builder and query key are the same serve-process key: an
-`unconfigured × refreshing` or `unconfigured × backing-off` **UI** state
-fails the test setup, so no lock passes over a world the ownership rule
+background substates are driven (the full domain when configured — four
+for a non-complete index, five for complete; and **for the UI when
+unconfigured**, only the key-free subset: `stalled / absent` for a
+non-complete index, `idle / stalled / absent` for a complete one, since
+`refreshing` and `backing-off` need a key the UI's serve process would
+also use) and the **result projection** (the ordered result list and its
+channels — not the whole rendered UI, whose pending-count text is allowed
+to differ) is asserted byte-identical across them; **and the fixture
+harness refuses to construct an unreachable combination — but only for
+the UI surface**, whose builder and query key are the same serve-process
+key: an `unconfigured × refreshing` or `unconfigured × backing-off` **UI**
+state fails the test setup, so no lock passes over a world the ownership
+rule
 forbids. The **CLI** surface holds an independent key, so
 `unconfigured × refreshing` is legal for it (an external serve is
 refreshing while the CLI's own call has no key) and the refusal does not

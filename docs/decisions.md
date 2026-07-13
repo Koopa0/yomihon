@@ -477,12 +477,16 @@ pipeline's condition enumerated as explicit cache substates rather than
 folded away.)*
 
 *(Amended 2026-07-13, closing the last two open families. **The agent
-wire has two discriminated envelopes and never echoes the query** — a
-request the command can answer (even only lexically) carries
-`{mode, semantic, coverage?, results}`; a request it cannot answer at all
-— the privacy capability invalid, or a metadata filter that cannot be
-evaluated, with or without `--semantic` — carries `{"error": {"reason"}}`
-and nothing else, exit 3, with silent stdout in non-JSON mode. Echoing
+wire has three discriminated envelopes and never echoes the query.** They
+are told apart by which top-level key is present, not by exit code alone
+(exit 3 can be either of the first two): a request the command can answer
+(even only lexically) carries `{mode, semantic, coverage?, results}` (exit
+0 or 3); a request it cannot answer at all — the privacy capability
+invalid, or a metadata filter that cannot be evaluated, with or without
+`--semantic` — carries `{"error": {"reason"}}` and nothing else (exit 3);
+and a request yomihon can confirm it formed wrongly carries
+`{"internal_error": {"detail"}}` and nothing else (exit 1). Non-JSON mode
+prints silent stdout with the frozen stderr line for the second and third. Echoing
 the query would have put raw query text into an error surface, which item
 1 forbids; that is why no envelope carries it. Item 10's boundary is
 therefore precise: a capability-only diagnostic may leave; a result or
