@@ -522,6 +522,14 @@ Ruled out, with reasons:
   hits it. **Reopened 2026-07-12:** a real-vault Chrome probe at 360 CSS px
   reproduced 115 px of page-level horizontal travel on both Japanese and Go
   lessons; `program.md` 9c-vi owns the ruling and acceptance contract.
+- **Right-rail status-face clipping** (user report, reproduced 2026-07-13).
+  The §6 claim that the rail is independently scrollable is incomplete: its
+  flex children still shrink, so a long TOC compresses the status panel and the
+  panel's `overflow: hidden` permanently clips its forms instead of extending
+  the rail's scroll range. The real-vault probe reproduced on L01, L02, L20,
+  and a Go lesson at 1600×900; L01's panel was 97 px tall for 312 px of content,
+  with all three forms outside the visible panel. `program.md` 9c-viii owns the
+  repair and browser acceptance contract.
 - **The inline sidebar restore script** (external finding: one-JS-file
   violation). Stays, and is hereby the recorded exception: it is a pre-paint
   state restorer, the one job a deferred file cannot do without flashing the

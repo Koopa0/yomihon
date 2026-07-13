@@ -156,6 +156,21 @@ old directory.
     status messages, counts, placeholders, titles, and accessible names; keep
     Japanese and other authored content locally language-tagged; add browser
     locks for the translated surfaces. Do not introduce an i18n framework.
+9c-viii. `PR-right-rail-flex-clipping` — **user-reported, real-observed**: on
+    wide lesson pages a long TOC can permanently clip the status face below it.
+    The right rail is a column flex scroller, but its direct children retain the
+    default shrink behavior; the TOC therefore compresses `.y-statuspanel`, whose
+    own `overflow: hidden` discards the forms instead of contributing their full
+    height to the rail's scroll range. A 2026-07-13 real-vault browser probe at
+    1600×900 measured L01's status panel at 97 px client height versus 312 px
+    scroll height, with all three status forms outside the visible panel. L02
+    reproduced at 147/312 px, L20 at 178/290 px, and the Go Garbage Collection
+    Guide at 169/290 px; at 1600×768 L01 collapsed to 0/312 px. Acceptance must
+    keep the rail as the single vertical scroller, prevent TOC/status/diagnostic
+    children from shrinking away their content, and prove every TOC link and
+    status control visible, keyboard reachable, and focus-visible after scrolling
+    on those real pages at both heights. Add a browser lock that fails under the
+    current shrink-plus-hidden combination and covers a rail with diagnostics.
 9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
     a read-only fragment endpoint, and in-place diagnostic cards — popover +
     CSS anchor positioning, zero positioning JS.
