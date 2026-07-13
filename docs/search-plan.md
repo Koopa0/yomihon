@@ -10,8 +10,9 @@
 > response is a semantic `unavailable` (exit 3, lexical preserved), the
 > default for uncertainty being the provider's fault, never a claimed
 > yomihon bug. Three discriminated envelopes (answerable / capability-
-> unanswerable / internal-error) key on the exit code; the matrix carries
-> rows 1–14 with per-surface reachability; the single-send lock covers
+> unanswerable / internal-error) told apart by their top-level key (exit 3
+> covers two of them); the matrix carries rows 1–14 with per-surface
+> reachability; the single-send lock covers
 > every terminal including the fault-ownership ones. Dispatch gate
 > (D50.10): the vault contract's privacy capability must land before any
 > Part II behavior.
@@ -633,10 +634,12 @@ told apart by **which top-level key is present** (not by exit code — exit
   `--semantic`: `{"error": {"reason": "..."}}` — no `mode`, no `semantic`,
   no `coverage`, no `results`.
 - **Internal error (exit 1)** — a build defect: a request we can confirm
-  yomihon formed wrongly. `{"internal_error": {"detail": "..."}}` — no
-  `mode`, no `semantic`, no `results`, no `error.reason` (which is reserved
-  for the unanswerable-capability envelope). The `detail` string never
-  carries the query text.
+  yomihon formed wrongly. The body is byte-exact:
+  `{"internal_error": {"detail": "the request could not be formed
+  correctly"}}` — no `mode`, no `semantic`, no `results`, no `error.reason`
+  (which is reserved for the unanswerable-capability envelope). The
+  `detail` is a fixed string, never the query text (which would be an
+  egress into an error surface, forbidden by D50.1 / H5.4).
 - **Non-JSON mode**: an unanswerable or internal-error request prints
   **nothing** on stdout and prints its one frozen stderr line (exit 3 or
   exit 1 respectively).
@@ -832,7 +835,7 @@ only where it reaches stage 5.
 | 4 | **capacity** — index exists, cannot be loaded/built in memory (H13) | all four | *n/a (gate 4)* | *n/a* | lexical + `capacity` diagnostic | exit 3 `capacity` |
 | 5 | **stale-partial** — some notes missing vectors | UI: **stalled / absent only** (unconfigured × refreshing is unreachable — a refreshing background proves a key). CLI: any (its config is independent) | unconfigured | *n/a (gate 4b for UI; gate 4 for CLI)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `stale-partial` — the CLI stopped at gate 4 first, so its own config is never read |
 | 6 | stale-partial | all four | configured | up | hybrid over the unmasked set + pending-count indicator | exit 3 `stale-partial` + `masked_notes` (*gate 4: strict requires a complete index; the API is never consulted*) |
-| 7 | stale-partial | all four | configured | down / 429 / rejected / server-error / malformed / unknown | UI: lexical + the matching indicator (the UI reached stage 5; the reason is the query-API outcome — `embedder-unreachable` / `rate-limited` / `embedder-rejected` / `embedder-failed`, or, for a confirmed-malformed request, an internal-error diagnostic while lexical reading continues) | exit 3 `stale-partial` — **unchanged**; the CLI stopped at gate 4 and never reached the API, so the query-API outcome cannot change its reason |
+| 7 | stale-partial | all four | configured | **UI only** (the CLI is *n/a* — it stopped at gate 4): down / 429 / rejected / server-error / unknown-or-unclassifiable / confirmed-malformed | UI: lexical + the matching indicator, the reason being the query-API outcome — `embedder-unreachable` / `rate-limited` / `embedder-rejected` / `embedder-failed` (both server-error and any unknown-or-unclassifiable response), or, for a confirmed-malformed request, an internal-error diagnostic while lexical reading continues | exit 3 `stale-partial` — **unchanged**; the CLI stopped at gate 4 and never reached the API, so no query-API outcome (including unclassifiable) can change its reason |
 | 8 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | UI: **idle / stalled / absent only** (unconfigured rules out refreshing-next-epoch and backing-off — both require a key). CLI: any (independent key) | unconfigured | *n/a (gate 4b for UI; gate 4 does not apply — index is complete — so CLI reaches 4b too)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `embedder-unconfigured` |
 | 9 | complete | all five substates | configured | up | hybrid | hybrid, exit 0 |
 | 10 | complete | all five | configured | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results |
@@ -852,11 +855,11 @@ Authorities, per row: 1 [CD H4 identity + ER gate order] · 2 [CD §4a
 D50.5 (CLI exit 3 on stale-partial) + CD §4a (UI never blank) + ER gate
 order] · 7 [ER D50.5 (CLI stops at gate 4, so its exit-3 stale-partial
 reason is unchanged by any query-API outcome) + ER gate order; the UI's
-down / 429 / rejected / server-error / malformed / unknown outcomes = CD
-§4a / ER D50.6 / ER 2026-07-13 credential taxonomy / ER 2026-07-13
+down / 429 / rejected / server-error / unknown-or-unclassifiable /
+confirmed-malformed outcomes = CD §4a / ER D50.6 / ER 2026-07-13 credential
+taxonomy / ER 2026-07-13 provider-fault (embedder-failed) / ER 2026-07-13
 provider-fault (embedder-failed) / ER 2026-07-13 confirmed-malformed
-(internal error) / ER 2026-07-13 provider-fault (embedder-failed)
-respectively] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD §4a
+(internal error) respectively] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD §4a
 "unreachable → loud"] · 11 [ER D50.6] · 12, 13, 14 [ER 2026-07-13
 Koopa's credential + provider-fault taxonomy].
 
@@ -939,10 +942,12 @@ malformed-row-is-cold and purge-on-reclassify; the epoch atomic swap and
 its old-embedder guard (D50.2); filters-as-hard-constraints (a filtered-out
 semantic candidate never fuses); lexical completeness past the fusion depth
 (`--limit` beyond 50 answers); fusion determinism (the CLI golden bytes);
-**every legal JSON pair, both unanswerable error envelopes, and the
-non-JSON silent-stdout shape**, each with its exit code and exact stderr
-line; **no envelope on any path carries the query text** (a sentinel query
-through every exit path, JSON and not, asserts absence); **the
+**every legal JSON pair, both unanswerable capability-error bodies, the
+byte-exact internal-error body (`{"internal_error": {"detail": "the
+request could not be formed correctly"}}`), and the non-JSON silent-stdout
+shape**, each with its exit code and exact stderr line; **no envelope on
+any path carries the query text** (a sentinel query through every exit
+path, JSON and not, asserts absence); **the
 background-invariance lock** — for each index state, its **reachable**
 background substates are driven (the full domain when configured — four
 for a non-complete index, five for complete; and **for the UI when
