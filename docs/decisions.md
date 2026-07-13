@@ -470,7 +470,7 @@ cutover (old epoch serves while its embedder lives), with the background
 pipeline's condition enumerated as explicit cache substates rather than
 folded away.)*
 
-*(Amended 2026-07-14, closing the last two open families. **The agent
+*(Amended 2026-07-13, closing the last two open families. **The agent
 wire has two discriminated envelopes and never echoes the query** — a
 request the command can answer (even only lexically) carries
 `{mode, semantic, coverage?, results}`; a request it cannot answer at all
@@ -485,8 +485,11 @@ missing key is a configuration-preflight state before the network —
 `embedder-unconfigured`, no client constructed, no query embedded,
 reading never blocked, logged once by serve without the key or any query
 — and it is checked only for a text-bearing request that explicitly asked
-for semantic, after the index state is known, so it can never mask a cold,
-mismatched, retired, or stale index. A provider refusal of the credential
+for semantic, after the index state is known, so it can never mask the
+reason the *current surface* stopped at the index stage (the strict CLI
+fails there on any incomplete index and never reaches the key check; the
+UI, which serves a partial index, is not failing at the index stage and
+so may legitimately then report an unconfigured key). A provider refusal of the credential
 is `embedder-rejected`: at most one call per explicit action, no in-place
 retry, the provider's response body never forwarded, and no cross-request
 auth latch is authorized — the status-code classification is pinned from

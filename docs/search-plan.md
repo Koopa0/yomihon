@@ -393,10 +393,16 @@ and every surface stays whole without it (roadmap §4a).
   build's first protocol step records, with an official-doc anchor per
   clause: the exact request template for the document role and the query
   role, the exact submitted bytes for a reference input, the request
-  cardinality above, and the response handling at the chosen dimension
-  (vector extraction and the normalization the API did or did not apply).
-  This plan pins the structure; the anchors themselves land at that build
-  step and are verified at its acceptance — they cannot exist earlier.
+  cardinality above, the response handling at the chosen dimension
+  (vector extraction and the normalization the API did or did not apply),
+  and **the error taxonomy → gate-state mapping** — which documented
+  provider error classes are the non-retryable credential rejection
+  (`embedder-rejected`, gate 5), which are the transient throttle
+  (`rate-limited`), and which are the no-answer transport failure
+  (`embedder-unreachable`), each cited to the successor's own error docs
+  rather than a hardcoded status number. This plan pins the structure; the
+  anchors themselves land at that build step and are verified at its
+  acceptance — they cannot exist earlier.
 - **Cache identity**: (model, dimension, the protocol epoch — a hash over
   the pinned request templates, the request cardinality, the response
   handling, and the preprocess rules — the chunker epoch, format version,
@@ -538,6 +544,15 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
 3. **semantic applicability** — pure-filter or empty-text queries carry
    nothing to embed: with `--semantic` the channel is *not applicable*,
    never "degraded" — exit 0. Reachable only after stages 1–2 pass.
+3b. **semantic request** — the fork that stops every non-semantic request
+   here, so no later stage can touch it. A request that did **not** ask
+   for semantic (no `--semantic`, and the UI without an explicit
+   semantic submit) is answered lexically now: `lexical/off`, exit 0,
+   whatever the index holds. **Stages 4, 4b, and 5 are reached only by a
+   text-bearing request that explicitly asked for semantic** — so cold,
+   mismatch, retirement, capacity, a missing key, and every query-API
+   failure are, by construction, unreachable for a plain lexical query.
+   This is the single place the gate guarantees what R6/R7 assert.
 4. **semantic corpus & cache usability** — the semantic corpus cannot
    exist (artifact policy invalid), or the index cannot serve this
    surface → semantic cannot be served, so **the query is never
@@ -551,7 +566,7 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
    at all) → index presence → embedder availability for the epoch that
    would serve → completeness (CLI only). Capacity failure (H13) is a
    stage-4 failure.
-4b. **configuration preflight** (ruled 2026-07-14) — checked **only for a
+4b. **configuration preflight** (ruled 2026-07-13) — checked **only for a
    text-bearing request that explicitly asked for semantic**, and only
    after stage 4 found the index usable for this surface: with no
    embedding key configured, the state is `embedder-unconfigured` — no
@@ -559,9 +574,15 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
    blocked. Serve logs the configuration diagnostic **once**, carrying
    neither the key nor any query. Plain lexical and not-applicable
    requests never reach this stage, so a missing key cannot change their
-   answer. Because it runs after stage 4, a cold / mismatched / retired /
-   stale-partial index keeps *its* reason: configuration never masks a
-   cache state.
+   answer. It runs after stage 4 *for the same surface*, so it never masks
+   a stage-4 failure **that surface** already had: the strict CLI, which
+   requires a complete index, fails at stage 4 on cold / mismatch /
+   retired / stale-partial and never reaches 4b; the UI, which accepts a
+   partial index, passes stage 4 on stale-partial and *can* then surface
+   `embedder-unconfigured` — for the UI that is not masking a cache
+   failure, because for the UI a partial index is not a failure. The
+   invariant is per-surface: configuration never overrides the reason the
+   *current surface* stopped at stage 4.
 5. **query API** — only a request that passed 1–4b embeds the query; at
    most one call per explicit action, no in-place retry. A provider
    refusal of the credential is `embedder-rejected` (a non-retryable
@@ -574,7 +595,7 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
    lifecycle and matrix states, ruled separately.
 
 **JSON contract** (frozen at build, golden-pinned; the D37 rule). **No
-envelope ever echoes the query** (ruled 2026-07-14 — the caller already
+envelope ever echoes the query** (ruled 2026-07-13 — the caller already
 knows its input, and echoing it would put raw query text into an error
 surface, which D50.1 and H5.4 forbid). Two discriminated envelopes:
 
@@ -633,10 +654,12 @@ Fields of the answerable envelope:
 - Exit codes (this command's own frozen vocabulary; `check`'s exit 1
   means findings — this exit 1 means internal failure): 0 = ran
   (including zero results and not-applicable), 1 = internal error,
-  2 = usage, 3 = a required capability is unavailable (semantic, metadata
-  filters, or privacy-gated output — the stderr sentence and
-  `coverage.reason` name which). stderr on exit 3 is exactly one line per
-  reason, frozen here:
+  2 = usage, 3 = a required capability is unavailable. The machine-
+  readable reason lives in whichever envelope the request carries: an
+  answerable exit-3 body names it in `coverage.reason`; an unanswerable
+  exit-3 body names it in `error.reason`. The stderr line names it on
+  both paths (and is the only channel in non-JSON mode). stderr on exit 3
+  is exactly one line per reason, frozen here:
   - `yomihon search: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed`
   - `yomihon search: metadata-filters-unavailable: the vault contract declares no valid artifact policy, so metadata filters cannot be evaluated`
   - `yomihon search: artifact-policy-unavailable: the vault contract declares no valid artifact policy, so the semantic corpus cannot exist`
@@ -697,22 +720,33 @@ the gate stage it implements, so no two rules can claim the same cell):
   asked for semantic and carries text** — a plain lexical query (no
   `--semantic`) is answered `lexical/off`, exit 0, whatever the engine's
   capacity, because nothing it needed failed [CANON-DERIVED H13, wire
-  shape 2026-07-13; scope corrected 2026-07-14].
+  shape 2026-07-13; scope corrected 2026-07-13].
 - R7 (**gate 4b**) — no embedding key configured: semantic `unavailable`
   with reason `embedder-unconfigured`; same scope as R6 (text-bearing ∧
   explicitly semantic); no client, no egress; reading unaffected
-  [EXPLICIT-RULING 2026-07-14].
+  [EXPLICIT-RULING 2026-07-13].
 
 **Core table** (privacy valid ∧ artifact valid ∧ semantic applicable;
-surfaces = UI explicit semantic search, CLI `--semantic` strict). Three
-axes, enumerated — **the background pipeline is its own axis** (D50's
-amendment requires its substates listed, not folded; the previous
-revision folded them and is corrected here): *index state* (what the
-engine holds), *background* (refreshing / backing-off / stalled /
-absent — no builder exists, as with a standalone CLI or a serve process
-that has not started one), and *query API* (the state of the single call
-a query embedding would make; it shares no latch with the background —
-D50.6).
+surfaces = UI explicit semantic search, CLI `--semantic` strict). **Four
+axes**, enumerated — *index state* (what the engine holds), *background*
+(refreshing / backing-off / stalled / absent — no builder exists, as with
+a standalone CLI or a serve process that has not started one; the
+**background pipeline is its own axis**, D50's amendment requires its
+substates listed, not folded), *configuration* (is an embedding key
+present), and *query API* (the state of the single call a query embedding
+would make; it shares no latch with the background — D50.6).
+
+**Configuration ownership differs by surface, and the column means the
+key that surface would use.** The UI is served by a serve process, and
+that same process owns the builder — so for the UI a present key implies
+a builder can run: `unconfigured × (refreshing | backing-off)` is
+unreachable (a refreshing background proves a key), leaving `unconfigured
+× (stalled | absent)` and `configured × all`. The strict CLI reads a
+cache some *external* serve process built and holds its **own** key for
+the query call — so its configuration axis is independent of that serve's
+builder, and all background substates pair with either config value.
+The rows below mark the unreachable UI combination rather than pretending
+it exists.
 
 Two facts collapse the product honestly, and are stated rather than
 assumed:
@@ -744,7 +778,7 @@ stage 4b; the **query API** column only where it reaches stage 5.
 | 2 | **absent** — no index | all four (with *absent* the UI says "not building" rather than "building") | *n/a (gate 4)* | *n/a* | lexical + `cache-cold` diagnostic | exit 3 `cache-cold` |
 | 3 | **embedder-retired** — the serving epoch's model is gone, no successor epoch yet | all four | *n/a (gate 4)* | *n/a* | lexical + `embedder-retired` diagnostic | exit 3 `embedder-retired` |
 | 4 | **capacity** — index exists, cannot be loaded/built in memory (H13) | all four | *n/a (gate 4)* | *n/a* | lexical + `capacity` diagnostic | exit 3 `capacity` |
-| 5 | **stale-partial** — some notes missing vectors | refreshing (count shrinks) / backing-off (count holds, retry pending) / stalled (count holds, no retry) / **absent (count holds, nothing will change it)** | unconfigured | *n/a (gate 4b)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `stale-partial` — the CLI stopped at gate 4 first |
+| 5 | **stale-partial** — some notes missing vectors | UI: **stalled / absent only** (unconfigured × refreshing is unreachable — a refreshing background proves a key). CLI: any (its config is independent) | unconfigured | *n/a (gate 4b for UI; gate 4 for CLI)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `stale-partial` — the CLI stopped at gate 4 first, so its own config is never read |
 | 6 | stale-partial | all four | configured | up | hybrid over the unmasked set + pending-count indicator | exit 3 `stale-partial` + `masked_notes` (*gate 4: strict requires a complete index; the API is never consulted*) |
 | 7 | stale-partial | all four | configured | down / 429 / rejected | lexical + the matching indicator (the UI reached stage 5 and failed there) | exit 3 `stale-partial` — **unchanged**; the CLI never reached the API |
 | 8 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | idle / refreshing-next-epoch / backing-off / stalled / **absent** — no effect on serving (D50.6) | unconfigured | *n/a (gate 4b)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `embedder-unconfigured` |
@@ -755,15 +789,18 @@ stage 4b; the **query API** column only where it reaches stage 5.
 
 Authorities, per row: 1 [CD H4 identity + ER gate order] · 2 [CD §4a
 "cold → loud" + ER gate order] · 3 [ER D50.2 + ER gate order] · 4 [CD H13
-+ ER gate order] · 5, 8 [ER 2026-07-14 configuration preflight] · 6–7 [ER
++ ER gate order] · 5, 8 [ER 2026-07-13 configuration preflight] · 6 [ER
 D50.5 (CLI exit 3 on stale-partial) + CD §4a (UI never blank) + ER gate
-order] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD §4a "unreachable
-→ loud"] · 11 [ER D50.6] · 12 [ER 2026-07-14 credential taxonomy].
+order] · 7 [ER D50.5 (CLI stops at gate 4) + ER gate order; the UI's
+down/429/rejected outcomes = CD §4a / ER D50.6 / ER 2026-07-13 credential
+taxonomy respectively] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD
+§4a "unreachable → loud"] · 11 [ER D50.6] · 12 [ER 2026-07-13 credential
+taxonomy].
 
 Rows 1–4 all present a cold face but carry distinct reasons, so the
 observable is never ambiguous. Each numbered row is an acceptance test.
 UI indicator texts are locked strings. **NEEDS-RULING = 0** as of the
-2026-07-14 rulings (recorded in D50's amendment); the final review
+2026-07-13 rulings (recorded in D50's amendment); the final review
 re-audits per row.
 
 ## H8. Removed — source_kind moved to the H face (D50.4)
@@ -785,11 +822,24 @@ implements them. B leaves the grammar untouched.
   explicit negatives (results that must not appear — a recall-only oracle
   passes while a forbidden result rides along), the tie rule at rank 5, and
   the denominator.
-- **Recorded vectors are epoch-bound**: the fixture stores the full cache
-  identity (H4) it was recorded under, and the harness fails on any
-  mismatch — it never silently scores new code against another epoch's
-  vectors. Refreshing the fixture is a two-sided change: the update commit
-  carries the paired before/after per-query diff.
+- **Two identities, not one** (the eval fixture and the p95 observer need
+  different guarantees): a query vector is comparable to a corpus when the
+  **query-vector compatibility identity** matches — `(model, dimension,
+  protocol epoch, RETRIEVAL_QUERY template)`, the projection of the full
+  cache identity (H4) that drops the corpus-specific fields (vault root,
+  chunker epoch, RETRIEVAL_DOCUMENT template): a query is embedded the same
+  way regardless of which corpus it will score against. The eval harness
+  needs *both* — it scores recorded query vectors against **recorded
+  corpus vectors**, so it asserts the full cache identity matches and reds
+  on any mismatch (it never scores new code against another epoch's
+  vectors). The p95 observer needs only the **query-vector compatibility
+  identity**: it replays recorded query vectors against the **live** real
+  corpus purely to time the top-k path, and asserts only that the query
+  vectors' compatibility identity matches the live corpus's — the vault
+  root and chunker epoch deliberately differ, and that is not a mismatch
+  because the observer measures latency, never relevance. Refreshing the
+  fixture is a two-sided change: the update commit carries the paired
+  before/after per-query diff.
 - **Real-vault evaluation stays local**: the harness runs against
   `~/obsidian` when present, keeps per-query paired diffs local, and only
   content-free aggregates may be quoted in a PR.
@@ -818,12 +868,17 @@ non-JSON silent-stdout shape**, each with its exit code and exact stderr
 line; **no envelope on any path carries the query text** (a sentinel query
 through every exit path, JSON and not, asserts absence); **the
 background-invariance lock** — for each index state, all four (five, for
-complete) background substates are driven and the served result is
-asserted byte-identical, the UI's pending-count text being the only
-permitted difference; **the configuration-preflight lock** — with no key,
-a recording client asserts zero requests were constructed for every
-surface, and a plain lexical query still answers exit 0; **the
-credential-taxonomy locks** — a refusing fake provider yields
+complete) background substates are driven and the **result projection**
+(the ordered result list and its channels — not the whole rendered UI,
+whose pending-count text is allowed to differ) is asserted byte-identical
+across them; **the configuration-preflight lock** — with no key, a
+recording client factory asserts it was **never called** (not merely that
+zero requests were sent — the client is never constructed) for every
+surface, a plain lexical query still answers exit 0, and the serve
+startup diagnostic is asserted to appear **exactly once** and to contain
+neither the key nor any query; **the credential-taxonomy locks** — two
+explicit actions against a refusing fake provider each produce exactly
+one call (proving no cross-request auth latch) and yield
 `embedder-rejected` with no retry and no provider bytes in the output, an
 unanswering one yields `embedder-unreachable`; the eval harness failing on
 identity mismatch; and the raw-query-absence lock inherited from the
@@ -901,6 +956,10 @@ measurements, both reversible behind their interfaces.
   half-loaded matrix.
 - **The p95 observer, fully specified** (the rung-1→2 trigger is
   observable, not folklore):
+  - *Compatibility, not full identity*: the observer asserts only the
+    query-vector compatibility identity (H9) against the live corpus —
+    the vault root and chunker epoch differ by design, and that is not a
+    mismatch, because the measurement is latency, not relevance.
   - *Workload*, reproducible by construction and **embedding-free**: the
     committed eval set's 40 query **vectors are read from the H9 recorded
     fixture** — the observer never calls the embedding API, so a
@@ -929,7 +988,7 @@ measurements, both reversible behind their interfaces.
 | Chunking rules, chunks-per-note assumption stated | MET (H3: exact formulas, named Unicode boundaries, bounded provider fallback, two dated measurements) |
 | Cache file format versioned by (model, dim) | MET, widened (H4: full identity tuple incl. protocol epoch; engine via bake-off) |
 | RRF specifics (k, depths, aggregation) | MET (H6; shipped lexical ordering preserved) |
-| §4a degraded matrix as acceptance cases | MET as of the 2026-07-14 rulings (H7: the gate incl. the configuration preflight, the scoped rules R1–R7, the index × background × config × query-API rows with per-row authority, the two discriminated envelopes, and the frozen wire vocabulary). The final review audits this claim; it was marked PARTIAL while two ruling families were open, and would be again. |
+| §4a degraded matrix as acceptance cases | MET as of the 2026-07-13 rulings (H7: the gate incl. the configuration preflight, the scoped rules R1–R7, the index × background × config × query-API rows with per-row authority, the two discriminated envelopes, and the frozen wire vocabulary). The final review audits this claim; it was marked PARTIAL while two ruling families were open, and would be again. |
 | The eval set | MET (H9; synthetic-in-repo per D50.8) |
 | Egress guard test (Diary never reaches the embedder) | MET, widened (H5: five flows + influence lock + the linearized-publication race lock; the log flow already shipped) |
 
