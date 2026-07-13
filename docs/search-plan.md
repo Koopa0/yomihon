@@ -634,9 +634,10 @@ told apart by **which top-level key is present** (not by exit code — exit
   `--semantic`: `{"error": {"reason": "..."}}` — no `mode`, no `semantic`,
   no `coverage`, no `results`.
 - **Internal error (exit 1)** — a build defect: a request we can confirm
-  yomihon formed wrongly. The body is byte-exact:
-  `{"internal_error": {"detail": "the request could not be formed
-  correctly"}}` — no `mode`, no `semantic`, no `results`, no `error.reason`
+  yomihon formed wrongly. The body is byte-exact (compact, as every wire
+  body is — no spaces after colons):
+  `{"internal_error":{"detail":"the request could not be formed correctly"}}`
+  — no `mode`, no `semantic`, no `results`, no `error.reason`
   (which is reserved for the unanswerable-capability envelope). The
   `detail` is a fixed string, never the query text (which would be an
   egress into an error surface, forbidden by D50.1 / H5.4).
@@ -650,14 +651,24 @@ exit 1 with `internal_error` = a yomihon bug, and the lexical reading face
 still works in the UI.
 
 **Byte framing** (the shipped agent-CLI convention, not a new one — the
-judge face's wire, judge-plan.md §5): a `--json` body is **one compact
-JSON object** (no insignificant whitespace), **raw UTF-8** (never
-`\uXXXX`, so CJK and `<`/`>`/`&` are literal — the encoder runs with
-`SetEscapeHTML(false)`), field order exactly as listed here, terminated by
-a single trailing `\n`. Non-JSON mode prints the human results (or, for
-the two error envelopes, nothing) on stdout. The goldens pin these exact
-bytes; a compact-vs-pretty or trailing-newline ambiguity is not left to
-the implementer.
+judge face's `Finding` wire, judge-plan.md §3a, produced by the same
+`WriteJSONL` discipline in `internal/judge`): a `--json` body is **one
+compact JSON object** — `encoding/json` with no indentation — field order
+exactly as listed here, terminated by a single trailing `\n`. The escape
+surface is the shipped one, faithfully, not a paraphrase:
+- CJK and `<` / `>` / `&` are raw UTF-8 (`SetEscapeHTML(false)` — its
+  only effect);
+- U+2028 and U+2029, which `encoding/json` escapes and offers no switch
+  for, are rewritten to raw UTF-8 **after** encoding (the shipped
+  `unescapeLineSeparators` step); a literal backslash-`u2028` in the
+  content is not touched;
+- JSON-required control escapes (`\n`, `\t`, U+0000…U+001F) stay
+  escaped — valid JSON demands it, and this is not `<>&` or the two line
+  separators.
+Non-JSON mode prints the human results (or, for the two error envelopes,
+nothing) on stdout. The goldens pin these exact bytes; H10 carries the
+escape-surface lock. A compact-vs-pretty or trailing-newline ambiguity is
+not left to the implementer.
 
 Fields of the answerable envelope:
 
@@ -727,8 +738,8 @@ Fields of the answerable envelope:
   provider's own response body is never forwarded (it could echo the
   submitted text). Goldens pin one example of each legal pair, both
   unanswerable capability-error bodies, **the internal-error body
-  (`{"internal_error": {"detail": "the request could not be formed
-  correctly"}}`)**, and the non-JSON silent-stdout shape; separate
+  (`{"internal_error":{"detail":"the request could not be formed correctly"}}`)**,
+  and the non-JSON silent-stdout shape; separate
   assertions pin exit codes and the exact stderr bytes for each — including
   the exit-1 line `yomihon search: internal: the request could not be
   formed correctly`.
@@ -852,7 +863,7 @@ only where it reaches stage 5.
 | 11 | complete | all five | configured | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
 | 12 | complete | all five | configured | **rejected** (the provider refused the credential) | lexical + `embedder-rejected` indicator | exit 3 `embedder-rejected`, body = lexical results; no retry, no provider body forwarded |
 | 13 | complete | all five | configured | **server error / unknown / unclassifiable** (provider 5xx / INTERNAL / any response we cannot confidently attribute to our own request) | lexical + `embedder-failed` indicator | exit 3 `embedder-failed`, body = lexical results |
-| 14 | complete | all five | configured | **confirmed-malformed request** (a class the docs pin unambiguously to a yomihon-formed bad request) | lexical reading continues + internal-error diagnostic | **exit 1** internal error — `{"internal_error": {"detail": "the request could not be formed correctly"}}` (no `results`, no `error`), stderr exactly `yomihon search: internal: the request could not be formed correctly` |
+| 14 | complete | all five | configured | **confirmed-malformed request** (a class the docs pin unambiguously to a yomihon-formed bad request) | lexical reading continues + internal-error diagnostic | **exit 1** internal error — `{"internal_error":{"detail":"the request could not be formed correctly"}}` (compact, no `results`, no `error`), stderr exactly `yomihon search: internal: the request could not be formed correctly` |
 
 Row 14 is the one exit-1 wire shape (the answerable/error envelopes are for
 exit 0 and exit 3; a build defect is neither). The unknown/unclassifiable
@@ -953,11 +964,18 @@ its old-embedder guard (D50.2); filters-as-hard-constraints (a filtered-out
 semantic candidate never fuses); lexical completeness past the fusion depth
 (`--limit` beyond 50 answers); fusion determinism (the CLI golden bytes);
 **every legal JSON pair, both unanswerable capability-error bodies, the
-byte-exact internal-error body (`{"internal_error": {"detail": "the
-request could not be formed correctly"}}`), and the non-JSON silent-stdout
-shape**, each with its exit code and exact stderr line; **no envelope on
-any path carries the query text** (a sentinel query through every exit
-path, JSON and not, asserts absence); **the
+byte-exact internal-error body
+(`{"internal_error":{"detail":"the request could not be formed correctly"}}`),
+and the non-JSON silent-stdout shape**, each with its exit code, its
+compact byte framing (§the JSON contract), and its exact stderr line; **the
+escape-surface lock** — a fixture answer whose fields carry CJK, `<`/`>`/`&`,
+a raw U+2028 and U+2029, a literal backslash-`u2028`, and a control
+character is serialized and its bytes asserted: CJK and `<>&` raw, the two
+line separators raw (the shipped `unescapeLineSeparators` step ran), the
+literal backslash-`u2028` untouched, and the control still `\u`-escaped —
+the same divergence the judge wire pins, not a paraphrase of it; **no
+envelope on any path carries the query text** (a sentinel query through
+every exit path, JSON and not, asserts absence); **the
 background-invariance lock** — for each index state, its **reachable**
 background substates are driven (the full domain when configured — four
 for a non-complete index, five for complete; and **for the UI when
