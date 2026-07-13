@@ -649,6 +649,16 @@ lexical-only) answer; exit 3 with `error` = no answer, a capability is off;
 exit 1 with `internal_error` = a yomihon bug, and the lexical reading face
 still works in the UI.
 
+**Byte framing** (the shipped agent-CLI convention, not a new one — the
+judge face's wire, judge-plan.md §5): a `--json` body is **one compact
+JSON object** (no insignificant whitespace), **raw UTF-8** (never
+`\uXXXX`, so CJK and `<`/`>`/`&` are literal — the encoder runs with
+`SetEscapeHTML(false)`), field order exactly as listed here, terminated by
+a single trailing `\n`. Non-JSON mode prints the human results (or, for
+the two error envelopes, nothing) on stdout. The goldens pin these exact
+bytes; a compact-vs-pretty or trailing-newline ambiguity is not left to
+the implementer.
+
 Fields of the answerable envelope:
 
 - `mode` ∈ `lexical|hybrid`; `semantic` ∈ `off|ok|not-applicable|
@@ -834,7 +844,7 @@ only where it reaches stage 5.
 | 3 | **embedder-retired** — the serving epoch's model is gone, no successor epoch yet | all four | *n/a (gate 4)* | *n/a* | lexical + `embedder-retired` diagnostic | exit 3 `embedder-retired` |
 | 4 | **capacity** — index exists, cannot be loaded/built in memory (H13) | all four | *n/a (gate 4)* | *n/a* | lexical + `capacity` diagnostic | exit 3 `capacity` |
 | 5 | **stale-partial** — some notes missing vectors | UI: **stalled / absent only** (unconfigured × refreshing is unreachable — a refreshing background proves a key). CLI: any (its config is independent) | unconfigured | *n/a (gate 4b for UI; gate 4 for CLI)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `stale-partial` — the CLI stopped at gate 4 first, so its own config is never read |
-| 6 | stale-partial | all four | configured | up | hybrid over the unmasked set + pending-count indicator | exit 3 `stale-partial` + `masked_notes` (*gate 4: strict requires a complete index; the API is never consulted*) |
+| 6 | stale-partial | all four | configured | **UI only** `up` (the CLI is *n/a* — it stopped at gate 4 and never consults the API) | hybrid over the unmasked set + pending-count indicator | exit 3 `stale-partial` + `masked_notes` (*gate 4: strict requires a complete index; the API is never consulted*) |
 | 7 | stale-partial | all four | configured | **UI only** (the CLI is *n/a* — it stopped at gate 4): down / 429 / rejected / server-error / unknown-or-unclassifiable / confirmed-malformed | UI: lexical + the matching indicator, the reason being the query-API outcome — `embedder-unreachable` / `rate-limited` / `embedder-rejected` / `embedder-failed` (both server-error and any unknown-or-unclassifiable response), or, for a confirmed-malformed request, an internal-error diagnostic while lexical reading continues | exit 3 `stale-partial` — **unchanged**; the CLI stopped at gate 4 and never reached the API, so no query-API outcome (including unclassifiable) can change its reason |
 | 8 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | UI: **idle / stalled / absent only** (unconfigured rules out refreshing-next-epoch and backing-off — both require a key). CLI: any (independent key) | unconfigured | *n/a (gate 4b for UI; gate 4 does not apply — index is complete — so CLI reaches 4b too)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `embedder-unconfigured` |
 | 9 | complete | all five substates | configured | up | hybrid | hybrid, exit 0 |
