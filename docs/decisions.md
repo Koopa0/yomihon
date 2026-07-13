@@ -500,12 +500,19 @@ is `embedder-rejected`: at most one call per explicit action, no in-place
 retry, the provider's response body never forwarded, and no cross-request
 auth latch is authorized — the status-code classification is pinned from
 the successor's own error taxonomy at the protocol step, not hardcoded
-here. The full provider error taxonomy splits by **fault ownership**: a
-provider-side failure — refusal, throttle, unanswered transport, or a
-provider server error — is a semantic-channel `unavailable` (exit 3,
-lexical answer preserved), never reported as a yomihon internal error;
-only a fault we own — a malformed request, or a status we cannot classify
-— is the command's internal error (exit 1). The single outbound request
-per action is counted at the HTTP boundary, not a client method, with
-automatic retry disabled, so a transient failure cannot amplify the query
-egress.)*
+here. The full provider error taxonomy splits by **fault ownership** (ruled by
+Koopa 2026-07-13 — an EXPLICIT-RULING, not a derivation; the earlier draft
+that called it CANON-DERIVED from D50.5 overreached, since D50.5 rules only
+stale-partial): **only a response we can confirm is a yomihon-formed
+malformed request is an internal error** — CLI exit 1, no result or ranking
+payload; the UI keeps its lexical reading face and shows an internal-error
+diagnostic. **Every known provider fault, and any unknown or unclassifiable
+provider response, is treated as semantic `unavailable` and never claimed
+as a yomihon fault** — CLI exit 3 with the lexical results preserved; the
+UI continues lexical with a named diagnostic. The default for uncertainty
+is therefore "the provider's problem, semantic off," never "our internal
+error." The concrete provider-error-class → reason mapping is completed at
+the protocol step from the successor's own documentation. The single
+outbound request per action is counted at the HTTP boundary, not a client
+method, with automatic retry disabled, so a transient failure cannot
+amplify the query egress.)*

@@ -2,19 +2,19 @@
 
 > Status: Part I (the lexical engine, /search page, ⌘K shell, and the live
 > lexical-results enhancement) is **built and merged**; it is kept as the
-> record of that plan. Part II (§§H1–H14) is the hybrid extension's plan:
-> written to the D50 ruling sheet, revised to the six delta
-> clarifications, and **amended again 2026-07-13 to the scoped round's
-> six findings** — publication is linearized against purge/reclassify;
-> the precedence gate states which queries each stage can fail, so gate
-> and rules cannot disagree; the wire vocabulary is complete (coverage
-> presence rule, two no-payload shapes, `capacity`, one frozen stderr
-> line per reason, semantic-only snippets); the serving-state axis
-> enumerates every reachable state including the builder-absent ones; the
-> protocol epoch covers response handling and request cardinality; the
-> token-counter boundary is named Unicode tables; and the envelope
-> arithmetic is corrected. Dispatch gate (D50.10): the vault contract's
-> privacy capability must land before any Part II behavior.
+> record of that plan. Part II (§§H1–H14) is the hybrid extension's plan,
+> written to the D50 ruling sheet and hardened over seven adversarial
+> rounds. The last (2026-07-13) added Koopa's **fault-ownership ruling**:
+> only a response yomihon can confirm it formed wrongly is an internal
+> error (exit 1); every provider fault and every unknown/unclassifiable
+> response is a semantic `unavailable` (exit 3, lexical preserved), the
+> default for uncertainty being the provider's fault, never a claimed
+> yomihon bug. Three discriminated envelopes (answerable / capability-
+> unanswerable / internal-error) key on the exit code; the matrix carries
+> rows 1–14 with per-surface reachability; the single-send lock covers
+> every terminal including the fault-ownership ones. Dispatch gate
+> (D50.10): the vault contract's privacy capability must land before any
+> Part II behavior.
 > This refines `spec.md` §3 and `design.md` §6–7 into a concrete plan. The
 > engine is **in-memory, no database** (D24); the index is one of three models
 > in a shared vault Snapshot (D25); incremental freshness is a ~2s mtime scan
@@ -396,27 +396,32 @@ and every surface stays whole without it (roadmap §4a).
   cardinality above, the response handling at the chosen dimension
   (vector extraction and the normalization the API did or did not apply),
   and **the error taxonomy → gate-state mapping, total by construction and
-  split by fault ownership** — every documented provider error class maps
-  to exactly one local outcome, cited to the successor's own error docs
-  rather than a hardcoded status number:
-  - **Provider-fault → semantic `unavailable`, exit 3, the lexical answer
-    preserved** (a provider failure is not a yomihon internal error —
-    calling a provider 500 our own bug would be dishonest): the
-    authorization refusal → `embedder-rejected` (gate 5, non-retryable);
+  split by fault ownership** (Koopa's EXPLICIT-RULING, 2026-07-13; recorded
+  in the D50 amendment) — every documented provider error class maps to
+  exactly one local outcome, cited to the successor's own error docs rather
+  than a hardcoded status number:
+  - **Provider fault, and any unknown/unclassifiable response → semantic
+    `unavailable`, exit 3, the lexical answer preserved** — the default for
+    uncertainty is "the provider's problem," never a claimed yomihon fault:
+    the authorization refusal → `embedder-rejected` (gate 5, non-retryable);
     the throttle → `rate-limited`; a transport non-answer →
     `embedder-unreachable`; a provider server error (its `INTERNAL` / 5xx
-    class) → `embedder-failed`.
-  - **Our-fault → the command's internal error, exit 1** (loud, because it
-    is a build defect): a malformed-request class (`INVALID_ARGUMENT`,
-    `NOT_FOUND` — the request we sent was wrong), and **any unknown or
-    undocumented status** (conservative: an unclassified answer is treated
-    as our failure, never silently folded into a credential or unreachable
-    reason).
-  The mapping's totality is itself asserted (H10). This plan pins the
-  structure; the concrete class names land at the build's protocol step
-  and are verified at its acceptance — they cannot exist earlier. [Fault-
-  ownership split is CANON-DERIVED from D50.5 (a loud provider failure
-  keeps the lexical answer) + honesty; the final review re-audits it.]
+    class) → `embedder-failed`; **and every remaining documented class the
+    mapping cannot confidently attribute to our own request, plus every
+    unknown or undocumented status → `embedder-failed`** (the catch-all is
+    provider-side, not ours).
+  - **Only a response we can confirm is a yomihon-formed malformed
+    request → the command's internal error, exit 1** (loud, because it is a
+    build defect): the classes the successor's docs attribute
+    unambiguously to a malformed client request. Ambiguous-origin classes
+    are NOT forced here — when we cannot confirm the fault is ours, the
+    catch-all above applies.
+  The mapping's totality is itself asserted (H10). Because status class does
+  not by itself prove fault ownership, the protocol step records, per class,
+  the docs' stated origin and the outcome it maps to — the acceptance
+  verifies each attribution against the successor's own documentation, and
+  a class the docs do not clearly pin to a client-side malformed request
+  defaults to `embedder-failed`.
 - **Cache identity**: (model, dimension, the protocol epoch — a hash over
   the pinned request templates, the request cardinality, the response
   handling, and the preprocess rules — the chunker epoch, format version,
@@ -611,20 +616,28 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
 **JSON contract** (frozen at build, golden-pinned; the D37 rule). **No
 envelope ever echoes the query** (ruled 2026-07-13 — the caller already
 knows its input, and echoing it would put raw query text into an error
-surface, which D50.1 and H5.4 forbid). Two discriminated envelopes:
+surface, which D50.1 and H5.4 forbid). Three discriminated envelopes,
+keyed by exit code:
 
-- **Answerable** — the command could answer, even if only lexically:
-  `{mode, semantic, coverage?, results}`.
-- **Unanswerable** — no honest answer exists (privacy capability invalid;
-  a metadata filter that cannot be evaluated), *with or without*
-  `--semantic`: `{"error": {"reason": "..."}}` — no `mode`, no
-  `semantic`, no `coverage`, no `results`. Exit 3.
-- **Non-JSON mode**: an unanswerable request prints **nothing** on stdout,
-  exits 3, and prints its one frozen stderr line.
+- **Answerable (exit 0 or 3)** — the command could answer, even if only
+  lexically: `{mode, semantic, coverage?, results}`.
+- **Unanswerable (exit 3)** — no honest answer exists (privacy capability
+  invalid; a metadata filter that cannot be evaluated), *with or without*
+  `--semantic`: `{"error": {"reason": "..."}}` — no `mode`, no `semantic`,
+  no `coverage`, no `results`.
+- **Internal error (exit 1)** — a build defect: a request we can confirm
+  yomihon formed wrongly. `{"internal_error": {"detail": "..."}}` — no
+  `mode`, no `semantic`, no `results`, no `error.reason` (which is reserved
+  for the unanswerable-capability envelope). The `detail` string never
+  carries the query text.
+- **Non-JSON mode**: an unanswerable or internal-error request prints
+  **nothing** on stdout and prints its one frozen stderr line (exit 3 or
+  exit 1 respectively).
 
-An agent's branch is therefore exact: exit 3 with `error` = there is no
-answer; exit 3 with `results` = a lexical answer exists and only the
-semantic channel failed.
+An agent's branch is therefore exact: exit 0/3 with `results` = a (possibly
+lexical-only) answer; exit 3 with `error` = no answer, a capability is off;
+exit 1 with `internal_error` = a yomihon bug, and the lexical reading face
+still works in the UI.
 
 Fields of the answerable envelope:
 
@@ -668,12 +681,15 @@ Fields of the answerable envelope:
 - Exit codes (this command's own frozen vocabulary; `check`'s exit 1
   means findings — this exit 1 means internal failure): 0 = ran
   (including zero results and not-applicable), 1 = internal error,
-  2 = usage, 3 = a required capability is unavailable. The machine-
+  2 = usage, 3 = a required capability is unavailable, **1 = internal
+  error** (a confirmed-malformed request — a build defect). The machine-
   readable reason lives in whichever envelope the request carries: an
   answerable exit-3 body names it in `coverage.reason`; an unanswerable
-  exit-3 body names it in `error.reason`. The stderr line names it on
-  both paths (and is the only channel in non-JSON mode). stderr on exit 3
-  is exactly one line per reason, frozen here:
+  exit-3 body names it in `error.reason`; the exit-1 body carries
+  `internal_error.detail`. The stderr line names it on every path (and is
+  the only channel in non-JSON mode). stderr on exit 1 is exactly
+  `yomihon search: internal: the request could not be formed correctly`.
+  stderr on exit 3 is exactly one line per reason, frozen here:
   - `yomihon search: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed`
   - `yomihon search: metadata-filters-unavailable: the vault contract declares no valid artifact policy, so metadata filters cannot be evaluated`
   - `yomihon search: artifact-policy-unavailable: the vault contract declares no valid artifact policy, so the semantic corpus cannot exist`
@@ -754,14 +770,17 @@ would make; it shares no latch with the background — D50.6).
 **Configuration ownership differs by surface, and the column means the
 key that surface would use.** The UI is served by a serve process, and
 that same process owns the builder — so for the UI a present key implies
-a builder can run: `unconfigured × (refreshing | backing-off)` is
-unreachable (a refreshing background proves a key), leaving `unconfigured
-× (stalled | absent)` and `configured × all`. The strict CLI reads a
-cache some *external* serve process built and holds its **own** key for
-the query call — so its configuration axis is independent of that serve's
-builder, and all background substates pair with either config value.
-The rows below mark the unreachable UI combination rather than pretending
-it exists.
+a builder can run: the two background substates that *require* embedding,
+`refreshing` and `backing-off`, are unreachable while unconfigured (a
+refreshing background proves a key). What remains for `unconfigured` on
+the UI is the **key-free** subset of that index state's domain — `stalled`
+and `absent` for every index state, **plus `idle` for a complete index**
+(a complete index with no key simply sits idle) — and `configured` pairs
+with the full domain. The strict CLI reads a cache some *external* serve
+process built and holds its **own** key for the query call — so its
+configuration axis is independent of that serve's builder, and all
+background substates pair with either config value. The rows below mark
+the unreachable UI combinations rather than pretending they exist.
 
 Two facts collapse the product honestly, and are stated rather than
 assumed:
@@ -800,16 +819,19 @@ only where it reaches stage 5.
 | 4 | **capacity** — index exists, cannot be loaded/built in memory (H13) | all four | *n/a (gate 4)* | *n/a* | lexical + `capacity` diagnostic | exit 3 `capacity` |
 | 5 | **stale-partial** — some notes missing vectors | UI: **stalled / absent only** (unconfigured × refreshing is unreachable — a refreshing background proves a key). CLI: any (its config is independent) | unconfigured | *n/a (gate 4b for UI; gate 4 for CLI)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `stale-partial` — the CLI stopped at gate 4 first, so its own config is never read |
 | 6 | stale-partial | all four | configured | up | hybrid over the unmasked set + pending-count indicator | exit 3 `stale-partial` + `masked_notes` (*gate 4: strict requires a complete index; the API is never consulted*) |
-| 7 | stale-partial | all four | configured | down / 429 / rejected | lexical + the matching indicator (the UI reached stage 5 and failed there) | exit 3 `stale-partial` — **unchanged**; the CLI never reached the API |
+| 7 | stale-partial | all four | configured | down / 429 / rejected / server-error / malformed / unknown | UI: lexical + the matching indicator (the UI reached stage 5; the reason is the query-API outcome — `embedder-unreachable` / `rate-limited` / `embedder-rejected` / `embedder-failed`, or, for a confirmed-malformed request, an internal-error diagnostic while lexical reading continues) | exit 3 `stale-partial` — **unchanged**; the CLI stopped at gate 4 and never reached the API, so the query-API outcome cannot change its reason |
 | 8 | **complete** (or complete-on-the-old-epoch during a managed cutover, old embedder alive) | UI: **idle / stalled / absent only** (unconfigured rules out refreshing-next-epoch and backing-off — both require a key). CLI: any (independent key) | unconfigured | *n/a (gate 4b for UI; gate 4 does not apply — index is complete — so CLI reaches 4b too)* | lexical + `embedder-unconfigured` diagnostic | exit 3 `embedder-unconfigured` |
 | 9 | complete | all five substates | configured | up | hybrid | hybrid, exit 0 |
 | 10 | complete | all five | configured | down | lexical + offline indicator | exit 3 `embedder-unreachable`, body = lexical results |
 | 11 | complete | all five | configured | 429 | lexical + rate-limited indicator | exit 3 `rate-limited`, fail-fast, body = lexical results |
 | 12 | complete | all five | configured | **rejected** (the provider refused the credential) | lexical + `embedder-rejected` indicator | exit 3 `embedder-rejected`, body = lexical results; no retry, no provider body forwarded |
-| 13 | complete | all five | configured | **server error** (provider 5xx / INTERNAL) | lexical + `embedder-failed` indicator | exit 3 `embedder-failed`, body = lexical results |
+| 13 | complete | all five | configured | **server error / unknown / unclassifiable** (provider 5xx / INTERNAL / any response we cannot confidently attribute to our own request) | lexical + `embedder-failed` indicator | exit 3 `embedder-failed`, body = lexical results |
+| 14 | complete | all five | configured | **confirmed-malformed request** (a class the docs pin unambiguously to a yomihon-formed bad request) | lexical reading continues + internal-error diagnostic | **exit 1** internal error — no `results`, no `error` semantic reason: `{"internal_error": {"detail": "…"}}`, stderr `yomihon search: internal: <one frozen sentence>` |
 
-(A malformed-request or unknown-status API answer is not in this table: it
-is a build defect, exit 1 internal error — H4's fault-ownership split.)
+Row 14 is the one exit-1 wire shape (the answerable/error envelopes are for
+exit 0 and exit 3; a build defect is neither). The unknown/unclassifiable
+case is **row 13, not row 14** (Koopa's ruling: uncertainty defaults to the
+provider's fault, semantic off, never a claimed yomihon error).
 
 Authorities, per row: 1 [CD H4 identity + ER gate order] · 2 [CD §4a
 "cold → loud" + ER gate order] · 3 [ER D50.2 + ER gate order] · 4 [CD H13
@@ -818,8 +840,8 @@ D50.5 (CLI exit 3 on stale-partial) + CD §4a (UI never blank) + ER gate
 order] · 7 [ER D50.5 (CLI stops at gate 4) + ER gate order; the UI's
 down/429/rejected outcomes = CD §4a / ER D50.6 / ER 2026-07-13 credential
 taxonomy respectively] · 9 [CD §4a; the cutover half ER D50.2] · 10 [CD
-§4a "unreachable → loud"] · 11 [ER D50.6] · 12, 13 [ER 2026-07-13
-credential + provider-fault taxonomy].
+§4a "unreachable → loud"] · 11 [ER D50.6] · 12, 13, 14 [ER 2026-07-13
+Koopa's credential + provider-fault taxonomy].
 
 Rows 1–4 all present a cold face but carry distinct reasons, so the
 observable is never ambiguous. Each numbered row is an acceptance test.
@@ -930,19 +952,26 @@ taken at the **HTTP boundary, not a client method** (a
 retries live below the method call, so counting the method would miss
 them. Automatic retry is **disabled** at construction; the lock asserts
 that one explicit action produces exactly one outbound HTTP request in
-every terminal state — success, rejection, throttle, transport failure —
-and that two explicit actions produce two requests through one
-long-lived client (proving no cross-request auth latch and no retry
-amplification of the query bytes); **the taxonomy-totality lock** — a
+**every terminal state — success, rejection, throttle, transport failure,
+provider server error (5xx), a confirmed-malformed request, and a
+synthetic unknown status** (the fault-ownership terminals and the
+single-send count are locked by the same table, so a 5xx path that
+silently re-sent the query would fail here even though its taxonomy
+outcome is correct) — and that two explicit actions produce two requests
+through one long-lived client (proving no cross-request auth latch and no
+retry amplification of the query bytes); **the taxonomy-totality lock** — a
 table with one row per documented provider error class, asserting the
 mapping is total, splits by fault ownership, and yields exactly one local
 outcome each: provider-fault classes (authorization refusal →
 `embedder-rejected`; throttle → `rate-limited`; transport non-answer →
-`embedder-unreachable`; provider server error → `embedder-failed`) each
-produce exit 3 with the lexical answer preserved; our-fault classes
-(`INVALID_ARGUMENT`, `NOT_FOUND`) and any unknown/undocumented status
-produce exit 1, never reclassified as a provider state — a synthetic
-unknown status is included in the table and asserted to land on exit 1; the eval harness failing on
+`embedder-unreachable`; provider server error, **and every unknown or
+unclassifiable status** → `embedder-failed`) each produce exit 3 with the
+lexical answer preserved; **only a class the docs pin unambiguously to a
+yomihon-formed malformed request** produces exit 1 — a synthetic unknown
+status is included and asserted to land on **exit 3 `embedder-failed`, not
+exit 1** (Koopa's ruling: uncertainty defaults to the provider's fault),
+while a synthetic confirmed-malformed class is asserted to land on exit 1
+with the internal_error envelope; the eval harness failing on
 identity mismatch; and the raw-query-absence lock inherited from the
 shipped log unit, extended to B's new paths. The CLI goldens are frozen
 contract per D37 — H7's JSON is the spec they pin.
@@ -1050,7 +1079,7 @@ measurements, both reversible behind their interfaces.
 | Chunking rules, chunks-per-note assumption stated | MET (H3: exact formulas, named Unicode boundaries, bounded provider fallback, two dated measurements) |
 | Cache file format versioned by (model, dim) | MET, widened (H4: full identity tuple incl. protocol epoch; engine via bake-off) |
 | RRF specifics (k, depths, aggregation) | MET (H6; shipped lexical ordering preserved) |
-| §4a degraded matrix as acceptance cases | MET (H7: the gate incl. the semantic-request fork and the configuration preflight, the scoped rules R1–R7, the four-axis rows with per-surface reachability and per-row authority, the two discriminated envelopes, and the frozen wire vocabulary; the unreachable UI config×background combinations are excluded by row and enforced by the invariance lock's setup refusal). The final review audits this claim; it was PARTIAL while ruling families were open, and would be again if a reachable cell lost its answer. |
+| §4a degraded matrix as acceptance cases | MET (H7: the gate incl. the semantic-request fork and the configuration preflight, the scoped rules R1–R7, the four-axis rows 1–14 incl. server-error/unknown → `embedder-failed` and the single confirmed-malformed exit-1 row with per-surface reachability and per-row authority, the three discriminated envelopes — answerable / unanswerable-capability / internal-error — and the frozen wire vocabulary; the unreachable UI config×background combinations are excluded by row and enforced by the invariance lock's setup refusal). The final review audits this claim; it was PARTIAL while ruling families were open, and would be again if a reachable cell lost its answer. |
 | The eval set | MET (H9; synthetic-in-repo per D50.8) |
 | Egress guard test (Diary never reaches the embedder) | MET, widened (H5: five flows + influence lock + the linearized-publication race lock; the log flow already shipped) |
 
