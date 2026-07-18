@@ -3,7 +3,6 @@ package search
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"html"
 	"io"
 	"log/slog"
@@ -25,12 +24,12 @@ import (
 func TestSearchHandler(t *testing.T) {
 	t.Parallel()
 
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft", PlainText: "kafka is a distributed log"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -70,8 +69,8 @@ func TestSearchHandler(t *testing.T) {
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
-		if !strings.Contains(body, "No results") {
-			t.Errorf(`search page missing "No results"; body = %q`, body)
+		if !strings.Contains(body, "找不到") {
+			t.Errorf(`search page missing the Traditional Chinese no-results message; body = %q`, body)
 		}
 		if strings.Contains(body, "data-search-diagnostic") {
 			t.Errorf("ordinary no-results page rendered a capability diagnostic; body = %q", body)
@@ -89,15 +88,15 @@ func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 		idx        *Index
 		diagnostic string
 	}{
-		{name: "missing", idx: BuildFromDocs([]Doc{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, missingPolicy), diagnostic: missingPolicy.Diagnostic()},
-		{name: "invalid", idx: BuildFromDocs([]Doc{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, invalidPolicy), diagnostic: invalidPolicy.Diagnostic()},
+		{name: "missing", idx: NewIndex([]Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, missingPolicy), diagnostic: missingPolicy.Diagnostic()},
+		{name: "invalid", idx: NewIndex([]Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, invalidPolicy), diagnostic: invalidPolicy.Diagnostic()},
 		{name: "zero value index", idx: &Index{}, diagnostic: missingPolicy.Diagnostic()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			h := NewHandler(func() RequestSnapshot {
-				return RequestSnapshot{Index: tt.idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+				return RequestSnapshot{Index: tt.idx, Shell: pages.Shell{Nav: &nav.Model{}}}
 			}, slog.New(slog.DiscardHandler))
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=type:concept", http.NoBody)
 			rr := httptest.NewRecorder()
@@ -112,7 +111,7 @@ func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 					t.Errorf("search diagnostic page missing %q; body = %q", want, body)
 				}
 			}
-			if strings.Contains(body, "No results") {
+			if strings.Contains(body, "找不到「") {
 				t.Errorf("search capability diagnostic rendered ordinary no-results copy; body = %q", body)
 			}
 		})
@@ -121,13 +120,13 @@ func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 
 func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	t.Parallel()
-	idx := BuildFromDocs([]Doc{{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"}}, validArtifactPolicy(t))
+	idx := NewIndex([]Document{{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"}}, validArtifactPolicy(t))
 	calls := 0
 	h := NewHandler(func() RequestSnapshot {
 		calls++
 		return RequestSnapshot{
 			Index: idx,
-			Shell: pages.ShellData{Nav: &nav.Model{}, Advanceable: 4, AdvanceableKnown: true},
+			Shell: pages.Shell{Nav: &nav.Model{}, Advanceable: 4, AdvanceableKnown: true},
 		}
 	}, slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
@@ -136,7 +135,7 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("request snapshot reads = %d, want 1", calls)
 	}
-	for _, want := range []string{"One", `aria-label="4 notes have a legal next status"`} {
+	for _, want := range []string{"One", `aria-label="4 篇筆記可進入下一個合法狀態"`} {
 		if !strings.Contains(rr.Body.String(), want) {
 			t.Errorf("search response missing %q; body = %q", want, rr.Body.String())
 		}
@@ -146,12 +145,12 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 func TestSearchResultsFragment(t *testing.T) {
 	t.Parallel()
 
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", Status: "draft", PlainText: "kafka is a distributed log"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -185,11 +184,11 @@ func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 
 	policy := schema.ArtifactPolicy{}
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"},
 	}, policy)
 	h := NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
 	}, slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=type:concept", http.NoBody)
 	rr := httptest.NewRecorder()
@@ -204,7 +203,7 @@ func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 			t.Errorf("results() diagnostic fragment missing %q; body = %q", want, body)
 		}
 	}
-	if strings.Contains(body, "No results") {
+	if strings.Contains(body, "找不到「") {
 		t.Errorf("results() capability diagnostic rendered ordinary no-results copy; body = %q", body)
 	}
 }
@@ -214,7 +213,7 @@ func TestSearchHandlerRejectsInvalidQuery(t *testing.T) {
 
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: BuildFromDocs(nil, validArtifactPolicy(t)), Shell: pages.ShellData{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: NewIndex(nil, validArtifactPolicy(t)), Shell: pages.Shell{Nav: &nav.Model{}}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -244,25 +243,14 @@ func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 	t.Parallel()
 
 	const sentinel = "OWNER_THOUGHT_CANARY type:TYPE_PRIVATE status:STATUS_PRIVATE domain:DOMAIN_PRIVATE topic:TOPIC_PRIVATE slug:SLUG_PRIVATE folder:FOLDER_PRIVATE"
-	idx := BuildFromDocs(nil, validArtifactPolicy(t))
+	idx := NewIndex(nil, validArtifactPolicy(t))
 	tests := []struct {
-		name      string
-		configure func(*Handler)
-		writer    func() http.ResponseWriter
-		invoke    func(*Handler, http.ResponseWriter, *http.Request)
+		name   string
+		writer func() http.ResponseWriter
+		invoke func(*Handler, http.ResponseWriter, *http.Request)
 	}{
 		{name: "full page render error", invoke: (*Handler).search},
 		{name: "results fragment render error", invoke: (*Handler).results},
-		{
-			name: "search error",
-			configure: func(h *Handler) {
-				h.runQuery = func(*Index, Query) ([]Result, error) {
-					return nil, errors.New("injected search failure")
-				}
-			},
-			writer: func() http.ResponseWriter { return httptest.NewRecorder() },
-			invoke: (*Handler).search,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -270,11 +258,8 @@ func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 
 			var recordedLogs bytes.Buffer
 			h := NewHandler(func() RequestSnapshot {
-				return RequestSnapshot{Index: idx, Shell: pages.ShellData{Nav: &nav.Model{}}}
+				return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
 			}, slog.New(slog.NewJSONHandler(&recordedLogs, nil)))
-			if tt.configure != nil {
-				tt.configure(h)
-			}
 			writer := http.ResponseWriter(&failingResponseWriter{header: make(http.Header)})
 			if tt.writer != nil {
 				writer = tt.writer()
@@ -349,7 +334,11 @@ func getBodyWithHeaders(t *testing.T, urlStr string) (code int, header http.Head
 	if err != nil {
 		t.Fatalf("GET %s: %v", urlStr, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read body: %v", err)

@@ -6,12 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func writeNavFixture(t *testing.T, root, rel, content string) {
@@ -20,9 +22,53 @@ func writeNavFixture(t *testing.T, root, rel, content string) {
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		t.Fatalf("mkdir %s: %v", rel, err)
 	}
-	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", rel, err)
 	}
+}
+
+func capturedModel(
+	t *testing.T,
+	root string,
+	roles schema.NavigationRoles,
+	policy schema.ArtifactPolicy,
+	resolver Resolver,
+) *Model {
+	t.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	scan, err := reader.ScanComplete(t.Context())
+	if err != nil {
+		t.Fatalf("ScanComplete() error = %v", err)
+	}
+
+	notes := make(map[string]*vault.Note)
+	noteList := make([]*vault.Note, 0, len(scan.Files()))
+	resources := make([]string, 0, len(scan.Files()))
+	for _, entry := range scan.Files() {
+		if !strings.HasSuffix(entry.Path(), ".md") {
+			resources = append(resources, entry.Path())
+			continue
+		}
+		data, readErr := reader.ReadFile(t.Context(), entry)
+		if readErr != nil {
+			t.Fatalf("ReadFile() error = %v", readErr)
+		}
+		note := vault.Parse(entry.Path(), data)
+		notes[entry.Path()] = note
+		noteList = append(noteList, note)
+	}
+	if resolver == nil {
+		resolver = graph.New(noteList, resources)
+	}
+	return New(scan.Files(), notes, resolver, roles, policy)
 }
 
 func testCapabilities(t *testing.T) (schema.NavigationRoles, schema.ArtifactPolicy) {
@@ -40,7 +86,47 @@ func testArtifactPolicy(t *testing.T) schema.ArtifactPolicy {
 	return policy
 }
 
-func loadCapabilityContract(t *testing.T, navigation, artifacts string) *schema.Schema {
+func TestMapEntryCountsIncludesWarningsButMatchesResolvedOnly(t *testing.T) {
+	t.Parallel()
+
+	m := Map{Branches: []Branch{
+		{
+			Entries: []Entry{
+				{Status: "ready", Kind: EntryResolved},
+				{Status: "ready", Kind: EntryUnresolved},
+			},
+			Subbranches: []Branch{{Entries: []Entry{
+				{Status: "draft", Kind: EntryResolved},
+				{Status: "ready", Kind: EntryResolved},
+			}}},
+		},
+		{Entries: []Entry{{Status: "ready", Kind: EntryNonInstance}}},
+	}}
+
+	matching, total := m.EntryCounts("ready")
+	if matching != 2 || total != 5 {
+		t.Fatalf("EntryCounts(ready) = (%d, %d), want (2, 5)", matching, total)
+	}
+}
+
+func TestBranchEntryCountsIncludesDescendants(t *testing.T) {
+	t.Parallel()
+
+	branch := Branch{
+		Entries: []Entry{{Status: "draft", Kind: EntryResolved}},
+		Subbranches: []Branch{{Entries: []Entry{
+			{Status: "ready", Kind: EntryResolved},
+			{Kind: EntryAmbiguous},
+		}}},
+	}
+
+	matching, total := branch.EntryCounts("ready")
+	if matching != 1 || total != 3 {
+		t.Fatalf("EntryCounts(ready) = (%d, %d), want (1, 3)", matching, total)
+	}
+}
+
+func loadCapabilityContract(t *testing.T, navigation, artifacts string) *schema.Contract {
 	t.Helper()
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
 	text := `schema_version = "1"
@@ -53,6 +139,10 @@ note = ["draft"]
 
 [fields]
 required = ["title", "type"]
+known = ["title", "type", "based_on"]
+
+[rules]
+concept_requires_provenance = ["based_on"]
 
 [scan]
 knowledge_dirs = ["Concepts", "Maps"]
@@ -73,7 +163,133 @@ owner = ["koopa"]
 	return contract
 }
 
-func TestBuildMapTypesAndReversePlacements(t *testing.T) {
+func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	targetPath := "Concepts/go/Target.md"
+	mapPath := "Maps/Course.md"
+	targetBytes := []byte("---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
+	mapBytes := []byte("---\ntitle: Course\ntype: study-path\ndomain: golang\n---\n## Shelf\n- [[Target]]\n")
+	writeNavFixture(t, root, targetPath, string(targetBytes))
+	writeNavFixture(t, root, "Concepts/go/Unreadable.md", "not captured\n")
+	writeNavFixture(t, root, mapPath, string(mapBytes))
+	writeNavFixture(t, root, "System/reports/audit.md", "report\n")
+
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	scan, err := reader.ScanComplete(t.Context())
+	if err != nil {
+		t.Fatalf("ScanComplete: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("Reader.Close: %v", err)
+	}
+	if err := os.RemoveAll(root); err != nil {
+		t.Fatalf("remove captured vault: %v", err)
+	}
+
+	roles, policy := testCapabilities(t)
+	model := New(
+		scan.Files(),
+		map[string]*vault.Note{
+			targetPath: vault.Parse(targetPath, targetBytes),
+			mapPath:    vault.Parse(mapPath, mapBytes),
+		},
+		resolver(t, targetPath, mapPath),
+		roles,
+		policy,
+	)
+
+	modified := make(map[string]time.Time)
+	for _, entry := range scan.Files() {
+		modified[entry.Path()] = entry.ModTime()
+	}
+	wantNotes := []NoteSummary{
+		{
+			Title: "Target", RelPath: targetPath, Type: "concept", Status: "growing",
+			Modified: modified[targetPath],
+		},
+		{
+			Title: "Course", RelPath: mapPath, Type: "study-path",
+			Modified: modified[mapPath],
+		},
+	}
+	if diff := cmp.Diff(wantNotes, model.KnowledgeNotes()); diff != "" {
+		t.Errorf("New KnowledgeNotes mismatch (-want +got):\n%s", diff)
+	}
+	wantPaths := []Map{{
+		Title: "Course", RelPath: mapPath, Domain: "golang", Type: "study-path",
+		Branches: []Branch{{
+			Heading: "Shelf",
+			Level:   2,
+			Entries: []Entry{{
+				Text: "Target", Target: "Target", RelPath: targetPath, Status: "growing", Kind: EntryResolved,
+			}},
+		}},
+	}}
+	if diff := cmp.Diff(wantPaths, model.Paths()); diff != "" {
+		t.Errorf("New Paths mismatch (-want +got):\n%s", diff)
+	}
+	if got := model.Reports(); len(got) != 1 || got[0].RelPath != "System/reports/audit.md" {
+		t.Errorf("New Reports = %+v, want captured report", got)
+	}
+	dir, siblings := model.Siblings("Concepts/go/Unreadable.md")
+	if dir != "Concepts/go" || len(siblings) != 2 {
+		t.Errorf("New Siblings(unreadable note) = (%q, %+v), want captured folder membership", dir, siblings)
+	}
+}
+
+func TestNewUsesEntryModTime(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	relPath := "Concepts/go/Channels.md"
+	noteBytes := []byte("---\ntitle: Channels\ntype: concept\nstatus: growing\n---\nbody\n")
+	writeNavFixture(t, root, relPath, string(noteBytes))
+	fullPath := filepath.Join(root, filepath.FromSlash(relPath))
+	captured := time.Date(2026, time.July, 9, 14, 30, 0, 0, time.UTC)
+	if err := os.Chtimes(fullPath, captured, captured); err != nil {
+		t.Fatalf("Chtimes captured: %v", err)
+	}
+
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close: %v", closeErr)
+		}
+	})
+	scan, err := reader.ScanComplete(t.Context())
+	if err != nil {
+		t.Fatalf("ScanComplete: %v", err)
+	}
+	changed := captured.Add(24 * time.Hour)
+	if err := os.Chtimes(fullPath, changed, changed); err != nil {
+		t.Fatalf("Chtimes changed: %v", err)
+	}
+
+	roles, policy := testCapabilities(t)
+	model := New(
+		scan.Files(),
+		map[string]*vault.Note{relPath: vault.Parse(relPath, noteBytes)},
+		resolver(t, relPath),
+		roles,
+		policy,
+	)
+	want := []NoteSummary{{
+		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
+	}}
+	if diff := cmp.Diff(want, model.KnowledgeNotes()); diff != "" {
+		t.Errorf("New KnowledgeNotes mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNavFixture(t, root, "Concepts/go/Target.md", "---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
@@ -92,15 +308,8 @@ func TestBuildMapTypesAndReversePlacements(t *testing.T) {
 		writeNavFixture(t, root, f.rel, fmt.Sprintf("---\ntitle: %s\ntype: %s\ndomain: %s\n---\n## Shelf\n- [[Target]]\n- [[Ghost]]\n- [[Dup]]\n", f.title, f.noteType, f.domain))
 	}
 
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build: %v", err)
-	}
 	roles, policy := testCapabilities(t)
-	model, err := Build(root, idx, nil, roles, policy)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	model := capturedModel(t, root, roles, policy, nil)
 
 	resolvedBranches := []Branch{{
 		Heading: "Shelf",
@@ -119,16 +328,16 @@ func TestBuildMapTypesAndReversePlacements(t *testing.T) {
 			},
 		}},
 	}}
-	if diff := cmp.Diff(wantPaths, model.Paths); diff != "" {
-		t.Errorf("Build Paths mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(wantPaths, model.Paths()); diff != "" {
+		t.Errorf("New Paths mismatch (-want +got):\n%s", diff)
 	}
 	wantMaps := []Map{
 		{Title: "Alpha", RelPath: "Maps/Z-alpha.md", Domain: "golang", Type: "source-map", Branches: resolvedBranches},
 		{Title: "Zeta", RelPath: "Maps/A-zeta.md", Domain: "golang", Type: "moc", Branches: resolvedBranches},
 		{Title: "Beta", RelPath: "Maps/Beta.md", Domain: "japanese", Type: "topic-map", Branches: resolvedBranches},
 	}
-	if diff := cmp.Diff(wantMaps, model.Maps); diff != "" {
-		t.Errorf("Build Maps mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(wantMaps, model.Maps()); diff != "" {
+		t.Errorf("New Maps mismatch (-want +got):\n%s", diff)
 	}
 
 	wantPlacements := []Placement{
@@ -148,7 +357,7 @@ func TestBuildMapTypesAndReversePlacements(t *testing.T) {
 	}
 }
 
-func TestBuildRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
+func TestNewRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -157,32 +366,25 @@ func TestBuildRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	writeNavFixture(t, root, "System/templates/Template map.md", "---\ntitle: Template map\ntype: moc\n---\n## Shelf\n- [[Instance]]\n")
 	writeNavFixture(t, root, "Maps/Course.md", "---\ntitle: Course\ntype: study-path\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
 
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build: %v", err)
-	}
 	roles, policy := testCapabilities(t)
-	model, err := Build(root, idx, nil, roles, policy)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	model := capturedModel(t, root, roles, policy, nil)
 
-	if len(model.Maps) != 0 {
-		t.Errorf("Build Maps = %+v, want non-instance map document absent", model.Maps)
+	if len(model.Maps()) != 0 {
+		t.Errorf("New Maps = %+v, want non-instance map document absent", model.Maps())
 	}
-	if len(model.Paths) != 1 || len(model.Paths[0].Branches) != 1 {
-		t.Fatalf("Build Paths = %+v, want one course branch", model.Paths)
+	if len(model.Paths()) != 1 || len(model.Paths()[0].Branches) != 1 {
+		t.Fatalf("New Paths = %+v, want one course branch", model.Paths())
 	}
 	wantEntries := []Entry{
 		{Text: "Template target", Target: "Template target", Kind: EntryNonInstance},
 		{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved},
 	}
-	if diff := cmp.Diff(wantEntries, model.Paths[0].Branches[0].Entries); diff != "" {
-		t.Errorf("Build path entries mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(wantEntries, model.Paths()[0].Branches[0].Entries); diff != "" {
+		t.Errorf("New path entries mismatch (-want +got):\n%s", diff)
 	}
-	for _, note := range model.KnowledgeNotes {
+	for _, note := range model.KnowledgeNotes() {
 		if note.RelPath == "System/templates/Template target.md" || note.RelPath == "System/templates/Template map.md" {
-			t.Errorf("Build KnowledgeNotes contains non-instance %q", note.RelPath)
+			t.Errorf("New KnowledgeNotes contains non-instance %q", note.RelPath)
 		}
 	}
 	if got := model.Placements("System/templates/Template target.md"); len(got) != 0 {
@@ -197,7 +399,7 @@ func TestBuildRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	}
 }
 
-func TestBuildOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
+func TestNewOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -205,38 +407,27 @@ func TestBuildOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntitle: Template target\ntype: concept\nstatus: ready\n---\nbody\n")
 	writeNavFixture(t, root, "Maps/General.md", "---\ntitle: General\ntype: moc\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
 
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build: %v", err)
-	}
 	roles, policy := testCapabilities(t)
-	model, err := Build(root, idx, nil, roles, policy)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	model := capturedModel(t, root, roles, policy, nil)
 
-	if len(model.Maps) != 1 || len(model.Maps[0].Branches) != 1 {
-		t.Fatalf("Build Maps = %+v, want one general-map branch", model.Maps)
+	if len(model.Maps()) != 1 || len(model.Maps()[0].Branches) != 1 {
+		t.Fatalf("New Maps = %+v, want one general-map branch", model.Maps())
 	}
 	wantEntries := []Entry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
-	if diff := cmp.Diff(wantEntries, model.Maps[0].Branches[0].Entries); diff != "" {
-		t.Errorf("Build general-map entries mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(wantEntries, model.Maps()[0].Branches[0].Entries); diff != "" {
+		t.Errorf("New general-map entries mismatch (-want +got):\n%s", diff)
 	}
 	if got := model.Placements("System/templates/Template target.md"); len(got) != 0 {
 		t.Errorf("Placements(non-instance general-map target) = %+v, want empty", got)
 	}
 }
 
-func TestBuildReportsIndependentCapabilityDiagnostics(t *testing.T) {
+func TestNewReportsIndependentCapabilityDiagnostics(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
 	writeNavFixture(t, root, "Maps/Map.md", "---\ntitle: Map\ntype: moc\n---\n## Shelf\n- [[Target]]\n")
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build: %v", err)
-	}
 	validRoles, validPolicy := testCapabilities(t)
 	invalidNavigation := loadCapabilityContract(t, `
 [navigation]
@@ -320,54 +511,44 @@ map_types = ["moc"]
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			model, err := Build(root, idx, nil, tt.roles, tt.policy)
-			if err != nil {
-				t.Fatalf("Build: %v", err)
+			model := capturedModel(t, root, tt.roles, tt.policy, nil)
+			if tt.wantNavigation == "" && model.NavigationDiagnostic() != "" {
+				t.Errorf("NavigationDiagnostic = %q, want exactly empty while artifact policy is unavailable", model.NavigationDiagnostic())
+			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationDiagnostic(), tt.wantNavigation) {
+				t.Errorf("NavigationDiagnostic = %q, want substring %q", model.NavigationDiagnostic(), tt.wantNavigation)
 			}
-			if tt.wantNavigation == "" && model.NavigationDiagnostic != "" {
-				t.Errorf("NavigationDiagnostic = %q, want exactly empty while artifact policy is unavailable", model.NavigationDiagnostic)
-			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationDiagnostic, tt.wantNavigation) {
-				t.Errorf("NavigationDiagnostic = %q, want substring %q", model.NavigationDiagnostic, tt.wantNavigation)
+			if tt.wantArtifact == "" && model.ArtifactDiagnostic() != "" {
+				t.Errorf("ArtifactDiagnostic = %q, want exactly empty while navigation roles are unavailable", model.ArtifactDiagnostic())
+			} else if tt.wantArtifact != "" && !strings.Contains(model.ArtifactDiagnostic(), tt.wantArtifact) {
+				t.Errorf("ArtifactDiagnostic = %q, want substring %q", model.ArtifactDiagnostic(), tt.wantArtifact)
 			}
-			if tt.wantArtifact == "" && model.ArtifactDiagnostic != "" {
-				t.Errorf("ArtifactDiagnostic = %q, want exactly empty while navigation roles are unavailable", model.ArtifactDiagnostic)
-			} else if tt.wantArtifact != "" && !strings.Contains(model.ArtifactDiagnostic, tt.wantArtifact) {
-				t.Errorf("ArtifactDiagnostic = %q, want substring %q", model.ArtifactDiagnostic, tt.wantArtifact)
+			if len(model.Paths()) != 0 || len(model.Maps()) != 0 {
+				t.Errorf("degraded navigation = %d paths, %d maps; want unavailable", len(model.Paths()), len(model.Maps()))
 			}
-			if len(model.Paths) != 0 || len(model.Maps) != 0 {
-				t.Errorf("degraded navigation = %d paths, %d maps; want unavailable", len(model.Paths), len(model.Maps))
-			}
-			if got := len(model.KnowledgeNotes); got != tt.wantKnowledgeNotes {
+			if got := len(model.KnowledgeNotes()); got != tt.wantKnowledgeNotes {
 				t.Errorf("degraded KnowledgeNotes = %d, want %d", got, tt.wantKnowledgeNotes)
 			}
-			if len(model.Folders) == 0 {
+			if len(model.Folders()) == 0 {
 				t.Error("degraded Folders is empty, want browsing preserved")
 			}
 		})
 	}
 }
 
-func TestBuildKeepsZeroEntryMap(t *testing.T) {
+func TestNewKeepsZeroEntryMap(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	writeNavFixture(t, root, "Maps/Empty.md", "---\ntitle: Empty map\ntype: moc\n---\n## Shelf\n- [[Unwritten]]\n")
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build: %v", err)
-	}
 	roles, policy := testCapabilities(t)
-	model, err := Build(root, idx, nil, roles, policy)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	model := capturedModel(t, root, roles, policy, nil)
 	want := []Map{{Title: "Empty map", RelPath: "Maps/Empty.md", Type: "moc"}}
-	if diff := cmp.Diff(want, model.Maps); diff != "" {
-		t.Errorf("Build zero-entry Maps mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, model.Maps()); diff != "" {
+		t.Errorf("New zero-entry Maps mismatch (-want +got):\n%s", diff)
 	}
 }
 
-func TestBuildJournalFromScannerMtimes(t *testing.T) {
+func TestNewBuildsJournalFromCapturedMtimes(t *testing.T) {
 	t.Parallel()
 
 	t.Run("newest five without frontmatter", func(t *testing.T) {
@@ -378,12 +559,13 @@ func TestBuildJournalFromScannerMtimes(t *testing.T) {
 			rel := fmt.Sprintf("Diary/2026-07-%02d.md", day)
 			writeNavFixture(t, root, rel, fmt.Sprintf("# Day %d\n", day))
 			mtimes[rel] = time.Date(2026, time.July, day, 8, 0, 0, 0, time.UTC)
+			full := filepath.Join(root, filepath.FromSlash(rel))
+			if err := os.Chtimes(full, mtimes[rel], mtimes[rel]); err != nil {
+				t.Fatalf("Chtimes() error = %v", err)
+			}
 		}
 		roles, policy := testCapabilities(t)
-		model, err := Build(root, resolver(t), mtimes, roles, policy)
-		if err != nil {
-			t.Fatalf("Build: %v", err)
-		}
+		model := capturedModel(t, root, roles, policy, nil)
 		want := []JournalEntry{
 			{Title: "2026-07-07", RelPath: "Diary/2026-07-07.md", Modified: mtimes["Diary/2026-07-07.md"]},
 			{Title: "2026-07-06", RelPath: "Diary/2026-07-06.md", Modified: mtimes["Diary/2026-07-06.md"]},
@@ -391,8 +573,8 @@ func TestBuildJournalFromScannerMtimes(t *testing.T) {
 			{Title: "2026-07-04", RelPath: "Diary/2026-07-04.md", Modified: mtimes["Diary/2026-07-04.md"]},
 			{Title: "2026-07-03", RelPath: "Diary/2026-07-03.md", Modified: mtimes["Diary/2026-07-03.md"]},
 		}
-		if diff := cmp.Diff(want, model.Journal); diff != "" {
-			t.Errorf("Build Journal mismatch (-want +got):\n%s", diff)
+		if diff := cmp.Diff(want, model.Journal()); diff != "" {
+			t.Errorf("New Journal mismatch (-want +got):\n%s", diff)
 		}
 	})
 
@@ -407,22 +589,18 @@ func TestBuildJournalFromScannerMtimes(t *testing.T) {
 				}
 			}
 			roles, policy := testCapabilities(t)
-			model, err := Build(root, resolver(t), nil, roles, policy)
-			if err != nil {
-				t.Fatalf("Build: %v", err)
-			}
-			if len(model.Journal) != 0 {
-				t.Errorf("Build Journal = %v, want empty", model.Journal)
+			model := capturedModel(t, root, roles, policy, nil)
+			if len(model.Journal()) != 0 {
+				t.Errorf("New Journal = %v, want empty", model.Journal())
 			}
 		})
 	}
 }
 
-// TestBuildCarriesScannerMtimes proves Home's freshness data comes from the
-// scanner-owned capture handed to Build, not from another stat inside nav or a
-// request handler. The recorded time deliberately differs from the file's real
-// mtime, so reading the disk through a second path makes this test fail.
-func TestBuildCarriesScannerMtimes(t *testing.T) {
+// TestNewCarriesScannerMtimes proves Home's freshness data comes from the
+// scanner-owned capture handed to New, not from another stat inside nav or a
+// request handler.
+func TestNewCarriesScannerMtimes(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	rel := "Concepts/go/Channels.md"
@@ -431,16 +609,16 @@ func TestBuildCarriesScannerMtimes(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	content := "---\ntitle: Channels\ntype: concept\nstatus: growing\n---\n\nbody\n"
-	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
 
 	captured := time.Date(2026, time.July, 9, 14, 30, 0, 0, time.UTC)
-	roles, policy := testCapabilities(t)
-	model, err := Build(root, resolver(t, rel), map[string]time.Time{rel: captured}, roles, policy)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
+	if err := os.Chtimes(full, captured, captured); err != nil {
+		t.Fatalf("Chtimes() error = %v", err)
 	}
+	roles, policy := testCapabilities(t)
+	model := capturedModel(t, root, roles, policy, resolver(t, rel))
 	want := []NoteSummary{{
 		Title:    "Channels",
 		RelPath:  rel,
@@ -448,8 +626,8 @@ func TestBuildCarriesScannerMtimes(t *testing.T) {
 		Status:   "growing",
 		Modified: captured,
 	}}
-	if diff := cmp.Diff(want, model.KnowledgeNotes); diff != "" {
-		t.Errorf("Build KnowledgeNotes mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, model.KnowledgeNotes()); diff != "" {
+		t.Errorf("New KnowledgeNotes mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -505,7 +683,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 		{
 			Heading: "Data and the Hardware",
 			Level:   2,
-			Sub: []Branch{
+			Subbranches: []Branch{
 				{
 					Heading: "Text as Bytes",
 					Level:   3,
@@ -596,7 +774,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		{
 			Heading: "Course sequence (order = lines)",
 			Level:   2,
-			Sub: []Branch{
+			Subbranches: []Branch{
 				{
 					Heading: "Decode",
 					Level:   3,
@@ -649,7 +827,7 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 		{
 			Heading: "Part",
 			Level:   2,
-			Sub: []Branch{
+			Subbranches: []Branch{
 				{
 					Heading: "Module",
 					Level:   3,
@@ -779,7 +957,7 @@ func TestParseEntryItem(t *testing.T) {
 func TestBuildFolderTree(t *testing.T) {
 	t.Parallel()
 
-	// vault.List order is lexical; provide the paths that way.
+	// Captured generation paths are lexical; provide the paths that way.
 	paths := []string{
 		"CLAUDE.md",
 		"Concepts/golang/Foo.md",
@@ -791,12 +969,12 @@ func TestBuildFolderTree(t *testing.T) {
 
 	wantFolders := []Folder{
 		{Name: "Inbox", RelPath: "Inbox", Notes: []NoteRef{{Name: "note", RelPath: "Inbox/note.md"}}},
-		{Name: "Concepts", RelPath: "Concepts", Sub: []Folder{
+		{Name: "Concepts", RelPath: "Concepts", Subfolders: []Folder{
 			{Name: "golang", RelPath: "Concepts/golang", Notes: []NoteRef{{Name: "Foo", RelPath: "Concepts/golang/Foo.md"}}},
 			{Name: "rust", RelPath: "Concepts/rust", Notes: []NoteRef{{Name: "Bar", RelPath: "Concepts/rust/Bar.md"}}},
 		}},
-		{Name: "Writing", RelPath: "Writing", Sub: []Folder{
-			{Name: "entries", RelPath: "Writing/entries", Sub: []Folder{
+		{Name: "Writing", RelPath: "Writing", Subfolders: []Folder{
+			{Name: "entries", RelPath: "Writing/entries", Subfolders: []Folder{
 				{Name: "golang", RelPath: "Writing/entries/golang", Notes: []NoteRef{{Name: "Entry", RelPath: "Writing/entries/golang/Entry.md"}}},
 			}},
 		}},
@@ -826,7 +1004,7 @@ func TestPlacements(t *testing.T) {
 		{
 			Title: "Go", RelPath: "Maps/go-path.md",
 			Branches: []Branch{
-				{Heading: "Part A", Level: 2, Sub: []Branch{
+				{Heading: "Part A", Level: 2, Subbranches: []Branch{
 					{Heading: "Module 1", Level: 3, Entries: []Entry{
 						{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
 						{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
@@ -932,6 +1110,187 @@ func TestSiblings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
+	t.Parallel()
+
+	original := &Model{
+		navigationDiagnostic: "navigation diagnostic",
+		folders:              []Folder{{Name: "Concepts", RelPath: "Concepts"}},
+		rootNotes:            []NoteRef{{Name: "README", RelPath: "README.md"}},
+		paths:                []Map{{Title: "Path"}},
+		maps:                 []Map{{Title: "Map"}},
+		journal:              []JournalEntry{{Title: "Today"}},
+		reports:              []Report{{Name: "report.md"}},
+		knowledgeNotes:       []NoteSummary{{Title: "A"}},
+		placementIndex:       map[string][]Placement{"A.md": {{MapRelPath: "Maps/A.md"}}},
+		dirNotes:             map[string][]NoteRef{"Concepts": {{Name: "A", RelPath: "Concepts/A.md"}}},
+	}
+	degraded := original.WithoutInstanceProjections("artifact unavailable")
+
+	if degraded == original {
+		t.Fatal("WithoutInstanceProjections() returned the mutable source model")
+	}
+	if len(degraded.Paths()) != 0 || len(degraded.Maps()) != 0 || len(degraded.KnowledgeNotes()) != 0 || degraded.placementIndex != nil {
+		t.Errorf("instance projections remain: paths=%d maps=%d notes=%d placements=%v",
+			len(degraded.Paths()), len(degraded.Maps()), len(degraded.KnowledgeNotes()), degraded.placementIndex)
+	}
+	if degraded.ArtifactDiagnostic() != "artifact unavailable" {
+		t.Errorf("ArtifactDiagnostic = %q, want %q", degraded.ArtifactDiagnostic(), "artifact unavailable")
+	}
+	if diff := cmp.Diff(original.Folders(), degraded.Folders()); diff != "" {
+		t.Errorf("Folders changed (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(original.RootNotes(), degraded.RootNotes()); diff != "" {
+		t.Errorf("RootNotes changed (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(original.Journal(), degraded.Journal()); diff != "" {
+		t.Errorf("Journal changed (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(original.Reports(), degraded.Reports()); diff != "" {
+		t.Errorf("Reports changed (-want +got):\n%s", diff)
+	}
+	if dir, notes := degraded.Siblings("Concepts/A.md"); dir != "Concepts" || len(notes) != 1 {
+		t.Errorf("Siblings() = (%q, %v), want ordinary folder browse preserved", dir, notes)
+	}
+	if len(original.Paths()) != 1 || len(original.Maps()) != 1 || len(original.KnowledgeNotes()) != 1 || original.placementIndex == nil {
+		t.Error("WithoutInstanceProjections() mutated the source model")
+	}
+}
+
+type modelProjections struct {
+	folders        []Folder
+	rootNotes      []NoteRef
+	paths          []Map
+	maps           []Map
+	journal        []JournalEntry
+	reports        []Report
+	knowledgeNotes []NoteSummary
+	placements     []Placement
+	siblingDir     string
+	siblings       []NoteRef
+}
+
+func immutableModelFixture() *Model {
+	return &Model{
+		folders: []Folder{{
+			Name:    "Writing",
+			RelPath: "Writing",
+			Notes:   []NoteRef{{Name: "Root", RelPath: "Writing/Root.md"}},
+			Subfolders: []Folder{{
+				Name:    "Lessons",
+				RelPath: "Writing/Lessons",
+				Notes:   []NoteRef{{Name: "Lesson", RelPath: "Writing/Lessons/Lesson.md"}},
+			}},
+		}},
+		rootNotes: []NoteRef{{Name: "README", RelPath: "README.md"}},
+		paths: []Map{{
+			Title:   "Path",
+			RelPath: "Maps/Path.md",
+			Branches: []Branch{{
+				Heading: "Part",
+				Entries: []Entry{{
+					Text:       "Ambiguous",
+					Kind:       EntryAmbiguous,
+					Candidates: []string{"A/Target.md", "B/Target.md"},
+				}},
+				Subbranches: []Branch{{Heading: "Module", Entries: []Entry{{Text: "Lesson", RelPath: "Writing/Lessons/Lesson.md", Kind: EntryResolved}}}},
+			}},
+		}},
+		maps:           []Map{{Title: "Map", RelPath: "Maps/Map.md", Branches: []Branch{{Heading: "Shelf"}}}},
+		journal:        []JournalEntry{{Title: "Recent", RelPath: "Journal/Recent.md"}},
+		reports:        []Report{{Name: "report.md", RelPath: "System/reports/report.md"}},
+		knowledgeNotes: []NoteSummary{{Title: "Lesson", RelPath: "Writing/Lessons/Lesson.md"}},
+		placementIndex: map[string][]Placement{
+			"Writing/Lessons/Lesson.md": {{MapRelPath: "Maps/Path.md", Headings: []string{"Part", "Module"}}},
+		},
+		dirNotes: map[string][]NoteRef{
+			"Writing/Lessons": {{Name: "Lesson", RelPath: "Writing/Lessons/Lesson.md"}},
+		},
+	}
+}
+
+func captureModelProjections(model *Model) modelProjections {
+	dir, siblings := model.Siblings("Writing/Lessons/Lesson.md")
+	return modelProjections{
+		folders:        model.Folders(),
+		rootNotes:      model.RootNotes(),
+		paths:          model.Paths(),
+		maps:           model.Maps(),
+		journal:        model.Journal(),
+		reports:        model.Reports(),
+		knowledgeNotes: model.KnowledgeNotes(),
+		placements:     model.Placements("Writing/Lessons/Lesson.md"),
+		siblingDir:     dir,
+		siblings:       siblings,
+	}
+}
+
+func mutateModelProjections(model *Model) {
+	folders := model.Folders()
+	folders[0].Name = "mutated"
+	folders[0].Notes[0].Name = "mutated"
+	folders[0].Subfolders[0].Name = "mutated"
+	folders[0].Subfolders[0].Notes[0].Name = "mutated"
+
+	rootNotes := model.RootNotes()
+	rootNotes[0].Name = "mutated"
+
+	paths := model.Paths()
+	paths[0].Title = "mutated"
+	paths[0].Branches[0].Heading = "mutated"
+	paths[0].Branches[0].Entries[0].Text = "mutated"
+	paths[0].Branches[0].Entries[0].Candidates[0] = "mutated"
+	paths[0].Branches[0].Subbranches[0].Heading = "mutated"
+
+	maps := model.Maps()
+	maps[0].Title = "mutated"
+	maps[0].Branches[0].Heading = "mutated"
+
+	journal := model.Journal()
+	journal[0].Title = "mutated"
+	reports := model.Reports()
+	reports[0].Name = "mutated"
+	knowledgeNotes := model.KnowledgeNotes()
+	knowledgeNotes[0].Title = "mutated"
+
+	placements := model.Placements("Writing/Lessons/Lesson.md")
+	placements[0].MapRelPath = "mutated"
+	placements[0].Headings[0] = "mutated"
+	_, siblings := model.Siblings("Writing/Lessons/Lesson.md")
+	siblings[0].Name = "mutated"
+}
+
+func TestModelReturnsIndependentProjections(t *testing.T) {
+	t.Parallel()
+	model := immutableModelFixture()
+	want := captureModelProjections(immutableModelFixture())
+
+	mutateModelProjections(model)
+
+	if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{})); diff != "" {
+		t.Errorf("model changed through a returned projection (-want +got):\n%s", diff)
+	}
+}
+
+func TestModelConcurrentProjectionMutationDoesNotChangePublishedData(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		model := immutableModelFixture()
+		want := captureModelProjections(immutableModelFixture())
+		for range 32 {
+			go func() {
+				for range 100 {
+					mutateModelProjections(model)
+				}
+			}()
+		}
+		synctest.Wait()
+		if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{})); diff != "" {
+			t.Errorf("concurrent callers changed model data (-want +got):\n%s", diff)
+		}
+	})
 }
 
 // TestBuildReports checks the .md reports (directly under System/reports/)

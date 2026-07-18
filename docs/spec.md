@@ -1,7 +1,7 @@
 # yomihon functional spec (final form)
 
 > **No milestone fences** (decisions D15): this document defines "what done looks like," not "what to build first." Each feature face has its own spec and acceptance criteria; every remaining face ships (D37), ordered by dependency and leverage — the sequencing view and the plan-doc obligations for faces not yet specified here live in `roadmap.md`.
-> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a)); amended 2026-07-05 (D31/D32/D37: semantic search committed, scope ruling, dead-rule cleanup); amended 2026-07-06 (D40: the yomihon-dev gate closed, retirement recorded as discard, the kura gate gains the differential-campaign prerequisite — judge-plan §13); amended 2026-07-11 (D47: navigation roles, non-instance artifacts, and metadata-capability degradation)**.
+> The four walls (`CLAUDE.md`) override everything in this document. Status: **certified (2026-07-02, including review revisions: §0.1 dependency boundary, §4 fail-closed and the audit boundary, D16=(a)); amended 2026-07-05 (D31/D32/D37: semantic search committed, scope ruling, dead-rule cleanup); amended 2026-07-06 (D40: the yomihon-dev gate closed, retirement recorded as discard, the kura gate gains the differential-campaign prerequisite — judge-plan §13); amended 2026-07-11 (D47: navigation roles, non-instance artifacts, and metadata-capability degradation); amended 2026-07-14 (D32/D50: the optional semantic CLI owns a local derived generation store; ordinary reading, UI search, and judge remain store-free)**.
 
 ## 0. Goals
 
@@ -16,9 +16,13 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 
 ### 0.1 Dependency boundary (global invariants)
 
-- **Files are the truth; a derived index only accelerates. No face may depend on a persistent store**: v0 has no database at all — the graph, nav, and search indexes are in-memory, rebuilt from the vault (D24, D25), so search is as available as reading. The principle stands for any future persistent index (SQLite, D24): it may only accelerate, and the "read every day" habit MUST NOT inherit a daemon dependency — otherwise the tool-absorption law would kill it.
+- **Files are the truth; persistent derived state never gates the daily reading product.** `serve`, the reading/write faces, ordinary UI/fragment lexical search, and the judge remain independent of every database: graph, nav, and their lexical index are in-memory and rebuilt from the vault (D24/D25). The explicitly requested CLI-only semantic channel is the narrow exception (D32/D50): it reads a local disposable SQLite generation and fails loudly with exit 3 when no complete compatible generation exists. It never makes ordinary reading, lexical search, or judge availability inherit a store or daemon dependency.
+  The semantic generation store's first implementation is limited to Darwin and Linux;
+  Windows returns the
+  typed exit-3 `unsupported-platform` state before filesystem/key/provider
+  access, while every store-free surface above remains available.
 - **`check` / `exists` / `coverage` are stateless file scans that never touch the DB**: what the four pipelines and vault-side agents consume must be a zero-dependency binary (kura's deployment shape). If the judge face required PG to be present = a deployability regression = a covert tightening of the retirement gate — forbidden.
-- **The single source of schema truth = `~/obsidian/System/schemas/vault-schema.toml` (wall 3), and fault tolerance is asymmetric by direction**: the reading face is fail-open on schema problems (render anyway + diagnostic — under-reporting a lint is harmless); **the write face is fail-closed** (if the schema can't be read or is broken → show no transition keys, reject every POST — under-reporting on read is fine, but a bad write destroys a file).
+- **The single source of schema truth = `~/obsidian/System/schemas/vault-schema.toml` (wall 3), and fault tolerance is asymmetric by direction**: the reading face is fail-open on schema problems (render anyway + diagnostic — under-reporting a lint is harmless); **the write face is fail-closed** (if the schema can't be read or is broken → show no transition keys, reject every POST — under-reporting on read is fine, but a bad write destroys a file). Status publication is additionally limited to Darwin and Linux (D58). Other platforms retain the contract-derived read projections but offer no transition form and reject a direct POST with 503 before target filesystem or git access.
 - **The same contract declares instance authority.** `[navigation]` assigns
   disjoint note types to study paths and general maps; `[artifacts]` declares
   readable directories whose files are not governed instances. Each section's
@@ -26,7 +30,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
   incomplete artifact policy disables every instance projection and the write
   face rather than treating all readable files as instances; direct/raw reading,
   Folders, reports, bare-text search, and `folder:` lookup stay available.
-- **Privacy boundary** (`System/agent-guides/Privacy-Boundary.md`, draft pending Koopa's final review): the top-level `Diary/` never egresses. yomihon is local-only, so **rendering it for Koopa himself is legitimate**; but every egress face — `export`, `check` (findings written to a report will be read by agents), any snapshot — unconditionally excludes `Diary/`, `--all` included (D39: an enforced drop at the output layer, stricter than the reference engine ever was). The exclusion covers **influence, not only output** (D42): journal content never changes an egress surface's verdict about a public note — its edges do not mount public concepts, its planned lists do not soften public broken links. What stays visible is what a public note wrote itself: a link naming a journal title, and that link's resolution, are the author's own words. Mechanical source: once toml `[privacy] never_egress_dirs` lands, read it from the toml, not hardcoded (wall 3).
+- **Privacy boundary** (`System/agent-guides/Privacy-Boundary.md`, draft pending Koopa's final review): the contract's `[privacy].never_egress_dirs` paths never egress. yomihon is local-only, so **rendering them for Koopa himself is legitimate**; but every egress face — `export`, `check` (findings written to a report will be read by agents), any snapshot — unconditionally excludes them, `--all` included (D39). The exclusion covers **influence, not only output** (D42): private content never changes an egress surface's verdict about a public note — its edges do not mount public concepts, its planned lists do not soften public broken links. What stays visible is what a public note wrote itself: link target text and the full graph's resolution are the author's own words. The toml is the only mechanical source; no Go path literal may replace it (wall 3). For the agent judge, missing/invalid/stale privacy authority closes `check`/`coverage`/`exists` as exit-2 tool failures with zero stdout and the fixed D54 stderr line; an explicit empty list is valid.
 
 ---
 
@@ -38,7 +42,7 @@ Let Koopa read the whole vault in one place, and complete adjudication right whe
 - The fault-tolerance rule: broken YAML / unknown callout / broken link → render anyway + diagnostic, never crash, never fix (wall 4).
 - TOC: CJK-safe slug (following yomihon-dev's `Slug()` semantics: keep `\p{L}\p{N}`, `-2` suffix on collision, `section` fallback).
 - Diagnostics pane: broken YAML, unresolved / ambiguous link, corrections ledger — display only.
-- Reports: `System/reports/` contains daily-briefing HTML, presented verbatim in a sandboxed iframe. Sandbox policy: **no `allow-same-origin`** — even with scripts allowed it lands in an opaque origin, forming a double layer of defense with the same-origin protection.
+- Reports: `System/reports/` contains daily-briefing HTML, presented byte-for-byte in a bare sandboxed iframe. Static HTML, inline CSS/SVG, and data media render; report-authored scripts, event handlers, automatic refresh/navigation, forms, remote resource loads, and WebRTC do not run. The `/raw` response repeats that scriptless sandbox and resource policy, so containment does not depend on the iframe alone (D30/D59).
 - `.base` / `.canvas` link back to open in Obsidian; D2 is not rendered (already decided for koopa0.dev).
 - Code highlighting is server-side (chroma). UI principle: interactivity climbs
   the D41 ladder — semantic HTML, CSS, Baseline Web APIs, then a small vanilla-JS
@@ -101,7 +105,7 @@ is preserved by Folders.
   queries, never an ignored filter or misleading zero results.
 - **Results and ordering** (deterministic): title hits (all tokens match the title) rank before body hits; within a group, rel_path lexicographic order — guaranteed by keeping the index entries sorted by rel_path, not by a sort call. Each entry = path + title + an optional governed-instance status badge + a context snippet around the earliest matched-token offset. No result limit in v0 (the corpus is small; any truncation is the panel's concern).
 - The index is fully derived and in-memory (see `design.md` §6): it is rebuilt from the vault, and a ~2s mtime scan applies incremental updates (D21) — no fsnotify, no persistent store. Change detection is by mtime: the scan compares the current `{path → mtime}` set to the previous one and, on any change, rebuilds; it handles create/delete/rename uniformly. There is no content hash — at this scale a full rebuild is ~100 ms, and mtime avoids reading every file on every scan (reconsider past ~10k files).
-- Semantic / vector: committed scope (D32) — Gemini embeddings + RRF fusion with the deterministic layer above; it composes with, never replaces, the lexical semantics of this section. Design, storage shape, and escalation ladders in `roadmap.md`.
+- Semantic / vector: committed agent scope (D32/D50 as amended 2026-07-13) — explicit CLI `--semantic` fuses Gemini-vector retrieval with the deterministic layer above. Ordinary ⌘K, `/search`, and live results remain lexical-only. A future human Related/Find-related surface requires its own ruling and does not change the ordinary search contract. Design, storage shape, and escalation ladders are in `roadmap.md`.
 
 **Acceptance**: a 2-character CJK query returns correctly; spot checks match `rg`'s results _on the note body_ (one-directional: what `rg` finds in the body text, yomihon finds too — `rg` also matching raw markup that `plain_text` strips is by design, not a bug); a literal `%` in a query matches a literal `%` (substring is literal, no wildcards); NFD-form content is found by an NFC-typed query; rebuild the index twice → byte-identical results; a concurrent read during an index swap is race-free (`-race`); a vault file change is reflected within one scan cycle — ≤3s worst case (a ~2s cadence plus the ~100 ms rebuild), so the bound is stably decidable.
 
@@ -120,31 +124,49 @@ POST /status (path, from, to)
  1. Same-origin check (Go 1.26 http.CrossOriginProtection — any website can send
     a form POST to 127.0.0.1 without triggering a CORS preflight; this protection
     is the necessary deepening of wall 2)
- 2. Parse the form; normalize and validate the vault-relative path shape
- 3. Require an available artifact policy; reject a known non-instance as HTTP
-    422 before any stat/read/git operation, including when that path does not exist
- 4. Read the file → split off the frontmatter → current status = from_actual
+ 2. Parse the form; require nonblank `path`, `from`, and `to`; normalize and
+    validate the vault-relative path shape. The current HTTP surface does not
+    expose initial-state assignment.
+ 3. Require a platform with proved durable publication. On an unsupported
+    platform, return the unchanged 503 recovery state before target filesystem,
+    git, or contract-source access. Read-only lifecycle projections remain open.
+ 4. Require an available artifact policy; reject a known non-instance as HTTP
+    422 before any stat/read/git operation, including when that path does not
+    exist. The policy's exact contract source bytes must still match startup;
+    otherwise close the write face with 503 until restart. That stale-source
+    latch belongs to the shared contract-derived capability: Home lifecycle and
+    recent projections, Paths/Maps, advanceable counts, and metadata-filtered
+    search close in the same process even if the contract bytes are later
+    restored.
+ 5. Read the file → split off the frontmatter → current status = from_actual
     · from_actual ≠ form.from → 409 "page out of date", no write
- 5. schema.Transition(type, from_actual, to, "koopa") → on failure 422 with the reason, no write
- 6. Pre-flight: the vault is a git repo and the file is clean
+ 6. schema.Transition(type, from_actual, to, "koopa") → on failure 422 with the reason, no write
+    · `from_actual` must be initial or a declared status for the type
+    · `from_actual == to` is never a transition; `from = ["*"]` does not make
+      the no-op legal
+ 7. Pre-flight: the vault is a git repo and the file is clean
     · `git status --porcelain -- <file>` non-empty → abort with "this file has
       uncommitted changes; a flip would pollute the audit" (better to press once
       more than to pollute git history)
- 7. Surgical rewrite: only within the frontmatter block, matching the `status:`
+ 8. Surgical rewrite: only within the frontmatter block, matching the `status:`
     line at line start
     · exactly one line → replace the whole line with `status: <to>`; zero or
-      multiple lines → abort (a schema violation, left to kura / a human — yomihon
-      does not fix files)
+      multiple lines → abort (a schema violation left to a human; yomihon does
+      not fix files)
     · byte-identical outside that line; never re-serialize the YAML
- 8. Atomic write-back (temp + rename, preserving permissions); before writing,
-    stat and compare against step 4's mtime, abort on any change
- 9. git add <file> && git commit -m "status(<relpath>): <from> → <to> (via yomihon)"
+ 9. Atomic write-back (temp + fsync + rename + containing-directory fsync,
+    preserving permissions); immediately
+    before the rename, first recheck the policy's exact contract source bytes,
+    then perform the final source-file identity/mode/mtime/bytes check. Abort on
+    either change; no contract read may sit between that final file check and
+    the descriptor-relative rename.
+10. git add <file> && git commit -m "status(<relpath>): <from> → <to> (via yomihon)"
     · run at the vault root; set no author, so it = the vault git config (= Koopa's identity, D07)
     · commit failure → explicitly show "file changed, commit failed" + the raw text; no automatic rollback
-10. 303 See Other → the reading page (PRG)
+11. 303 See Other → the reading page (PRG)
 ```
 
-**Spec — UI**: the status panel lists the **currently legal** transitions (`schema` computes them with actor=`koopa`; show only the legal keys, never a disabled one); all legal transitions are open, and `ready` is the only primary style (D13); one form per key; the write path has zero JS dependency (D27 — JS may only add the seal's ~430 ms hold ceremony on top of a working plain form, and calls `form.requestSubmit()`, never `fetch`); no frontmatter (drills) → "No frontmatter (valid)" with no keys; broken YAML → show only a diagnostic and no keys (if the read is unreliable, don't write); schema or artifact-policy unavailability → preserve any raw status badge as read truth, but show no actor or transition controls and render the named fail-closed diagnostic; a known non-instance gets the quiet "not a governable artifact" state with no form.
+**Spec — UI**: the status panel lists the **currently legal** transitions (`schema` computes them with actor=`koopa`; show only the legal keys, never a disabled one); all legal transitions are open, and `ready` is the only primary style (D13); one form per key; the write path has zero JS dependency (D27 — JS may only add the seal's ~430 ms hold ceremony on top of a working plain form, and calls `form.requestSubmit()`, never `fetch`); no frontmatter (drills) → `沒有 frontmatter（合法）` with no keys; broken YAML → show only a diagnostic and no keys (if the read is unreliable, don't write); schema or artifact-policy unavailability → preserve any raw status badge as read truth, but show no actor or transition controls and render a Traditional Chinese fail-closed explanation followed, when useful, by the exact English technical detail; a known non-instance gets the quiet `不屬於生命週期治理範圍` state with no form.
 
 **Known trade-off**: the dirty-file abort blocks the real flow of "halfway through reading, fix a typo in Obsidian → flip." v0 ships first; the two-step "commit the manual edit first, then flip" is decided by pain per D15.
 
@@ -152,14 +174,32 @@ POST /status (path, from, to)
 
 | Scenario                             | HTTP | Presentation                                                      |
 | ------------------------------------ | ---- | ----------------------------------------------------------------- |
-| form.from ≠ current                  | 409  | Page out of date — reload and press again                         |
-| illegal transition / owner-forbidden | 422  | The schema's rejection reason, verbatim                           |
-| known non-instance target             | 422  | not a governable artifact                                         |
-| artifact policy unavailable           | 503  | The policy's missing/invalid/incomplete diagnostic                 |
-| file dirty                           | 409  | Has uncommitted changes; a flip would pollute the audit           |
-| status line zero or multiple         | 422  | Schema violation, left to kura / a human                          |
-| mtime changed                        | 409  | The file was modified between read and write                      |
-| git commit failed                    | 500  | File changed + the raw git text + manual-remediation instructions |
+| malformed / oversized form body      | 400  | Traditional Chinese parse explanation                             |
+| missing / blank path, from, or to     | 422  | Traditional Chinese required-field explanation                    |
+| invalid vault-relative path           | 422  | Traditional Chinese path-shape explanation                        |
+| platform lacks durable publication    | 503  | unchanged; Traditional Chinese unsupported-platform explanation   |
+| form.from ≠ current                   | 409  | Traditional Chinese stale-page explanation                        |
+| illegal transition / owner-forbidden | 422  | Traditional Chinese summary + exact schema reason                 |
+| known non-instance target             | 422  | `不屬於生命週期治理範圍`                                          |
+| artifact policy unavailable           | 503  | Traditional Chinese summary + exact policy diagnostic             |
+| artifact policy source changed        | 503  | Traditional Chinese restart instruction + exact diagnostic        |
+| file dirty                            | 409  | Traditional Chinese audit-trail warning                           |
+| status line zero or multiple          | 422  | Traditional Chinese schema-violation explanation                  |
+| mtime changed                         | 409  | Traditional Chinese concurrent-write explanation                  |
+| durable publication uncertain         | 500  | changed-warning; no operating-system detail                       |
+| git commit failed                     | 500  | Traditional Chinese remediation + raw git text                    |
+| unknown internal failure              | 500  | generic remediation; no internal detail                           |
+
+Every non-successful `POST /status` renders an HTML recovery page inside the
+same snapshot-derived shell, while preserving the table's HTTP status. The page
+has one of two explicit mutation states: every failure before atomic
+replacement says `狀態尚未變更`; only durable-publication uncertainty and git
+commit failure say `狀態已寫入，需要手動收尾` and `請勿重送`. Schema, artifact
+policy, and commit failures expose the exact technical detail required above;
+generic/internal and publication-uncertain failures never expose their wrapped
+error. The recovery response is `Cache-Control: no-store` and offers only
+ordinary GET links to the normalized note path (when valid) and Home. It never
+contains a POST/retry control. The success path remains the existing 303 PRG.
 
 **Acceptance (automated)**:
 
@@ -168,18 +208,62 @@ POST /status (path, from, to)
 3. dirty file → abort and no write.
 4. stale form → 409 and no write.
 5. broken YAML → no keys; a direct POST is rejected.
+6. On a simulated unsupported platform, ordinary reading and lexical search
+   remain available, no status form is rendered, and a direct POST returns 503
+   without changing or creating a vault file. The same focused contract runs
+   on a real Windows CI runner.
 6. Real git verification (temp git repo): the commit exists, the message format is correct, the author is taken from the repo git config, and the diff is exactly one line.
 7. A cross-origin POST (`Sec-Fetch-Site: cross-site`) is rejected.
+8. Every failure class is table-locked for status, mutation truth, detail
+   allowlist, and next action; render failure discards partial HTML before a
+   truthful plain 500 fallback.
 
-**Acceptance (manual, = the v0 shipping gate D10)**: 8. Koopa finishes a real long piece in `Writing/` and presses a legal transition; `git -C ~/obsidian log -1 --stat` shows that commit (author = Koopa, one file, one line); Obsidian confirms only the status changed. 9. When the current status has no legal transitions the panel shows no keys (the "No legal transitions" branch). Note: this contract keeps `archived` reachable from every status (`from = ["*"]`), so a valid note always offers at least that key — the no-keys branch is the panel's fail-safe, not a state a live vault file reaches; verify it against the panel logic (or a note whose contract yields an empty set), not against a `ready` file. Drills show "No frontmatter (valid)".
+**Acceptance (manual, = the v0 shipping gate D10)**: 8. Koopa finishes a real long piece in `Writing/` and presses a legal transition; `git -C ~/obsidian log -1 --stat` shows that commit (author = Koopa, one file, one line); Obsidian confirms only the status changed. 9. When the current status has no legal transitions the panel shows no keys (the "No legal transitions" branch). The archive row is structurally reachable from every status, but it is offered only when its current owner list authorizes Koopa; `owner = []` is a legal pause and therefore makes the no-keys branch reachable without invalidating the contract (D53). Drills show "No frontmatter (valid)".
 
 ## 5. The judge and agent toolbox (kura inheritance face)
 
-**Spec**: `yomihon check` (15 rules) / `exists` (dedup oracle) / `coverage` (MOC coverage). **Deployment shape = kura: a single binary, stateless file scanning, never touches the DB, no daemon dependency (§0.1)**.
+**Spec**: `yomihon check` (17 rules) / `exists` (dedup oracle) / `coverage` (MOC coverage). **Deployment shape = kura: a single binary, stateless file scanning, never touches the DB, no daemon dependency (§0.1)**.
 
-**Command semantics follow kura, not reinvented**: `check [PATHS...]`'s positional arguments only filter output, the graph is always built for the whole tree; `--root` defaults to cwd; `exists`'s matching surface is deliberately wider than the resolver's (resolver keys + `title` / `title_en`), exit 0/1; `coverage`'s output is a single pretty JSON object (not JSONL), whose shape is defined by `conformance__coverage_report.snap`. The external interface is byte-compatible: JSONL field shape, `path→line→rule_id` ordering, the fingerprint (FNV-1a, `0x1f` separator, 16-digit lowercase hex), exit codes 0/1/2, `--deny <severity|rule>`, `--format json|human|md`, and the scan boundary (System/Diagrams/Views excluded by default, `--all`). **Load-bearing points (real consumers, verified on the vault side 2026-07-02)**: the grinder cron consumes JSONL directly with `grep '"severity":"warn"'` — the field names and the severity string values are an external contract; `--deny error`'s exit code is treated as a BAD flag by two crons; `--format md`'s report body is written by the vault QA cron, overwriting `System/reports/kura-vault-check.md`; `exists`'s exit 0/1 is the dedup answer. `--baseline` and `--all` currently have **zero real consumers** (verified absent) — kept byte-compatible anyway, but not a hot path.
+**Command semantics follow the frozen judge contract, not convenience**:
+`check [PATHS...]` builds the graph from a strict whole-vault walk and uses
+positionals only to filter findings; `--root` defaults to cwd; `exists` matches
+resolver keys plus `title` / `title_en` and exits 0/1; `coverage` emits one
+compact JSON object plus `\n` (not JSONL). Default `check` scope drops only
+findings wholly under `System/`; `--all` disables that filter, while privacy
+exclusions remain absolute. `Diagrams/` and `Views/` are scanned normally.
+The external interface freezes JSONL field shape, `path→line→rule_id` ordering,
+the fingerprint (FNV-1a, `0x1f` separator, 16-digit lowercase hex), exit codes
+0/1/2, `--deny <severity|rule>`, and `--format json|human|md`. **Load-bearing
+points (real consumers, verified on the vault side 2026-07-02)**: the grinder
+cron consumes JSONL directly with `grep '"severity":"warn"'` — the field names
+and severity strings are an external contract; `--deny error`'s exit code is
+treated as a BAD flag by two crons; `--format md`'s report body is written by
+the vault QA cron; `exists`'s exit 0/1 is the dedup answer. `--baseline` and
+`--all` currently have **zero real consumers** (verified absent) — retained as
+frozen surface, not a hot path.
 
-**Egress exclusion**: `check` unconditionally excludes `Diary/` (not even `--all` includes it — findings written to a report will be read by agents; §0.1 privacy boundary, read from toml `[privacy]` once it lands).
+**Egress exclusion**: all three commands require a valid contract privacy
+capability (D54). The configured paths are excluded from output and influence;
+not even `--all` bypasses them. Missing, invalid, or source-stale authority is
+exit 2 with zero stdout and the fixed D54 stderr line. A declared empty list is
+valid. The graph still resolves through the whole vault so a public author's
+own target text and resolution retain D42's semantics.
+
+**Supersession extension (D53)**: the two additions are warnings and preserve
+the existing JSONL field order. `supersession.predecessor_not_archived` points
+at the configured successor field and says
+`<field> is populated while status is "<current>", not "<archived>"`; its
+evidence is `the configured successor ledger marks this lesson as superseded`
+and its action is
+`archive the predecessor, or clear the successor field until the replacement is authoritative`.
+`supersession.archived_navigation_target` points at the body-link line, carries
+the original target and resolved path, and says `[[<target>]] resolves to an archived note`;
+its evidence is
+`the live path or map links <path>, whose status is "<archived>"` and its action
+is `replace or remove the link, or restore the target if it is current again`.
+Both cite `vault-schema.toml#supersession`. D53 defines the capability,
+instance, status-validity, and resolution cross-product; no fallback
+classification is permitted.
 
 **First batch of extensions (verified on the vault side; to be done after the byte-compat gate is met — the H face, expanded with graph relation verbs and whole-graph export per D33 / `roadmap.md`)**:
 
@@ -201,7 +285,7 @@ With item 6 met, all six acceptance items hold; kura was declared retired on 202
 
 ## 6. The export face (yomihon-dev inheritance face)
 
-**Spec**: `yomihon export` = SSG static output (`dist/`), covering the Japanese lessons + the syllabus index + the five interactions (furigana visibility toggle, native details folding, TTS `data-tts` stripping `<rt>/<rp>` at build time, slot sidecar, concept `<dialog>`). Egress face: unconditionally excludes `Diary/` (§0.1 privacy boundary). PWA / Service Worker: **cut, not inherited** — yomihon-dev's SW, being HTTP-only, never actually registered and is verified dead weight. export output = pure static files.
+**Spec**: `yomihon export` = SSG static output (`dist/`), covering the Japanese lessons + the syllabus index + the five interactions (furigana visibility toggle, native details folding, TTS `data-tts` stripping `<rt>/<rp>` at build time, slot sidecar, concept `<dialog>`). Egress face: unconditionally excludes every contract-declared private path (§0.1 privacy boundary). PWA / Service Worker: **cut, not inherited** — yomihon-dev's SW, being HTTP-only, never actually registered and is verified dead weight. export output = pure static files.
 
 **The yomihon-dev retirement gate — closed (D38 narrowed it, D40 closed it)**: the engineering item (the five interactions independently reproduced, all fixtures passing, direct consumption of `System/slots/L01–L20.yaml`) is merged; the two observation items (`m1-review/` screenshot parity, the two-week studying clock) are waived — Koopa moved daily reading to yomihon outright and does not track parity. Retirement is effective on his declaration alone; until then yomihon-dev merely sits frozen (tag `v1.0.0`). Reading-surface problems found in daily use are ordinary UX work (`roadmap.md` §5b), not gate evidence.
 

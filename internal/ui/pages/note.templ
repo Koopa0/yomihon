@@ -7,9 +7,17 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
+
+const nonInstanceReason = "不屬於生命週期治理範圍"
+
+func articleLanguage(tag string) string {
+	if tag == "" {
+		return "und"
+	}
+	return tag
+}
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
 // and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
@@ -22,6 +30,7 @@ import (
 type NoteView struct {
 	Title      string
 	RelPath    string
+	Language   string
 	Type       string
 	Status     string
 	SealTarget string
@@ -87,9 +96,9 @@ templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
-			@sidebar(v.Sidebar)
-			<main class="y-main">
-				<article class="y-article" lang="zh-Hant">
+			@sidebar(v.Sidebar, c.Nonce)
+			<main id="main-content" tabindex="-1" class="y-main">
+				<article class="y-article" lang={ articleLanguage(v.Language) }>
 					@articleHead(v)
 					@inlineAids(v)
 					<div class="y-prose">
@@ -113,26 +122,26 @@ templ Note(v NoteView, c layouts.Chrome) {
 // sealed URL replaying it is accepted for a single-operator local tool).
 templ sealToast(v NoteView) {
 	if v.JustSealed {
-		<div class="y-toast" role="status">済 · sealed { v.SealTarget }</div>
+		<div class="y-toast" role="status">済 · 已鈐印 { v.SealTarget }</div>
 	}
 }
 
 // conceptSheet is the in-app grammar-concept drawer: one hidden <template> of
 // rendered content per concept the lesson links to, plus a single shared native
-// <dialog>. yomihon.js clones the matching template into the dialog on a trigger
+// <dialog>. lesson.js clones the matching template into the dialog on a trigger
 // click and calls showModal(); with JS off the triggers stay ordinary links to
 // the concept notes, so nothing here renders unless a concept is referenced.
 templ conceptSheet(concepts []lesson.ConceptDoc) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
-			<template id={ "concept-" + c.Slug } data-title={ c.Title }>
+			<template id={ "concept-" + c.ID } data-title={ c.Title }>
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog class="y-conceptsheet" data-concept-sheet aria-label="Grammar note" closedby="any">
+		<dialog class="y-conceptsheet" data-concept-sheet aria-label="文法筆記" closedby="any">
 			<div class="y-conceptsheet__head">
 				<span class="y-conceptsheet__title" data-concept-title></span>
-				<button type="button" class="y-iconbtn" data-concept-close aria-label="Close">
+				<button type="button" class="y-iconbtn" data-concept-close aria-label="關閉">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
 			</div>
@@ -178,22 +187,22 @@ templ articleHead(v NoteView) {
 // It takes one resolved Sidebar, so the reading page and the report shell mount
 // the same navigation; a report builds it with no current note, so every branch
 // renders closed and unmarked. A nil model renders nothing.
-templ sidebar(sb Sidebar) {
-	<aside class="y-rail-left" id="nav-rail">
+templ sidebar(sb Sidebar, nonce string) {
+	<aside class="y-rail-left" id="nav-rail" aria-label="Vault 導覽">
 		<input
 			class="y-filter"
 			type="text"
-			placeholder="Filter navigation…"
-			aria-label="Filter navigation"
+			placeholder="篩選導覽…"
+			aria-label="篩選導覽"
 			autocomplete="off"
 			spellcheck="false"
 			data-nav-filter
 			hidden
 		/>
-		<p class="y-filter-empty" data-filter-empty hidden>No matches — Esc clears the filter.</p>
+		<p class="y-filter-empty" data-filter-empty hidden>沒有相符項目；按 Esc 清除篩選。</p>
 		if sb.Model != nil {
 			if len(sb.Here) > 0 {
-				<nav class="y-here" aria-label="This folder">
+				<nav class="y-here" aria-label="目前資料夾">
 					<div class="y-here__label">{ hereLabel(sb.HereDir) }</div>
 					for _, n := range sb.Here {
 						<a
@@ -204,71 +213,75 @@ templ sidebar(sb Sidebar) {
 					}
 				</nav>
 			}
-			if sb.Model.NavigationDiagnostic != "" || sb.Model.ArtifactDiagnostic != "" {
+			if sb.Model.NavigationDiagnostic() != "" || sb.Model.ArtifactDiagnostic() != "" {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
-					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">Paths and Maps</h2>
-					if sb.Model.NavigationDiagnostic != "" {
-						<p>{ sb.Model.NavigationDiagnostic }</p>
+					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">路徑與地圖</h2>
+					if sb.Model.NavigationDiagnostic() != "" {
+						<p>
+							@browserDiagnostic("路徑與地圖目前無法使用。", sb.Model.NavigationDiagnostic())
+						</p>
 					}
-					if sb.Model.ArtifactDiagnostic != "" {
-						<p>{ sb.Model.ArtifactDiagnostic }</p>
+					if sb.Model.ArtifactDiagnostic() != "" {
+						<p>
+							@browserDiagnostic("治理項目投影目前無法使用。", sb.Model.ArtifactDiagnostic())
+						</p>
 					}
 				</section>
 			}
-			if len(sb.Model.Paths) > 0 {
+			if len(sb.Model.Paths()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<details open data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 					<summary class="y-railsummary">
 						@chevron()
-						Paths
+						路徑
 					</summary>
 					<div class="y-railgroup">
-						for _, m := range sb.Model.Paths {
+						for _, m := range sb.Model.Paths() {
 							@mapTree(sb, m, syllabusHref(m.RelPath))
 						}
 					</div>
 				</details>
 			}
-			if len(sb.Model.Maps) > 0 {
+			if len(sb.Model.Maps()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<section data-sidebar-group="maps" aria-labelledby="sidebar-maps-title">
-					<h2 class="y-railsummary y-railsummary--label" id="sidebar-maps-title">Maps</h2>
+					<h2 class="y-railsummary y-railsummary--label" id="sidebar-maps-title">地圖</h2>
 					<div class="y-railgroup">
-						for _, m := range sb.Model.Maps {
+						for _, m := range sb.Model.Maps() {
 							@mapTree(sb, m, notesHref(m.RelPath))
 						}
 					</div>
 				</section>
 			}
-			if len(sb.Model.Journal) > 0 {
+			if len(sb.Model.Journal()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<details data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
 					<summary class="y-railsummary">
 						@chevron()
-						Journal
+						日誌
 					</summary>
 					<div class="y-railgroup">
-						for _, entry := range sb.Model.Journal {
+						for _, entry := range sb.Model.Journal() {
 							<a class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) } href={ templ.URL(notesHref(entry.RelPath)) } data-sidebar-journal-entry { currentAttr(sb.current(entry.RelPath))... }>{ entry.Title }</a>
 						}
 					</div>
 				</details>
 			}
-			if len(sb.Model.Reports) > 0 {
+			if len(sb.Model.Reports()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<details { disclosureAttrs("reports", false)... }>
 					<summary class="y-railsummary">
 						@chevron()
-						Reports
+						報告
 					</summary>
 					<div class="y-railgroup">
-						for _, rep := range sb.Model.Reports {
+						for _, rep := range sb.Model.Reports() {
 							if rep.Briefing {
 								<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
 									{ rep.Name }
 									if rep.Latest {
-										<span class="y-navmark">latest</span>
+										<span class="y-navmark">最新</span>
 									}
 								</a>
 							} else {
@@ -284,7 +297,7 @@ templ sidebar(sb Sidebar) {
 			<details open?={ sb.folderTreeOpen() } { disclosureAttrs("folders", sb.folderTreeOpen())... }>
 				<summary class="y-railsummary">
 					@chevron()
-					Folders
+					資料夾
 				</summary>
 				<div class="y-railgroup">
 					@folderList(sb)
@@ -297,7 +310,34 @@ templ sidebar(sb Sidebar) {
 	// never pops in late and a section the reader closed never flashes open or
 	// replays its opening animation. The wayfinding chain always wins over a
 	// stored value; the enhancement script owns every change after this point.
-	@templ.Raw(navRestoreScript)
+	<script nonce={ nonce }>
+		(() => {
+			"use strict";
+			const filter = document.querySelector(".y-rail-left [data-nav-filter]");
+			if (filter) {
+				filter.hidden = false;
+			}
+			let stored = {};
+			try {
+				stored =
+					JSON.parse(sessionStorage.getItem("yomihon.nav") || "{}") || {};
+			} catch {
+				stored = {};
+			}
+			document
+				.querySelectorAll(".y-rail-left details[data-key]")
+				.forEach((d) => {
+					if (d.hasAttribute("data-chain")) {
+						d.open = true;
+						return;
+					}
+					const want = stored[d.dataset.key];
+					if (typeof want === "boolean") {
+						d.open = want;
+					}
+				});
+		})();
+	</script>
 }
 
 templ chevron() {
@@ -306,14 +346,14 @@ templ chevron() {
 
 // folderList renders the vault-root notes then the lifecycle-ordered folders.
 templ folderList(sb Sidebar) {
-	for _, n := range sb.Model.RootNotes {
+	for _, n := range sb.Model.RootNotes() {
 		<a
 			class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
 			href={ templ.URL(notesHref(n.RelPath)) }
 			{ currentAttr(sb.current(n.RelPath))... }
 		>{ n.Name }</a>
 	}
-	for _, f := range sb.Model.Folders {
+	for _, f := range sb.Model.Folders() {
 		@folderNode(sb, f)
 	}
 }
@@ -322,14 +362,14 @@ templ folderList(sb Sidebar) {
 // directory structure to whatever depth it has, as a nested native <details>.
 // The branch holding the current note opens by default, revealing it in place.
 templ folderNode(sb Sidebar, f nav.Folder) {
-	if len(f.Sub) > 0 || len(f.Notes) > 0 {
+	if len(f.Subfolders) > 0 || len(f.Notes) > 0 {
 		<details open?={ sb.folderOpen(f.RelPath) } { disclosureAttrs("dir:"+f.RelPath, sb.folderOpen(f.RelPath))... }>
 			<summary class="ui-navitem">
 				@chevron()
 				{ f.Name }
 			</summary>
 			<div class="y-tree">
-				for _, sub := range f.Sub {
+				for _, sub := range f.Subfolders {
 					@folderNode(sb, sub)
 				}
 				for _, n := range f.Notes {
@@ -356,7 +396,7 @@ templ mapTree(sb Sidebar, m nav.Map, href string) {
 			<span class="y-railitem__name">{ m.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(href) }>Open map</a>
+			<a class="y-railitem__full" href={ templ.URL(href) }>開啟地圖</a>
 			for _, branch := range m.Branches {
 				@branchNode(sb, m.RelPath, childChain(nil, branch.Heading), branch)
 			}
@@ -373,7 +413,7 @@ templ branchNode(sb Sidebar, mapPath string, chain []string, branch nav.Branch) 
 			{ branch.Heading }
 		</summary>
 		<div class="y-tree">
-			for _, sub := range branch.Sub {
+			for _, sub := range branch.Subbranches {
 				@branchNode(sb, mapPath, childChain(chain, sub.Heading), sub)
 			}
 			for _, entry := range branch.Entries {
@@ -401,7 +441,7 @@ templ entryLink(sb Sidebar, entry nav.Entry) {
 	} else {
 		<span
 			class="ui-navitem y-navitem--broken"
-			data-resolution={ entryResolutionLabel(entry.Kind) }
+			data-resolution={ entryResolutionCode(entry.Kind) }
 			title={ entryResolutionTitle(entry.Kind) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
@@ -412,12 +452,11 @@ templ entryLink(sb Sidebar, entry nav.Entry) {
 }
 
 // ============================ RIGHT RAIL ============================
-
 templ rightRail(v NoteView) {
-	<aside class="y-rail-right">
+	<aside class="y-rail-right" aria-label="閱讀輔助">
 		if len(v.TOC) > 0 {
-			<nav aria-label="On this page">
-				<div class="ui-side__label">On this page</div>
+			<nav aria-label="本頁內容">
+				<div class="ui-side__label">本頁內容</div>
 				@tocList(v)
 			</nav>
 		}
@@ -444,12 +483,12 @@ templ tocList(v NoteView) {
 // block and show the rail instead; a note with no aids renders nothing here.
 templ inlineAids(v NoteView) {
 	if v.hasAids() {
-		<div class="y-inlineaids">
+		<div class="y-inlineaids" lang="zh-Hant">
 			if len(v.TOC) > 0 {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						On this page
+						本頁內容
 					</summary>
 					@tocList(v)
 				</details>
@@ -468,13 +507,13 @@ templ inlineAids(v NoteView) {
 templ statusPanel(v NoteView) {
 	<section class={ "y-statuspanel", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel data-status-state={ statusState(v) }>
 		if v.NonInstance {
-			<p class="y-statuspanel__notice">{ status.NonInstanceReason }</p>
+			<p class="y-statuspanel__notice">{ nonInstanceReason }</p>
 		} else {
 			<div class="y-statuspanel__head">
 				<div class="y-statuspanel__row">
-					<span class="ui-side__label">Status</span>
+					<span class="ui-side__label">狀態</span>
 					if v.WriteDiagnostic == "" {
-						<span class="y-actor">actor · koopa</span>
+						<span class="y-actor">操作者 · koopa</span>
 					}
 				</div>
 				if v.Sealed {
@@ -483,14 +522,16 @@ templ statusPanel(v NoteView) {
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 				}
 			</div>
-			switch {
+			switch  {
 				case v.WriteDiagnostic != "":
-					<p class="y-statuspanel__notice">{ v.WriteDiagnostic }</p>
+					<p class="y-statuspanel__notice">
+						@browserDiagnostic("生命週期寫入目前無法使用。", v.WriteDiagnostic)
+					</p>
 				case v.NoFrontmatter:
-					<p class="y-statuspanel__notice">No frontmatter (valid).</p>
+					<p class="y-statuspanel__notice">沒有 frontmatter（合法）。</p>
 				case len(v.Transitions) == 0:
 					if !v.Sealed {
-						<p class="y-statuspanel__notice">No legal transitions.</p>
+						<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
 					}
 				default:
 					<div class="y-statuspanel__forms">
@@ -513,9 +554,9 @@ templ sealedBadge(v NoteView) {
 	<div class="y-sealline" aria-hidden="true"></div>
 	<div class="y-sealby">
 		<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>
-		鈐印 · sealed by koopa
+		鈐印 · koopa
 		if v.JustSealed {
-			· just now
+			· 剛剛
 		}
 	</div>
 	if v.SealedHash != "" {
@@ -531,14 +572,14 @@ templ sealForm(v NoteView) {
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
 		<input type="hidden" name="to" value={ v.SealTarget }/>
-		<button class="y-sealbtn" type="submit" data-seal-btn aria-label={ "Hold to certify " + v.SealTarget }>
+		<button class="y-sealbtn" type="submit" data-seal-btn aria-label={ "按住以認證 " + v.SealTarget }>
 			<span class="y-sealfill" aria-hidden="true"></span>
 			<span class="y-sealbtn__stamp" lang="ja" aria-hidden="true">印</span>
-			<span>Certify { v.SealTarget }</span>
-			<span class="y-sealbtn__hint" aria-hidden="true">hold R</span>
+			<span>認證 { v.SealTarget }</span>
+			<span class="y-sealbtn__hint" aria-hidden="true">按住 R</span>
 		</button>
 	</form>
-	<p class="y-sealpoem">The last step is koopa's alone. Hold — once, not withdrawn.</p>
+	<p class="y-sealpoem">最後一步只由 koopa 完成。按住一次，不撤回。</p>
 }
 
 // transitionForm is a quiet, one-click secondary transition (everything that is
@@ -571,29 +612,34 @@ templ diagnostics(v NoteView) {
 	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {
 		<section>
 			<div class="ui-side__label y-diaghead">
-				Diagnostics
+				診斷
 				<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 			</div>
 			<div class="y-diaglist">
 				if v.Diagnostic != "" {
 					<div class="y-diag">
 						<div class="y-diag__label">frontmatter</div>
-						<p class="y-diag__body">{ v.Diagnostic }</p>
+						<p class="y-diag__body">
+							@browserDiagnostic("frontmatter 不是有效的 YAML。", v.Diagnostic)
+						</p>
 					</div>
 				}
 				for _, d := range v.RenderDiagnostics {
 					<div class="y-diag">
 						<div class="y-diag__label">{ string(d.Kind) }</div>
 						<p class="y-diag__body">
+							{ renderDiagnosticSummary(d.Kind) }
 							if d.Target != "" {
 								<code>{ d.Target }</code>
 							}
-							{ d.Message }
+							if d.Message != "" {
+								<code lang="en">{ d.Message }</code>
+							}
 						</p>
 					</div>
 				}
 			</div>
-			<p class="y-diag__note">States only; never repairs.</p>
+			<p class="y-diag__note">只陳述狀態，不自動修復。</p>
 		</section>
 	}
 }
@@ -612,19 +658,21 @@ templ diagnostics(v NoteView) {
 templ sealBar(v NoteView) {
 	if v.Diagnostic == "" || v.NonInstance {
 		<div class={ "y-sealbar", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel data-status-state={ statusState(v) }>
-			switch {
+			switch  {
 				case v.NonInstance:
-					<p class="y-sealbar__notice">{ status.NonInstanceReason }</p>
+					<p class="y-sealbar__notice">{ nonInstanceReason }</p>
 				case v.WriteDiagnostic != "":
-					<p class="y-sealbar__notice">{ v.WriteDiagnostic }</p>
+					<p class="y-sealbar__notice">
+						@browserDiagnostic("生命週期寫入目前無法使用。", v.WriteDiagnostic)
+					</p>
 				case v.NoFrontmatter:
-					<p class="y-sealbar__notice">No frontmatter (valid).</p>
+					<p class="y-sealbar__notice">沒有 frontmatter（合法）。</p>
 				case v.Sealed:
 					<div class="y-sealed">
 						<span class="y-sealed__stamp" lang="ja" aria-hidden="true">済</span>
 						<span class="y-sealed__label">{ v.SealTarget }</span>
 					</div>
-					<span class="y-actor">鈐印 · sealed</span>
+					<span class="y-actor">鈐印 · 已認證</span>
 					if len(v.Transitions) > 0 {
 						<span class="y-sealbar__spacer"></span>
 						@legalTransitionForms(v)

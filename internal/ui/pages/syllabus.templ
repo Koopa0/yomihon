@@ -17,7 +17,7 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@syllabusRail(v)
-			<main class="y-main">
+			<main id="main-content" tabindex="-1" class="y-main">
 				<div class="y-syl">
 					@syllabusHead(v)
 					for _, sec := range v.Branches {
@@ -34,16 +34,16 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 // backing field for it, and no data means no render — the same treatment the
 // reading page gives a note's subtitle.
 templ syllabusHead(v PathView) {
-	<div class="y-syl-kicker">SYLLABUS · 学習パス</div>
+	<div class="y-syl-kicker">課綱 · <span lang="ja">学習パス</span></div>
 	<h1 class="y-title">{ v.Title }</h1>
 	<div class="y-metarow">
-		<span>{ countLabel(v.Parts, "part") }</span>
+		<span>{ countLabel(v.Parts, "部") }</span>
 		if v.Modules > 0 {
 			<span aria-hidden="true">·</span>
-			<span>{ countLabel(v.Modules, "module") }</span>
+			<span>{ countLabel(v.Modules, "模組") }</span>
 		}
 		<span aria-hidden="true">·</span>
-		<span>{ countLabel(v.Entries, "lesson") }</span>
+		<span>{ countLabel(v.Entries, "課") }</span>
 		<span class="y-syl-metaspacer"></span>
 		if v.Ready > 0 {
 			<span class="y-syl-ready">
@@ -70,11 +70,11 @@ templ syllabusHead(v PathView) {
 // completed or not — expands the same.
 templ partBlock(sec PathBranchView) {
 	<section class="y-part-block">
-		<div class="y-part" id={ sec.Anchor }>
+		<h2 class="y-part" id={ sec.Anchor }>
 			<span class="y-part__num">{ sec.Ordinal }</span>
 			<span class="y-part__name">{ sec.Heading }</span>
 			@branchCount(sec.Ready, sec.Total, "y-partcount")
-		</div>
+		</h2>
 		for _, l := range sec.Entries {
 			@entryRow(l)
 		}
@@ -90,11 +90,7 @@ templ partBlock(sec PathBranchView) {
 // than being flattened (nav's tree is rendered as-is, never forced to a shape).
 templ moduleBlock(sec PathBranchView) {
 	<div class="y-module">
-		<div class="y-module__label">
-			<span class="y-module__tag">MODULE { strconv.Itoa(sec.Num) }</span>
-			<span class="y-module__name">{ sec.Heading }</span>
-			<span class="y-module__rule" aria-hidden="true"></span>
-		</div>
+		@moduleHeading(sec)
 		for _, l := range sec.Entries {
 			@entryRow(l)
 		}
@@ -102,6 +98,36 @@ templ moduleBlock(sec PathBranchView) {
 			@moduleBlock(sub)
 		}
 	</div>
+}
+
+// moduleHeading preserves the outline represented by nav's recursive branch
+// tree. HTML has only six heading levels, so unusually deep branches remain at
+// h6 rather than falling out of the document outline entirely.
+templ moduleHeading(sec PathBranchView) {
+	switch  {
+		case sec.Depth <= 1:
+			<h3 class="y-module__label">
+				@moduleHeadingContent(sec)
+			</h3>
+		case sec.Depth == 2:
+			<h4 class="y-module__label">
+				@moduleHeadingContent(sec)
+			</h4>
+		case sec.Depth == 3:
+			<h5 class="y-module__label">
+				@moduleHeadingContent(sec)
+			</h5>
+		default:
+			<h6 class="y-module__label">
+				@moduleHeadingContent(sec)
+			</h6>
+	}
+}
+
+templ moduleHeadingContent(sec PathBranchView) {
+	<span class="y-module__tag">模組 { strconv.Itoa(sec.Num) }</span>
+	<span class="y-module__name">{ sec.Heading }</span>
+	<span class="y-module__rule" aria-hidden="true"></span>
 }
 
 // entryRow links governed unique targets and leaves every warning reason visible
@@ -118,7 +144,7 @@ templ entryRow(l PathEntryView) {
 	} else {
 		<span
 			class="y-lesson y-lesson--broken"
-			data-resolution={ entryResolutionLabel(l.Kind) }
+			data-resolution={ entryResolutionCode(l.Kind) }
 			title={ entryResolutionTitle(l.Kind) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
@@ -134,13 +160,13 @@ templ entryRow(l PathEntryView) {
 // current one active) over the "On this path" part jump-nav and the path-level
 // progress bar.
 templ syllabusRail(v PathView) {
-	<aside class="y-rail-left" id="nav-rail">
-		<div class="ui-side__label y-syl-raillabel">Study paths</div>
+	<aside class="y-rail-left" id="nav-rail" aria-label="學習路徑導覽">
+		<div class="ui-side__label y-syl-raillabel">學習路徑</div>
 		for _, p := range v.Paths {
 			@pathSwitch(p)
 		}
 		if len(v.Branches) > 0 {
-			<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">On this path</div>
+			<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">本路徑</div>
 			for _, sec := range v.Branches {
 				<a class="ui-navitem y-pathitem" href={ templ.URL("#" + sec.Anchor) }>
 					<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
@@ -175,7 +201,7 @@ templ pathSwitch(p PathLink) {
 // is a data-fill bucket (nearest 5%) resolved by CSS — no inline style, no JS.
 templ pathProgress(v PathView) {
 	<div class="y-progress">
-		<div class="y-progress__label">{ strconv.Itoa(v.Ready) } / { strconv.Itoa(v.Entries) } ready</div>
+		<div class="y-progress__label">{ strconv.Itoa(v.Ready) } / { strconv.Itoa(v.Entries) } 已完成</div>
 		<div class="y-progress__track">
 			<div class="y-progress__fill" data-fill={ strconv.Itoa(fillBucket(v.Ready, v.Entries)) }></div>
 		</div>
@@ -186,7 +212,7 @@ templ pathProgress(v PathView) {
 // picks the badge shape (a part badge vs the leaner rail count).
 templ branchCount(ready, total int, cls string) {
 	if total > 0 && ready == total {
-		<span class={ cls, "is-complete" }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) } ready</span>
+		<span class={ cls, "is-complete" }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) } 已完成</span>
 	} else {
 		<span class={ cls }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) }</span>
 	}

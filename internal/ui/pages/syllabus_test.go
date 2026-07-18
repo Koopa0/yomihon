@@ -1,13 +1,54 @@
 package pages
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
+
+func TestSyllabusUsesTheBranchTreeAsItsHeadingOutline(t *testing.T) {
+	t.Parallel()
+
+	view := PathView{
+		Title: "Path",
+		Branches: []PathBranchView{{
+			Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0,
+			Sub: []PathBranchView{{
+				Num: 1, Heading: "Module", Depth: 1,
+				Sub: []PathBranchView{{
+					Num: 2, Heading: "Unit", Depth: 2,
+					Sub: []PathBranchView{{Num: 3, Heading: "Topic", Depth: 3}},
+				}},
+			}},
+		}},
+	}
+
+	var out bytes.Buffer
+	if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &out); err != nil {
+		t.Fatalf("render syllabus: %v", err)
+	}
+	html := out.String()
+	for _, want := range []string{
+		`<h1 class="y-title">Path</h1>`,
+		`<h2 class="y-part" id="part-1">`,
+		`<h3 class="y-module__label">`,
+		`<h4 class="y-module__label">`,
+		`<h5 class="y-module__label">`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("syllabus heading outline missing %q; html = %q", want, html)
+		}
+	}
+	if strings.Contains(html, `<div class="y-part"`) || strings.Contains(html, `<div class="y-module__label"`) {
+		t.Errorf("syllabus renders visual-only branch headings; html = %q", html)
+	}
+}
 
 // TestBuildPathView pins the pure transform's contract: a branch's total counts
 // linked and warning rows, Ready counts only sealed resolved entries, and
@@ -23,7 +64,7 @@ func TestBuildPathView(t *testing.T) {
 		Branches: []nav.Branch{
 			{
 				Heading: "Data", Level: 2,
-				Sub: []nav.Branch{
+				Subbranches: []nav.Branch{
 					{
 						Heading: "Text", Level: 3,
 						Entries: []nav.Entry{

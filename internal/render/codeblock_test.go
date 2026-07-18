@@ -13,7 +13,7 @@ import (
 // uncrashed, still-escaped output rather than erroring or being skipped.
 func TestFencedCodeBlockHighlighting(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	tests := []struct {
 		name    string

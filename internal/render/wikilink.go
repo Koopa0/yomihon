@@ -9,19 +9,16 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// blockPlaceholder is the marker substituted into the markdown source at
-// a callout/embed/mermaid site and replaced with the real (already
-// rendered) HTML after goldmark converts. A short, empty, open-then-close
-// tag pair is safe whether goldmark's parser sees it as a standalone HTML
-// block (surrounded by blank lines, as callouts and mermaid blocks are
-// emitted) or as two raw inline HTML tokens mid-line (as an inline embed
-// can be) — unlike substituting the real HTML directly inline, which
-// risks goldmark re-parsing already-rendered markup as markdown text.
+// blockPlaceholder is the reserved marker substituted into markdown source
+// for first-party markup and replaced after goldmark converts. An HTML comment
+// is one indivisible raw node both inline and at block position, so it neither
+// acquires a paragraph wrapper nor asks the authored-HTML allowlist to admit a
+// general-purpose element. renderBody neutralizes authored copies of this
+// prefix before preprocess can create real placeholders.
 func blockPlaceholder(i int) string {
-	return fmt.Sprintf(`<div data-yomihon-block="%d"></div>`, i)
+	return fmt.Sprintf(`<!--yomihon-block:%d-->`, i)
 }
 
 func substituteBlocks(htmlOut string, blocks []string) string {
@@ -81,9 +78,8 @@ func looksRisky(line string) bool {
 // this vault's Obsidian dialect elements goldmark's own parser has no
 // concept of — wikilinks, embeds, callouts, and mermaid fences — before
 // goldmark ever runs. It tracks fenced-code-block state (``` / ~~~) and
-// Obsidian %%...%% comment state as it scans, and treats neither as
-// syntax to convert; %% state is line-spanning, carried in inComment
-// across the whole call (see convertLine). At most one risky-fence
+// treats its contents as literal source. Obsidian comments have already been
+// removed by the shared source transform. At most one risky-fence
 // diagnostic is recorded per call (one warning, not one per
 // occurrence) — this dedup is scoped to a single
 // preprocess call, not threaded across the recursive calls render makes
@@ -93,7 +89,7 @@ func looksRisky(line string) bool {
 // each region gets its own accurate warning, at the cost of occasional
 // (harmless) redundancy across regions, rather than plumbing a shared
 // counter through every recursive render call for a rare case.
-func (r *Renderer) preprocess(body string, allowEmbed embedPolicy, diags *[]Diagnostic) (out string, blocks []string) {
+func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, diags *[]Diagnostic) (out string, blocks []string) {
 	st := &preprocessState{lines: strings.Split(body, "\n")}
 	st.kept = make([]string, 0, len(st.lines))
 
@@ -107,7 +103,7 @@ func (r *Renderer) preprocess(body string, allowEmbed embedPolicy, diags *[]Diag
 		case r.tryConsumeCallout(st, allowEmbed, diags):
 			// handled: a known-type callout block was consumed.
 		default:
-			st.kept = append(st.kept, r.convertLine(st.lines[st.i], &st.inComment, allowEmbed, diags, &st.blocks))
+			st.kept = append(st.kept, r.convertWikilinks(st.lines[st.i], allowEmbed, diags, &st.blocks))
 			st.i++
 		}
 	}
@@ -127,14 +123,13 @@ type preprocessState struct {
 	inFence            bool
 	fenceByte          byte
 	riskyFenceReported bool
-	inComment          bool
 }
 
 // scanFenceLine handles one line while st.inFence is true: either it
 // closes the fence, or it's fence content, checked once for a
 // risky-looking pattern worth a single warning (see preprocess's doc
 // comment on the dedup scope).
-func (r *Renderer) scanFenceLine(st *preprocessState, diags *[]Diagnostic) {
+func (r *Pipeline) scanFenceLine(st *preprocessState, diags *[]Diagnostic) {
 	line := st.lines[st.i]
 	switch {
 	case fenceCloses(line, st.fenceByte):
@@ -154,7 +149,7 @@ func (r *Renderer) scanFenceLine(st *preprocessState, diags *[]Diagnostic) {
 // instead fully consumed by consumeMermaid and replaced with a block
 // placeholder, never left open for scanFenceLine. Reports whether the
 // current line was a fence opener at all.
-func (r *Renderer) tryOpenFence(st *preprocessState) bool {
+func (r *Pipeline) tryOpenFence(st *preprocessState) bool {
 	marker, info, ok := fenceOpen(st.lines[st.i])
 	if !ok {
 		return false
@@ -177,13 +172,13 @@ func (r *Renderer) tryOpenFence(st *preprocessState) bool {
 // stays valid HTML and human-readable) and once URL-encoded in
 // data-mermaid-code (net/url.QueryEscape's output charset — letters,
 // digits, "-_.~%+" — never needs further HTML-attribute escaping, so no
-// double-encoding risk). assets/js/yomihon.js reads that attribute,
+// double-encoding risk). assets/js/diagrams.js reads that attribute,
 // URL-decodes it, and replaces the element's content with mermaid's
 // rendered SVG client-side — mirroring koopa0.dev's markdown.service.ts
 // processMermaidDiagrams/renderMermaid DOM shape exactly (see that file's
 // doc comments); the loading mechanism differs only because yomihon has no
 // bundler.
-func (r *Renderer) consumeMermaid(st *preprocessState, marker byte) {
+func (r *Pipeline) consumeMermaid(st *preprocessState, marker byte) {
 	st.i++
 	start := st.i
 	for st.i < len(st.lines) && !fenceCloses(st.lines[st.i], marker) {
@@ -208,7 +203,7 @@ func (r *Renderer) consumeMermaid(st *preprocessState, marker byte) {
 // false — the line is left for ordinary per-line processing and
 // goldmark's own native blockquote parsing, so nothing is silently
 // dropped (see preprocess's caller doc).
-func (r *Renderer) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, diags *[]Diagnostic) bool {
+func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, diags *[]Diagnostic) bool {
 	typ, fold, title, ok := calloutStart(st.lines[st.i])
 	if !ok {
 		return false
@@ -238,35 +233,9 @@ func (r *Renderer) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 	return true
 }
 
-// convertLine handles one line's %%...%% comment state and delegates the
-// non-commented segments to convertWikilinks. inComment persists across
-// calls (the caller passes the same pointer for every line of one
-// preprocess call), so a comment opened on one line and closed on a
-// later one is honored — Obsidian comments are not restricted to a
-// single line.
-func (r *Renderer) convertLine(line string, inComment *bool, allowEmbed embedPolicy, diags *[]Diagnostic, blocks *[]string) string {
-	parts := strings.Split(line, "%%")
-	var b strings.Builder
-	for i, part := range parts {
-		if i > 0 {
-			b.WriteString("%%")
-		}
-		if *inComment {
-			b.WriteString(part)
-		} else {
-			b.WriteString(r.convertWikilinks(part, allowEmbed, diags, blocks))
-		}
-		if i < len(parts)-1 {
-			*inComment = !*inComment
-		}
-	}
-	return b.String()
-}
-
-// convertWikilinks scans text (one line, or one %%-delimited segment of a
-// line — never spanning a newline) for [[...]] and ![[...]] and replaces
+// convertWikilinks scans one source line for [[...]] and ![[...]] and replaces
 // each with its rendered form.
-func (r *Renderer) convertWikilinks(text string, allowEmbed embedPolicy, diags *[]Diagnostic, blocks *[]string) string {
+func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *[]Diagnostic, blocks *[]string) string {
 	return wikilinkToken.ReplaceAllStringFunc(text, func(m string) string {
 		embed := strings.HasPrefix(m, "!")
 		raw := m
@@ -286,7 +255,9 @@ func (r *Renderer) convertWikilinks(text string, allowEmbed embedPolicy, diags *
 			*blocks = append(*blocks, blockHTML)
 			return blockPlaceholder(len(*blocks) - 1)
 		}
-		return r.renderWikilink(target, display, diags)
+		linkHTML := r.renderWikilink(target, display, diags)
+		*blocks = append(*blocks, linkHTML)
+		return blockPlaceholder(len(*blocks) - 1)
 	})
 }
 
@@ -304,11 +275,10 @@ func notesHref(p string) string {
 }
 
 // renderWikilink renders a plain (non-embed) [[target|display]]. The
-// output is always a single short open/close tag pair around escaped
-// text, so — unlike an embed's output — it is safe to splice directly
-// into the line instead of going through the block-placeholder
-// indirection.
-func (r *Renderer) renderWikilink(target, display string, diags *[]Diagnostic) string {
+// output is always a single short open/close tag pair around escaped text.
+// Its caller still routes it through a reserved placeholder: authored raw
+// HTML and renderer-owned markup must never share the same trust decision.
+func (r *Pipeline) renderWikilink(target, display string, diags *[]Diagnostic) string {
 	res := r.idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unique:
@@ -346,7 +316,7 @@ func (r *Renderer) renderWikilink(target, display string, diags *[]Diagnostic) s
 // take on. The placeholder names the file so the reader knows it is there.
 // Ambiguous/unresolved get the same diagnostic-styled treatment as a broken
 // wikilink.
-func (r *Renderer) renderEmbed(target string, allowEmbed embedPolicy, diags *[]Diagnostic) string {
+func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, diags *[]Diagnostic) string {
 	if allowEmbed == embedsDenied {
 		return r.renderWikilink(target, target, diags)
 	}
@@ -372,15 +342,15 @@ func (r *Renderer) renderEmbed(target string, allowEmbed embedPolicy, diags *[]D
 			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <span>%s</span> — inline display not yet supported]</div>`,
 				html.EscapeString(path.Base(res.Path)))
 		}
-		n, err := vault.ReadNote(r.root, res.Path)
-		if err != nil {
+		body, ok := r.transclusions.Transclusion(res.Path)
+		if !ok {
 			*diags = append(*diags, Diagnostic{
 				Kind: DiagWikilinkBroken, Target: target,
-				Message: fmt.Sprintf("embed target %q could not be read: %v", res.Path, err),
+				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.Path),
 			})
 			return fmt.Sprintf(`<span class="wikilink-broken">![[%s]]</span>`, html.EscapeString(target))
 		}
-		inner := r.render(n.Body, embedsDenied)
+		inner := r.render(body, embedsDenied)
 		*diags = append(*diags, inner.Diagnostics...)
 		return `<div class="embed">` + inner.HTML + `</div>`
 	default:

@@ -8,18 +8,18 @@ import "testing"
 // build. The corpus and query are stable so the number is meaningful across
 // runs of a single machine.
 func BenchmarkSearch(b *testing.B) {
-	idx := BuildFromDocs(benchDocs(), validArtifactPolicy(b))
+	idx := NewIndex(benchDocs(), validArtifactPolicy(b))
 	q := Parse("kafka concept")
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = idx.Search(q)
+		_, _ = idx.Search(q) //nolint:errcheck // benchmark fixture is validated before timing; only ranking cost is measured
 	}
 }
 
 // benchDocs is a small fixed corpus spanning a few domains and statuses, with
 // the query term present in some notes and absent in others, so matching does
 // real work rather than trivially hitting or missing every entry.
-func benchDocs() []Doc {
+func benchDocs() []Document {
 	domains := []string{"golang", "japanese", "distributed", "rust", "database"}
 	statuses := []string{"seed", "growing", "evergreen"}
 	bodies := []string{
@@ -29,10 +29,10 @@ func benchDocs() []Doc {
 		"ownership and borrowing enforce memory safety without a collector",
 		"a b-tree index keeps range scans on sorted keys cheap",
 	}
-	docs := make([]Doc, 0, len(bodies)*3)
+	docs := make([]Document, 0, len(bodies)*3)
 	for i, body := range bodies {
 		for j := range 3 {
-			docs = append(docs, Doc{
+			docs = append(docs, Document{
 				RelPath:   "Concepts/" + domains[i] + "/note" + string(rune('A'+j)) + ".md",
 				Title:     domains[i] + " concept " + string(rune('A'+j)),
 				NoteType:  "concept",

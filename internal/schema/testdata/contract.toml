@@ -5,6 +5,10 @@ schema_version = "1"
 [enums]
 type = ["inbox", "transcript", "source-note", "concept", "writing", "lesson", "system", "guide", "template", "moc", "source-map", "study-path", "topic-map"]
 domain = ["golang", "japanese", "meta"]
+source_kind = ["course"]
+source_provider = ["example"]
+level = ["fundamental"]
+map_kind = ["topic"]
 
 [enums.status]
 note   = ["captured", "cleaned", "seedling", "growing", "evergreen", "imported", "draft", "ready", "archived"]
@@ -15,7 +19,7 @@ lesson = ["imported", "draft", "ready", "archived"]
 required = ["title", "type", "domain", "status", "created", "updated"]
 required_inbox = ["title", "type", "status", "created", "updated"]
 domain_exempt_types = ["system", "guide", "template"]
-known = ["title", "aliases", "type", "domain", "topics", "status", "created", "updated"]
+known = ["title", "aliases", "type", "domain", "topics", "status", "created", "updated", "based_on", "source_locator", "lang"]
 lesson_only = ["slug", "title_en"]
 
 [fields.status_group]
@@ -23,6 +27,8 @@ system = ["system", "template", "guide"]
 lesson = ["lesson"]
 
 [rules]
+domain_equals_folder_under = ["Concepts"]
+concept_requires_provenance = ["based_on", "source_locator"]
 slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
 forbid_tag_with_slash = true
 

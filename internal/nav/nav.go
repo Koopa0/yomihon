@@ -1,5 +1,6 @@
-// Package nav builds the vault's read-only navigation model. It turns the
-// vault on disk into the structures used by the sidebar and Home:
+// Package nav builds the vault's read-only navigation model. It turns a
+// scanner-captured vault projection into the structures used by the sidebar
+// and Home:
 //
 //  1. a lifecycle folder tree (browse every note without typing a URL),
 //  2. parsed map-note trees (heading branches -> resolved note entries, in
@@ -25,7 +26,6 @@ package nav
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -45,38 +45,38 @@ type Resolver interface {
 	Resolve(name string) graph.Resolution
 }
 
-// Model is the whole navigation model, built
-// once and read-only afterward.
+// Model is the complete navigation projection, built once and read-only
+// afterward.
 type Model struct {
-	// NavigationDiagnostic explains why contract-derived Paths and Maps are
+	// navigationDiagnostic explains why contract-derived paths and maps are
 	// unavailable. It is empty when navigation roles are valid.
-	NavigationDiagnostic string
-	// ArtifactDiagnostic explains why instance projections are unavailable. It
+	navigationDiagnostic string
+	// artifactDiagnostic explains why instance projections are unavailable. It
 	// is empty when the artifact policy is valid.
-	ArtifactDiagnostic string
+	artifactDiagnostic string
 
-	// Folders are the top-level lifecycle folders in the vault's own
+	// folders are the top-level lifecycle folders in the vault's own
 	// artifact-lifecycle order (see lifecycleOrder), each holding its notes
 	// and subfolders recursively.
-	Folders []Folder
-	// RootNotes are files that live at the vault root itself (README.md,
+	folders []Folder
+	// rootNotes are files that live at the vault root itself (README.md,
 	// CLAUDE.md, ...), which belong to no top-level folder.
-	RootNotes []NoteRef
-	// Paths are study-path map trees in vault path order.
-	Paths []Map
-	// Maps are every other map-note tree, ordered by domain and then title.
-	Maps []Map
-	// Journal is the most recent Diary markdown entries, newest first. It comes
+	rootNotes []NoteRef
+	// paths are study-path map trees in vault path order.
+	paths []Map
+	// maps are every other map-note tree, ordered by domain and then title.
+	maps []Map
+	// journal is the most recent captured journal entries, newest first. It comes
 	// from the scanner's file listing and mtime capture, independent of note type.
-	Journal []JournalEntry
-	// Reports enumerates System/reports/ — the .md reports first, then the
+	journal []JournalEntry
+	// reports enumerates System/reports/ — the .md reports first, then the
 	// daily-briefing/ HTML briefings; contents are never parsed.
-	Reports []Report
-	// KnowledgeNotes are typed markdown notes in vault path order. Home sorts a
+	reports []Report
+	// knowledgeNotes are typed markdown notes in vault path order. Home sorts a
 	// copy by Modified for its recent-changes block; the time is the scanner's
 	// captured value, so rendering never stats a note. This projection is empty
 	// when the artifact policy is unavailable.
-	KnowledgeNotes []NoteSummary
+	knowledgeNotes []NoteSummary
 
 	// placementIndex maps a note's rel-path to every map placement that lists it,
 	// built once so the sidebar can open each containing branch without re-walking
@@ -86,6 +86,96 @@ type Model struct {
 	// once so the sidebar can show a note's same-directory siblings without
 	// descending the folder tree per request. Read it through Siblings.
 	dirNotes map[string][]NoteRef
+}
+
+// NavigationDiagnostic explains why contract-derived paths and maps are
+// unavailable. It is empty when navigation roles are valid.
+func (m *Model) NavigationDiagnostic() string {
+	if m == nil {
+		return ""
+	}
+	return m.navigationDiagnostic
+}
+
+// ArtifactDiagnostic explains why instance projections are unavailable. It is
+// empty when the artifact policy is valid.
+func (m *Model) ArtifactDiagnostic() string {
+	if m == nil {
+		return ""
+	}
+	return m.artifactDiagnostic
+}
+
+// Folders returns the top-level lifecycle folders in vault order. The complete
+// returned tree is independent of the model.
+func (m *Model) Folders() []Folder {
+	if m == nil {
+		return nil
+	}
+	return cloneFolders(m.folders)
+}
+
+// RootNotes returns the files that live at the vault root itself.
+func (m *Model) RootNotes() []NoteRef {
+	if m == nil {
+		return nil
+	}
+	return slices.Clone(m.rootNotes)
+}
+
+// Paths returns the study-path map trees in vault path order.
+func (m *Model) Paths() []Map {
+	if m == nil {
+		return nil
+	}
+	return cloneMaps(m.paths)
+}
+
+// Maps returns every non-path map tree, ordered by domain and title.
+func (m *Model) Maps() []Map {
+	if m == nil {
+		return nil
+	}
+	return cloneMaps(m.maps)
+}
+
+// Journal returns the most recent captured journal entries, newest first.
+func (m *Model) Journal() []JournalEntry {
+	if m == nil {
+		return nil
+	}
+	return slices.Clone(m.journal)
+}
+
+// Reports returns the files captured below System/reports/.
+func (m *Model) Reports() []Report {
+	if m == nil {
+		return nil
+	}
+	return slices.Clone(m.reports)
+}
+
+// KnowledgeNotes returns typed Markdown notes in vault path order.
+func (m *Model) KnowledgeNotes() []NoteSummary {
+	if m == nil {
+		return nil
+	}
+	return slices.Clone(m.knowledgeNotes)
+}
+
+// WithoutInstanceProjections returns a request-local view that keeps ordinary
+// browsing surfaces but closes every artifact-policy-dependent projection.
+func (m *Model) WithoutInstanceProjections(diagnostic string) *Model {
+	if m == nil {
+		return &Model{artifactDiagnostic: diagnostic}
+	}
+	degraded := *m
+	degraded.artifactDiagnostic = diagnostic
+	degraded.paths = nil
+	degraded.maps = nil
+	degraded.knowledgeNotes = nil
+	degraded.placementIndex = nil
+	return &degraded
 }
 
 // NoteSummary is the navigation metadata Home needs for one knowledge note.
@@ -110,10 +200,19 @@ type JournalEntry struct {
 // Folder is one directory in the browse tree: its display name, its
 // vault-relative path, the notes directly inside it, and its subfolders.
 type Folder struct {
-	Name    string
-	RelPath string
-	Notes   []NoteRef
-	Sub     []Folder
+	Name       string
+	RelPath    string
+	Notes      []NoteRef
+	Subfolders []Folder
+}
+
+func cloneFolders(source []Folder) []Folder {
+	cloned := slices.Clone(source)
+	for i := range cloned {
+		cloned[i].Notes = slices.Clone(source[i].Notes)
+		cloned[i].Subfolders = cloneFolders(source[i].Subfolders)
+	}
+	return cloned
 }
 
 // NoteRef is one browsable file: a display name and the vault-relative path
@@ -158,62 +257,94 @@ func lifecycleRank(name string) int {
 	return len(lifecycleOrder)
 }
 
-// Build assembles the navigation model for the vault rooted at root. idx
-// resolves map-entry wikilinks and must not be nil (a wiring bug, treated the
-// same as render.New's nil Resolver). The returned error is reserved for a
-// failure to even list the vault; every finer-grained problem (an
-// unreadable note, an unresolved map entry, a malformed map) is tolerated
-// and surfaced in the model rather than returned. cmd/yomihon/main.go
-// treats a returned error the same asymmetric way it treats a graph build
-// failure: log and serve an empty model, never abort the server. mtimes is the
-// scanner-owned path-to-mtime capture for this snapshot; Build copies values
-// from it and never stats files itself.
-func Build(
-	root string,
-	idx Resolver,
-	mtimes map[string]time.Time,
+// New constructs a navigation model from one captured vault projection.
+// entries supply the canonical paths and observed modification times; notes
+// contains the successfully parsed Markdown notes keyed by canonical path.
+// A missing note is treated as an unreadable note and does not affect its
+// neighbors. New neither enumerates nor reopens the vault.
+func New(
+	entries []vault.Entry,
+	notes map[string]*vault.Note,
+	resolver Resolver,
 	roles schema.NavigationRoles,
 	policy schema.ArtifactPolicy,
-) (*Model, error) {
-	if idx == nil {
-		panic("nav: Build requires a non-nil Resolver")
+) *Model {
+	if resolver == nil {
+		panic("nav: New requires a non-nil Resolver")
 	}
 
-	paths, err := vault.List(root)
-	if err != nil {
-		return nil, fmt.Errorf("nav: build: %w", err)
+	observed := slices.Clone(entries)
+	slices.SortFunc(observed, func(a, b vault.Entry) int {
+		return cmp.Compare(a.Path(), b.Path())
+	})
+	files := make([]capturedFile, 0, len(observed))
+	for _, entry := range observed {
+		path := entry.Path()
+		note := notes[path]
+		if note != nil {
+			cloned := *note
+			cloned.RelPath = path
+			note = &cloned
+		}
+		files = append(files, capturedFile{
+			path:     path,
+			modified: entry.ModTime(),
+			note:     note,
+		})
 	}
+	return newModel(files, resolver, roles, policy)
+}
 
+// capturedFile is the portion of a scanner observation used by navigation.
+// note is nil when the file is not Markdown or could not be read.
+type capturedFile struct {
+	path     string
+	modified time.Time
+	note     *vault.Note
+}
+
+func newModel(
+	files []capturedFile,
+	resolver Resolver,
+	roles schema.NavigationRoles,
+	policy schema.ArtifactPolicy,
+) *Model {
+	paths := make([]string, 0, len(files))
+	mtimes := make(map[string]time.Time, len(files))
+	for _, file := range files {
+		paths = append(paths, file.path)
+		mtimes[file.path] = file.modified
+	}
 	m := &Model{
-		Reports: buildReports(paths),
-		Journal: buildJournal(paths, mtimes),
+		reports: buildReports(paths),
+		journal: buildJournal(paths, mtimes),
 	}
-	m.Folders, m.RootNotes = buildFolderTree(paths)
+	m.folders, m.rootNotes = buildFolderTree(paths)
 	m.dirNotes = buildDirNotes(paths)
 	if !roles.Available() {
-		m.NavigationDiagnostic = roles.Diagnostic()
+		m.navigationDiagnostic = roles.Diagnostic()
 	}
 	if !policy.Available() {
-		m.ArtifactDiagnostic = policy.Diagnostic()
-		return m, nil
+		m.artifactDiagnostic = policy.Diagnostic()
+		return m
 	}
 
-	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(root, paths, mtimes, roles, policy)
-	m.KnowledgeNotes = knowledgeNotes
+	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, policy)
+	m.knowledgeNotes = knowledgeNotes
 	if !roles.Available() {
-		return m, nil
+		return m
 	}
 
 	for _, n := range mapNotes {
 		isPath := roles.IsPathType(n.Type())
-		tree := parseMap(n, idx, statusByPath, policy, isPath)
+		tree := parseMap(n, resolver, statusByPath, policy, isPath)
 		if isPath {
-			m.Paths = append(m.Paths, tree)
+			m.paths = append(m.paths, tree)
 		} else {
-			m.Maps = append(m.Maps, tree)
+			m.maps = append(m.maps, tree)
 		}
 	}
-	slices.SortStableFunc(m.Maps, func(a, b Map) int {
+	slices.SortStableFunc(m.maps, func(a, b Map) int {
 		if byDomain := cmp.Compare(a.Domain, b.Domain); byDomain != 0 {
 			return byDomain
 		}
@@ -222,30 +353,28 @@ func Build(
 		}
 		return cmp.Compare(a.RelPath, b.RelPath)
 	})
-	m.placementIndex = buildPlacementIndex(slices.Concat(m.Paths, m.Maps))
-	return m, nil
+	m.placementIndex = buildPlacementIndex(slices.Concat(m.paths, m.maps))
+	return m
 }
 
-// collectNavigationNotes performs the model build's one markdown read pass. It
-// records statuses for entry badges, typed-note summaries for Home, and the map
-// notes whose bodies Build parses next. An unreadable note is skipped without
-// affecting its neighbors.
+// collectNavigationNotes projects already parsed notes into entry badges, Home
+// summaries, and the map notes parsed by newModel. An absent note is skipped
+// without affecting its neighbors.
 func collectNavigationNotes(
-	root string,
-	paths []string,
-	mtimes map[string]time.Time,
+	files []capturedFile,
 	roles schema.NavigationRoles,
 	policy schema.ArtifactPolicy,
 ) (map[string]string, []*vault.Note, []NoteSummary) {
 	statusByPath := make(map[string]string)
 	var mapNotes []*vault.Note
 	var knowledgeNotes []NoteSummary
-	for _, p := range paths {
+	for _, file := range files {
+		p := file.path
 		if !strings.HasSuffix(p, ".md") || policy.IsNonInstance(p) {
 			continue
 		}
-		n, err := vault.ReadNote(root, p)
-		if err != nil {
+		n := file.note
+		if n == nil {
 			continue
 		}
 		if status := n.Status(); status != "" {
@@ -254,10 +383,10 @@ func collectNavigationNotes(
 		if noteType := n.Type(); noteType != "" {
 			knowledgeNotes = append(knowledgeNotes, NoteSummary{
 				Title:    n.Title(),
-				RelPath:  n.RelPath,
+				RelPath:  p,
 				Type:     noteType,
 				Status:   n.Status(),
-				Modified: mtimes[p],
+				Modified: file.modified,
 			})
 		}
 		if roles.IsPathType(n.Type()) || roles.IsMapType(n.Type()) {
@@ -340,14 +469,14 @@ type folderBuilder struct {
 	subIdx  map[string]*folderBuilder
 }
 
-// buildFolderTree turns vault.List's flat, lexically-ordered path list into
+// buildFolderTree turns a flat, lexically ordered path list into
 // the top-level folder tree plus the vault-root notes. It mirrors the real
 // directory structure exactly, to whatever depth the vault actually has
 // (Concepts is one domain level deep, Writing/lessons/<domain> is two) —
 // it never invents levels the vault does not have, and never caps them, so
 // every file stays a single click away in the rendered tree, keeping any
 // vault file reachable in at most three clicks. Only the top level is reordered
-// into lifecycle order; deeper folders keep vault.List's lexical order.
+// into lifecycle order; deeper folders keep the captured path order.
 func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}
 	for _, p := range paths {
@@ -368,8 +497,8 @@ func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 }
 
 // ensureFolder walks dir ("Concepts/golang") from root, creating each
-// missing segment (in first-seen order, which is lexical because vault.List
-// is), and returns the deepest folder. dir == "" returns root itself.
+// missing segment in the input's lexical order, and returns the deepest
+// folder. dir == "" returns root itself.
 func ensureFolder(root *folderBuilder, dir string) *folderBuilder {
 	if dir == "" {
 		return root
@@ -395,11 +524,11 @@ func ensureFolder(root *folderBuilder, dir string) *folderBuilder {
 
 // toFolder converts a builder subtree to the read-only Folder value.
 func (fb *folderBuilder) toFolder() Folder {
-	f := Folder{Name: fb.name, RelPath: fb.relPath, Notes: fb.notes}
+	f := Folder{Name: fb.name, RelPath: fb.relPath, Notes: slices.Clone(fb.notes)}
 	if len(fb.subs) > 0 {
-		f.Sub = make([]Folder, 0, len(fb.subs))
+		f.Subfolders = make([]Folder, 0, len(fb.subs))
 		for _, s := range fb.subs {
-			f.Sub = append(f.Sub, s.toFolder())
+			f.Subfolders = append(f.Subfolders, s.toFolder())
 		}
 	}
 	return f

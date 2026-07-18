@@ -17,6 +17,63 @@ func TestBaseDeclaresTraditionalChineseDocumentLanguage(t *testing.T) {
 	}
 }
 
+func TestBaseStartsBodyWithSkipLink(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{Title: "測試"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render base: %v", err)
+	}
+	html := buf.String()
+	want := `<body><a class="y-skiplink" href="#main-content">跳至主要內容</a>`
+	if !strings.Contains(html, want) {
+		t.Errorf("Base() does not start the body with %q; html = %q", want, html)
+	}
+}
+
+func TestBaseLoadsOneModuleEntry(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{Title: "測試", Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render base: %v", err)
+	}
+	html := buf.String()
+	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js"></script>`
+	if got := strings.Count(html, entry); got != 1 {
+		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
+	}
+	if got := strings.Count(html, `<script`); got != 1 {
+		t.Errorf("Base() script elements = %d, want only the module entry; html = %q", got, html)
+	}
+}
+
+func TestBaseNeverEmitsAnUnnoncedExecutableScript(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{Title: "測試", Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render base: %v", err)
+	}
+	html := buf.String()
+	for rest := html; ; {
+		start := strings.Index(rest, "<script")
+		if start < 0 {
+			break
+		}
+		end := strings.IndexByte(rest[start:], '>')
+		if end < 0 {
+			t.Fatalf("Base() has an unterminated script tag: %q", rest[start:])
+		}
+		tag := rest[start : start+end+1]
+		if strings.Contains(tag, `type="application/json"`) {
+			rest = rest[start+end+1:]
+			continue
+		}
+		if !strings.Contains(tag, `nonce="response-nonce"`) {
+			t.Errorf("Base() executable script has no response nonce: %q", tag)
+		}
+		rest = rest[start+end+1:]
+	}
+}
+
 func TestHeaderAdvanceableChip(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -26,7 +83,7 @@ func TestHeaderAdvanceableChip(t *testing.T) {
 		wantLabel   string
 		wantVisible string
 	}{
-		{name: "known count", chrome: Chrome{Advanceable: 7, AdvanceableKnown: true}, wantChip: true, wantLabel: `aria-label="7 notes have a legal next status"`, wantVisible: ">7</a>"},
+		{name: "known count", chrome: Chrome{Advanceable: 7, AdvanceableKnown: true}, wantChip: true, wantLabel: `aria-label="7 篇筆記可進入下一個合法狀態"`, wantVisible: ">7</a>"},
 		{name: "closed policy", chrome: Chrome{}, wantChip: false},
 	}
 	for _, tt := range tests {
@@ -61,7 +118,7 @@ func TestHeaderSearchKeepsAccessibleNameWhenLabelIsVisuallyHidden(t *testing.T) 
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
-	if !strings.Contains(html, `class="y-searchbtn" href="/search" data-search-open aria-label="Search notes"`) {
+	if !strings.Contains(html, `class="y-searchbtn" href="/search" data-search-open aria-label="搜尋筆記"`) {
 		t.Errorf("header search link has no stable accessible name; html = %q", html)
 	}
 }

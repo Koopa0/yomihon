@@ -37,11 +37,12 @@ const (
 // ErrMetadataUnavailable with the contract diagnostic; text and folder queries
 // continue against the complete readable corpus.
 func (idx *Index) Search(q Query) ([]Result, error) {
-	if len(q.Tokens) == 0 && len(q.Filters) == 0 {
+	if len(q.tokens) == 0 && len(q.filters) == 0 {
 		return nil, nil
 	}
-	requiresMetadata := q.requiresMetadata()
-	if requiresMetadata && !idx.metadataAvailable {
+	metadataAvailable := idx.policy.Available()
+	requiresMetadata := q.RequiresMetadata()
+	if requiresMetadata && !metadataAvailable {
 		return nil, idx.metadataUnavailableError()
 	}
 	var titleHits, bodyHits []Result
@@ -49,17 +50,42 @@ func (idx *Index) Search(q Query) ([]Result, error) {
 		if requiresMetadata && !e.metadataCapable {
 			continue
 		}
-		if !e.matchesFilters(q.Filters) {
+		if !e.matchesFilters(q.filters) {
 			continue
 		}
 		switch {
-		case allContain(e.TitleFold, q.Tokens):
-			titleHits = append(titleHits, e.result(q.Tokens))
-		case allContain(e.PlainFold, q.Tokens):
-			bodyHits = append(bodyHits, e.result(q.Tokens))
+		case allContain(e.TitleFold, q.tokens):
+			bodyEvidence := len(q.tokens) != 0 && allContain(e.PlainFold, q.tokens)
+			titleHits = append(titleHits, e.result(q.tokens, bodyEvidence, metadataAvailable))
+		case allContain(e.PlainFold, q.tokens):
+			bodyHits = append(bodyHits, e.result(q.tokens, true, metadataAvailable))
 		}
 	}
 	return append(titleHits, bodyHits...), nil
+}
+
+// AllowedPaths returns the paths that satisfy q's structured filters. Bare
+// text tokens are deliberately ignored: callers use this set to constrain a
+// separate retrieval channel before that channel applies its own ranking.
+// Metadata filters retain Search's instance-capability behavior, including a
+// loud error when the artifact policy is unavailable. With no filters, every
+// indexed path is allowed.
+func (idx *Index) AllowedPaths(q Query) (map[string]struct{}, error) {
+	requiresMetadata := q.RequiresMetadata()
+	if requiresMetadata && !idx.policy.Available() {
+		return nil, idx.metadataUnavailableError()
+	}
+
+	paths := make(map[string]struct{}, len(idx.entries))
+	for _, e := range idx.entries {
+		if requiresMetadata && !e.metadataCapable {
+			continue
+		}
+		if e.matchesFilters(q.filters) {
+			paths[e.RelPath] = struct{}{}
+		}
+	}
+	return paths, nil
 }
 
 // allContain reports whether hay contains every token (AND). Tokens are already
@@ -113,16 +139,20 @@ func (e *entry) matchesFilter(f Filter) bool {
 
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
-func (e *entry) result(tokens []string) Result {
+func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Result {
 	status := e.Status
-	if !e.metadataCapable {
+	if !metadataAvailable || !e.metadataCapable {
 		status = ""
+	}
+	var bodySnippet string
+	if bodyEvidence {
+		bodySnippet = snippet(e.PlainText, e.PlainFold, tokens)
 	}
 	return Result{
 		RelPath: e.RelPath,
 		Title:   e.Title,
 		Status:  status,
-		Snippet: snippet(e.PlainText, e.PlainFold, tokens),
+		Snippet: bodySnippet,
 	}
 }
 

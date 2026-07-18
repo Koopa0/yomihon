@@ -17,15 +17,15 @@ var conceptLink = regexp.MustCompile(`<a href="([^"]*)" class="wikilink">`)
 //
 // A trigger stays a real navigable <a> (no-JS opens the concept note's reading
 // page — the approved degradation); it only gains data-concept + the
-// concept-link class, so yomihon.js can intercept the click and open the sheet
+// concept-link class, so lesson.js can intercept the click and open the sheet
 // instead. Like InjectTTS this is a lesson-gated post-pass over already-rendered
 // HTML — render.HTML stays a generic note renderer, and the locked wikilink
 // output is not reshaped, only annotated.
 //
 // lookup reports whether a href's decoded vault-relative path is a concept and
-// its sheet slug. The returned refs are the concept paths referenced, deduped in
+// its sheet ID. The returned refs are the concept paths referenced, deduped in
 // first-seen order, for the caller to load into the sheet's <template>s.
-func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (slug string, ok bool)) (out string, refs []string) {
+func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (id string, ok bool)) (out string, refs []string) {
 	seen := map[string]bool{}
 	out = conceptLink.ReplaceAllStringFunc(htmlOut, func(tag string) string {
 		href := conceptLink.FindStringSubmatch(tag)[1]
@@ -33,7 +33,7 @@ func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (slug str
 		if rel == "" {
 			return tag
 		}
-		slug, ok := lookup(rel)
+		id, ok := lookup(rel)
 		if !ok {
 			return tag
 		}
@@ -41,7 +41,7 @@ func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (slug str
 			seen[rel] = true
 			refs = append(refs, rel)
 		}
-		return `<a href="` + href + `" class="wikilink concept-link" data-concept="` + slug + `">`
+		return `<a href="` + href + `" class="wikilink concept-link" data-concept="` + id + `">`
 	})
 	return out, refs
 }

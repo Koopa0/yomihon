@@ -1,15 +1,19 @@
 bin/
 tmp/
 dist/
+/yomihon
+/yomihon.exe
 .env
 .DS_Store
-# The frontend linters install here on the runner; the product build needs no Node.
+# Frontend tools install under .github/; ignore dependency trees at any depth.
+# The product build and Go package graph need no Node.
 node_modules/
-# Harness (go-spec bootstrap): lives on disk, never tracked in this repo.
-# tests/ holds only harness self-tests; yomihon's Go tests live in internal/*_test.go.
+# Optional maintainer harness internals live on disk, never in this product
+# repository. The public control plane itself (AGENTS.md and CLAUDE.md) is
+# tracked so a clean clone receives the same authority and product walls.
+# tests/ holds only local harness self-tests; yomihon's Go tests live in
+# internal/*_test.go.
 .claude/
 .agents/
 .codex/
-CLAUDE.md
-AGENTS.md
 tests/

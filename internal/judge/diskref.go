@@ -1,21 +1,21 @@
 package judge
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The disk-reference rule resolves markdown [text](path) links and backticked
-// path tokens against the filesystem, the only check that does. A relative path
-// that stays inside the vault root but has no file is a real dead link and a
-// warning; a path that escapes the root cannot be checked the same way on every
-// machine, so it is reported informational — "external, not stat'd" — and never
-// as broken, which keeps the check from ever claiming a false dead link.
+// path tokens against the action's complete captured file and directory
+// membership. A relative path that stays inside the vault root but was absent
+// from that observation is a real dead link and a warning; a path that escapes
+// the root cannot be checked the same way on every machine, so it is reported
+// informational — "external, not stat'd" — and never as broken.
 
-// checkDiskRefs stats every note's path references against root and returns the
-// findings.
-func checkDiskRefs(notes []note, root string) []Finding {
+// checkDiskRefs resolves every note's path references against the action's
+// complete captured membership and returns the findings.
+func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -24,7 +24,7 @@ func checkDiskRefs(notes []note, root string) []Finding {
 			noteDir = n.path[:idx]
 		}
 		for _, pref := range n.pathRefs {
-			if f, ok := classifyPathRef(n, noteDir, pref, root); ok {
+			if f, ok := classifyPathRef(n, noteDir, pref, scan, authority); ok {
 				out = append(out, f)
 			}
 		}
@@ -37,11 +37,34 @@ func checkDiskRefs(notes []note, root string) []Finding {
 // exists either root-relative or note-relative; a markdown link is
 // note-relative, and one that escapes the root is reported external rather than
 // stat'd.
-func classifyPathRef(n *note, noteDir string, pref pathRef, root string) (Finding, bool) {
+func classifyPathRef(
+	n *note,
+	noteDir string,
+	pref pathRef,
+	scan vault.Scan,
+	authority scanAuthority,
+) (Finding, bool) {
+	return classifyPathRefWithContains(n, noteDir, pref, authority, scan.Contains)
+}
+
+// classifyPathRefWithContains keeps privacy authorization ahead of every
+// membership observation. The injected predicate lets the lock test prove a
+// denied target is rejected without consulting the captured file domain.
+func classifyPathRefWithContains(
+	n *note,
+	noteDir string,
+	pref pathRef,
+	authority scanAuthority,
+	contains func(string) bool,
+) (Finding, bool) {
 	if pref.code {
 		rootRel, rootOK := resolveWithinRoot("", pref.target)
 		noteRel, noteOK := resolveWithinRoot(noteDir, pref.target)
-		if (rootOK && fileExists(root, rootRel)) || (noteOK && fileExists(root, noteRel)) {
+		if (rootOK && !authority.egressAllowed(rootRel)) ||
+			(noteOK && !authority.egressAllowed(noteRel)) {
+			return Finding{}, false
+		}
+		if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {
 			return Finding{}, false
 		}
 		if !rootOK {
@@ -53,7 +76,10 @@ func classifyPathRef(n *note, noteDir string, pref pathRef, root string) (Findin
 	if !ok {
 		return externalRef(n, pref), true
 	}
-	if fileExists(root, rel) {
+	if !authority.egressAllowed(rel) {
+		return Finding{}, false
+	}
+	if contains(rel) {
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rel), true
@@ -82,13 +108,7 @@ func resolveWithinRoot(baseDir, dest string) (string, bool) {
 			comps = append(comps, part)
 		}
 	}
-	return strings.Join(comps, "/"), true
-}
-
-// fileExists reports whether rel names an existing path under root.
-func fileExists(root, rel string) bool {
-	_, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- rel is a vault-relative reference resolved within the operator's own local vault root, not untrusted input
-	return err == nil
+	return vault.NormalizeNFC(strings.Join(comps, "/")), true
 }
 
 // deadInRoot is a relative path that stays inside the vault but has no file.

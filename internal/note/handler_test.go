@@ -2,6 +2,7 @@ package note_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"html"
 	"io"
@@ -14,24 +15,68 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/note"
-	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
+func openReadingVault(t *testing.T, root string) *vault.Reader {
+	t.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
+	}
+	t.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			t.Errorf("Reader.Close() error = %v", err)
+		}
+	})
+	return reader
+}
+
+func newSnapshotStore(
+	t *testing.T,
+	root string,
+	log *slog.Logger,
+	contract *schema.Contract,
+) (*snapshot.Store, *vault.Reader) {
+	t.Helper()
+	source := openReadingVault(t, root)
+	store, err := snapshot.New(t.Context(), source, log, contract)
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
+	return store, source
+}
+
+func openStatusLifecycle(t *testing.T, source *vault.Reader, contract *schema.Contract) *status.Lifecycle {
+	t.Helper()
+	lifecycle, err := status.Open(source, contract)
+	if err != nil {
+		t.Fatalf("status.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := lifecycle.Close(); err != nil {
+			t.Errorf("Lifecycle.Close() error = %v", err)
+		}
+	})
+	return lifecycle
+}
+
 // newServer wires the reading page against a real (not faked)
-// status.Service, with a nil contract (fail-closed). Good
+// status.Lifecycle, with a nil contract (fail-closed). Good
 // enough for tests whose point is that the page renders regardless of
 // whether the write face is available (reading stays fail-open even when
 // the write face is fail-closed) — NOT for exercising
 // handler.go's NoFrontmatter/Transitions branch selection, since a
-// fail-closed Service supplies a write diagnostic and note.templ's statusPanel
+// fail-closed Lifecycle supplies a write diagnostic and note.templ's statusPanel
 // switches on it first, before either of those ever matters. Use
 // newServerWithContract for anything that needs to distinguish them.
 func newServer(t *testing.T, root string) *httptest.Server {
@@ -43,54 +88,33 @@ func newServer(t *testing.T, root string) *httptest.Server {
 // can put the write face in its non-fail-closed state (no write diagnostic)
 // and actually observe which of NoFrontmatter / Transitions /
 // "no legal transitions" handler.go's show() selected.
-func newServerWithContract(t *testing.T, root string, contract *schema.Schema) *httptest.Server {
+func newServerWithContract(t *testing.T, root string, contract *schema.Contract) *httptest.Server {
 	t.Helper()
-	return newServerWithProvenance(t, root, contract, func(context.Context, string) (string, error) { return "", nil })
+	return newServerWithProvenance(t, root, contract, func(context.Context, string, [sha256.Size]byte) (string, error) {
+		return "", nil
+	})
 }
 
 func newServerWithProvenance(
 	t *testing.T,
 	root string,
-	contract *schema.Schema,
-	provenance func(context.Context, string) (string, error),
+	contract *schema.Contract,
+	provenance func(context.Context, string, [sha256.Size]byte) (string, error),
 ) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 	log := slog.New(slog.DiscardHandler)
-	var roles schema.NavigationRoles
-	var policy schema.ArtifactPolicy
-	if contract != nil {
-		roles = contract.NavigationRoles()
-		policy = contract.ArtifactPolicy()
-	}
-	svc := status.NewService(root, contract, policy)
-	store := snapshot.New(root, log, roles, policy)
-	// Build the slot index when the temp vault has a System/slots dir; a test
-	// without one leaves Slots nil (the legal "no slot machines" state).
-	var slots lesson.SlotIndex
-	var err error
-	if slotsDir := filepath.Join(root, "System", "slots"); dirExists(slotsDir) {
-		slots, err = lesson.BuildSlotIndex(slotsDir)
-		if err != nil {
-			t.Fatalf("lesson.BuildSlotIndex(%q) = %v", slotsDir, err)
-		}
-	}
-	concepts, err := lesson.BuildConceptIndex(root)
-	if err != nil {
-		t.Fatalf("lesson.BuildConceptIndex(%q) = %v", root, err)
-	}
-	h := note.NewHandler(note.Deps{
-		Root:       root,
-		Renderer:   render.New(root, store.Resolver()),
-		Status:     svc,
+	store, source := newSnapshotStore(t, root, log, contract)
+	lifecycle := openStatusLifecycle(t, source, contract)
+	h := note.New(&note.Dependencies{
+		Source:     source,
+		Status:     lifecycle.View,
 		Snapshot:   store.Current,
 		Provenance: provenance,
 		Log:        log,
-		Slots:      slots,
-		Concepts:   concepts,
 	})
 	h.Register(mux)
-	status.NewHandler(svc, log).Register(mux)
+	status.NewHandler(lifecycle, func() pages.Shell { return pages.Shell{} }, log).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -107,7 +131,7 @@ func writeLoudLessonFixture(t *testing.T, root, rel string) {
 	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
 		t.Fatalf("mkdir concepts: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("---\ntitle: は\ntype: writing\n---\n\nConcept body.\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("---\ntitle: は\ntype: writing\n---\n\nConcept body.\n"), 0o600); err != nil {
 		t.Fatalf("write concept: %v", err)
 	}
 
@@ -118,7 +142,7 @@ func writeLoudLessonFixture(t *testing.T, root, rel string) {
 	body := "---\ntitle: Loud lesson template\ntype: lesson\nstatus: ready\nslug: " + loudLessonSlug + "\n---\n\n" +
 		"| A | B |\n|---|---|\n| x | y |\n\n" +
 		"<ruby>今日<rt>きょう</rt></ruby>は晴れ。 [[は]] " + loudLessonSentinel + "\n"
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write loud lesson: %v", err)
 	}
 
@@ -130,7 +154,7 @@ func writeLoudLessonFixture(t *testing.T, root, rel string) {
 		"  - id: p1\n    template: \"{A}は {B}です\"\n    gloss_zh: \"A is B\"\n    slots:\n" +
 		"      A: {label_zh: \"主題\", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}\n" +
 		"      B: {label_zh: \"述語\", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}]}\n"
-	if err := os.WriteFile(filepath.Join(slotsDir, "template.yaml"), []byte(sidecar), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(slotsDir, "template.yaml"), []byte(sidecar), 0o600); err != nil {
 		t.Fatalf("write slot sidecar: %v", err)
 	}
 }
@@ -142,7 +166,7 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 	writeLoudLessonFixture(t, root, templateRel)
 
 	provenanceCalls := 0
-	srv := newServerWithProvenance(t, root, loadContract(t), func(context.Context, string) (string, error) {
+	srv := newServerWithProvenance(t, root, loadContract(t), func(context.Context, string, [sha256.Size]byte) (string, error) {
 		provenanceCalls++
 		return "should-not-render", nil
 	})
@@ -161,7 +185,7 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 	}
 	for _, want := range []string{
 		`data-status-state="non-instance"`,
-		"not a governable artifact",
+		"不屬於生命週期治理範圍",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("non-instance lesson page is missing %q", want)
@@ -173,7 +197,7 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 		"y-slotmachine",
 		`data-concept=`,
 		`data-concept-sheet`,
-		"actor · koopa",
+		"操作者 · koopa",
 		"sealed by koopa",
 		"git · commit",
 		"ui-status--ready",
@@ -184,6 +208,199 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 	}
 	if provenanceCalls != 0 {
 		t.Errorf("non-instance lesson provenance reads = %d, want 0", provenanceCalls)
+	}
+}
+
+func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const lessonRel = "Writing/lessons/japanese/Loud lesson.md"
+	writeLoudLessonFixture(t, root, lessonRel)
+	contractBytes, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read contract fixture: %v", err)
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("write mutable contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+	log := slog.New(slog.DiscardHandler)
+	store, source := newSnapshotStore(t, root, log, contract)
+	lifecycle := openStatusLifecycle(t, source, contract)
+	statusCaptures := 0
+	statusProvider := func() status.View {
+		statusCaptures++
+		return lifecycle.View()
+	}
+
+	mux := http.NewServeMux()
+	handler := note.New(&note.Dependencies{
+		Source:     source,
+		Status:     statusProvider,
+		Snapshot:   store.Current,
+		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:        log,
+	})
+	handler.Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET lesson status = %d, want 200", code)
+	}
+	for _, want := range []string{`action="/status"`, `data-concept=`, "y-slotmachine"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("captured-open request is missing %q", want)
+		}
+	}
+	if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("change contract between requests: %v", writeErr)
+	}
+
+	code, page = get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
+	if code != http.StatusOK {
+		t.Fatalf("second GET lesson status = %d, want 200", code)
+	}
+	const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
+	if !strings.Contains(page, diagnostic) {
+		t.Error("next reading request is missing the latched authority diagnostic")
+	}
+	for _, leaked := range []string{
+		`action="/status"`,
+		`data-tts=`,
+		`data-concept=`,
+		`data-concept-sheet`,
+		`data-advanceable-chip`,
+	} {
+		if strings.Contains(page, leaked) {
+			t.Errorf("next reading request retained %q after authority drift", leaked)
+		}
+	}
+	if statusCaptures != 2 {
+		t.Errorf("two reading requests captured status %d times, want exactly once per request", statusCaptures)
+	}
+}
+
+func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.T) {
+	t.Parallel()
+
+	for _, snapshotFirst := range []bool{true, false} {
+		name := "status-first"
+		if snapshotFirst {
+			name = "snapshot-first"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			const lessonRel = "Writing/lessons/japanese/Loud lesson.md"
+			writeLoudLessonFixture(t, root, lessonRel)
+			contractBytes, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+			if err != nil {
+				t.Fatalf("read contract fixture: %v", err)
+			}
+			contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+			if writeErr := os.WriteFile(contractPath, contractBytes, 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+				t.Fatalf("write mutable contract: %v", writeErr)
+			}
+			contract, err := schema.LoadFile(contractPath)
+			if err != nil {
+				t.Fatalf("LoadFile() error = %v", err)
+			}
+			log := slog.New(slog.DiscardHandler)
+			store, source := newSnapshotStore(t, root, log, contract)
+			lifecycle := openStatusLifecycle(t, source, contract)
+
+			var statusView status.View
+			var captured *snapshot.View
+			if snapshotFirst {
+				captured = store.Current().Capture()
+			} else {
+				statusView = lifecycle.View()
+			}
+			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+				t.Fatalf("change contract between captures: %v", writeErr)
+			}
+			if snapshotFirst {
+				statusView = lifecycle.View()
+			} else {
+				captured = store.Current().Capture()
+			}
+
+			mux := http.NewServeMux()
+			note.New(&note.Dependencies{
+				Source:     source,
+				Status:     func() status.View { return statusView },
+				Snapshot:   func() *snapshot.View { return captured },
+				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+				Log:        log,
+			}).Register(mux)
+			srv := httptest.NewServer(mux)
+			t.Cleanup(srv.Close)
+
+			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
+			if code != http.StatusOK {
+				t.Fatalf("GET lesson status = %d, want 200", code)
+			}
+			const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
+			if !strings.Contains(page, diagnostic) {
+				t.Error("reading page is missing the authority diagnostic")
+			}
+			if !strings.Contains(page, `data-status-state="unavailable"`) {
+				t.Error("reading page did not mark the status face unavailable")
+			}
+			for _, leaked := range []string{
+				`action="/status"`,
+				`data-tts=`,
+				`data-concept=`,
+				`data-concept-sheet`,
+				"y-slotmachine",
+				"操作者 · koopa",
+			} {
+				if strings.Contains(page, leaked) {
+					t.Errorf("reading page retained %q across torn authority captures", leaked)
+				}
+			}
+		})
+	}
+}
+
+func TestShowFileCapturesStatusOnce(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "guide.txt"), []byte("guide\n"), 0o600); err != nil {
+		t.Fatalf("write source fixture: %v", err)
+	}
+	log := slog.New(slog.DiscardHandler)
+	store, source := newSnapshotStore(t, root, log, nil)
+	lifecycle := openStatusLifecycle(t, source, nil)
+	statusCaptures := 0
+	mux := http.NewServeMux()
+	note.New(&note.Dependencies{
+		Source: source,
+		Status: func() status.View {
+			statusCaptures++
+			return lifecycle.View()
+		},
+		Snapshot:   store.Current,
+		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:        log,
+	}).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	code, _ := get(t, srv.URL+"/notes/guide.txt")
+	if code != http.StatusOK {
+		t.Fatalf("GET source status = %d, want 200", code)
+	}
+	if statusCaptures != 1 {
+		t.Errorf("source request captured status %d times, want exactly once", statusCaptures)
 	}
 }
 
@@ -207,7 +424,7 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 
 			provenanceCalls := 0
 			contract := loadHomeContractWithArtifactSection(t, tt.section)
-			srv := newServerWithProvenance(t, root, contract, func(context.Context, string) (string, error) {
+			srv := newServerWithProvenance(t, root, contract, func(context.Context, string, [sha256.Size]byte) (string, error) {
 				provenanceCalls++
 				return "should-not-render", nil
 			})
@@ -233,7 +450,7 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 			}
 			for _, absent := range []string{
 				`action="/status"`,
-				"actor · koopa",
+				"操作者 · koopa",
 				`data-tts=`,
 				"y-slotmachine",
 				`data-concept=`,
@@ -257,33 +474,33 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
-		contract   func(*testing.T) *schema.Schema
+		contract   func(*testing.T) *schema.Contract
 		want       string
 		wantAbsent string
 	}{
 		{
 			name:       "core contract unavailable",
-			contract:   func(*testing.T) *schema.Schema { return nil },
-			want:       "Contract unavailable — the write face is closed (fail-closed).",
+			contract:   func(*testing.T) *schema.Contract { return nil },
+			want:       status.CoreUnavailableDiagnostic,
 			wantAbsent: "contract declares no artifact policy; instance projections disabled until it does",
 		},
 		{
 			name: "artifact policy missing",
-			contract: func(t *testing.T) *schema.Schema {
+			contract: func(t *testing.T) *schema.Contract {
 				t.Helper()
 				return loadHomeContractWithArtifactSection(t, "")
 			},
 			want:       "contract declares no artifact policy; instance projections disabled until it does",
-			wantAbsent: "Contract unavailable — the write face is closed (fail-closed).",
+			wantAbsent: status.CoreUnavailableDiagnostic,
 		},
 		{
 			name: "artifact policy invalid",
-			contract: func(t *testing.T) *schema.Schema {
+			contract: func(t *testing.T) *schema.Contract {
 				t.Helper()
 				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
 			},
 			want:       `invalid artifact policy: non_instance_dirs contains "."`,
-			wantAbsent: "Contract unavailable — the write face is closed (fail-closed).",
+			wantAbsent: status.CoreUnavailableDiagnostic,
 		},
 	}
 	for _, tt := range tests {
@@ -317,7 +534,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 
 func noteMain(t *testing.T, page string) string {
 	t.Helper()
-	openAt := strings.Index(page, `<main class="y-main">`)
+	openAt := strings.Index(page, `<main id="main-content" tabindex="-1" class="y-main">`)
 	if openAt < 0 {
 		t.Fatal("note page has no main reading surface")
 	}
@@ -362,7 +579,7 @@ func statusSurfaces(t *testing.T, page string) []renderedStatusSurface {
 // loadContract is a loader fixture, not a second schema: it reuses
 // schema.LoadFile as-is against a lesson-only slice of the real contract
 // shape (testdata/contract.toml), mirroring internal/status/status_test.go.
-func loadContract(t *testing.T) *schema.Schema {
+func loadContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	s, err := schema.LoadFile(filepath.Join("testdata", "contract.toml"))
 	if err != nil {
@@ -374,7 +591,7 @@ func loadContract(t *testing.T) *schema.Schema {
 // loadHomeContract reuses the complete schema loader fixture because Home's
 // lifecycle strip needs the default note-status group, not the lesson-only
 // group exercised by the reading-page tests above.
-func loadHomeContract(t *testing.T) *schema.Schema {
+func loadHomeContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	s, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
@@ -383,7 +600,7 @@ func loadHomeContract(t *testing.T) *schema.Schema {
 	return s
 }
 
-func loadHomeContractWithArtifactSection(t *testing.T, artifactSection string) *schema.Schema {
+func loadHomeContractWithArtifactSection(t *testing.T, artifactSection string) *schema.Contract {
 	t.Helper()
 	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
@@ -406,7 +623,7 @@ func loadHomeContractWithArtifactSection(t *testing.T, artifactSection string) *
 	return contract
 }
 
-func loadHomeContractWithSections(t *testing.T, navigationSection, artifactSection string) *schema.Schema {
+func loadHomeContractWithSections(t *testing.T, navigationSection, artifactSection string) *schema.Contract {
 	t.Helper()
 	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
@@ -467,7 +684,11 @@ func get(t *testing.T, urlStr string) (code int, body string) {
 	if err != nil {
 		t.Fatalf("GET %s: %v", urlStr, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read body: %v", err)
@@ -475,13 +696,74 @@ func get(t *testing.T, urlStr string) (code int, body string) {
 	return resp.StatusCode, string(b)
 }
 
+func TestShowUsesContractDeclaredArticleLanguage(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		langLine    string
+		contract    func(*testing.T) *schema.Contract
+		wantArticle string
+	}{
+		{name: "canonicalizes declared tag", langLine: "lang: zh-hant\n", contract: loadContract, wantArticle: `lang="zh-Hant"`},
+		{name: "invalid tag is undetermined", langLine: "lang: not_a_tag\n", contract: loadContract, wantArticle: `lang="und"`},
+		{name: "missing value is undetermined", contract: loadContract, wantArticle: `lang="und"`},
+		{name: "undeclared field has no authority", langLine: "lang: ja\n", contract: loadContractWithoutArticleLanguage, wantArticle: `lang="und"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			rel := "Writing/日本語.md"
+			path := filepath.Join(root, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+				t.Fatalf("mkdir note: %v", err)
+			}
+			body := "---\ntitle: 日本語\ntype: writing\ndomain: japanese\nstatus: draft\n" + tt.langLine + "---\n\n本文\n"
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatalf("write note: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract(t))
+			code, page := get(t, srv.URL+"/notes/Writing/%E6%97%A5%E6%9C%AC%E8%AA%9E.md")
+			if code != http.StatusOK {
+				t.Fatalf("GET note = %d, want 200; body = %q", code, page)
+			}
+			want := `<article class="y-article" ` + tt.wantArticle + `>`
+			if !strings.Contains(page, want) {
+				t.Errorf("article language = %q, want markup %q", page, want)
+			}
+		})
+	}
+}
+
+func loadContractWithoutArticleLanguage(t *testing.T) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	const declared = `, "lang"]`
+	without := strings.Replace(string(data), declared, `]`, 1)
+	if without == string(data) || strings.Contains(without, declared) {
+		t.Fatal("test contract language declaration was not removed exactly once")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(path, []byte(without), 0o600); writeErr != nil { // #nosec G703 -- fixed basename under this test's TempDir
+		t.Fatalf("write contract without lang: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q): %v", path, err)
+	}
+	return contract
+}
+
 // TestReadingPageRejectsPathTraversal fires traversal-shaped requests at the
 // reading route and asserts none escapes the vault root: no request is served
 // (never 200) and no byte of a file outside the vault ever reaches the body.
-// The defense is layered — the mux cleans dot segments, the handler serves only
-// .md, and vault.ReadNote rejects any non-local path — so this pins the
-// observable contract rather than one layer; a regression in any of them that
-// let an escape through would surface here as a 200 or a leaked sentinel.
+// The defense is layered — the mux cleans dot segments, servable rejects any
+// non-local or hidden segment, and the request snapshot admits only entries the
+// rooted Reader enumerated — so this pins the observable contract rather than
+// one layer. A regression in any layer surfaces as a 200 or leaked sentinel.
 func TestReadingPageRejectsPathTraversal(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
@@ -489,13 +771,13 @@ func TestReadingPageRejectsPathTraversal(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "Notes"), 0o750); err != nil {
 		t.Fatalf("mkdir vault: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "Notes", "real.md"), []byte("a real note body\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "Notes", "real.md"), []byte("a real note body\n"), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
 	// A decoy one level above the vault root, reachable by traversal only if a
 	// layer fails. Its sentinel must never appear in any response body.
 	const sentinel = "yomihon-outside-vault-sentinel-never-serve-this"
-	if err := os.WriteFile(filepath.Join(parent, "secret.md"), []byte(sentinel+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(parent, "secret.md"), []byte(sentinel+"\n"), 0o600); err != nil {
 		t.Fatalf("write decoy: %v", err)
 	}
 	srv := newServer(t, root)
@@ -540,7 +822,7 @@ func TestShow(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "L00 テスト課.md"), []byte(lessonMD), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "L00 テスト課.md"), []byte(lessonMD), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServer(t, root)
@@ -579,7 +861,7 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 		t.Fatalf("mkdir lesson: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(lessonDir, "L00.md"),
-		[]byte("---\ntitle: L00\ntype: lesson\nstatus: draft\n---\n\n"+body), 0o644); err != nil {
+		[]byte("---\ntitle: L00\ntype: lesson\nstatus: draft\n---\n\n"+body), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 
@@ -588,7 +870,7 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 		t.Fatalf("mkdir source: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(srcDir, "S00.md"),
-		[]byte("---\ntitle: S00\ntype: source-note\nstatus: draft\n---\n\n"+body), 0o644); err != nil {
+		[]byte("---\ntitle: S00\ntype: source-note\nstatus: draft\n---\n\n"+body), 0o600); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
 
@@ -613,11 +895,11 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 // Every file the browse tree lists now opens, so a non-note resource no longer
 // meets a 404 here. The guarantee that 404 was protecting is unchanged and is
 // what this pins: a resource's markup never becomes live markup in this
-// first-party, yomihon-origin page. A note's body passes through WithUnsafe,
-// which hands raw HTML — including <script> — to the page verbatim; every other
-// kind is escaped into a source view instead, and its bytes reach the browser
-// only through the sandboxed raw endpoint. The .html below carries a script tag
-// precisely so that its inertness can be observed.
+// first-party, yomihon-origin page. A note receives only the renderer's inert
+// authored-markup subset; every other kind is escaped into a source view, and
+// its bytes reach the browser only through the sandboxed raw endpoint. The
+// .html below carries a script tag precisely so that its inertness can be
+// observed.
 func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -627,7 +909,7 @@ func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
-		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
 			t.Fatalf("write: %v", err)
 		}
 	}
@@ -663,11 +945,6 @@ func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 	}
 }
 
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
-
 // TestShowSlotMachine is the slot-machine wiring guard: a lesson whose slug
 // joins a slot sidecar gets its pattern machine spliced into the page,
 // positioned right after the lesson's first table (the 文型骨架 skeleton) and
@@ -684,7 +961,7 @@ func TestShowSlotMachine(t *testing.T) {
 	// A lesson with a table (the splice anchor) and a paragraph after it.
 	body := "---\ntitle: L01\ntype: lesson\nstatus: draft\nslug: jp-test-l01\n---\n\n" +
 		"| pattern | meaning |\n|---|---|\n| AはBです | A is B |\n\nAFTERTABLEBODY\n"
-	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 
@@ -698,7 +975,7 @@ func TestShowSlotMachine(t *testing.T) {
 		"  - id: p1\n    template: \"{A}は {B}です\"\n    gloss_zh: \"{A} 是 {B}\"\n    slots:\n" +
 		"      A: {label_zh: \"主題\", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}\n" +
 		"      B: {label_zh: \"述語\", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}]}\n"
-	if err := os.WriteFile(filepath.Join(slotsDir, "S1.yaml"), []byte(sidecar), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(slotsDir, "S1.yaml"), []byte(sidecar), 0o600); err != nil {
 		t.Fatalf("write sidecar: %v", err)
 	}
 
@@ -732,9 +1009,9 @@ func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	// A lesson with a slug but no System/slots dir at all (Slots stays nil).
+	// A lesson with a slug but no System/slots dir at all (Slots stays empty).
 	body := "---\ntitle: L02\ntype: lesson\nstatus: draft\nslug: jp-orphan\n---\n\nbody\n"
-	if err := os.WriteFile(filepath.Join(dir, "L02.md"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "L02.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
@@ -758,7 +1035,7 @@ func TestShowConceptSheet(t *testing.T) {
 		t.Fatalf("mkdir concepts: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"),
-		[]byte("---\ntitle: は (主題助詞)\ntype: concept\n---\n\nMarks the topic of the sentence.\n"), 0o644); err != nil {
+		[]byte("---\ntitle: は (主題助詞)\ntype: concept\n---\n\nMarks the topic of the sentence.\n"), 0o600); err != nil {
 		t.Fatalf("write concept: %v", err)
 	}
 
@@ -767,7 +1044,7 @@ func TestShowConceptSheet(t *testing.T) {
 		t.Fatalf("mkdir lesson: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"),
-		[]byte("---\ntitle: L01\ntype: lesson\nstatus: draft\n---\n\nThe particle [[は]] marks the topic.\n"), 0o644); err != nil {
+		[]byte("---\ntitle: L01\ntype: lesson\nstatus: draft\n---\n\nThe particle [[は]] marks the topic.\n"), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 
@@ -801,7 +1078,7 @@ func TestShowNonLessonNoConceptTriggers(t *testing.T) {
 	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
 		t.Fatalf("mkdir concepts: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("topic particle\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("topic particle\n"), 0o600); err != nil {
 		t.Fatalf("write concept: %v", err)
 	}
 	srcDir := filepath.Join(root, "Sources")
@@ -809,7 +1086,7 @@ func TestShowNonLessonNoConceptTriggers(t *testing.T) {
 		t.Fatalf("mkdir source: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(srcDir, "S.md"),
-		[]byte("---\ntitle: S\ntype: source-note\nstatus: draft\n---\n\nMentions [[は]] in passing.\n"), 0o644); err != nil {
+		[]byte("---\ntitle: S\ntype: source-note\nstatus: draft\n---\n\nMentions [[は]] in passing.\n"), 0o600); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
 
@@ -838,7 +1115,7 @@ func TestShowNotFound(t *testing.T) {
 func TestHome(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nREADME body sentinel.\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nREADME body sentinel.\n"), 0o600); err != nil {
 		t.Fatalf("write README: %v", err)
 	}
 	srv := newServer(t, root)
@@ -856,7 +1133,11 @@ func TestHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET / status = %d, want %d", resp.StatusCode, http.StatusOK)
@@ -884,42 +1165,40 @@ func TestHome(t *testing.T) {
 	}
 }
 
-// TestReadingRoutesRenderAgainstRequestSnapshot is the coherence guard for a
-// scanner swap during a request. The long-lived Renderer below is deliberately
-// bound to a stale Store whose graph does not contain Target, while the request
-// Snapshot does. Both Home and the ordinary note page must resolve the README's
-// wikilink from the request snapshot, alongside that same snapshot's navigation
-// and counts, rather than consulting the stale live resolver independently.
-func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
+// TestReadingRoutesKeepCapturedViewWhenCurrentSwaps is the coherence guard for
+// publication during a request. The provider atomically installs a different
+// current View while returning the previously current one; every projection in
+// the response must still come from that one captured value.
+func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nSee [[Target]].\n"), 0o644); err != nil {
-		t.Fatalf("write README: %v", err)
+	firstRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(firstRoot, "README.md"), []byte("# First\n\nSee [[Target]].\n"), 0o600); err != nil {
+		t.Fatalf("write first README: %v", err)
 	}
-
 	log := slog.New(slog.DiscardHandler)
-	staleStore := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
-	renderer := render.New(root, staleStore.Resolver())
-
-	conceptDir := filepath.Join(root, "Concepts")
-	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
-		t.Fatalf("mkdir Concepts: %v", err)
+	firstTarget := filepath.Join(firstRoot, "Concepts", "Target.md")
+	if err := os.MkdirAll(filepath.Dir(firstTarget), 0o750); err != nil {
+		t.Fatalf("mkdir first target parent: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(conceptDir, "Target.md"), []byte("# Target\n"), 0o644); err != nil {
-		t.Fatalf("write Target: %v", err)
+	if err := os.WriteFile(firstTarget, []byte("# First target\n"), 0o600); err != nil {
+		t.Fatalf("write first target: %v", err)
 	}
-	currentStore := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
 
-	mux := http.NewServeMux()
-	h := note.NewHandler(note.Deps{
-		Root:       root,
-		Renderer:   renderer,
-		Status:     status.NewService(root, nil, schema.ArtifactPolicy{}),
-		Snapshot:   currentStore.Current,
-		Provenance: func(context.Context, string) (string, error) { return "", nil },
-		Log:        log,
-	})
-	h.Register(mux)
+	secondRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(secondRoot, "README.md"), []byte("# Second\n\nSee [[Target]].\n"), 0o600); err != nil {
+		t.Fatalf("write second README: %v", err)
+	}
+	secondTarget := filepath.Join(secondRoot, "Writing", "Target.md")
+	if err := os.MkdirAll(filepath.Dir(secondTarget), 0o750); err != nil {
+		t.Fatalf("mkdir second target parent: %v", err)
+	}
+	if err := os.WriteFile(secondTarget, []byte("# Second target\n"), 0o600); err != nil {
+		t.Fatalf("write second target: %v", err)
+	}
+
+	firstStore, firstSource := newSnapshotStore(t, firstRoot, log, nil)
+	secondStore, _ := newSnapshotStore(t, secondRoot, log, nil)
+	lifecycle := openStatusLifecycle(t, firstSource, nil)
 
 	for _, tt := range []struct {
 		name string
@@ -930,6 +1209,20 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			var current atomic.Pointer[snapshot.View]
+			current.Store(firstStore.Current())
+			calls := 0
+			mux := http.NewServeMux()
+			note.New(&note.Dependencies{
+				Source: firstSource,
+				Status: lifecycle.View,
+				Snapshot: func() *snapshot.View {
+					calls++
+					return current.Swap(secondStore.Current())
+				},
+				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+				Log:        log,
+			}).Register(mux)
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
 			mux.ServeHTTP(rr, req)
@@ -937,9 +1230,18 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 			if rr.Code != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want %d", tt.path, rr.Code, http.StatusOK)
 			}
-			want := `<a href="/notes/Concepts/Target.md" class="wikilink">Target</a>`
-			if !strings.Contains(rr.Body.String(), want) {
-				t.Errorf("GET %s did not resolve against the request snapshot; want %q in body", tt.path, want)
+			const firstLink = `<a href="/notes/Concepts/Target.md" class="wikilink">Target</a>`
+			if !strings.Contains(rr.Body.String(), firstLink) {
+				t.Errorf("GET %s did not resolve against the captured View; want %q in body", tt.path, firstLink)
+			}
+			if strings.Contains(rr.Body.String(), `/notes/Writing/Target.md`) {
+				t.Errorf("GET %s mixed in the newly current View", tt.path)
+			}
+			if calls != 1 {
+				t.Errorf("GET %s snapshot provider calls = %d, want 1", tt.path, calls)
+			}
+			if current.Load() != secondStore.Current() {
+				t.Errorf("GET %s did not install the second View during the request", tt.path)
 			}
 		})
 	}
@@ -948,15 +1250,16 @@ func TestReadingRoutesRenderAgainstRequestSnapshot(t *testing.T) {
 func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nHome body.\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nHome body.\n"), 0o600); err != nil {
 		t.Fatalf("write README: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "plain.txt"), []byte("plain source\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plain.txt"), []byte("plain source\n"), 0o600); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
 
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
+	store, source := newSnapshotStore(t, root, log, nil)
+	lifecycle := openStatusLifecycle(t, source, nil)
 
 	for _, tt := range []struct {
 		name, path string
@@ -969,15 +1272,14 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			t.Parallel()
 			calls := 0
 			mux := http.NewServeMux()
-			note.NewHandler(note.Deps{
-				Root:     root,
-				Renderer: render.New(root, store.Current().Graph),
-				Status:   status.NewService(root, nil, schema.ArtifactPolicy{}),
-				Snapshot: func() *snapshot.Snapshot {
+			note.New(&note.Dependencies{
+				Source: source,
+				Status: lifecycle.View,
+				Snapshot: func() *snapshot.View {
 					calls++
 					return store.Current()
 				},
-				Provenance: func(context.Context, string) (string, error) { return "", nil },
+				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 				Log:        log,
 			}).Register(mux)
 			rr := httptest.NewRecorder()
@@ -1001,7 +1303,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nDashboard README sentinel.\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nDashboard README sentinel.\n"), 0o600); err != nil {
 		t.Fatalf("write README: %v", err)
 	}
 
@@ -1014,7 +1316,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 		name := fmt.Sprintf("Note %d", i)
 		full := filepath.Join(conceptDir, fmt.Sprintf("note-%d.md", i))
 		content := fmt.Sprintf("---\ntitle: %s\ntype: concept\nstatus: draft\n---\n\nbody\n", name)
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 		modified := base.Add(time.Duration(i) * 24 * time.Hour)
@@ -1030,7 +1332,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	for name, statusName := range map[string]string{"Open": "draft", "Sealed": schema.SealStatus} {
 		content := fmt.Sprintf("---\ntitle: %s\ntype: lesson\nstatus: %s\n---\n\nbody\n", name, statusName)
 		full := filepath.Join(lessonDir, name+".md")
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write lesson %s: %v", name, err)
 		}
 		if err := os.Chtimes(full, base.Add(-24*time.Hour), base.Add(-24*time.Hour)); err != nil {
@@ -1043,7 +1345,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 	pathBody := "---\ntitle: Test path\ntype: study-path\n---\n\n## Part\n\n- [[Open]]\n- [[Sealed]]\n"
 	pathFile := filepath.Join(mapDir, "path.md")
-	if err := os.WriteFile(pathFile, []byte(pathBody), 0o644); err != nil {
+	if err := os.WriteFile(pathFile, []byte(pathBody), 0o600); err != nil {
 		t.Fatalf("write study path: %v", err)
 	}
 	if err := os.Chtimes(pathFile, base.Add(-24*time.Hour), base.Add(-24*time.Hour)); err != nil {
@@ -1084,7 +1386,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 		}
 	}
 	paths := homeSection(t, body, `data-home-block="study-paths"`)
-	for _, marker := range []string{"Test path", "1 / 2 ready", "/syllabus/Maps/path.md"} {
+	for _, marker := range []string{"Test path", "1 / 2 已完成", "/syllabus/Maps/path.md"} {
 		if !strings.Contains(paths, marker) {
 			t.Errorf("Study paths block is missing %q", marker)
 		}
@@ -1092,8 +1394,8 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if !strings.Contains(body, "Dashboard README sentinel.") {
 		t.Error("Home is missing the rendered vault README body")
 	}
-	if !strings.Contains(body, `aria-label="1 notes have a legal next status"`) {
-		t.Error("Home topbar is missing the snapshot-derived pending chip")
+	if !strings.Contains(body, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
+		t.Error("Home topbar is missing the snapshot-derived advanceable chip")
 	}
 }
 
@@ -1102,17 +1404,17 @@ func TestHomeLifecycleDiagnostic(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		contract func(*testing.T) *schema.Schema
+		contract func(*testing.T) *schema.Contract
 		want     string
 	}{
 		{
 			name:     "closed core contract",
-			contract: func(*testing.T) *schema.Schema { return nil },
-			want:     "Lifecycle is unavailable while the contract is closed.",
+			contract: func(*testing.T) *schema.Contract { return nil },
+			want:     status.CoreUnavailableDiagnostic,
 		},
 		{
 			name: "missing artifact policy",
-			contract: func(t *testing.T) *schema.Schema {
+			contract: func(t *testing.T) *schema.Contract {
 				t.Helper()
 				return loadHomeContractWithArtifactSection(t, "")
 			},
@@ -1120,7 +1422,7 @@ func TestHomeLifecycleDiagnostic(t *testing.T) {
 		},
 		{
 			name: "invalid artifact policy",
-			contract: func(t *testing.T) *schema.Schema {
+			contract: func(t *testing.T) *schema.Contract {
 				t.Helper()
 				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
 			},
@@ -1150,11 +1452,104 @@ func TestHomeLifecycleDiagnostic(t *testing.T) {
 	}
 }
 
+func TestHomeUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	notePath := filepath.Join(root, "Concepts", "golang", "A.md")
+	if err := os.MkdirAll(filepath.Dir(notePath), 0o750); err != nil {
+		t.Fatalf("mkdir note parent: %v", err)
+	}
+	const noteText = `---
+title: A
+type: concept
+domain: golang
+status: seedling
+created: 2026-07-16
+updated: 2026-07-16
+based_on: source
+---
+
+body
+`
+	if err := os.WriteFile(notePath, []byte(noteText), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+
+	contractBytes, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read contract fixture: %v", err)
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+
+	log := slog.New(slog.DiscardHandler)
+	statusCaptures := 0
+	store, source := newSnapshotStore(t, root, log, contract)
+	lifecycle := openStatusLifecycle(t, source, contract)
+	requestStatus := func() status.View {
+		statusCaptures++
+		return lifecycle.View()
+	}
+	mux := http.NewServeMux()
+	handler := note.New(&note.Dependencies{
+		Source:     source,
+		Status:     requestStatus,
+		Snapshot:   store.Current,
+		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:        log,
+	})
+	handler.Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	for _, block := range []string{"recent", "lifecycle"} {
+		section := html.UnescapeString(homeSection(t, body, `data-home-block="`+block+`"`))
+		if !strings.Contains(section, ">A<") && !strings.Contains(section, "seedling") {
+			t.Errorf("captured-open %s block lost its instance projection: %q", block, section)
+		}
+	}
+	if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("change contract between requests: %v", writeErr)
+	}
+
+	code, body = get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("second GET / status = %d, want 200", code)
+	}
+	const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
+	for _, block := range []string{"recent", "lifecycle"} {
+		section := html.UnescapeString(homeSection(t, body, `data-home-block="`+block+`"`))
+		if !strings.Contains(section, diagnostic) {
+			t.Errorf("%s block missing latched authority diagnostic: %q", block, section)
+		}
+		if strings.Contains(section, ">A<") || strings.Contains(section, "seedling") {
+			t.Errorf("%s block retained instance projection after authority drift: %q", block, section)
+		}
+	}
+	if statusCaptures != 2 {
+		t.Errorf("two home requests captured status %d times, want exactly once per request", statusCaptures)
+	}
+}
+
 func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		contract *schema.Schema
+		contract *schema.Contract
 		want     string
 	}{
 		{name: "missing", contract: loadHomeContractWithArtifactSection(t, ""), want: "contract declares no artifact policy; instance projections disabled until it does"},
@@ -1195,7 +1590,7 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 				}
 			}
 			if strings.Contains(page, `data-advanceable-chip`) {
-				t.Error("Home pending chip remained available without artifact metadata")
+				t.Error("Home advanceable chip remained available without artifact metadata")
 			}
 			if !strings.Contains(page, `data-home-block="search"`) {
 				t.Error("Home search block disappeared during artifact degradation")
@@ -1233,7 +1628,7 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 		t.Errorf("Lifecycle degraded with navigation roles; section = %q", lifecycle)
 	}
 	draftRow := homeLifecycleRow(t, lifecycle, "draft")
-	if !strings.Contains(draftRow, `aria-label="1 notes">1</span>`) {
+	if !strings.Contains(draftRow, `aria-label="1 篇筆記">1</span>`) {
 		t.Errorf("Lifecycle draft count degraded with navigation roles; row = %q", draftRow)
 	}
 	paths := html.UnescapeString(homeSection(t, page, `data-home-block="study-paths"`))
@@ -1245,8 +1640,8 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 	if strings.Contains(paths, "contract declares no artifact policy; instance projections disabled until it does") {
 		t.Errorf("Study Paths falsely reports artifact failure: %q", paths)
 	}
-	if !strings.Contains(page, `aria-label="1 notes have a legal next status"`) {
-		t.Error("pending chip was suppressed by navigation-only failure")
+	if !strings.Contains(page, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
+		t.Error("advanceable chip was suppressed by navigation-only failure")
 	}
 }
 
@@ -1312,11 +1707,11 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
 	}
 	lifecycle := homeSection(t, page, `data-home-block="lifecycle"`)
 	draftRow := homeLifecycleRow(t, lifecycle, "draft")
-	if !strings.Contains(draftRow, `aria-label="1 notes">1</span>`) {
+	if !strings.Contains(draftRow, `aria-label="1 篇筆記">1</span>`) {
 		t.Errorf("draft lifecycle count includes the template or misses the instance; row = %q", draftRow)
 	}
-	if !strings.Contains(page, `aria-label="1 notes have a legal next status"`) {
-		t.Error("pending count includes the template or misses the instance")
+	if !strings.Contains(page, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
+		t.Error("advanceable count includes the template or misses the instance")
 	}
 }
 
@@ -1380,7 +1775,7 @@ func TestShowNoFrontmatter(t *testing.T) {
 	}
 	// No frontmatter block at all — legal per the contract's
 	// no_frontmatter_is_legal (e.g. drills).
-	if err := os.WriteFile(filepath.Join(dir, "d1.md"), []byte("just a drill body\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "d1.md"), []byte("just a drill body\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
@@ -1389,16 +1784,16 @@ func TestShowNoFrontmatter(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "No frontmatter") {
+	if !strings.Contains(body, "沒有 frontmatter") {
 		t.Errorf("page missing the no-frontmatter notice; body = %q", body)
 	}
-	if strings.Contains(body, "Contract unavailable") || strings.Contains(body, "fail-closed") {
+	if strings.Contains(body, status.CoreUnavailableDiagnostic) || strings.Contains(body, "fail-closed") {
 		t.Errorf("page shows the fail-closed notice even though the contract loaded; body = %q", body)
 	}
 }
 
 // TestShowTransitions exercises handler.go's default branch (view.Transitions
-// = h.statusSvc.Transitions(n.RelPath, n.Type(), n.Status())) with a loaded contract.
+// = statusView.Transitions(n.RelPath, n.Type(), n.Status())) with a loaded contract.
 // Getting the argument order backwards (Transitions(current, noteType)) or
 // swapping the switch's case order would silently render the wrong panel —
 // this test is the only one in the repo that would catch either.
@@ -1414,7 +1809,7 @@ func TestShowTransitions(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	runGit(t, root, "add", "Writing/lessons/japanese/L01.md")
@@ -1430,7 +1825,8 @@ func TestShowTransitions(t *testing.T) {
 	// draft -> [ready, archived] for actor "koopa" per
 	// testdata/contract.toml's lifecycle table (cross-checked by hand,
 	// mirroring internal/status/status_test.go's TestTransitions).
-	transitions := status.NewService(root, contract, contract.ArtifactPolicy()).Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
+	transitionSource := openReadingVault(t, root)
+	transitions := openStatusLifecycle(t, transitionSource, contract).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
@@ -1470,9 +1866,16 @@ func TestShowTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /status: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
 	if resp.StatusCode != http.StatusSeeOther {
-		b, _ := io.ReadAll(resp.Body)
+		b, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			t.Fatalf("read failed status response: %v", readErr)
+		}
 		t.Fatalf("POST /status = %d, want %d; body = %q", resp.StatusCode, http.StatusSeeOther, b)
 	}
 	if got, want := resp.Header.Get("Location"), "/notes/Writing/lessons/japanese/L01.md?sealed=1"; got != want {
@@ -1490,56 +1893,117 @@ func TestShowTransitions(t *testing.T) {
 	if after != before+1 {
 		t.Errorf("commit count = %d, want %d (exactly one new commit)", after, before+1)
 	}
-	if strings.Contains(body, "Contract unavailable") || strings.Contains(body, "fail-closed") || strings.Contains(body, "No frontmatter") {
+	if strings.Contains(body, status.CoreUnavailableDiagnostic) || strings.Contains(body, "fail-closed") || strings.Contains(body, "沒有 frontmatter") {
 		t.Errorf("page shows the wrong status-panel branch; body = %q", body)
 	}
 }
 
-// TestNewHandlerPanicsOnNilStatusPolicy mirrors
-// internal/status/handler_test.go's coverage of status.NewHandler's own
-// nil-dependency panic: a fail-closed *status.Service is a valid
-// StatusPolicy (Closed() reports true), but a literal nil is not — a
-// future caller passing one must fail at wiring time, not three calls deep
-// inside the first GET /notes/... request.
-func TestNewHandlerPanicsOnNilStatusPolicy(t *testing.T) {
+func TestNewPanicsOnNilDependencies(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if got := recover(); got != "note: New requires non-nil Dependencies" {
+			t.Fatalf("New(nil Dependencies) panic = %v, want explicit wiring diagnostic", got)
+		}
+	}()
+	note.New(nil)
+}
+
+func TestNewCopiesDependencies(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const body = "constructor ownership sentinel\n"
+	if err := os.WriteFile(filepath.Join(root, "plain.txt"), []byte(body), 0o600); err != nil {
+		t.Fatalf("write raw fixture: %v", err)
+	}
+	log := slog.New(slog.DiscardHandler)
+	store, source := newSnapshotStore(t, root, log, nil)
+	lifecycle := openStatusLifecycle(t, source, nil)
+	deps := note.Dependencies{
+		Source:     source,
+		Status:     lifecycle.View,
+		Snapshot:   store.Current,
+		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:        log,
+	}
+	handler := note.New(&deps)
+	deps.Source = openReadingVault(t, t.TempDir())
+
+	mux := http.NewServeMux()
+	handler.Register(mux)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/raw/plain.txt", http.NoBody))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET /raw/plain.txt status = %d, want 200 after caller rewired its copy", recorder.Code)
+	}
+	if got := recorder.Body.String(); got != body {
+		t.Errorf("GET /raw/plain.txt body = %q, want %q", got, body)
+	}
+}
+
+func TestNewPanicsOnNilSource(t *testing.T) {
 	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatal("NewHandler(nil StatusPolicy) did not panic")
+			t.Fatal("New(nil Source) did not panic")
 		}
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
-	note.NewHandler(note.Deps{
-		Root:       root,
-		Renderer:   render.New(root, store.Resolver()),
-		Status:     nil, // the nil under test
+	store, source := newSnapshotStore(t, root, log, nil)
+	lifecycle := openStatusLifecycle(t, source, nil)
+	note.New(&note.Dependencies{
+		Source:     nil,
+		Status:     lifecycle.View,
 		Snapshot:   store.Current,
-		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:        log,
 	})
 }
 
-// TestNewHandlerPanicsOnNilSnapshot mirrors the StatusPolicy check: a provider
-// returning an empty-but-valid snapshot is legal, but a nil provider is a
-// wiring bug that must fail at construction rather than inside the first read.
-func TestNewHandlerPanicsOnNilSnapshot(t *testing.T) {
+// TestNewPanicsOnNilStatusProvider mirrors
+// internal/status/handler_test.go's coverage of status.NewHandler's own
+// nil-dependency panic: a fail-closed lifecycle still has a valid View method,
+// but a literal nil provider is not — a
+// future caller passing one must fail at wiring time, not three calls deep
+// inside the first GET /notes/... request.
+func TestNewPanicsOnNilStatusProvider(t *testing.T) {
 	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatal("NewHandler(nil Snapshot provider) did not panic")
+			t.Fatal("New(nil Status provider) did not panic")
 		}
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store := snapshot.New(root, log, schema.NavigationRoles{}, schema.ArtifactPolicy{})
-	note.NewHandler(note.Deps{
-		Root:       root,
-		Renderer:   render.New(root, store.Resolver()),
-		Status:     status.NewService(root, nil, schema.ArtifactPolicy{}),
+	store, source := newSnapshotStore(t, root, log, nil)
+	note.New(&note.Dependencies{
+		Source:     source,
+		Status:     nil, // the nil under test
+		Snapshot:   store.Current,
+		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:        log,
+	})
+}
+
+// TestNewPanicsOnNilSnapshot mirrors the Status provider check: a provider
+// returning an empty-but-valid snapshot is legal, but a nil provider is a
+// wiring bug that must fail at construction rather than inside the first read.
+func TestNewPanicsOnNilSnapshot(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("New(nil Snapshot provider) did not panic")
+		}
+	}()
+	root := t.TempDir()
+	log := slog.New(slog.DiscardHandler)
+	_, source := newSnapshotStore(t, root, log, nil)
+	lifecycle := openStatusLifecycle(t, source, nil)
+	note.New(&note.Dependencies{
+		Source:     source,
+		Status:     lifecycle.View,
 		Snapshot:   nil, // the nil under test
-		Provenance: func(context.Context, string) (string, error) { return "", nil },
+		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:        log,
 	})
 }
@@ -1558,7 +2022,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	lessonMD := "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
-	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lessonMD), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lessonMD), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 
@@ -1568,7 +2032,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 	}
 	syllabus := "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" +
 		"## data | Data | 資料\n\n### text | Text | 文字\n\n- [[Slices]]\n"
-	if err := os.WriteFile(filepath.Join(mapsDir, "Go path.md"), []byte(syllabus), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(mapsDir, "Go path.md"), []byte(syllabus), 0o600); err != nil {
 		t.Fatalf("write syllabus: %v", err)
 	}
 
@@ -1601,7 +2065,7 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	mapNote := "---\ntitle: Reading map\ntype: topic-map\ndomain: humanities\n---\n\n## Themes\n\n- [[Ghost Essay]]\n"
-	if err := os.WriteFile(filepath.Join(mapDir, "Reading map.md"), []byte(mapNote), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(mapDir, "Reading map.md"), []byte(mapNote), 0o600); err != nil {
 		t.Fatalf("write map: %v", err)
 	}
 

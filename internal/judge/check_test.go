@@ -10,11 +10,12 @@ import (
 
 // TestCheckGolden drives the whole check engine — extraction, resolution, the
 // graph rules, the disk-reference rule, and the frontmatter checks — over
-// fixture vaults and asserts the emitted bytes equal each golden. Each golden
-// is the reference tool's sorted output over that same fixture, so a byte
-// difference is a divergence from the frozen wire format. The one deliberate
-// departure from the reference lives in its own test below, keeping every
-// golden here a faithful copy of the reference's bytes.
+// fixture vaults and asserts the emitted bytes equal each golden. The inherited
+// rule goldens are copied from the predecessor's sorted output over the same
+// fixture. The configured-supersession golden covers fields defined only by
+// this repository's vault contract extension, so its bytes come from the frozen
+// local wire contract. Deliberate inherited divergences live in dedicated tests
+// below rather than being mislabelled as predecessor output.
 func TestCheckGolden(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -32,6 +33,8 @@ func TestCheckGolden(t *testing.T) {
 		{name: "map mismatch branches", fixture: "testdata/vault-mapmismatch", golden: "testdata/golden/mapmismatch.jsonl"},
 		{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
 		{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
+		// This fixture covers the local vault contract's configured fields.
+		{name: "configured supersession", fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,22 +84,16 @@ func TestCheckSkipsFileReferencesInComments(t *testing.T) {
 	}
 }
 
-// TestCheckDropsDiaryFindings pins the drop that keeps the private daily
-// journal out of check output, across every channel a journal path could reach
-// a report through. A finding is removed when a path it touches — its citing
-// path, a collision member, or the note a link resolved to — is under Diary/;
-// and a link that resolves to a journal note's title is dropped at its source,
-// so the journal's path never lands in the finding's evidence text. The journal
-// is still scanned (see TestCollectNotesScanBoundary), so its links resolve for
-// other notes; only the reporting is suppressed. The golden is written from
-// this engine, not the reference, because the drop is exactly where the two
-// differ. The fixture pairs a broken link inside the journal and a public note
-// whose title-link resolves into the journal (both dropped) with a broken link
-// outside it (kept), so a blanket drop would fail the kept-link assertion while
-// every "no Diary/" assertion also covers the evidence-text channel.
+// TestCheckDropsDiaryFindings pins the privacy boundary across direct output
+// and secondary title evidence. Findings sourced by or resolved to the
+// configured private directory are removed. A public link whose only title
+// owner is private remains the same public broken-link finding it would be if
+// that private note did not exist; the private title neither appears in
+// evidence nor suppresses the author's own finding.
 func TestCheckDropsDiaryFindings(t *testing.T) {
 	t.Parallel()
-	got := runCheck(t, "testdata/vault-diary")
+	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
+	got := runCheck(t, root)
 	want, err := os.ReadFile("testdata/golden/diary.jsonl")
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
@@ -112,9 +109,12 @@ func TestCheckDropsDiaryFindings(t *testing.T) {
 	if !bytes.Contains(got, []byte("Notes/keep.md")) {
 		t.Error("a broken link outside the journal must still be reported")
 	}
+	if !bytes.Contains(got, []byte("Notes/links-to-diary.md")) {
+		t.Error("a public link must not disappear because a private note owns the same title")
+	}
 	// The drop holds even when the full, unfiltered set is requested, checked
 	// against the raw paths rather than the engine's own helper.
-	all, err := check("testdata/vault-diary", nil, true)
+	all, err := check(root, nil, true)
 	if err != nil {
 		t.Fatalf("check(--all): %v", err)
 	}
@@ -133,6 +133,33 @@ func TestCheckDropsDiaryFindings(t *testing.T) {
 	}
 }
 
+func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	write(t, root, "System/reference.md", "# Reference\n\n[[Missing System Target]]\n")
+
+	defaultFindings, err := check(root, nil, false)
+	if err != nil {
+		t.Fatalf("check(default): %v", err)
+	}
+	if len(defaultFindings) != 0 {
+		t.Fatalf("check(default) = %+v, want System-only finding hidden", defaultFindings)
+	}
+
+	allFindings, err := check(root, nil, true)
+	if err != nil {
+		t.Fatalf("check(--all): %v", err)
+	}
+	for i := range allFindings {
+		if allFindings[i].RuleID == "link.broken" && allFindings[i].Path == "System/reference.md" {
+			return
+		}
+	}
+	t.Fatalf("check(--all) = %+v, want System-only broken link restored", allFindings)
+}
+
 // TestTouchesDiary pins which fields make a finding count as touching the
 // private daily journal: the citing path, a collision member, and the note a
 // link resolved to all count, but the link's own target text does not — it is
@@ -142,6 +169,7 @@ func TestTouchesDiary(t *testing.T) {
 	t.Parallel()
 	diary := "Diary/2026-07-01.md"
 	public := "Notes/other.md"
+	authority := testScanAuthority(t, "Diary")
 	tests := []struct {
 		name string
 		f    Finding
@@ -156,8 +184,8 @@ func TestTouchesDiary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := touchesDiary(&tt.f); got != tt.want {
-				t.Errorf("touchesDiary(path=%q) = %v, want %v", tt.f.Path, got, tt.want)
+			if got := touchesEgressDenied(&tt.f, authority); got != tt.want {
+				t.Errorf("touchesEgressDenied(path=%q) = %v, want %v", tt.f.Path, got, tt.want)
 			}
 		})
 	}
@@ -166,6 +194,7 @@ func TestTouchesDiary(t *testing.T) {
 // runCheck runs the whole check engine over root and returns the wire bytes.
 func runCheck(t *testing.T, root string) []byte {
 	t.Helper()
+	root = judgeFixtureRoot(t, root)
 	findings, err := Check(root)
 	if err != nil {
 		t.Fatalf("Check(%q): %v", root, err)

@@ -12,11 +12,11 @@ import (
 
 const maxQueryBytes = 4096
 
-// RequestSnapshot is the search index and shell state captured from one atomic
-// vault snapshot read at request entry.
+// RequestSnapshot is the search index and shell state bound to one request
+// capture of an atomic vault generation and its artifact authority.
 type RequestSnapshot struct {
 	Index *Index
-	Shell pages.ShellData
+	Shell pages.Shell
 }
 
 // Handler serves the search face: the full GET /search page and its read-only
@@ -29,7 +29,6 @@ type RequestSnapshot struct {
 type Handler struct {
 	snapshot func() RequestSnapshot
 	log      *slog.Logger
-	runQuery func(*Index, Query) ([]Result, error)
 }
 
 // NewHandler wires the search HTTP surface. snapshot must return both values
@@ -41,7 +40,7 @@ func NewHandler(snapshotProvider func() RequestSnapshot, log *slog.Logger) *Hand
 	if log == nil {
 		panic("search: NewHandler requires a non-nil logger")
 	}
-	return &Handler{snapshot: snapshotProvider, log: log, runQuery: (*Index).Search}
+	return &Handler{snapshot: snapshotProvider, log: log}
 }
 
 // Register mounts the search routes.
@@ -62,7 +61,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	results, diagnostic := h.query(snap.Index, q)
 
 	view := pages.SearchView{Query: q, Results: viewResults(results), Diagnostic: diagnostic, Nav: snap.Shell.Nav}
-	if err := pages.Search(view, snap.Shell.Chrome(r, "Search")).Render(r.Context(), w); err != nil {
+	if err := pages.Search(view, snap.Shell.Chrome(r, "搜尋")).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search page", q, err)
 	}
 }
@@ -86,21 +85,22 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) query(idx *Index, q string) (results []Result, diagnostic string) {
-	results, err := h.runQuery(idx, Parse(q))
+	results, err := idx.Search(Parse(q))
 	if errors.Is(err, ErrMetadataUnavailable) {
 		return nil, err.Error()
 	}
 	if err != nil {
 		h.logQueryError("search query", q, err)
-		return nil, "Search is temporarily unavailable."
+		return nil, "搜尋目前暫時無法使用。"
 	}
 	return results, ""
 }
 
 func (h *Handler) logQueryError(message, rawQuery string, err error) {
 	query := Parse(rawQuery)
-	filterKeys := make([]string, 0, len(query.Filters))
-	for _, filter := range query.Filters {
+	filters := query.Filters()
+	filterKeys := make([]string, 0, len(filters))
+	for _, filter := range filters {
 		filterKeys = append(filterKeys, filter.Key)
 	}
 	h.log.Error(message,
@@ -113,13 +113,13 @@ func (h *Handler) logQueryError(message, rawQuery string, err error) {
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 	q := r.URL.Query().Get("q")
 	if len(q) > maxQueryBytes {
-		http.Error(w, "search query is too long", http.StatusBadRequest)
+		http.Error(w, "搜尋字串過長", http.StatusBadRequest)
 		return "", false
 	}
 	if strings.IndexFunc(q, func(r rune) bool {
 		return r <= 0x1f || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 	}) >= 0 {
-		http.Error(w, "search query contains control characters", http.StatusBadRequest)
+		http.Error(w, "搜尋字串含有控制字元", http.StatusBadRequest)
 		return "", false
 	}
 	return q, true

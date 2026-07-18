@@ -1,12 +1,13 @@
-// Package note is the reading feature: it loads a note from the vault,
-// renders it, and serves the reading page.
+// Package note owns the general reading surface: Home, rendered notes, raw
+// bytes, and the honest fallback page for vault files without a dedicated
+// reader. Status mutation remains in internal/status.
 package note
 
 import (
 	"bytes"
 	"cmp"
 	"context"
-	"errors"
+	"crypto/sha256"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -17,8 +18,11 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // typeLesson is the one note type the reading page enriches with lesson-body
@@ -35,75 +39,53 @@ const typeLesson = "lesson"
 // search.
 const homeRecentLimit = 7
 
-// StatusPolicy is the read-only projection of the write face the reading page
-// needs: whether the face is closed (Closed), its closure reason
-// (WriteDiagnostic), which path-aware transition keys to offer (Transitions),
-// the stable note-status axis Home lists (Order), and whether a note still has
-// an owner-held onward move (Advanceable), for the topbar's advanceable-note
-// count. It is a genuine slice of *status.Service —
-// never its write path: Flip, the single status write, stays out of the reading
-// page's reach. *status.Service satisfies this.
-type StatusPolicy interface {
-	Closed() bool
-	WriteDiagnostic() string
-	Transitions(relPath, noteType, current string) []string
-	Order() []string
-	Advanceable(noteType, current string) bool
-}
-
-// Deps is everything the reading feature reads from. Grouping the providers in a
+// Dependencies is everything the reading feature reads from. Grouping the providers in a
 // struct keeps the constructor within the parameter budget. Snapshot is one
 // closure because a request must read the atomic pointer once and derive its
-// navigation and counts from that coherent value. Provenance is a closure over
-// the read-only git query owned by the write package.
-type Deps struct {
-	Root       string
-	Renderer   *render.Renderer
-	Status     StatusPolicy
-	Snapshot   func() *snapshot.Snapshot
-	Provenance func(ctx context.Context, rel string) (string, error)
+// navigation and counts from that coherent value. Status captures one immutable
+// lifecycle view for the request. Source changes affect the next request;
+// write publication still revalidates current authority under the lifecycle
+// lock. Provenance is a closure over the read-only git query owned by the write
+// package and binds the result to the exact note bytes this request read.
+type Dependencies struct {
+	Source     *vault.Reader
+	Status     func() status.View
+	Snapshot   func() *snapshot.View
+	Provenance func(ctx context.Context, rel string, content [sha256.Size]byte) (string, error)
 	Log        *slog.Logger
-	// Slots is the lesson slot-machine sidecar index, loaded once at
-	// startup. Unlike the closures above it is static (slot sidecars are never
-	// indexed as notes and never enter the scanner's rebuilt-on-change snapshot
-	// — they are a separate read path). A nil index is legal: it just
-	// means no lesson carries a slot machine, so it is not a required dependency.
-	Slots lesson.SlotIndex
-	// Concepts indexes the grammar concept notes a lesson may link to, for the
-	// in-app concept sheet. Also static and also optional: a nil index means no
-	// wikilink ever becomes a sheet trigger, so lessons just navigate to concept
-	// notes as usual.
-	Concepts lesson.ConceptIndex
 }
 
-// Handler serves reading pages for a vault rooted at Deps.Root.
+// Handler serves reading pages from one rooted vault capability and its
+// coherently published snapshots.
 type Handler struct {
-	deps Deps
+	deps Dependencies
 }
 
-// NewHandler wires the reading feature. Every dependency must be non-nil: a nil
-// is a wiring bug that must fail here, not on the first request three calls deep
-// inside show(). A fail-closed write face is still a non-nil Status whose Closed
-// reports true, not a missing one.
-//
-//nolint:gocritic // hugeParam: Deps (80B) is composed once at startup wiring and passed by value to match the sibling constructor (syllabus.NewHandler); by-value keeps the single call site a literal struct composite, and this is not a hot path.
-func NewHandler(d Deps) *Handler {
-	if d.Renderer == nil {
-		panic("note: NewHandler requires a non-nil Renderer")
+// New wires the reading feature. It defensively copies the startup-owned
+// dependency record so later field reassignment by the caller cannot rewire a
+// live handler. Every required reference and function must be non-nil: a wiring
+// bug fails here, not on the first request three calls deep inside show(). A
+// fail-closed write face still provides a closed status.View.
+func New(d *Dependencies) *Handler {
+	if d == nil {
+		panic("note: New requires non-nil Dependencies")
+	}
+	if d.Source == nil {
+		panic("note: New requires a non-nil Source")
 	}
 	if d.Status == nil {
-		panic("note: NewHandler requires a non-nil Status")
+		panic("note: New requires a non-nil Status")
 	}
 	if d.Snapshot == nil {
-		panic("note: NewHandler requires a non-nil Snapshot provider")
+		panic("note: New requires a non-nil Snapshot provider")
 	}
 	if d.Provenance == nil {
-		panic("note: NewHandler requires a non-nil Provenance provider")
+		panic("note: New requires a non-nil Provenance provider")
 	}
 	if d.Log == nil {
-		panic("note: NewHandler requires a non-nil Log")
+		panic("note: New requires a non-nil Log")
 	}
-	return &Handler{deps: d}
+	return &Handler{deps: *d}
 }
 
 // Register mounts the feature's routes.
@@ -117,47 +99,48 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // the vault README through the same markdown pipeline used by a note page. It
 // is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	snap := h.deps.Snapshot()
-	renderer := h.deps.Renderer.WithResolver(snap.Graph)
-	readme, err := h.readNote("README.md")
-	switch {
-	case errors.Is(err, errUnreadable):
-		h.deps.Log.Error("read home README", "error", err)
-		http.Error(w, "cannot read home", http.StatusInternalServerError)
-		return
-	case err != nil:
-		h.deps.Log.Warn("read home README", "error", err)
-		http.NotFound(w, r)
+	statusView := h.deps.Status()
+	snap := h.deps.Snapshot().Capture()
+	readme, ok := snap.Note("README.md")
+	if !ok {
+		h.deps.Log.Warn("home README is absent from the request snapshot")
+		http.Error(w, "找不到首頁內容", http.StatusNotFound)
 		return
 	}
 
-	result := renderer.HTML(readme.Body)
-	shell := ShellData(h.deps.Status, snap)
-	lifecycle, lifecycleDiagnostic := h.lifecycle(snap, "")
-	recent := recentHomeNotes(snap.Nav.KnowledgeNotes)
+	result := snap.Render(readme.Body)
+	artifactPolicy := snap.ArtifactPolicy()
+	pageShell := shell.Project(statusView, artifactPolicy, snap)
+	lifecycle, lifecycleDiagnostic := h.lifecycle(statusView, snap, "")
+	if lifecycleDiagnostic == "" && !artifactPolicy.Available() {
+		lifecycle = nil
+		lifecycleDiagnostic = artifactPolicy.Diagnostic()
+	}
+	visibleNav := pageShell.Nav
+	recent := recentHomeNotes(visibleNav.KnowledgeNotes())
 	recentDiagnostic := ""
-	if !snap.ArtifactPolicy.Available() {
+	if visibleNav.ArtifactDiagnostic() != "" {
 		recent = nil
-		recentDiagnostic = snap.ArtifactPolicy.Diagnostic()
+		recentDiagnostic = visibleNav.ArtifactDiagnostic()
 	}
 	pathDiagnostics := make([]string, 0, 2)
-	if snap.Nav.NavigationDiagnostic != "" {
-		pathDiagnostics = append(pathDiagnostics, snap.Nav.NavigationDiagnostic)
+	if visibleNav.NavigationDiagnostic() != "" {
+		pathDiagnostics = append(pathDiagnostics, visibleNav.NavigationDiagnostic())
 	}
-	if snap.Nav.ArtifactDiagnostic != "" {
-		pathDiagnostics = append(pathDiagnostics, snap.Nav.ArtifactDiagnostic)
+	if visibleNav.ArtifactDiagnostic() != "" {
+		pathDiagnostics = append(pathDiagnostics, visibleNav.ArtifactDiagnostic())
 	}
 	view := pages.HomeView{
 		Recent:              recent,
 		RecentDiagnostic:    recentDiagnostic,
 		Lifecycle:           lifecycle,
 		LifecycleDiagnostic: lifecycleDiagnostic,
-		Paths:               homePaths(snap.Nav.Paths),
+		Paths:               homePaths(visibleNav.Paths()),
 		PathDiagnostics:     pathDiagnostics,
 		ReadmeHTML:          result.HTML,
-		Sidebar:             pages.NewSidebar(snap.Nav, ""),
+		Sidebar:             pages.NewSidebar(visibleNav, ""),
 	}
-	if err := pages.Home(view, shell.Chrome(r, "Home")).Render(r.Context(), w); err != nil {
+	if err := pages.Home(view, pageShell.Chrome(r, "首頁")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
 	}
 }
@@ -167,107 +150,142 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 // reading surface with its status face, table of contents and diagnostics.
 // Everything else is a read-only view of a file, built by showFile.
 //
-// A note's body reaches this first-party page through the markdown pipeline
-// with WithUnsafe, which passes raw HTML — including <script> — through
-// unchanged. That is why no other kind may take this path: a vault .html file
-// rendered here would run its scripts against the whole vault-reading surface.
-// The other kinds are shown as escaped source or handed to the browser through
-// the sandboxed raw endpoint, never poured into this page.
+// A note's body reaches this first-party page through the markdown pipeline's
+// inert authored-markup subset. Ruby reading aids survive; executable,
+// navigating, and automatically loading tags are visible text, never browser
+// authority. Other file kinds are likewise shown as escaped source or handed
+// to the browser through the sandboxed raw endpoint, never poured into this
+// page as live markup.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	rel := r.PathValue("path")
+	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
-		http.NotFound(w, r)
+		http.Error(w, "找不到指定的 vault 項目", http.StatusNotFound)
 		return
 	}
+	statusView := h.deps.Status()
+	snap := h.deps.Snapshot().Capture()
 	if !strings.HasSuffix(rel, ".md") {
-		h.showFile(w, r, rel)
+		h.showFile(w, r, rel, statusView, snap)
 		return
 	}
 
-	n, err := h.readNote(rel)
-	switch {
-	case errors.Is(err, errUnreadable):
-		// The file was there and allowed; the read itself failed.
-		h.deps.Log.Error("read note", "path", rel, "error", err)
-		http.Error(w, "cannot read note", http.StatusInternalServerError)
-		return
-	case err != nil:
-		// A note that vanished, and one the vault root turned away, answer
-		// alike: neither is here, and which is which is not the caller's.
-		h.deps.Log.Warn("read note", "path", rel, "error", err)
-		http.NotFound(w, r)
+	n, ok := snap.Note(rel)
+	if !ok {
+		h.deps.Log.Warn("note is absent from the request snapshot", "path", rel)
+		http.Error(w, "找不到指定的筆記", http.StatusNotFound)
 		return
 	}
 
-	snap := h.deps.Snapshot()
-	renderer := h.deps.Renderer.WithResolver(snap.Graph)
-	policy := snap.ArtifactPolicy
-	nonInstance := policy.Available() && policy.IsNonInstance(n.RelPath)
-	instance := policy.Available() && !nonInstance
-	// render.Renderer.HTML never fails the whole render: a content-level
+	artifactPolicy := snap.ArtifactPolicy()
+	governance := h.governance(&n, snap, statusView, artifactPolicy)
+	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
-	result := renderer.HTML(n.Body)
+	result := snap.Render(n.Body)
 
 	// Governed lesson bodies get the read-aloud affordance: wrap each ruby-bearing
 	// sentence with a speak button whose text has the furigana stripped
 	// server-side (render.InjectTTS). Both governed-instance classification and
 	// the lesson type are required here before any lesson affordance is added. A
 	// governed lesson with a slot sidecar also gets its sentence-pattern machine,
-	// and its concept wikilinks become in-app sheet triggers.
+	// and its concept wikilinks become in-app sheet triggers. This happens only
+	// after the request's captured authority has classified the note, so every
+	// projection in this response uses one coherent lifecycle view.
 	var concepts []lesson.ConceptDoc
-	if instance && n.Type() == typeLesson {
+	if governance.instance && n.Type == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML)
-		result.HTML = h.injectSlotMachine(r.Context(), rel, n.Slug(), result.HTML)
+		pageChrome := governance.shell.Chrome(r, n.Title)
+		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce)
 		var refs []string
-		result.HTML, refs = render.InjectConceptTriggers(result.HTML, h.deps.Concepts.SlugForPath)
-		concepts = h.loadConcepts(renderer, refs)
+		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
+		concepts = h.loadConcepts(snap, refs)
+	}
+	if n.LanguageDiagnostic != "" {
+		h.deps.Log.Warn("invalid article language; using und", "path", rel, "error", n.LanguageDiagnostic)
 	}
 
-	shell := ShellData(h.deps.Status, snap)
 	view := pages.NoteView{
-		Title:             n.Title(),
+		Title:             n.Title,
 		RelPath:           n.RelPath,
-		Type:              n.Type(),
-		Status:            n.Status(),
+		Language:          n.Language,
+		Type:              n.Type,
+		Status:            n.Status,
 		SealTarget:        schema.SealStatus,
-		Sealed:            instance && n.Status() == schema.SealStatus,
+		Sealed:            governance.instance && n.Status == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
-		Sidebar:           pages.NewSidebar(snap.Nav, n.RelPath),
-		NonInstance:       nonInstance,
-		WriteDiagnostic:   h.deps.Status.WriteDiagnostic(),
+		Sidebar:           pages.NewSidebar(governance.shell.Nav, n.RelPath),
+		NonInstance:       governance.nonInstance,
+		WriteDiagnostic:   governance.writeDiagnostic,
 		Concepts:          concepts,
-	}
-	if instance {
-		switch {
-		case n.FMDiagnostic != "":
-			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
-			// write.
-		case n.Frontmatter == nil:
-			// Legally no frontmatter (e.g. drills): no keys either.
-			view.NoFrontmatter = true
-		default:
-			view.Transitions = h.deps.Status.Transitions(n.RelPath, n.Type(), n.Status())
-		}
+		Transitions:       governance.transitions,
+		NoFrontmatter:     governance.noFrontmatter,
 	}
 
-	h.addSealProvenance(r.Context(), rel, r.URL.Query().Get("sealed") == "1", &view)
+	h.addSealProvenance(r.Context(), rel, n.ContentHash, r.URL.Query().Get("sealed") == "1", &view)
 
-	if err := pages.Note(view, shell.Chrome(r, n.Title())).Render(r.Context(), w); err != nil {
+	pageChrome := governance.shell.Chrome(r, n.Title)
+	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}
 }
 
+type governanceState struct {
+	shell           pages.Shell
+	transitions     []string
+	writeDiagnostic string
+	instance        bool
+	nonInstance     bool
+	noFrontmatter   bool
+}
+
+func (h *Handler) governance(
+	n *snapshot.Note,
+	snap *snapshot.View,
+	statusView status.View,
+	policy schema.ArtifactPolicy,
+) governanceState {
+	pageShell := shell.Project(statusView, policy, snap)
+	authorityAvailable := statusView.Diagnostic() == "" && policy.Available()
+	state := governanceState{
+		shell:       pageShell,
+		instance:    authorityAvailable && !policy.IsNonInstance(n.RelPath),
+		nonInstance: authorityAvailable && policy.IsNonInstance(n.RelPath),
+	}
+	state.writeDiagnostic = statusView.WriteDiagnostic()
+	if state.writeDiagnostic == "" && !policy.Available() {
+		state.writeDiagnostic = policy.Diagnostic()
+	}
+	if state.instance && state.writeDiagnostic == "" {
+		switch {
+		case n.FMDiagnostic != "":
+			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
+			// write.
+		case !n.HasFrontmatter:
+			// Legally no frontmatter (e.g. drills): no keys either.
+			state.noFrontmatter = true
+		default:
+			state.transitions = statusView.Transitions(n.RelPath, n.Type, n.Status)
+		}
+	}
+	return state
+}
+
 // addSealProvenance performs the git read only for a governed sealed note and
 // carries the redirect's one-shot ceremony signal into the view.
-func (h *Handler) addSealProvenance(ctx context.Context, rel string, justSealed bool, view *pages.NoteView) {
+func (h *Handler) addSealProvenance(
+	ctx context.Context,
+	rel string,
+	contentHash [sha256.Size]byte,
+	justSealed bool,
+	view *pages.NoteView,
+) {
 	if !view.Sealed {
 		return
 	}
 	view.JustSealed = justSealed
-	hash, err := h.deps.Provenance(ctx, rel)
+	hash, err := h.deps.Provenance(ctx, rel, contentHash)
 	if err != nil {
 		h.deps.Log.Warn("seal provenance", "path", rel, "error", err)
 		return
@@ -282,13 +300,17 @@ func (h *Handler) addSealProvenance(ctx context.Context, rel string, justSealed 
 // the reading passages), falling back to appending when a lesson has no table.
 // A render failure is logged and the body returned unchanged: a broken machine
 // must never blank the page.
-func (h *Handler) injectSlotMachine(ctx context.Context, rel, slug, body string) string {
-	sc, ok := h.deps.Slots.Lookup(slug)
+func (h *Handler) injectSlotMachine(
+	ctx context.Context,
+	slots lesson.SlotIndex,
+	rel, slug, body, nonce string,
+) string {
+	sc, ok := slots.Lookup(slug)
 	if !ok {
 		return body
 	}
 	var buf bytes.Buffer
-	if err := pages.SlotMachine(sc).Render(ctx, &buf); err != nil {
+	if err := pages.SlotMachine(sc, nonce).Render(ctx, &buf); err != nil {
 		h.deps.Log.Error("render slot machine", "path", rel, "slug", slug, "error", err)
 		return body
 	}
@@ -305,14 +327,17 @@ func (h *Handler) injectSlotMachine(ctx context.Context, rel, slug, body string)
 // of its own), so its wikilinks stay ordinary links and the sheet never nests. A
 // concept that fails to load is skipped — its trigger stays a working link to
 // the note, so no dead sheet ships: degrade, never break.
-func (h *Handler) loadConcepts(renderer *render.Renderer, refs []string) []lesson.ConceptDoc {
+func (h *Handler) loadConcepts(
+	snap *snapshot.View,
+	refs []string,
+) []lesson.ConceptDoc {
 	if len(refs) == 0 {
 		return nil
 	}
-	renderBody := func(body string) string { return renderer.HTML(body).HTML }
+	renderBody := func(body string) string { return snap.Render(body).HTML }
 	docs := make([]lesson.ConceptDoc, 0, len(refs))
 	for _, rel := range refs {
-		if d, ok := lesson.LoadConcept(renderBody, h.deps.Concepts, h.deps.Root, rel); ok {
+		if d, ok := snap.Concepts().Document(renderBody, rel); ok {
 			docs = append(docs, d)
 		}
 	}
@@ -324,15 +349,22 @@ func (h *Handler) loadConcepts(renderer *render.Renderer, refs []string) []lesso
 // current. The diagnostic distinguishes an unavailable write contract from an
 // unavailable artifact-metadata capability, so Home never presents either as a
 // successful empty projection.
-func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) (items []pages.LifecycleItem, diagnostic string) {
-	order := h.deps.Status.Order()
+func (h *Handler) lifecycle(
+	statusView status.View,
+	snap *snapshot.View,
+	current string,
+) (items []pages.LifecycleItem, diagnostic string) {
+	if diagnostic := statusView.Diagnostic(); diagnostic != "" {
+		return nil, diagnostic
+	}
+	order := statusView.Order()
 	if order == nil {
 		return nil, "Lifecycle is unavailable while the contract is closed."
 	}
 	if len(order) == 0 {
 		return nil, "Lifecycle is unavailable because the contract declares no note statuses."
 	}
-	counts, err := snap.Search.CountByStatus()
+	counts, err := snap.Search().CountByStatus()
 	if err != nil {
 		return nil, err.Error()
 	}
@@ -346,40 +378,6 @@ func (h *Handler) lifecycle(snap *snapshot.Snapshot, current string) (items []pa
 		})
 	}
 	return items, ""
-}
-
-// ShellData projects the shared sidebar model and pending count from one request
-// snapshot. Callers capture the snapshot before calling it, so this function
-// cannot perform another atomic store read.
-func ShellData(status StatusPolicy, snap *snapshot.Snapshot) pages.ShellData {
-	count, known := pending(status, snap)
-	return pages.ShellData{Nav: snap.Nav, Advanceable: count, AdvanceableKnown: known}
-}
-
-// pending counts the notes still awaiting a decision: those whose (type, status)
-// still has an owner-held onward move in the contract, excluding the seal itself
-// — the final human act on a note is not something still pending. It returns
-// known = false when either the write contract or artifact-metadata capability
-// is unavailable, so the topbar shows no figure rather than a misleading zero.
-// The predicate reuses the write face's own contract reading; the seal is named
-// in one place, never a second status list.
-func pending(status StatusPolicy, snap *snapshot.Snapshot) (count int, known bool) {
-	if status.Closed() {
-		return 0, false
-	}
-	counts, err := snap.Search.CountByTypeStatus()
-	if err != nil {
-		return 0, false
-	}
-	for ts, n := range counts {
-		if ts.Status == schema.SealStatus {
-			continue
-		}
-		if status.Advanceable(ts.Type, ts.Status) {
-			count += n
-		}
-	}
-	return count, true
 }
 
 // recentHomeNotes selects the newest knowledge notes from the snapshot's
@@ -415,18 +413,18 @@ func recentHomeNotes(notes []nav.NoteSummary) []pages.HomeNote {
 }
 
 // homePaths maps the snapshot's parsed study paths onto the small progress
-// figures Home displays. BuildPathView owns the ready/total derivation used
-// by the full study-path page, so the landing card cannot drift from it.
+// figures Home displays. nav owns the ready/total derivation shared with the
+// full study-path page, so the two reading surfaces cannot drift.
 func homePaths(paths []nav.Map) []pages.HomePath {
 	out := make([]pages.HomePath, 0, len(paths))
 	for i := range paths {
 		path := &paths[i]
-		view := pages.BuildPathView(path, nil)
+		ready, total := path.EntryCounts(schema.SealStatus)
 		out = append(out, pages.HomePath{
 			Title:   path.Title,
 			RelPath: path.RelPath,
-			Ready:   view.Ready,
-			Total:   view.Entries,
+			Ready:   ready,
+			Total:   total,
 		})
 	}
 	return out

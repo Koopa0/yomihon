@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The graph rules turn the resolved link graph into findings: a wikilink that
@@ -18,21 +20,22 @@ import (
 // Unicode NFC, lowercase — the same normalization the resolver applies, so a
 // title, alias, or slug index agrees with the resolver on what a name matches.
 func normalizeKey(name string) string {
-	return strings.ToLower(graph.NormalizeNFC(strings.TrimSpace(name)))
+	return strings.ToLower(vault.NormalizeNFC(strings.TrimSpace(name)))
 }
 
 // runGraphRules runs the graph rules over the notes and the resolver, in the
 // order the wire format ties break on: link health, alias collisions,
 // provenance, then map-vs-disk.
-func runGraphRules(notes []note, idx *graph.Index) []Finding {
-	titles := titleIndex(notes)
-	slugs := slugIndex(notes)
-	planned := plannedNamesSet(notes)
+func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Finding {
+	titles := titleIndex(notes, authority)
+	slugs := slugIndex(notes, authority)
+	planned := plannedNamesSet(notes, authority)
 	return slices.Concat(
 		linkHealth(notes, idx, titles, planned),
-		collisionAlias(notes),
-		provenanceUnresolved(notes, idx, slugs),
+		collisionAlias(notes, authority),
+		provenanceUnresolved(notes, idx, slugs, authority.contract),
 		mapDiskMismatch(notes, idx),
+		supersessionFindings(notes, idx, authority),
 	)
 }
 
@@ -40,11 +43,11 @@ func runGraphRules(notes []note, idx *graph.Index) []Finding {
 // Titles are not resolution keys, so a link to a title that is neither a
 // filename nor an alias does not resolve; this index recovers which note the
 // author meant.
-func titleIndex(notes []note) map[string][]string {
+func titleIndex(notes []note, authority scanAuthority) map[string][]string {
 	idx := make(map[string][]string)
 	for i := range notes {
 		n := &notes[i]
-		if n.title == "" {
+		if n.title == "" || !authority.egressAllowed(n.path) {
 			continue
 		}
 		key := normalizeKey(n.title)
@@ -62,10 +65,10 @@ func titleIndex(notes []note) map[string][]string {
 // slugIndex maps a lesson slug to its note path. Supersession references name a
 // slug, not a filename, so they resolve here rather than through the resolver.
 // A repeated slug keeps the last note, matching the reference reading.
-func slugIndex(notes []note) map[string]string {
+func slugIndex(notes []note, authority scanAuthority) map[string]string {
 	idx := make(map[string]string)
 	for i := range notes {
-		if n := &notes[i]; n.slug != "" {
+		if n := &notes[i]; n.slug != "" && authority.egressAllowed(n.path) {
 			idx[n.slug] = n.path
 		}
 	}
@@ -74,14 +77,14 @@ func slugIndex(notes []note) map[string]string {
 
 // plannedNamesSet is the normalized set of every concept name listed as planned
 // anywhere in the public corpus. A broken link to one of these is a tracked
-// forward-reference even when the citing link is not itself under a gap heading.
-// A note in the private daily journal is not a source: a name planned only there
+// forward-reference even when the citing link is not itself under a gap
+// heading. A contract-private note is not a source: a name planned only there
 // must not soften a public broken link, or a reader of the finding could infer
-// that the journal names that target.
-func plannedNamesSet(notes []note) map[string]bool {
+// that private content names that target.
+func plannedNamesSet(notes []note, authority scanAuthority) map[string]bool {
 	set := make(map[string]bool)
 	for i := range notes {
-		if underDiary(notes[i].path) {
+		if !authority.egressAllowed(notes[i].path) {
 			continue
 		}
 		for _, name := range notes[i].plannedNames {
@@ -97,7 +100,12 @@ func plannedNamesSet(notes []note) map[string]bool {
 // are its course list, owned by the map rule, so they are not double-reported
 // here. A link whose target is some note's title is the title case; any other
 // unresolved link is broken.
-func linkHealth(notes []note, idx *graph.Index, titles map[string][]string, planned map[string]bool) []Finding {
+func linkHealth(
+	notes []note,
+	idx *graph.Index,
+	titles map[string][]string,
+	planned map[string]bool,
+) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -109,12 +117,6 @@ func linkHealth(notes []note, idx *graph.Index, titles map[string][]string, plan
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
-				if slices.ContainsFunc(targetNotes, underDiary) {
-					// A link resolving to a journal note's title would surface
-					// that note's path in the finding's evidence; the journal is
-					// excluded from every report, so drop it at the source.
-					continue
-				}
 				out = append(out, titleNotAlias(n, link, targetNotes))
 			} else {
 				out = append(out, brokenLink(n, link, planned))
@@ -176,10 +178,13 @@ func brokenLink(n *note, link wikiLink, planned map[string]bool) Finding {
 // [[alias]] then resolves to only one of them and the others silently lose
 // inbound links. Matching is case-insensitive and NFC, across all note kinds;
 // only the aliases field counts, not prose mentions.
-func collisionAlias(notes []note) []Finding {
+func collisionAlias(notes []note, authority scanAuthority) []Finding {
 	byAlias := make(map[string][]string)
 	for i := range notes {
 		n := &notes[i]
+		if !authority.egressAllowed(n.path) {
+			continue
+		}
 		for _, alias := range n.aliases {
 			key := normalizeKey(alias)
 			if key == "" {
@@ -229,35 +234,78 @@ func collisionFinding(alias string, members []string) Finding {
 	}
 }
 
-// provenanceUnresolved reports a based_on, related, or evolution_* reference
-// that resolves to no note. The fields are read in a fixed order so the wire
-// format's ties break the same way every run.
-func provenanceUnresolved(notes []note, idx *graph.Index, slugs map[string]string) []Finding {
+type referenceField struct {
+	name       string
+	values     []string
+	sourceRule string
+}
+
+// provenanceUnresolved reports configured provenance and replacement-ledger
+// references that resolve to no note. The fixed based_on and related fields
+// retain the inherited judge contract; replacement field names come only from
+// the loaded vault contract.
+func provenanceUnresolved(
+	notes []note,
+	idx *graph.Index,
+	slugs map[string]string,
+	contract *schema.Contract,
+) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		var predecessor []string
-		if n.evolutionPredecessor != "" {
-			predecessor = []string{n.evolutionPredecessor}
+		fields := []referenceField{
+			{name: "based_on", values: n.basedOn, sourceRule: "vault-schema.toml#provenance"},
+			{name: "related", values: n.related, sourceRule: "vault-schema.toml#provenance"},
 		}
-		fields := []struct {
-			name   string
-			values []string
-		}{
-			{"based_on", n.basedOn},
-			{"related", n.related},
-			{"evolution_predecessor", predecessor},
-			{"evolution_successors", n.evolutionSuccessors},
+		if vocabulary, ok := supersessionForNote(contract, n); ok {
+			fields = appendConfiguredReferences(fields, n, vocabulary)
 		}
 		for _, field := range fields {
 			for _, value := range field.values {
 				if !provenanceResolves(idx, slugs, value) {
-					out = append(out, provenanceFinding(n, field.name, value))
+					out = append(out, provenanceFinding(n, field.name, value, field.sourceRule))
 				}
 			}
 		}
 	}
 	return out
+}
+
+func supersessionForNote(contract *schema.Contract, n *note) (schema.Supersession, bool) {
+	if contract == nil || contract.StatusGroup(n.noteType) == "" {
+		return schema.Supersession{}, false
+	}
+	return contract.Supersession()
+}
+
+func appendConfiguredReferences(
+	fields []referenceField,
+	n *note,
+	vocabulary schema.Supersession,
+) []referenceField {
+	configured := []string{vocabulary.GeneralLinkField}
+	if n.noteType == "lesson" {
+		configured = []string{vocabulary.PredecessorField, vocabulary.SuccessorField}
+	}
+	for _, field := range configured {
+		if field == "based_on" || field == "related" {
+			continue
+		}
+		fields = append(fields, referenceField{
+			name:       field,
+			values:     frontmatterStringValues(n, field),
+			sourceRule: "vault-schema.toml#supersession",
+		})
+	}
+	return fields
+}
+
+func frontmatterStringValues(n *note, field string) []string {
+	value, ok := n.frontmatter[field]
+	if !ok {
+		return nil
+	}
+	return value.stringValues()
 }
 
 // provenanceResolves reports whether a provenance value resolves, either as a
@@ -285,7 +333,7 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	return listed
 }
 
-func provenanceFinding(n *note, field, value string) Finding {
+func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 	return Finding{
 		RuleID:          "provenance.unresolved",
 		Severity:        SeverityWarn,
@@ -294,7 +342,7 @@ func provenanceFinding(n *note, field, value string) Finding {
 		Message:         field + " -> " + value + " resolves to nothing",
 		Evidence:        "no note, alias, or lesson slug matches the reference",
 		SuggestedAction: "fix the reference, or create the target note",
-		SourceRule:      "vault-schema.toml#provenance",
+		SourceRule:      sourceRule,
 		Target:          new(value),
 		Fingerprint:     fingerprint("provenance.unresolved", n.path, value),
 	}

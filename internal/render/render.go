@@ -1,11 +1,12 @@
-// Package render turns Obsidian-dialect markdown into HTML.
+// Package render owns projections of Obsidian-dialect markdown. Pipeline turns
+// it into HTML for reading; PlainText and PlainSections expose the same parsed
+// dialect to lexical and semantic retrieval without duplicating a parser.
 //
 // Fault-tolerant by contract: it renders what it can and reports
 // what it can't via Diagnostics — it never fixes a note, never fails the
-// whole render, and never returns a blank page. Raw HTML passes through
-// unsanitized because the vault is a trusted, local-only corpus;
-// Japanese lesson bodies are hand-written <ruby> markup that must
-// survive.
+// whole render, and never returns a blank page. Authored HTML is inert display
+// input: the Japanese lesson dialect's ruby/rt/rp/br subset survives, while
+// executable or automatically loading markup is shown as text.
 //
 // Wikilinks, embeds, and callouts are not CommonMark syntax, so they are
 // handled as string/line-based passes over the markdown source before
@@ -31,7 +32,6 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
-	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 
 	"github.com/koopa0/yomihon/internal/graph"
 )
@@ -41,6 +41,13 @@ import (
 // satisfies this structurally, with no explicit binding needed.
 type Resolver interface {
 	Resolve(name string) graph.Resolution
+}
+
+// Transclusions is the captured note-body set used by embed expansion. The
+// concrete reading snapshot implements this narrow consumer-owned capability,
+// so link resolution and transclusion bodies can come from one generation.
+type Transclusions interface {
+	Transclusion(path string) (body string, ok bool)
 }
 
 // DiagnosticKind classifies one rendering-time Diagnostic.
@@ -110,44 +117,33 @@ const (
 	embedsDenied
 )
 
-// Renderer is a configured, reusable markdown pipeline for one vault.
-type Renderer struct {
-	root string
-	idx  Resolver
-	md   goldmark.Markdown
+// Pipeline is a configured, reusable markdown pipeline for one captured vault
+// generation.
+type Pipeline struct {
+	idx           Resolver
+	transclusions Transclusions
+	md            goldmark.Markdown
 }
 
-// New builds the rendering pipeline for the vault rooted at root: GFM
-// (tables, task lists, strikethrough), raw HTML passthrough (Japanese
-// lesson bodies rely on hand-written <ruby>/<rt> markup that must survive
-// byte-for-byte), and the ==highlight== inline extension. idx resolves
-// wikilink/embed targets against the vault-wide symbol table
-// (internal/graph); it must not be nil.
-func New(root string, idx Resolver) *Renderer {
+// New builds a rendering pipeline from one generation's link resolver and
+// captured transclusion bodies. It enables GFM (tables, task lists, and
+// strikethrough), the inert authored-markup subset used by Japanese lessons,
+// and the ==highlight== inline extension. Both capabilities must describe the
+// same generation and must not be nil.
+func New(idx Resolver, transclusions Transclusions) *Pipeline {
 	if idx == nil {
 		panic("render: New requires a non-nil Resolver")
 	}
-	return &Renderer{
-		root: root,
-		idx:  idx,
+	if transclusions == nil {
+		panic("render: New requires non-nil Transclusions")
+	}
+	return &Pipeline{
+		idx:           idx,
+		transclusions: transclusions,
 		md: goldmark.New(
-			goldmark.WithExtensions(extension.GFM, highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}),
-			goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()),
+			goldmark.WithExtensions(extension.GFM, highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}),
 		),
 	}
-}
-
-// WithResolver returns a Renderer that shares this configured markdown
-// pipeline but resolves wikilinks and embeds through idx. The receiver is not
-// mutated, so a request can bind rendering to one immutable graph snapshot
-// without changing the long-lived Renderer used by concurrent requests.
-func (r *Renderer) WithResolver(idx Resolver) *Renderer {
-	if idx == nil {
-		panic("render: WithResolver requires a non-nil Resolver")
-	}
-	bound := *r
-	bound.idx = idx
-	return &bound
 }
 
 // HTML renders one note's body: the markdown-to-HTML pipeline, plus the
@@ -159,9 +155,10 @@ func (r *Renderer) WithResolver(idx Resolver) *Renderer {
 // final, fully-assembled HTML (embeds and callouts already spliced in)
 // so heading ids stay unique across the whole page in one pass, rather
 // than colliding across independently-slugged sub-renders.
-func (r *Renderer) HTML(body string) Result {
+func (r *Pipeline) HTML(body string) Result {
+	body = stripObsidianComments(body)
 	body = removeBodyFirstH1(body)
-	res := r.render(body, embedsAllowed)
+	res := r.renderBody(body, embedsAllowed)
 	htmlOut, toc := assignHeadingSlugs(res.HTML)
 	res.HTML = htmlOut
 	res.TOC = toc
@@ -176,8 +173,16 @@ func (r *Renderer) HTML(body string) Result {
 // callout dialect rule calls for, so nested formatting and nested
 // wikilinks work inside a callout or an embed exactly as they do at the
 // top level.
-func (r *Renderer) render(body string, allowEmbed embedPolicy) Result {
+func (r *Pipeline) render(body string, allowEmbed embedPolicy) Result {
+	return r.renderBody(stripObsidianComments(body), allowEmbed)
+}
+
+func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy) Result {
 	var diags []Diagnostic
+	// This prefix belongs to preprocess, never to vault text. Neutralizing an
+	// authored copy before placeholders exist prevents source from selecting or
+	// relocating renderer-owned HTML during substituteBlocks.
+	body = strings.ReplaceAll(body, "<!--yomihon-block:", "&lt;!--yomihon-block:")
 	source, blocks := r.preprocess(body, allowEmbed, &diags)
 
 	var buf bytes.Buffer

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // wantGolden asserts got equals the golden file byte for byte, dumping hex on a
@@ -91,14 +93,16 @@ func TestRunExistsGolden(t *testing.T) {
 // a blanket empty.
 func TestExistsSkipsDiary(t *testing.T) {
 	t.Parallel()
-	notes, err := collectNotes("testdata/vault-diary")
+	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
+	notes, err := collectNotes(root)
 	if err != nil {
 		t.Fatalf("collectNotes: %v", err)
 	}
-	if r := existsLookup(notes, "Private Session Note"); r.found() {
+	authority := loadTestAuthority(t, root)
+	if r := existsLookup(notes, "Private Session Note", authority); r.found() {
 		t.Errorf("exists(%q) = %d match(es), want 0 — a journal note's title must not surface", "Private Session Note", len(r.Matches))
 	}
-	if r := existsLookup(notes, "keep"); !r.found() {
+	if r := existsLookup(notes, "keep", authority); !r.found() {
 		t.Errorf("exists(%q) found nothing, want the public note matched by filename", "keep")
 	}
 }
@@ -109,12 +113,66 @@ func TestExistsSkipsDiary(t *testing.T) {
 // reaches the report, and this asserts that unconditional exclusion holds.
 func TestCoverageExcludesDiary(t *testing.T) {
 	t.Parallel()
-	got, _, err := RunCoverage(&CoverageOptions{Root: "testdata/vault-diary", Format: FormatJSON})
+	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
+	got, _, err := RunCoverage(&CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage: %v", err)
 	}
 	if bytes.Contains(got, []byte("Diary")) {
 		t.Errorf("coverage output names the private daily journal:\n%s", got)
+	}
+}
+
+func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	contract, err := os.ReadFile("testdata/vault-supersession/System/schemas/vault-schema.toml")
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	contract = bytes.Replace(contract, []byte("never_egress_dirs = []"), []byte(`never_egress_dirs = ["Private"]`), 1)
+	write(t, root, schema.ContractRelPath, string(contract))
+	write(t, root, "Private/Hidden.md", "---\ntitle: Hidden\ntype: concept\nstatus: ready\n---\n\n[[Private Missing]]\n")
+	write(t, root, "Private/Brief.md", "---\ntitle: Brief\ntype: research-brief\nstatus: ready\n---\n")
+	write(t, root, "Private/Old Lesson.md", "---\ntitle: Old Lesson\ntype: lesson\nstatus: ready\nsuccessors: [new]\n---\n")
+	write(t, root, "Private/Private Archived.md", "---\ntitle: Private Archived\ntype: lesson\nstatus: archived\n---\n")
+	write(t, root, "Concepts/Public.md", "---\ntitle: Public\ntype: concept\nstatus: ready\n---\n\n[[Public Missing]]\n")
+	write(t, root, "Maps/Private Link.md", "---\ntitle: Private Link\ntype: study-path\nstatus: ready\n---\n\n[[Private Archived]]\n")
+
+	for _, format := range []Format{FormatJSON, FormatHuman, FormatMarkdown} {
+		checkOutput, _, err := RunCheck(&CheckOptions{Root: root, Format: format})
+		if err != nil {
+			t.Fatalf("RunCheck(%d) error = %v", format, err)
+		}
+		if bytes.Contains(checkOutput, []byte("Private/")) {
+			t.Errorf("RunCheck(%d) exposed configured private output:\n%s", format, checkOutput)
+		}
+		if !bytes.Contains(checkOutput, []byte("Concepts/Public.md")) {
+			t.Errorf("RunCheck(%d) dropped public output with private output:\n%s", format, checkOutput)
+		}
+
+		coverageOutput, _, err := RunCoverage(&CoverageOptions{Root: root, Format: format})
+		if err != nil {
+			t.Fatalf("RunCoverage(%d) error = %v", format, err)
+		}
+		if bytes.Contains(coverageOutput, []byte("Private/")) {
+			t.Errorf("RunCoverage(%d) exposed configured private output:\n%s", format, coverageOutput)
+		}
+		if !bytes.Contains(coverageOutput, []byte("Concepts/Public.md")) {
+			t.Errorf("RunCoverage(%d) dropped public output with private output:\n%s", format, coverageOutput)
+		}
+
+		existsOutput, exit, err := RunExists(&ExistsOptions{Root: root, Name: "Hidden", Format: format})
+		if err != nil {
+			t.Fatalf("RunExists(%d) error = %v", format, err)
+		}
+		if exit != 1 {
+			t.Errorf("RunExists(%d) exit = %d, want 1 for a private-only match", format, exit)
+		}
+		if bytes.Contains(existsOutput, []byte("Private/")) {
+			t.Errorf("RunExists(%d) exposed configured private output:\n%s", format, existsOutput)
+		}
 	}
 }
 
@@ -228,10 +286,32 @@ func TestRunCheckRejectsUnknownDeny(t *testing.T) {
 	if _, _, err := RunCheck(&CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{"bogus"}}); err == nil {
 		t.Error("RunCheck with --deny bogus = nil error, want a tool error")
 	}
-	for _, token := range []string{"error", "link.broken"} {
+	for _, token := range append([]string{"error", "warn", "info"}, ruleIDs...) {
 		if _, _, err := RunCheck(&CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{token}}); err != nil {
 			t.Errorf("RunCheck with --deny %q = %v, want no error", token, err)
 		}
+	}
+}
+
+func TestRunCheckDenySupersessionRules(t *testing.T) {
+	t.Parallel()
+
+	for _, ruleID := range []string{predecessorNotArchivedRule, archivedNavigationRule} {
+		t.Run(ruleID, func(t *testing.T) {
+			t.Parallel()
+
+			_, exit, err := RunCheck(&CheckOptions{
+				Root:   "testdata/vault-supersession",
+				Format: FormatJSON,
+				Deny:   []string{ruleID},
+			})
+			if err != nil {
+				t.Fatalf("RunCheck(--deny %q) error = %v", ruleID, err)
+			}
+			if exit != 1 {
+				t.Errorf("RunCheck(--deny %q) exit = %d, want 1", ruleID, exit)
+			}
+		})
 	}
 }
 
@@ -334,6 +414,7 @@ func TestResolveFormat(t *testing.T) {
 func TestRunOnEmptyVault(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	writeTestContract(t, dir, nil)
 
 	check, exit, err := RunCheck(&CheckOptions{Root: dir, Format: FormatJSON})
 	if err != nil {

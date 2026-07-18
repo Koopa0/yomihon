@@ -55,10 +55,10 @@ type Unrouted struct {
 // reverse edges to learn which concepts are reached and whether by a map, then
 // tallies each concept, then runs the all-type routing watchdog. The System/
 // tree holds templates and reference notes, not knowledge content, so it is out
-// of scope throughout; the private daily journal is excluded from every report,
-// so a journal note never appears here even when mistyped as a concept.
-func computeCoverage(notes []note, idx *graph.Index) Coverage {
-	mapped, referenced := mountEdges(notes, idx)
+// of scope throughout; contract-private paths are excluded from every report,
+// so a private note never appears here even when mistyped as a concept.
+func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Coverage {
+	mapped, referenced := mountEdges(notes, idx, authority)
 
 	rows := make(map[string]*DomainCoverage)
 	pending := []string{}
@@ -66,7 +66,9 @@ func computeCoverage(notes []note, idx *graph.Index) Coverage {
 	total := 0
 	for i := range notes {
 		n := &notes[i]
-		if n.noteType != "concept" || strings.HasPrefix(n.path, "System/") || underDiary(n.path) {
+		if n.noteType != "concept" ||
+			strings.HasPrefix(n.path, "System/") ||
+			!authority.egressAllowed(n.path) {
 			continue
 		}
 		total++
@@ -103,7 +105,7 @@ func computeCoverage(notes []note, idx *graph.Index) Coverage {
 		Domains:       domainsList,
 		PendingMount:  pending,
 		Orphans:       orphans,
-		Unrouted:      unroutedNotes(notes, mapped),
+		Unrouted:      unroutedNotes(notes, mapped, authority),
 	}
 }
 
@@ -111,15 +113,15 @@ func computeCoverage(notes []note, idx *graph.Index) Coverage {
 // which of those are reached by a map. A map here is a MOC, topic-map, or
 // source-map; an edge from one mounts its target, while an edge from a lesson
 // or another concept only references it.
-func mountEdges(notes []note, idx *graph.Index) (mapped, referenced map[string]bool) {
+func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped, referenced map[string]bool) {
 	mapped = make(map[string]bool)
 	referenced = make(map[string]bool)
 	for i := range notes {
 		n := &notes[i]
-		if strings.HasPrefix(n.path, "System/") || underDiary(n.path) {
-			// A note in the private daily journal is not counted as a source:
-			// its links must not decide a public concept's mount state, or a
-			// reader of coverage could infer that the journal references it.
+		if strings.HasPrefix(n.path, "System/") || !authority.egressAllowed(n.path) {
+			// A private note is not counted as a source: its links must not
+			// decide a public concept's mount state, or a reader of coverage
+			// could infer that the private note references it.
 			continue
 		}
 		fromMap := n.noteType == "moc" || n.noteType == "topic-map" || n.noteType == "source-map"
@@ -137,11 +139,11 @@ func mountEdges(notes []note, idx *graph.Index) (mapped, referenced map[string]b
 
 // unroutedNotes lists the routable non-concept notes that are not on their
 // index, ordered by path — the watchdog for a new note nobody filed.
-func unroutedNotes(notes []note, mapped map[string]bool) []Unrouted {
+func unroutedNotes(notes []note, mapped map[string]bool, authority scanAuthority) []Unrouted {
 	unrouted := []Unrouted{}
 	for i := range notes {
 		n := &notes[i]
-		if strings.HasPrefix(n.path, "System/") || underDiary(n.path) {
+		if strings.HasPrefix(n.path, "System/") || !authority.egressAllowed(n.path) {
 			continue
 		}
 		if route, ok := routeFor(n.noteType); ok && !mapped[n.path] {

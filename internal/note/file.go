@@ -5,16 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"mime"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/shell"
+	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -33,6 +36,10 @@ const sniffBytes = 512
 const (
 	textContentType  = "text/plain; charset=utf-8"
 	octetContentType = "application/octet-stream"
+	rawSandboxPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+		"font-src 'none'; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
+		"img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; " +
+		"script-src-attr 'none'; style-src 'unsafe-inline'; worker-src 'none'"
 )
 
 // mediaTypes pins the content type of every kind this feature renders in a
@@ -86,42 +93,6 @@ func servable(rel string) bool {
 	return true
 }
 
-// openInVault opens a vault-relative path for reading and reports the entry's
-// own metadata.
-//
-// The handle comes from an os.Root, which is what confines the path: it refuses
-// every symbolic link, whether the link's target lies outside the vault or
-// inside it, and whether the link is the final element or a directory buried in
-// the middle of the path. A check on the last element alone would miss the
-// latter. Lstat, rather than Stat, then describes the named entry itself, and
-// the regular-file test is what turns away the things a link is not — a
-// directory, a device, a socket.
-//
-// Every failure here is a 404 to the caller. Which paths exist, and which are
-// merely refused, is not something a caller who guessed a path has earned.
-func openInVault(root, rel string) (*os.File, fs.FileInfo, error) {
-	vaultRoot, err := os.OpenRoot(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	// Closing the root does not close a file already opened through it.
-	defer vaultRoot.Close() //nolint:errcheck // a read-only handle; a close error cannot affect the response
-
-	name := filepath.FromSlash(rel)
-	info, err := vaultRoot.Lstat(name)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, nil, fs.ErrNotExist
-	}
-	f, err := vaultRoot.Open(name)
-	if err != nil {
-		return nil, nil, err
-	}
-	return f, info, nil
-}
-
 // looksText reports whether b is plausibly text: no NUL byte, and valid UTF-8.
 // The extension is deliberately not consulted — a .txt holding a compiled
 // object must never be poured into a source page, and a build file with no
@@ -163,33 +134,6 @@ func trimPartialRune(b []byte) []byte {
 	return b
 }
 
-// errUnreadable marks a failure that struck after the vault root had already
-// agreed a file exists and may be served: a disk that faulted mid-read, not a
-// path that was turned away. The two must answer differently. A refusal has to
-// look exactly like absence, or it becomes an answer about the vault's shape;
-// a fault is the server's own problem and should say so.
-var errUnreadable = errors.New("unreadable file")
-
-// readNote reads a markdown note through the containment the other kinds get.
-// vault.ReadNote inspects the path string with filepath.IsLocal and then hands
-// the name to os.ReadFile, which follows symbolic links: a link named like a
-// note, sitting inside the vault and pointing anywhere at all, would be read and
-// rendered. The vault root refuses links outright, so the note takes the same
-// door as every other file, and only what the browse tree lists can be read.
-func (h *Handler) readNote(rel string) (*vault.Note, error) {
-	f, _, err := openInVault(h.deps.Root, rel)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close() //nolint:errcheck // a read-only handle; a close error cannot affect the response
-
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return nil, fmt.Errorf("%w %s: %w", errUnreadable, rel, err)
-	}
-	return vault.Parse(rel, data), nil
-}
-
 // showFile serves a vault file that is not a note. The extension chooses a
 // viewer for the kinds a browser renders natively; everything else is decided
 // by the bytes. Text within the comfort cap becomes a highlighted source page,
@@ -198,46 +142,56 @@ func (h *Handler) readNote(rel string) (*vault.Note, error) {
 //
 // No status face, no seal, no diagnostics: a source file is not a note, and the
 // write face has no opinion about it.
-func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string) {
-	f, info, err := openInVault(h.deps.Root, rel)
+func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
+	entry, ok := snap.Entry(rel)
+	if !ok {
+		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		return
+	}
+	entry, err := h.deps.Source.Refresh(entry)
 	if err != nil {
 		// A refused path and a missing one answer alike: a file that vanished
 		// between the scan and this request, a directory, and a symlink the
 		// vault root turned away are all simply not here.
-		h.deps.Log.Warn("open vault file", "path", rel, "error", err)
-		http.NotFound(w, r)
+		h.deps.Log.Warn("refresh vault file", "path", rel, "error", err)
+		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
 		return
 	}
-	defer f.Close() //nolint:errcheck // a read-only handle; a close error cannot affect the response
 
 	name := path.Base(rel)
-	snap := h.deps.Snapshot()
-	shell := ShellData(h.deps.Status, snap)
+	pageShell := shell.Project(statusView, snap.ArtifactPolicy(), snap)
 	view := pages.FileView{
-		Title:       name,
-		RelPath:     rel,
-		Size:        info.Size(),
-		ContentType: fileContentType(rel, f),
-		Sidebar:     pages.NewSidebar(snap.Nav, rel),
+		Title:   name,
+		RelPath: rel,
+		Size:    entry.Size(),
+		Sidebar: pages.NewSidebar(pageShell.Nav, rel),
 	}
 
 	ext := strings.ToLower(path.Ext(rel))
 	switch {
 	case imageExts[ext]:
 		view.Kind = pages.FileImage
+		view.ContentType = fileContentType(rel, nil)
 	case ext == ".pdf":
 		view.Kind = pages.FilePDF
-	case info.Size() > maxSourceBytes:
+		view.ContentType = fileContentType(rel, nil)
+	case entry.Size() > maxSourceBytes:
 		view.Kind = pages.FileInfo
+		head, readErr := h.deps.Source.ReadPrefix(r.Context(), entry, sniffBytes)
+		if readErr != nil {
+			h.respondFileReadError(w, rel, "read vault file prefix", readErr)
+			return
+		}
+		view.ContentType = fileContentType(rel, head)
 	default:
 		// Bounded by the size check above, so the whole file is in hand and the
 		// text decision runs on all of it rather than a window.
-		data, readErr := io.ReadAll(f)
+		data, readErr := h.deps.Source.ReadFile(r.Context(), entry)
 		if readErr != nil {
-			h.deps.Log.Error("read vault file", "path", rel, "error", readErr)
-			http.Error(w, "cannot read file", http.StatusInternalServerError)
+			h.respondFileReadError(w, rel, "read vault file", readErr)
 			return
 		}
+		view.ContentType = fileContentType(rel, data)
 		if !looksText(data) {
 			view.Kind = pages.FileInfo
 			break
@@ -246,17 +200,16 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string) {
 		view.SourceHTML = render.SourceHTML(name, string(data))
 	}
 
-	if err := pages.File(view, shell.Chrome(r, name)).Render(r.Context(), w); err != nil {
+	if err := pages.File(view, pageShell.Chrome(r, name)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("render file page", "path", rel, "error", err)
 	}
 }
 
 // raw serves a vault file's bytes unchanged, under the containment the report
-// briefings established. Two things make it safe to hand a first-party origin
-// the contents of an arbitrary file: the content type is stated outright and
-// never sniffed by the browser, and a Content-Security-Policy sandbox lands the
-// response in a unique opaque origin however it is loaded — inside a page, in a
-// frame, or opened top-level.
+// briefings established. Every response states its content type outright and
+// forbids browser sniffing. Document types that could execute in yomihon's
+// origin also receive a Content-Security-Policy sandbox; PDF keeps the narrower
+// confinement described by rawContentSecurityPolicy.
 //
 // The sandbox here is stricter than the report route's. A briefing runs its own
 // charts and so is allowed scripts; a vault file has no reason ever to execute
@@ -264,31 +217,75 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string) {
 // document meets. Without it, opening one top-level would give it read of the
 // whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	rel := r.PathValue("path")
+	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
-		http.NotFound(w, r)
+		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
 		return
 	}
-	f, info, err := openInVault(h.deps.Root, rel)
+	snap := h.deps.Snapshot().Capture()
+	entry, ok := snap.Entry(rel)
+	if !ok {
+		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		return
+	}
+	entry, err := h.deps.Source.Refresh(entry)
 	if err != nil {
-		h.deps.Log.Warn("open vault file", "path", rel, "error", err)
-		http.NotFound(w, r)
+		h.deps.Log.Warn("refresh vault file", "path", rel, "error", err)
+		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
 		return
 	}
-	defer f.Close() //nolint:errcheck // a read-only handle; a close error cannot affect the response
+	file, err := h.deps.Source.OpenFile(r.Context(), entry)
+	if err != nil {
+		h.respondFileReadError(w, rel, "open vault file", err)
+		return
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			h.deps.Log.Warn("close raw vault file", "path", rel, "error", closeErr)
+		}
+	}()
+	if err := serveRaw(w, r, rel, entry.ModTime(), file); err != nil {
+		h.respondFileReadError(w, rel, "prepare raw vault file", err)
+	}
+}
 
-	contentType := fileContentType(rel, f)
+// serveRaw writes one already-opened vault object. The caller establishes the
+// rooted path identity before entering this function; ServeContent then owns
+// HTTP preconditions, byte ranges, HEAD, and content length over that stable
+// handle without reopening its path.
+func serveRaw(
+	w http.ResponseWriter,
+	r *http.Request,
+	rel string,
+	modTime time.Time,
+	content io.ReadSeeker,
+) error {
+	contentType, err := rawContentType(rel, content)
+	if err != nil {
+		return err
+	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", rawContentSecurityPolicy(contentType))
+	origin.SetContentSecurityPolicy(w, rawContentSecurityPolicy(contentType))
 	// Cross-origin embedding is refused one layer up, in the server's own
 	// header seam, so every response — this one, the report bytes, and any
 	// future endpoint — carries the same refusal without each having to
 	// remember it.
 	// ServeContent answers range requests, which a PDF viewer relies on, and
 	// leaves the content type alone because it is already set.
-	http.ServeContent(w, r, "", info.ModTime(), f)
+	http.ServeContent(w, r, "", modTime, content)
+	return nil
+}
+
+func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation string, err error) {
+	if errors.Is(err, vault.ErrSourceChanged) {
+		h.deps.Log.Warn(operation, "path", rel, "error", err)
+		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		return
+	}
+	h.deps.Log.Error(operation, "path", rel, "error", err)
+	http.Error(w, "無法讀取檔案", http.StatusInternalServerError)
 }
 
 // rawContentSecurityPolicy chooses how strongly a raw response is sandboxed.
@@ -303,42 +300,54 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 // therefore keeps only the framing confinement — yomihon's own shell is still
 // the sole page that may embed it, enforced here and again by the same-origin
 // resource policy the server stamps on every response — and everything else is
-// fully sandboxed.
+// served under the raw sandbox policy.
 func rawContentSecurityPolicy(contentType string) string {
 	if strings.HasPrefix(contentType, "application/pdf") {
 		return "frame-ancestors 'self'"
 	}
-	return "sandbox; frame-ancestors 'self'"
+	return rawSandboxPolicy
 }
 
 // fileContentType names a file's bytes: the pinned type for a kind this feature
 // renders, then the machine's mime table, and finally the bytes themselves for
 // a name with no extension to go on. The sniff can only ever answer plain text
 // or opaque bytes, so it can never talk a browser into executing anything.
-//
-// It leaves the reader positioned at the start of the file.
-func fileContentType(rel string, f io.ReadSeeker) string {
-	ext := strings.ToLower(path.Ext(rel))
-	if ct, ok := mediaTypes[ext]; ok {
-		return ct
+func fileContentType(rel string, data []byte) string {
+	if contentType, ok := namedContentType(rel); ok {
+		return contentType
 	}
-	if ct := mime.TypeByExtension(ext); ct != "" {
-		return ct
+	if len(data) > sniffBytes {
+		data = data[:sniffBytes]
 	}
-	var head [sniffBytes]byte
-	n, readErr := io.ReadFull(f, head[:])
-	// The rewind comes before any verdict: the caller reads this same handle
-	// from the beginning, and a peek that gave up early must not leave it
-	// standing in the middle of the file.
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return octetContentType
-	}
-	// A file shorter than the window is the ordinary case, not a failure.
-	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
-		return octetContentType
-	}
-	if looksText(trimPartialRune(head[:n])) {
+	if looksText(trimPartialRune(data)) {
 		return textContentType
 	}
 	return octetContentType
+}
+
+func namedContentType(rel string) (string, bool) {
+	ext := strings.ToLower(path.Ext(rel))
+	if ct, ok := mediaTypes[ext]; ok {
+		return ct, true
+	}
+	if ct := mime.TypeByExtension(ext); ct != "" {
+		return ct, true
+	}
+	return "", false
+}
+
+func rawContentType(rel string, content io.ReadSeeker) (string, error) {
+	if contentType, ok := namedContentType(rel); ok {
+		return contentType, nil
+	}
+	var head [sniffBytes]byte
+	n, readErr := io.ReadFull(content, head[:])
+	_, seekErr := content.Seek(0, io.SeekStart)
+	if seekErr != nil {
+		return "", fmt.Errorf("rewind vault file after content sniff: %w", seekErr)
+	}
+	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+		return "", fmt.Errorf("read vault file content sniff: %w", readErr)
+	}
+	return fileContentType(rel, head[:n]), nil
 }

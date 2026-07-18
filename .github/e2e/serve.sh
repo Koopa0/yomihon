@@ -21,6 +21,42 @@ ready_status() {
   [ "$1" = "200" ]
 }
 
+# The reading surface deliberately stays available when the vault contract is
+# broken, so Home's 200 alone cannot prove that a browser fixture has a usable
+# schema. Browser probes need the contract-backed navigation and write faces;
+# require the real server startup log to say that contract loading succeeded.
+contract_log_error() {
+  local content="$1" loaded unavailable
+  loaded="$(grep -cF 'msg="vault contract loaded"' <<<"$content" || true)"
+  unavailable="$(grep -cF 'msg="vault contract unavailable; write face is closed (fail-closed)"' <<<"$content" || true)"
+  if [ "$unavailable" -ne 0 ]; then
+    echo "the server reported the fixture contract unavailable"
+    return 1
+  fi
+  if [ "$loaded" -ne 1 ]; then
+    echo "the server reported ${loaded} successful fixture contract loads, want exactly 1"
+    return 1
+  fi
+}
+
+# The readiness request must be answered by the child this script started, not
+# by an unrelated process that already owned the requested port. The serving
+# line is emitted only after yomihon has successfully bound its listener, so an
+# exact single match is the ownership proof that an HTTP 200 alone cannot give.
+serving_log_error() {
+  local content="$1" address="$2" serving exact
+  serving="$(grep -cF 'msg="yomihon serving"' <<<"$content" || true)"
+  exact="$(grep -cF "msg=\"yomihon serving\" addr=${address} " <<<"$content" || true)"
+  if [ "$serving" -ne 1 ] || [ "$exact" -ne 1 ]; then
+    echo "the child reported ${serving} serving lines and ${exact} exact binds for ${address}, want exactly 1 of each"
+    return 1
+  fi
+}
+
+copy_fixture() {
+  cp -R "$1" "$2"
+}
+
 # The cases exercise the verdict; the required set is separate so removing a
 # redirect or missing-route control cannot weaken the self-test silently.
 readiness_cases=(
@@ -45,7 +81,7 @@ check_readiness_cases() {
 # the verdict refuses the two regressions most likely to masquerade as startup:
 # the retired redirect and a missing route.
 self_test() {
-  local failures=0 entry code want got
+  local failures=0 entry code want got reason
   check_readiness_cases
   for entry in "${readiness_cases[@]}"; do
     code="${entry%%|*}"
@@ -58,8 +94,76 @@ self_test() {
       echo "  ok: HTTP ${code} -> ${got}"
     fi
   done
-  [ "$failures" -eq 0 ] || { echo "serve.sh: readiness accepts a response other than Home's direct 200" >&2; exit 1; }
-  echo "self-test passed: readiness accepts Home's direct 200 and refuses redirect, missing, and no-response signals"
+
+  if ! contract_log_error 'time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=1 lifecycle_stages=2'; then
+    echo "  SELF-TEST FAIL: one successful contract load was refused" >&2
+    failures=1
+  else
+    echo "  ok: one successful contract load -> accepted"
+  fi
+  for entry in \
+    'unavailable|the server reported the fixture contract unavailable|time=2026-07-17T00:00:00Z level=WARN msg="vault contract unavailable; write face is closed (fail-closed)" error=invalid' \
+    'missing|reported 0 successful fixture contract loads|time=2026-07-17T00:00:00Z level=INFO msg="scanner ready"' \
+    'duplicated|reported 2 successful fixture contract loads|time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=1
+time=2026-07-17T00:00:01Z level=INFO msg="vault contract loaded" version=1'; do
+    code="${entry%%|*}"
+    entry="${entry#*|}"
+    want="${entry%%|*}"
+    entry="${entry#*|}"
+    if reason="$(contract_log_error "$entry")"; then
+      echo "  SELF-TEST FAIL: ${code} contract log was accepted" >&2
+      failures=1
+    elif [[ "$reason" != *"$want"* ]]; then
+      echo "  SELF-TEST FAIL: ${code} contract log failed as ${reason}, want ${want}" >&2
+      failures=1
+    else
+      echo "  ok: ${code} contract log -> ${reason}"
+    fi
+  done
+
+  if ! serving_log_error 'time=2026-07-17T00:00:00Z level=INFO msg="yomihon serving" addr=127.0.0.1:19733 vault=/tmp/fixture' '127.0.0.1:19733'; then
+    echo "  SELF-TEST FAIL: one exact listener bind was refused" >&2
+    failures=1
+  else
+    echo "  ok: one exact listener bind -> accepted"
+  fi
+  for entry in \
+    'missing|reported 0 serving lines|time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=1' \
+    'wrong-address|0 exact binds|time=2026-07-17T00:00:00Z level=INFO msg="yomihon serving" addr=127.0.0.1:19734 vault=/tmp/fixture' \
+    'duplicated|reported 2 serving lines|time=2026-07-17T00:00:00Z level=INFO msg="yomihon serving" addr=127.0.0.1:19733 vault=/tmp/fixture
+time=2026-07-17T00:00:01Z level=INFO msg="yomihon serving" addr=127.0.0.1:19733 vault=/tmp/fixture'; do
+    code="${entry%%|*}"
+    entry="${entry#*|}"
+    want="${entry%%|*}"
+    entry="${entry#*|}"
+    if reason="$(serving_log_error "$entry" '127.0.0.1:19733')"; then
+      echo "  SELF-TEST FAIL: ${code} listener log was accepted" >&2
+      failures=1
+    elif [[ "$reason" != *"$want"* ]]; then
+      echo "  SELF-TEST FAIL: ${code} listener log failed as ${reason}, want ${want}" >&2
+      failures=1
+    else
+      echo "  ok: ${code} listener log -> ${reason}"
+    fi
+  done
+
+  if (
+    set -e
+    fixture_test="$(mktemp -d "${TMPDIR:-/tmp}/yomihon-fixture-copy.XXXXXX")"
+    trap 'rm -rf "$fixture_test"' EXIT
+    mkdir "$fixture_test/source"
+    printf '%s\n' original >"$fixture_test/source/marker"
+    copy_fixture "$fixture_test/source" "$fixture_test/copy"
+    printf '%s\n' changed >"$fixture_test/copy/marker"
+    [ "$(<"$fixture_test/source/marker")" = original ]
+  ); then
+    echo "  ok: disposable fixture writes do not reach the checked-in source"
+  else
+    echo "  SELF-TEST FAIL: the browser fixture copy aliases its source" >&2
+    failures=1
+  fi
+  [ "$failures" -eq 0 ] || { echo "serve.sh: startup self-test accepted an incomplete server state" >&2; exit 1; }
+  echo "self-test passed: readiness, contract, and listener-ownership checks refuse incomplete server startup"
 }
 
 if [ "${1:-}" = "--self-test" ]; then
@@ -79,22 +183,36 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-vault="$here/vault"
 base="http://127.0.0.1:${port}"
-# Named, and with a template. Every documented form of mktemp on this machine's
-# BSD takes one; a bare call is tolerated rather than promised, and these scripts
-# are meant to run here as well as on the runner. The name is what identifies the
-# file if one is ever left behind.
-log="$(mktemp "${TMPDIR:-/tmp}/yomihon-serve.XXXXXX")"
+# Every browser run gets a private copy. A behavior probe may exercise POST
+# paths, and a failed invariant must not leave the checked-in fixture changed.
+# The source remains the canonical reviewable fixture; the server sees only the
+# disposable copy beneath this named temporary directory.
+work="$(mktemp -d "${TMPDIR:-/tmp}/yomihon-serve.XXXXXX")"
+vault="$work/vault"
+log="$work/server.log"
+server_pid=""
+# shellcheck disable=SC2329 # Invoked indirectly by the EXIT trap below.
+cleanup() {
+  if [ -n "$server_pid" ]; then
+    kill "$server_pid" 2>/dev/null || true
+    for _ in $(seq 1 70); do
+      kill -0 "$server_pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$server_pid" 2>/dev/null; then
+      kill -KILL "$server_pid" 2>/dev/null || true
+    fi
+    wait "$server_pid" 2>/dev/null || true
+  fi
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+copy_fixture "$here/vault" "$vault"
 
 YOMIHON_ROOT="$vault" YOMIHON_PORT="$port" "$bin" serve >"$log" 2>&1 &
 server_pid=$!
-cleanup() {
-  kill "$server_pid" 2>/dev/null || true
-  wait "$server_pid" 2>/dev/null || true
-  rm -f "$log"
-}
-trap cleanup EXIT
 
 dump_log() {
   if [ -s "$log" ]; then
@@ -132,6 +250,17 @@ for _ in $(seq 1 60); do
 done
 if [ -z "$ready" ]; then
   echo "serve.sh: the server never answered Home's direct 200 readiness signal on ${base} (last HTTP status: ${code})" >&2
+  dump_log
+  exit 1
+fi
+
+if ! reason="$(contract_log_error "$(<"$log")")"; then
+  echo "serve.sh: fixture contract preflight failed: ${reason}" >&2
+  dump_log
+  exit 1
+fi
+if ! reason="$(serving_log_error "$(<"$log")" "127.0.0.1:${port}")"; then
+  echo "serve.sh: listener ownership preflight failed: ${reason}" >&2
   dump_log
   exit 1
 fi

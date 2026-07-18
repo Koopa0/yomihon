@@ -1,14 +1,21 @@
 package status
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // maxFormBytes bounds the POST /status body: three short form fields never
@@ -17,18 +24,26 @@ const maxFormBytes = 4096
 
 // Handler serves the write face's single HTTP endpoint.
 type Handler struct {
-	svc *Service
-	log *slog.Logger
+	lifecycle *Lifecycle
+	shell     func() pages.Shell
+	log       *slog.Logger
 }
 
 // NewHandler wires the write face's HTTP surface around an existing
-// Service. svc must not be nil — a fail-closed write face is still a
-// *Service (Closed() reports true), not a missing one.
-func NewHandler(svc *Service, log *slog.Logger) *Handler {
-	if svc == nil {
-		panic("status: NewHandler requires a non-nil Service")
+// Lifecycle. A fail-closed write face is still a non-nil Lifecycle whose View
+// is closed. shell is sampled once only after a failed write, so the recovery
+// page uses one coherent reading snapshot.
+func NewHandler(lifecycle *Lifecycle, shell func() pages.Shell, log *slog.Logger) *Handler {
+	if lifecycle == nil {
+		panic("status: NewHandler requires a non-nil Lifecycle")
 	}
-	return &Handler{svc: svc, log: log}
+	if shell == nil {
+		panic("status: NewHandler requires a non-nil shell provider")
+	}
+	if log == nil {
+		panic("status: NewHandler requires a non-nil logger")
+	}
+	return &Handler{lifecycle: lifecycle, shell: shell, log: log}
 }
 
 // Register mounts the write face's route.
@@ -36,13 +51,17 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /status", h.flip)
 }
 
-// flip handles POST /status (path, from, to): it applies one status
-// transition and maps each distinct failure mode to its own HTTP status
-// and message.
+// flip applies one status transition. Success preserves the frozen 303
+// contract. Every failure renders a same-shell recovery page that states
+// whether the note bytes changed and never offers a second POST.
 func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "cannot parse form", http.StatusBadRequest)
+		h.respondRecovery(w, r, "", "", "", &recovery{
+			code:       http.StatusBadRequest,
+			summary:    "表單內容無法解析。",
+			nextAction: "返回原本的筆記頁面，重新載入後再選擇一次狀態轉換。",
+		})
 		return
 	}
 
@@ -50,93 +69,247 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	from := strings.TrimSpace(r.PostFormValue("from"))
 	to := strings.TrimSpace(r.PostFormValue("to"))
 	if path == "" || from == "" || to == "" {
-		http.Error(w, "path, from, and to are all required", http.StatusUnprocessableEntity)
+		h.respondRecovery(w, r, path, from, to, &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    "path、from 與 to 都是必填欄位。",
+			nextAction: "返回筆記或首頁，從目前頁面重新開始這次操作。",
+		})
 		return
 	}
 
-	err := h.svc.Flip(r.Context(), path, from, to)
+	err := h.lifecycle.Flip(r.Context(), path, from, to)
 	if err == nil {
-		// On the seal (→ ready) carry a one-shot ?sealed=1 so the reading page
-		// plays the settle animation once and then strips it; every other
-		// transition redirects plainly. The query suffix is appended after the
-		// path is escaped, so it stays the URL's own query, not part of a name.
 		target := notesHref(path)
 		if to == schema.SealStatus {
 			target += "?sealed=1"
 		}
-		// #nosec G710 -- Flip already succeeded, meaning path passed
-		// Service.Flip's filepath.IsLocal vault-escape check; "/notes/" and the
-		// query are fixed same-origin literals, not attacker-controlled.
+		// #nosec G710 -- Flip succeeded only after its vault-local path check;
+		// the prefix and query are fixed same-origin literals.
 		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}
-	if respondBoundaryError(w, err) {
-		return
-	}
-
-	switch {
-	case errors.Is(err, ErrStale):
-		http.Error(w, "this page is stale; reload and try again", http.StatusConflict)
-	case errors.Is(err, ErrConcurrentWrite):
-		// Distinct from ErrStale above: this is not an old browser tab —
-		// something touched the file in the narrow window between yomihon
-		// reading it and writing it back.
-		http.Error(w, "the file was modified between read and write; try again", http.StatusConflict)
-	case errors.Is(err, ErrDirty):
-		http.Error(w, "this file has uncommitted changes that a flip would pollute the audit trail with; resolve them first", http.StatusConflict)
-	case errors.Is(err, ErrStatusLine):
-		http.Error(w, "the frontmatter status field is a schema violation; a human must edit the file", http.StatusUnprocessableEntity)
-	case errors.Is(err, schema.ErrUnknownStatus), errors.Is(err, schema.ErrIllegalTransition), errors.Is(err, schema.ErrOwnerForbidden):
-		// The response carries the schema's own rejection reason verbatim,
-		// not a generic message — err already carries it
-		// (schema.Transition's wrapped sentinel text). Logged like every
-		// other rejection branch so a 422 is diagnosable without asking
-		// Koopa to reproduce it.
-		h.log.Error("status transition rejected", "path", path, "from", from, "to", to, "error", err)
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-	case errors.Is(err, ErrCommitFailed):
-		// Deliberately not the generic 500 branch below: this failure gets
-		// its own presentation ("file already changed + raw git output +
-		// manual remediation command") because the fix requires seeing what
-		// git said.
-		// This is a loopback-only, single-operator tool — there is
-		// no other party who could read this response.
-		h.log.Error("status commit failed", "path", path, "error", err)
-		http.Error(w, fmt.Sprintf("the note was rewritten but the git commit failed; fix manually in the vault: %v", err), http.StatusInternalServerError)
-	default:
-		h.log.Error("flip failed", "path", path, "from", from, "to", to, "error", err)
-		http.Error(w, "cannot flip status", http.StatusInternalServerError)
-	}
+	h.respondRecovery(w, r, path, from, to, recoveryFor(err))
 }
 
-func respondBoundaryError(w http.ResponseWriter, err error) bool {
+type recovery struct {
+	code            int
+	changed         bool
+	noteGone        bool
+	summary         string
+	nextAction      string
+	technicalDetail string
+	logMessage      string
+	cause           error
+}
+
+func recoveryFor(err error) *recovery {
 	switch {
 	case errors.Is(err, ErrInvalidPath):
-		http.Error(w, "path must be a local vault-relative slash path", http.StatusUnprocessableEntity)
+		return &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    "path 必須是 vault 內的相對 slash 路徑。",
+			nextAction: "返回首頁，從導覽重新開啟筆記後再操作。",
+		}
 	case errors.Is(err, ErrClosed):
-		http.Error(w, "the vault contract is unavailable; the write face is closed (fail-closed)", http.StatusServiceUnavailable)
+		return &recovery{
+			code:       http.StatusServiceUnavailable,
+			summary:    "vault contract 無法使用；生命週期寫入已關閉（fail-closed）。",
+			nextAction: "修正 vault contract 後重新啟動 yomihon，再從筆記頁面操作。",
+			logMessage: "status write face is closed",
+			cause:      err,
+		}
 	case errors.Is(err, ErrArtifactPolicyUnavailable):
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return &recovery{
+			code:            http.StatusServiceUnavailable,
+			summary:         "vault artifact policy 無法使用；生命週期寫入已關閉。",
+			nextAction:      "修正或還原 vault-schema.toml 的 artifact policy，重新啟動 yomihon 後再操作。",
+			technicalDetail: err.Error(),
+			logMessage:      "status artifact policy is unavailable",
+			cause:           err,
+		}
 	case errors.Is(err, ErrNonInstance):
-		http.Error(w, NonInstanceReason, http.StatusUnprocessableEntity)
+		return &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    nonInstanceReason,
+			nextAction: "這個資源仍可閱讀，但 status 只能在生命週期治理的筆記上變更。",
+		}
+	case errors.Is(err, ErrStale):
+		return &recovery{
+			code:       http.StatusConflict,
+			summary:    "這個頁面已過期；磁碟上的狀態已經不同。",
+			nextAction: "返回筆記並重新載入目前狀態，確認後再選擇一次轉換。",
+		}
+	case errors.Is(err, ErrConcurrentWrite):
+		return &recovery{
+			code:       http.StatusConflict,
+			summary:    "檔案在讀取與寫入之間遭到修改。",
+			nextAction: "先檢查 Obsidian 或其他工具的最新變更，再重新載入筆記；不要直接重送。",
+		}
+	case errors.Is(err, ErrDirty):
+		return &recovery{
+			code:       http.StatusConflict,
+			summary:    "檔案有尚未提交的變更；yomihon 沒有把狀態操作混入既有修改，以免污染稽核紀錄。",
+			nextAction: "先在 vault 中檢查並提交或處理既有修改，再回到筆記重新操作。",
+		}
+	case errors.Is(err, ErrStatusLine):
+		return &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    "frontmatter 的 status 欄位違反 schema。",
+			nextAction: "直接編輯筆記，讓 frontmatter 恰好包含一個合法的 status 欄位，再重新載入。",
+		}
+	case errors.Is(err, ErrDurabilityUnsupported):
+		return &recovery{
+			code:       http.StatusServiceUnavailable,
+			summary:    DurablePublicationUnavailableDiagnostic,
+			nextAction: "改用目前支援 status 寫入的 macOS 或 Linux；閱讀與搜尋仍可在此平台使用。",
+		}
+	case errors.Is(err, schema.ErrUnknownStatus),
+		errors.Is(err, schema.ErrIllegalTransition),
+		errors.Is(err, schema.ErrOwnerForbidden):
+		return recoveryForSchemaError(err)
+	case errors.Is(err, ErrPublishUncertain):
+		return &recovery{
+			code:       http.StatusInternalServerError,
+			changed:    true,
+			summary:    "筆記已改寫，但無法確認資料已耐久保存。",
+			nextAction: "不要重送。請直接在 vault 中檢查筆記內容與檔案狀態，確認後再手動收尾。",
+			logMessage: "status publication durability is uncertain",
+			cause:      err,
+		}
+	case errors.Is(err, ErrCommitFailed):
+		return &recovery{
+			code:            http.StatusInternalServerError,
+			changed:         true,
+			summary:         "筆記已改寫，但 git commit 失敗。",
+			nextAction:      "不要重送。請直接在 vault 中檢查修改，依下方 git 錯誤手動完成或修復提交。",
+			technicalDetail: err.Error(),
+			logMessage:      "status commit failed",
+			cause:           err,
+		}
+	case errors.Is(err, fs.ErrNotExist):
+		return &recovery{
+			code:       http.StatusNotFound,
+			noteGone:   true,
+			summary:    "找不到這篇筆記；它可能已被刪除或移動。",
+			nextAction: "返回首頁，從目前的導覽重新找到筆記；這次操作沒有寫入任何內容。",
+		}
 	default:
-		return false
+		return &recovery{
+			code:       http.StatusInternalServerError,
+			summary:    "yomihon 無法完成狀態變更。",
+			nextAction: "查看 yomihon 日誌並確認 vault 狀態；在原因不明時不要反覆重送。",
+			logMessage: "status flip failed",
+			cause:      err,
+		}
 	}
-	return true
 }
 
-// notesHref builds the reading-page location a successful flip redirects to. It
-// percent-escapes each path segment on its own — so a "/" inside a segment can
-// never be read as a separator, and a name carrying "?" or "#" cannot bleed
-// into the URL's query or fragment — while keeping "/" as the separator between
-// segments, exactly how the note route parses {path...} back and byte-identical
-// to the links the rendered pages already point at, so a seal redirect lands on
-// the same URL an in-page link would.
-//
-// It mirrors the reading UI's own per-segment escaping rather than importing
-// it: the write face reaching across to the presentation layer for a five-line
-// URL builder would be a dependency the wrong way round, so each side keeps its
-// own copy.
+func recoveryForSchemaError(err error) *recovery {
+	summary := "vault schema 拒絕這個狀態轉換。"
+	switch {
+	case errors.Is(err, schema.ErrUnknownStatus):
+		summary = "狀態值不在 vault schema 的允許清單中。"
+	case errors.Is(err, schema.ErrIllegalTransition):
+		summary = "vault schema 不允許這個狀態轉換。"
+	case errors.Is(err, schema.ErrOwnerForbidden):
+		summary = "目前操作者沒有執行這個狀態轉換的權限。"
+	}
+	return schemaRecovery(summary, err)
+}
+
+func schemaRecovery(summary string, err error) *recovery {
+	return &recovery{
+		code:            http.StatusUnprocessableEntity,
+		summary:         summary,
+		nextAction:      "依照 vault schema 修正狀態值或轉換，再重新載入筆記。",
+		technicalDetail: err.Error(),
+	}
+}
+
+func (h *Handler) respondRecovery(
+	w http.ResponseWriter,
+	r *http.Request,
+	path, from, to string,
+	failure *recovery,
+) {
+	if failure.logMessage != "" {
+		h.log.Error(failure.logMessage, "path", path, "from", from, "to", to, "error", failure.cause)
+	}
+	notePath := recoveryNotePath(path)
+	if failure.noteGone {
+		notePath = ""
+	}
+	shell := h.shell()
+	view := pages.StatusRecoveryView{
+		Changed:         failure.changed,
+		Summary:         failure.summary,
+		NextAction:      failure.nextAction,
+		TechnicalDetail: failure.technicalDetail,
+		NotePath:        notePath,
+		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
+	}
+	component := pages.StatusRecovery(view, shell.Chrome(r, viewTitle(failure.changed)))
+	if err := writeRecovery(w, r.Context(), failure.code, failure.changed, component); err != nil {
+		h.log.Error("render status recovery", "path", path, "changed", failure.changed, "error", err)
+	}
+}
+
+func recoveryNotePath(path string) string {
+	normalized, _, err := normalizeRelPath(path)
+	if err != nil {
+		return ""
+	}
+	return normalized
+}
+
+func viewTitle(changed bool) string {
+	if changed {
+		return "狀態已寫入，需要手動收尾"
+	}
+	return "狀態尚未變更"
+}
+
+func writeRecovery(
+	w http.ResponseWriter,
+	ctx context.Context,
+	code int,
+	changed bool,
+	component templ.Component,
+) error {
+	var body bytes.Buffer
+	if err := component.Render(ctx, &body); err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusInternalServerError)
+		message := "狀態尚未變更；復原頁面顯示失敗。\n"
+		if changed {
+			message = "狀態已寫入，需要手動收尾；復原頁面顯示失敗，請勿重送，請直接檢查 vault。\n"
+		}
+		if _, writeErr := io.WriteString(w, message); writeErr != nil {
+			return errors.Join(
+				fmt.Errorf("render recovery page: %w", err),
+				fmt.Errorf("write recovery fallback: %w", writeErr),
+			)
+		}
+		return fmt.Errorf("render recovery page: %w", err)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(code)
+	if _, err := w.Write(body.Bytes()); err != nil {
+		return fmt.Errorf("write recovery page: %w", err)
+	}
+	return nil
+}
+
+const nonInstanceReason = "不屬於生命週期治理範圍"
+
+// notesHref percent-escapes each path segment while preserving slash
+// separators. The successful redirect remains local and byte-identical to the
+// reading face's note links without introducing a presentation dependency into
+// Lifecycle.
 func notesHref(p string) string {
 	segments := strings.Split(p, "/")
 	for i, s := range segments {

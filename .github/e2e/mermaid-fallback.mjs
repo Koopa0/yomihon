@@ -3,7 +3,7 @@
 // aborted, the same block remains readable source and the loading shimmer stops.
 //
 // The fixture vault deliberately carries no Mermaid block. This probe injects
-// one into the served note response, before yomihon.js runs, so the product
+// one into the served note response, before the module entry runs, so the product
 // fixture does not acquire test-only content and both cases exercise the real
 // renderer, stylesheet, module request, and boot path.
 //
@@ -54,9 +54,9 @@ const injectDiagram = async (page) => {
 
 // Rewrite the runtime response, not a stand-in. Requiring one exact needle
 // proves a mutation changed the only production site it claims to exercise.
-const rewriteRuntime = (needle, replacement) => async (page) => {
+const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
   let matches = -1;
-  await page.route('**/yomihon.js', async (route) => {
+  await page.route(`**/${moduleName}`, async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches = occurrences(original, needle);
@@ -70,15 +70,17 @@ const MUTATIONS = {
   'drop-rendered-svg': {
     target: 'module-success-render',
     apply: rewriteRuntime(
-      '        el.appendChild(document.importNode(svgEl, true));',
-      "        el.appendChild(document.createTextNode('render suppressed'));",
+      'diagrams.js',
+      '      element.appendChild(document.importNode(svgElement, true));',
+      "      element.appendChild(document.createTextNode('render suppressed'));",
     ),
   },
   'suppress-load-error-marker': {
     target: 'module-load-fallback',
     apply: rewriteRuntime(
-      "      root.setAttribute('data-mermaid-error', '');",
-      "      root.removeAttribute('data-mermaid-error');",
+      'yomihon.js',
+      "    root.setAttribute('data-mermaid-error', '');",
+      "    root.removeAttribute('data-mermaid-error');",
     ),
   },
 };

@@ -1,7 +1,6 @@
 // Package layouts holds the outer HTML shell: the themed document, the shared
-// header chrome, and the ⌘K search dialog. The visual identity is the Claude
-// design bundle; all styling is the compiled Tailwind sheet at /static/app.css
-// plus the chroma syntax sheet — no inline <style>.
+// header chrome, and the ⌘K search dialog. Styling is the repository-owned
+// sheet at /static/app.css plus the chroma syntax sheet — no inline <style>.
 package layouts
 
 import "strconv"
@@ -9,14 +8,15 @@ import "strconv"
 // Chrome is the per-request shell state rendered server-side: the page title,
 // advanceable-note figure, and persisted theme / furigana signals stamped onto
 // the root so the correct state paints on the first byte (no FOUC).
-// data-* is the single HTML↔JS contract; yomihon.js flips these attributes and
-// their cookies, CSS reacts (see assets/css/*).
+// The client runtime flips these attributes and their cookies; CSS reacts (see
+// assets/css/*). The server-rendered page remains usable without enhancement.
 type Chrome struct {
-	Title        string // page title (before " — yomihon")
-	Theme        string // "light" | "dark"
-	Ruby         string // "on" | "off"
-	Advanceable      int  // notes for which Koopa has at least one legal next status
-	AdvanceableKnown bool // false when the write contract or metadata capability is unavailable
+	Title            string // page title (before " — yomihon")
+	Nonce            string // per-response nonce for application-owned scripts
+	Theme            string // "light" | "dark"
+	Ruby             string // "on" | "off"
+	Advanceable      int    // notes for which Koopa has at least one legal next status
+	AdvanceableKnown bool   // false when the write contract or metadata capability is unavailable
 }
 
 templ Base(c Chrome) {
@@ -30,12 +30,13 @@ templ Base(c Chrome) {
 			<link rel="stylesheet" href="/static/chroma.css"/>
 		</head>
 		<body>
+			<a class="y-skiplink" href="#main-content">跳至主要內容</a>
 			<div class="yomihon">
 				@header(c)
 				{ children... }
 				@searchDialog()
 			</div>
-			<script src="/static/yomihon.js" defer></script>
+			<script nonce={ c.Nonce } type="module" src="/static/yomihon.js"></script>
 		</body>
 	</html>
 }
@@ -43,34 +44,34 @@ templ Base(c Chrome) {
 // header is the shared top chrome: the wordmark, advanceable-note Home link,
 // ⌘K search entry, and furigana + theme toggles. The toggles are plain <button>s whose glyph state
 // is CSS-driven from the root data-* attributes (no JS needed just to show the
-// right icon); yomihon.js only flips the attribute + cookie on click. The search
-// entry is a real link to /search (the no-JS fallback) that JS upgrades into
-// opening the dialog.
+// right icon); preferences.js only flips the attribute + cookie on click. The
+// search entry is a real link to /search (the no-JS fallback) that search.js
+// upgrades into opening the dialog.
 templ header(c Chrome) {
 	<header class="y-header">
-		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-rail">
+		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label="切換導覽" aria-expanded="false" aria-controls="nav-rail">
 			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
 		</button>
 		<div class="y-brand">
 			<a class="y-brand__name" href="/">yomihon</a>
 			<span class="y-brand__dot" aria-hidden="true"></span>
-			<span class="y-brand__tag">STOREHOUSE</span>
+			<span class="y-brand__tag">書庫</span>
 		</div>
 		<div class="y-header__spacer"></div>
 		if c.AdvanceableKnown {
-			<a class="y-advancechip" href="/" aria-label={ strconv.Itoa(c.Advanceable) + " notes have a legal next status" } title="Advanceable notes" data-advanceable-chip>{ strconv.Itoa(c.Advanceable) }</a>
+			<a class="y-advancechip" href="/" aria-label={ strconv.Itoa(c.Advanceable) + " 篇筆記可進入下一個合法狀態" } title="可前進的筆記" data-advanceable-chip>{ strconv.Itoa(c.Advanceable) }</a>
 		}
-		<a class="y-searchbtn" href="/search" data-search-open aria-label="Search notes">
+		<a class="y-searchbtn" href="/search" data-search-open aria-label="搜尋筆記">
 			<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<span class="y-searchbtn__label">Search notes…</span>
+			<span class="y-searchbtn__label">搜尋筆記…</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
-		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label="Toggle furigana" aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
+		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label="切換振假名" aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
 			<span class="y-rubybtn__glyph" aria-hidden="true">振</span>
-			<span class="y-rubybtn__on">ON</span>
-			<span class="y-rubybtn__off">OFF</span>
+			<span class="y-rubybtn__on">開</span>
+			<span class="y-rubybtn__off">關</span>
 		</button>
-		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label="Toggle theme" aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
+		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label="切換主題" aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
 			<svg class="y-ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
 			<svg class="y-ico-moon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
 		</button>
@@ -83,17 +84,17 @@ templ header(c Chrome) {
 // The data hooks add live lexical results while preserving that ordinary form;
 // without JavaScript the header link still reaches the full search page.
 templ searchDialog() {
-	<dialog class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any">
+	<dialog class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label="搜尋筆記">
 		<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
 			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<input class="y-searchdialog__input" type="search" name="q" placeholder="Search the storehouse…" aria-label="Search notes" data-live-search-input autofocus/>
+			<input class="y-searchdialog__input" type="search" name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記" data-live-search-input autofocus/>
 			<span class="ui-kbd">esc</span>
 		</form>
 		<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
 		<div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>
 		<div class="y-searchdialog__foot">
-			<span>↵ search</span>
-			<span>esc close</span>
+			<span>↵ 搜尋</span>
+			<span>esc 關閉</span>
 		</div>
 	</dialog>
 }

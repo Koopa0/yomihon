@@ -1,9 +1,8 @@
 package lesson_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -166,33 +165,51 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-// writeSidecar writes a minimal valid sidecar YAML to dir/name and returns
-// nothing — a test helper for the index tests.
-func writeSidecar(t *testing.T, dir, name, slug string) {
-	t.Helper()
-	body := "lesson: " + strings.TrimSuffix(name, ".yaml") + "\nslug: " + slug + "\ntitle: t\npatterns: []\n"
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
-		t.Fatalf("write sidecar %s: %v", name, err)
+func slotSidecar(name, slug string) []byte {
+	return []byte("lesson: " + strings.TrimSuffix(name, ".yaml") + "\nslug: " + slug + "\ntitle: t\npatterns: []\n")
+}
+
+func TestIsSlotSidecar(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "direct YAML child", path: "System/slots/L01.yaml", want: true},
+		{name: "nested YAML", path: "System/slots/archive/L01.yaml", want: false},
+		{name: "wrong extension", path: "System/slots/L01.yml", want: false},
+		{name: "wrong directory", path: "Writing/L01.yaml", want: false},
+		{name: "directory itself", path: "System/slots", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := lesson.IsSlotSidecar(tt.path); got != tt.want {
+				t.Errorf("IsSlotSidecar(%q) = %t, want %t", tt.path, got, tt.want)
+			}
+		})
 	}
 }
 
-func TestBuildSlotIndexJoinsBySlug(t *testing.T) {
+func TestNewSlotIndexJoinsBySlug(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
 	// Filename and slug deliberately disagree: the index must key on the
 	// in-file slug, not the L01/L02 filename.
-	writeSidecar(t, dir, "L01.yaml", "jp-minna-l01")
-	writeSidecar(t, dir, "L02.yaml", "jp-minna-l02")
-	if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("ignored"), 0o600); err != nil {
-		t.Fatalf("write decoy: %v", err)
+	files := map[string][]byte{
+		"System/slots/L01.yaml":        slotSidecar("L01.yaml", "jp-minna-l01"),
+		"System/slots/L02.yaml":        slotSidecar("L02.yaml", "jp-minna-l02"),
+		"System/slots/notes.md":        []byte("ignored"),
+		"System/slots/nested/L03.yaml": slotSidecar("L03.yaml", "jp-minna-l03"),
+		"System/other/L04.yaml":        slotSidecar("L04.yaml", "jp-minna-l04"),
 	}
 
-	idx, err := lesson.BuildSlotIndex(dir)
+	idx, err := lesson.NewSlotIndex(files)
 	if err != nil {
-		t.Fatalf("BuildSlotIndex(%q) = %v", dir, err)
+		t.Fatalf("NewSlotIndex() error = %v", err)
 	}
-	if len(idx) != 2 {
-		t.Errorf("BuildSlotIndex indexed %d sidecars, want 2 (non-yaml must be skipped)", len(idx))
+	if idx.Len() != 2 {
+		t.Errorf("NewSlotIndex indexed %d sidecars, want 2 direct YAML children", idx.Len())
 	}
 	got, ok := idx.Lookup("jp-minna-l01")
 	if !ok {
@@ -201,28 +218,190 @@ func TestBuildSlotIndexJoinsBySlug(t *testing.T) {
 	if got.Lesson != "L01" {
 		t.Errorf("Lookup(jp-minna-l01).Lesson = %q, want %q", got.Lesson, "L01")
 	}
-	if _, ok := idx.Lookup("jp-minna-l99"); ok {
-		t.Errorf("Lookup(jp-minna-l99) reported found for a slug with no sidecar")
+	for _, slug := range []string{"jp-minna-l03", "jp-minna-l04", "jp-minna-l99"} {
+		if _, ok := idx.Lookup(slug); ok {
+			t.Errorf("Lookup(%q) reported a non-indexed sidecar", slug)
+		}
 	}
 }
 
-func TestBuildSlotIndexRejectsDuplicateSlug(t *testing.T) {
+func TestSlotIndexLookupReturnsIndependentSidecar(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	writeSidecar(t, dir, "L01.yaml", "jp-minna-l01")
-	writeSidecar(t, dir, "L01-copy.yaml", "jp-minna-l01") // same slug, second file
-	if _, err := lesson.BuildSlotIndex(dir); err == nil {
-		t.Fatal("BuildSlotIndex accepted two sidecars with the same slug; want an ambiguity error")
+	const sidecar = `lesson: L01
+slug: jp-minna-l01
+title: Original title
+patterns:
+  - id: p1
+    template: "{A}です"
+    gloss_zh: "是 {A}"
+    slots:
+      A:
+        label_zh: 主題
+        color: topic
+        fills:
+          - jp: わたし
+            reading: わたし
+            zh: 我
+`
+	idx, err := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
+	if err != nil {
+		t.Fatalf("NewSlotIndex() error = %v", err)
+	}
+
+	first, ok := idx.Lookup("jp-minna-l01")
+	if !ok {
+		t.Fatal("Lookup(jp-minna-l01) not found")
+	}
+	first.Title = "mutated"
+	first.Patterns[0].Template = "mutated"
+	position := first.Patterns[0].Slots["A"]
+	position.Fills[0].JP = "mutated"
+	first.Patterns[0].Slots["A"] = position
+
+	second, ok := idx.Lookup("jp-minna-l01")
+	if !ok {
+		t.Fatal("second Lookup(jp-minna-l01) not found")
+	}
+	if second.Title != "Original title" || second.Patterns[0].Template != "{A}です" || second.Patterns[0].Slots["A"].Fills[0].JP != "わたし" {
+		t.Errorf("caller mutation changed the index-owned sidecar: %+v", second)
 	}
 }
 
-func TestBuildSlotIndexRejectsMissingSlug(t *testing.T) {
+func TestSlotIndexLookupIsSafeForConcurrentCallers(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "L01.yaml"), []byte("lesson: L01\ntitle: t\npatterns: []\n"), 0o600); err != nil {
-		t.Fatalf("write slugless sidecar: %v", err)
+	const sidecar = `lesson: L01
+slug: jp-minna-l01
+title: Original title
+patterns:
+  - id: p1
+    template: "{A}です"
+    gloss_zh: "是 {A}"
+    slots:
+      A:
+        label_zh: 主題
+        color: topic
+        fills:
+          - jp: わたし
+            reading: わたし
+            zh: 我
+`
+	idx, err := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
+	if err != nil {
+		t.Fatalf("NewSlotIndex() error = %v", err)
 	}
-	if _, err := lesson.BuildSlotIndex(dir); err == nil {
-		t.Fatal("BuildSlotIndex accepted a sidecar with no slug; want an error (the join key would be empty)")
+
+	var callers sync.WaitGroup
+	for range 32 {
+		callers.Go(func() {
+			got, ok := idx.Lookup("jp-minna-l01")
+			if !ok {
+				t.Error("Lookup(jp-minna-l01) not found")
+				return
+			}
+			got.Title = "caller-owned"
+			got.Patterns[0].Template = "caller-owned"
+			position := got.Patterns[0].Slots["A"]
+			position.Fills[0].JP = "caller-owned"
+			got.Patterns[0].Slots["A"] = position
+		})
+	}
+	callers.Wait()
+
+	got, ok := idx.Lookup("jp-minna-l01")
+	if !ok {
+		t.Fatal("Lookup(jp-minna-l01) not found after concurrent callers")
+	}
+	if got.Title != "Original title" || got.Patterns[0].Template != "{A}です" || got.Patterns[0].Slots["A"].Fills[0].JP != "わたし" {
+		t.Errorf("concurrent caller mutation changed the index-owned sidecar: %+v", got)
+	}
+}
+
+func TestNewSlotIndexRejectsDuplicateSlugDeterministically(t *testing.T) {
+	t.Parallel()
+	files := map[string][]byte{
+		"System/slots/L01.yaml":      slotSidecar("L01.yaml", "jp-minna-l01"),
+		"System/slots/L01-copy.yaml": slotSidecar("L01-copy.yaml", "jp-minna-l01"),
+	}
+	_, err := lesson.NewSlotIndex(files)
+	if err == nil {
+		t.Fatal("NewSlotIndex accepted two sidecars with the same slug")
+	}
+	const want = `slot slug "jp-minna-l01" declared by two sidecars (System/slots/L01-copy.yaml and System/slots/L01.yaml)`
+	if err.Error() != want {
+		t.Errorf("NewSlotIndex(duplicate slug) error = %q, want %q", err, want)
+	}
+}
+
+func TestNewSlotIndexRejectsMissingSlug(t *testing.T) {
+	t.Parallel()
+	files := map[string][]byte{"System/slots/L01.yaml": []byte("lesson: L01\ntitle: t\npatterns: []\n")}
+	if _, err := lesson.NewSlotIndex(files); err == nil {
+		t.Fatal("NewSlotIndex accepted a sidecar with no slug")
+	}
+}
+
+func TestNewSlotIndexRejectsInvalidSidecar(t *testing.T) {
+	t.Parallel()
+	const invalid = `lesson: L01
+slug: jp-minna-l01
+title: Invalid
+patterns:
+  - id: p1
+    template: "{A}です"
+    gloss_zh: "是 {A}"
+    slots:
+      A:
+        label_zh: 主題
+        color: unknown
+        fills: []
+`
+	_, err := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(invalid)})
+	if err == nil {
+		t.Fatal("NewSlotIndex accepted structurally invalid slot data")
+	}
+	for _, want := range []string{
+		"validate slot sidecar L01.yaml",
+		"slot A has no fills",
+		`slot A has unknown color "unknown"`,
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("NewSlotIndex error = %q, want %q", err, want)
+		}
+	}
+}
+
+func TestNewSlotIndexOwnsCapturedBytes(t *testing.T) {
+	t.Parallel()
+	source := []byte("lesson: L01\nslug: jp-minna-l01\ntitle: Original\npatterns: []\n")
+	files := map[string][]byte{"System/slots/L01.yaml": source}
+
+	idx, err := lesson.NewSlotIndex(files)
+	if err != nil {
+		t.Fatalf("NewSlotIndex() error = %v", err)
+	}
+
+	copy(source, "lesson: XX")
+	files["System/slots/L01.yaml"] = []byte("lesson: L02\nslug: jp-minna-l02\ntitle: Replacement\npatterns: []\n")
+
+	got, ok := idx.Lookup("jp-minna-l01")
+	if !ok {
+		t.Fatal("Lookup(jp-minna-l01) not found after caller mutated captured input")
+	}
+	if got.Lesson != "L01" || got.Title != "Original" {
+		t.Errorf("Lookup(jp-minna-l01) = %+v, want captured L01 sidecar", got)
+	}
+	if _, ok := idx.Lookup("jp-minna-l02"); ok {
+		t.Error("Lookup(jp-minna-l02) found bytes installed after construction")
+	}
+}
+
+func TestSlotIndexZeroValue(t *testing.T) {
+	t.Parallel()
+	var idx lesson.SlotIndex
+	if idx.Len() != 0 {
+		t.Errorf("zero SlotIndex.Len() = %d, want 0", idx.Len())
+	}
+	if got, ok := idx.Lookup("jp-minna-l01"); ok || got != nil {
+		t.Errorf("zero SlotIndex.Lookup() = (%+v, %t), want (nil, false)", got, ok)
 	}
 }

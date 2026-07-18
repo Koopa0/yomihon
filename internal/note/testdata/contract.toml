@@ -12,11 +12,12 @@ type = ["lesson", "writing"]
 domain = ["japanese"]
 
 [enums.status]
+note = ["imported", "draft", "ready", "archived"]
 lesson = ["imported", "draft", "ready", "archived"]
 
 [fields]
 required = ["title", "type", "domain", "status", "created", "updated"]
-known = ["title", "aliases", "type", "domain", "topics", "status", "created", "updated", "based_on"]
+known = ["title", "aliases", "type", "domain", "topics", "status", "created", "updated", "based_on", "lang"]
 
 [fields.status_group]
 lesson = ["lesson"]

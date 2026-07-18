@@ -1,11 +1,14 @@
 # Engineering standards (the bar an implementing session is held to)
 
-This document exists because the sessions that built the codebase so far will
-not be the sessions that finish it. Everything an implementer needs in order
-to produce work at the required standard must be readable from this
-repository — this file is the enforceable definition of "done well". Where a
-rule here conflicts with convenience, the rule wins; where it conflicts with
-the four walls (`README`, decisions D02), the walls win.
+This document is yomihon's repository-specific working protocol. The single
+normative engineering source is `ENGINEERING_STANDARD.md` version 2.0 at the
+digest in `ENGINEERING_STANDARD.sha256`; `PROJECT_PROFILE.md` resolves that
+standard for this product. This file may make those requirements stricter or
+more concrete, but it cannot waive them. A conflict is resolved by correcting
+this file or by the standard's recorded exception process, never by silently
+choosing the easier sentence. The four walls (`README`, decisions D02) remain
+the authority for product purpose and permitted behavior; they do not turn a
+missing engineering gate into PASS.
 
 ## 1. Working protocol
 
@@ -108,8 +111,10 @@ the four walls (`README`, decisions D02), the walls win.
 - **Permissions are minimal and explicit** (`contents: read`); every widening
   is a reviewed decision. Workflows carry a concurrency group that cancels
   superseded runs, and every job carries a timeout.
-- **Node lives only on the runner** (frontend linting, future screenshot
-  e2e); the product build never acquires a Node step.
+- **Node is development-only** (frontend linting and browser probes); the
+  product build and runtime never acquire a Node step or dependency. The
+  committed lockfile makes local and runner checks use the same dependency
+  graph.
 - **The reference binary never entered CI.** The conformance tests that
   compared against it were env-gated and skipped when the binary was absent —
   design, not a gap; they were deleted when the reference engine was declared
@@ -159,10 +164,25 @@ pattern every installer step follows.
 
 ## 5. Verification protocol (before any push)
 
-1. `make verify` — fmt, vet, lint (zero issues), test, build.
-2. Regeneration is a no-op: `make gen && make css` leaves the tree clean.
-3. Kill-tests for every new lock (see §2), stated in the PR.
-4. Hygiene greps over the changed files, all expected to come back empty
+1. `make verify` is the one complete automated repository gate. It checks
+   policy/profile drift, modules and generated projections, formatting, CSS,
+   vet, curated golangci-lint, independent staticcheck/gosec/govulncheck,
+   race tests, real-vault test compilation without reading a vault, the
+   selected modernc bake-off path, workflow and shell syntax, builds,
+   frontend/browser behavior, HTTP composition, fuzz smoke, watched-red
+   mutations, six 64-bit cross-builds, benchmark smoke, licences/checksums,
+   and deterministic source-artifact provenance. Every mandatory failure is
+   non-zero. Formal Gate evidence reruns it on the immutable reviewed commit.
+2. CI separately runs the retained mattn comparison because that rejected
+   candidate requires CGO, and records focused jobs for readable failure
+   ownership. Those jobs do not replace the canonical gate.
+3. Credentialed or private-data checks remain explicit: `make provider-live`
+   and `make test-real-vault` refuse to run without their opt-ins. Their
+   applicability is decided by `PROJECT_PROFILE.md`, not by a silent skip.
+4. Regeneration is a no-op: `make gen && make css` leaves the tree clean.
+5. Kill-tests for every new lock (see §2), stated in the PR with the exact
+   failure and restored-green result.
+6. Hygiene greps over the changed files, all expected to come back empty
    (word-boundary patterns run under `grep -P` or the system grep — `git
    grep -E` silently drops `\b`, matching nothing and passing vacuously):
    - `grep -ri kura -- '*.go'` (zero coupling),
@@ -171,20 +191,23 @@ pattern every installer step follows.
      ALL-CAPS class is checked case-sensitively),
    - `git status --porcelain` (no untracked residue, nothing harness-owned
      staged).
-5. Commits: conventional type, English, lowercase imperative subject, body
+7. Commits: conventional type, English, lowercase imperative subject, body
    explains why, one logical change each, no attribution trailers, files
    staged by name.
-6. PR bodies carry a summary and a test plan, including which kill-tests ran
-   and what is verified versus assumed. Bot review comments are triaged
+8. PR bodies use `.github/PULL_REQUEST_TEMPLATE.md`, bind all three Gate
+   verdicts and their evidence to the current 40-character head commit, and
+   include which kill-tests ran and what is verified versus assumed.
+   Gate 2 is performed through supported public surfaces by a person or agent
+   that did not implement the change. Bot review comments are triaged
    against the real code — findings are either fixed or refuted line by line,
    never waved through.
-7. **Every finding reaches one of three states before merge**: fixed in this
+9. **Every finding reaches one of three states before merge**: fixed in this
    PR, queued as a named unit in `program.md`, or refused with a written
    reason. "Fixed on another branch" is none of them — that is how a defect a
    reviewer handed over four days early still shipped. A refusal states the
    mechanism it refutes; a finding whose mechanism is wrong can still carry a
    point worth taking, and the reply says so.
-8. **A too-large notice from the review bot is answered, not absorbed.** A PR
+10. **A too-large notice from the review bot is answered, not absorbed.** A PR
    the bot declines to read has not been reviewed. Trigger the review by hand,
    or split the PR. Silence from a reviewer is not a passing verdict, and four
    PRs in this repository's history were never read because nobody noticed the

@@ -1,0 +1,65 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/ui/layouts"
+
+// StatusRecoveryView is the truthful browser projection of a failed status
+// change. Changed distinguishes failures before publication from failures
+// after the note bytes were replaced; callers must never infer it from copy.
+type StatusRecoveryView struct {
+	Changed         bool
+	Summary         string
+	NextAction      string
+	TechnicalDetail string
+	NotePath        string
+	Sidebar         Sidebar
+}
+
+func (v StatusRecoveryView) title() string {
+	if v.Changed {
+		return "狀態已寫入，需要手動收尾"
+	}
+	return "狀態尚未變更"
+}
+
+func (v StatusRecoveryView) mutationState() string {
+	if v.Changed {
+		return "這次操作已變更筆記檔案；請勿重送這次操作。"
+	}
+	return "這次操作沒有變更筆記檔案。"
+}
+
+// StatusRecovery renders the write face's recovery state in the ordinary
+// reading shell. It intentionally exposes only GET links: a failed POST must
+// never be repeated by a recovery control.
+templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c.Nonce)
+			<main id="main-content" tabindex="-1" class="y-main y-recoverymain">
+				<article class="y-recovery" lang="zh-Hant" aria-labelledby="recovery-title">
+					<p class="y-recovery__kicker">生命週期寫入</p>
+					<h1 id="recovery-title" class="y-title">{ v.title() }</h1>
+					<p class="y-recovery__state" data-status-changed={ v.Changed }>{ v.mutationState() }</p>
+					<p class="y-recovery__summary">{ v.Summary }</p>
+					if v.TechnicalDetail != "" {
+						<section class="y-recovery__detail" aria-labelledby="recovery-detail-title">
+							<h2 id="recovery-detail-title">技術細節</h2>
+							<pre><code lang="en">{ v.TechnicalDetail }</code></pre>
+						</section>
+					}
+					<section class="y-recovery__next" aria-labelledby="recovery-next-title">
+						<h2 id="recovery-next-title">下一步</h2>
+						<p>{ v.NextAction }</p>
+					</section>
+					<nav class="y-recovery__actions" aria-label="復原操作">
+						if v.NotePath != "" {
+							<a class="y-recovery__action" href={ templ.URL(notesHref(v.NotePath)) }>返回筆記</a>
+						}
+						<a class="y-recovery__action y-recovery__action--quiet" href="/">返回首頁</a>
+					</nav>
+				</article>
+			</main>
+		</div>
+	}
+}

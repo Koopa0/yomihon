@@ -1,19 +1,22 @@
-// Package lesson loads the hand-authored sidecar data that enriches a
-// Japanese lesson's reading page. Today that is the slot-machine sentence
-// patterns kept at System/slots/*.yaml; the concept-note index the
-// lessons link to joins this package when that interaction lands.
+// Package lesson loads the hand-authored data that enriches lesson reading
+// pages: Japanese slot-machine sentence patterns from System/slots/*.yaml and
+// the cross-domain concept-note index used by in-page sheets.
 //
 // Everything here is read-only: the vault owns the data, this package only
 // parses and validates it. The slot sidecar's shape — patterns, slots, fills,
 // and the closed colour set — is yomihon's own vocabulary expressed as a Go
-// struct and checked here, NOT the note frontmatter contract: vault-schema.toml
+// struct and checked here, not the note frontmatter contract: vault-schema.toml
 // is the single source of schema truth for notes, but this machine-owned
 // sidecar sits outside that schema.
 package lesson
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
-	"os"
+	"io"
+	"maps"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 )
@@ -69,15 +72,19 @@ type Sidecar struct {
 	Patterns []Pattern `yaml:"patterns"`
 }
 
-// Load reads and parses one slot sidecar file.
-func Load(path string) (*Sidecar, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- path is a System/slots/*.yaml entry under the operator's own vault
-	if err != nil {
-		return nil, fmt.Errorf("read slot sidecar %s: %w", path, err)
-	}
+func parseSidecar(source string, data []byte) (*Sidecar, error) {
 	var s Sidecar
-	if err := yaml.Unmarshal(data, &s); err != nil {
-		return nil, fmt.Errorf("parse slot sidecar %s: %w", path, err)
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&s); err != nil {
+		return nil, fmt.Errorf("parse slot sidecar %s: %w", source, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return nil, fmt.Errorf("parse slot sidecar %s: %w", source, err)
+		}
+		return nil, fmt.Errorf("parse slot sidecar %s: exactly one YAML document is allowed", source)
 	}
 	return &s, nil
 }
@@ -90,26 +97,38 @@ func Load(path string) (*Sidecar, error) {
 func (s *Sidecar) Validate() []string {
 	var problems []string
 	for _, p := range s.Patterns {
-		keys := TemplateKeys(p.Template)
-		inTemplate := make(map[string]bool, len(keys))
-		for _, k := range keys {
-			inTemplate[k] = true
-			pos, ok := p.Slots[k]
-			if !ok {
-				problems = append(problems, fmt.Sprintf("pattern %q: template key {%s} has no slot", p.ID, k))
-				continue
-			}
-			if len(pos.Fills) == 0 {
-				problems = append(problems, fmt.Sprintf("pattern %q: slot %s has no fills", p.ID, k))
-			}
-			if pos.Color != "" && !slotColors[pos.Color] {
-				problems = append(problems, fmt.Sprintf("pattern %q: slot %s has unknown color %q", p.ID, k, pos.Color))
-			}
+		problems = append(problems, p.validate()...)
+	}
+	return problems
+}
+
+func (p Pattern) validate() []string {
+	problems := p.validateSlots()
+	keys := TemplateKeys(p.Template)
+	inTemplate := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		inTemplate[k] = true
+		if _, ok := p.Slots[k]; !ok {
+			problems = append(problems, fmt.Sprintf("pattern %q: template key {%s} has no slot", p.ID, k))
 		}
-		for _, gk := range TemplateKeys(p.GlossZH) {
-			if !inTemplate[gk] {
-				problems = append(problems, fmt.Sprintf("pattern %q: gloss key {%s} is not in the template", p.ID, gk))
-			}
+	}
+	for _, k := range TemplateKeys(p.GlossZH) {
+		if !inTemplate[k] {
+			problems = append(problems, fmt.Sprintf("pattern %q: gloss key {%s} is not in the template", p.ID, k))
+		}
+	}
+	return problems
+}
+
+func (p Pattern) validateSlots() []string {
+	var problems []string
+	for _, k := range slices.Sorted(maps.Keys(p.Slots)) {
+		pos := p.Slots[k]
+		if len(pos.Fills) == 0 {
+			problems = append(problems, fmt.Sprintf("pattern %q: slot %s has no fills", p.ID, k))
+		}
+		if pos.Color != "" && !slotColors[pos.Color] {
+			problems = append(problems, fmt.Sprintf("pattern %q: slot %s has unknown color %q", p.ID, k, pos.Color))
 		}
 	}
 	return problems

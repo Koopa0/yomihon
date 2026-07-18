@@ -81,3 +81,59 @@ func TestPlainText(t *testing.T) {
 		})
 	}
 }
+
+func TestPlainSectionsFollowDocumentHeadingBoundaries(t *testing.T) {
+	t.Parallel()
+
+	body := `intro text
+
+## Alpha
+
+first paragraph
+
+### Beta
+
+See [[Target Note|the alias]].
+
+## Empty
+
+---
+
+## Code
+
+` + "```go\nfunc answer() int { return 42 }\n```\n"
+	sections := render.PlainSections(body)
+	if len(sections) != 5 {
+		t.Fatalf("PlainSections() returned %d sections, want 5: %+v", len(sections), sections)
+	}
+
+	tests := []struct {
+		index       int
+		headings    []string
+		text        string
+		blocks      int
+		firstIsCode bool
+	}{
+		{index: 0, headings: nil, text: "intro text", blocks: 1},
+		{index: 1, headings: []string{"Alpha"}, text: "first paragraph", blocks: 1},
+		{index: 2, headings: []string{"Alpha", "Beta"}, text: "Target Note the alias", blocks: 1},
+		{index: 3, headings: []string{"Empty"}, text: "", blocks: 0},
+		{index: 4, headings: []string{"Code"}, text: "func answer() int { return 42 }", blocks: 1, firstIsCode: true},
+	}
+	for _, tt := range tests {
+		got := sections[tt.index]
+		if strings.Join(got.Headings, "/") != strings.Join(tt.headings, "/") {
+			t.Errorf("section %d headings = %v, want %v", tt.index, got.Headings, tt.headings)
+		}
+		if !strings.Contains(got.Text, tt.text) {
+			t.Errorf("section %d text = %q, want substring %q", tt.index, got.Text, tt.text)
+		}
+		if len(got.Blocks) != tt.blocks {
+			t.Errorf("section %d blocks = %+v, want %d", tt.index, got.Blocks, tt.blocks)
+			continue
+		}
+		if tt.blocks > 0 && got.Blocks[0].Code != tt.firstIsCode {
+			t.Errorf("section %d first block Code = %v, want %v", tt.index, got.Blocks[0].Code, tt.firstIsCode)
+		}
+	}
+}

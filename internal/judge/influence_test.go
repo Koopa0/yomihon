@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // The private journal must not change what an agent-readable report says about a
@@ -21,7 +23,8 @@ const diaryInfluenceVault = "testdata/vault-diary-influence"
 // private journal links it.
 func TestCoverageExcludesJournalMountEdges(t *testing.T) {
 	t.Parallel()
-	cov := coverageOf(t, diaryInfluenceVault)
+	root := judgeFixtureRootWithPrivacy(t, diaryInfluenceVault, "Diary")
+	cov := coverageOf(t, root)
 
 	const journalMounted = "Concepts/golang/Journal Mounted.md"
 	const publicMounted = "Concepts/golang/Public Mounted.md"
@@ -43,9 +46,10 @@ func TestCoverageExcludesJournalMountEdges(t *testing.T) {
 // that the private journal names that target.
 func TestCheckExcludesJournalPlannedNames(t *testing.T) {
 	t.Parallel()
-	findings, err := Check(diaryInfluenceVault)
+	root := judgeFixtureRootWithPrivacy(t, diaryInfluenceVault, "Diary")
+	findings, err := Check(root)
 	if err != nil {
-		t.Fatalf("Check(%q): %v", diaryInfluenceVault, err)
+		t.Fatalf("Check(%q): %v", root, err)
 	}
 
 	journalPlanned := findBroken(t, findings, "Concepts/golang/Journal Planned Link.md", "Planned Only In Journal")
@@ -58,6 +62,147 @@ func TestCheckExcludesJournalPlannedNames(t *testing.T) {
 	if publicPlanned.Severity != SeverityInfo {
 		t.Errorf("public-planned broken link severity = %s, want info; a name a public note plans still tracks it",
 			publicPlanned.Severity.name())
+	}
+}
+
+func TestCheckBuildsSecondaryEvidenceOnlyFromEgressAllowedNotes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		publicA = "Concepts/golang/Public A.md"
+		publicB = "Concepts/golang/Public B.md"
+		linker  = "Concepts/golang/Linker.md"
+		source  = "Concepts/golang/Source.md"
+	)
+	root := t.TempDir()
+	writeTestContract(t, root, []string{"Restricted"})
+	write(t, root, publicA, `---
+title: Public A
+aliases: [shared]
+---
+`)
+	write(t, root, publicB, `---
+title: Shared Title
+aliases: [shared]
+---
+`)
+	write(t, root, linker, `---
+title: Linker
+---
+
+[[Shared Title]]
+`)
+	write(t, root, source, `---
+title: Source
+based_on: [restricted-slug]
+---
+`)
+	write(t, root, "Restricted/Hidden.md", `---
+title: Shared Title
+aliases: [shared]
+type: lesson
+slug: restricted-slug
+---
+`)
+
+	findings, err := Check(root)
+	if err != nil {
+		t.Fatalf("Check(%q): %v", root, err)
+	}
+
+	collision, ok := findingByRule(findings, "collision.alias")
+	if !ok {
+		t.Fatal("no collision.alias finding for two egress-allowed owners")
+	}
+	if diff := cmp.Diff([]string{publicA, publicB}, collision.CollisionMembers); diff != "" {
+		t.Errorf("collision members mismatch (-want +got):\n%s", diff)
+	}
+
+	title, ok := findingByRuleAndPath(findings, "link.title_not_alias", linker)
+	if !ok {
+		t.Fatal("no link.title_not_alias finding for an egress-allowed title owner")
+	}
+	if want := "the target is the title of " + publicB + " but not one of its aliases"; title.Evidence != want {
+		t.Errorf("title evidence = %q, want %q", title.Evidence, want)
+	}
+
+	provenance, ok := findingByRuleAndPath(findings, "provenance.unresolved", source)
+	if !ok {
+		t.Fatal("no provenance.unresolved finding for a slug owned only by an egress-denied note")
+	}
+	if provenance.Target == nil || *provenance.Target != "restricted-slug" {
+		t.Errorf("provenance target = %v, want restricted-slug", provenance.Target)
+	}
+}
+
+func TestCheckDoesNotInspectOrReportEgressDeniedPathTargets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		createFile bool
+	}{
+		{name: "missing"},
+		{name: "present", createFile: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeTestContract(t, root, []string{"Restricted"})
+			write(t, root, "Concepts/golang/Public.md", `---
+title: Public
+---
+
+[private target](../../Restricted/secret.md)
+`)
+			if tt.createFile {
+				write(t, root, "Restricted/secret.md", "secret")
+			}
+
+			findings, err := Check(root)
+			if err != nil {
+				t.Fatalf("Check(%q): %v", root, err)
+			}
+			for i := range findings {
+				if findings[i].RuleID == "link.broken.path" {
+					t.Fatalf("link.broken.path finding leaked an egress-denied target: %+v", findings[i])
+				}
+			}
+		})
+	}
+}
+
+func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, []string{"Restricted"})
+	authority := loadTestAuthority(t, root)
+	source := note{path: "Notes/public.md"}
+	refs := []pathRef{
+		{target: "../Restricted/secret.md"},
+		{target: "Restricted/secret.md", code: true},
+	}
+	for _, ref := range refs {
+		inspected := false
+		contains := func(string) bool {
+			inspected = true
+			return true
+		}
+		if finding, ok := classifyPathRefWithContains(
+			&source,
+			"Notes",
+			ref,
+			authority,
+			contains,
+		); ok {
+			t.Errorf("classifyPathRefWithContains(%+v) = %+v, want no private finding", ref, finding)
+		}
+		if inspected {
+			t.Errorf("classifyPathRefWithContains(%+v) inspected membership before the privacy gate", ref)
+		}
 	}
 }
 
@@ -89,4 +234,22 @@ func findBroken(t *testing.T, findings []Finding, path, target string) Finding {
 	}
 	t.Fatalf("no link.broken finding for %q -> %q; got %v", path, target, findings)
 	return Finding{}
+}
+
+func findingByRule(findings []Finding, ruleID string) (Finding, bool) {
+	for i := range findings {
+		if findings[i].RuleID == ruleID {
+			return findings[i], true
+		}
+	}
+	return Finding{}, false
+}
+
+func findingByRuleAndPath(findings []Finding, ruleID, path string) (Finding, bool) {
+	for i := range findings {
+		if findings[i].RuleID == ruleID && findings[i].Path == path {
+			return findings[i], true
+		}
+	}
+	return Finding{}, false
 }

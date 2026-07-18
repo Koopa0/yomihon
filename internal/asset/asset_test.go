@@ -23,9 +23,9 @@ func newServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// TestKnownAssetsServe200 covers every name asset.Register can answer: a
-// GET must succeed with the correct Content-Type and a non-empty body.
-func TestKnownAssetsServe200(t *testing.T) {
+// TestRepresentativeAssetsServe200 exercises each public asset class through
+// the package boundary. The internal registry test enumerates every exact key.
+func TestRepresentativeAssetsServe200(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
@@ -36,7 +36,21 @@ func TestKnownAssetsServe200(t *testing.T) {
 		minBodyLen int
 	}{
 		{name: "yomihon.js", path: "/static/yomihon.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "preferences.js", path: "/static/preferences.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "drawer.js", path: "/static/drawer.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "sidebar.js", path: "/static/sidebar.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "contents.js", path: "/static/contents.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "status.js", path: "/static/status.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "search.js", path: "/static/search.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "shortcuts.js", path: "/static/shortcuts.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "diagrams.js", path: "/static/diagrams.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "lesson.js", path: "/static/lesson.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "application stylesheet", path: "/static/app.css", wantType: "text/css; charset=utf-8", minBodyLen: 1000},
 		{name: "chroma.css", path: "/static/chroma.css", wantType: "text/css; charset=utf-8", minBodyLen: 100},
+		{name: "proportional font", path: "/static/fonts/Geist-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
+		{name: "monospace font", path: "/static/fonts/GeistMono-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
+		{name: "reading font", path: "/static/fonts/Newsreader-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
+		{name: "italic reading font", path: "/static/fonts/Newsreader-Italic-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
 		{name: "mermaid entry module", path: "/static/mermaid.esm.min.mjs", wantType: "text/javascript; charset=utf-8", minBodyLen: 1000},
 	}
 	for _, tt := range tests {
@@ -46,7 +60,11 @@ func TestKnownAssetsServe200(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GET %s: %v", tt.path, err)
 			}
-			defer func() { _ = resp.Body.Close() }()
+			defer func() {
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					t.Errorf("close response body: %v", closeErr)
+				}
+			}()
 
 			if resp.StatusCode != http.StatusOK {
 				t.Errorf("GET %s status = %d, want %d", tt.path, resp.StatusCode, http.StatusOK)
@@ -80,7 +98,11 @@ func TestMermaidEntryModuleChunkResolves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET mermaid entry module: %v", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
 	entry, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("reading mermaid entry module: %v", err)
@@ -100,7 +122,11 @@ func TestMermaidEntryModuleChunkResolves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET chunk %s: %v", loc, err)
 	}
-	defer func() { _ = chunkResp.Body.Close() }()
+	defer func() {
+		if closeErr := chunkResp.Body.Close(); closeErr != nil {
+			t.Errorf("close chunk response body: %v", closeErr)
+		}
+	}()
 	if chunkResp.StatusCode != http.StatusOK {
 		t.Errorf("GET /static/%s status = %d, want %d (this chunk is what the entry module's own dynamic import() would fetch)", loc, chunkResp.StatusCode, http.StatusOK)
 	}
@@ -140,6 +166,9 @@ func TestUnknownAssetsAre404(t *testing.T) {
 	}{
 		{name: "plain nonexistent name", path: "/static/does-not-exist.js"},
 		{name: "nonexistent name shaped like a real one", path: "/static/yomihon.js.bak"},
+		{name: "unregistered generic utility", path: "/static/utils.js"},
+		{name: "unregistered generic helpers", path: "/static/helpers.js"},
+		{name: "registered module backup", path: "/static/preferences.js.bak"},
 		{name: "raw dot-dot traversal", path: "/static/../../../../etc/passwd"},
 		{name: "dot-dot traversal inside one path segment", path: "/static/..%2F..%2F..%2Fetc%2Fpasswd"},
 		{name: "double-encoded dot-dot", path: "/static/%252e%252e%252fetc%252fpasswd"},
@@ -150,6 +179,7 @@ func TestUnknownAssetsAre404(t *testing.T) {
 		// be servable: embedTree registers only .mjs runtime files, so a
 		// non-runtime file in the same tree can't leak onto /static/.
 		{name: "vendored LICENSE is embedded but not served", path: "/static/LICENSE"},
+		{name: "font LICENSE is embedded but not served", path: "/static/fonts/LICENSE.txt"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,7 +188,11 @@ func TestUnknownAssetsAre404(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GET %s: %v", tt.path, err)
 			}
-			defer func() { _ = resp.Body.Close() }()
+			defer func() {
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					t.Errorf("close response body: %v", closeErr)
+				}
+			}()
 
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {

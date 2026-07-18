@@ -1,0 +1,32 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/render"
+
+// browserDiagnostic leads with Traditional Chinese interface copy while
+// preserving the exact low-level diagnostic as explicitly English technical
+// detail. The diagnostic itself remains an internal contract; templates never
+// parse its prose to decide behavior.
+templ browserDiagnostic(summary, detail string) {
+	<span>{ summary }</span>
+	if detail != "" {
+		<span aria-hidden="true">— </span>
+		<code lang="en">{ detail }</code>
+	}
+}
+
+func renderDiagnosticSummary(kind render.DiagnosticKind) string {
+	switch kind {
+	case render.DiagWikilinkBroken:
+		return "找不到 wikilink 或嵌入目標。"
+	case render.DiagWikilinkAmbiguous:
+		return "wikilink 或嵌入目標有歧義。"
+	case render.DiagUnknownCallout:
+		return "未知的 callout 類型；已改以一般引用區塊顯示。"
+	case render.DiagRiskyFence:
+		return "程式碼區塊含類似 vault 語法的文字；已保持原樣。"
+	case render.DiagRenderFailed:
+		return "Markdown 轉譯失敗；已顯示原始內容。"
+	default:
+		return "內容轉譯產生未識別的診斷。"
+	}
+}

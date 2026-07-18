@@ -25,9 +25,16 @@ probes=(
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
   "drawer-contract.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
+  "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
+  "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "skip-link-contract.mjs|/notes/Notes/alpha.md"
+  "contrast-contract.mjs|/notes/Notes/alpha.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
+  "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "seal-select-guard.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
 )
 
 fail() {

@@ -52,7 +52,7 @@ acceptance per unit — is `program.md`.
 | 3 | **Quality rails** (parallel with I) | CI + linters + fuzz pack, per D36 "right after the A face, alongside the I sweep"; the switchover benefits from CI existing | D36 |
 | 4 | **kura retirement (done, D43)** | The switchover executed 2026-07-05 (ahead of the originally planned campaign-first order — a disclosed deviation, safe because the switched surfaces were triple-verified and the wrapper backups keep a rollback path). The differential campaign then ran to its completion bar with zero unexplained divergence, kura was declared retired 2026-07-07, and the §13 cleanup checklist was executed. judge-plan §13 remains the authoritative record | D36, D40, D43 |
 | 4b | **Reading-surface UX repairs** (parallel with anything) | Daily use moved to yomihon outright (D40), so reading-surface pain is paid every day; the mechanical repairs need no ruling, the taste batch waits for Koopa's accumulated pain list — both in §5b | D40 |
-| 5 | **B: search panel, lexical then hybrid** | ⌘K content over the existing shell first; then Gemini embeddings + RRF fusion (key arrives at build start). Needs a **B plan doc** before the hybrid half — its required contents are listed in §5a | D31, D32 |
+| 5 | **B: lexical search UI + agent hybrid CLI** | The shipped ⌘K and `/search` remain lexical-only, and `serve` has no semantic dependency. The privacy capability unit required by D50.10 precedes the CLI/agent hybrid implementation. A cold/incompatible corpus is built explicitly with `yomihon search-index build`; later compatible vault drift is reconciled by the explicit `search --semantic` action before it queries. D50.11/search-plan H12.5 records the optional BYOK boundary. Compilation and offline work require no key; Koopa supplies his paid-project key only at the live network-client step, while downstream users supply their own provider account/key and accept its terms. Needs a **B plan doc** before the hybrid half — its required contents are listed in §5a | D31, D32, D50.10, D50.11 |
 | 6 | **H: agent toolbox** | Graph verbs + whole-graph export + frontmatter query; cheap, unlocks agents and dreaming. Needs an **H plan doc** — output contracts are the point (§5a) | D33 |
 | 7 | **D: Home = the adjudication cockpit** | See §3 — the face that scales Koopa's throughput when agents write faster than he reads. Needs a **D plan doc**; must reconcile with spec §2's four home blocks (see §3) | D26, D35, D37 |
 | 8 | **G: export** | Absorbs yomihon-dev's SSG mode on its own schedule; excluded from the yomihon-dev gate (D38) | spec §6, D38 |
@@ -65,8 +65,8 @@ Every other CLI spelling below remains planned until its owning face lands.
 
 | Capability | Agent surface (CLI) | Human surface (UI) |
 |---|---|---|
-| Hybrid search | `yomihon search` (see degraded-mode rules, §4a) | ⌘K panel + `/search` page (B) |
-| Relation queries | `yomihon graph backlinks/neighbors/path/related`, `graph export` — `related` merges the structural and semantic channels in **one call** (it reads the embedding cache; without it, structural-only plus a warning) | Backlinks / related panel in the reading page's right column; graph view later (H → D) |
+| Hybrid search | `yomihon search-index build` for an explicit cold/full build; `yomihon search --semantic` for self-refreshing compatible hybrid retrieval (see degraded-mode rules, §4a) | None in ordinary search; a future Related/Find-related surface requires a separate ruling |
+| Relation queries | `yomihon graph backlinks/neighbors/path/related`, `graph export` — the agent `related` verb may merge structural and semantic channels under H's frozen contract | Backlinks / structural-neighbors panel in the reading page's right column; a human semantic or mixed Related surface requires a separate ruling; graph view later (H → D) |
 | Diagnostics | `yomihon check` (JSONL/human/md) | Note-page diagnostics column (exists); diagnostics index page (parked in D26, lands with the cockpit) |
 | Coverage | `yomihon coverage` | Cockpit tile (domains / pending / orphans) |
 | Status flow | — (the write is human-only, wall 1) | Lifecycle queues + per-note seal (D26/D27); cockpit queue flow (§3) |
@@ -152,16 +152,45 @@ the four blocks survive, nothing hardcodes what the toml can express (wall 3).
 
 ## 4. Escalation ladders (upgrade by trigger, not by taste — D31)
 
-- **Vector store**: rung 1 = in-process matrix + content-hash cache file.
-  **Rung 1→2 trigger** (this was missing and matters more than rung 3): ~10⁵
-  chunks *or* p95 exact-scan latency > ~100 ms — at 3072d float32, 10⁵ chunks
-  is already ~1.2 GB resident and ~10⁸ multiply-adds per query; brute force
-  quietly expires well before the old headline trigger. Rung 2 = sqlite-vec
-  (single file, serverless). **Rung 2→3 (pgvector)**: corpus beyond the vault
-  (dreaming ingesting repos/clippings/logs), or ANN + metadata filtering
-  combined, or multi-process writers. The store sits behind a narrow interface
-  (put / get / top-k) from day one; fusion, CLI, and UI do not change across
-  rungs.
+- **Semantic storage/retrieval**: the current design is a local SQLite
+  active/previous/staging generation store plus a per-command immutable
+  in-memory exact-search index. Rung 1 requires fewer than 100,000 chunks and
+  at most 1 GiB raw vector payload (`chunks × dimension × 4`); crossing either
+  bound, or p95 exact top-k above ~100 ms, **opens a measured candidate
+  evaluation; it does not preselect the
+  winner**. Compare the current design with then-current embedded-vector
+  candidates and PostgreSQL exact search on the same corpus, filters, crash
+  cases, and SLO. PostgreSQL is adopted only when it owns a real server
+  capability (shared remote access, independently operating writers, or
+  database backup/replication) or when the embedded design misses its SLO and
+  PostgreSQL passes correctness, privacy, resource, cold/warm latency, and
+  operational-cost gates. Neon is the preferred managed PostgreSQL candidate
+  if that gate opens, but any real-vault corpus- or query-derived transfer to a
+  remote service—vectors, query vectors, filters, or identifiers, persisted or
+  transient—needs an explicit egress ruling first. pgvector ANN is a
+  **separate** promotion:
+  PostgreSQL exact search must first miss the SLO, then ANN must meet the
+  held-out recall floor, filter completeness, deterministic projection, and
+  failure-mode requirements. Fusion and the agent CLI remain unchanged;
+  ordinary UI search stays lexical-only and outside this ladder.
+  The promotion benchmark is executable, not a prose comparison:
+  - freeze one synthetic corpus, its exact filters, and recorded query vectors;
+    run the embedded design and PostgreSQL exact scan against the same rows,
+    with brute-force exact top-50 as the result oracle;
+  - report build, bounded-drift, process-cold, and warm-query p50/p95/p99,
+    peak RSS, steady/peak disk, crash recovery, and operational cost. PostgreSQL
+    must preserve path/filter completeness and deterministic ordering and meet
+    the predeclared ~100 ms p95 on the target scale before it can replace the
+    embedded design;
+  - evaluate Neon direct and pooled connections separately, including warm and
+    scale-to-zero latency, chosen region, outage behavior, and monthly cost.
+    Until real-vault remote corpus/query egress is explicitly authorized, this lane
+    uses synthetic data only;
+  - benchmark pgvector ANN only after PostgreSQL exact misses the SLO. Freeze
+    ANN parameters before the held-out run; require top-50 recall ≥0.98 overall
+    and ≥0.96 for every query, zero forbidden/filter leakage, and no regression
+    below H9's recall@5 floor. A tuned result that saw the held-out answers is
+    invalid evidence.
 - **Graph**: in-process index + whole-graph export → embedded store → graph
   server. Triggers: ~10⁵ notes; transactional multi-writer mutation; at-scale
   graph algorithms; cross-corpus relation queries (D33). **Export size,
@@ -182,50 +211,88 @@ the four blocks survive, nothing hardcodes what the toml can express (wall 3).
   (D34, CLI-first with a recorded reversal condition); a second web framework
   or client framework (native-web-first stands).
 
-### 4a. Hybrid degraded modes (ruled now, because every surface needs them)
+### 4a. Hybrid degraded modes (CLI/agent surface)
 
 The semantic channel depends on a network API for *both* indexing and query
 embedding; the lexical channel never does. spec §0.1's availability invariant
 ("search is as available as reading") therefore binds the **lexical** channel
 only, and the design keeps semantic strictly an enhancement layer:
 
-- **⌘K / `/search`**: embedder unreachable → lexical results with a visible
-  "semantic offline" indicator. Never blank, never blocking.
+- **⌘K / `/search` / live results**: lexical-only in every state. They never
+  construct a query embedder, read an API key, consult a vector-cache epoch, or
+  show provider/cache diagnostics. Their availability contract is exactly the
+  shipped lexical contract.
 - **`yomihon search` CLI**: lexical by default; `--semantic` adds the hybrid
   channel and **fails loudly** (nonzero exit, stderr says why) when the cache
   is cold or the API is unreachable — an agent must never get silently
   different result sets with exit 0. There is no best-effort mode (ruled
   2026-07-12, D50): strictness lives in the exit code, and a partial or
   degraded answer never wears exit 0.
-- **Cache freshness has one owner**: the serve-process scanner embeds
-  incrementally (content-hash diff → API call → cache write). The snapshot
-  swap is **not** blocked on embedding: the swap carries fresh
-  lexical/graph/nav immediately, and vectors for changed notes update
-  asynchronously (a changed-note's stale vector is masked from semantic
-  results until refreshed — stale-masking, not stale-serving). The CLI never
-  writes the cache; cold cache + no serve process = semantic unavailable
-  (loud, per above). Cron pipelines use lexical/judge surfaces and are
-  unaffected.
-- **Model/dimension swap is an epoch cutover, not an in-place migration**:
-  vectors from different models are incomparable, so (model, dim) versioning
-  *detects* mismatch; the swap mechanism is embed-new-epoch-in-background,
-  flip when complete, delete old. Cost reality: the whole vault today is
-  ~2–4M tokens ≈ under a dollar to re-embed; even at 10⁵ chunks the cost is
-  dollars — the real constraint is wall-clock under rate limits, which the
-  background epoch absorbs. Chunk inputs are bounded to the model's input
-  token limit (long sections split, recorded in the B plan doc).
+- **Cache freshness belongs only to explicit CLI actions.** `serve` never
+  opens the vector store, reads the key, or constructs an embedder. A cold or
+  incompatible identity requires `yomihon search-index build`. With a
+  compatible active generation, `search --semantic` compares a content-hash
+  corpus manifest, reuses unchanged vectors, and may reconcile a small drift
+  before its one query send. The interactive ceiling is 128 missing chunks
+  and 100,000 submitted proxy tokens; above either it exits 3 with
+  `rebuild-required` before document or query egress. Interactive document
+  calls are single-attempt/fail-fast. Only the explicit build may apply the
+  bounded 429 retry schedule.
+- **Platform scope is explicit.** Version 1 supports the semantic generation
+  store only on Darwin and Linux. Windows has no store because synthetic
+  mode bits cannot establish the owner-only privacy
+  boundary. A text-bearing `search --semantic` preserves lexical results and
+  exits 3 with `unsupported-platform`; `search-index build` emits the exit-3
+  error envelope. All lexical/UI/serve/judge surfaces remain available. Store
+  entry points fail before filesystem, key, or provider access; a future
+  Windows DACL design is a separate ruling and runtime gate.
+  Other targets have no v1 compile/runtime support promise; a Unix-like target
+  name alone does not establish driver, permission, or lease support.
+- **Exact-index capacity is deterministic.** Before hydration/build, require
+  `chunks < 100,000` and raw vector payload `<= 1 GiB`; otherwise return
+  `capacity` and open the §4 comparison. At 3,072 dimensions this means 87,381
+  chunks pass and 87,382 do not. This is not an arbitrary-OOM recovery claim.
+- **Every publication is a complete immutable generation.** One mutable
+  staging generation may retain successful work across interruption, but only
+  while its full identity, target manifest, policy sources, expected count,
+  and retry state still match. The final corpus manifest and policy-source
+  bytes are revalidated, then one SQLite transaction flips
+  `previous=active; active=staging; staging=NULL` and removes unreferenced
+  generations. Failure or interruption leaves the prior active generation
+  unchanged. A concurrent
+  writer is `index-refreshing`; after losing the lease, a search re-reads the
+  active generation once so a just-completed writer is not reported as a
+  spurious failure. No stale vector and no partial hybrid ranking is served.
+- **One process owns one complete generation identity.** An incompatible
+  explicit build may keep the old active generation transactionally intact
+  while it stages a replacement, but the new-identity process does not keep a
+  retired embedder registry and cannot query that old generation. Semantic
+  search exits 3 with `cache-mismatch` until activation. `previous` is retained
+  as publication-retention state, never selected as an automatic ranking
+  fallback.
+- **Numerical-identity changes are incompatible builds, not store-schema
+  migrations.** A model, dimension, prompt/protocol, response-handling, or
+  vector-format change builds a replacement generation; a query never scores
+  vectors across incompatible identities. The SQLite container schema has its
+  own `PRAGMA user_version`: unknown or incompatible schemas are rebuilt only
+  by the explicit build command, while a future known-compatible schema bump
+  must ship a version-specific copy-forward into a new file, validate it, and
+  atomically replace the old file. There is no in-place migration ladder.
+  Chunk inputs remain bounded to the model input limit as specified in the B
+  plan.
 
 ## 5. Quality rails (D36, work items not advice)
 
-- **CI (GitHub Actions), jobs by code area**: lint-go · test-go(-race) ·
-  fuzz (30s/target) · assets-drift (templ + css regeneration must diff
-  clean) · lint-frontend (Biome for the single JS file, Stylelint for
-  input.css) · build · e2e-http (boot server on a fixture vault, assert key
-  pages; startup scan is synchronous, so no race with the rescanner) ·
+- **CI (GitHub Actions), jobs by code area**: verify (format, vet, linters,
+  security analysis, tests, race, retained-driver check, and build) ·
+  govulncheck · windows-semantic-contract · darwin-semantic-contract ·
+  assets-drift (templ + CSS regeneration must diff clean) · lint-frontend
+  (Biome for the runtime and browser-probe JavaScript, Stylelint for the
+  hand-written stylesheet sources) · e2e-http · fuzz (10,000 executions/target) ·
   e2e-behavior (the live-browser locks) · e2e-mutations (each probe's
   self-tests, exit 1 plus the caught marker).
-  **Posture note**: Biome/Stylelint/axe-core run in CI only — the *build*
-  stays Node-free (the stack fact is about the product, not the CI runner).
+  **Posture note**: the Node-based frontend tools run in CI only — the
+  *product build and runtime* stay Node-free.
   Reference-binary conformance tests skip in CI by design; golden fixtures
   carry byte-compat there.
 - **Fuzz pack** (targets chosen by where the judge build actually bled):
@@ -252,8 +319,10 @@ only, and the design keeps semantic strictly an enhancement layer:
 Before building items 5/6/7, a plan doc per face, carrying at minimum:
 - **B**: chunking rules (heading-based, token bound, fences/frontmatter
   handling — state the chunks-per-note assumption; measurement says ~10–15/note
-  on today's vault, so ~5–7×10³ chunks now, ~2–3×10⁵ at 18k notes); cache file
-  format versioned by (model, dim); RRF specifics (k, per-channel depths,
+  on today's vault, so ~5–7×10³ chunks now, ~2–3×10⁵ at 18k notes); the durable
+  cache's identity/publication/concurrency contract plus a pre-code measured
+  selection gate that pins the chosen byte/schema format before storage
+  implementation; RRF specifics (k, per-channel depths,
   chunk→note aggregation); the degraded-mode matrix of §4a as acceptance
   cases; the eval set; egress guard test (Diary/ never reaches the embedder —
   an I-style lock).
@@ -279,8 +348,10 @@ column — deliberately not frontmatter, so the write face never touches it —
 and a new `status: published` for release. yomihon needs zero code for the new
 enum values: domain and status flow from the contract file, and the write
 face offers a transition the moment its lifecycle entry exists there (until
-then it correctly offers nothing). What the new pillar actually asks of the
-faces, by ownership:
+then it correctly offers nothing). Per D51, `published` records Koopa's
+selection for the public collection; it is input to a future publisher, not a
+claim that an external deployment succeeded or remains live. What the new
+pillar actually asks of the faces, by ownership:
 - Structured queries (domain × status × topics) are **already shipped** in
   the lexical search grammar; the one delta is `source_kind` — an index
   field + filter key added when H builds (ruled 2026-07-12, D50: not a
@@ -351,8 +422,9 @@ each face at two widths, compare against a committed baseline.
   (D50.1, at most once per explicit action, never logged or stored) — so
   the wall text and its authoritative reading are the same text (synced
   2026-07-13). Any future widening of egress is a new ruling.
-- Every new capability gets both surfaces where it makes sense (§2) — the UI
-  is not an afterthought to the CLI, nor vice versa.
+- Every new capability gets both surfaces where it makes sense (§2). Hybrid
+  retrieval is deliberately agent-only; the ordinary UI is not a degraded
+  copy of it but a separately frozen lexical surface.
 - Derived data stays disposable (D06): embedding caches can be deleted and
   rebuilt. **Exception, named**: the cockpit's reading-state map is primary
   local state (it derives from Koopa's behavior, not the vault) — small,

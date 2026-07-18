@@ -30,7 +30,7 @@ func TestInjectTTSWrapsExplicitRubylessParagraph(t *testing.T) {
 	for _, want := range []string{
 		`<div class="y-reading" lang="ja">`,
 		`data-tts="あさ、ひる、よる。"`,
-		`aria-label="朗讀這段日文"`,
+		`lang="zh-Hant" aria-label="朗讀這段日文"`,
 		`<p lang="ja">あさ、ひる、よる。</p>`,
 	} {
 		if !strings.Contains(got, want) {

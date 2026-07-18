@@ -69,7 +69,7 @@ func calloutIcon(bucket calloutBucket) string {
 // becomes a static, tinted div. The body is markdown — it is rendered
 // through render (the same pipeline used at the top level), so nested
 // formatting and nested wikilinks work inside a callout.
-func (r *Renderer) renderCallout(bucket calloutBucket, defaultTitle, fold, title, body string, allowEmbed embedPolicy, diags *[]Diagnostic) string {
+func (r *Pipeline) renderCallout(bucket calloutBucket, defaultTitle, fold, title, body string, allowEmbed embedPolicy, diags *[]Diagnostic) string {
 	if title == "" {
 		title = defaultTitle
 	}

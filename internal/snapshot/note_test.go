@@ -1,0 +1,52 @@
+package snapshot
+
+import (
+	"crypto/sha256"
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
+)
+
+func TestCaptureNoteDetachesPublishedReadingData(t *testing.T) {
+	t.Parallel()
+
+	data := []byte("---\ntitle: Original\ntype: concept\nstatus: draft\nslug: original\n---\nbody\n")
+	parsed := vault.Parse("Concepts/Original.md", data)
+	got := captureNote(parsed, data, schema.ArticleLanguage{})
+
+	parsed.RelPath = "Concepts/Changed.md"
+	parsed.Body = "changed"
+	parsed.Frontmatter["title"] = "Changed"
+	parsed.Frontmatter["type"] = "lesson"
+	parsed.Frontmatter["status"] = "ready"
+	parsed.Frontmatter["slug"] = "changed"
+	data[0] = 'x'
+
+	if got.RelPath != "Concepts/Original.md" || got.Title != "Original" || got.Body != "body\n" {
+		t.Fatalf("captured note identity/body changed with its inputs: %+v", got)
+	}
+	if got.Type != "concept" || got.Status != "draft" || got.Slug != "original" {
+		t.Fatalf("captured note metadata changed with its inputs: %+v", got)
+	}
+	if !got.HasFrontmatter || got.Language != "und" || got.LanguageDiagnostic != "" {
+		t.Fatalf("captured note authority = frontmatter %t language %q diagnostic %q", got.HasFrontmatter, got.Language, got.LanguageDiagnostic)
+	}
+	wantHash := sha256.Sum256([]byte("---\ntitle: Original\ntype: concept\nstatus: draft\nslug: original\n---\nbody\n"))
+	if got.ContentHash != wantHash {
+		t.Errorf("ContentHash = %x, want %x", got.ContentHash, wantHash)
+	}
+}
+
+func TestCaptureNoteRetainsFrontmatterDiagnosticWithoutAuthority(t *testing.T) {
+	t.Parallel()
+
+	data := []byte("---\ntitle: [broken\n---\nbody\n")
+	got := captureNote(vault.Parse("Broken.md", data), data, schema.ArticleLanguage{})
+	if got.HasFrontmatter {
+		t.Fatal("malformed frontmatter was marked authoritative")
+	}
+	if got.FMDiagnostic == "" {
+		t.Fatal("malformed frontmatter diagnostic was dropped")
+	}
+}

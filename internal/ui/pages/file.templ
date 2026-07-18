@@ -11,8 +11,8 @@ templ File(v FileView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell y-shell--rail-empty">
-			@sidebar(v.Sidebar)
-			<main class="y-main">
+			@sidebar(v.Sidebar, c.Nonce)
+			<main id="main-content" tabindex="-1" class="y-main">
 				<article class="y-article">
 					@fileHead(v)
 					switch v.Kind {
@@ -50,7 +50,7 @@ templ fileHead(v FileView) {
 	}
 	<h1 class="y-title">{ v.Title }</h1>
 	<div class="y-metarow">
-		<span class="ui-type">{ string(v.Kind) }</span>
+		<span class="ui-type">{ fileKindLabel(v.Kind) }</span>
 		<span>{ v.RelPath }</span>
 	</div>
 	<div class="y-seam" aria-hidden="true"></div>
@@ -60,15 +60,15 @@ templ fileHead(v FileView) {
 // it is, and where its bytes are. Honest, not clever.
 templ fileInfo(v FileView) {
 	<div class="y-fileinfo">
-		<p class="y-fileinfo__lead">This file has no reader here. Its bytes are available unchanged.</p>
+		<p class="y-fileinfo__lead">這裡沒有可呈現此檔案的閱讀器；仍可取得未修改的原始位元組。</p>
 		<dl class="y-fileinfo__list">
-			<dt>Name</dt>
+			<dt>名稱</dt>
 			<dd>{ v.Title }</dd>
-			<dt>Size</dt>
+			<dt>大小</dt>
 			<dd>{ humanSize(v.Size) }</dd>
-			<dt>Type</dt>
+			<dt>類型</dt>
 			<dd>{ v.ContentType }</dd>
 		</dl>
-		<a class="y-fileinfo__raw" href={ templ.URL(rawHref(v.RelPath)) }>Open the raw bytes</a>
+		<a class="y-fileinfo__raw" href={ templ.URL(rawHref(v.RelPath)) }>開啟原始位元組</a>
 	</div>
 }

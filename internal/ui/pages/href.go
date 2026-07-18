@@ -11,21 +11,32 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
-// ShellData is the snapshot-derived state shared by the topbar and sidebar.
+// Shell is the snapshot-derived state shared by the topbar and sidebar.
 // A handler receives it as one value so navigation and the advanceable count
 // cannot come from different atomic snapshot reads.
-type ShellData struct {
+type Shell struct {
 	Nav              *nav.Model
 	Advanceable      int
 	AdvanceableKnown bool
 }
 
 // Chrome builds the request-cookie state around this snapshot-derived shell.
-func (s ShellData) Chrome(r *http.Request, title string) layouts.Chrome {
-	return ChromeFromRequest(r, title, s.Advanceable, s.AdvanceableKnown)
+func (s Shell) Chrome(r *http.Request, title string) layouts.Chrome {
+	return chromeFromRequest(r, title, s.Advanceable, s.AdvanceableKnown)
+}
+
+// WithoutInstanceProjections returns a shell whose navigation and topbar carry
+// no instance-derived state. Direct file and folder navigation remain in the
+// model; the supplied diagnostic explains why instance projections closed.
+func (s Shell) WithoutInstanceProjections(diagnostic string) Shell {
+	s.Nav = s.Nav.WithoutInstanceProjections(diagnostic)
+	s.Advanceable = 0
+	s.AdvanceableKnown = false
+	return s
 }
 
 // notesHref builds the reading-page URL for a vault-relative path,
@@ -108,12 +119,12 @@ type LifecycleItem struct {
 	Sealed bool
 }
 
-// ChromeFromRequest builds the shell Chrome from the request: the page title
+// chromeFromRequest builds the shell Chrome from the request: the page title
 // plus the persisted theme and furigana cookies (default light / on), so the
 // root element renders the correct state on the first byte (no FOUC). Only the
 // two known cookie values are honored; anything else falls to the default —
 // input hygiene, since a cookie is user-controllable.
-func ChromeFromRequest(r *http.Request, title string, advanceable int, advanceableKnown bool) layouts.Chrome {
+func chromeFromRequest(r *http.Request, title string, advanceable int, advanceableKnown bool) layouts.Chrome {
 	theme := "light"
 	if c, err := r.Cookie("yomihon_theme"); err == nil && c.Value == "dark" {
 		theme = "dark"
@@ -122,5 +133,5 @@ func ChromeFromRequest(r *http.Request, title string, advanceable int, advanceab
 	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
 		ruby = "off"
 	}
-	return layouts.Chrome{Title: title, Theme: theme, Ruby: ruby, Advanceable: advanceable, AdvanceableKnown: advanceableKnown}
+	return layouts.Chrome{Title: title, Nonce: origin.Nonce(r.Context()), Theme: theme, Ruby: ruby, Advanceable: advanceable, AdvanceableKnown: advanceableKnown}
 }

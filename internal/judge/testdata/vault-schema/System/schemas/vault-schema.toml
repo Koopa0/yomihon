@@ -1,6 +1,6 @@
 schema_version = "1"
 [enums]
-type = ["concept", "lesson", "system"]
+type = ["inbox", "concept", "lesson", "system", "guide"]
 domain = ["golang", "japanese"]
 source_kind = ["course"]
 source_provider = ["example-provider"]
@@ -13,7 +13,7 @@ lesson = ["draft", "ready"]
 [fields]
 required = ["title", "type", "domain"]
 required_inbox = ["title", "type"]
-known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags"]
+known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags", "lang"]
 lesson_only = ["slug"]
 [fields.status_group]
 system = ["system", "guide"]
@@ -33,5 +33,11 @@ map_types = []
 [artifacts]
 non_instance_dirs = ["System/templates"]
 
+[privacy]
+never_egress_dirs = []
+
 [[lifecycle]]
 status = "seedling"
+applies_to = ["inbox"]
+from = []
+owner = []

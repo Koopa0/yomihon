@@ -5,13 +5,15 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync/atomic"
 
-	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 const (
 	missingNavigationDiagnostic = "contract declares no navigation roles; Paths and Maps disabled until it does"
 	missingArtifactDiagnostic   = "contract declares no artifact policy; instance projections disabled until it does"
+	staleArtifactDiagnostic     = "vault artifact policy source changed after startup; instance projections disabled until restart"
 )
 
 type navigationSection struct {
@@ -63,23 +65,36 @@ func (r NavigationRoles) IsMapType(noteType string) bool {
 // ArtifactPolicy identifies vault directories whose files are readable
 // artifacts but are not governed note instances.
 type ArtifactPolicy struct {
+	state *artifactPolicyState
+}
+
+type artifactPolicyState struct {
 	nonInstanceDirs []string
+	source          policySource
 	available       bool
 	diagnostic      string
+	frozen          bool
+	stale           atomic.Bool
 }
 
 // Available reports whether the contract declared a valid artifact policy.
 func (p ArtifactPolicy) Available() bool {
-	return p.available
+	return p.state != nil && p.state.available && !p.state.stale.Load()
 }
 
 // Diagnostic explains why the artifact policy is unavailable.
 func (p ArtifactPolicy) Diagnostic() string {
-	if p.available {
+	if p.state == nil {
+		return missingArtifactDiagnostic
+	}
+	if p.state.stale.Load() {
+		return staleArtifactDiagnostic
+	}
+	if p.state.available {
 		return ""
 	}
-	if p.diagnostic != "" {
-		return p.diagnostic
+	if p.state.diagnostic != "" {
+		return p.state.diagnostic
 	}
 	return missingArtifactDiagnostic
 }
@@ -88,16 +103,46 @@ func (p ArtifactPolicy) Diagnostic() string {
 // directory. Component boundaries prevent a sibling with the same prefix from
 // matching.
 func (p ArtifactPolicy) IsNonInstance(rel string) bool {
-	if !p.available {
+	if !p.Available() {
 		return false
 	}
-	rel = graph.NormalizeNFC(rel)
-	for _, dir := range p.nonInstanceDirs {
+	rel = vault.NormalizeNFC(rel)
+	for _, dir := range p.state.nonInstanceDirs {
 		if rel == dir || strings.HasPrefix(rel, dir+"/") {
 			return true
 		}
 	}
 	return false
+}
+
+// ValidateSource returns p only while the exact contract source from which it
+// was derived is unchanged. Every copy derived from one Contract shares the
+// same one-way stale latch, so once any consumer observes drift, all instance
+// projections remain unavailable until a freshly loaded Contract replaces it.
+func (p ArtifactPolicy) ValidateSource() ArtifactPolicy {
+	if p.state == nil || !p.state.available || p.state.frozen || p.state.stale.Load() {
+		return p
+	}
+	if !p.state.source.unchanged() {
+		p.state.stale.Store(true)
+	}
+	return p
+}
+
+// Capture validates the source once and returns an immutable point-in-time
+// policy for one request. Source-bound policies keep their shared one-way stale
+// latch; a successful capture owns a copy of the classification and does not
+// change underneath the response that is already using it.
+func (p ArtifactPolicy) Capture() ArtifactPolicy {
+	p = p.ValidateSource()
+	if !p.Available() || p.state.frozen {
+		return p
+	}
+	return ArtifactPolicy{state: &artifactPolicyState{
+		nonInstanceDirs: slices.Clone(p.state.nonInstanceDirs),
+		available:       true,
+		frozen:          true,
+	}}
 }
 
 func deriveNavigationRoles(
@@ -151,27 +196,33 @@ func invalidNavigationRoles(format string, args ...any) NavigationRoles {
 	return NavigationRoles{diagnostic: fmt.Sprintf("invalid navigation roles: "+format+"; Paths and Maps disabled", args...)}
 }
 
-func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool) ArtifactPolicy {
+func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool, source policySource) ArtifactPolicy {
 	if section == nil {
 		return ArtifactPolicy{}
 	}
 	if !nonInstanceDirsDefined {
-		return ArtifactPolicy{diagnostic: `invalid artifact policy: missing required key "non_instance_dirs"`}
+		return ArtifactPolicy{state: &artifactPolicyState{diagnostic: `invalid artifact policy: missing required key "non_instance_dirs"`}}
 	}
 	dirs := make([]string, 0, len(section.NonInstanceDirs))
 	for _, original := range section.NonInstanceDirs {
 		if original == "" || strings.Contains(original, `\`) {
 			return invalidArtifactPolicy(original)
 		}
-		normalized := path.Clean(graph.NormalizeNFC(original))
+		normalized := path.Clean(vault.NormalizeNFC(original))
 		if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") || path.IsAbs(normalized) {
 			return invalidArtifactPolicy(original)
 		}
 		dirs = append(dirs, normalized)
 	}
-	return ArtifactPolicy{nonInstanceDirs: slices.Clone(dirs), available: true}
+	return ArtifactPolicy{state: &artifactPolicyState{
+		nonInstanceDirs: slices.Clone(dirs),
+		source:          source,
+		available:       true,
+	}}
 }
 
 func invalidArtifactPolicy(value string) ArtifactPolicy {
-	return ArtifactPolicy{diagnostic: fmt.Sprintf("invalid artifact policy: non_instance_dirs contains %q", value)}
+	return ArtifactPolicy{state: &artifactPolicyState{
+		diagnostic: fmt.Sprintf("invalid artifact policy: non_instance_dirs contains %q", value),
+	}}
 }

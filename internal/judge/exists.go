@@ -38,15 +38,14 @@ func (r existsReport) found() bool {
 // English title, normalizing both sides the same way the resolver keys names.
 // A note that exposes the name on more than one field yields one match per
 // field. Matches are ordered by path, then field.
-func existsLookup(notes []note, query string) existsReport {
+func existsLookup(notes []note, query string, authority scanAuthority) existsReport {
 	key := normalizeKey(query)
 	matches := []existsMatch{}
 	for i := range notes {
 		n := &notes[i]
-		if underDiary(n.path) {
-			// The private daily journal never surfaces through the existence
-			// oracle: a dedup query must not learn a journal note's name, path,
-			// or alias.
+		if !authority.egressAllowed(n.path) {
+			// A contract-private note never surfaces through the existence
+			// oracle: a dedup query must not learn its name, path, or alias.
 			continue
 		}
 		matches = append(matches, noteMatches(n, key)...)
