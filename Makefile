@@ -264,7 +264,7 @@ css:
 	tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
 
 css-check:
-	@version=$$(tailwindcss --help 2>&1 | sed -n '1p'); case "$$version" in *"tailwindcss $(TAILWIND_VERSION)"*) ;; *) echo 'tailwindcss $(TAILWIND_VERSION) is required' >&2; exit 1;; esac
+	@help=$$(tailwindcss --help 2>&1); case "$$help" in *"tailwindcss $(TAILWIND_VERSION)"*) ;; *) echo 'tailwindcss $(TAILWIND_VERSION) is required' >&2; exit 1;; esac
 	@set -eu; \
 	tmp=$$(mktemp "$${TMPDIR:-/tmp}/yomihon-css.XXXXXX"); \
 	trap 'rm -f "$$tmp"' 0 HUP INT TERM; \
