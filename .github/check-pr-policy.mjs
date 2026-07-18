@@ -1,4 +1,14 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -21,6 +31,7 @@ const envelopeLabels = [
 ];
 
 const placeholder = /^(?:pending|none yet|n\/a|tbd|todo|replace-|list-)/i;
+const privateMergeException = 'EX-2026-001';
 
 const field = (body, label) => {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -35,17 +46,48 @@ const fieldCount = (body, label) => {
 
 const identity = (value) => value.replace(/^@/u, '').toLowerCase();
 
-const approvedException = (id, root) => {
+const approvedException = (id, root, builder, author) => {
   const directory = join(root, 'docs', 'exceptions');
   const candidates = readdirSync(directory).filter((name) => name.startsWith(`${id}-`) && name.endsWith('.md'));
   if (candidates.length !== 1) return `${id} resolves to ${candidates.length} exception records`;
   const record = readFileSync(join(directory, candidates[0]), 'utf8');
-  if (!new RegExp(`^Exception ID:\\s*\`?${id}\`?\\s{2}$`, 'mu').test(record)) {
+  if (fieldCount(record, 'Exception ID') !== 1 || field(record, 'Exception ID') !== id) {
     return `${id} has no matching record identity`;
   }
-  if (!/^Status:\s*Approved\s{2}$/mu.test(record)) return `${id} is not Approved`;
-  if (/^Independent approver:\s*(?:not yet assigned|pending)\s*$/imu.test(record)) return `${id} has no independent approver`;
-  if (!/^Approved \/ rejected:\s*Approved\s*$/mu.test(record)) return `${id} has no completed approval block`;
+  if (fieldCount(record, 'Status') !== 1 || field(record, 'Status') !== 'Approved') {
+    return `${id} must have exactly one Approved status`;
+  }
+  const independentApprover = field(record, 'Independent approver');
+  if (fieldCount(record, 'Independent approver') !== 1
+      || !independentApprover
+      || placeholder.test(independentApprover)) {
+    return `${id} has no independent approver`;
+  }
+  if (fieldCount(record, 'Approved / rejected') !== 1
+      || field(record, 'Approved / rejected') !== 'Approved') {
+    return `${id} must have exactly one Approved decision`;
+  }
+  const approvalBlockApprover = field(record, 'Approver');
+  if (fieldCount(record, 'Approver') !== 1
+      || !approvalBlockApprover
+      || placeholder.test(approvalBlockApprover)
+      || identity(approvalBlockApprover) !== identity(independentApprover)) {
+    return `${id} approval identities are incomplete or inconsistent`;
+  }
+  if ((builder && identity(independentApprover) === identity(builder))
+      || (author && identity(independentApprover) === identity(author))) {
+    return `${id} was not independently approved`;
+  }
+  if (fieldCount(record, 'Date') !== 1 || !/^\d{4}-\d{2}-\d{2}$/u.test(field(record, 'Date'))) {
+    return `${id} has no completed approval date`;
+  }
+  if (fieldCount(record, 'Snapshot') !== 1 || !/^[0-9a-f]{40}$/iu.test(field(record, 'Snapshot'))) {
+    return `${id} has no immutable approval snapshot`;
+  }
+  const reason = field(record, 'Reason');
+  if (fieldCount(record, 'Reason') !== 1 || !reason || placeholder.test(reason)) {
+    return `${id} has no completed approval reason`;
+  }
   return '';
 };
 
@@ -65,7 +107,6 @@ export const validatePullRequest = ({ body, head, author, root = process.cwd() }
   for (const label of gateLabels) {
     if (field(body, label) !== 'PASS') errors.push(`${label} must be PASS`);
   }
-  if (field(body, 'Final verdict') !== 'GO') errors.push('Final verdict must be GO');
 
   const builder = field(body, 'Builder');
   const reviewer = field(body, 'Independent reviewer');
@@ -93,31 +134,100 @@ export const validatePullRequest = ({ body, head, author, root = process.cwd() }
     }
   }
   if (field(body, 'Unverified or blocked checks').toLowerCase() !== 'none') {
-    errors.push('Unverified or blocked checks must be none for GO');
+    errors.push('Unverified or blocked checks must be none for merge acceptance');
   }
   if (field(body, 'Unresolved owner decisions').toLowerCase() !== 'none') {
-    errors.push('Unresolved owner decisions must be none for GO');
+    errors.push('Unresolved owner decisions must be none for merge acceptance');
   }
 
   const exceptionField = field(body, 'Active exceptions');
+  let exceptionPermitted = false;
   if (!exceptionField || placeholder.test(exceptionField)) {
     errors.push('Active exceptions must be none or approved exception IDs');
   } else if (exceptionField.toLowerCase() !== 'none') {
     const ids = exceptionField.split(/[\s,]+/u).filter(Boolean);
+    let privateExceptionApproved = false;
+    if (ids.length !== 1 || ids[0] !== privateMergeException) {
+      errors.push(`Only ${privateMergeException} permits an exception-backed private merge`);
+    }
     for (const id of ids) {
       if (!/^EX-\d{4}-\d{3}$/u.test(id)) {
         errors.push(`Invalid exception ID ${id}`);
         continue;
       }
-      const error = approvedException(id, root);
+      const error = approvedException(id, root, builder, author);
       if (error) errors.push(error);
+      if (!error && id === privateMergeException) privateExceptionApproved = true;
     }
+    exceptionPermitted = ids.length === 1
+      && ids[0] === privateMergeException
+      && privateExceptionApproved;
+  }
+
+  const expectedVerdict = exceptionPermitted ? 'ACCEPT-WITH-GATES' : 'GO';
+  if (field(body, 'Final verdict') !== expectedVerdict) {
+    errors.push(`Final verdict must be ${expectedVerdict}`);
   }
   return errors;
 };
 
 const selfTest = () => {
   const head = '0123456789abcdef0123456789abcdef01234567';
+  const workspace = mkdtempSync(join(tmpdir(), 'yomihon-pr-policy-'));
+  const writeException = (root, {
+    status = 'Approved',
+    independentApprover = 'exception-reviewer',
+    decision = 'Approved',
+    approver = independentApprover,
+    date = '2026-07-18',
+    snapshot = head,
+    reason = 'independent review approved the private merge exception',
+    extra = '',
+  } = {}) => {
+    const exceptionDir = join(root, 'docs', 'exceptions');
+    mkdirSync(exceptionDir, { recursive: true });
+    writeFileSync(join(exceptionDir, 'EX-2026-001-private-branch-protection.md'), `Exception ID: \`EX-2026-001\`${'  '}
+Status: ${status}${'  '}
+Independent approver: ${independentApprover}
+
+## Ownership and closure
+
+Implementation owner: @Koopa0
+Risk owner: @Koopa0
+
+## Approval
+
+Approved / rejected: ${decision}
+Approver: ${approver}
+Date: ${date}
+Snapshot: ${snapshot}
+Reason: ${reason}
+${extra}
+`);
+  };
+  const approvedRoot = join(workspace, 'approved');
+  const proposedRoot = join(workspace, 'proposed');
+  const selfApprovedRoot = join(workspace, 'self-approved');
+  const incompleteRoot = join(workspace, 'incomplete');
+  const duplicateStatusRoot = join(workspace, 'duplicate-status');
+  const contradictoryDecisionRoot = join(workspace, 'contradictory-decision');
+  writeException(approvedRoot);
+  writeException(proposedRoot, {
+    status: 'Proposed',
+    independentApprover: 'not yet assigned',
+    decision: 'pending',
+    approver: 'not yet assigned',
+    date: 'pending',
+    snapshot: 'pending',
+    reason: 'pending',
+  });
+  writeException(selfApprovedRoot, {
+    independentApprover: 'builder-session',
+    approver: 'builder-session',
+  });
+  writeException(incompleteRoot, { date: 'pending', snapshot: 'pending', reason: 'pending' });
+  writeException(duplicateStatusRoot, { extra: `Status: Proposed${'  '}` });
+  writeException(contradictoryDecisionRoot, { extra: 'Approved / rejected: Rejected' });
   const valid = `Reviewed commit: \`${head}\`
 Builder: \`builder-session\`
 Independent reviewer: \`reviewer-session\`
@@ -129,12 +239,25 @@ Final verdict: GO
 Unverified or blocked checks: \`none\`
 Unresolved owner decisions: \`none\`
 Active exceptions: \`none\``;
+  const exceptionPermitted = valid
+    .replace('Final verdict: GO', 'Final verdict: ACCEPT-WITH-GATES')
+    .replace('Active exceptions: `none`', 'Active exceptions: `EX-2026-001`');
   const cases = [
     ['valid envelope', valid, 0],
+    ['approved private-merge exception', exceptionPermitted, 0],
+    ['proposed exception has no force', exceptionPermitted, 1, proposedRoot],
+    ['builder cannot approve an exception', exceptionPermitted, 1, selfApprovedRoot],
+    ['approval details must be complete', exceptionPermitted, 1, incompleteRoot],
+    ['exception status must be singular', exceptionPermitted, 1, duplicateStatusRoot],
+    ['exception decision must be singular', exceptionPermitted, 1, contradictoryDecisionRoot],
+    ['GO overstates an active exception', exceptionPermitted.replace('Final verdict: ACCEPT-WITH-GATES', 'Final verdict: GO'), 1],
+    ['conditional verdict needs an exception', valid.replace('Final verdict: GO', 'Final verdict: ACCEPT-WITH-GATES'), 1],
+    ['additional exception is unsupported', exceptionPermitted.replace('Active exceptions: `EX-2026-001`', 'Active exceptions: `EX-2026-001 EX-2026-002`'), 1],
     ['stale snapshot', valid.replace(head, '1123456789abcdef0123456789abcdef01234567'), 1],
     ['partial gate', valid.replace('Gate 2 — Real-user and third-party-agent usability: PASS', 'Gate 2 — Real-user and third-party-agent usability: PARTIAL'), 1],
     ['same reviewer', valid.replace('reviewer-session', 'builder-session'), 1],
     ['same reviewer alias', valid.replace('Builder: `builder-session`', 'Builder: `@reviewer-session`'), 1],
+    ['unverified work', valid.replace('Unverified or blocked checks: `none`', 'Unverified or blocked checks: `branch protection`'), 1],
     ['unresolved work', valid.replace('Unresolved owner decisions: `none`', 'Unresolved owner decisions: `wire contract`'), 1],
     ['missing evidence', valid.replace('https://example.invalid/review/1', 'replace-with-review'), 1],
     ['malformed digest evidence', valid.replace('https://example.invalid/review/1', 'sha256:no'), 1],
@@ -143,13 +266,17 @@ Active exceptions: \`none\``;
     ['duplicate gate', `${valid}\nGate 1 — Architecture and open-source engineering quality: PENDING`, 1],
   ];
   let failed = false;
-  for (const [name, body, wantErrors] of cases) {
-    const errors = validatePullRequest({ body, head, author: 'pull-request-author' });
-    const gotErrors = errors.length === 0 ? 0 : 1;
-    if (gotErrors !== wantErrors) {
-      console.error(`self-test ${name}: error class ${gotErrors}, want ${wantErrors}: ${errors.join('; ')}`);
-      failed = true;
+  try {
+    for (const [name, body, wantErrors, root = approvedRoot] of cases) {
+      const errors = validatePullRequest({ body, head, author: 'pull-request-author', root });
+      const gotErrors = errors.length === 0 ? 0 : 1;
+      if (gotErrors !== wantErrors) {
+        console.error(`self-test ${name}: error class ${gotErrors}, want ${wantErrors}: ${errors.join('; ')}`);
+        failed = true;
+      }
     }
+  } finally {
+    rmSync(workspace, { force: true, recursive: true });
   }
   if (failed) process.exit(1);
   console.log('check-pr-policy: self-test passed');

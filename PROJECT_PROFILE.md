@@ -817,12 +817,13 @@ Required approvals: Independent guide/reviewer acceptance first; security or
   product rulings, push, release, and merge. A builder cannot certify their own
   R3 change.
 Merge strategy: `docs/merge-policy.md` requires one pull request bound to its
-  current 40-character head, three separate PASS gates, final GO, independent
-  review, applicable checks, resolved findings, and CODEOWNER approval. The
-  policy target is a protected, linear `main`, but GitHub enforcement is currently
-  unavailable and proposed `EX-2026-001` is unapproved; neither it nor this
-  profile authorizes a merge. Even if EX-2026-001 is independently approved, it
-  permits Koopa to choose at most an exception-permitted private merge with an
+  current 40-character head, three separate PASS gates, independent review,
+  applicable checks, resolved findings, and CODEOWNER approval. The ordinary
+  path requires final GO with no active exception. The policy target is a
+  protected, linear `main`, but GitHub enforcement is currently unavailable
+  and proposed `EX-2026-001` is unapproved; neither it nor this profile
+  authorizes a merge. If EX-2026-001 is independently approved, the sole
+  alternative permits Koopa to choose an exception-backed private merge with an
   `ACCEPT-WITH-GATES` verdict; that is not merge-ready and cannot be described as
   complete, release-ready, or production-ready. Squash versus rebase is not
   canonically fixed and is NEEDS-OWNER before evidence depends on resulting

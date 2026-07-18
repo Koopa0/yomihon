@@ -62,7 +62,6 @@ Worst credible consequence: private vault data is sent or mutated outside the au
 ```text
 Implementation owner: @Koopa0
 Risk owner: @Koopa0
-Approver: not yet assigned
 Expiry date or objective review trigger: immediately before public visibility, or before any additional writer receives access, whichever comes first
 Closure condition: enable protected main or a repository ruleset with the settings in docs/merge-policy.md, verify them through the API, and remove this exception from the active profile table
 Tracking issue / decision: this record

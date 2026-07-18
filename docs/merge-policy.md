@@ -7,13 +7,23 @@ The product and acceptance authorities are `ENGINEERING_STANDARD.md` and
 
 ## Pull requests
 
+The normal accepted envelope has three `PASS` gates, `Final verdict: GO`, and
+`Active exceptions: none`. While the repository remains private and owner-only,
+the sole alternative is an independently approved `EX-2026-001`: all three
+gates still remain `PASS`, the final verdict is `ACCEPT-WITH-GATES`, and the
+exception ID is recorded. That path permits Koopa to choose a private merge;
+it does not establish merge-ready, complete, release-ready, or
+production-ready status. No other exception-backed merge shape is currently
+authorized.
+
 Every merge to `main` uses a pull request bound to its current 40-character
 head commit. The pull request records separate Gate 1, Gate 2, and Gate 3
 verdicts, the independent reviewer, the evidence location, unresolved or
 blocked checks, and approved exception IDs. The `pr-policy` check rejects a
-missing or stale commit identity, a non-PASS gate, a non-GO final verdict, a
-builder acting as the independent reviewer, an unverified or unresolved item,
-or an exception that is not recorded as approved.
+missing or stale commit identity, a non-PASS gate, a final verdict that does
+not match the ordinary or sole exception-backed shape above, a builder acting
+as the independent reviewer, an unverified or unresolved item, or an exception
+that is not recorded as approved.
 
 The check validates the evidence envelope; it cannot decide whether the
 review was intellectually independent or competent. The CODEOWNER reviews
