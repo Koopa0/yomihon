@@ -35,7 +35,7 @@ go version -m "$$path" | awk '$$1 == "mod" && $$2 == "$(2)" && $$3 == "$(3)" { f
 }
 endef
 
-.PHONY: build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check policy-check license-check source-archive-candidate source-artifact source-artifact-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check status-activation-mutations css css-check verify verify-spec clean
+.PHONY: build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check repository-check license-check source-archive-candidate source-artifact source-artifact-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check status-activation-mutations css css-check verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -174,8 +174,8 @@ workflow-check:
 	actionlint -pyflakes=
 	shellcheck .github/e2e/*.sh tools/*.sh
 
-policy-check:
-	sh tools/check-policy.sh
+repository-check:
+	sh tools/check-repository.sh
 
 license-check:
 	@test -s LICENSE -a -s THIRD_PARTY_NOTICES.md -a -s assets/js/mermaid/LICENSE -a -s assets/fonts/LICENSE.txt || { \
@@ -408,7 +408,7 @@ status-activation-mutations:
 		}; \
 	done
 
-verify: policy-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check tools-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke license-check source-artifact-check
+verify: repository-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check tools-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke license-check source-artifact-check
 
 verify-spec:
 	@test -f tests/test-hooks.sh \

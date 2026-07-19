@@ -55,7 +55,7 @@ The root Go gate is:
 make verify
 ```
 
-It checks the policy/profile control plane, module and generated-projection
+It checks deterministic repository integrity, module and generated-projection
 drift, Go and web formatting/linting, `go vet`, staticcheck, gosec,
 govulncheck, race tests, HTTP and browser behavior, fuzz smoke, watched-red
 mutations, portable builds, licence and dependency integrity, performance
@@ -100,11 +100,12 @@ absolute values do not.
 
 Keep one coherent change per pull request and use the repository pull-request
 template. Describe the user-visible or architectural reason, the exact
-verification run, and every watched-red mutation. Gate 1, Gate 2, and Gate 3
-must each be PASS against the current 40-character head commit; Gate 2 must be
-performed through a supported public surface by a reviewer who did not
-implement the change. `UNVERIFIED`, `BLOCKED`, or `UNRESOLVED` is never PASS,
-and deviations require an approved record under `docs/exceptions/`.
+verification run, and every watched-red mutation. Formal reviews required by
+`PROJECT_PROFILE.md` use `docs/reviews/REVIEW_REPORT.template.md`; Gate 2 must
+be performed through a supported public surface by a reviewer who did not
+implement the change. CI does not decide whether those human review Gates
+passed. `UNVERIFIED`, `BLOCKED`, or `UNRESOLVED` is never PASS, and deviations
+require an approved record under `docs/exceptions/`.
 Do not include vault content, semantic database generations, query text, logs
 that may contain private material, or API keys in commits, issues, fixtures, or
 pull requests.

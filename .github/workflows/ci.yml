@@ -38,30 +38,6 @@ env:
   NODE_VERSION: 22.23.1
 
 jobs:
-  # Validates the immutable review envelope that branch protection will
-  # require. CODEOWNER review still owns the quality and independence of the
-  # cited evidence; a form check cannot make that judgment.
-  pr-policy:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Prove the policy checker rejects incomplete evidence
-        run: node .github/check-pr-policy.mjs --self-test
-
-      - name: Validate the pull-request evidence envelope
-        env:
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node .github/check-pr-policy.mjs
-
   # Mirrors the local gate: build, vet, lint, and race-enabled tests in the
   # same order a developer runs before pushing.
   verify:

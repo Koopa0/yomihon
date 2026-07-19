@@ -2,7 +2,7 @@
 
 Status: Proposed normative profile; initial approval is pending  
 Standard: `ENGINEERING_STANDARD.md` version 2.0  
-Last reviewed: 2026-07-18; independent review not yet performed  
+Last reviewed: 2026-07-19; independent review not yet performed
 Profile owner: Koopa (`@Koopa0`)  
 Independent approver: Pending designation for an immutable candidate
 
@@ -591,8 +591,8 @@ Browser / desktop probes:
   make mutation-check
   Desktop probes are N/A.
 
-Policy validation:
-  make policy-check
+Repository integrity:
+  make repository-check
 
 Static analysis:
   make vet staticcheck lint workflow-check
@@ -693,15 +693,16 @@ Conditional external/private checks omitted from make verify:
 
 The canonical complete verification command is: `make verify`.
 
-For one repository checkout, `make verify` executes policy/profile integrity,
+For one repository checkout, `make verify` executes deterministic repository
+integrity,
 module drift, formatting plus templ/sqlc/CSS drift, vet, strict Go/frontend/
 workflow lint, staticcheck, gosec, govulncheck, race tests, real-vault test
 compilation, the selected SQLite driver, build, HTTP E2E, live fuzz smoke,
 browser behavior and mutation probes, the declared cross-build matrix,
 performance smoke, license/notice manifests, and deterministic source-artifact
 provenance. A green invocation is still not a PASS record until it is bound to
-an immutable candidate. Real hosted-OS runtime jobs, PR-envelope validation, the
-retained mattn comparison, conditionally authorized real-vault execution,
+an immutable candidate. Real hosted-OS runtime jobs, human review, the retained
+mattn comparison, conditionally authorized real-vault execution,
 credentialed provider certification, measured benchmark comparison, and the
 actual tagged release-artifact creation remain separately named evidence.
 
@@ -709,7 +710,7 @@ actual tagged release-artifact creation remain separately named evidence.
 
 | Stage | APPLIES / N/A / DEFERRED-BY-EXCEPTION / UNRESOLVED | Exact command or exception ID | CI job | Required for merge / release |
 |---|---|---|---|---|
-| Policy validation | APPLIES | `make policy-check` through `make verify`; PR metadata uses `node .github/check-pr-policy.mjs --self-test` and then `node .github/check-pr-policy.mjs` with the PR environment | `verify`, `pr-policy` on pull requests | Yes / Yes; the checker proves envelope structure, not review quality or branch enforcement |
+| Repository integrity | APPLIES | `make repository-check` through `make verify`; it checks only deterministic tracked-repository facts. Reviewer independence, Gate verdicts, exception approval, and final acceptance remain human review responsibilities. | `verify` | Yes / Yes for repository facts; human review is separate evidence, not a CI verdict |
 | Formatting | APPLIES | `make fmt-check` through `make verify` | `verify` | Yes / Yes |
 | Generated drift | APPLIES | `make fmt-check css-check` through `make verify`; on a clean isolated candidate checkout, `make gen && make css && git add -A && git diff --cached --exit-code` must pass. Adding all paths before the cached diff is required to detect modified, deleted, staged, and newly generated files. The stricter unconditional rule in `docs/standards.md` controls over narrower contributor wording. | `verify`, `assets-drift` | Yes / Yes |
 | Module drift | APPLIES | `make mod-check` and `make tools-check-prepare` through `make verify`; locked npm graph through `npm ci` where frontend tools run | `verify`, frontend/browser jobs | Yes / Yes |
@@ -734,11 +735,12 @@ actual tagged release-artifact creation remain separately named evidence.
 | Real-provider certification | APPLIES | `YOMIHON_EMBED_LIVE=1 YOMIHON_EMBED_KEY=... make provider-live`; when model/dimension/chunking/eval identity changes also run `YOMIHON_EMBED_LIVE=1 YOMIHON_EMBED_KEY=... YOMIHON_RECORDING_OUTPUT=/absolute/private/path.json YOMIHON_RECORDING_DIMENSION=1536 go test -count=1 -run='^TestCaptureSyntheticRecording$' ./internal/search/semantic` | None; deliberately credentialed | Provider protocol/identity/egress changes only / Yes when release claims semantic support |
 
 The product jobs have no path filter and run on pull requests and pushes to
-`main`; `pr-policy` is pull-request-only because it validates PR metadata.
-GitHub's branch-protection and rulesets APIs were inspected on 2026-07-18 and
-returned HTTP 403 for the private repository's current plan. Proposed
-`EX-2026-001` records that gap but is not approved and has no exception force;
-the repository must not claim mechanical enforcement or a merge GO from it.
+`main`. CI intentionally does not parse pull-request prose or emit a human
+review verdict. GitHub's branch-protection and rulesets APIs were inspected on
+2026-07-18 and returned HTTP 403 for the private repository's current plan.
+Koopa owns the manual current-head merge decision while the repository remains
+private and owner-only; protected `main` is required before public visibility
+or another writer receives access.
 
 ## 15. Risk-to-evidence map
 
@@ -816,16 +818,16 @@ Required approvals: Independent guide/reviewer acceptance first; security or
   privacy reviewer where applicable; CODEOWNER review by `@Koopa0`; Koopa owns
   product rulings, push, release, and merge. A builder cannot certify their own
   R3 change.
-Merge strategy: `docs/merge-policy.md` requires one pull request bound to its
-  current 40-character head, three separate PASS gates, independent review,
-  applicable checks, resolved findings, and CODEOWNER approval. The ordinary
-  path requires final GO with no active exception. The policy target is a
-  protected, linear `main`, but GitHub enforcement is currently unavailable
-  and proposed `EX-2026-001` is unapproved; neither it nor this profile
-  authorizes a merge. If EX-2026-001 is independently approved, the sole
-  alternative permits Koopa to choose an exception-backed private merge with an
-  `ACCEPT-WITH-GATES` verdict; that is not merge-ready and cannot be described as
-  complete, release-ready, or production-ready. Squash versus rebase is not
+Merge strategy: `docs/merge-policy.md` requires one pull request whose current
+  head has passed the applicable technical checks, independent review where
+  required, resolved findings, and CODEOWNER approval. Formal review reports,
+  not CI-parsed pull-request prose, bind three separate Gate verdicts to the
+  immutable candidate. The ordinary path requires final GO with no active
+  exception. While the repository is
+  private and owner-only, Koopa manually confirms the current head, technical
+  checks, and required review before merge. Protected, linear `main` becomes a
+  hard platform precondition before public visibility or another writer gains
+  access. Squash versus rebase is not
   canonically fixed and is NEEDS-OWNER before evidence depends on resulting
   commit shape.
 Immutable snapshot identity: Full commit SHA, clean/described worktree,
@@ -871,12 +873,9 @@ Readiness claims are distinct:
   verify`, every exactly triggered private/external gate, unconditional
   regeneration/no-drift, watched-red evidence for new locks, cold independent
   three-gate review, all findings disposed, CODEOWNER approval, every applicable
-  PR job, and actual protected-main enforcement from `docs/merge-policy.md`.
-  EX-2026-001 cannot produce this claim: if independently approved, it permits
-  Koopa to choose at most an exception-permitted private merge under
-  `ACCEPT-WITH-GATES`, and that merge remains explicitly not merge-ready. The
-  current exception is merely proposed, so neither merge-ready nor an
-  exception-permitted merge is available for this moving checkout.
+  PR job, plus the current owner-only merge control or protected-main
+  enforcement required by `docs/merge-policy.md`. This moving checkout has no
+  merge-ready claim until its candidate-bound review is complete.
 - **Release-ready** means merge-ready plus every applicable Section 14 stage,
   the six first-release gates in `docs/release.md`, exact release notes and
   changelog, supported-platform evidence, privacy/secret clearance, license and
@@ -907,7 +906,7 @@ Proposed exception records with no current force:
 
 | ID | Clauses | Scope | Owner | Approval / trigger | Gate effect |
 |---|---|---|---|---|---|
-| EX-2026-001 | Standard sections 6, 18, 21, and 22.8 | GitHub `main` protection while the repository is private on the current plan | `@Koopa0` | **Proposed; approver unassigned.** Close before public visibility or another writer gains access | Cannot support PASS or GO. If independently approved as written, maximum private-merge verdict is `ACCEPT-WITH-GATES`; release and production remain `NO-GO`. |
+| None | No exception is currently proposed | Repository | Koopa | N/A | N/A |
 
 Legacy deviation requiring conversion or closure:
 
@@ -925,7 +924,6 @@ Current blockers:
 
 | ID | Contract and risk | Current containment | Owner / required ruling | Gate effect |
 |---|---|---|---|---|
-| PROFILE-U1 | GitHub does not currently enforce the target `main` protections, and EX-2026-001 is only proposed | PR evidence envelope, CI on PR/push, CODEOWNERS, owner-only push authority | `@Koopa0` plus an independent exception approver; account/publication choice remains owner-owned | Blocks merge GO now; blocks release and production while open |
 | PROFILE-U2 | The source-artifact, public-report/certificate, and provenance mechanism exists, but no immutable tagged candidate has run it and the candidate semantic license/notice review is `UNVERIFIED` | `make source-artifact-check` in `make verify`, committed-bootstrap prepare/assembly, `make license-check`, atomic five-file bundle with public-safe structurally completed full report, 16-field class/scope/blocker-bound certificate, four-row manifest, and 25-field tag-object/review-template/bootstrap/toolchain-bound provenance; formal/fixture evidence classes, profile and human-approval preflight, exact post-artifact blocker closure, isolated Git/archive context, final source revalidation, pinned release toolchain, prepared-archive no-replace publication, cooperative bundle lock, post-rename exact-root validation, and hostile mutation tests; manual review | Release owner and independent release reviewer; no signing/SBOM ruling is required for the selected source-only v0.x mechanism | Blocks release GO until candidate-bound artifact execution, public-report/certificate/checksum/provenance/tag-object/toolchain inspection, and semantic license/notice review pass |
 | PROFILE-U3 | Runtime architecture support beyond the declared six 64-bit cross-build targets, dependency-proxy/checksum policy beyond current sums, deprecation window, and final linear merge method are incomplete | Hosted OS jobs, portable cross-build gate, and current Go/npm lockfiles | Koopa for support/compatibility choices | Blocks broader support/compatibility claims; the unresolved dependency-proxy/checksum evidence also blocks release GO until resolved, classified N/A with evidence, or covered by a valid approved exception |
 | PROFILE-U4 | Browser startup/interaction, whole-process memory, HTTP concurrency/shedding, and profiling budgets or baselines are absent | Input/vector bounds, `make performance-smoke`, and benchmark comparison tools exist | Koopa sets user objectives; engineering records candidate-bound workloads, budgets, and baselines | Blocks general performance claims, release-ready Gate 3 for the browser product, and production-ready claims until resolved or covered by a valid approved exception |
@@ -946,7 +944,7 @@ Architecture approval: PENDING — Koopa has not approved this profile revision
 Security / privacy approval where applicable: PENDING — threat/data documents exist, but independent snapshot review was not performed
 Operations approval where applicable: PENDING — end-to-end runbook and recovery evidence unresolved
 Independent approval: PENDING — no independent approver or immutable candidate yet
-Date: 2026-07-18
+Date: 2026-07-19
 Next review trigger: After the profile and cited canon are committed on a clean
   candidate; after any risk/capability/platform/egress/write/compatibility
   change; before the first public release; and at least whenever a listed
@@ -976,10 +974,10 @@ and matches those bytes before its external evidence can complete release GO.
 profile-status: PROPOSED
 merge-readiness: NO-GO
 artifact-build-readiness: NO-GO
-artifact-build-blockers: PROFILE-U1,PROFILE-U2,PROFILE-U3,PROFILE-U4,PROFILE-U5,PROFILE-U6,PROFILE-U7
+artifact-build-blockers: PROFILE-U2,PROFILE-U3,PROFILE-U4,PROFILE-U5,PROFILE-U6,PROFILE-U7
 post-artifact-blockers: none
 release-readiness: NO-GO
 production-readiness: NO-GO
-open-blockers: PROFILE-U1,PROFILE-U2,PROFILE-U3,PROFILE-U4,PROFILE-U5,PROFILE-U6,PROFILE-U7
+open-blockers: PROFILE-U2,PROFILE-U3,PROFILE-U4,PROFILE-U5,PROFILE-U6,PROFILE-U7
 active-exceptions: none
 ```

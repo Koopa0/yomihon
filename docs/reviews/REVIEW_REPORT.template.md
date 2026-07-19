@@ -86,7 +86,7 @@ unlisted profile obligation.
 
 | Blocker ID | Disposition | Evidence | Owner |
 |---|---|---|---|
-| PROFILE-U1 / None | CLOSED / N/A | | |
+| Profile blocker ID / None | CLOSED / N/A | | |
 
 # State, failure, and event analysis
 

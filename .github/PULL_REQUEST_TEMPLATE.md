@@ -1,52 +1,26 @@
-# Outcome and scope
+## Summary
 
-User or operator need:
+- What changed:
+- Why this is the right product or engineering change:
 
-Intended outcome:
+## User impact
 
-Non-goals:
+- User-visible behavior:
+- Compatibility, data, privacy, security, or operational impact:
+- Recovery or rollback:
 
-Risk class and affected capability flags:
+## Validation
 
-Public, durable, privacy, security, and operational contracts affected:
+- [ ] `make verify`
+- Other commands and results:
+- Watched-red evidence for each new load-bearing invariant, if applicable:
 
-# Semantics and implementation
+## Review
 
-Concept, semantic owner, source of truth, and derived projections:
+- Independent review required by `PROJECT_PROFILE.md`: yes / no
+- Review evidence, if required:
+- Remaining blockers or owner decisions: none / describe
 
-Relevant states, failures, retries, recovery, and final side-effect boundary:
-
-Package or dependency changes and why they belong:
-
-# Evidence
-
-Canonical verification command and result:
-
-Watched-red mutation and the exact check observed failing:
-
-Contradiction hunt:
-
-Reviewed commit: `replace-with-40-character-commit-sha`
-Builder: `replace-with-builder-identity`
-Independent reviewer: `replace-with-independent-reviewer-identity`
-Evidence: `replace-with-review-report-or-artifact-link`
-
-Gate 1 — Architecture and open-source engineering quality: PENDING
-Gate 2 — Real-user and third-party-agent usability: PENDING
-Gate 3 — Test and evidence-system quality: PENDING
-Final verdict: PENDING
-
-Unverified or blocked checks: `list-or-none`
-Unresolved owner decisions: `list-or-none`
-Active exceptions: `list-approved-ids-or-none`
-
-# Release effect
-
-Merge-ready claim:
-
-Release-ready claim:
-
-Production-ready claim:
-
-The three claims above are independent. A merged change is not thereby a
-release or a production certification.
+Formal R2/R3, public-surface, final-boundary, and release reviews bind their
+three Gate verdicts to an immutable commit in a review report. CI intentionally
+does not infer those human judgments from this pull-request description.

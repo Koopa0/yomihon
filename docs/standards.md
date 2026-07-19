@@ -194,9 +194,10 @@ pattern every installer step follows.
 7. Commits: conventional type, English, lowercase imperative subject, body
    explains why, one logical change each, no attribution trailers, files
    staged by name.
-8. PR bodies use `.github/PULL_REQUEST_TEMPLATE.md`, bind all three Gate
-   verdicts and their evidence to the current 40-character head commit, and
-   include which kill-tests ran and what is verified versus assumed.
+8. PR bodies use `.github/PULL_REQUEST_TEMPLATE.md` and summarize scope,
+   user impact, verification, watched-red evidence, and remaining decisions.
+   Formal reviews required by the profile bind all three Gate verdicts and
+   their evidence to an immutable commit or artifact in the review report.
    Gate 2 is performed through supported public surfaces by a person or agent
    that did not implement the change. Bot review comments are triaged
    against the real code — findings are either fixed or refuted line by line,

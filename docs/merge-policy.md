@@ -7,29 +7,22 @@ The product and acceptance authorities are `ENGINEERING_STANDARD.md` and
 
 ## Pull requests
 
-The normal accepted envelope has three `PASS` gates, `Final verdict: GO`, and
-`Active exceptions: none`. While the repository remains private and owner-only,
-the sole alternative is an independently approved `EX-2026-001`: all three
-gates still remain `PASS`, the final verdict is `ACCEPT-WITH-GATES`, and the
-exception ID is recorded. That path permits Koopa to choose a private merge;
-it does not establish merge-ready, complete, release-ready, or
-production-ready status. No other exception-backed merge shape is currently
-authorized.
+Every merge to `main` uses a pull request. CI owns reproducible facts such as
+builds, lint, generated drift, tests, platform contracts, vulnerability checks,
+and artifact integrity. It does not parse pull-request prose to decide whether
+a reviewer was independent, a Gate passed, or an exception was approved.
 
-Every merge to `main` uses a pull request bound to its current 40-character
-head commit. The pull request records separate Gate 1, Gate 2, and Gate 3
-verdicts, the independent reviewer, the evidence location, unresolved or
-blocked checks, and approved exception IDs. The `pr-policy` check rejects a
-missing or stale commit identity, a non-PASS gate, a final verdict that does
-not match the ordinary or sole exception-backed shape above, a builder acting
-as the independent reviewer, an unverified or unresolved item, or an exception
-that is not recorded as approved.
+Maintainers own those judgments. Before merge they review the current head,
+confirm every applicable CI job passed, resolve review conversations, and
+inspect the evidence required by `PROJECT_PROFILE.md`. A formal R2/R3,
+public-surface, final-boundary, or release review uses
+`docs/reviews/REVIEW_REPORT.template.md` and binds its three Gate verdicts to
+the exact commit or artifact. Gate 2 evidence must come from a person or agent
+that did not implement the change and must use supported public surfaces.
 
-The check validates the evidence envelope; it cannot decide whether the
-review was intellectually independent or competent. The CODEOWNER reviews
-that fact and the cited evidence. Gate 2 evidence must come from a person or
-agent that did not implement the change and must use supported public
-surfaces.
+The merge decision requires no unresolved blocker in the change's applicable
+scope and no active exception that forbids the merge. Merging a change does
+not by itself establish release-ready or production-ready status.
 
 ## Target protection for `main`
 
@@ -39,15 +32,17 @@ Before public release, `main` is to be protected with all of these settings:
 - one approving review and CODEOWNER review required;
 - stale approvals dismissed when the head commit changes;
 - all review conversations resolved;
-- required status checks current with the head commit, including `pr-policy`
-  and every mandatory job named by `PROJECT_PROFILE.md`;
+- required technical status checks current with the head commit, as named by
+  `PROJECT_PROFILE.md`;
 - administrators included; deletion refused; linear history required.
 
 GitHub's API returned HTTP 403 on 2026-07-18 for both branch protection and
 repository rulesets because this repository is private on the current plan.
-That is an external enforcement gap, not an N/A capability. It is governed by
-`EX-2026-001` and must close before the repository becomes public or another
-writer receives access, whichever happens first.
+In the current owner-only repository, Koopa manually confirms the current
+head, technical checks, and required review before merge. Protected `main`
+must be enabled before the repository becomes public or another writer
+receives access, whichever happens first. This is a platform limitation and
+publication precondition, not evidence supplied by CI.
 
 ## Readiness claims
 
