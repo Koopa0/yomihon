@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/koopa0/yomihon v0.0.0
 	github.com/mattn/go-sqlite3 v1.14.48
-	modernc.org/sqlite v1.53.0
+	modernc.org/sqlite v1.54.0
 )
 
 require (
