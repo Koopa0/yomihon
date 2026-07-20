@@ -181,7 +181,7 @@ driver from owning the whole observation window while preserving enough raw
 samples to expose the workstation's substantial variance. This remains a
 noisy workstation measurement, not a controlled laboratory result. Benchstat
 was `golang.org/x/perf` revision
-`3cf34090a3db` and used its default 0.05 alpha.
+`82a0b07e230d` and used its default 0.05 alpha.
 
 | Operation | modernc | mattn | Benchstat conclusion |
 |---|---:|---:|---|
@@ -200,7 +200,7 @@ Retained-output SHA-256 digests:
 
 - combined modernc blocks: `a62624bc8724386360b46c2506f9527b1d5ae467860018b2be6fc02b7fb4c209`
 - combined mattn blocks: `62db35685e3ac36e2426ca9f15e42e7443c82f16482eaf1ba577bed2bc5aa54c`
-- benchstat output: `4bd103bcd5a8053eae9510e6f2820ec585b41c6cb33943d9a34263e9eeea973c`
+- benchstat output: `d28ea0347fc9028d14fb5dd61885f59f55dec6f11ee96119574f6b118e03a8cd`
 
 All three files are retained under
 `docs/benchmarks/semantic-storage-2026-07-20/`; the names are `modernc.txt`,

@@ -213,33 +213,46 @@ func TestWriteSearchIndexOutput(t *testing.T) {
 
 func TestWriteSearchIndexRecoveryEnvelopes(t *testing.T) {
 	tests := []struct {
-		reason searchReason
-		next   buildNextAction
+		reason      searchReason
+		wantReason  string
+		wantNext    string
+		wantActive  string
+		wantStaging string
 	}{
-		{reason: searchReasonPrivacyUnavailable, next: buildNextRepairVaultContract},
-		{reason: searchReasonArtifactPolicyUnavailable, next: buildNextRepairVaultContract},
-		{reason: searchReasonCapacity, next: buildNextReviewCapacity},
-		{reason: searchReasonUnsupportedPlatform, next: buildNextUseSupportedPlatform},
-		{reason: searchReasonEmbedderUnconfigured, next: buildNextRepairConfiguration},
-		{reason: searchReasonIndexRefreshing, next: buildNextWait},
-		{reason: searchReasonIndexIncomplete, next: buildNextRepairInput},
-		{reason: searchReasonVaultChanged, next: buildNextRetry},
-		{reason: searchReasonEmbedderUnreachable, next: buildNextRetry},
-		{reason: searchReasonEmbedderRejected, next: buildNextRepairConfiguration},
-		{reason: searchReasonEmbedderFailed, next: buildNextRetry},
-		{reason: searchReasonRateLimited, next: buildNextWait},
-		{reason: searchReasonAttemptBudgetExhausted, next: buildNextRenew},
-		{reason: searchReasonAttemptBudgetNotRenewable, next: buildNextRetry},
+		{reason: searchReasonPrivacyUnavailable, wantReason: "privacy-capability-unavailable", wantNext: "repair-vault-contract"},
+		{reason: searchReasonArtifactPolicyUnavailable, wantReason: "artifact-policy-unavailable", wantNext: "repair-vault-contract"},
+		{reason: searchReasonCapacity, wantReason: "capacity", wantNext: "review-capacity"},
+		{reason: searchReasonUnsupportedPlatform, wantReason: "unsupported-platform", wantNext: "use-supported-platform"},
+		{reason: searchReasonEmbedderUnconfigured, wantReason: "embedder-unconfigured", wantNext: "repair-configuration"},
+		{reason: searchReasonIndexRefreshing, wantReason: "index-refreshing", wantNext: "wait-and-retry"},
+		{reason: searchReasonIndexIncomplete, wantReason: "index-incomplete", wantNext: "repair-input"},
+		{reason: searchReasonVaultChanged, wantReason: "vault-changed", wantNext: "retry-build"},
+		{reason: searchReasonEmbedderUnreachable, wantReason: "embedder-unreachable", wantNext: "retry-build"},
+		{reason: searchReasonEmbedderRejected, wantReason: "embedder-rejected", wantNext: "repair-configuration"},
+		{reason: searchReasonEmbedderFailed, wantReason: "embedder-failed", wantNext: "retry-build"},
+		{reason: searchReasonRateLimited, wantReason: "rate-limited", wantNext: "wait-and-retry"},
+		{
+			reason:      searchReasonAttemptBudgetExhausted,
+			wantReason:  "attempt-budget-exhausted",
+			wantNext:    "renew-attempt-budget",
+			wantActive:  "absent",
+			wantStaging: "requires-authorization",
+		},
+		{reason: searchReasonAttemptBudgetNotRenewable, wantReason: "attempt-budget-not-renewable", wantNext: "retry-build"},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.reason), func(t *testing.T) {
 			var cause error
-			wantActive := buildActiveNotInspected
-			wantStaging := buildStagingNotInspected
+			wantActive := tt.wantActive
+			if wantActive == "" {
+				wantActive = "not-inspected"
+			}
+			wantStaging := tt.wantStaging
+			if wantStaging == "" {
+				wantStaging = "not-inspected"
+			}
 			if tt.reason == searchReasonAttemptBudgetExhausted {
 				cause = exhaustedBuildFailure()
-				wantActive = buildActiveAbsent
-				wantStaging = buildStagingRequiresAuthorization
 			}
 			body, err := newBuildErrorEnvelope(tt.reason, cause)
 			if err != nil {
@@ -251,10 +264,10 @@ func TestWriteSearchIndexRecoveryEnvelopes(t *testing.T) {
 			}
 			want := fmt.Sprintf(
 				"{\"error\":{\"reason\":%q,\"active_generation\":%q,\"staging_generation\":%q,\"retry_safe\":false,\"next_action\":%q}}\n",
-				tt.reason,
+				tt.wantReason,
 				wantActive,
 				wantStaging,
-				tt.next,
+				tt.wantNext,
 			)
 			if got := buf.String(); got != want {
 				t.Errorf("writeSearchIndexJSON() = %q, want %q", got, want)

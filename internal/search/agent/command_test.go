@@ -1457,7 +1457,7 @@ never_egress_dirs = ["Private"]
 			args:       []string{"build", "--json", "--renew-attempt-budget"},
 			err:        semantic.ErrAttemptBudgetNotRenewable,
 			wantExit:   3,
-			wantStdout: "{\"error\":{\"reason\":\"attempt-budget-not-renewable\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"retry-build\"}}\n",
+			wantStdout: readWireGolden(t, "index-attempt-budget-not-renewable.jsonl"),
 			wantStderr: readWireGolden(t, "index-attempt-budget-not-renewable.stderr"),
 		},
 		{

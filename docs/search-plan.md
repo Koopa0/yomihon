@@ -1295,8 +1295,9 @@ path creation, one-batch-per-invocation,
 local chunk failure, final `vault-changed`, interruption before/after row
 writes, corruption reset followed by an `absent` recovery state, activation
 rollback, old-or-new reader snapshots during commit, and
-active+previous+staging pruning. Golden fixtures pin every build error/internal
-envelope field, enum, order, boolean, next action, exit code, and stderr line.
+active+previous+staging pruning. Byte-exact golden fixtures or independently
+specified literal assertions pin every build error/internal envelope field,
+enum, order, boolean, next action, exit code, and stderr line.
 
 ## H8. Removed — source_kind moved to the H face (D50.4)
 
@@ -1585,20 +1586,20 @@ not sufficient once the thin `cmd/yomihon` dispatch imports
     current official SDK converters without sending vault or real query text.
 1. Chunker over the existing extraction layer (+ the H3 rule table's
    tests, bound and ladder cases).
-2. **Generation-store gate — completed 2026-07-14.** The corrected bake-off in
+2. **Generation-store gate — refreshed 2026-07-20.** The corrected bake-off in
    `semantic-storage-bakeoff.md` runs the implemented sqlc-backed
    active/previous/staging lifecycle: exact-byte reuse plus one changed row,
    active-reader flip, interrupted staging/resume, activation rollback, GC,
    WAL/file high-water, and 256-row process-cold hydration. At 6,496 chunks ×
-   1,536 dimensions the product path measured 1.840 s initial build, 1.025 s
-   one-note drift, 74.20 ms process-cold complete hydration, 51.76 MiB one-role
+   1,536 dimensions the product path measured 2.856 s initial build, 751.8 ms
+   one-note drift, 93.55 ms process-cold complete hydration, 51.76 MiB one-role
    steady disk, and 210.73 MiB observed three-role peak including sidecars.
-   The modernc/mattn comparison found mattn faster for build/drift but no
-   proven cold-load difference; modernc remains selected for the optional
-   local CLI's toolchain/release shape. The old mutable-row numbers are
-   historical and not evidence for this lifecycle. Storage ownership stays
-   package-private behind the concrete `Indexer`; generated queries do not
-   create a domain interface.
+   The modernc/mattn comparison found mattn faster for initial build, no proven
+   one-note-drift difference, and modernc faster for process-cold paged load;
+   modernc remains selected for the optional local CLI's toolchain/release and
+   query-hydration shape. The old mutable-row numbers are historical and not
+   evidence for this lifecycle. Storage ownership stays package-private behind
+   the concrete `Indexer`; generated queries do not create a domain interface.
 3. The egress-guard locks (H5), all five flows — before production command
    composition can construct a client or any live probe can send.
 4. Concrete embedder + CLI-owned full builder and bounded reconciler, staging
@@ -1657,9 +1658,9 @@ admission, and the filter-free bare-query projection.
 
 Open engineering call (not a ruling): the token-proxy constants (H3), decided
 inside the build with measurements and reversible behind its interface. The
-storage-engine call is closed by H4's 2026-07-13 bake-off.
+storage-engine call is closed by H4's 2026-07-20 refreshed bake-off.
 
-## H13. Scale and capacity envelope (measurements through 2026-07-14)
+## H13. Scale and capacity envelope (measurements through 2026-07-20)
 
 - **Working set (RAM, the query engine)**: chunks × dim × 4 bytes.
   At the 5,937-chunk figure: **34.79 MiB** at 1536, **69.57 MiB** at 3072
@@ -1678,8 +1679,8 @@ storage-engine call is closed by H4's 2026-07-13 bake-off.
   at 3072 for 5,937 chunks, and **50.75 MiB / 101.50 MiB** respectively for
   6,496 chunks, before row metadata. Steady state retains active + previous;
   building may additionally retain one staging generation and WAL pages. The
-  2026-07-14 implemented-store measurement at 6,496 × 1,536 observed **51.76
-  MiB** for one cleanly closed active generation (**55.75 MiB** peak with
+  2026-07-20 implemented-store measurement at 6,496 × 1,536 observed **51.76
+  MiB** for one cleanly closed active generation (**55.45 MiB** peak with
   sidecars), and **155.19 MiB** cleanly closed / **210.73 MiB** observed peak
   for active + previous + resumable staging; the peak included a **55.42 MiB
   WAL**. These are one-shot capacity observations with a 1 ms sampler, not a

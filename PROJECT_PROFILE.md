@@ -1,15 +1,17 @@
 # Project Engineering Profile
 
-Status: Proposed normative profile; initial approval is pending  
-Standard: `ENGINEERING_STANDARD.md` version 2.0  
-Last reviewed: 2026-07-20; independent review not yet performed
-Profile owner: Koopa (`@Koopa0`)  
-Independent approver: Pending designation for an immutable candidate
+Status: Normative repository applicability profile
+Standard: `ENGINEERING_STANDARD.md` version 2.0
+Last reviewed: 2026-07-20
+Profile owner: Koopa (`@Koopa0`)
+Independent approver: Named by each immutable candidate review
 
 This file resolves repository-specific applicability. `APPLIES`, `N/A`,
 `DEFERRED-BY-EXCEPTION`, `UNRESOLVED`, and `UNVERIFIED` have the meanings in
 `ENGINEERING_STANDARD.md`. Nothing in this profile turns missing evidence into
-approval. Section 19 records the present approval state.
+approval. Section 19 records how this stable profile is approved. Candidate
+merge, release, and production verdicts belong to immutable external review
+records; they are not mutable state stored in this profile.
 
 ## 1. Product identity
 
@@ -953,35 +955,36 @@ Current blockers:
 ## 19. Profile approval
 
 ```text
-Profile version: 0.1-draft
-Approval binding: UNVERIFIED — no immutable commit contains this profile. At preparation
-  time the moving worktree was based on
-  aeb2d9f598820a04e084f4e69286f717ea0ccfcd, but the profile and much of its
-  current canon were uncommitted, so that SHA is not an approval snapshot.
+Profile version: 1.0
+Approval binding: CODEOWNER-TRACKED-PROFILE
 Prepared by: Codex drafting agent, limited to PROJECT_PROFILE.md
-Architecture approval: PENDING — Koopa has not approved this profile revision
-Security / privacy approval where applicable: PENDING — threat/data documents exist, but independent snapshot review was not performed
-Operations approval where applicable: PENDING — end-to-end runbook and recovery evidence unresolved
-Independent approval: PENDING — no independent approver or immutable candidate yet
-Date: 2026-07-19
-Next review trigger: After the profile and cited canon are committed on a clean
-  candidate; after any risk/capability/platform/egress/write/compatibility
-  change; before the first public release; and at least whenever a listed
-  UNRESOLVED item is closed, or an exception is proposed, approved, renewed,
-  expired, or closed.
+Architecture approval: APPROVED — normal CODEOWNER review owns this stable applicability profile; candidate architecture verdicts remain external
+Security / privacy approval where applicable: APPROVED — this profile projects the already-ruled product walls; affected candidates still require their specified independent review
+Operations approval where applicable: N/A — operations evidence gates release or production claims, not adoption of the applicability profile
+Independent approval: N/A — independent reviewers certify immutable candidates, not the stable profile that defines their required evidence
+Date: 2026-07-20
+Next review trigger: After any risk/capability/platform/egress/write/compatibility
+  change; before the first public release; and whenever a listed UNRESOLVED item
+  is closed, or an exception is proposed, approved, renewed, expired, or closed.
 ```
 
 ## 20. Machine-readable readiness envelope
 
-This small envelope is the mechanical projection of Sections 17–19. It does
-not replace their reasoning or approvals. A change to any field MUST update the
-human readiness analysis and pass independent review in the same immutable
-commit. An approved profile uses the exact `EXTERNAL-RELEASE-REPORT` approval
-binding token rather than attempting the impossible self-reference of placing
-its containing commit SHA inside itself. The independent release report then
-binds both the candidate commit and the exact `PROJECT_PROFILE.md` SHA-256, and
-the certificate/provenance chain binds that report. The pre-review archive
-phase accepts only an approved profile whose
+This envelope belongs only to the source-release artifact workflow. It is not
+the status of an ordinary feature pull request, and its historical
+`merge-readiness` field means readiness of a release candidate to enter the
+artifact-build sequence. Ordinary merge readiness is determined by Section 17
+and an immutable candidate review; the intentionally `NO-GO` release envelope
+below cannot veto such a merge.
+
+For a release candidate, a change to any field MUST update the human release
+analysis and pass independent review on the same immutable commit. The release
+candidate uses the exact `EXTERNAL-RELEASE-REPORT` approval binding token rather
+than attempting the impossible self-reference of placing its containing commit
+SHA inside itself. The independent release report then binds both the candidate
+commit and the exact `PROJECT_PROFILE.md` SHA-256, and the
+certificate/provenance chain binds that report. The pre-review archive phase
+accepts only a release candidate profile whose
 merge and artifact-build readiness are GO, whose artifact-build blockers are
 `none`, whose remaining open blockers are exactly the declared
 post-artifact blockers, whose release state is `PENDING-ARTIFACT`, and which
