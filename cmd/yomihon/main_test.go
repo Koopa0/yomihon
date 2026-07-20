@@ -3,11 +3,12 @@ package main_test
 // The composition point is where every face is wired together, so it is the
 // only honest home for two guards that are about the whole system rather than
 // any one feature: that no read or render face ever writes to the vault, and
-// that the command reads no environment beyond the two variables it is allowed.
+// that the command reads no environment beyond the three variables it is allowed.
 // Neither exercises main's wiring logic; each pins a system-wide invariant that
 // has no other place to live.
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,21 +28,324 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/judge"
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/note"
-	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/report"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 )
+
+func TestHelpIsSideEffectFree(t *testing.T) {
+	t.Parallel()
+	binary := buildYomihonBinary(t)
+	home := t.TempDir()
+	env := append(isolatedUserEnv(home),
+		"YOMIHON_ROOT="+filepath.Join(t.TempDir(), "missing-vault"),
+		"YOMIHON_PORT=not-a-port",
+		"YOMIHON_EMBED_KEY=help-must-not-touch-this-key",
+	)
+
+	top := "Usage:\n" +
+		"  yomihon serve\n" +
+		"  yomihon search [options] <query...>\n" +
+		"  yomihon search-index build [options]\n" +
+		"  yomihon check [options] [path...]\n" +
+		"  yomihon coverage [options]\n" +
+		"  yomihon exists [options] <name>\n\n" +
+		"Use \"yomihon <command> --help\" for command help.\n"
+	command := map[string]string{
+		"serve":        "Usage: yomihon serve\n",
+		"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
+		"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
+		"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",
+		"coverage":     "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n",
+		"exists":       "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n",
+	}
+
+	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {
+		exit, stdout, stderr := runYomihonBinary(t, binary, args, env)
+		if exit != 0 || stdout != top || stderr != "" {
+			t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, %q, empty", args, exit, stdout, stderr, top)
+		}
+	}
+	for name, want := range command {
+		for _, args := range [][]string{{name, "--help"}, {name, "-h"}, {"help", name}} {
+			exit, stdout, stderr := runYomihonBinary(t, binary, args, env)
+			if exit != 0 || stdout != want || stderr != "" {
+				t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, %q, empty", args, exit, stdout, stderr, want)
+			}
+		}
+	}
+	for _, args := range [][]string{{"search-index", "build", "--help"}, {"search-index", "build", "-h"}, {"help", "search-index", "build"}} {
+		exit, stdout, stderr := runYomihonBinary(t, binary, args, env)
+		if exit != 0 || stdout != command["search-index"] || stderr != "" {
+			t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, %q, empty", args, exit, stdout, stderr, command["search-index"])
+		}
+	}
+	assertHomeUntouched(t, home)
+}
+
+func TestServeRejectsArgumentsBeforeLoadingConfiguration(t *testing.T) {
+	t.Parallel()
+	binary := buildYomihonBinary(t)
+	home := t.TempDir()
+	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve", "unexpected"}, append(isolatedUserEnv(home),
+		"YOMIHON_ROOT="+filepath.Join(t.TempDir(), "missing-vault"),
+		"YOMIHON_PORT=not-a-port",
+	))
+	if exit != 2 || stdout != "" || stderr != "yomihon: usage: yomihon serve\n" {
+		t.Errorf("yomihon serve unexpected = exit %d, stdout %q, stderr %q; want 2, empty, %q", exit, stdout, stderr, "yomihon: usage: yomihon serve\n")
+	}
+	assertHomeUntouched(t, home)
+}
+
+func TestProductionBinaryDispatchesPrivateGitChildBeforeCLIParsing(t *testing.T) {
+	t.Parallel()
+	binary := buildYomihonBinary(t)
+	exit, stdout, stderr := runYomihonBinary(
+		t,
+		binary,
+		[]string{"__yomihon-status-git"},
+		isolatedUserEnv(t.TempDir()),
+	)
+	if exit != 1 || stdout != "" || stderr != "yomihon: status git child: missing git arguments\n" {
+		t.Errorf("private git child = exit %d, stdout %q, stderr %q; want 1, empty, missing-arguments diagnostic", exit, stdout, stderr)
+	}
+}
+
+func TestServeRejectsNonDirectoryVaultRoot(t *testing.T) {
+	t.Parallel()
+	binary := buildYomihonBinary(t)
+	root := filepath.Join(t.TempDir(), "vault.md")
+	if err := os.WriteFile(root, []byte("not a vault"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve"}, append(isolatedUserEnv(t.TempDir()),
+		"YOMIHON_ROOT="+root,
+		"YOMIHON_PORT=not-a-port",
+	))
+	if exit != 1 || stdout != "" || !strings.Contains(stderr, root) ||
+		!strings.Contains(stderr, "is not a directory") || strings.Contains(stderr, "listen") {
+		t.Errorf("yomihon serve with file root = exit %d, stdout %q, stderr %q; want 1, empty, root and directory error before listen", exit, stdout, stderr)
+	}
+}
+
+func TestAgentCommandsReachProductionComposition(t *testing.T) {
+	root := t.TempDir()
+	writeSweepFixture(t, root)
+	binary := buildYomihonBinary(t)
+
+	t.Run("lexical search ignores semantic state", func(t *testing.T) {
+		home := t.TempDir()
+		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "tortoise"}, append(isolatedUserEnv(home),
+			"YOMIHON_ROOT="+root,
+			"YOMIHON_EMBED_KEY=key-must-remain-dormant",
+		))
+		if exit != 0 {
+			t.Fatalf("yomihon search exit = %d, want 0; stderr = %q", exit, stderr)
+		}
+		if !strings.Contains(stdout, `"semantic":"off"`) || !strings.Contains(stdout, `"rel_path":"Notes/alpha.md"`) {
+			t.Errorf("yomihon search stdout = %q, want lexical answer", stdout)
+		}
+		if stderr != "" {
+			t.Errorf("yomihon search stderr = %q, want empty", stderr)
+		}
+		if strings.Contains(stdout+stderr, "key-must-remain-dormant") {
+			t.Error("yomihon search exposed the embedding key")
+		}
+		assertNoSemanticStore(t, home)
+	})
+
+	t.Run("semantic search reports cold before provider", func(t *testing.T) {
+		home := t.TempDir()
+		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "--semantic", "tortoise"}, append(isolatedUserEnv(home),
+			"YOMIHON_ROOT="+root,
+			"YOMIHON_EMBED_KEY=key-must-not-reach-a-client",
+		))
+		if exit != 3 {
+			t.Fatalf("yomihon search --semantic exit = %d, want 3; stderr = %q", exit, stderr)
+		}
+		if !strings.Contains(stdout, `"reason":"cache-cold"`) {
+			t.Errorf("yomihon search --semantic stdout = %q, want cache-cold", stdout)
+		}
+		if got, want := stderr, "yomihon search: cache-cold: no semantic index exists; run yomihon search-index build\n"; got != want {
+			t.Errorf("yomihon search --semantic stderr = %q, want %q", got, want)
+		}
+		if strings.Contains(stdout+stderr, "key-must-not-reach-a-client") {
+			t.Error("yomihon search --semantic exposed the embedding key")
+		}
+		assertNoSemanticStore(t, home)
+	})
+
+	t.Run("explicit build without credential is unavailable", func(t *testing.T) {
+		home := t.TempDir()
+		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search-index", "build", "--json"}, append(isolatedUserEnv(home),
+			"YOMIHON_ROOT="+root,
+		))
+		if exit != 3 {
+			t.Fatalf("yomihon search-index build exit = %d, want 3; stderr = %q", exit, stderr)
+		}
+		if got, want := stdout, "{\"error\":{\"reason\":\"embedder-unconfigured\",\"active_generation\":\"absent\",\"staging_generation\":\"resumable\",\"retry_safe\":false,\"next_action\":\"repair-configuration\"}}\n"; got != want {
+			t.Errorf("yomihon search-index build stdout = %q, want %q", got, want)
+		}
+		if got, want := stderr, "yomihon search-index: embedder-unconfigured: no embedding key is configured, so semantic search is off\n"; got != want {
+			t.Errorf("yomihon search-index build stderr = %q, want %q", got, want)
+		}
+	})
+
+	for _, tt := range []struct {
+		name string
+		key  string
+	}{
+		{name: "serve without key"},
+		{name: "serve with key", key: "serve-key-must-remain-dormant"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			log := runYomihonServe(t, binary, root, home, tt.key)
+			if strings.Contains(log, "semantic") {
+				t.Errorf("yomihon serve log mentions semantic state: %q", log)
+			}
+			if tt.key != "" && strings.Contains(log, tt.key) {
+				t.Error("yomihon serve exposed the embedding key")
+			}
+			assertNoSemanticStore(t, home)
+		})
+	}
+}
+
+func buildYomihonBinary(t *testing.T) string {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), "yomihon")
+	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", binary, ".") // #nosec G204 -- fixed tool and arguments plus a test-owned temporary output path
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build yomihon: %v\n%s", err, output)
+	}
+	return binary
+}
+
+func runYomihonBinary(t *testing.T, binary string, args, env []string) (exit int, stdout, stderr string) {
+	t.Helper()
+	var stdoutBuffer, stderrBuffer bytes.Buffer
+	cmd := exec.CommandContext(t.Context(), binary, args...) // #nosec G204 -- binary and arguments are constructed entirely by this test
+	cmd.Env = env
+	cmd.Stdout = &stdoutBuffer
+	cmd.Stderr = &stderrBuffer
+	err := cmd.Run()
+	if err == nil {
+		return 0, stdoutBuffer.String(), stderrBuffer.String()
+	}
+	exitError, ok := errors.AsType[*exec.ExitError](err)
+	if !ok {
+		t.Fatalf("run yomihon %v: %v", args, err)
+	}
+	return exitError.ExitCode(), stdoutBuffer.String(), stderrBuffer.String()
+}
+
+func isolatedUserEnv(home string) []string {
+	cache := filepath.Join(home, "cache")
+	return []string{
+		"HOME=" + home,
+		"USERPROFILE=" + home,
+		"XDG_CACHE_HOME=" + cache,
+		"LOCALAPPDATA=" + cache,
+	}
+}
+
+func assertHomeUntouched(t *testing.T, home string) {
+	t.Helper()
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		t.Fatalf("read isolated home: %v", err)
+	}
+	if len(entries) != 0 {
+		names := make([]string, len(entries))
+		for i := range entries {
+			names[i] = entries[i].Name()
+		}
+		t.Errorf("command touched isolated home: entries = %q, want none", names)
+	}
+}
+
+func assertNoSemanticStore(t *testing.T, home string) {
+	t.Helper()
+	assertHomeUntouched(t, home)
+}
+
+func runYomihonServe(t *testing.T, binary, root, home, key string) string {
+	t.Helper()
+	logPath := filepath.Join(t.TempDir(), "serve.log")
+	logFile, openErr := os.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600) // #nosec G304 -- logPath is rooted in t.TempDir
+	if openErr != nil {
+		t.Fatalf("open serve log: %v", openErr)
+	}
+	cmd := exec.CommandContext(t.Context(), binary, "serve")
+	cmd.Env = append(isolatedUserEnv(home),
+		"YOMIHON_ROOT="+root,
+		"YOMIHON_PORT=0",
+		"YOMIHON_EMBED_KEY="+key,
+	)
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	if startErr := cmd.Start(); startErr != nil {
+		closeErr := logFile.Close()
+		t.Fatalf("start yomihon serve: %v", errors.Join(startErr, closeErr))
+	}
+	stopped := false
+	t.Cleanup(func() {
+		if !stopped && cmd.Process != nil {
+			if killErr := cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+				t.Logf("kill unfinished yomihon serve: %v", killErr)
+			}
+			if waitErr := cmd.Wait(); waitErr != nil {
+				t.Logf("wait for killed yomihon serve: %v", waitErr)
+			}
+		}
+		if closeErr := logFile.Close(); closeErr != nil && !errors.Is(closeErr, os.ErrClosed) {
+			t.Errorf("close serve log during cleanup: %v", closeErr)
+		}
+	})
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		data, readErr := os.ReadFile(logPath) // #nosec G304 -- logPath is rooted in t.TempDir
+		if readErr != nil {
+			t.Fatalf("read serve log: %v", readErr)
+		}
+		if bytes.Contains(data, []byte("yomihon serving")) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("yomihon serve did not start; log = %q", data)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if signalErr := cmd.Process.Signal(os.Interrupt); signalErr != nil {
+		t.Fatalf("interrupt yomihon serve: %v", signalErr)
+	}
+	if waitErr := cmd.Wait(); waitErr != nil {
+		t.Fatalf("wait yomihon serve: %v", waitErr)
+	}
+	stopped = true
+	if closeErr := logFile.Close(); closeErr != nil {
+		t.Fatalf("close serve log: %v", closeErr)
+	}
+	data, readErr := os.ReadFile(logPath) // #nosec G304 -- logPath is rooted in t.TempDir
+	if readErr != nil {
+		t.Fatalf("read final serve log: %v", readErr)
+	}
+	return string(data)
+}
 
 // TestReadFacesNeverWriteTheVault drives every read and render face against a
 // fixture vault and asserts not one byte of the vault changed. The renderer
@@ -58,39 +363,62 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	before := hashTree(t, root)
 
 	log := slog.New(slog.DiscardHandler)
-	contract, err := schema.LoadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("schema.LoadFile: %v", err)
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
-	store := snapshot.New(root, log, contract.NavigationRoles(), contract.ArtifactPolicy())
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	contract, err := schema.LoadReader(t.Context(), reader)
+	if err != nil {
+		t.Fatalf("schema.LoadReader: %v", err)
+	}
+	store, err := snapshot.New(t.Context(), reader, log, contract)
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
 
-	// A fail-closed writing service: reachable by the reading page as a
-	// dependency, but never driven here.
-	svc := status.NewService(root, nil, schema.ArtifactPolicy{})
-	shellForSnapshot := func(snap *snapshot.Snapshot) pages.ShellData { return note.ShellData(svc, snap) }
-	shellProvider := func() pages.ShellData { return shellForSnapshot(store.Current()) }
-	searchProvider := func() search.RequestSnapshot {
-		snap := store.Current()
-		return search.RequestSnapshot{Index: snap.Search, Shell: shellForSnapshot(snap)}
-	}
-	concepts, err := lesson.BuildConceptIndex(root)
+	// The lifecycle shares the fixture's contract authority with the snapshot,
+	// but its writing endpoint is deliberately not registered below.
+	lifecycle, err := status.Open(reader, contract)
 	if err != nil {
-		t.Fatalf("lesson.BuildConceptIndex(%q) = %v", root, err)
+		t.Fatalf("status.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := lifecycle.Close(); closeErr != nil {
+			t.Errorf("Lifecycle.Close() error = %v", closeErr)
+		}
+	})
+	projectShell := func(statusView status.View, snap *snapshot.View) pages.Shell {
+		return shell.Project(statusView, snap.ArtifactPolicy(), snap)
+	}
+	shellForSnapshot := func(snap *snapshot.View) pages.Shell {
+		return projectShell(lifecycle.View(), snap)
+	}
+	shellProvider := func() pages.Shell {
+		statusView := lifecycle.View()
+		return projectShell(statusView, store.Current().Capture())
+	}
+	searchProvider := func() search.RequestSnapshot {
+		statusView := lifecycle.View()
+		snap := store.Current().Capture()
+		return search.RequestSnapshot{Index: snap.Search(), Shell: projectShell(statusView, snap)}
 	}
 
 	mux := http.NewServeMux()
-	note.NewHandler(note.Deps{
-		Root:       root,
-		Renderer:   render.New(root, store.Resolver()),
-		Status:     svc,
+	note.New(&note.Dependencies{
+		Source:     reader,
+		Status:     lifecycle.View,
 		Snapshot:   store.Current,
-		Provenance: svc.LastCommitHash,
+		Provenance: lifecycle.LastCommitHash,
 		Log:        log,
-		Concepts:   concepts,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
-	syllabus.NewHandler(syllabus.Deps{Shell: shellProvider, Log: log}).Register(mux)
-	report.NewHandler(report.Deps{Root: root, Shell: shellProvider, Log: log}).Register(mux)
+	syllabus.New(shellProvider, log).Register(mux)
+	report.New(reader, store.Current, shellForSnapshot, log).Register(mux)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -150,9 +478,21 @@ func writeSweepFixture(t *testing.T, root string) {
 		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 			t.Fatalf("mkdir %s: %v", rel, err)
 		}
-		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", rel, err)
 		}
+	}
+	contract, err := os.ReadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema fixture: %v", err)
+	}
+	contract = append(contract, []byte("\n[privacy]\nnever_egress_dirs = []\n")...)
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
+		t.Fatalf("mkdir contract directory: %v", err)
+	}
+	if err = os.WriteFile(contractPath, contract, 0o600); err != nil { // #nosec G703 -- path is the fixed contract location under t.TempDir
+		t.Fatalf("write contract: %v", err)
 	}
 }
 
@@ -199,17 +539,28 @@ func drive(t *testing.T, url string) {
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
+	if _, copyErr := io.Copy(io.Discard, resp.Body); copyErr != nil {
+		t.Errorf("read GET %s response: %v", url, copyErr)
+	}
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		t.Errorf("close GET %s response: %v", url, closeErr)
+	}
 	if resp.StatusCode >= 400 {
 		t.Errorf("GET %s = %d, want the route to serve (below 400) so the sweep actually exercises it", url, resp.StatusCode)
 	}
 }
 
-// allowedEnvKeys are the two variables this command is permitted to read: the
-// vault root and the listening port. The listener binds the loopback address,
-// so a bind address or host must never become configurable by accident.
-var allowedEnvKeys = map[string]bool{"YOMIHON_ROOT": true, "YOMIHON_PORT": true}
+// allowedEnvKeys are the three variables this command may interpret as
+// configuration: the vault root, the listening port, and the embedding
+// credential read lazily by an explicit semantic CLI action. The private git
+// child has one separately audited whole-environment read whose only purpose is
+// to remove every GIT_* repository redirection and YOMIHON_* application value
+// before the external git process and its hooks can observe them.
+var allowedEnvKeys = map[string]bool{
+	"YOMIHON_ROOT":      true,
+	"YOMIHON_PORT":      true,
+	"YOMIHON_EMBED_KEY": true,
+}
 
 // envReaders names every way the two packages that expose one can read the
 // environment, keyed by import path and then by symbol. A symbol whose reason is
@@ -217,7 +568,7 @@ var allowedEnvKeys = map[string]bool{"YOMIHON_ROOT": true, "YOMIHON_PORT": true}
 // wherever it appears, and its reason says why.
 //
 // os.Getenv and os.LookupEnv are the two doors, because the command reads its
-// two variables through them. os.Environ takes the whole environment at once;
+// three variables through them. os.Environ takes the whole environment at once;
 // os.ExpandEnv names its variables inside a string, and os.Expand hands the
 // reading to a mapping — neither offers a key to check. syscall.Getenv takes a
 // single literal key exactly as os.Getenv does, and is refused all the same: an
@@ -250,6 +601,7 @@ type envRead struct {
 	Pos    token.Position
 	Pkg    string // the import path the read goes through
 	Symbol string // the symbol read through; empty for a finding about an import itself
+	Func   string // containing function, when the read occurs in one
 	Why    string
 }
 
@@ -281,13 +633,28 @@ func envReader(sel *ast.SelectorExpr, pkgOf map[string]string) (pkg, symbol stri
 // a selector already judged as a call is recognised when it comes round again.
 func envReads(fset *token.FileSet, files []*ast.File, allowed map[string]bool) []envRead {
 	var reads []envRead
-	record := func(pos token.Pos, pkg, symbol, why string) {
-		reads = append(reads, envRead{Pos: fset.Position(pos), Pkg: pkg, Symbol: symbol, Why: why})
-	}
-	at := func(pos token.Pos, pkg, symbol, format string, args ...any) {
-		record(pos, pkg, symbol, fmt.Sprintf(format, args...))
-	}
 	for _, f := range files {
+		functionAt := func(pos token.Pos) string {
+			for _, decl := range f.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if ok && fn.Pos() <= pos && pos <= fn.End() {
+					return fn.Name.Name
+				}
+			}
+			return ""
+		}
+		record := func(pos token.Pos, pkg, symbol, why string) {
+			reads = append(reads, envRead{
+				Pos:    fset.Position(pos),
+				Pkg:    pkg,
+				Symbol: symbol,
+				Func:   functionAt(pos),
+				Why:    why,
+			})
+		}
+		at := func(pos token.Pos, pkg, symbol, format string, args ...any) {
+			record(pos, pkg, symbol, fmt.Sprintf(format, args...))
+		}
 		// Resolve which local name binds to each environment-reading package, so
 		// an aliased import (import o "os") cannot slip a read past this guard by
 		// calling o.Getenv. A dot-import hides its calls entirely — a bare Getenv
@@ -373,9 +740,19 @@ func envOffenders(reads []envRead) []envRead {
 	return offenders
 }
 
+func isGitEnvironmentSanitizer(r *envRead) bool {
+	return r.Pkg == "os" && r.Symbol == "Environ" && r.Func == "execGitChild" &&
+		strings.HasSuffix(filepath.ToSlash(r.Pos.Filename), "/internal/status/git_supported.go")
+}
+
 // module is this repository's import path, used to keep the file listing below
 // to the packages written here rather than the ones they borrow.
 const module = "github.com/koopa0/yomihon"
+
+type goTarget struct {
+	os   string
+	arch string
+}
 
 // productionGoFiles parses every Go file the yomihon binary is built from: the
 // command's own, and those of each package it links.
@@ -392,35 +769,53 @@ const module = "github.com/koopa0/yomihon"
 // answered by moving the read one import away.
 func productionGoFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 	t.Helper()
-	// Each line is one file of one package in this module that the command links.
-	const format = `{{if .Module}}{{if eq .Module.Path "` + module + `"}}` +
-		`{{$dir := .Dir}}{{range .GoFiles}}{{$dir}}/{{.}}{{"\n"}}{{end}}{{end}}{{end}}`
-	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "-f", format, ".")
-	out, err := cmd.Output()
-	if err != nil {
-		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
-			t.Fatalf("go list -deps .: %v\n%s", err, exit.Stderr)
-		}
-		t.Fatalf("go list -deps .: %v", err)
-	}
-	var files []*ast.File
-	var paths []string
-	for path := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
-		if path == "" {
-			continue
-		}
-		f, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", path, perr)
+	paths := productionGoFilePaths(t, ".", module, envGuardTargets())
+	validateProductionGoPaths(t, paths)
+	files := make([]*ast.File, 0, len(paths))
+	for _, path := range paths {
+		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
 		}
 		files = append(files, f)
-		paths = append(paths, filepath.ToSlash(path))
 	}
+	return files
+}
+
+func productionGoFilePaths(t *testing.T, directory, modulePath string, targets []goTarget) []string {
+	t.Helper()
+	// Each line is one file of one package in this module that the command links.
+	format := `{{if .Module}}{{if eq .Module.Path ` + strconv.Quote(modulePath) + `}}` +
+		`{{$dir := .Dir}}{{range .GoFiles}}{{$dir}}/{{.}}{{"\n"}}{{end}}{{end}}{{end}}`
+	paths := make(map[string]struct{})
+	for _, target := range targets {
+		cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "-f", format, ".") // #nosec G204 -- fixed Go invocation; format and target environment are test-owned inputs, never shell-interpreted
+		cmd.Dir = directory
+		cmd.Env = goTargetEnvironment(target)
+		out, err := cmd.Output()
+		if err != nil {
+			if exit, ok := errors.AsType[*exec.ExitError](err); ok {
+				t.Fatalf("go list -deps for %s/%s: %v\n%s", target.os, target.arch, err, exit.Stderr)
+			}
+			t.Fatalf("go list -deps for %s/%s: %v", target.os, target.arch, err)
+		}
+		for path := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+			if path != "" {
+				paths[filepath.Clean(path)] = struct{}{}
+			}
+		}
+	}
+	return slices.Sorted(maps.Keys(paths))
+}
+
+func validateProductionGoPaths(t *testing.T, paths []string) {
+	t.Helper()
 	// A listing that stopped reaching the command, or stopped reaching the
 	// packages it links, would report no offenders and prove nothing at all. Both
 	// ends have to be present before an empty result means anything.
 	var sawCommand, sawInternal bool
 	for _, p := range paths {
+		p = filepath.ToSlash(p)
 		if strings.HasSuffix(p, "cmd/yomihon/main.go") {
 			sawCommand = true
 		}
@@ -430,18 +825,51 @@ func productionGoFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 	}
 	if !sawCommand || !sawInternal {
 		t.Fatalf("the toolchain listed %d files the command is built from, but not both the command itself and the packages it links (command %v, internal %v), so an empty result would mean nothing",
-			len(files), sawCommand, sawInternal)
+			len(paths), sawCommand, sawInternal)
 	}
-	return files
+}
+
+func envGuardTargets() []goTarget {
+	// The release surface is the two 64-bit architectures on each supported
+	// reader OS. Do not derive this from go tool dist list: that list describes
+	// targets the Go toolchain knows how to emit, including architectures on
+	// which this binary's SQLite dependency is not buildable and which yomihon
+	// does not certify. Keeping the matrix explicit makes a newly supported
+	// architecture an intentional review of both CI and the environment wall.
+	return []goTarget{
+		{os: "darwin", arch: "amd64"},
+		{os: "darwin", arch: "arm64"},
+		{os: "linux", arch: "amd64"},
+		{os: "linux", arch: "arm64"},
+		{os: "windows", arch: "amd64"},
+		{os: "windows", arch: "arm64"},
+	}
+}
+
+func goTargetEnvironment(target goTarget) []string {
+	environment := make([]string, 0, len(os.Environ())+3)
+	for _, value := range os.Environ() {
+		if strings.HasPrefix(value, "GOOS=") || strings.HasPrefix(value, "GOARCH=") ||
+			strings.HasPrefix(value, "CGO_ENABLED=") {
+			continue
+		}
+		environment = append(environment, value)
+	}
+	return append(environment, "GOOS="+target.os, "GOARCH="+target.arch, "CGO_ENABLED=0")
 }
 
 // TestOnlyKnownEnvVarsAreRead fixes the command's configuration surface. The
 // listener binds the loopback address and only the port is configurable, so the
-// only environment this binary may read are the vault root and the port. The
+// only environment values this binary may interpret are the vault root, the
+// port, and the embedding credential. The credential is dormant unless an
+// explicit semantic CLI action reaches the provider gate. One exact whole-env
+// read is required at the private git exec boundary to remove every GIT_*
+// repository redirection and YOMIHON_* application value; it is pinned to that
+// function and tested separately for total prefix removal. The
 // test parses every file the command is built from — its own and each package it
 // links, as the toolchain reports them — and asserts that every reach for the
 // environment, through os or through the syscall package beneath it, called or
-// merely handed over as a value, names one of the two allowed keys.
+// merely handed over as a value, names one of the three allowed keys.
 //
 // The subject is the binary, not the repository: a tool that lived here and read
 // its own configuration would not be breaking this command's promise, and would
@@ -449,14 +877,66 @@ func productionGoFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	t.Parallel()
 	fset := token.NewFileSet()
-	offenders := envOffenders(envReads(fset, productionGoFiles(t, fset), allowedEnvKeys))
+	reads := envReads(fset, productionGoFiles(t, fset), allowedEnvKeys)
+	var offenders []envRead
+	sanitizers := 0
+	for _, read := range reads {
+		switch {
+		case read.Why == "":
+		case isGitEnvironmentSanitizer(&read):
+			sanitizers++
+		default:
+			offenders = append(offenders, read)
+		}
+	}
+	if sanitizers != 1 {
+		t.Errorf("private git boundary has %d whole-environment sanitizer reads, want exactly 1", sanitizers)
+	}
 	if len(offenders) > 0 {
 		lines := make([]string, 0, len(offenders))
 		for _, o := range offenders {
 			lines = append(lines, fmt.Sprintf("%s: %s", o.Pos, o.Why))
 		}
-		t.Errorf("this command may read only YOMIHON_ROOT and YOMIHON_PORT (the listener binds loopback, only the port configurable), but found:\n%s",
+		t.Errorf("this command may configure only YOMIHON_ROOT, YOMIHON_PORT, and YOMIHON_EMBED_KEY, plus one exact git-environment sanitizer read, but found:\n%s",
 			strings.Join(lines, "\n"))
+	}
+}
+
+func TestEnvironmentGuardIncludesTargetSpecificProductionFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const fixtureModule = "example.invalid/envguard"
+	fixtures := map[string]string{
+		"go.mod":  "module " + fixtureModule + "\n\ngo 1.26.0\n",
+		"main.go": "package main\nfunc main() {}\n",
+		"extra_windows.go": `//go:build windows
+
+package main
+
+import "os"
+
+func extra() string { return os.Getenv("YOMIHON_EXTRA") }
+`,
+	}
+	for name, body := range fixtures {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := productionGoFilePaths(t, root, fixtureModule, envGuardTargets())
+	fset := token.NewFileSet()
+	files := make([]*ast.File, 0, len(paths))
+	for _, path := range paths {
+		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, file)
+	}
+	offenders := envOffenders(envReads(fset, files, allowedEnvKeys))
+	if len(offenders) != 1 || offenders[0].Why != `os.Getenv("YOMIHON_EXTRA")` {
+		t.Fatalf("target-union offenders = %+v, want the Windows-only environment read", offenders)
 	}
 }
 
@@ -476,6 +956,7 @@ var envFixtures = []struct {
 import "os"
 func f() (string, string, bool) {
 	v, ok := os.LookupEnv("YOMIHON_PORT")
+	_ = os.Getenv("YOMIHON_EMBED_KEY")
 	return os.Getenv("YOMIHON_ROOT"), v, ok
 }`,
 		want: nil,

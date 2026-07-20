@@ -8,7 +8,7 @@ import (
 )
 
 // conceptLookup is a tiny hand-written stand-in for the concept index: the set
-// of concept paths and their slugs. Asserted on outputs only.
+// of concept paths and their sheet IDs. Asserted on outputs only.
 func conceptLookup(paths map[string]string) func(string) (string, bool) {
 	return func(rel string) (string, bool) {
 		s, ok := paths[rel]

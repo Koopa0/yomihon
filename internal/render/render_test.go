@@ -13,19 +13,23 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 )
 
-// newRenderer builds a Renderer over a real (not faked)
-// *graph.Index built from in-memory note/resource data, no
-// disk access required unless the test itself writes files under root
-// (embed transclusion needs the target's actual body on disk; a plain
-// wikilink never reads the file, so most tests pass an empty root).
-func newRenderer(t *testing.T, root string, notes []graph.NoteInput, resources []string) *render.Renderer {
+type transclusions map[string]string
+
+func (b transclusions) Transclusion(path string) (string, bool) {
+	body, ok := b[path]
+	return body, ok
+}
+
+// newRenderer builds a Pipeline from one in-memory graph and captured body
+// set. Tests never need a filesystem to exercise the rendering projection.
+func newRenderer(t *testing.T, notes []graph.NoteInput, resources []string, bodies transclusions) *render.Pipeline {
 	t.Helper()
-	return render.New(root, graph.BuildFromNotes(notes, resources))
+	return render.New(graph.BuildFromNotes(notes, resources), bodies)
 }
 
 func TestHTMLExistingDialectRegressions(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	tests := []struct {
 		name string
@@ -64,6 +68,94 @@ func TestHTMLExistingDialectRegressions(t *testing.T) {
 	}
 }
 
+func TestHTMLPreservesOnlyAuthorizedAuthoredMarkup(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	body := strings.Join([]string{
+		`<ruby lang="ja">今日<rt lang="ja">きょう</rt><rp>（</rp></ruby><br>`,
+		`<script>globalThis.noteScriptRan = true</script>`,
+		`<meta http-equiv="refresh" content="0;url=https://example.invalid/leave">`,
+		`<img src="https://example.invalid/pixel" onerror="globalThis.noteEventRan = true">`,
+		`<ruby onclick="globalThis.noteEventRan = true">危険</ruby>`,
+		`<style>body { background: url(https://example.invalid/style) }</style>`,
+	}, "\n\n")
+
+	got := r.HTML(body).HTML
+	for _, want := range []string{
+		`<ruby lang="ja">今日<rt lang="ja">きょう</rt><rp>（</rp></ruby><br>`,
+		`&lt;script&gt;globalThis.noteScriptRan = true&lt;/script&gt;`,
+		`&lt;meta http-equiv=&quot;refresh&quot;`,
+		`&lt;img src=&quot;https://example.invalid/pixel&quot;`,
+		`&lt;ruby onclick=&quot;globalThis.noteEventRan = true&quot;&gt;危険</ruby>`,
+		`&lt;style&gt;body { background: url(https://example.invalid/style) }&lt;/style&gt;`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("HTML() missing %q:\n%s", want, got)
+		}
+	}
+	for _, forbidden := range []string{
+		`<script>`,
+		`<meta http-equiv=`,
+		`<img src="https://example.invalid`,
+		`<ruby onclick=`,
+		`<style>`,
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("HTML() retained active authored markup %q:\n%s", forbidden, got)
+		}
+	}
+}
+
+func TestHTMLTurnsRemoteMarkdownImagesIntoExplicitLinks(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	got := r.HTML(strings.Join([]string{
+		`![remote chart](https://example.invalid/chart.png "chart")`,
+		`![scheme relative](//example.invalid/pixel.png)`,
+		`![local diagram](/raw/Diagrams/diagram.png)`,
+		`![embedded pixel](data:image/png;base64,iVBORw0KGgo=)`,
+		`[explicit external link](https://example.invalid/read)`,
+		`[dangerous link](javascript:globalThis.linkRan=true)`,
+	}, "\n\n")).HTML
+
+	for _, forbidden := range []string{
+		`<img src="https://example.invalid/chart.png"`,
+		`<img src="//example.invalid/pixel.png"`,
+		`href="javascript:`,
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("HTML() retained automatic or dangerous URL %q:\n%s", forbidden, got)
+		}
+	}
+	for _, want := range []string{
+		`<a href="https://example.invalid/chart.png" rel="external noreferrer" referrerpolicy="no-referrer">remote chart</a>`,
+		`<a href="//example.invalid/pixel.png" rel="external noreferrer" referrerpolicy="no-referrer">scheme relative</a>`,
+		`<img src="/raw/Diagrams/diagram.png" alt="local diagram">`,
+		`<img src="data:image/png;base64,iVBORw0KGgo=" alt="embedded pixel">`,
+		`<a href="https://example.invalid/read">explicit external link</a>`,
+		`<a href="">dangerous link</a>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("HTML() missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestHTMLDoesNotLetAuthoredTextSelectRendererBlocks(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+
+	got := r.HTML(`<!--yomihon-block:0--> [[Target]]`).HTML
+	if !strings.Contains(got, `&lt;!--yomihon-block:0--&gt;`) {
+		t.Fatalf("authored reserved marker was not rendered as inert text: %s", got)
+	}
+	if n := strings.Count(got, `<a href="/notes/Target.md" class="wikilink">Target</a>`); n != 1 {
+		t.Errorf("renderer-owned wikilink count = %d, want exactly 1: %s", n, got)
+	}
+}
+
 // TestTableWrappedForOverflow pins the horizontal-overflow guard: every GFM
 // table is nested in a scroll container so a table too wide for the reading
 // column scrolls inside its own box instead of stretching the article. The
@@ -71,7 +163,7 @@ func TestHTMLExistingDialectRegressions(t *testing.T) {
 // changes only the outer element, so the table's semantics survive.
 func TestTableWrappedForOverflow(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	// A wide table: an unbreakable token in one cell is exactly what pushes a
 	// table past the column and, without the wrapper, spills into the article.
@@ -96,34 +188,29 @@ func TestTableWrappedForOverflow(t *testing.T) {
 	}
 }
 
-// TestHeadingSlugsSkipNestedRawHeading pins the graceful-skip: a heading with a
-// raw inline <hN> in it (an authoring accident goldmark+WithUnsafe passes
-// through verbatim) is left byte-identical — no id assigned, absent from the
-// TOC — instead of being truncated by the <h1-6> pass's non-greedy match
-// stopping at the inner </hN>. Mirrors the TTS nested-<p> guard.
-func TestHeadingSlugsSkipNestedRawHeading(t *testing.T) {
+// TestHeadingSlugsTreatInertRawHeadingAsText pins the new authority boundary:
+// an authored heading tag is visible source text, not a nested live heading.
+// The containing Markdown heading therefore remains a normal navigable heading
+// instead of taking the old WithUnsafe corruption-avoidance path.
+func TestHeadingSlugsTreatInertRawHeadingAsText(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("## foo <h3>bar</h3> baz\n")
 
-	// Without the guard the match stops at the inner </h3>, re-emitting
-	// `<h2 id="foo-bar">foo <h3>bar</h2> baz</h2>` — a corrupted, unbalanced
-	// heading carrying an id and a TOC entry. The guard leaves it untouched.
-	if strings.Contains(got.HTML, "id=") {
-		t.Errorf("a heading with a nested raw <hN> must not get an id:\n%s", got.HTML)
+	const wantHTML = "<h2 id=\"foo-h3-bar-h3-baz\">foo &lt;h3&gt;bar&lt;/h3&gt; baz</h2>\n"
+	if got.HTML != wantHTML {
+		t.Errorf("HTML() = %q, want the authored tag inert inside one navigable heading %q", got.HTML, wantHTML)
 	}
-	if !strings.Contains(got.HTML, "<h3>bar</h3>") {
-		t.Errorf("the nested <h3> must survive intact (not truncated to <h3>bar</h2>):\n%s", got.HTML)
-	}
-	if len(got.TOC) != 0 {
-		t.Errorf("a skipped heading must not appear in the TOC; got %d entries: %#v", len(got.TOC), got.TOC)
+	wantTOC := []render.TOCEntry{{Level: 2, Text: "foo <h3>bar</h3> baz", ID: "foo-h3-bar-h3-baz"}}
+	if diff := cmp.Diff(wantTOC, got.TOC); diff != "" {
+		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
 	}
 }
 
 func TestWikilinkUnique(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), []graph.NoteInput{{Path: "Target.md"}}, nil)
+	r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
 
 	got := r.HTML("See [[Target]] for details.\n")
 	want := `<a href="/notes/Target.md" class="wikilink">Target</a>`
@@ -137,7 +224,7 @@ func TestWikilinkUnique(t *testing.T) {
 
 func TestWikilinkAmbiguous(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), []graph.NoteInput{{Path: "a/Foo.md"}, {Path: "b/Foo.md"}}, nil)
+	r := newRenderer(t, []graph.NoteInput{{Path: "a/Foo.md"}, {Path: "b/Foo.md"}}, nil, nil)
 
 	got := r.HTML("[[Foo]]\n")
 	if !strings.Contains(got.HTML, `class="wikilink-ambiguous"`) {
@@ -153,7 +240,7 @@ func TestWikilinkAmbiguous(t *testing.T) {
 
 func TestWikilinkBroken(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("[[Ghost]]\n")
 	if !strings.Contains(got.HTML, `class="wikilink-broken"`) {
@@ -166,7 +253,7 @@ func TestWikilinkBroken(t *testing.T) {
 
 func TestWikilinkBareAnchorIsPlainText(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("jump [[#Section]] here\n")
 	if strings.Contains(got.HTML, "wikilink") {
@@ -182,10 +269,9 @@ func TestWikilinkBareAnchorIsPlainText(t *testing.T) {
 
 func TestEmbedTranscludesNote(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-	writeFile(t, root, "B.md", "B's own body text.\n")
-
-	r := newRenderer(t, root, []graph.NoteInput{{Path: "B.md"}}, nil)
+	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		"B.md": "B's own body text.\n",
+	})
 	got := r.HTML("![[B]]\n")
 
 	if !strings.Contains(got.HTML, `<div class="embed">`) {
@@ -196,16 +282,51 @@ func TestEmbedTranscludesNote(t *testing.T) {
 	}
 }
 
+func TestEmbedUsesTheCapturedGeneration(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "vault")
+	const captured = "captured body\n"
+	writeFile(t, root, "B.md", captured)
+
+	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		"B.md": captured,
+	})
+	if err := os.RemoveAll(root); err != nil {
+		t.Fatalf("remove captured vault: %v", err)
+	}
+	writeFile(t, root, "B.md", "replacement body\n")
+
+	got := r.HTML("![[B]]\n")
+	if !strings.Contains(got.HTML, "captured body") {
+		t.Errorf("HTML().HTML = %q, want the captured transclusion body", got.HTML)
+	}
+	if strings.Contains(got.HTML, "replacement body") {
+		t.Errorf("HTML().HTML read the replacement source tree: %q", got.HTML)
+	}
+}
+
+func TestEmbedReportsMissingCapturedBody(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, nil)
+
+	got := r.HTML("![[B]]\n")
+	if !strings.Contains(got.HTML, `class="wikilink-broken"`) {
+		t.Errorf("HTML().HTML = %q, want a broken embed diagnostic", got.HTML)
+	}
+	if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagWikilinkBroken {
+		t.Errorf("HTML().Diagnostics = %+v, want one broken-wikilink diagnostic", got.Diagnostics)
+	}
+}
+
 // TestEmbedDepthCapPreventsCycles constructs two notes that embed each
 // other (A embeds B, B embeds A) and asserts the render terminates (the
 // test itself completing is part of that proof) and produces sane
 // output: exactly one level of transclusion, not an infinite chain.
 func TestEmbedDepthCapPreventsCycles(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-	writeFile(t, root, "B.md", "![[A]]\n")
-
-	r := newRenderer(t, root, []graph.NoteInput{{Path: "A.md"}, {Path: "B.md"}}, nil)
+	r := newRenderer(t, []graph.NoteInput{{Path: "A.md"}, {Path: "B.md"}}, nil, transclusions{
+		"B.md": "![[A]]\n",
+	})
 	got := r.HTML("![[B]]\n")
 
 	if n := strings.Count(got.HTML, `class="embed"`); n != 1 {
@@ -220,7 +341,7 @@ func TestEmbedDepthCapPreventsCycles(t *testing.T) {
 
 func TestEmbedNonMarkdownTargetIsPlaceholder(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, []string{"Diagrams/x.canvas"})
+	r := newRenderer(t, nil, []string{"Diagrams/x.canvas"}, nil)
 
 	got := r.HTML("![[x.canvas]]\n")
 	if !strings.Contains(got.HTML, `class="embed-media"`) {
@@ -239,7 +360,7 @@ func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {
 
 	t.Run("unresolved", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, t.TempDir(), nil, nil)
+		r := newRenderer(t, nil, nil, nil)
 		got := r.HTML("![[Ghost]]\n")
 		if !strings.Contains(got.HTML, `class="wikilink-broken"`) {
 			t.Errorf("HTML().HTML missing wikilink-broken span:\n%s", got.HTML)
@@ -251,7 +372,7 @@ func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {
 
 	t.Run("ambiguous", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, t.TempDir(), []graph.NoteInput{{Path: "a/Dup.md"}, {Path: "b/Dup.md"}}, nil)
+		r := newRenderer(t, []graph.NoteInput{{Path: "a/Dup.md"}, {Path: "b/Dup.md"}}, nil, nil)
 		got := r.HTML("![[Dup]]\n")
 		if !strings.Contains(got.HTML, `class="wikilink-ambiguous"`) {
 			t.Errorf("HTML().HTML missing wikilink-ambiguous span:\n%s", got.HTML)
@@ -266,7 +387,7 @@ func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {
 // bucket class and default English title, with no explicit title given.
 func TestCalloutTypeTable(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	tests := []struct {
 		typ, bucketClass, title string
@@ -301,7 +422,7 @@ func TestCalloutTypeTable(t *testing.T) {
 
 func TestCalloutFoldSuffixes(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	t.Run("closed by default (-)", func(t *testing.T) {
 		t.Parallel()
@@ -333,7 +454,7 @@ func TestCalloutFoldSuffixes(t *testing.T) {
 
 func TestCalloutUnknownTypeFallsBackToBlockquote(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("> [!banana] Weird\n> body\n")
 	if !strings.Contains(got.HTML, "<blockquote>") {
@@ -349,7 +470,7 @@ func TestCalloutUnknownTypeFallsBackToBlockquote(t *testing.T) {
 
 func TestCalloutBodyRendersNestedWikilinks(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), []graph.NoteInput{{Path: "Target.md"}}, nil)
+	r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
 
 	got := r.HTML("> [!note]\n> See [[Target]] here\n")
 	want := `<a href="/notes/Target.md" class="wikilink">Target</a>`
@@ -360,7 +481,7 @@ func TestCalloutBodyRendersNestedWikilinks(t *testing.T) {
 
 func TestHighlightRendersMark(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("plain ==highlighted== text\n")
 	if !strings.Contains(got.HTML, "<mark>highlighted</mark>") {
@@ -370,7 +491,7 @@ func TestHighlightRendersMark(t *testing.T) {
 
 func TestHighlightIgnoresCodeSpan(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("literal `==not==` marker\n")
 	if strings.Contains(got.HTML, "<mark>") {
@@ -383,7 +504,7 @@ func TestHighlightIgnoresCodeSpan(t *testing.T) {
 
 func TestHeadingSlugsCJKAndCollision(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	body := "## 日本語 Go！\n\ntext\n\n## 日本語 Go！\n\nmore text\n"
 	got := r.HTML(body)
@@ -402,7 +523,7 @@ func TestHeadingSlugsCJKAndCollision(t *testing.T) {
 
 func TestHeadingSlugFallsBackToSection(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	// A heading whose text is entirely punctuation strips to nothing —
 	// slugify falls back to the literal string "section". (A trailing
@@ -417,7 +538,7 @@ func TestHeadingSlugFallsBackToSection(t *testing.T) {
 
 func TestHeadingSlugStripsRubyReading(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	// A furigana heading keeps only its base characters in the entry and the
 	// anchor — the reading inside <rt> must not echo after the kanji. The second
@@ -445,7 +566,7 @@ func TestHeadingSlugStripsRubyReading(t *testing.T) {
 
 func TestFenceSafety(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), []graph.NoteInput{{Path: "Real.md"}}, nil)
+	r := newRenderer(t, []graph.NoteInput{{Path: "Real.md"}}, nil, nil)
 
 	body := "before\n\n```text\n[[Fake Link]]\n> [!note] also risky\n```\n\nafter [[Real]]\n"
 	got := r.HTML(body)
@@ -478,7 +599,7 @@ func TestFenceSafety(t *testing.T) {
 
 func TestBodyFirstH1RemovedOnlyWhenTrulyFirst(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	t.Run("leading H1 (after blank lines) is removed", func(t *testing.T) {
 		t.Parallel()
@@ -515,13 +636,13 @@ func TestBodyFirstH1RemovedOnlyWhenTrulyFirst(t *testing.T) {
 // a ```mermaid fence must become exactly one div.mermaid-diagram element
 // carrying the raw source twice — human-readable (HTML-escaped) as text
 // content for the no-JS/SSR fallback, and URL-encoded in data-mermaid-code
-// for assets/js/yomihon.js to decode client-side. The two encodings must
+// for assets/js/diagrams.js to decode client-side. The two encodings must
 // not corrupt each other (net/url.QueryEscape's output charset never
 // needs HTML-attribute escaping, so there is no double-encoding to get
 // wrong — see consumeMermaid's doc comment).
 func TestMermaidFenceRendersDiagramDiv(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, t.TempDir(), nil, nil)
+	r := newRenderer(t, nil, nil, nil)
 
 	src := "graph TD\n  A[\"a & b\"] --> B{decide?}"
 	got := r.HTML("```mermaid\n" + src + "\n```\n")
@@ -553,7 +674,7 @@ func writeFile(t *testing.T, root, rel, content string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", rel, err)
 	}
 }

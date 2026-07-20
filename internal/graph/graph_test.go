@@ -3,13 +3,46 @@ package graph_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
+
+func capturedGraph(t *testing.T, root string) *graph.Index {
+	t.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	scan, err := reader.ScanComplete(t.Context())
+	if err != nil {
+		t.Fatalf("ScanComplete() error = %v", err)
+	}
+	notes := make([]*vault.Note, 0, len(scan.Files()))
+	resources := make([]string, 0, len(scan.Files()))
+	for _, entry := range scan.Files() {
+		if !strings.HasSuffix(entry.Path(), ".md") {
+			resources = append(resources, entry.Path())
+			continue
+		}
+		data, readErr := reader.ReadFile(t.Context(), entry)
+		if readErr != nil {
+			t.Fatalf("ReadFile() error = %v", readErr)
+		}
+		notes = append(notes, vault.Parse(entry.Path(), data))
+	}
+	return graph.New(notes, resources)
+}
 
 func TestResolveCaseInsensitive(t *testing.T) {
 	t.Parallel()
@@ -40,16 +73,15 @@ func TestResolveNFCAndNFDAreEquivalent(t *testing.T) {
 	}
 }
 
-// TestBuildResolvedPathIsNFCEvenWhenDiskFilenameIsNFD guards the property
+// TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD guards the property
 // normalize()'s own doc comment claims but earlier only held for lookup
 // keys, not the stored path value: a note whose filename arrived on disk
 // as raw NFD bytes (macOS filesystems can hold either form regardless of
 // how it was typed) must still resolve to an NFC Resolution.Path.
-// normalize() alone cannot fix this — it only normalizes at lookup time —
-// so this test exercises the real disk-reading path (graph.Build, which
-// delegates to vault.List) rather than BuildFromNotes, to prove the fix
-// lives where the bytes first enter the system.
-func TestBuildResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
+// normalize() alone cannot fix this because it only normalizes at lookup time;
+// this test exercises the rooted reader capture where path bytes enter the
+// generation.
+func TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 
@@ -58,14 +90,11 @@ func TestBuildResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
 	if decomposed == composed {
 		t.Fatalf("test setup invalid: NFD form of %q did not change", composed)
 	}
-	if err := os.WriteFile(filepath.Join(root, decomposed), []byte("body\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, decomposed), []byte("body\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("Build(%q) = %v", root, err)
-	}
+	idx := capturedGraph(t, root)
 
 	got := idx.Resolve("だ体") // an NFC-typed target, as any human keyboard/IME input would be
 	if got.Kind != graph.Unique {
@@ -74,6 +103,29 @@ func TestBuildResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
 	if got.Path != composed {
 		t.Errorf("Resolve(%q).Path = %q (% x), want NFC-normalized %q (% x)",
 			"だ体", got.Path, []byte(got.Path), composed, []byte(composed))
+	}
+}
+
+func TestNewOwnsAliasExtractionFromParsedNotes(t *testing.T) {
+	t.Parallel()
+
+	idx := graph.New([]*vault.Note{
+		{
+			RelPath: "Concepts/Go Slice.md",
+			Frontmatter: map[string]any{
+				"title":   "A Title Is Not A Resolution Key",
+				"aliases": []any{"slice header"},
+			},
+		},
+	}, []string{"Diagrams/overview.svg"})
+
+	for _, target := range []string{"Go Slice", "slice header", "overview.svg"} {
+		if got := idx.Resolve(target); got.Kind != graph.Unique {
+			t.Errorf("Resolve(%q).Kind = %v, want Unique", target, got.Kind)
+		}
+	}
+	if got := idx.Resolve("A Title Is Not A Resolution Key"); got.Kind != graph.Unresolved {
+		t.Errorf("frontmatter title resolved as a key: %+v", got)
 	}
 }
 
@@ -93,15 +145,13 @@ func TestResolveAliasSameAsFilename(t *testing.T) {
 	}
 }
 
-// TestTitleIsNotAResolutionKey is the single most important negative test
+// TestCapturedGraphTitleIsNotAResolutionKey is the single most important negative test
 // in this package: a link written against a note's frontmatter title (not
 // its filename or an alias) silently fails to resolve in real Obsidian,
-// and the resolver must reproduce that failure mode. This goes through
-// the real disk-reading path (graph.Build), not BuildFromNotes, because
-// the property under test is that Build's frontmatter handling never
-// promotes "title" into a key — BuildFromNotes has no title concept to
-// even get wrong.
-func TestTitleIsNotAResolutionKey(t *testing.T) {
+// and the resolver must reproduce that failure mode. This goes through a
+// rooted capture and graph.New because the property under test is that parsed
+// frontmatter never promotes title into a key.
+func TestCapturedGraphTitleIsNotAResolutionKey(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dir := filepath.Join(root, "Concepts", "golang")
@@ -109,14 +159,11 @@ func TestTitleIsNotAResolutionKey(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	content := "---\ntitle: \"Go Slice 內部結構\"\naliases:\n  - Slice Header\n---\nbody\n"
-	if err := os.WriteFile(filepath.Join(dir, "Go Slice.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "Go Slice.md"), []byte(content), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("Build(%q) = %v", root, err)
-	}
+	idx := capturedGraph(t, root)
 
 	const path = "Concepts/golang/Go Slice.md"
 	if got := idx.Resolve("Go Slice"); got.Kind != graph.Unique || got.Path != path {
@@ -161,6 +208,25 @@ func TestResolveSameFilenameDifferentFolderIsAmbiguous(t *testing.T) {
 	want := []string{"golang/Foo.md", "rust/Foo.md"}
 	if diff := cmp.Diff(want, got.Candidates); diff != "" {
 		t.Errorf("Candidates mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestResolveReturnsIndependentCandidates(t *testing.T) {
+	t.Parallel()
+	idx := graph.BuildFromNotes([]graph.NoteInput{
+		{Path: "A/Foo.md"},
+		{Path: "B/Foo.md"},
+	}, nil)
+
+	first := idx.Resolve("Foo")
+	if first.Kind != graph.Ambiguous || len(first.Candidates) != 2 {
+		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", first)
+	}
+	first.Candidates[0] = "mutated"
+	second := idx.Resolve("Foo")
+	want := []string{"A/Foo.md", "B/Foo.md"}
+	if diff := cmp.Diff(want, second.Candidates); diff != "" {
+		t.Errorf("Resolve(Foo) after caller mutation mismatch (-want +got):\n%s", diff)
 	}
 }
 

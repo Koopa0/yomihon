@@ -17,21 +17,23 @@ type ReportView struct {
 
 // Report is the report shell page: the shared header and content navigation
 // sidebar, a title, and one iframe that
-// fills the reading column. The iframe is sandboxed allow-scripts and never
-// allow-same-origin — even with scripts running, the content lands in an opaque
-// origin that cannot reach yomihon's pages or endpoints; its src is this report's
-// verbatim /raw endpoint, so the briefing renders exactly as authored.
+// fills the reading column. The iframe carries a bare sandbox: authored scripts
+// and automatic navigation stay disabled, and the content lands in an opaque
+// origin that cannot inherit yomihon's first-party authority. A deliberate
+// user-followed link remains navigation, not an automatic action suppressed by
+// this boundary. Its src is this report's verbatim /raw endpoint, so the source
+// bytes remain unchanged.
 templ Report(v ReportView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(NewSidebar(v.Nav, ""))
-			<main class="y-main y-reportmain">
+			@sidebar(NewSidebar(v.Nav, ""), c.Nonce)
+			<main id="main-content" tabindex="-1" class="y-main y-reportmain">
 				<h1 class="y-reporttitle">{ v.Name }</h1>
 				<iframe
 					class="y-reportframe"
 					src={ templ.URL(reportRawHref(v.Name)) }
-					sandbox="allow-scripts"
+					sandbox=""
 					title={ v.Name }
 				></iframe>
 			</main>

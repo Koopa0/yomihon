@@ -48,9 +48,17 @@ The original plan was a thin harness (a one-page CLAUDE.md + pointer). Koopa rev
 
 yomihon: five interactions + fixtures + screenshot acceptance + two weeks of real study → retire, and the SSG folds into `kurodo export`. kura: JSONL byte-for-byte golden comparison + snapshots + scan-boundary replication + four-pipeline switchover → retire. Until met: yomihon is frozen in service (bug fixes only, already tagged `v1.0.0`), and kura stands as the gate without a line changed. yomihon SPEC §13's `yomihon check` plan is retired; the lint responsibility moves to `kurodo check`. (The gate contents were later refined: D38 narrowed yomihon's gate, D40 closed it outright and added the differential campaign — judge-plan §13 — as kura's final prerequisite.)
 
-## D12 The configuration surface is minimal
+## D12 The configuration surface is minimal (corrected 2026-07-14)
 
-`KURODO_ROOT` (vault path, default `~/obsidian`) / `KURODO_PORT` (default 9610, a goroawase pun on ku-ro-do, no deeper meaning). There is no bind-address setting (wall 2), and — as of D24 — no database setting: the index is in-memory. A reserved-but-unused `KURODO_DB` would be expansionary; a persistence setting is introduced only when a ladder rung actually lands (`roadmap.md` §4). The hybrid search face (D32) adds exactly one variable when it builds: the embedding API key, injected via env and never stored in the repo; the embedding cache file location is derived, not configured.
+`YOMIHON_ROOT` (vault path, default `~/obsidian`) / `YOMIHON_PORT` (default
+9610). There is no bind-address setting (wall 2). The daily reading and lexical
+search index remains in memory under D24, so there is no database setting. A
+reserved-but-unused database variable would be expansionary; the optional D32
+semantic CLI owns its derived SQLite generation store without making its path
+configurable. That face adds exactly one environment variable when production
+dispatch lands: `YOMIHON_EMBED_KEY`, read lazily for explicit provider use and
+never stored in the repo. The retired `KURODO_*` spellings were stale project-
+rename residue, not alternate supported names.
 
 ## D13 The UI write face allows all legal transitions
 
@@ -77,11 +85,34 @@ Koopa ruled (2026-07-02, rejecting the spec's original recommendation to "sync u
 
 ## D18 Privacy boundary: Diary may be rendered, but is unconditionally excluded from egress
 
-On the vault side, `Privacy-Boundary.md` was drafted on 2026-07-02 (pending Koopa's final review): the line = the top-level `Diary/` folder (fail-closed). What this means for kurodo: local-only rendering for Koopa himself is legitimate; `export`, `check` findings (which land in reports read by agents), and every snapshot and egress path unconditionally exclude `Diary/` — even `--all` does not include it, mirroring kura. Mechanical source: once toml `[privacy] never_egress_dirs` lands, read it from the toml (wall 3), don't hardcode.
+On the vault side, `Privacy-Boundary.md` was drafted on 2026-07-02 (pending Koopa's final review): the initial line = the top-level `Diary/` folder (fail-closed). What this means for kurodo: local-only rendering for Koopa himself is legitimate; `export`, `check` findings (which land in reports read by agents), and every snapshot and egress path unconditionally exclude the contract-declared private paths — even `--all` does not include them. The toml `[privacy] never_egress_dirs` capability has since landed; `internal/schema` is the mechanical source (wall 3), and consumers do not hardcode its current directory value.
 
 ## D19 All-English project text, Google open-source standard (2026-07-02)
 
 Koopa ruled: all of kurodo's own text is English (docs, README, UI, errors, callout default titles, commit messages), at Google open-source engineering standard; the repo stays private for now (may be open-sourced later) so no per-file license headers or contributor flow are added yet. The name kurodo and its 蔵人 etymology/soul are kept, told in English. The tool still renders the vault's Japanese/Chinese content unchanged — this ruling governs kurodo's own chrome, not the material it displays. English-only now; a future en/zh-TW/ja i18n is possible but no i18n framework is built now (convergent). Consequence: callout default titles become English (Note/Question/Example/Warning/Danger per the reading face), a deliberate divergence from yomihon (frozen, original titles) that does not affect the retirement gate (interaction fidelity, not title language). CI moves from the go-spec harness self-test (verify-spec) to a standard Go gate (build/vet/lint/test/govulncheck) — see D20 if present. **D28 now supersedes this decision for browser-facing interface text; repository prose, CLI and wire output, source identifiers, and commit messages remain English.**
+
+*Amended 2026-07-14: Koopa committed to a future MIT-licensed public source
+release. The repository remains private until that publication action occurs,
+but contributor guidance, security reporting, dependency provenance, and
+reproducible CI are now present-tense obligations. This supersedes only D19's
+"no contributor flow yet" consequence; it does not claim that publication has
+already happened or turn the personal application into a hosted service.*
+
+*Amended 2026-07-17: the first public line is source-only `v0.x`, built with Go
+1.26.5 or newer under the MIT license. Pre-1.0 Go package APIs carry no general
+compatibility promise; the separately frozen agent-facing CLI and JSON wire
+contracts remain compatible according to their own decisions and golden locks.
+This is a release policy, not a declaration that `v0.1.0` is ready: public
+publication still waits for the recorded release gates.*
+
+*Amended again 2026-07-17: the public identity is a design artifact, not a
+generated illustration or an arbitrary engineering icon. Logo and favicon work
+starts from a written, product-grounded brand brief and human comparison of
+directions; the selected direction is drawn as deterministic vector geometry,
+with the favicon reduced from the same system and checked in monochrome, light
+and dark, and at 16/24/32 CSS pixels. Image-generation output is not an
+authorized source for either asset. A banner is optional and does not satisfy
+the identity or real-product-screenshot release gates.*
 
 ## D20 CI is a standard Go gate, not the harness self-test (2026-07-02)
 
@@ -91,9 +122,22 @@ The PR gate is build + vet + golangci-lint + test (+ govulncheck), gating kurodo
 
 Koopa's convergence challenge, accepted. The reconciliation scan the search plan already needed (kqueue silently drops events) run at a ~2-second cadence _is_ the incremental indexer. A full mtime `stat` over ~420 files is millisecond-scale, it satisfies spec §3's freshness bound (≤3s worst case — one ~2s cadence plus the ~100 ms rebuild — stated with margin so it is stably decidable), and it handles create/delete/rename uniformly — where fsnotify on macOS is non-recursive (walk-and-watch, re-watch every new directory) and loses events. Dropping fsnotify removes a dependency and two bug classes (lost events, directory tracking) for the cost of running one scan loop a little more often. Change detection is by mtime alone (no content hash — a full rebuild is ~100 ms and hashing would force reading every file on every scan). This overrides the certified spec §3 wording "fsnotify does incremental updates" — spec §3 is updated to match.
 
-## D22 No golang-migrate (2026-07-03; simplified by D24)
+## D22 No golang-migrate (2026-07-03; simplified by D24; amended 2026-07-14)
 
-Koopa's challenge, accepted. golang-migrate exists for versioned, incremental _data_ migration, but kurodo's derived data is disposable (D06) and its "migration" semantics is drop-and-rebuild-from-the-vault, so a migration ladder is the wrong tool. This was originally resolved as "embed `001_initial.sql` + compare a schema hash." **D24 makes it fully moot**: with an in-memory index there is no schema, no SQL, no `migrations/` at all. Recorded for the future: even a persistent SQLite index (D24's upgrade path) rebuilds rather than migrates, so golang-migrate stays out.
+Koopa's challenge, accepted. golang-migrate exists for a long-lived ladder of
+in-place data migrations. Yomihon's indexes are rebuildable derived data, so
+that ladder remains the wrong ownership model. D24 keeps the lexical index
+entirely in memory. The later semantic generation store does use SQLite, but it
+does not reverse this decision: its container schema version and its numerical
+vector-format version are separate. An unknown schema or an incompatible
+vector format is replaced only by an explicit build, never by an ordinary
+search. Before the first *known-compatible* schema bump, that build must ship a
+version-specific old-schema reader that copies still-compatible vectors into a
+new file, validates the complete generation, and atomically replaces the old
+file; it must not mutate the old schema in place. Version 1 has no predecessor,
+so a generic copy-forward framework now would be speculative. There is no
+`migrations/` ladder and golang-migrate stays out, while paid vectors are not
+needlessly discarded when a future schema-only change can prove them compatible.
 
 ## D23 The index holds only what search reads (2026-07-03; re-expressed for D24)
 
@@ -107,7 +151,17 @@ Three engines were evaluated: **in-memory**, **SQLite**, **PostgreSQL**. v0 choo
 
 ## D25 One vault Snapshot feeds graph, nav, and search (2026-07-03)
 
-Koopa's correction, accepted — and it fixes an existing gap. Verified: today `graph.Build` and `nav.Build` run once at startup and never refresh, so editing a note leaves the sidebar and wikilink resolution stale until a restart. Rather than give search a _separate_ freshness mechanism (which would create torn states — a fresh graph against a stale nav), one scanner owns a `Snapshot{Graph, Nav, Search}` behind an `atomic.Pointer`: about every 2 seconds it `stat`-walks the vault, and on any mtime / file-set change it rebuilds all three and swaps once. Handlers read the pointer once per request. A full rebuild over ~419 files is ~100 ms and happens only on change; per-note incremental updates are unneeded complexity at this scale (reconsider past ~10k files). This is also the incremental mechanism of D21, and it closes the edit-goes-stale gap — search's infrastructure upgrades the reading face for free.
+Koopa's correction, accepted — and it fixes an existing gap. Verified: today `graph.Build` and `nav.Build` run once at startup and never refresh, so editing a note leaves the sidebar and wikilink resolution stale until a restart. Rather than give search a _separate_ freshness mechanism (which would create torn states — a fresh graph against a stale nav), one scanner owns a `snapshot.View{Graph, Nav, Search}` behind an `atomic.Pointer`: about every 2 seconds it `stat`-walks the vault, and on any mtime / file-set change it rebuilds all three and swaps once. Handlers read the pointer once per request. A full rebuild over ~419 files is ~100 ms and happens only on change; per-note incremental updates are unneeded complexity at this scale (reconsider past ~10k files). This is also the incremental mechanism of D21, and it closes the edit-goes-stale gap — search's infrastructure upgrades the reading face for free.
+
+*Implementation amendment, 2026-07-18:* the load-bearing D25 decision is one
+published generation, not three filesystem walks. The scanner now performs one
+descriptor-rooted enumeration, captures each Markdown note and owned sidecar at
+most once, builds every projection from those captured inputs, and atomically
+publishes an opaque `snapshot.View`. Its projections are available only through
+read-only methods; a handler calls `View.Capture` once at request entry to bind
+generation data and its revocable artifact authority to one response. This
+supersedes the original public-field notation and independent-walk mechanism,
+which could observe three filesystem moments inside one nominal generation.
 
 ## D26 The navigation face is status-first (2026-07-03)
 
@@ -125,6 +179,14 @@ Two consequences. (1) D13 still governs the panel: `ready` is the only primary �
 
 Koopa reversed D19's browser-language clause after real-page accessibility verification. Yomihon's primary browser chrome, instructional copy, browser-facing diagnostics and status messages, counts, and accessible names use Traditional Chinese; the document root therefore declares `lang="zh-Hant"`. Vault material remains authored content rather than chrome and keeps its own language. Any span or region whose language differs from its surrounding document declares that switch locally — in particular, Japanese read-aloud passages keep `lang="ja"` even though their controls and teaching guidance are Traditional Chinese. Proper names, paths, schema keys, code, and other technical tokens may remain English; use a local `lang` attribute when a natural-language switch would otherwise be ambiguous. Single-glyph seals (済 印 振) and paired ritual terms remain allowed, but English is no longer required to carry the meaning. Existing English browser strings are migration debt: do not expand them, and migrate them as a bounded interface-language unit rather than introducing an i18n framework. Repository prose, CLI and wire contracts, source identifiers, and commit messages remain English under D19.
 
+*Amended 2026-07-17: authored note language comes only from the optional
+universal frontmatter field `lang` when `vault-schema.toml` declares that key in
+`fields.known`. Its value is a BCP 47 language tag. A missing declaration,
+missing value, wrong type, or invalid tag renders the article as `lang="und"`;
+yomihon never guesses from folder, domain, filename, or note text. Valid tags
+are canonicalized for HTML, invalid declared values are check diagnostics, and
+known Japanese subregions may still carry their narrower local `lang="ja"`.*
+
 ## D29 Slot-machine sidecar data lives at `System/slots/`, joined by slug (2026-07-03)
 
 The slot machine's pattern/fill data (the hand-authored sentence frames behind feature F's slot interaction) needs a home in the vault. Three homes were weighed. **(a) Co-located** with each lesson (`Writing/lessons/japanese/L01.slots.yaml` beside `L01 〜は〜です.md`): rejected — folder-coupling to signal relatedness is exactly what the Vault-Architecture rule rejects (the slug is the link, not the directory), and it scatters a machine-owned data format through the human-authored lessons tree. **(b) A new top-level `slots/`**: rejected — the vault sits at its ≤9-top-level-folder ceiling, and a new top folder for one feature's sidecar spends the scarcest budget the vault has. **(c) `System/slots/`** (chosen): `System/` is already the machine's shelf (schemas, reports), it sits **outside the checker's scan boundary** (`scan.knowledge_dirs`) so a `.yaml` there can never be mistaken for a note and indexed, and it adds no top-level folder. The 20 files `L01–L20.yaml` are a **byte-identical copy** from yomihon's `slots/` (vault commit `f82eac6`, authored as Koopa); yomihon's copy stays frozen until its retirement gate, and the vault is now the single source of truth for slot data.
@@ -135,6 +197,20 @@ Two structural consequences. (1) **The join is by slug, never filename.** A less
 
 The E face shipped "sandboxed report HTML" (PR #8), but the guarantee spans **three mechanisms that must all hold**: (1) the `/reports/<name>` page embeds the report in an `<iframe sandbox="allow-scripts">` (no `allow-same-origin` — the script runs in an opaque origin); (2) `/reports/<name>/raw` serves the bytes with `Content-Security-Policy: sandbox allow-scripts; frame-ancestors 'self'` plus `Cache-Control: no-store`, and only from `System/reports/`; (3) `/notes/` serves **only `.md`** — any non-note resource is 404, which closes the side door of loading a report through the notes route and executing script inside kurodo's own origin. Remove any one mechanism and the ledger line "reports are sandboxed" silently becomes false; this entry exists so a future session has one decision to consult instead of rediscovering the invariant from three scattered handlers. Authority: spec §1's report clause and D26's Reports meaning — **not** D18, which governs only Diary egress. The I-face wall sweep owes a test lock per mechanism, and the E lesson generalizes: any "sandbox this resource" feature must sweep **every route that can serve the same bytes**.
 
+*Amended by D59 on 2026-07-18: the historical script allowance above is
+superseded. The current three mechanisms are: (1) the report iframe carries a
+bare `sandbox` with no capability token; (2) the byte-verbatim `/raw` response
+carries a bare CSP sandbox, `script-src 'none'`, closed automatic-resource
+directives, `frame-ancestors 'self'`, and `Cache-Control: no-store`; (3) every
+alternative raw-file route either escapes the bytes as source or applies its
+own scriptless sandbox, so no route executes vault HTML with first-party
+authority. Static HTML, inline CSS/SVG, and data media remain visible; authored
+scripts, event handlers, automatic refresh/navigation, forms, remote resource
+loads, and WebRTC do not run. A user deliberately following a link is an
+explicit navigation, not an automatic-egress guarantee. Future report
+interaction requires a separate ruling and an audited first-party declarative
+renderer; executable report-authored JavaScript is not a deferred toggle.*
+
 ## D31 Databases are not categorically excluded (2026-07-05; amends D24/D22, retires D05's gates)
 
 Koopa overruled the categorical posture: "no database, do not reintroduce PostgreSQL" is not his decision and does not stand as a wall; capability is not to be artificially constrained ("不要限縮我們開發的能力"). What this changes: adopting a database is now an **engineering call made per feature**, with no evidence gate in front of it — D05's three kura-field-log gates are retired, and semantic search moves from "gated upgrade" to committed scope (D32). What stands, on engineering merit rather than dogma: at the current scale (~437 notes, ~10⁴ chunks) in-process derived state behind the D25 snapshot remains the *default shape*, because it is faster than any out-of-process store, keeps the vault as the single truth (D06), and keeps the CLI faces stateless. The recorded escalation ladders (D24's SQLite note; D32's vector rungs; D33's graph triggers) are upgrade paths with explicit triggers, so future sessions escalate by measurement, not by re-litigating a ban that no longer exists.
@@ -143,13 +219,69 @@ Koopa overruled the categorical posture: "no database, do not reintroduce Postgr
 
 The B face ships hybrid search, not just lexical. Shape:
 
-- **Embedder = `gemini-embedding-001` over the API** (Koopa provides the key at build start; injected via env var, never in the repo). Dimension is chosen at build time (3072 native; MRL truncation to 1536/768 is acceptable). Rationale: the vault is mixed 繁中/日文/code-term text and this is the strongest multilingual embedder available; a local fallback (Ollama bge-m3 class) stays legal but is not the plan of record.
-- **The egress ruling, explicit**: sending note *content* to the embedding API is authorized. This is a bounded reading of wall 2 — the wall's operative meaning is that kurodo never *serves or exposes* the vault or its derived data (loopback-only listener, no derived data leaving as an artifact); an outbound embedding call that Koopa authorizes is not a wall breach. **`Diary/` is unconditionally excluded from the embedding pipeline** (D18, fail-closed; mechanically from the toml `[privacy]` key once it lands). Any future widening of what leaves the machine is a new decision, not an extrapolation of this one.
-- **Storage**: an in-memory `[]float32` matrix + a **content-hash-keyed cache file** (disposable derived data per D06 — delete it and it rebuilds). Embedding is asynchronous with respect to the D25 snapshot swap: the swap never blocks on the network, and a changed note's stale vector is masked from semantic results until refreshed. No vector database at today's scale: ~10⁴ chunks or fewer × 1536–3072 dims is tens-to-low-hundreds of MB and exact brute-force top-k is milliseconds with 100% recall — a claim that expires around ~10⁵ chunks, which is exactly the rung-2 trigger below.
-- **Retrieval**: heading-based chunking (reusing the judge face's goldmark extraction layer, inputs bounded to the model's token limit) + note-level vectors; exact cosine top-k fused with the lexical index via **RRF**. RRF's real knobs (the k constant, per-channel list depths, chunk→note aggregation) are pinned in the B plan doc — "no tuned weights" describes RRF's formula, not an absence of decisions. Surfaces: the ⌘K panel and `/search` page (UI), and a `kurodo search` CLI — lexical by default, `--semantic` opt-in with loud failure on cold cache or unreachable API (degraded-mode matrix: `roadmap.md` §4a).
-- **The scale rungs, with triggers** (so the storage engine swap is a designed path, not a rewrite): the store sits behind a narrow interface (put / get / top-k). Rung 1 = the in-process matrix above; **rung 1→2 trigger: ~10⁵ chunks or p95 exact-scan > ~100 ms**. Rung 2 = sqlite-vec (single file, serverless). Rung 3 = **pgvector** — entered when the embedded corpus grows beyond the vault (the dreaming ecosystem ingesting repos/clippings/logs), or queries need ANN + metadata filtering combined, or multiple processes write the index. Fusion, CLI, and UI do not change across rungs. A model or dimension swap is an **epoch cutover** (embed the new epoch in the background, flip when complete, delete the old) — the (model, dim) cache versioning detects mismatch, the epoch mechanism performs the swap; the dollar cost of a full re-embed is trivial at any plausible scale, the constraint is wall-clock under API rate limits, which the background epoch absorbs.
+- **Embedder = `gemini-embedding-2` over the API** (amended by D50.9; the
+  superseded `gemini-embedding-001` history remains in the amendment note
+  below, not as a second plan of record). The key is injected via env var and
+  never stored in the repo; Koopa supplies his own paid-project key only for
+  live provider use, not at builder dispatch. Compilation and offline
+  verification require no key. Distribution is BYOK-only: yomihon bundles no
+  credential and operates no shared proxy. Dimension is **1,536**, selected by
+  the ruled paired 1,536-vs-3,072 evaluation recorded in D50's 2026-07-16
+  amendment. Rationale: the vault is mixed
+  繁中/日文/code-term text and this is the current multilingual embedder selected
+  by D50; a local fallback (Ollama bge-m3 class) stays legal but is not the plan
+  of record.
+- **The egress ruling, explicit**: sending note *content* to the embedding API is authorized. This is a bounded reading of wall 2 — the wall's operative meaning is that kurodo never *serves or exposes* the vault or its derived data (loopback-only listener, no derived data leaving as an artifact); an outbound embedding call that Koopa authorizes is not a wall breach. Contract-declared private paths are unconditionally excluded from the embedding pipeline (D18, fail-closed, mechanically through `[privacy]`). Any future widening of what leaves the machine is a new decision, not an extrapolation of this one.
+- **Storage**: one owner-only SQLite generation store persists reusable vectors;
+  each explicit CLI action hydrates one complete active generation into an
+  immutable in-memory `[]float32` exact-search index. The store retains active
+  and previous immutable generations plus at most one resumable staging
+  generation; activation is a catalog transaction, not a mutable-row cache
+  update. It is disposable derived data, but compatible paid vectors are reused
+  by exact submitted bytes. `serve` never opens either layer. At today's scale
+  (~10⁴ chunks or fewer × 1536–3072 dimensions), exact cosine remains the
+  baseline with 100% retrieval recall; the escalation trigger below opens a
+  benchmark, not an automatic backend swap.
+- **Retrieval**: heading-based chunking (reusing the judge face's goldmark extraction layer, inputs bounded to the model's token limit) + chunk vectors; exact cosine top-k fused with the lexical index via **RRF**. RRF's real knobs (the k constant, per-channel list depths, chunk→note aggregation) are pinned in the B plan doc — "no tuned weights" describes RRF's formula, not an absence of decisions. Surface: `yomihon search` is lexical by default and `--semantic` explicitly opts the CLI/agent call into hybrid retrieval, with loud failure on cold cache or an unavailable query API (`roadmap.md` §4a). The ordinary ⌘K panel, `/search` page, and live fragment are permanently lexical-only; a future human exploration feature must be a separately ruled Related/Find-related surface, never an implicit mode of ordinary search.
+- **The scale trigger opens measurement, not a preselected rung**: before
+  hydration, rung 1 admits fewer than 100,000 chunks and at most 1 GiB of raw
+  vector payload (`chunks × dimension × 4`); crossing either deterministic
+  limit, or observing p95 exact-scan above about 100 ms, benchmarks the current
+  SQLite-generation/RAM-exact design against the then-current embedded-vector
+  candidates and PostgreSQL exact search. PostgreSQL is adopted only for a real
+  server-owned capability (shared remote access, independently operating
+  writers, or database backup/replication ownership) or when the embedded
+  design misses a predeclared SLO and PostgreSQL passes the complete
+  correctness, privacy, resource, and latency gate. pgvector ANN is a separate
+  decision, reached only if PostgreSQL exact search also misses the SLO and ANN
+  passes held-out recall and filter-completeness gates. Neon is the preferred
+  managed PostgreSQL candidate to measure if that evaluation opens; selecting
+  a remote service still requires an explicit egress ruling for **any**
+  real-vault corpus- or query-derived transfer, including vectors, query
+  vectors, filters, and identifiers whether or not they are persisted.
+  Synthetic-only comparison remains permissible before that ruling. Fusion and
+  the agent CLI do not change across
+  candidates; ordinary UI search remains lexical and outside this ladder. A
+  model, dimension, or numerical protocol change is an incompatible generation
+  cutover, not a store-schema migration.
 
-*(Amended 2026-07-12 by D50: the embedder of record is now `gemini-embedding-2` — the 001 generation's retirement window opened before this plan could build, and embedding generations are incompatible, so the corpus re-embeds in full. Corrected 2026-07-13: the swap is not "a re-embed and nothing else" — the successor's request protocol differs (no task-type field, API-side normalization at truncated dimensions, different multi-input semantics) and is re-pinned from its own documentation, entering the cache identity. The representation is chunk-only: note-level vectors are dropped, returning only if the eval set shows broad-topic recall failing. The epoch-cutover mechanism above additionally requires the old epoch's query embedder to still be available while it serves — a retired model means cold until the new epoch completes.)*
+*(Amended 2026-07-12 by D50: the embedder of record is now `gemini-embedding-2` — the 001 generation's retirement window opened before this plan could build, and embedding generations are incompatible, so the corpus re-embeds in full. Corrected 2026-07-13: the swap is not "a re-embed and nothing else" — the successor's request protocol differs (no task-type field, API-side normalization at truncated dimensions, different multi-input semantics) and is re-pinned from its own documentation, entering the cache identity. The representation is chunk-only: note-level vectors are dropped, returning only if the eval set shows broad-topic recall failing. Corrected again 2026-07-14 under Koopa's delegated product authority: one process owns one complete generation identity and does not keep a registry of retired embedders. An incompatible active generation is unavailable to that process until an explicit build publishes a compatible replacement.)*
+
+*(Amended 2026-07-13 by Koopa's delegated product ruling: `serve` owns no
+semantic capability at all — no provider client, key, vector store, document
+builder, or query path. A cold cache or incompatible identity is built only by
+the explicit `yomihon search-index build` command, so an ordinary search can
+never surprise the operator with a whole-vault upload or an unbounded first
+build. Once a compatible active generation exists, an explicit
+`yomihon search --semantic` action automatically reconciles current vault
+drift before querying: unchanged rows are reused, changed/new eligible chunks
+are embedded, deletions and newly ineligible paths are removed locally, and
+the query is sent only after a complete current generation is active. This is
+the product convenience boundary: routine semantic search self-refreshes,
+while expensive cold/identity rebuilds remain explicit. The durable cache is
+one SQLite file containing isolated immutable generations; a transaction
+activates a completed generation and retains the prior active generation.
+No stale vector or partial semantic ranking is served.)*
 
 ## D33 Relation queries are answered by the in-process graph: H grows query verbs and a whole-graph export; no graph database now (2026-07-05)
 
@@ -157,7 +289,7 @@ The real requirement (Koopa, 2026-07-05): agents — hermes, Claude, the obsidia
 
 - **Relation verbs**: `kurodo graph backlinks|neighbors|path|related <note> --json` — O(1)–O(edges) walks over the in-memory index, microseconds at this scale.
 - **Whole-graph export**: `kurodo graph export --json` — the entire graph today (~450 nodes, ~2×10³ edges) is low hundreds of KB in path-keyed JSON; an agent loads it in one call and traverses arbitrarily in its own context. This is the answer to "surely they can't grep note by note" at the current scale — but it stops fitting in an LLM context around ~10⁴ notes, so the **verbs are the contract-bearing agent interface** and the export is a convenience; their JSON contracts (fields, ordering, exit codes) are pinned in the H plan doc and golden-tested (the D37 contract rule).
-- **UI counterparts** (kurodo is not CLI-only): a backlinks / related-notes panel in the reading page's right column (backlinks was already parked in design §10) and, later, the graph view. "Related" merges structural neighbors with D32's semantic nearest — the two channels cover complementary kinds of relatedness.
+- **UI counterparts** (kurodo is not CLI-only): a backlinks / structural-neighbors panel in the reading page's right column (backlinks was already parked in design §10) and, later, the graph view. D32's semantic nearest results remain agent-only. A human semantic or mixed Related/Find-related surface requires its own product ruling and is not authorized by D33.
 
 **Graph-database triggers** (any one reopens the question, and the ladder is embedded-first, server-last): the graph outgrows in-process rebuild (~10⁵ notes); multiple independent writers need transactional graph mutation (today the graph is a read-only derivative and the only writer is the vault itself); graph algorithms at a scale where in-process is infeasible; or relation queries must span corpora beyond the vault. Why not now: at 437 nodes a Neo4j/dgraph adds an ETL sync pipeline, a second stateful truth that can drift, server ops, and a network hop on every query — while adding no query capability that the export path does not already give an LLM consumer.
 
@@ -171,7 +303,7 @@ The dreaming capability — nightly analysis proposing merges, missing links, or
 
 ## D36 Quality rails are committed work items, not advice (2026-07-05)
 
-Koopa: "沒有其他我們不把事情和設計做好的理由" — the quality tooling ships as work, scheduled right after the A face (alongside the I sweep). The package: **CI** (GitHub Actions, jobs classified by code area — lint-go, test-go with `-race`, fuzz-smoke, assets-drift for templ/css regeneration diff, lint-frontend, build, e2e-smoke booting the server on a fixture vault); **linters** beyond Go — Biome for the single JS enhancement file, Stylelint for `input.css`, regeneration-drift checks for every generated artifact (the output.css drift and the hand-edit hazard are both closed mechanically), a rendered-page axe-core/Nu job as a later non-blocking addition; **fuzzing** aimed where the judge build actually bled (U+2028 escaping, the empty-link panic, trailing-backslash targets, YAML coercion — every one was fuzz-reachable): `splitFrontmatter`, `parseNote`, wikilink/pathref extraction, `WriteJSONL` invariants, `stripTarget`; **synctest** for the D25 rescanner's timing logic; **benchmarks** (scan/rebuild, search query, full `kurodo check`) under benchstat discipline, smoke-only in CI; and a one-off **differential fuzz campaign** (random vaults through both engines), sequenced strictly *before* the conformance scaffolding is deleted — the sandwich generalized, run while the reference binary still exists; its honest cost is the schema-aware vault generator (near-valid frontmatter + cross-note link topology), not the runner. CI never runs the reference-binary conformance tests (no kura, no real vault in CI — by design); golden fixtures carry that weight there. CI-only linters (Biome/Stylelint/axe-core) may use Node on the runner — the Node-free stack fact is about the product build, not the CI environment.
+Koopa: "沒有其他我們不把事情和設計做好的理由" — the quality tooling ships as work, scheduled right after the A face (alongside the I sweep). The package: **CI** (GitHub Actions, jobs classified by code area — lint-go, test-go with `-race`, fuzz-smoke, assets-drift for templ/css regeneration diff, lint-frontend, build, e2e-smoke booting the server on a fixture vault); **linters** beyond Go — Biome for repository-owned JavaScript (the original enhancement file and the later browser probes), Stylelint for the hand-written stylesheet sources, regeneration-drift checks for every generated artifact (the output.css drift and the hand-edit hazard are both closed mechanically), a rendered-page axe-core/Nu job as a later non-blocking addition; **fuzzing** aimed where the judge build actually bled (U+2028 escaping, the empty-link panic, trailing-backslash targets, YAML coercion — every one was fuzz-reachable): `splitFrontmatter`, `parseNote`, wikilink/pathref extraction, `WriteJSONL` invariants, `stripTarget`; **synctest** for the D25 rescanner's timing logic; **benchmarks** (scan/rebuild, search query, full `kurodo check`) under benchstat discipline, smoke-only in CI; and a one-off **differential fuzz campaign** (random vaults through both engines), sequenced strictly *before* the conformance scaffolding is deleted — the sandwich generalized, run while the reference binary still exists; its honest cost is the schema-aware vault generator (near-valid frontmatter + cross-note link topology), not the runner. CI never runs the reference-binary conformance tests (no kura, no real vault in CI — by design); golden fixtures carry that weight there. CI-only linters (Biome/Stylelint/axe-core) may use Node on the runner — the Node-free stack fact is about the product build, not the CI environment.
 
 ## D37 Scope ruling: every remaining face ships; ordering by dependency and leverage; agent-facing output is a frozen contract (2026-07-05)
 
@@ -311,7 +443,11 @@ all-files fallback; Folders, direct and raw reading, reports, and text search
 remain available. Each declared section has required keys: `path_types` and
 `map_types` for `[navigation]`, `non_instance_dirs` for `[artifacts]`. An explicit
 empty list is a valid declaration of none; an omitted key makes that capability
-invalid rather than defaulting it to empty. Diagnostics distinguish the states:
+invalid rather than defaulting it to empty. Diagnostics distinguish the states.
+These byte-stable English strings are internal capability detail; D28's later
+browser-language ruling requires each browser surface to lead with a
+Traditional Chinese explanation and to mark any retained exact detail as
+English technical text:
 
 - missing navigation: `contract declares no navigation roles; Paths and Maps disabled until it does`;
 - missing artifacts: `contract declares no artifact policy; instance projections disabled until it does`;
@@ -339,8 +475,10 @@ a mixed metadata-and-text query — is explicitly unavailable, never treated as 
 ignored filter or zero results; bare-text and folder queries continue.
 
 Status writes parse the form, normalize and validate the path, then reject a
-non-instance before stat/read/git: `ErrNonInstance` is HTTP 422 with the fixed
-reason `not a governable artifact`, including for a nonexistent target. Missing
+non-instance before stat/read/git: `ErrNonInstance` is HTTP 422, including for a
+nonexistent target. Its internal sentinel is
+`status: target is not a governable artifact`; its D28 browser presentation is
+`不屬於生命週期治理範圍`. Missing
 or invalid or incomplete artifact policy is a distinct HTTP 503 from core-contract closure.
 Zero-entry maps keep the current `<details>` plus “Open map” presentation in this
 round. 4M remains prohibited; only a concrete user task blocked by the current
@@ -411,31 +549,46 @@ focus-scoped — the deviation is recorded, not waved away, and it is narrow:
   own explicit exception here, so the canon never contradicts itself
   silently.
 
+*(Amended 2026-07-20 by Koopa, superseding only the no-disable conclusion
+above. One local, per-device, persisted control named for single-key shortcuts
+ships default-on and turns off exactly `/`, `[`, and held `R` together. It does
+not remap them. ⌘K, Escape, and every other keyboard behavior remain
+unchanged. While enabled, the existing typing/select/contenteditable/dialog
+suppression, held-R guard, and lifecycle-legality checks remain mandatory. The
+turn-off mechanism closes the WCAG 2.1.4 deviation; the historical rationale
+and reopen conditions above remain the record of the earlier ruling.)*
+
 ## D50 The hybrid-search ruling sheet (Koopa, 2026-07-12)
 
-Ten rulings closing the B plan's adversarial round; search-plan.md Part II
+Eleven rulings closing the B plan's adversarial round; search-plan.md Part II
 is their working-out, and every degraded-matrix cell traces to one of them.
 
-1. **Query egress**: only an explicit action embeds a query — the UI's
-   submit/toggle and the CLI's `--semantic`, at most one send per action;
-   the live fragment is lexical always; raw query text never enters logs,
+1. **Query egress**: only an explicit CLI `--semantic` action embeds a query,
+   at most one send per process action. Ordinary UI search (⌘K, `/search`, and
+   the live fragment) is lexical always; raw query text never enters logs,
    caches, errors, metrics, or traces.
-2. **Epoch cutover**: the old epoch serves until the new one completes and
-   swaps atomically — and only while the old model can still embed
-   queries; a query never scores against another model's vectors. No
-   usable old embedder → cold until the new epoch lands.
+2. **Generation cutover** (amended 2026-07-14 under Koopa's delegated product
+   authority): one process owns exactly one complete generation identity. It
+   queries only a compatible active generation and never keeps a registry of
+   retired model/protocol clients. An explicit incompatible build may stage a
+   replacement while the old active generation remains transactionally intact,
+   but that old generation is not queryable by the new-identity process. Search
+   exits 3 with `cache-mismatch` until activation. A query vector never scores
+   against another numerical identity; `previous` is a publication-retention
+   slot, not an automatic fallback or a user-visible rollback command.
 3. **Representation**: chunk-only; D32's note-level vectors are dropped
    (amended there). Reopens only if the eval set shows broad-topic recall
    failing — not on token-limit grounds.
 4. **source_kind moves to the H face**: it is not a hybrid dependency; B
    leaves the grammar untouched, and the canon sync (spec §3, Part I §3)
    precedes H's implementation.
-5. **Strict CLI on a stale-partial cache exits 3** with a typed coverage
-   diagnostic; a partial answer never wears exit 0 — anything else smuggles
-   the killed best-effort mode back in.
-6. **Rate limiting**: query paths fail fast (429 = unavailable now); only
-   the background pipeline backs off, boundedly; the two never share an
-   offline latch.
+5. **Strict CLI never serves a stale/partial semantic generation.** Compatible
+   bounded drift is reconciled to a complete generation before query; every
+   failure exits 3 with a typed reason. A partial answer never wears exit 0 —
+   anything else smuggles the killed best-effort mode back in.
+6. **Rate limiting**: query and interactive-reconcile paths fail fast (429 =
+   unavailable now); only the explicit `search-index build` command backs off,
+   boundedly and in its persisted staging retry ledger.
 7. **`--semantic=best-effort` is dead**, including roadmap §4a's "may
    exist".
 8. **Eval artifacts**: the repo commits only synthetic fixtures; real-vault
@@ -452,6 +605,15 @@ is their working-out, and every degraded-matrix cell traces to one of them.
     Part II** — no cloud document embedding, no agent-facing
     ranking/fusion/output ships before the vault contract declares it and
     `internal/schema` derives it, fail-closed.
+11. **Provider account and distribution posture** (Koopa, 2026-07-13):
+    yomihon does not operate a hosted AI service. Semantic search is optional
+    and BYOK-only: Koopa's live deployment uses his own paid Gemini project;
+    each downstream user supplies their own provider account and key and is
+    responsible for that provider's terms. Yomihon bundles no credential,
+    shares no account, and operates no embedding proxy. A key is required only
+    for live provider use, never for compilation or offline verification;
+    provider-specific terms are external to this implementation plan rather
+    than copied into canon.
 
 *(Amended 2026-07-13, closing the delta round's open cells: the four-walls
 text now names both egress exceptions, ending the conflict with item 1;
@@ -471,35 +633,35 @@ cache, a missing key, or any network state. The query text never leaves
 the machine before the final stage; item 9's "one full
 re-embed and nothing else" is withdrawn — the successor's request protocol
 differs and re-pins from its own documentation into the cache identity;
-and unmanaged epoch-identity mismatch (cold) is distinct from managed
-cutover (old epoch serves while its embedder lives), with the background
-pipeline's condition enumerated as explicit cache substates rather than
-folded away.)*
+and unmanaged epoch-identity mismatch (cold) was initially distinguished from
+managed old-epoch serving. The latter was superseded by D50.2's 2026-07-14
+single-identity ruling: staging remains an explicit publication state, but a
+new-identity process does not serve the incompatible active generation.)*
 
 *(Amended 2026-07-13, closing the last two open families. **The agent
-wire has three discriminated envelopes and never echoes the query.** They
+wire has three discriminated envelopes and no query-echo field.** They
 are told apart by which top-level key is present, not by exit code alone
 (exit 3 can be either of the first two): a request the command can answer
-(even only lexically) carries `{mode, semantic, coverage?, results}` (exit
-0 or 3); a request it cannot answer at all — the privacy capability
-invalid, or a metadata filter that cannot be evaluated, with or without
-`--semantic` — carries `{"error": {"reason"}}` and nothing else (exit 3);
-and a request yomihon can confirm it formed wrongly carries
-`{"internal_error": {"detail"}}` and nothing else (exit 1). Non-JSON mode
-prints silent stdout with the frozen stderr line for the second and third. Echoing
-the query would have put raw query text into an error surface, which item
-1 forbids; that is why no envelope carries it. Item 10's boundary is
+(even only lexically) carries the `{mode, semantic, coverage?, results}`
+shape (exit 0 or 3); a request it cannot answer at all — the privacy
+capability invalid, or a metadata filter that cannot be evaluated, with or
+without `--semantic` — carries only the `error` envelope shape (exit 3);
+and a request yomihon can confirm it formed wrongly carries only the
+`internal_error` envelope shape (exit 1). H7 freezes the byte-exact JSON
+bodies and stderr lines for those shapes. Non-JSON mode prints silent
+stdout with the frozen stderr line for the second and third. Copying the
+query into a diagnostic would put raw query text into an error surface, which
+item 1 forbids. Answer results may naturally contain matching note bytes; no
+dedicated field repeats the caller's input. Item 10's boundary is
 therefore precise: a capability-only diagnostic may leave; a result or
 ranking payload may not. **Embedding-credential failure splits in two**: a
 missing key is a configuration-preflight state before the network —
 `embedder-unconfigured`, no client constructed, no query embedded,
-reading never blocked, logged once by serve without the key or any query
-— and it is checked only for a text-bearing request that explicitly asked
+reading never blocked, reported only by the explicit semantic CLI action
+— and it is checked only for a text-bearing CLI request that explicitly asked
 for semantic, after the index state is known, so it can never mask the
-reason the *current surface* stopped at the index stage (the strict CLI
-fails there on any incomplete index and never reaches the key check; the
-UI, which serves a partial index, is not failing at the index stage and
-so may legitimately then report an unconfigured key). A provider refusal of the credential
+strict CLI's earlier incomplete-index reason. Ordinary UI search never enters
+this gate and therefore has no embedding-configuration state. A provider refusal of the credential
 is `embedder-rejected`: at most one call per explicit action, no in-place
 retry, the provider's response body never forwarded, and no cross-request
 auth latch is authorized — the status-code classification is pinned from
@@ -509,14 +671,479 @@ Koopa 2026-07-13 — an EXPLICIT-RULING, not a derivation; the earlier draft
 that called it CANON-DERIVED from D50.5 overreached, since D50.5 rules only
 stale-partial): **only a response we can confirm is a yomihon-formed
 malformed request is an internal error** — CLI exit 1, no result or ranking
-payload; the UI keeps its lexical reading face and shows an internal-error
-diagnostic. **Every known provider fault, and any unknown or unclassifiable
+payload. **Every known provider fault, and any unknown or unclassifiable
 provider response, is treated as semantic `unavailable` and never claimed
-as a yomihon fault** — CLI exit 3 with the lexical results preserved; the
-UI continues lexical with a named diagnostic. The default for uncertainty
+as a yomihon fault** — CLI exit 3 with the lexical results preserved. The
+ordinary UI remains lexical and has no provider diagnostic. The default for uncertainty
 is therefore "the provider's problem, semantic off," never "our internal
 error." The concrete provider-error-class → reason mapping is completed at
 the protocol step from the successor's own documentation. The single
 outbound request per action is counted at the HTTP boundary, not a client
 method, with automatic retry disabled, so a transient failure cannot
 amplify the query egress.)*
+
+*(Amended 2026-07-13 by Koopa: ordinary human search is permanently
+lexical-only. Semantic/hybrid retrieval is an explicit CLI/agent capability;
+the former UI submit/toggle semantic path, its query egress, credential state,
+provider diagnostics, stale-partial serving rule, and UI columns in the
+degraded cross-product are retired. A future human fuzzy-exploration need may
+be ruled as a clearly separate Related/Find-related surface, but this amendment
+does not authorize it and it may not be mixed into ordinary search.)*
+
+*(Amended again 2026-07-13 under Koopa's delegated product authority,
+superseding the serve-owned background and immediate stale-partial terminal
+above. `serve` is structurally outside semantic search. A cold or incompatible
+index requires the explicit `yomihon search-index build` action; a compatible
+active generation that merely differs from current vault content is
+automatically reconciled by the explicit `search --semantic` action before its
+single query send. Reconciliation may send only changed/new eligible document
+chunks and may write the cache; it never sends the query first. Failure leaves
+the old active generation byte-identical and returns the lexical answer with
+exit 3. A concurrent writer yields the typed `index-refreshing` unavailable
+state. Successful reconciliation creates a complete immutable generation and
+activates it in one SQLite transaction. Stale vectors and partial hybrid
+answers remain forbidden. This product choice favors a search that normally
+just works without allowing one query to trigger an implicit first/full
+corpus build.)*
+
+*(Implementation clarification, 2026-07-13, under the same delegated product
+authority. "Compatible drift" is intentionally bounded: before document
+egress, `search --semantic` computes the exact missing-vector work and will
+reconcile at most **128 chunks and 100,000 submitted proxy tokens** in one
+interactive action. Crossing either bound returns typed `rebuild-required`
+without sending a document or query and directs the operator to the explicit
+build command. Interactive reconciliation performs one attempt per document
+and fails fast on 429 or any provider failure; D50.6's bounded retry/backoff is
+owned only by `search-index build`. Before activation, the candidate's complete
+sorted content-hash corpus manifest and both policy sources are re-read and
+must still match; drift leaves the prior active generation untouched, sends no
+query, and returns typed `vault-changed`. A build may persist **one** staging
+generation so paid successful rows survive interruption, but it is resumable
+only when the full vector identity, target content-hash corpus manifest,
+policy-source freshness, expected chunk count, and recorded retry state still
+match; otherwise the next writer discards it locally before egress. Active and
+previous are immutable, staging alone is mutable, and activation transactionally
+performs `previous=active; active=staging; staging=NULL` before pruning every
+unreferenced generation. No automatic fallback ranks from previous. Finally,
+structured filters are local constraints and are never embedded: the query
+provider receives the original-case, original-Unicode bare tokens in input
+order, joined by one ASCII space; recognized filter tokens are removed. This
+projection is part of the protocol identity.)*
+
+*(Amended 2026-07-14 under Koopa's delegated product authority. The semantic
+generation store's first implementation is supported only on **Darwin and Linux** and is
+deliberately unsupported on Windows: Go's
+synthetic Windows mode bits cannot prove the owner-only `0700`/`0600` privacy
+boundary, and an honest DACL design needs its own ruling and Windows-runtime
+evidence. The three store entry points therefore return a typed error before
+stat, mkdir, SQLite, key access, or provider construction. Plain lexical CLI,
+ordinary UI search, `serve`, and judge remain supported and store-free. A
+text-bearing `search --semantic` request returns exit 3 with its lexical answer,
+`semantic=unavailable`, and reason `unsupported-platform`; `search-index build`
+returns the exit-3 error envelope with the same reason. Pure-filter semantic and
+plain lexical requests terminate at their earlier gates and never observe this
+state. H7 freezes the stderr bytes and matrix row; a real `windows-latest` job
+proves that no directory, database, lock, WAL, SHM, or journal is created.)*
+*No runtime/compile support claim is made here for other targets. In
+particular, a Unix-like `GOOS` name is not support evidence: the selected
+SQLite dependency does not currently compile for every such target.*
+
+*(Implementation clarification, 2026-07-14, under the same delegated product
+authority. A production generation may activate only with H9's matching
+40-query recorded-vector workload; its 120-sample top-k p95 is stored at a
+minimum of one microsecond. `top_k_p95_us=0` means only an internal synthetic
+fixture-capture/bootstrap generation and is not a dispatchable production
+state. Rung 1's deterministic exact-index envelope is `chunks < 100,000` and
+raw vector payload `<= 1 GiB`; crossing either condition returns `capacity`
+before allocation and opens the rung-2 comparison. Thus 3,072 dimensions admit
+at most 87,381 chunks, while 1,536 dimensions reach the count gate first. This
+is a preflight guarantee, not a promise that arbitrary Go/OS allocation failure
+can be recovered.)*
+
+*(Amended 2026-07-16 under Koopa's delegated product authority. The H9
+retrieval oracle distinguishes relevance from prohibition. Every required
+positive must be in the top 5; rank 1 must belong to the required or explicitly
+acceptable positive set. A designated related sibling is contrastive rather
+than forbidden: if present, it must rank below every required positive. Hard
+filter violations remain forbidden across the complete fused result list.
+The live paired `gemini-embedding-2` run gave both 1,536 and 3,072 dimensions
+the same 40/40 required-positive rank-1 result and the same 40/40
+contrast-below-positive result. Because 3,072 showed no retrieval benefit while
+doubling vector payload and exact-scan work, 1,536 is the production dimension
+and enters the cache identity and committed recording.)*
+
+*(Amended 2026-07-20 by Koopa through D60. Explicit build retry authority is
+now a durable five-send-slot batch per pending chunk and storage generation,
+not five guaranteed HTTP requests or a renewable ordinary-build loop. Only 429
+retries automatically inside one build action. Exhaustion is
+`attempt-budget-exhausted`; a separate `--renew-attempt-budget` action may
+authorize one replacement batch only under D60's exact staging preconditions.
+The build error wire now carries active/staging recovery state, immediate retry
+safety, and the next action. The search answer envelope is otherwise unchanged.)*
+
+## D51 `published` is selection for publication, not an external-success receipt (2026-07-16, under Koopa's delegated product authority)
+
+`status: published` means that Koopa has selected the note for membership in
+the public collection. It is desired state and an input to a future publisher;
+it does not assert that an external deployment succeeded, that a particular
+revision was deployed, or that the note is currently live.
+
+The lifecycle entry in `vault-schema.toml` remains the only authority that can
+offer or refuse this transition. Yomihon must not add a `published` string
+special case in Go. A future publisher reads the selected set without writing
+publication receipts back into the vault. Its deployment revision, success,
+retry, and liveness records belong to the publisher's own log or repository.
+Before an automated publisher first consumes this state, its plan must include
+a reviewed historical backfill, its own privacy exclusions, and an explicit
+review of the selection affordance, mistaken-selection recovery, and withdrawal
+path. Those are publisher obligations, not meanings smuggled into the status
+field. D13's current quiet-transition treatment does not by itself authorize a
+future publisher to make one click immediately public.
+
+The rejected alternative was receipt-gated status. Yomihon cannot verify every
+manual publication or historical backfill within its local privacy boundary,
+so that interpretation would make one field mean verified receipt on one path
+and human attestation on another.
+
+## D52 Lifecycle transitions always change state (2026-07-16, under Koopa's delegated product authority)
+
+A lifecycle transition from a status to the same status is illegal. For
+`from = ["*"]`, the wildcard means the initial state plus every *other*
+declared status legal for that note type; it does not authorize arbitrary
+unknown status bytes or a no-op self-transition.
+
+This keeps the UI from offering the current status as an action and preserves
+the write face's audit contract: one accepted action produces one actual status
+change and one matching commit, rather than a no-op rewrite followed by a
+commit failure.
+
+## D53 Schema coordination and supersession vocabulary have bounded owners (2026-07-16, under Koopa's delegated product authority)
+
+The schema-v1 coordination keys do not all create yomihon behavior:
+
+- `aligned_with` names the human doctrine that reviewers keep semantically
+  aligned with the machine contract. Yomihon retains and validates the key's
+  shape but does not claim it can prove prose-level alignment.
+- `generated_at_must_match` belongs to the vault's generated-fileclass check.
+  Yomihon decodes it so strict loading accepts the current vocabulary; it does
+  not reimplement that generator or its CI.
+- `[supersession]` is machine authority for the existing replacement ledger.
+  Lessons name the configured predecessor and successor fields. Other note
+  types use the configured general-link field. The configured archived status
+  is the common structural exit for superseded notes.
+
+When `[supersession]` is present, the archived status must be legal for every
+declared type, have one non-overlapping lifecycle authority row for every type,
+and accept every *other* status in that type's effective status group. This is
+a structural representability check, not an authorization check: `owner = []`
+remains valid and intentionally pauses interactive execution without making
+the supersession vocabulary incoherent.
+
+The judge consumes these configured field names in three bounded ways:
+
+1. The existing `provenance.unresolved` rule reads the configured lesson
+   predecessor/successor fields and the configured general-link field instead
+   of hardcoding `evolution_*`. Findings for those configured fields cite
+   `vault-schema.toml#supersession`; the fixed `based_on` and `related` fields
+   retain their existing provenance citation.
+2. `supersession.predecessor_not_archived` is a warning on a governable lesson
+   whose configured successor field contains at least one genuine string while
+   its status is a declared non-archived lesson status. A missing or invalid
+   status is left to the existing schema findings rather than producing a
+   second claim.
+3. `supersession.archived_navigation_target` is a warning on each body
+   wikilink in a live, governable type declared by `[navigation]` as a path or
+   map when that link resolves uniquely to another governable note whose status
+   is the configured archive status. Unresolved and ambiguous links remain
+   owned by their existing rules.
+
+The whole judge command requires valid privacy authority (D54). Within that
+authorized scan, both new rules require a valid artifact policy, exclude
+privacy-denied and non-instance source and target files, and the
+navigation-target rule additionally requires valid navigation roles. If
+`[supersession]` is absent, neither new rule runs and `provenance.unresolved`
+does not guess replacement-field names. If a rule-specific capability is
+unavailable, the affected rule emits nothing rather than classifying files
+through a fallback. Each new rule is `warn`; its JSONL shape, diagnostic
+strings, ordering, and fingerprint are frozen by the judge golden contract
+before release.
+
+The judge must not infer reciprocal-link requirements, a fuzzy-duplicate
+threshold, or an automatic delete/write path. Similarity and reciprocity remain
+human review questions until separately ruled.
+
+## D54 Agent judge requires explicit privacy authority (2026-07-16, under Koopa's delegated product authority)
+
+`check`, `coverage`, and `exists` are agent-facing egress surfaces, not merely
+local readers. Each command must load one valid `[privacy]` capability before
+reading vault notes and retain that same authority through emission. A missing,
+invalid, or source-stale privacy capability is a tool failure: every format
+emits empty stdout, exits 2, and writes exactly
+`yomihon: privacy authority unavailable; agent-facing output disabled\n` to
+stderr. An explicitly present `never_egress_dirs = []` remains valid and means
+that the contract intentionally declares no private directory.
+
+This is an explicit availability and wire ruling, not a derivation from
+D18/D39/D42: those decisions require exclusion but did not choose what the
+three commands do when the exclusion authority itself is unavailable. Exit 2
+uses the judge's existing tool-error class; exit 0 would falsely certify a
+clean/empty result, exit 1 has command-specific meanings, and semantic
+search's exit 3 does not belong to this CLI.
+
+The privacy policy, never a Go path literal, owns every output and influence
+filter: finding paths/collision members/resolved targets and title evidence;
+planned-name sources; coverage candidates, mount sources, and unrouted rows;
+exists matches; and D53 source/target eligibility. The full graph may still
+contain a private note so a public author's own link text and resolution retain
+D42's semantics; private notes are removed at the rule/output boundaries, not
+pre-deleted from the graph.
+
+Privacy directory prefixes compare NFC-normalized path components with Unicode
+case folding on every platform. This is CANON-DERIVED from D18's fail-closed
+boundary plus the platform-honesty rule: a case-insensitive filesystem can name
+one directory through multiple case spellings, and such an alias cannot create
+egress authority. On a case-sensitive filesystem the conservative consequence
+is only that a case-variant sibling is also withheld.
+
+Error output is also egress. Contract/privacy failures use the fixed line above,
+and note-walk/read failures use the content- and path-free `vault scan failed`
+tool error. The same loaded policy is revalidated after payload construction
+and immediately before `stdout.Write`; a filesystem and an arbitrary
+`io.Writer` cannot form one atomic transaction, so this adjacent final check
+is the honest publication boundary.
+
+## D55 Judge scan, grammar, and wire ambiguities are closed (2026-07-16, under Koopa's delegated product authority)
+
+The agent judge strictly walks the complete non-hidden vault. Hidden path
+segments remain excluded and `.gitignore` remains irrelevant, but an unreadable
+nested entry is a tool failure rather than a partial clean result. Default
+`check` scope removes only findings whose touched paths are all under
+`System/`; `--all` disables that presentation filter. `Diagrams/` and `Views/`
+have no separate exclusion. Contract-declared privacy exclusions remain
+absolute and are never relaxed by `--all`.
+
+`--root` and `--format` are shared flags. `--all`, `--deny`, `--baseline`, and
+positional path filters belong only to `check`; `coverage` accepts no
+positionals, and `exists` accepts exactly one name. A flag or positional owned
+by another command is an exit-2 usage error before any vault scan.
+
+In JSON/machine format, `coverage` and `exists` emit compact JSON followed by
+one newline. Their explicit `human` format remains readable text, and `md`
+falls back to that human view because markdown is check-only. Historical pretty
+JSON snapshots define value shape, not wire bytes. Current tool errors use the
+honest `yomihon:` prefix; predecessor names in the migration record are
+historical, not live output contracts.
+
+## D56 Reading projections are request snapshots; commit provenance is byte-bound (2026-07-16, under Koopa's delegated product authority)
+
+A reading request captures one immutable lifecycle view and one immutable vault
+snapshot, then derives every projection in that response from those values. A
+contract edit after capture affects the next request; the UI does not pretend a
+filesystem-backed response can be globally atomic with an external editor.
+This is safe because the local reading surface is not an egress boundary and
+every status POST still revalidates current authority under the lifecycle
+publication lock before writing.
+
+The sealed-note commit line is stricter: the note reader passes the SHA-256 of
+the exact bytes it rendered to `internal/status`. A hash is shown only when the
+current file is clean and matches those bytes both before and after the git-log
+query. A concurrent flip or external edit therefore suppresses provenance
+instead of pairing an older reading snapshot with a newer commit.
+
+## D57 Fixed synthetic provider certification is a bounded egress exception (2026-07-16, under Koopa's delegated product authority)
+
+Provider protocol and dimension claims cannot be certified offline, but routing
+their verification through the ordinary user search command would create a
+bootstrap cycle and misdescribe who owns the request. An explicit developer
+certification action may therefore send only two fixed, repo-owned classes:
+the hard-coded synthetic protocol probes and the committed synthetic eval
+corpus/queries.
+
+This is the third outbound exception to wall 2, separate from D32's eligible
+note-content egress and D50.1's explicit user-query egress. Its boundary is
+structural:
+
+- no argument or environment value can supply text, a vault root, or an
+  operator-selected input file; input bytes come only from the fixed repo
+  fixtures, while the local output path and ruled 1,536/3,072 candidate
+  dimension may vary;
+- every corpus path and query carries the repo's synthetic marker and is
+  validated before use;
+- each row is one direct request with automatic retry, redirect following, and
+  environment proxies disabled; provider bodies and submitted text are never
+  logged or forwarded;
+- the action is opt-in, test-only, and absent from the product binary; it uses
+  the same `YOMIHON_EMBED_KEY` credential name rather than adding a second
+  product configuration surface;
+- its output remains local, owner-only, structurally validated, and contains
+  vectors plus content hashes rather than raw query or corpus text.
+
+This does not authorize an arbitrary recording tool, a real-vault capture
+driver, or a new user-facing query surface. Real-vault evaluation may consume
+only vectors already produced by prior explicit `search --semantic` actions.
+Changing any input ownership above is a new egress decision, not a test refactor.
+
+## D58 Status publication is supported only where its durability claim is proved (2026-07-17, under Koopa's delegated product authority)
+
+The ordinary reader, navigation, judge, and lexical search remain supported on
+macOS, Linux, and Windows. The status write face is supported on macOS and
+Linux only. A successful status action promises more than an atomic rename: it
+promises that the replacement file and its containing directory entry were
+synchronized before the matching git commit and 303 response. The first
+implementation has real-kernel evidence for that sequence only on Darwin and
+Linux.
+
+On Windows and every other unproved target, contract-derived read projections
+remain available, including lifecycle groups and advanceable counts. The
+platform limitation removes transition forms, gives the reading page a stable
+write diagnostic, and makes a direct `POST /status` return 503 with the
+unchanged recovery state. After form and vault-relative path-shape validation,
+the refusal occurs before target filesystem, git, or contract-source access.
+It must never perform the rename first and report uncertainty afterward.
+
+Go exposing a directory handle is not sufficient evidence. Microsoft documents
+`FlushFileBuffers` for a handle with `GENERIC_WRITE`, while the documented list
+of directory-handle consumers does not establish it as a directory-entry
+durability barrier. A future Windows write implementation therefore requires a
+documented confinement-preserving primitive, a watched-red crash/durability
+contract, and a real Windows CI runner before this ruling is widened. A
+path-based call that weakens `os.Root` confinement is not an acceptable
+portability shortcut.
+
+## D59 Authored note HTML is display input, not browser authority (2026-07-18, under Koopa's delegated product authority)
+
+The vault remains the byte authority: reading never rewrites a note to make it
+safe. The HTML projection, however, grants authored markup only the inert
+Japanese-reading subset the vault demonstrably needs: `ruby`, `rt`, `rp`,
+`br`, and a conservatively validated quoted `lang` attribute on the first three
+elements. The exact inert `<!-- read-aloud: ja -->` lesson marker also survives
+long enough for the server to consume it into a TTS control. Other authored
+tags, attributes, and comments are rendered visibly as text.
+In particular, a note cannot contribute scripts, event handlers, refresh or
+navigation directives, styles, frames, forms, media, or automatically loaded
+remote subresources to yomihon's first-party page. A remote Markdown image is
+an explicit external link rather than an automatic request; ordinary external
+Markdown links remain user-activated navigation.
+
+This is a renderer boundary backed by a response boundary. Every executable
+application script carries the unpredictable nonce of that response. The
+reading CSP accepts that nonce through `strict-dynamic`, does not grant
+`script-src 'self'`, and refuses script attributes, objects, workers, foreign
+frames, and foreign automatic subresources. CSP is defense in depth, not the
+mechanism that neutralizes authored `meta` refresh: that element is already
+inert before the browser parses the page.
+
+Reports retain their distinct D30 contract, but not its historical script
+allowance. The allowlisted bytes stay unchanged and render as static HTML,
+inline CSS/SVG, and data media in a bare sandboxed opaque origin. Report-authored
+JavaScript never executes; automatic refresh/navigation, forms, remote resource
+loads, and WebRTC remain inert. The resource-level CSP independently refuses
+scripts and automatic network mechanisms. This is intentionally narrower than
+claiming that an opaque origin or CSP can firewall arbitrary executable
+JavaScript. If reports later need interaction, a separately ruled first-party
+renderer consumes a declarative data format; raw authored JavaScript is not
+enabled. Every alternative raw-file route either renders markup as escaped
+source or uses its own scriptless sandbox. This also amends D30's historical
+third mechanism: `/notes/` now has read-only views for non-Markdown files, so
+the invariant is no longer "non-note means 404"; it is "no alternative route
+executes those bytes with first-party authority."
+
+## D60 Semantic retry authorization, recovery wire, and first-use gaps are closed (Koopa, 2026-07-20)
+
+This ruling amends D49 and D50 without erasing their history.
+
+**Semantic send authorization and retry.** Before invoking the chunk-send
+capability, the build ledger commits one durable send-slot reservation. Any
+abort after that commit and before the transaction that stores the returned
+vector and clears the attempt row consumes the slot, even when no HTTP request
+was made. Provider configuration or construction failure happens before
+reservation and consumes no slot. Each chunk-send or query-send client method
+invocation still performs at most one HTTP request, follows no redirect, and
+uses no ambient proxy; a full-build action may invoke the chunk-send method
+again only through the bounded 429 loop below.
+
+Each storage generation grants at most five send slots to each pending chunk.
+Only a 429 automatically retries inside one `search-index build` action. A
+valid `Retry-After` overrides the 1s/4s/9s/16s fallback; a wait over 30 seconds
+is persisted and the action exits. Every other provider or local terminal ends
+that action after its reserved slot. Exhaustion does not erase fault ownership:
+a confirmed malformed request remains exit 1; credential rejection remains
+`embedder-rejected`; and privacy, artifact, local-input, or vault-change
+prerequisites retain their own reason even when the fifth slot was consumed.
+Their recovery envelope reports `staging_generation=requires-authorization`,
+so repair is followed by renewal rather than an ordinary sixth attempt. Only a
+provider availability terminal with no higher-priority repair — 429,
+unreachable, or unknown/provider-failed — becomes
+`attempt-budget-exhausted` when its reservation consumes the last slot. A
+build that begins with exhausted pending work also reports that reason. Slots
+upper-bound actual HTTP requests; a reserved slot that aborts before transport
+makes the bound conservative, and an ordinary build never mints more authority.
+
+`yomihon search-index build --renew-attempt-budget` is the only renewal. It is
+admitted only when one staging generation carries the complete exact target
+manifest for the current build and at least one pending chunk has exhausted
+its five slots. Under the writer lease it
+revalidates privacy authority, artifact authority, corpus, and both policy
+sources, then one transaction creates a new matching staging generation,
+copies completed vectors, points the staging role at the replacement, and
+deletes the old generation and ledger. The active role is unchanged by that
+authorization commit. The same action then continues the ordinary build using
+the new batch; if interrupted, the commit permanently authorizes the remaining
+slots for a later ordinary build. One invocation renews at most one batch,
+including when the flag is repeated. Missing, mismatched, corrupt, or
+not-exhausted staging returns exit 3 `attempt-budget-not-renewable` with zero
+domain mutation and zero provider send; it never falls back to ordinary build
+or to a corruption reset. A missing store creates no file. For an existing
+store, SQLite may recover committed WAL state and maintain WAL/SHM bookkeeping
+while the existing writer lease is held, but schema, catalog roles,
+generations, chunks, and send-slot rows remain logically unchanged.
+
+**Recovery wire.** `search-index build --json` exit-3 failure has a dedicated
+envelope whose `error` fields, in order, are `reason`, `active_generation`,
+`staging_generation`, `retry_safe`, and `next_action`. Internal build errors
+put the same four recovery fields after `detail` inside `internal_error`.
+That internal envelope is only the confirmed exit-1 yomihon-fault surface.
+Usage, local filesystem/SQLite failure, and interruption before emission remain
+D37 exit 2 with empty stdout and one sanitized stderr line; they do not gain a
+JSON recovery envelope. A stdout failure is also exit 2, but bytes already
+accepted by the writer form an invalid partial envelope and must be discarded;
+no contract can make those accepted bytes empty retroactively.
+`active_generation` is one of `not-inspected`, `absent`, `preserved-usable`,
+or `preserved-unusable`; `staging_generation` is one of `not-inspected`,
+`absent`, `incompatible`, `resumable`, or `requires-authorization`.
+`incompatible` means a physical staging role remains but is not admissible for
+the current target; renewal leaves it untouched. `retry_safe` means the failed
+action may be repeated automatically and immediately without repair, waiting,
+new provider-budget consent, or consuming a new provider-send slot. Every
+currently frozen build exit-3 reason is false; even
+`next_action=retry-build` names a new operator action, not an automatic loop.
+`next_action` is one of `retry-build`,
+`wait-and-retry`, `renew-attempt-budget`, `repair-configuration`,
+`repair-vault-contract`, `repair-input`, `use-supported-platform`,
+`review-capacity`, or `repair-yomihon`. No `retry_after` field is promised.
+Search keeps its answer envelope and lexical results; exhaustion appears only
+as `coverage.reason=attempt-budget-exhausted`.
+
+The recovery fields describe current observable state, not historical
+provenance. In particular, an explicit ordinary build may reset corrupt
+derived storage before later failing, in which case `active_generation` may be
+`absent`; yomihon stores no cross-restart "corruption was reset" marker.
+Failures preserve an active generation only when it was valid, and
+`preserved-usable` is reserved for an active generation the current process can
+actually serve. An incompatible, stale, retired, or otherwise nondispatchable
+active is `preserved-unusable` rather than a false preservation success.
+
+**Home, shortcuts, and first use.** With a valid vault contract, a missing
+root `README.md` does not turn Home into a redirect or 404. `/` returns 200,
+renders the complete snapshot-backed dashboard, and replaces only the README
+body with an explicit read-only recovery state telling the operator to create
+`README.md` at the vault root with an external editor or file tool, then reload.
+Direct `/notes/README.md` remains an honest 404. Yomihon never creates that
+file. The D49 amendment above adds the one default-on persisted single-key
+control and no remapping. First use is documented with one tracked
+`examples/vault-schema.toml` whose repository parser gate both loads the file
+and asserts every example lifecycle owner is exactly `["koopa"]`. That value
+is required by the shipped fixed status actor; it is product policy, not user
+identity configuration. Yomihon may diagnose a missing or invalid contract and
+point to that example, but it gains no `init` command and never creates or edits
+the vault contract.

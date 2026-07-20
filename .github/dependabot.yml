@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+
+  - package-ecosystem: gomod
+    directory: /tools/sqlite-driver-bakeoff
+    schedule:
+      interval: monthly
+    groups:
+      sqlite-bakeoff:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /.github
+    schedule:
+      interval: monthly
+    groups:
+      development-tools:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns:
+          - "*"

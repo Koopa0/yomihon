@@ -93,29 +93,26 @@ func BuildPathView(current *nav.Map, all []nav.Map) PathView {
 	return v
 }
 
-// buildPathBranch converts one nav.Branch (and its subtree) into a PathBranchView,
-// tallying entries on the way up. depth 0 is a part (anchored, roman-numbered);
-// deeper branches are modules (numbered by sibling position).
+// buildPathBranch converts one nav.Branch and its subtree into a
+// PathBranchView. depth 0 is a part (anchored, roman-numbered); deeper branches
+// are modules (numbered by sibling position). nav owns the subtree counts;
+// this function only maps them into presentation values.
 func buildPathBranch(sec nav.Branch, depth, num int) PathBranchView {
 	sv := PathBranchView{Heading: sec.Heading, Depth: depth, Num: num}
+	sv.Ready, sv.Total = sec.EntryCounts(schema.SealStatus)
 	if depth == 0 {
 		sv.Anchor = "part-" + strconv.Itoa(num)
 		sv.Ordinal = roman(num)
 	}
-	for i := range sec.Entries {
-		l := &sec.Entries[i]
+	entries := sec.Entries
+	for i := range entries {
+		l := &entries[i]
 		entry := buildPathEntry(l)
 		sv.Entries = append(sv.Entries, entry)
-		sv.Total++
-		if entry.Sealed {
-			sv.Ready++
-		}
 	}
-	for i, sub := range sec.Sub {
+	for i, sub := range sec.Subbranches {
 		child := buildPathBranch(sub, depth+1, i+1)
 		sv.Sub = append(sv.Sub, child)
-		sv.Total += child.Total
-		sv.Ready += child.Ready
 	}
 	return sv
 }
@@ -135,6 +132,24 @@ func buildPathEntry(entry *nav.Entry) PathEntryView {
 func entryResolutionLabel(kind nav.EntryKind) string {
 	switch kind {
 	case nav.EntryUnresolved:
+		return "未解析"
+	case nav.EntryAmbiguous:
+		return "有歧義"
+	case nav.EntryNonInstance:
+		return "非治理項目"
+	case nav.EntryResolved:
+		return "已解析"
+	default:
+		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+	}
+}
+
+// entryResolutionCode is the stable machine token carried by data-resolution.
+// It deliberately remains English while entryResolutionLabel owns the
+// Traditional Chinese browser copy.
+func entryResolutionCode(kind nav.EntryKind) string {
+	switch kind {
+	case nav.EntryUnresolved:
 		return "unresolved"
 	case nav.EntryAmbiguous:
 		return "ambiguous"
@@ -150,11 +165,11 @@ func entryResolutionLabel(kind nav.EntryKind) string {
 func entryResolutionTitle(kind nav.EntryKind) string {
 	switch kind {
 	case nav.EntryUnresolved:
-		return "Target not found"
+		return "找不到目標"
 	case nav.EntryAmbiguous:
-		return "Target is ambiguous"
+		return "目標有歧義"
 	case nav.EntryNonInstance:
-		return "Target is not a governable artifact"
+		return "目標不屬於生命週期治理範圍"
 	case nav.EntryResolved:
 		return ""
 	default:
@@ -167,25 +182,15 @@ func entryResolutionTitle(kind nav.EntryKind) string {
 func buildPaths(currentRel string, all []nav.Map) []PathLink {
 	links := make([]PathLink, 0, len(all))
 	for _, s := range all {
+		_, total := s.EntryCounts(schema.SealStatus)
 		links = append(links, PathLink{
 			Title:   s.Title,
 			RelPath: s.RelPath,
-			Entries: entryTotal(s.Branches),
+			Entries: total,
 			Active:  s.RelPath == currentRel,
 		})
 	}
 	return links
-}
-
-// entryTotal counts every linked or warning row in a branch slice, at any depth
-// — the same count BuildPathView tallies, kept separate so the switcher can
-// label a path it is not flattening.
-func entryTotal(branches []nav.Branch) int {
-	n := 0
-	for _, sec := range branches {
-		n += len(sec.Entries) + entryTotal(sec.Sub)
-	}
-	return n
 }
 
 // fillBucket is the progress bar's width, in whole percent rounded to the
@@ -199,13 +204,9 @@ func fillBucket(ready, total int) int {
 	return (pct + 2) / 5 * 5
 }
 
-// countLabel formats a syllabus metarow figure for a supplied regular noun:
-// "1 part", "5 modules", "20 lessons".
+// countLabel formats a syllabus metarow figure with its supplied Chinese unit.
 func countLabel(n int, noun string) string {
-	if n == 1 {
-		return "1 " + noun
-	}
-	return strconv.Itoa(n) + " " + noun + "s"
+	return strconv.Itoa(n) + " " + noun
 }
 
 // roman renders a positive part number as a roman numeral (the part label). A

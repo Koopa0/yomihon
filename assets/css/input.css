@@ -18,13 +18,13 @@
 @import "./components.css";
 
 /* Scope the class scan to the two places that actually author classes: the
-   templates that render markup and the single progressive-enhancement script.
+   templates that render markup and the flat progressive-enhancement modules.
    Without this, the engine auto-scans the whole non-ignored tree and harvests
    any bare word that happens to match a utility name — out of Go source, Go
    comments, and the vendored diagram bundle — so the generated stylesheet
    would change whenever unrelated code merely mentioned such a word. Scoping
-   makes output.css a function of the templates and script alone. The scan
+   makes output.css a function of the templates and owned modules alone. The scan
    directives follow the imports so the stylesheet keeps every @import at the
    top, where the cascade requires them. */
 @source "../../internal/ui/**/*.templ";
-@source "../js/yomihon.js";
+@source "../js/*.js";

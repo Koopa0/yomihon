@@ -27,6 +27,7 @@ const SELECT = 'select.y-slotselect';
 const SIDEBAR_INPUT = '[data-nav-filter]';
 const SEARCH_DIALOG = '[data-search]';
 const TEST_EDITABLE = '[data-e2e-contenteditable]';
+const TEST_TEXTAREA = '[data-e2e-textarea]';
 
 // The assertions that can fire the lock, each named for the clause it guards.
 // Select's closed and open faces share one site because both exercise the same
@@ -35,6 +36,7 @@ const TEST_EDITABLE = '[data-e2e-contenteditable]';
 const SITES = [
   'no-fill-from-inside-the-select',
   'no-fill-from-sidebar-input',
+  'no-fill-from-textarea',
   'no-fill-from-contenteditable',
   'no-fill-while-search-dialog-open',
 ];
@@ -103,7 +105,7 @@ if (duplicateNeedleControl.matches !== 2 || duplicateNeedleControl.body !== 'gua
 
 const rewriteGuard = ({ needle, replacement }) => async (page) => {
   let matches = null;
-  await page.route('**/yomihon.js', async (route) => {
+  await page.route('**/shortcuts.js', async (route) => {
     const res = await route.fetch();
     const original = await res.text();
     const rewritten = rewriteExactlyOnce(original, needle, replacement);
@@ -129,27 +131,32 @@ const rewriteGuard = ({ needle, replacement }) => async (page) => {
 const MUTATIONS = {
   'unguard-select': {
     target: 'no-fill-from-inside-the-select',
-    needle: "t.closest('select')",
+    needle: "target.closest('select')",
     replacement: 'false',
   },
   'weaken-select-to-tagname': {
     target: 'no-fill-from-inside-the-select',
-    needle: "t.closest('select')",
-    replacement: "t.tagName === 'SELECT'",
+    needle: "target.closest('select')",
+    replacement: "target.tagName === 'SELECT'",
   },
   'unguard-sidebar-input': {
     target: 'no-fill-from-sidebar-input',
-    needle: "t.tagName === 'INPUT'",
+    needle: "target.tagName === 'INPUT'",
+    replacement: 'false',
+  },
+  'unguard-textarea': {
+    target: 'no-fill-from-textarea',
+    needle: "target.tagName === 'TEXTAREA'",
     replacement: 'false',
   },
   'unguard-contenteditable': {
     target: 'no-fill-from-contenteditable',
-    needle: 't.isContentEditable',
+    needle: 'target.isContentEditable',
     replacement: 'false',
   },
   'unguard-open-search-dialog': {
     target: 'no-fill-while-search-dialog-open',
-    needle: 'if (typing || (dialog && dialog.open)) return;',
+    needle: 'if (typing || search.isOpen()) return;',
     replacement: 'if (typing) return;',
   },
 };
@@ -181,22 +188,6 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// The fill starts synchronously inside the keydown handler today, so reading it
-// on the next line happens to work. This bound exists so the lock does not
-// depend on that: move the fill behind a timer or a frame and the probe must
-// still see it. Both sides share it — the positive control waits up to
-// FILL_TIMEOUT_MS for the fill to appear before calling itself broken, and the
-// guard case watches for the same span a fill that must never appear. One shared
-// tolerance is what makes the negative sound: a leaked fill that began later than
-// the guard watched but sooner than the control tolerates would otherwise slip
-// through green. The span stays under the hold's own completion, so a key held
-// through it can never run the seal to a submitted form; the aborted POST is the
-// last line of defence against that, never the first.
-//
-// Every wait carries its own bound, so a fill that never moves stops the probe
-// with a sentence naming what it was waiting for, rather than stalling until
-// the driver's default expires and reporting nothing anyone can act on.
-const FILL_TIMEOUT_MS = 300;
 // The customizable picker can move focus to its option before it is ready for
 // the next held key. Waiting after every arrange keeps the hold out of that
 // handoff window; the same rule for every case avoids a timing exception hidden
@@ -206,19 +197,17 @@ const ARRANGE_SETTLE_MS = 100;
 const someFillFull = () => [...document.querySelectorAll('.y-sealfill')].some((f) => f.style.width === '100%');
 const noFillFull = () => [...document.querySelectorAll('.y-sealfill')].every((f) => f.style.width !== '100%');
 
-// Holds R for as long as the control is allowed to take, and reports whether any
-// seal fill reached full width inside that window.
-const holdRAndWatchFill = async (page) => {
+// The shortcut starts or refuses the hold in its keydown handler. Read that
+// synchronous result after Playwright has delivered the trusted event, then
+// release immediately. Polling animation frames here makes scheduler load look
+// like a product failure and holds the key closer to the submit deadline.
+const holdRAndReadFill = async (page) => {
   await page.keyboard.down('r');
-  let started = false;
   try {
-    await page.waitForFunction(someFillFull, null, { timeout: FILL_TIMEOUT_MS });
-    started = true;
-  } catch {
-    started = false;
+    return await page.evaluate(someFillFull);
+  } finally {
+    await page.keyboard.up('r');
   }
-  await page.keyboard.up('r');
-  return started;
 };
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -251,20 +240,14 @@ async function guardCase({ name, site, arrange }) {
   if (!(await page.$(SELECT))) broken('page has no slot select — pick a slot lesson page');
   if (!(await page.$(SIDEBAR_INPUT))) broken('page has no sidebar filter input — pick a reading page with the shared sidebar');
   if (!(await page.$(SEARCH_DIALOG))) broken('page has no search dialog — pick a page with the shared application shell');
-  if (await page.$('textarea')) {
-    broken('the fixture now carries a TEXTAREA; replace the explicit skip with a case and a mutation aimed at its guard clause');
-  }
-
   // Positive control: R held outside any typing surface starts the fill.
   await page.evaluate(() => document.body.focus());
-  if (!(await holdRAndWatchFill(page))) {
+  if (!(await holdRAndReadFill(page))) {
     broken(`${name}: held R on the body did not start the seal fill, so this probe cannot see the seal path at all`);
   }
   // Release must retract the fill before the real case runs: a fill left at full
   // width would read as a leak the case never caused.
-  try {
-    await page.waitForFunction(noFillFull, null, { timeout: FILL_TIMEOUT_MS });
-  } catch {
+  if (!(await page.evaluate(noFillFull))) {
     broken(`${name}: the seal fill never retracted after R was released, so the case below would start from a fill already at full width`);
   }
   // A completed hold would submit the form and latch the script's sealing state,
@@ -277,12 +260,9 @@ async function guardCase({ name, site, arrange }) {
   await arrange(page);
   await page.waitForTimeout(ARRANGE_SETTLE_MS);
 
-  // The lock: R held from the guarded surface must not start the fill. Watching for
-  // the fill up to the bound the control tolerates — rather than reading once
-  // after a fixed pause — is what makes this a sound negative: a leaked fill is
-  // caught the instant it appears, and only a window that stays empty for as long
-  // as a real fill was ever allowed to take is read as no leak.
-  const leaked = await holdRAndWatchFill(page);
+  // The lock: the same trusted keydown that starts the positive control must
+  // leave the fill untouched when its target is guarded.
+  const leaked = await holdRAndReadFill(page);
   const submitted = postAttempted;
   await page.close();
   return { leaked, site, submitted };
@@ -354,6 +334,24 @@ const CASES = [
     },
   },
   {
+    name: 'a focused textarea',
+    site: 'no-fill-from-textarea',
+    arrange: async (page) => {
+      const state = await page.evaluate((selector) => {
+        const textarea = document.createElement('textarea');
+        textarea.dataset.e2eTextarea = '';
+        document.body.append(textarea);
+        textarea.focus();
+        return {
+          focused: document.activeElement === document.querySelector(selector),
+          tag: document.activeElement?.tagName,
+        };
+      }, TEST_TEXTAREA);
+      if (state.tag !== 'TEXTAREA') broken(`the test-local textarea focused ${state.tag} instead of TEXTAREA`);
+      if (!state.focused) broken('focusing the test-local textarea did not make it the active element');
+    },
+  },
+  {
     name: 'the open search dialog with a non-typing target focused',
     site: 'no-fill-while-search-dialog-open',
     arrange: async (page) => {
@@ -396,8 +394,7 @@ try {
     fail(first.site, `held R started the seal fill ${details.join('; and ')}`);
   }
 
-  console.log('SKIP seal-select-guard: fixture has no TEXTAREA typing surface');
-  console.log('PASS seal-select-guard: every case started the control fill from the body; no fill from select, sidebar input, contentEditable, or while search was open');
+  console.log('PASS seal-select-guard: every case started the control fill from the body; no fill from select, sidebar input, textarea, contentEditable, or while search was open');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

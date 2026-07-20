@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func TestAncestorDirs(t *testing.T) {
@@ -57,9 +58,8 @@ func TestHereLabel(t *testing.T) {
 	}
 }
 
-// buildModel writes a small vault to disk and builds the real nav model from it,
-// so the wayfinding test resolves map-entry wikilinks and folder structure through
-// the production build rather than a hand-assembled model.
+// buildModel writes a small vault to disk, captures it through vault.Reader,
+// and builds the real graph and navigation projections from that generation.
 func buildModel(t *testing.T) *nav.Model {
 	t.Helper()
 	root := t.TempDir()
@@ -98,26 +98,60 @@ func buildModel(t *testing.T) *nav.Model {
 		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 			t.Fatalf("mkdir %s: %v", rel, err)
 		}
-		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", rel, err)
 		}
-	}
-	idx, err := graph.Build(root)
-	if err != nil {
-		t.Fatalf("graph.Build: %v", err)
 	}
 	mtimes := map[string]time.Time{
 		"Diary/2026-07-09.md": time.Date(2026, time.July, 9, 8, 0, 0, 0, time.UTC),
 		"Diary/2026-07-10.md": time.Date(2026, time.July, 10, 8, 0, 0, 0, time.UTC),
 	}
+	for rel, modified := range mtimes {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.Chtimes(full, modified, modified); err != nil {
+			t.Fatalf("Chtimes(%q) error = %v", rel, err)
+		}
+	}
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	scan, err := reader.ScanComplete(t.Context())
+	if err != nil {
+		t.Fatalf("ScanComplete() error = %v", err)
+	}
+	notes := make(map[string]*vault.Note)
+	noteList := make([]*vault.Note, 0, len(scan.Files()))
+	resources := make([]string, 0, len(scan.Files()))
+	for _, entry := range scan.Files() {
+		if !strings.HasSuffix(entry.Path(), ".md") {
+			resources = append(resources, entry.Path())
+			continue
+		}
+		data, readErr := reader.ReadFile(t.Context(), entry)
+		if readErr != nil {
+			t.Fatalf("ReadFile() error = %v", readErr)
+		}
+		note := vault.Parse(entry.Path(), data)
+		notes[entry.Path()] = note
+		noteList = append(noteList, note)
+	}
 	contract, err := schema.LoadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model, err := nav.Build(root, idx, mtimes, contract.NavigationRoles(), contract.ArtifactPolicy())
-	if err != nil {
-		t.Fatalf("nav.Build: %v", err)
-	}
+	model := nav.New(
+		scan.Files(),
+		notes,
+		graph.New(noteList, resources),
+		contract.NavigationRoles(),
+		contract.ArtifactPolicy(),
+	)
 	return model
 }
 
@@ -265,7 +299,7 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 	sb := NewSidebar(model, "Writing/lessons/go/L01.md")
 
 	var buf bytes.Buffer
-	if err := sidebar(sb).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(sb, "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -278,6 +312,7 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 		`data-key="dir:Concepts"`,
 		`data-filter-empty`,
 		`yomihon.nav`,
+		`<script nonce="response-nonce">`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered sidebar is missing %q", want)
@@ -293,7 +328,7 @@ func TestSidebarContentGrouping(t *testing.T) {
 	model := buildModel(t)
 
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, "")).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -307,7 +342,7 @@ func TestSidebarContentGrouping(t *testing.T) {
 	for _, want := range []string{
 		`data-map-tree="Maps/Reading map.md"`,
 		`href="/notes/Maps/Reading%20map.md"`,
-		`>Open map</a>`,
+		`>開啟地圖</a>`,
 		`>C01</a>`,
 		`data-key="journal"`,
 		`data-sidebar-journal-entry>2026-07-10</a>`,
@@ -359,27 +394,18 @@ func TestSidebarContentGrouping(t *testing.T) {
 func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	model := &nav.Model{
-		NavigationDiagnostic: "invalid navigation roles: type unavailable",
-		ArtifactDiagnostic:   "invalid artifact policy: directory unavailable",
-		Folders: []nav.Folder{{
-			Name:    "Writing",
-			RelPath: "Writing",
-			Notes:   []nav.NoteRef{{Name: "Note", RelPath: "Writing/Note.md"}},
-		}},
-	}
+	model := nav.New(nil, nil, graph.BuildFromNotes(nil, nil), schema.NavigationRoles{}, schema.ArtifactPolicy{})
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, "")).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
 	for _, want := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
-		"Paths and Maps",
-		model.NavigationDiagnostic,
-		model.ArtifactDiagnostic,
-		"Folders",
-		`href="/notes/Writing/Note.md"`,
+		"路徑與地圖",
+		"治理項目投影目前無法使用",
+		model.NavigationDiagnostic(),
+		model.ArtifactDiagnostic(),
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered degraded sidebar is missing %q", want)
@@ -395,7 +421,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 
 	model := buildModel(t)
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, "")).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -408,7 +434,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 		t.Fatalf("sidebar path/map markers = %d/%d, want ordered groups", pathsAt, mapsAt)
 	}
 	paths := html[pathsAt:mapsAt]
-	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">non-instance</span>"} {
+	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">非治理項目</span>"} {
 		if !strings.Contains(paths, want) {
 			t.Errorf("sidebar Paths is missing non-instance warning output %q", want)
 		}
@@ -429,9 +455,9 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
 	t.Parallel()
 
-	model := &nav.Model{Maps: []nav.Map{{Title: "Empty map", RelPath: "Maps/Empty.md"}}}
+	model := nav.Map{Title: "Empty map", RelPath: "Maps/Empty.md"}
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, "")).Render(t.Context(), &buf); err != nil {
+	if err := mapTree(NewSidebar(nil, ""), model, notesHref(model.RelPath)).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -441,7 +467,7 @@ func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Empty map",
-		`href="/notes/Maps/Empty.md">Open map</a>`,
+		`href="/notes/Maps/Empty.md">開啟地圖</a>`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered zero-entry map is missing %q", want)

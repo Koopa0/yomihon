@@ -9,24 +9,27 @@ the sources below, they win, in this order.
 |---|---|
 | Why the product exists, its modes, its aesthetic | `product.md` (positioning, the constitutional queue, the taste charter) |
 | What the finished system is | `spec.md` (goals §0, per-face specs and acceptance) |
-| Why it is the way it is | `decisions.md` (D01–D48; a ruling that is not there did not happen) |
+| Why it is the way it is | `decisions.md` (a ruling that is not there did not happen) |
 | What order and why | `roadmap.md` (dependency and leverage; no milestone fences, D15) |
-| How well work must be done | `standards.md` (testing, CI, taste, verification protocol) |
+| Normative engineering and evidence bar | `ENGINEERING_STANDARD.md` v2.0 at `ENGINEERING_STANDARD.sha256`, resolved for this repository by `PROJECT_PROFILE.md` |
+| Repository-specific working protocol | `standards.md` (testing, CI, taste, and verification details; it may not weaken the standard/profile) |
 | Per-face contracts | that face's plan doc (`judge-plan.md`, `search-plan.md`, `ux-plan.md`, and the B/H/D docs to come) |
 | The hard boundaries | the four walls (`README`, D02) — violating one means stop and ask Koopa, not route around |
 
 ## 1. Roles (the division of labor, fixed)
 
 - **Builder** — an implementing session. Writes code on a branch from a
-  written briefing, self-verifies per `standards.md` §5, commits locally,
-  reports with verified/assumed marked. Never pushes, never merges, never
-  rules on walls, schema, taste, or divergence registers.
+  written briefing, self-verifies with `make verify` and the applicable
+  profile stages, commits locally, and reports with verified/assumed marked.
+  Never pushes, never merges, never rules on walls, schema, taste, or
+  divergence registers, and never certifies its own Gate 2.
 - **Guide** — a separate session. Writes briefings from the plan docs,
   arbitrates reversible conflicts, and performs acceptance as an independent
-  re-verification: re-run the gates, re-read the diff, re-run kill-tests,
-  mutation-test every new lock. Acceptance that only reads the builder's
-  report is not acceptance. One guide at a time; intermediate reviews are
-  input to the guide, not rulings.
+  re-verification on one immutable commit: re-run the gates, re-read the diff,
+  re-run kill-tests, mutation-test every new lock, and use the public product
+  surface for Gate 2. Acceptance that only reads the builder's report is not
+  acceptance. One guide at a time; intermediate reviews are input to the
+  guide, not rulings.
 - **Koopa** — rules on everything irreversible: the walls, the schema, taste,
   new dependencies (D41 admissions), divergence adjudications, and every
   push / merge / retirement declaration. These are his decisions always;
@@ -128,19 +131,22 @@ old directory.
     lands with #43 while its form remains plain GET. The remaining B lexical
     work adds input-driven results to ⌘K and `/search` as progressive enhancement
     while preserving Enter, the submit button, and the no-JS GET path.
-9c-iii. `PR-published-receipt-boundary` — urgent: hide and service-reject the
-    generic `ready → published` transition until a publisher path can present a
-    verifiable external-success receipt. UI hiding alone is insufficient.
-9c-iv. `PR-advanceable-chip-truth` — stop presenting lifecycle advanceability as
-    a proven pending-decision queue; rename or hide the aggregate until an
-    independent pending signal exists, then let the D plan own real queue
-    semantics.
+9c-iii. `PR-published-receipt-boundary` — **retired by D51**: `published` is
+    Koopa's selection for the public collection, not an external-success
+    receipt. The lifecycle toml alone offers or refuses it; no status-literal
+    gate belongs in Go. A future publisher owns its backfill, privacy gate, and
+    deployment records.
+9c-iv. `PR-advanceable-chip-truth` — **done**: the aggregate is named and
+    presented only as notes with a legal named onward transition. It makes no
+    pending-decision or queue claim; the D plan still owns any future real
+    queue semantics.
 9c-v. `PR-canon-reconciliation` — reconcile the remaining preexisting drift in
     `program.md`, `roadmap.md`, `judge-plan.md`, `vault-model.md`, and historical
     design inputs; install any vault-side governance rule before repo canon says
     it is active. This unit also records explicit supersessions for the retired
     Lifecycle-first sidebar, old file-surface and harness assumptions, and the
-    current judge authority pointers.
+    current judge authority pointers. D51's published-selection reconciliation
+    is complete and is not part of this remaining unit.
 9c-vi. `PR-narrow-header-overflow` — **real-observed, needs ruling**: reopen the
     overflow that ux-plan §15 parked. A 2026-07-12 real-vault Chrome probe at
     360 CSS px rendered both a Japanese lesson and a Go lesson at 475 px document
@@ -171,15 +177,28 @@ old directory.
     status control visible, keyboard reachable, and focus-visible after scrolling
     on those real pages at both heights. Add a browser lock that fails under the
     current shrink-plus-hidden combination and covers a rail with diagnostics.
+9c-ix. `PR-status-recovery-and-article-language` — **working candidate**: replace
+    dead-end status error text with same-shell recovery that tells the truth
+    about whether publication happened, exposes only the ruled technical
+    details, and never offers a POST retry. The same unit closes UX-26 with the
+    contract-declared optional BCP 47 `lang` field and an honest `und` fallback;
+    it never infers language from content or path. Mark done only after the
+    failure table, render-buffer fallback, path table, language diagnostics,
+    focused browser behavior, and full verification have all been watched.
 9d. `PR-ux-c` — the hover layer (ux-plan §11): wikilink hover previews over
-    a read-only fragment endpoint, and in-place diagnostic cards — popover +
-    CSS anchor positioning, zero positioning JS.
+     a read-only fragment endpoint, and in-place diagnostic cards — popover +
+     CSS anchor positioning, zero positioning JS.
 10a. `PR-e2e-reading-behavior` — **done (PR #35)**: the scratchpad live-browser
      probes for the §15/§16 reading-surface regressions are committed as
      `.github/e2e/*.mjs`, driven by `playwright-core` with `channel: "chrome"`
-     against the runner's Chrome, installed with
-     `npm install --no-save --no-package-lock` in the same runner-only style as
-     `lint-frontend`. No `package.json`, no bundled browser, no pixel baseline.
+     against the runner's Chrome. A checked-in development-only `package.json`
+     and lockfile under `.github/` install the exact driver with
+     `npm ci --prefix .github --ignore-scripts`;
+     there is still no bundled browser or pixel baseline.
+     CI records `google-chrome --version` in each behavior and mutation run.
+     The policy deliberately exercises the runner's current stable browser;
+     the recorded build makes a result attributable, but byte-identical
+     historical browser reproduction is not claimed.
      Locks: the palette centered and opaque; the filter revealed by the
      document's own inline script and hidden with JavaScript off; a held `R`
      inside a focused select never touching the seal path.
@@ -198,21 +217,41 @@ old directory.
      dependency shape is a fresh D41-style decision: use `@playwright/test`
      only if the screenshot runner, traces, and diff reports earn a checked-in
      dev dependency and package manifest.
-10c. `PR-typing-guard-coverage` — the seal shortcut's typing guard is probed on
-     the select's two faces only. Cover the rest: `INPUT` (the sidebar filter),
-     `TEXTAREA`, `contentEditable`, and the clause that stands down while the
-     search dialog is open. Fold in a needle-uniqueness assertion for
-     `rewriteGuard`: the needle must occur exactly once in the fetched script,
-     and a second occurrence reports `not-applied` rather than rewriting a
-     clause the mode was never aimed at. Low priority — after the Home unit.
+10c. `PR-typing-guard-coverage` — **done**: the seal shortcut is probed on both
+     select faces, the sidebar `INPUT`, a test-owned `TEXTAREA`, a
+     `contentEditable` surface, and a non-typing target while search is open.
+     Each clause has its own mutation, and `rewriteGuard` requires its needle
+     exactly once; zero or multiple matches report `not-applied`.
+10d. `PR-public-release-surface` — **policy recorded, publication still
+     blocked**: `release.md` owns the source-only `v0.x` boundary, pre-v1 Go API
+     policy, frozen agent-wire exception, and the first-release evidence list.
+     Before `v0.1.0`, close the independent agent usability scenario round,
+     enable and test private vulnerability reporting, add release notes and a
+     changelog for the frozen candidate, capture a real privacy-safe product
+     screenshot, write a product-grounded brand brief, and select then draw the
+     app mark and SVG favicon as deterministic vector geometry. Image-generation
+     output is not a logo or favicon source; the selected mark must survive
+     monochrome, light/dark, and 16/24/32px reduction checks. A banner is
+     optional and evaluated against a professional no-banner default only after
+     the real screenshot exists.
+     No manifest, PWA scope, prebuilt binary, or hosted service belongs to this
+     source-release unit.
 
 **Track 4 — the remaining faces (each: plan doc → adversarial round → build):**
 11. `B` — search panel, two halves in order (roadmap §1 row 5): the lexical
     ⌘K panel PR first — no plan doc needed, `search-plan.md` already pins
     lexical semantics and the shell exists (the search page's shell
-    adoption ships earlier, with the experience batch); then the **B plan doc** (chunking,
-    cache format, RRF, the degraded-mode matrix, the eval set — roadmap §5a;
-    Gemini key arrives at build start) before any hybrid work.
+    adoption ships earlier, with the experience batch); then the **B plan doc**
+    (chunking, durable-cache selection gate, RRF, the degraded-mode matrix, the
+    eval set — roadmap §5a), then the **privacy capability unit** required by
+    D50.10. D50.11/search-plan H12.5 records the optional BYOK boundary.
+    Repository-only construction, offline tests, storage work, and
+    recorded-vector evaluation require no key. Production dispatch still
+    requires the accepted privacy capability, the two synthetic live protocol
+    probes, a provider recording, the paired dimension decision, and final
+    command wiring. Koopa supplies his paid-project key only for those live
+    provider steps; downstream users supply their own provider account and key
+    and are responsible for its terms.
 12. `H` — agent toolbox: plan doc (JSON contract per verb + goldens — these
     outputs are frozen contracts from day one, D37), then the build PR.
 13. `D` — the adjudication cockpit: plan doc (queue semantics, reading-state

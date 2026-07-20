@@ -19,15 +19,16 @@ const sentinel = "yomihon-must-never-serve-this-sentinel"
 // takes the information page rather than the highlighter.
 const bigTextBytes = (1 << 20) + 1
 
-// fileVault writes one vault holding a file of every kind the route must
-// distinguish, plus the two shapes it must refuse: a dot-leading directory and
-// a symlink. The decoy lives one level above the root, reachable only if a
-// containment layer fails.
+// fileVault writes one vault holding every kind the route must distinguish,
+// plus dot-leading names and links at both leaf and directory positions. Link
+// targets live inside and outside the root and carry one sentinel, so the test
+// observes leaked bytes rather than trusting only the response status.
 func fileVault(t *testing.T) (root string) {
 	t.Helper()
 	parent := t.TempDir()
 	root = filepath.Join(parent, "vault")
 	mkdir(t, filepath.Join(root, "Notes"))
+	mkdir(t, filepath.Join(root, "Private"))
 	mkdir(t, filepath.Join(root, ".git"))
 	mkdir(t, filepath.Join(root, ".obsidian"))
 
@@ -44,14 +45,19 @@ func fileVault(t *testing.T) (root string) {
 	write(t, filepath.Join(root, "view.base"), []byte("filters:\n  and:\n    - file.ext == \"md\"\n"))
 	write(t, filepath.Join(root, "big.txt"), bytes.Repeat([]byte("x"), bigTextBytes))
 
-	// Forbidden shapes.
+	// Refused shapes and the files their links would otherwise expose.
 	write(t, filepath.Join(root, ".git", "config"), []byte(sentinel+"\n"))
 	write(t, filepath.Join(root, ".obsidian", "app.json"), []byte(sentinel+"\n"))
 	write(t, filepath.Join(parent, "secret.txt"), []byte(sentinel+"\n"))
 	write(t, filepath.Join(parent, "secret.md"), []byte(sentinel+"\n"))
+	write(t, filepath.Join(root, "Private", "secret.txt"), []byte(sentinel+"\n"))
+	write(t, filepath.Join(root, "Private", "secret.md"), []byte(sentinel+"\n"))
 	symlink(t, filepath.Join(parent, "secret.txt"), filepath.Join(root, "escape.txt"))
 	symlink(t, parent, filepath.Join(root, "up"))
-	symlink(t, filepath.Join(root, "notes.txt"), filepath.Join(root, "inside.txt"))
+	// Relative targets exercise os.Root's documented in-root link following.
+	// An absolute target is rejected before it reaches the policy under test.
+	symlink(t, "notes.txt", filepath.Join(root, "inside.txt"))
+	symlink(t, "Private", filepath.Join(root, "linked"))
 	// A link that wears a note's name. The markdown branch reads through a
 	// different door than the others, and it must be the same door.
 	symlink(t, filepath.Join(parent, "secret.md"), filepath.Join(root, "link.md"))
@@ -67,7 +73,7 @@ func mkdir(t *testing.T, dir string) {
 
 func write(t *testing.T, name string, data []byte) {
 	t.Helper()
-	if err := os.WriteFile(name, data, 0o644); err != nil {
+	if err := os.WriteFile(name, data, 0o600); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
 }
@@ -91,7 +97,11 @@ func fetch(t *testing.T, url string) (code int, header http.Header, body string)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read body %s: %v", url, err)
@@ -115,52 +125,52 @@ func TestFileRouteRendersEachKind(t *testing.T) {
 		{
 			name: "no extension, text bytes, highlighted as source",
 			path: "Makefile",
-			want: []string{`<pre class="chroma"`, `ui-type">source<`, `go build`},
+			want: []string{`<pre class="chroma"`, `ui-type">原始碼<`, `go build`},
 		},
 		{
 			name: "text file is source, never executed",
 			path: "page.html",
 			// The file's own text is shown, tokenized and escaped. A live tag
 			// here would run against the reading surface's own origin.
-			want:    []string{`ui-type">source<`, `<pre class="chroma"`, `&lt;`, `>alert<`},
+			want:    []string{`ui-type">原始碼<`, `<pre class="chroma"`, `&lt;`, `>alert<`},
 			notWant: []string{`<script>alert(1)</script>`},
 		},
 		{
 			name:    "binary bytes take the information page",
 			path:    "blob",
-			want:    []string{`ui-type">info<`, "no reader here", "application/octet-stream"},
+			want:    []string{`ui-type">檔案資訊<`, "沒有可呈現此檔案的閱讀器", "application/octet-stream"},
 			notWant: []string{`<pre class="chroma"`},
 		},
 		{
 			name:    "text past the cap takes the information page",
 			path:    "big.txt",
-			want:    []string{`ui-type">info<`, "no reader here", "text/plain"},
+			want:    []string{`ui-type">檔案資訊<`, "沒有可呈現此檔案的閱讀器", "text/plain"},
 			notWant: []string{`<pre class="chroma"`},
 		},
 		{
 			name: "an image is displayed over its raw bytes",
 			path: "pic.png",
-			want: []string{`ui-type">image<`, `<img src="/raw/pic.png"`},
+			want: []string{`ui-type">圖片<`, `<img src="/raw/pic.png"`},
 		},
 		{
 			name: "an svg is an image, not source",
 			path: "icon.svg",
-			want: []string{`ui-type">image<`, `<img src="/raw/icon.svg"`},
+			want: []string{`ui-type">圖片<`, `<img src="/raw/icon.svg"`},
 		},
 		{
 			name: "a pdf is handed to the browser's viewer",
 			path: "doc.pdf",
-			want: []string{`ui-type">pdf<`, `src="/raw/doc.pdf"`},
+			want: []string{`ui-type">PDF<`, `src="/raw/doc.pdf"`},
 		},
 		{
 			name: "a canvas is highlighted source, tokenized as JSON",
 			path: "board.canvas",
-			want: []string{`ui-type">source<`, `<pre class="chroma"`, `<span class="`},
+			want: []string{`ui-type">原始碼<`, `<pre class="chroma"`, `<span class="`},
 		},
 		{
 			name: "a base is highlighted source, tokenized as YAML",
 			path: "view.base",
-			want: []string{`ui-type">source<`, `<pre class="chroma"`, `<span class="`},
+			want: []string{`ui-type">原始碼<`, `<pre class="chroma"`, `<span class="`},
 		},
 	}
 	for _, tt := range tests {
@@ -211,7 +221,10 @@ func TestRawServesBytesUnderASandbox(t *testing.T) {
 	}
 
 	for _, h := range []struct{ name, want string }{
-		{"Content-Security-Policy", "sandbox; frame-ancestors 'self'"},
+		{"Content-Security-Policy", "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+			"font-src 'none'; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
+			"img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; " +
+			"script-src-attr 'none'; style-src 'unsafe-inline'; worker-src 'none'"},
 		{"X-Content-Type-Options", "nosniff"},
 		{"Cache-Control", "no-store"},
 		{"Content-Type", "image/svg+xml"},
@@ -244,7 +257,11 @@ func TestRawPDFDropsTheSandbox(t *testing.T) {
 	// Every other kind keeps the full sandbox — the PDF exemption is exactly
 	// that, not a general loosening.
 	_, svgHeader, _ := fetch(t, srv.URL+"/raw/icon.svg")
-	if got := svgHeader.Get("Content-Security-Policy"); got != "sandbox; frame-ancestors 'self'" {
+	const rawPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+		"font-src 'none'; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
+		"img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; " +
+		"script-src-attr 'none'; style-src 'unsafe-inline'; worker-src 'none'"
+	if got := svgHeader.Get("Content-Security-Policy"); got != rawPolicy {
 		t.Errorf("GET /raw/icon.svg CSP = %q, want the full sandbox", got)
 	}
 }
@@ -278,22 +295,78 @@ func TestRawNamesTheContentType(t *testing.T) {
 	}
 }
 
+func TestRawKeepsThePinnedVaultWhenTheConfiguredNameIsReplaced(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	root := filepath.Join(parent, "vault")
+	mkdir(t, root)
+	write(t, filepath.Join(root, "README.md"), []byte("home\n"))
+	write(t, filepath.Join(root, "plain.txt"), []byte("original rooted bytes\n"))
+	srv := newServer(t, root)
+
+	if err := os.Rename(root, filepath.Join(parent, "selected-vault")); err != nil {
+		t.Fatalf("rename selected vault: %v", err)
+	}
+	mkdir(t, root)
+	write(t, filepath.Join(root, "README.md"), []byte("replacement home\n"))
+	write(t, filepath.Join(root, "plain.txt"), []byte("replacement path bytes\n"))
+
+	code, _, body := fetch(t, srv.URL+"/raw/plain.txt")
+	if code != http.StatusOK {
+		t.Fatalf("GET /raw/plain.txt = %d, want 200", code)
+	}
+	if body != "original rooted bytes\n" {
+		t.Errorf("GET /raw/plain.txt = %q, want bytes from the pinned vault", body)
+	}
+}
+
+func TestRawPreservesHTTPRangeSemantics(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, filepath.Join(root, "README.md"), []byte("home\n"))
+	write(t, filepath.Join(root, "plain.txt"), []byte("0123456789"))
+	srv := newServer(t, root)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/raw/plain.txt", http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Range", "bytes=2-5")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // test response; read error below is authoritative
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusPartialContent || string(body) != "2345" {
+		t.Errorf("range response = %d %q, want 206 %q", resp.StatusCode, body, "2345")
+	}
+	if got := resp.Header.Get("Content-Range"); got != "bytes 2-5/10" {
+		t.Errorf("Content-Range = %q, want %q", got, "bytes 2-5/10")
+	}
+}
+
 // TestFileRoutesRefuseWhatTheTreeDoesNotList is the defense layer the markdown
 // suffix check used to provide. A dot-leading segment names a directory the
 // scanner never walks — .git carries the whole vault's history — and a symlink
-// is not a regular file, so neither route may answer for either, on either the
-// page or the bytes.
+// at any path component is not a tree entry the scanner selected. Neither route
+// may answer for those names, on either the page or the bytes.
 func TestFileRoutesRefuseWhatTheTreeDoesNotList(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, fileVault(t))
 
-	// Positive control: a listed file is served, so a blanket 404 is not what
-	// makes the refusals below pass.
-	if code, _, _ := fetch(t, srv.URL+"/notes/Makefile"); code != http.StatusOK {
-		t.Fatalf("GET a listed file = %d, want 200", code)
-	}
-	if code, _, _ := fetch(t, srv.URL+"/raw/Makefile"); code != http.StatusOK {
-		t.Fatalf("GET a listed file's bytes = %d, want 200", code)
+	// Positive controls cover both a root leaf and a leaf below a real
+	// directory, so refusing links cannot collapse ordinary nested reads.
+	for _, rel := range []string{"Makefile", "Notes/real.md"} {
+		if code, _, _ := fetch(t, srv.URL+"/notes/"+rel); code != http.StatusOK {
+			t.Fatalf("GET /notes/%s = %d, want 200", rel, code)
+		}
+		if code, _, _ := fetch(t, srv.URL+"/raw/"+rel); code != http.StatusOK {
+			t.Fatalf("GET /raw/%s = %d, want 200", rel, code)
+		}
 	}
 
 	refused := []struct{ name, path string }{
@@ -303,8 +376,11 @@ func TestFileRoutesRefuseWhatTheTreeDoesNotList(t *testing.T) {
 		{name: "symlink out of the vault", path: "escape.txt"},
 		{name: "symlinked directory out of the vault", path: "up/secret.txt"},
 		{name: "symlink inside the vault is still not a regular file", path: "inside.txt"},
+		{name: "symlinked directory inside the vault", path: "linked/secret.txt"},
+		{name: "symlinked directory inside the vault wearing a note path", path: "linked/secret.md"},
 		{name: "a symlink wearing a note's name", path: "link.md"},
 		{name: "a directory is not a file", path: "Notes"},
+		{name: "a regular file is not a directory", path: "notes.txt/child"},
 		{name: "encoded dot-dot", path: "%2e%2e%2fsecret.txt"},
 		{name: "encoded dot-dot twice", path: "%2e%2e%2f%2e%2e%2fsecret.txt"},
 		{name: "mixed dot-dot", path: "..%2fsecret.txt"},
@@ -340,7 +416,7 @@ func TestMarkdownStillTakesTheNotePage(t *testing.T) {
 	if !strings.Contains(body, "a real note") {
 		t.Error("the note page lost the note's body")
 	}
-	if strings.Contains(body, `ui-type">source<`) {
+	if strings.Contains(body, `ui-type">原始碼<`) {
 		t.Error("a note rendered as a source file")
 	}
 }

@@ -8,7 +8,7 @@
 # seal-select-guard probe without ever committing a transition.
 schema_version = "1"
 [enums]
-type = ["concept", "lesson", "moc", "source-map", "study-path", "system", "topic-map"]
+type = ["concept", "guide", "inbox", "lesson", "moc", "source-map", "study-path", "system", "topic-map"]
 domain = ["golang", "japanese"]
 source_kind = ["course"]
 source_provider = ["example-provider"]
@@ -21,7 +21,7 @@ lesson = ["draft", "ready"]
 [fields]
 required = ["title", "type", "domain"]
 required_inbox = ["title", "type"]
-known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags"]
+known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags", "lang"]
 lesson_only = ["slug"]
 [fields.status_group]
 system = ["system", "guide"]

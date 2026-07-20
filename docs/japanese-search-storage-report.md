@@ -232,7 +232,7 @@ The dictionaries are the harder decision:
 | Candidate | Upstream data | Strength observed | Cost or risk observed |
 |---|---|---|---|
 | IPA | MeCab IPADIC 2.7.0 (2007) | compact; `Token.Reading()` works; correct base forms in common lesson verbs | older vocabulary; ambiguous compounds; higher unknown proxy in this corpus |
-| Uni | UniDic MeCab 2.1.2 (2013) | richer linguistic fields; lower unknown proxy; correctly kept some compounds together | much larger memory/binary; generic `Token.Reading()` is undefined; needs a dictionary-specific pronunciation adapter |
+| Uni | UniDic MeCab 2.1.2 (2013) | richer linguistic fields; lower unknown proxy; correctly kept some compounds together | much larger memory/binary; generic `Token.Reading()` is undefined; needs dictionary-specific pronunciation extraction |
 
 Neither dictionary's age makes it automatically wrong for beginner lesson
 Japanese, but neither is current enough to trust without yomihon-specific
@@ -272,7 +272,7 @@ The spike also found behaviour that forbids automatic trust:
 
 The Uni reading value is an API-shape finding, not proof that Uni lacks reading
 data. Its features include lemma reading and pronunciation; yomihon would need
-an explicit Uni adapter and corresponding tests. Likewise, a lower unknown
+an explicit Uni pronunciation reader and corresponding tests. Likewise, a lower unknown
 rate is not proof of more accurate segmentation or readings.
 
 ### Integration footprint
@@ -769,11 +769,10 @@ section or Credits, but the legal text belongs in the notice file.
 ### Product boundary must remain honest
 
 Japanese support is deep but not yet a generic language-learning framework.
-Current code still assumes `lang="zh-Hant"` for articles
-(`internal/ui/pages/note.templ:86-98`), forces `ja-JP` speech
-(`assets/js/yomihon.js:498-517`), models JP/ZH lesson slots
-(`internal/lesson/slot.go:32-57`), and always exposes the furigana control
-(`internal/ui/layouts/base.templ:43-71`).
+Current code takes an article's BCP 47 tag only from the schema-declared
+optional `lang` frontmatter field and otherwise emits `und`; it does not infer
+language. Japanese-oriented surfaces still force Japanese speech, model JP/ZH
+lesson slots, and expose the furigana control in shared chrome.
 
 Describe shipped behaviour as **Japanese-oriented lesson enrichment**, not an
 optional profile. Reserve “optional profile” for a future activation boundary
@@ -825,7 +824,7 @@ labelled ruby cases without a morphology dependency.
 ### Phase 1 — direct Kagome shootout
 
 1. Build a sanitised, reviewable gold set from representative lesson cases.
-2. Implement throwaway IPA and Uni adapters, including the Uni pronunciation
+2. Implement throwaway IPA and Uni token readers, including the Uni pronunciation
    field explicitly.
 3. Feed both into the smallest snapshot-owned postings candidate and compare
    separate-channel versus controlled-expansion semantics.

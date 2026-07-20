@@ -2,12 +2,16 @@ package report
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
+
+const rawContentSecurityPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+	"font-src data:; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
+	"img-src data:; media-src data:; object-src 'none'; " +
+	"script-src 'none'; script-src-attr 'none'; " +
+	"style-src 'unsafe-inline'; worker-src 'none'"
 
 // Register mounts the reports face's routes: the shell page and the verbatim
 // raw endpoint the shell's iframe points at. ServeMux matches the more specific
@@ -19,19 +23,20 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 // show renders the report shell: header + sidebar + title + a sandboxed iframe
 // whose src is this report's /raw endpoint. An unknown name (or one that is not
-// an enumerated briefing) is a silent 404 — the same fail-quiet stance the
+// an enumerated briefing) is a localized 404 — the same fail-quiet stance the
 // reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	shell := h.deps.Shell()
-	rep, ok := resolveReport(shell.Nav, r.PathValue("name"))
+	snap := h.current().Capture()
+	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.NotFound(w, r)
+		http.Error(w, "找不到指定的報告", http.StatusNotFound)
 		return
 	}
+	shell := h.shell(snap)
 
 	view := pages.ReportView{Name: rep.Name, Nav: shell.Nav}
 	if err := pages.Report(view, shell.Chrome(r, rep.Name)).Render(r.Context(), w); err != nil {
-		h.deps.Log.Error("write report page", "name", rep.Name, "error", err)
+		h.log.Error("write report page", "name", rep.Name, "error", err)
 	}
 }
 
@@ -42,33 +47,19 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // discipline) with nosniff; the bytes are never sniffed or transcoded. A file
 // that vanished or cannot be read between the ~2s snapshot and this request is a
 // 404, not a 500: the report list is a snapshot, so a gone file is a not-found,
-// fail-open — degrade, never break.
+// fail-quiet response rather than a server failure.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	shell := h.deps.Shell()
-	rep, ok := resolveReport(shell.Nav, r.PathValue("name"))
+	snap := h.current().Capture()
+	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.NotFound(w, r)
+		http.Error(w, "找不到指定的報告", http.StatusNotFound)
 		return
 	}
 
-	// rep.RelPath is scanner-produced, so the allowlist above already confines it
-	// to System/reports/daily-briefing/. Re-assert two independent properties at
-	// this raw-file boundary as defense-in-depth (verify the served path stays
-	// within the allowed directory): IsLocal keeps it within the vault root
-	// (no served path may escape the vault), and the prefix keeps it under
-	// System/reports/ — so even a future scanner bug that set Briefing on a note
-	// elsewhere in the vault could never be served here, in particular never a
-	// Diary/ file (private; unconditionally excluded from every egress path).
-	// reportsRoot mirrors nav.buildReports' own scan root.
-	const reportsRoot = "System/reports/"
-	if !filepath.IsLocal(rep.RelPath) || !strings.HasPrefix(rep.RelPath, reportsRoot) {
-		http.NotFound(w, r)
-		return
-	}
-	b, err := os.ReadFile(filepath.Join(h.deps.Root, filepath.FromSlash(rep.RelPath)))
+	b, err := readReport(r.Context(), h.source, snap, rep.RelPath)
 	if err != nil {
-		h.deps.Log.Warn("read report", "name", rep.Name, "path", rep.RelPath, "error", err)
-		http.NotFound(w, r)
+		h.log.Warn("read report", "name", rep.Name, "path", rep.RelPath, "error", err)
+		http.Error(w, "找不到指定的報告", http.StatusNotFound)
 		return
 	}
 
@@ -79,17 +70,17 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	// this route promises must hold in the browser too, not only server-side.
 	w.Header().Set("Cache-Control", "no-store")
 	// Enforce the sandbox on the resource itself, not only through the shell's
-	// iframe attribute: a CSP sandbox lands this script-bearing briefing in a
+	// iframe attribute: a bare CSP sandbox lands this agent-authored briefing in a
 	// unique opaque origin however it is loaded — inside yomihon's shell, framed
 	// cross-origin, or opened top-level ("open frame in new tab"). Without it the
-	// containment would depend on the embedder, so a hostile briefing (a
-	// prompt-injected brief, or a compromised CDN script it loads) opened outside
-	// the shell would run same-origin to the whole vault-reading surface and
-	// could read and exfiltrate it — including Diary/, a hard never-egress.
-	// allow-scripts, never allow-same-origin, mirrors the shell iframe exactly,
-	// so the briefing still renders; frame-ancestors 'self' also
+	// containment would depend on the embedder. The sandbox grants no capability:
+	// scripts and automatic features such as meta refresh remain disabled, while
+	// self-contained HTML, CSS, SVG, and data media still render. This is the
+	// browser-level form that preserves the report's zero-automatic-egress contract;
+	// an opaque origin alone does not prevent script-driven navigation or WebRTC.
+	// frame-ancestors 'self' also
 	// refuses cross-origin framing of raw vault HTML — yomihon's own shell is the
 	// only legitimate embedder.
-	w.Header().Set("Content-Security-Policy", "sandbox allow-scripts; frame-ancestors 'self'")
-	_, _ = w.Write(b)
+	origin.SetContentSecurityPolicy(w, rawContentSecurityPolicy)
+	_, _ = w.Write(b) //nolint:errcheck // response is committed and Handler has no later recovery channel
 }

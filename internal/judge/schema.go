@@ -20,30 +20,31 @@ import (
 // The only failure is a slug pattern in the contract that is not a valid
 // regular expression, which is a fault in the contract file rather than in
 // any note.
-func checkSchema(notes []note, s *schema.Schema) ([]Finding, error) {
-	slug, err := regexp.Compile(s.Rules.SlugPattern)
+func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
+	definition := contract.Definition()
+	slug, err := regexp.Compile(definition.Rules.SlugPattern)
 	if err != nil {
-		return nil, fmt.Errorf("compile slug pattern %q: %w", s.Rules.SlugPattern, err)
+		return nil, fmt.Errorf("compile slug pattern %q: %w", definition.Rules.SlugPattern, err)
 	}
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
 		seg := strings.Split(n.path, "/")
-		inScope := slices.Contains(s.Scan.KnowledgeDirs, seg[0])
-		skipped := slices.Contains(s.Scan.SkipBasenames, seg[len(seg)-1])
+		inScope := slices.Contains(definition.Scan.KnowledgeDirs, seg[0])
+		skipped := slices.Contains(definition.Scan.SkipBasenames, seg[len(seg)-1])
 		if inScope && !skipped {
-			out = append(out, lintNote(n, s, seg, slug)...)
+			out = append(out, lintNote(n, &definition, seg, slug)...)
 		}
 	}
 	return out, nil
 }
 
 // lintNote returns the frontmatter findings for one in-scope note, in the
-// contract's reading order: the type enum, unknown keys, the lesson-only
-// rules, then either the light system-document rules or the full
+// contract's reading order: the type enum, unknown keys, the optional article
+// language, the lesson-only rules, then either the light system-document rules or the full
 // knowledge-note rules. That order is the tiebreak the stable sort preserves
 // among findings that share a path and rule id.
-func lintNote(n *note, s *schema.Schema, seg []string, slug *regexp.Regexp) []Finding {
+func lintNote(n *note, definition *schema.Definition, seg []string, slug *regexp.Regexp) []Finding {
 	if n.noFrontmatter {
 		return nil
 	}
@@ -53,32 +54,50 @@ func lintNote(n *note, s *schema.Schema, seg []string, slug *regexp.Regexp) []Fi
 
 	var out []Finding
 	ty, hasType := fmScalar(n.frontmatter, "type")
-	if hasType && !slices.Contains(s.Enums.Type, ty) {
+	if hasType && !slices.Contains(definition.Enums.Type, ty) {
 		out = append(out, schemaFinding(n, "schema.enum", "type", true, ty, "is not an allowed type"))
 	}
 
 	isLesson := hasType && ty == "lesson"
-	out = append(out, lintUnknownKeys(n, s, isLesson)...)
+	out = append(out, lintUnknownKeys(n, definition, isLesson)...)
+	out = append(out, lintArticleLanguage(n, definition)...)
 	if isLesson {
-		out = append(out, lintLesson(n, s, slug)...)
+		out = append(out, lintLesson(n, slug)...)
 	}
 
 	// System documents (system / template / guide) carry only the light
 	// status rule; the full knowledge-note rules below do not apply to them.
-	if hasType && slices.Contains(s.Fields.StatusGroup["system"], ty) {
-		return append(out, lintSystemStatus(n, s)...)
+	if hasType && slices.Contains(definition.Fields.StatusGroup["system"], ty) {
+		return append(out, lintSystemStatus(n, definition)...)
 	}
-	return append(out, lintKnowledge(n, s, seg)...)
+	return append(out, lintKnowledge(n, definition, seg)...)
+}
+
+func lintArticleLanguage(n *note, definition *schema.Definition) []Finding {
+	if !slices.Contains(definition.Fields.Known, "lang") {
+		return nil
+	}
+	value, ok := n.frontmatter["lang"]
+	if !ok {
+		return nil
+	}
+	if value.isList || !value.scalarIsString || value.scalar == "" {
+		return []Finding{schemaFinding(n, "schema.language", "lang", true, value.scalar, "must be a non-empty BCP 47 language tag")}
+	}
+	if _, err := schema.ParseLanguageTag(value.scalar); err != nil {
+		return []Finding{schemaFinding(n, "schema.language", "lang", true, value.scalar, "is not a valid BCP 47 language tag")}
+	}
+	return nil
 }
 
 // lintUnknownKeys reports every frontmatter key the contract does not list as
 // known, in sorted key order. A lesson may additionally use the lesson-only
 // keys.
-func lintUnknownKeys(n *note, s *schema.Schema, isLesson bool) []Finding {
+func lintUnknownKeys(n *note, definition *schema.Definition, isLesson bool) []Finding {
 	var out []Finding
 	for _, key := range slices.Sorted(maps.Keys(n.frontmatter)) {
-		known := slices.Contains(s.Fields.Known, key) ||
-			(isLesson && slices.Contains(s.Fields.LessonOnly, key))
+		known := slices.Contains(definition.Fields.Known, key) ||
+			(isLesson && slices.Contains(definition.Fields.LessonOnly, key))
 		if !known {
 			out = append(out, schemaFinding(n, "schema.unknown_key", "", false, key, "is not a known field"))
 		}
@@ -86,9 +105,9 @@ func lintUnknownKeys(n *note, s *schema.Schema, isLesson bool) []Finding {
 	return out
 }
 
-// lintLesson reports the lesson-only faults: a missing or malformed slug, and
-// a status outside the lesson status set.
-func lintLesson(n *note, s *schema.Schema, slug *regexp.Regexp) []Finding {
+// lintLesson reports the lesson-only slug faults. Status validation stays in
+// lintKnowledge, which selects the configured status group exactly once.
+func lintLesson(n *note, slug *regexp.Regexp) []Finding {
 	var out []Finding
 	switch sl, ok := fmScalar(n.frontmatter, "slug"); {
 	case !ok:
@@ -96,16 +115,13 @@ func lintLesson(n *note, s *schema.Schema, slug *regexp.Regexp) []Finding {
 	case !slug.MatchString(sl):
 		out = append(out, schemaFinding(n, "schema.slug", "slug", true, sl, "is not a valid slug"))
 	}
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(s.Enums.Status["lesson"], st) {
-		out = append(out, schemaFinding(n, "schema.enum", "status", true, st, "is not a valid lesson status"))
-	}
 	return out
 }
 
 // lintSystemStatus reports a system document's status outside the system
 // status set.
-func lintSystemStatus(n *note, s *schema.Schema) []Finding {
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(s.Enums.Status["system"], st) {
+func lintSystemStatus(n *note, definition *schema.Definition) []Finding {
+	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(definition.Enums.Status["system"], st) {
 		return []Finding{schemaFinding(n, "schema.enum", "status", true, st, "is not a valid system status")}
 	}
 	return nil
@@ -114,26 +130,40 @@ func lintSystemStatus(n *note, s *schema.Schema) []Finding {
 // lintKnowledge reports the full knowledge-note rules, in reading order:
 // required fields, the note status enum, the remaining value enums, then the
 // structural rules.
-func lintKnowledge(n *note, s *schema.Schema, seg []string) []Finding {
+func lintKnowledge(n *note, definition *schema.Definition, seg []string) []Finding {
 	var out []Finding
-	out = append(out, lintRequired(n, s)...)
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(s.Enums.Status["note"], st) {
-		out = append(out, schemaFinding(n, "schema.enum", "status", true, st, "is not a valid status"))
+	out = append(out, lintRequired(n, definition)...)
+	group := configuredStatusGroup(definition, n.noteType)
+	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(definition.Enums.Status[group], st) {
+		reason := "is not a valid status"
+		if group != "note" {
+			reason = "is not a valid " + group + " status"
+		}
+		out = append(out, schemaFinding(n, "schema.enum", "status", true, st, reason))
 	}
-	out = append(out, lintEnumFields(n, s)...)
-	out = append(out, lintStructural(n, s, seg)...)
+	out = append(out, lintEnumFields(n, definition)...)
+	out = append(out, lintStructural(n, definition, seg)...)
 	return out
+}
+
+func configuredStatusGroup(definition *schema.Definition, noteType string) string {
+	for group, noteTypes := range definition.Fields.StatusGroup {
+		if slices.Contains(noteTypes, noteType) {
+			return group
+		}
+	}
+	return "note"
 }
 
 // lintRequired reports each required field that is absent or blank. The domain
 // requirement is waived for undefined-shape inbox notes and for the types the
 // contract exempts (system docs, research briefs), which are not classified by
 // knowledge domain.
-func lintRequired(n *note, s *schema.Schema) []Finding {
+func lintRequired(n *note, definition *schema.Definition) []Finding {
 	ty, hasType := fmScalar(n.frontmatter, "type")
-	noDomain := hasType && (ty == "inbox" || slices.Contains(s.Fields.DomainExempt, ty))
+	noDomain := hasType && (ty == "inbox" || slices.Contains(definition.Fields.DomainExempt, ty))
 	var out []Finding
-	for _, key := range s.Fields.Required {
+	for _, key := range definition.Fields.Required {
 		if key == "domain" && noDomain {
 			continue
 		}
@@ -146,17 +176,17 @@ func lintRequired(n *note, s *schema.Schema) []Finding {
 
 // lintEnumFields reports each of the remaining enum-valued fields whose value
 // is outside its allowed set.
-func lintEnumFields(n *note, s *schema.Schema) []Finding {
+func lintEnumFields(n *note, definition *schema.Definition) []Finding {
 	var out []Finding
 	for _, ef := range []struct {
 		field   string
 		allowed []string
 	}{
-		{"domain", s.Enums.Domain},
-		{"source_kind", s.Enums.SourceKind},
-		{"source_provider", s.Enums.SourceProvider},
-		{"level", s.Enums.Level},
-		{"map_kind", s.Enums.MapKind},
+		{"domain", definition.Enums.Domain},
+		{"source_kind", definition.Enums.SourceKind},
+		{"source_provider", definition.Enums.SourceProvider},
+		{"level", definition.Enums.Level},
+		{"map_kind", definition.Enums.MapKind},
 	} {
 		if v, ok := fmScalar(n.frontmatter, ef.field); ok && !slices.Contains(ef.allowed, v) {
 			out = append(out, schemaFinding(n, "schema.enum", ef.field, true, v, "is not an allowed value"))
@@ -167,15 +197,15 @@ func lintEnumFields(n *note, s *schema.Schema) []Finding {
 
 // lintStructural reports the structural rules: a domain that does not match
 // its folder, a slash-bearing legacy tag, and a concept missing provenance.
-func lintStructural(n *note, s *schema.Schema, seg []string) []Finding {
+func lintStructural(n *note, definition *schema.Definition, seg []string) []Finding {
 	var out []Finding
 	// A domain must equal the first folder under the configured roots, e.g.
 	// Concepts/<domain>/….
 	if d, ok := fmScalar(n.frontmatter, "domain"); ok &&
-		slices.Contains(s.Rules.DomainEqualsFolderUnder, seg[0]) && len(seg) >= 3 && d != seg[1] {
+		slices.Contains(definition.Rules.DomainEqualsFolderUnder, seg[0]) && len(seg) >= 3 && d != seg[1] {
 		out = append(out, schemaFinding(n, "schema.domain_folder", "domain", true, d, "does not match its folder "+seg[1]))
 	}
-	if s.Rules.ForbidTagWithSlash {
+	if definition.Rules.ForbidTagWithSlash {
 		if v, ok := n.frontmatter["tags"]; ok && v.isList {
 			for _, tag := range v.list {
 				if strings.Contains(tag, "/") {
@@ -185,7 +215,7 @@ func lintStructural(n *note, s *schema.Schema, seg []string) []Finding {
 		}
 	}
 	if ty, ok := fmScalar(n.frontmatter, "type"); ok && ty == "concept" &&
-		!hasProvenance(n.frontmatter, s.Rules.ConceptRequiresProvenance) {
+		!hasProvenance(n.frontmatter, definition.Rules.ConceptRequiresProvenance) {
 		out = append(out, schemaFinding(n, "schema.provenance", "", false, "", "concept has neither based_on nor source_locator"))
 	}
 	return out

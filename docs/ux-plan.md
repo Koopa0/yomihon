@@ -1,6 +1,6 @@
 # Reading-surface UX plan (navigation, motion, and the sidebar)
 
-Status: **ruled 2026-07-06; consolidated 2026-07-07; amended 2026-07-11** after a three-source
+Status: **ruled 2026-07-06; consolidated 2026-07-07; amended through 2026-07-20** after a three-source
 adversarial round (two internal lenses plus an external reviewer, 32 findings
 triaged) — the amendments that had accumulated as sediment are folded into one
 coherent design. §9 keeps the ruling record; §14 records the round. This is
@@ -67,17 +67,20 @@ including per-note resume state — §14.6) and the ⌘K panel's retrieval conte
   form with `fetch`; that is exactly the write-path scripting D27 forbids.
   The seal's feedback is §7's pulse and toast.
 - Keyboard: `⌘K` focuses search; `/` focuses the sidebar filter; `[` toggles
-  the drawer at narrow widths. Single-key bindings stay live when focus sits
-  on links, summaries, or buttons (the keyboard-navigation convention
-  everywhere else); they are suppressed only inside text entry and dialogs.
-  The single-key posture is a recorded, narrow deviation from WCAG 2.1.4 for
-  the single-operator local form — its terms and reopen conditions are D49
-  (decisions.md); the suppression contexts above are part of those terms.
+  the drawer at narrow widths. The one local per-device **single-key
+  shortcuts** control defaults on and persists. Turning it off disables
+  exactly `/`, `[`, and held `R`; it does not disable `⌘K` or Escape and does
+  not offer remapping. When enabled, single-key bindings stay live on links,
+  summaries, and buttons, but remain suppressed inside text entry and dialogs;
+  held `R` retains its timing, blur, visibility, and lifecycle-legality guards.
+  This 2026-07-20 D49/D60 amendment supplies the WCAG 2.1.4 turn-off surface;
+  the historical no-disable deviation is closed, not an active exception.
 
 ## 3. Landing (`/`)
 
-Today `/` redirects to `/notes/README.md`. The vault README is genuinely good
-(verified 2026-07-06); the failure was making it the *only* thing on landing.
+Before the Home unit, `/` redirected to `/notes/README.md`. The vault README is
+genuinely good (verified 2026-07-06); the failure was making it the *only*
+thing on landing.
 
 **Design (Koopa's ruling): `/` renders Home v0.5 — the dashboard blocks
 first, then the vault README rendered in full below them.** No redirect, no
@@ -109,8 +112,14 @@ snapshot (no new state *store*; the reading-tracker stays cockpit territory):
    unavailable. The script never intercepts submit, so both enhanced surfaces
    retain their ordinary GET path too.
 
-Below the blocks, the README body renders through the same pipeline as any
-note; `/notes/README.md` and every direct link keep working.
+Below the blocks, an existing README body renders through the same pipeline as
+any note. With a valid vault contract and no root `README.md`, `/` still
+returns 200 and renders every snapshot-backed dashboard block; only this body
+position becomes an explicit read-only recovery state. Direct
+`/notes/README.md` remains an honest 404 when absent and works normally when
+present. The recovery state tells the operator to create `README.md` at the
+vault root with an external editor or file tool, then reload. Home never creates
+or repairs the file.
 
 **Boundary against spec §2**: spec §2's four home blocks (domain MOC entries,
 cross-domain boards, the mechanical-gate list, doc pointers) are **not**
@@ -248,7 +257,14 @@ Corrections this consolidation makes explicit:
 8. Empty states are designed, not accidental: search no-results, filter
    no-match, empty sections — each says what happened and what to do next,
    in the interface's quiet register.
-9. `standards.md` §5 protocol, as for every PR.
+9. Missing-root-README fixture: `/` is a direct 200 with the complete Home
+   dashboard and read-only recovery body naming the external-editor/file-tool
+   creation and reload action; `/notes/README.md` is 404; no vault byte changes.
+10. Shortcut-control matrix: default-on and persisted across restart; off
+    disables exactly `/`, `[`, and held `R`; `⌘K`, Escape, typing/dialog
+    suppression, held-R timing/blur/visibility guards, and lifecycle legality
+    are unchanged; there is no remapping UI.
+11. `standards.md` §5 protocol, as for every PR.
 
 ## 9. Resolutions (ruled 2026-07-06; item 1 by Koopa, 2–15 delegated to the
 guide; §14 records the 2026-07-07 consolidation round)
@@ -368,8 +384,9 @@ property below lands there, not on the document — on `html` it is a no-op.**
    and the hover layer's popovers.
 7. **Stable gutter** — `scrollbar-gutter: stable` on `.k-main`.
 8. **Phrase-aware Japanese wrapping** — `word-break: auto-phrase` where
-   `lang="ja"` exists; the renderer does not language-tag prose runs today,
-   and widening that waits for real pain.
+   `lang="ja"` exists. The article now receives the contract-declared BCP 47
+   tag (or `und`), while narrower prose runs are not guessed or automatically
+   retagged; widening that waits for authoritative metadata or real pain.
 9. **Reading-position hairline** — ruled in: the header's own bottom edge
    doubles as the indicator (its border-color carries the progress fill —
    no second line fighting the existing 1px seam), driven by
@@ -453,10 +470,12 @@ The consequential corrections, so their reasons survive:
 6. "Resume where I left off" is a real product gap this batch does not
    close: recorded as a D-plan-doc obligation (per-note resume anchor keyed
    by content hash) in roadmap §5a.
-7. External-review rejects, with reasons: single-key shortcuts stay live on
-   focused links/buttons (keyboard-navigation convention; suppressed only in
-   text entry and dialogs); the "missing product.md" finding was an artifact
-   of reviewing a branch cut before that document landed on main.
+7. External-review rejects at that time, with reasons: enabled single-key
+   shortcuts stay live on focused links/buttons (keyboard-navigation
+   convention; suppressed only in text entry and dialogs); D49/D60 later added
+   the persisted turn-off control without changing that enabled-state rule.
+   The "missing product.md" finding was an artifact of reviewing a branch cut
+   before that document landed on main.
 
 ## 15. The frontend fix batch (ruled 2026-07-08; three sources: guide probe, platform audit, external review)
 
@@ -473,7 +492,8 @@ Merged rulings. In batch scope (one PR, together with §14's ruby-TOC repair):
    at equal specificity and zeroes its panel fill — the palette body is
    transparent over the half-black backdrop, a contrast failure in light
    mode. One rule owns the dialog's box; the overriding declarations go.
-3. **Seal shortcut vs. focused selects.** The global-shortcut typing guard
+3. **Seal shortcut vs. focused selects.** When single-key shortcuts are
+   enabled, the global-shortcut typing guard
    treats only inputs, textareas, and contentEditable as typing surfaces; a
    focused slot-machine `<select>` still feeds `/`, `[`, and a held `R` —
    which starts the seal hold — while those keys are meaningful typeahead
@@ -558,7 +578,7 @@ plus the frontend lint pair, and runs the hygiene greps.
 
 An external organization review of the CSS and JS layers (run after the §15
 batch merged) confirmed the architecture — server-rendered HTML, native
-platform, one enhancement script, token-first CSS, no utility soup, the
+platform, a small progressive-enhancement runtime, token-first CSS, no utility soup, the
 write path untouched by fetch — and surfaced governance gaps. Rulings follow.
 
 **The feature register.** standards.md §4's Baseline-2026 policy requires
@@ -574,7 +594,7 @@ production use (statuses as of 2026-07; re-check when §10 re-runs):
 | `text-spacing-trim` | components.css, prose | CJK punctuation setting | Limited | the font's default spacing | none needed |
 | `word-break: auto-phrase` | components.css, `[lang="ja"]` | phrase-aware wrapping | Limited | standard wrapping | none needed |
 | `closedby="any"` | palette + concept sheet | light dismiss | Limited | Esc everywhere; the concept sheet keeps its JS backdrop handler | none needed |
-| Web Speech API | yomihon.js, TTS + slot speak | read-aloud | Limited | speak controls never appear (the boot `[data-speech]` gate) | gated at boot |
+| Web Speech API | lesson.js, TTS + slot speak | read-aloud | Limited | speak controls never appear (the boot `[data-speech]` gate) | gated at boot |
 | Customizable `<select>` | components.css, slot machine | picker branding | Limited | the native picker | `@supports (appearance: base-select)` |
 
 The guard principle the register encodes: **a feature is `@supports`-guarded
@@ -596,6 +616,9 @@ finding: the inconsistency is the policy.
   (**PR #37**). The job uses runner-only `playwright-core` with the system
   Chrome, installed the same way as `lint-frontend`; it does not add
   `package.json`, does not download a browser, and does not compare pixels. It
+  records the exact system Chrome version in every run. This is intentionally a
+  current-stable-browser policy, not a claim that an old runner image can be
+  reproduced byte for byte. It
   asserts the behaviors that were previously only acceptance-session facts: the
   palette is centered, opaque, and finishes its fade; the filter is revealed by
   the document's own inline script rather than the deferred one, and stays
@@ -605,20 +628,26 @@ finding: the inconsistency is the policy.
   *which* script reveals the filter, not *when* — and the file was renamed
   `filter-inline-reveal.mjs` to say so.
 
-**Deferred, with explicit triggers:**
+**Triggers reached in the working candidate:**
+
+- The client runtime hit
+  the review trigger at 798 lines and, independently of that count, contained
+  separate drawer, sidebar, TOC, status, search, shortcut, diagram, preference,
+  and lesson state owners. It uses flat native ES modules with one explicit boot
+  entry and no bundler or product build step. Acceptance requires the existing
+  browser mutation locks to move with their owning clauses and be watched red
+  again; until that candidate is accepted, this records its required shape, not
+  a shipped claim.
+- Public-source reproducibility made frontend tools an explicit development
+  dependency: the working candidate pins the linter and browser-probe packages
+  in a lockfile. They remain absent from the product binary and runtime.
+
+**Still deferred, with an explicit trigger:**
 
 - Splitting `components.css` (~835 lines): deferred until the hover layer
   lands or the sheet stops reading top-to-bottom. The split, when it comes,
   is by surface (base / primitives / shell / prose / surfaces / lesson /
   motion) under the same `input.css` imports — no naming-strategy change.
-- Splitting `yomihon.js` into modules: the one-file-no-build design stands
-  until the file nears ~800 lines; the shape to evaluate then is plain ES
-  modules, never a bundler.
-- Review tooling as a repo dependency: stays out for the behavior lock. CI
-  already pins and runs the lint pair, and the behavior probe uses the same
-  runner-only install pattern. A `package.json` becomes a dependency decision
-  only if the later screenshot-baseline job needs `@playwright/test` for
-  `toHaveScreenshot`, traces, and diff reports.
 
 **Two defects from daily use (Koopa, 2026-07-09), diagnosed and ruled:**
 
@@ -677,9 +706,10 @@ note URL space so the sidebar's links simply start working:
   files serve, so a symlink cannot walk out of the vault. That is the letter
   of the ruling ("every file the tree lists") with the third layer restored.
 - **Raw responses copy the report-raw headers** (explicit content type,
-  `nosniff`, `no-store`) **with a stricter CSP: a bare sandbox, no
-  `allow-scripts`** — vault bytes never execute against the app's origin
-  (the report route keeps its own allowance; briefings run their charts).
+  `nosniff`, `no-store`) **with a bare sandbox and no `allow-scripts`** — vault
+  bytes never execute against the app's origin. D59 subsequently made the
+  report route scriptless too; briefings render static HTML/CSS/SVG/data rather
+  than running authored chart code.
   The PDF unknown gets a decision ladder, not a guess: probe headed Chrome
   under the bare sandbox; if the viewer renders, the sandbox is uniform; if
   not, exempt `application/pdf` alone and record why (the viewer isolates
@@ -767,3 +797,28 @@ fix batch two (done, PR #30) → the prefix sweep (done, PR #31; 671
 occurrences, zero pixel change, zero golden touched) → the file-view unit →
 the customizable select (§15). One PR each; independent acceptance between
 PRs.
+
+## 18. Status recovery and authored language (ruled 2026-07-17)
+
+**Status recovery.** A failed write remains inside the ordinary reading shell;
+plain-text `http.Error` is not an acceptable human dead end. The page carries a
+single H1, an explicit statement of whether the note bytes changed, one
+actionable next step, and only GET links back to the normalized note or Home.
+Only the two post-replacement failures may say the note changed, and both warn
+against resubmission. Exact schema, artifact-policy, and git detail remains
+visible where the write contract requires it; operating-system and unknown
+internal errors remain in logs. Rendering is buffered before the status is
+committed so a component failure cannot mix partial HTML with a fallback.
+
+**Authored language.** Chrome stays `zh-Hant`; an article does not inherit that
+claim. The optional universal `lang` frontmatter field is authoritative only
+when `vault-schema.toml` lists it in `fields.known`. A valid BCP 47 value is
+canonicalized into the article's `lang`; every absent, unavailable, or invalid
+case emits `lang="und"`. Folder names, domain, filename, and text statistics are
+never language detectors. Known Japanese interaction regions retain local
+`lang="ja"` when they are narrower than the article.
+
+Acceptance: exhaustive write-failure classification and watched-red mutation
+truth; no POST control on recovery; escaped technical detail; invalid paths
+cannot form note links; article tags cover declared `ja`, canonicalized tags,
+invalid values, missing values, and missing contract authority.

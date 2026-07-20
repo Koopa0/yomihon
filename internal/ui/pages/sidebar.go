@@ -6,8 +6,8 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Sidebar is the fully resolved left navigation for one request: the shared
@@ -39,7 +39,7 @@ type Sidebar struct {
 func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	// The current path arrives from the request URL; the model's indexes are
 	// keyed by NFC paths, so fold it once here to match on either form.
-	currentPath = graph.NormalizeNFC(currentPath)
+	currentPath = vault.NormalizeNFC(currentPath)
 	sb := Sidebar{
 		Model:        model,
 		CurrentPath:  currentPath,
@@ -57,8 +57,9 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	// branch it sits in (each heading prefix, so the ancestors open too).
 	for _, p := range model.Placements(currentPath) {
 		sb.openMaps[p.MapRelPath] = true
-		for i := 1; i <= len(p.Headings); i++ {
-			sb.openBranches[branchKey(p.MapRelPath, p.Headings[:i])] = true
+		headings := p.Headings
+		for i := 1; i <= len(headings); i++ {
+			sb.openBranches[branchKey(p.MapRelPath, headings[:i])] = true
 		}
 	}
 
@@ -108,7 +109,7 @@ func (s *Sidebar) pathsChainOpen() bool {
 	if s.Model == nil {
 		return false
 	}
-	return slices.ContainsFunc(s.Model.Paths, func(path nav.Map) bool { return s.openMaps[path.RelPath] })
+	return slices.ContainsFunc(s.Model.Paths(), func(path nav.Map) bool { return s.openMaps[path.RelPath] })
 }
 
 // disclosureAttrs marks one sidebar disclosure for the single state owner
@@ -125,30 +126,6 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 	}
 	return attrs
 }
-
-// navRestoreScript settles the sidebar into its enhanced state before the
-// first paint. It is inlined so it runs synchronously once the sidebar's
-// markup exists and before any frame that could show a wrong state: the
-// filter box, which ships hidden because it is inert without a script,
-// appears in that same first frame rather than popping in after the
-// deferred script parses; and every keyed disclosure gets the session's
-// persisted manual toggle back — except the wayfinding chain, which is
-// always forced open. The enhancement script owns every later change and
-// writes the same storage key.
-const navRestoreScript = `<script>
-(() => {
-	'use strict';
-	const filter = document.querySelector('.y-rail-left [data-nav-filter]');
-	if (filter) { filter.hidden = false; }
-	let stored = {};
-	try { stored = JSON.parse(sessionStorage.getItem('yomihon.nav') || '{}') || {}; } catch { stored = {}; }
-	document.querySelectorAll('.y-rail-left details[data-key]').forEach((d) => {
-		if (d.hasAttribute('data-chain')) { d.open = true; return; }
-		const want = stored[d.dataset.key];
-		if (typeof want === 'boolean') { d.open = want; }
-	});
-})();
-</script>`
 
 // hereLabel names the siblings block after the current note's directory: its
 // innermost folder, or the vault root for a file that lives at the top.

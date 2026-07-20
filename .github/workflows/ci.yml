@@ -28,19 +28,41 @@ env:
   TAILWIND_SHA256: cc115d9b6c4ede4e423bfea6a3cfc3f03e6c1702b7d910369b9540e2b4cf3860
   GOLANGCI_LINT_VERSION: v2.12.2
   GOLANGCI_LINT_SHA256: 8df580d2670fed8fa984aac0507099af8df275e665215f5c7a2ae3943893a553
+  GOSEC_VERSION: v2.28.0
+  SQLC_VERSION: v1.31.1
+  STATICCHECK_VERSION: v0.7.0
+  ACTIONLINT_VERSION: v1.7.12
+  GOVULNCHECK_VERSION: v1.5.0
+  SHELLCHECK_VERSION: v0.11.0
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+  NODE_VERSION: 22.23.1
 
 jobs:
   # Mirrors the local gate: build, vet, lint, and race-enabled tests in the
   # same order a developer runs before pushing.
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: .github/package-lock.json
+
+      - name: Install pinned Go analysis and generation tools
+        run: |
+          go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
+          go install "github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}"
+          go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+          go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
 
       - name: Install golangci-lint v2 (pinned)
         run: |
@@ -49,17 +71,28 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/golangci-lint.tar.gz" -C "${RUNNER_TEMP}"
           install -D "${RUNNER_TEMP}/golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64/golangci-lint" "$(go env GOPATH)/bin/golangci-lint"
 
-      - name: Build
-        run: go build ./...
+      - name: Install ShellCheck (pinned)
+        run: |
+          curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" -o "${RUNNER_TEMP}/shellcheck.tar.xz"
+          echo "${SHELLCHECK_SHA256}  ${RUNNER_TEMP}/shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf "${RUNNER_TEMP}/shellcheck.tar.xz" -C "${RUNNER_TEMP}"
+          install -D "${RUNNER_TEMP}/shellcheck-${SHELLCHECK_VERSION}/shellcheck" "$(go env GOPATH)/bin/shellcheck"
 
-      - name: Vet
-        run: go vet ./...
+      - name: Install Tailwind CSS (pinned)
+        run: |
+          curl -sSfL "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64" -o "${RUNNER_TEMP}/tailwindcss"
+          echo "${TAILWIND_SHA256}  ${RUNNER_TEMP}/tailwindcss" | sha256sum -c -
+          chmod +x "${RUNNER_TEMP}/tailwindcss"
+          install -D "${RUNNER_TEMP}/tailwindcss" "$(go env GOPATH)/bin/tailwindcss"
 
-      - name: Lint
-        run: golangci-lint run
+      - name: Verify
+        run: make verify
 
-      - name: Test
-        run: go test -race -count=1 -shuffle=on ./...
+      # The product uses modernc and remains CGo-free. This extra Linux-only
+      # gate keeps the retained mattn comparison reproducible without making a
+      # C compiler a product-build prerequisite.
+      - name: Verify the retained mattn comparison
+        run: make tools-check-mattn
 
   # Scans the dependency and standard-library surface for known
   # vulnerabilities. Kept separate from the build-and-test gate so a new
@@ -69,17 +102,132 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
       - name: Install govulncheck (pinned)
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
+        run: go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
 
       - name: Vulnerability scan
-        run: govulncheck ./...
+        run: make vuln
+
+  # Records coverage as review evidence without inventing a percentage that can
+  # be gamed by low-value assertions. The race, fuzz, browser, golden, and
+  # mutation gates remain the behavioral authority; this job makes blind spots
+  # visible and retains the standard Go profile for local inspection.
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install the pinned SQL generator
+        run: go install "github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}"
+
+      - name: Record Go coverage
+        run: |
+          make coverage-report \
+            COVER_PROFILE="${RUNNER_TEMP}/coverage.out" \
+            COVER_SUMMARY="${RUNNER_TEMP}/coverage.txt"
+          {
+            echo '## Go coverage'
+            echo
+            echo '```text'
+            tail -n 1 "${RUNNER_TEMP}/coverage.txt"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Retain the coverage profile and function summary
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: go-coverage
+          path: |
+            ${{ runner.temp }}/coverage.out
+            ${{ runner.temp }}/coverage.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  # The full analysis, generation, race, and fuzz gates run once on Linux. A
+  # real Darwin runner also executes the complete suite. Windows builds and
+  # vets every package, compiles every test, then drives its product-specific
+  # contract: the lexical reader remains available while both status
+  # publication and the first semantic store fail before filesystem access.
+  # Supported-platform write tests are intentionally not executed on a kernel
+  # where those features are unavailable; the focused runtime contract below
+  # is stronger evidence than skipping inside hundreds of unrelated tests.
+  portable-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build every package
+        run: go build ./...
+
+      - name: Vet every package
+        run: go vet ./...
+
+      - name: Race-test every package
+        if: runner.os != 'Windows'
+        run: go test -race ./... -count=1
+
+      - name: Compile every test package on Windows
+        if: runner.os == 'Windows'
+        run: go test ./... -run '^$' -count=1
+
+      - name: Drive the Windows reader and status-write boundary
+        if: runner.os == 'Windows'
+        run: go test ./... -run '^TestUnsupportedPlatform' -count=1
+
+  # Windows deliberately exposes no semantic-generation store in the first
+  # store implementation. A real
+  # Windows runner proves the three store entry points fail before creating a
+  # directory or SQLite sidecar; cross-compilation cannot prove that runtime
+  # privacy boundary. Plain lexical search and the server remain portable.
+  windows-semantic-contract:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Prove the semantic store is fail-fast and side-effect free
+        run: go test ./internal/search/semantic -run '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$' -count=1
+
+  # The writer lease is implemented separately on Darwin and Linux. Running
+  # the package on a real macOS kernel proves the Darwin flock path is both
+  # compilable and nonblocking; a Linux-only gate cannot cover that privacy
+  # and publication boundary.
+  darwin-semantic-contract:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Exercise the Darwin store and writer lease
+        run: go test -race ./internal/search/semantic -count=1
 
   # Regenerating the checked-in generated files must produce no change. A
   # difference means a generated file was edited by hand, or a source changed
@@ -88,14 +236,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
       - name: Regenerate the templ output
-        run: go tool templ generate
+        run: go tool templ generate -path internal/ui
 
       # Add everything to the index first so the check also catches a newly
       # generated file, or one deleted from the tree; a plain diff only sees
@@ -125,27 +273,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: .github/package-lock.json
 
       - name: Install the frontend linters
-        run: npm install --no-save --no-package-lock @biomejs/biome@2.5.2 stylelint@17.14.0 stylelint-config-recommended@18.0.0
+        run: npm ci --prefix .github --ignore-scripts --no-audit --fund=false
 
       # biome.json turns off four rules where the runtime deliberately differs
       # from biome's defaults: explicit nil guards over optional chaining, a
-      # couple of string concatenations, the cookie writes behind the theme and
-      # furigana toggles, and the strict directive inside a classic script's
-      # closure. Every other rule stays on, and a warning fails the job.
-      - name: Lint the runtime script
-        run: npx biome lint --error-on-warnings assets/js/yomihon.js
+      # couple of string concatenations, and the cookie writes behind the theme
+      # and furigana toggles. Every other rule stays on, and a warning fails the
+      # job.
+      - name: Lint the runtime and browser-probe scripts
+        run: npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs .github/*.mjs
 
       # The stylesheet sources keep their own house style; the config holds on to
-      # the correctness rules and allows the Tailwind theme at-rule.
+      # the correctness rules and allows the Tailwind theme at-rule. The Make
+      # target owns deterministic source discovery, including future additions.
       - name: Lint the stylesheet sources
-        run: npx stylelint --config .stylelintrc.json assets/css/input.css assets/css/components.css assets/css/fonts.css assets/css/tokens.css
+        run: make stylelint-check
 
   # Builds the server, drives each reading face against a small fixture vault,
   # and checks the live listening socket is bound to loopback and nothing else.
@@ -153,111 +304,80 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
-      - name: Build the server
-        run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
+      - name: Drive the HTTP and loopback contract
+        run: make e2e-http-check
 
-      - name: Prove readiness refuses redirect and missing-route responses
-        run: bash .github/e2e/serve.sh --self-test
-
-      # A real server binds loopback, so the socket assertion below can only ever
-      # come back green. This drives the same verdict over recorded listings that
-      # widen the bind, and requires each to be refused — the lock's proof that
-      # it is able to fail.
-      - name: Prove the loopback socket assertion refuses a widened bind
-        run: bash .github/e2e/smoke.sh --self-test
-
-      - name: Drive the reading faces and check the listening socket
-        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19733 -- bash .github/e2e/smoke.sh
-
-  # Runs a short live fuzz pass over each diagnostics target and smoke-runs the
-  # benchmarks, so a crash or invariant break in the hand-rolled frontmatter and
-  # link parsing surfaces on a pull request rather than in a later run. The seed
-  # corpus already runs under race in the verify job; this job briefly explores
-  # new inputs without it. Go takes one fuzz pattern per invocation, so the
-  # targets are looped.
+  # Runs a fixed-work fuzz pass over every target in the module and smoke-runs
+  # the benchmarks, so a crash or invariant break at any raw-byte boundary
+  # surfaces on a pull request rather than in a later run. The seed corpus
+  # already runs under race in the verify job; this job explores 10,000 inputs
+  # per target without it. Go takes one fuzz pattern per invocation, so the
+  # targets are looped with a fixed per-target execution budget.
   #
-  # The targets are asked for rather than written down. A pattern that matches no
-  # target is not an error to Go: it prints "no fuzz tests to fuzz" and exits 0,
+  # The targets are asked for rather than written down. A pattern that matches
+  # no target is not an error to Go and may exit 0 without exploring anything,
   # so a written-down name that a rename left behind would quietly fuzz nothing
   # and the job would stay green over the loss. Listing them means a renamed
-  # target keeps being fuzzed and a new one is fuzzed the day it lands; the
-  # warning is refused as well, so nothing can reach the end of a pass having
-  # explored no inputs.
+  # target keeps being fuzzed and a new one is fuzzed the day it lands. The
+  # older toolchain warning is refused too when present.
   fuzz:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
-      - name: Fuzz each diagnostics target briefly
-        run: |
-          # Listing and filtering are two steps because the runner's shell exits
-          # on the first command that fails. A grep matching nothing fails, so
-          # asking for the names and sieving them in one breath would end the
-          # step on the empty case — before the line below could say which
-          # emptiness it was. The listing is left to fail on its own, carrying
-          # the toolchain's message; only the sieve is allowed to come back with
-          # nothing to show.
-          listing="$(go test ./internal/judge -run='^$' -list='^Fuzz')"
-          targets="$(printf '%s\n' "$listing" | grep '^Fuzz' || true)"
-          [ -n "$targets" ] || { echo "the diagnostics package names no fuzz targets" >&2; exit 1; }
-          echo "fuzzing: $(echo "$targets" | tr '\n' ' ')"
-          for t in $targets; do
-            out="$(go test ./internal/judge -run='^$' -fuzz="^${t}\$" -fuzztime=30s 2>&1)" || { printf '%s\n' "$out"; exit 1; }
-            printf '%s\n' "$out"
-            case "$out" in
-            *"no fuzz tests to fuzz"*)
-              echo "the ${t} pattern explored no inputs" >&2
-              exit 1
-              ;;
-            esac
-          done
+      - name: Discover and fuzz every target for 10,000 executions
+        run: make fuzz-smoke
 
       - name: Smoke-run the benchmarks
-        run: go test ./... -run='^$' -bench=. -benchtime=1x
+        run: make performance-smoke
 
-  # Drives the runner's system Chrome (playwright-core, installed runner-only
-  # like the frontend linters — no package.json, no downloaded browser, no
-  # pixel comparison) against the fixture vault and locks live reading
+  # Drives the runner's system Chrome with the locked playwright-core package
+  # (no downloaded browser and no pixel comparison) against the fixture vault
+  # and locks live reading
   # behaviors that plain HTTP assertions cannot see: Home starts at the top and
   # stays a plain GET form; /search and ⌘K debounce input without weakening
   # native GET; the command palette opens centered and opaque; the sidebar filter is revealed
   # by the document's own inline script rather than the deferred one, and stays
   # hidden with JavaScript off; content-derived Paths, Maps, and Journal preserve
   # grouping and wayfinding; and a held R inside a focused select never starts
-  # the seal hold, with the picker closed or open.
+  # the seal hold, with the picker closed or open. A standalone D27 contract
+  # additionally proves programmatic native activation remains available while
+  # pointer and keyboard ceremony clicks stay suppressed.
   e2e-behavior:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: .github/package-lock.json
 
       - name: Install the browser driver
-        run: npm install --no-save --no-package-lock playwright-core@1.61.1
+        run: npm ci --prefix .github --ignore-scripts --no-audit --fund=false
 
-      - name: Build the server
-        run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
+      - name: Record the browser build
+        run: google-chrome --version
 
       - name: Run the behavior probes against the fixture vault
-        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19734 -- bash .github/e2e/probes.sh
+        run: make browser-check
 
   # Proves the probes above can fail. Each one names its own self-test modes;
   # every mode injects the regression that probe exists to catch, and the run is
@@ -272,21 +392,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: .github/package-lock.json
 
       - name: Install the browser driver
-        run: npm install --no-save --no-package-lock playwright-core@1.61.1
+        run: npm ci --prefix .github --ignore-scripts --no-audit --fund=false
 
-      - name: Build the server
-        run: go build -o "${RUNNER_TEMP}/yomihon" ./cmd/yomihon
+      - name: Record the browser build
+        run: google-chrome --version
 
       - name: Prove every probe catches the regression it watches for
-        run: bash .github/e2e/serve.sh "${RUNNER_TEMP}/yomihon" 19735 -- bash .github/e2e/probes.sh --mutate
+        run: make mutation-check

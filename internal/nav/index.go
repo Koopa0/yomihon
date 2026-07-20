@@ -21,17 +21,27 @@ type Placement struct {
 // when no map references it. relPath is a vault-relative NFC path, the
 // same form the rest of the model uses, so no re-normalization is needed.
 func (m *Model) Placements(relPath string) []Placement {
-	return m.placementIndex[relPath]
+	if m == nil {
+		return nil
+	}
+	placements := slices.Clone(m.placementIndex[relPath])
+	for i := range placements {
+		placements[i].Headings = slices.Clone(placements[i].Headings)
+	}
+	return placements
 }
 
 // Siblings returns the files sharing a directory with the note at relPath — the
 // "here" list the sidebar shows — together with that directory's vault-relative
 // path (empty for a vault-root note). The note at relPath is itself in the list,
-// for the caller to mark; the order matches the folder tree (vault.List's
-// lexical order). The notes slice is nil when the directory holds nothing.
+// for the caller to mark; the order matches the captured generation's lexical
+// path order. The notes slice is nil when the directory holds nothing.
 func (m *Model) Siblings(relPath string) (dir string, notes []NoteRef) {
 	dir, _ = splitDir(relPath)
-	return dir, m.dirNotes[dir]
+	if m == nil {
+		return dir, nil
+	}
+	return dir, slices.Clone(m.dirNotes[dir])
 }
 
 // buildDirNotes groups every listed file by its directory, so the sidebar can
@@ -57,7 +67,8 @@ func buildPlacementIndex(maps []Map) map[string][]Placement {
 		relPath := maps[i].RelPath
 		var walk func(branches []Branch, chain []string)
 		walk = func(branches []Branch, chain []string) {
-			for _, branch := range branches {
+			for i := range branches {
+				branch := &branches[i]
 				// Concat always returns a fresh slice, so sibling branches never
 				// overwrite each other's heading chain and the stored value is
 				// never mutated afterward.
@@ -68,10 +79,10 @@ func buildPlacementIndex(maps []Map) map[string][]Placement {
 					}
 					index[entry.RelPath] = append(index[entry.RelPath], Placement{
 						MapRelPath: relPath,
-						Headings:   here,
+						Headings:   slices.Clone(here),
 					})
 				}
-				walk(branch.Sub, here)
+				walk(branch.Subbranches, here)
 			}
 		}
 		walk(maps[i].Branches, nil)

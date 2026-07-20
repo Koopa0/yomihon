@@ -21,6 +21,13 @@ type Map struct {
 	Branches []Branch
 }
 
+// EntryCounts reports how many rows in m have status and how many rows m
+// contains in total. Warning rows count toward the total but never match a
+// status because they do not represent a governed note.
+func (m *Map) EntryCounts(status string) (matching, total int) {
+	return countEntries(m.Branches, status)
+}
+
 // Branch is one heading in a map (an H2 part, an H3 module or level, or
 // any deeper heading), holding the entries listed directly beneath it and
 // its nested subbranches. A Branch is present only if it, or a descendant,
@@ -33,9 +40,33 @@ type Branch struct {
 	Heading string
 	// Level is the markdown heading level (2 for a part, 3 for a module),
 	// kept so a renderer can indent by depth without re-deriving it.
-	Level   int
-	Entries []Entry
-	Sub     []Branch
+	Level       int
+	Entries     []Entry
+	Subbranches []Branch
+}
+
+// EntryCounts reports how many rows in b or its descendants have status and
+// how many rows the subtree contains in total. Warning rows count toward the
+// total but never match a status.
+func (b *Branch) EntryCounts(status string) (matching, total int) {
+	total = len(b.Entries)
+	for i := range b.Entries {
+		entry := &b.Entries[i]
+		if entry.Kind == EntryResolved && entry.Status == status {
+			matching++
+		}
+	}
+	subMatching, subTotal := countEntries(b.Subbranches, status)
+	return matching + subMatching, total + subTotal
+}
+
+func countEntries(branches []Branch, status string) (matching, total int) {
+	for i := range branches {
+		branchMatching, branchTotal := branches[i].EntryCounts(status)
+		matching += branchMatching
+		total += branchTotal
+	}
+	return matching, total
 }
 
 // EntryKind distinguishes a linked entry from each warning-row reason.
@@ -62,6 +93,26 @@ type Entry struct {
 	Status     string
 	Kind       EntryKind
 	Candidates []string
+}
+
+func cloneMaps(source []Map) []Map {
+	cloned := slices.Clone(source)
+	for i := range cloned {
+		cloned[i].Branches = cloneBranches(source[i].Branches)
+	}
+	return cloned
+}
+
+func cloneBranches(source []Branch) []Branch {
+	cloned := slices.Clone(source)
+	for i := range cloned {
+		cloned[i].Entries = slices.Clone(source[i].Entries)
+		for j := range cloned[i].Entries {
+			cloned[i].Entries[j].Candidates = slices.Clone(source[i].Entries[j].Candidates)
+		}
+		cloned[i].Subbranches = cloneBranches(source[i].Subbranches)
+	}
+	return cloned
 }
 
 // parseMap parses one map-typed note into a Map. It reads the
@@ -183,10 +234,10 @@ func convertBranches(nodes []*branchNode) []Branch {
 	out := make([]Branch, 0, len(nodes))
 	for _, n := range nodes {
 		out = append(out, Branch{
-			Heading: n.heading,
-			Level:   n.level,
-			Entries: n.entries,
-			Sub:     convertBranches(n.sub),
+			Heading:     n.heading,
+			Level:       n.level,
+			Entries:     slices.Clone(n.entries),
+			Subbranches: convertBranches(n.sub),
 		})
 	}
 	return out

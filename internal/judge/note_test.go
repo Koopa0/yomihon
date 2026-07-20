@@ -33,9 +33,9 @@ func TestParseNote(t *testing.T) {
 			name:    "scalars and a list are read raw",
 			content: "---\ntitle: X\ntype: concept\ntags:\n  - a\n  - b/c\n---\nbody\n",
 			wantFrontmatter: map[string]fmValue{
-				"title": {scalar: "X"},
-				"type":  {scalar: "concept"},
-				"tags":  {list: []string{"a", "b/c"}, isList: true},
+				"title": {scalar: "X", scalarIsString: true},
+				"type":  {scalar: "concept", scalarIsString: true},
+				"tags":  {list: []string{"a", "b/c"}, stringList: []string{"a", "b/c"}, isList: true},
 			},
 		},
 		{
@@ -43,7 +43,7 @@ func TestParseNote(t *testing.T) {
 			content: "---\nstatus:\ntype: concept\n---\n",
 			wantFrontmatter: map[string]fmValue{
 				"status": {scalar: ""},
-				"type":   {scalar: "concept"},
+				"type":   {scalar: "concept", scalarIsString: true},
 			},
 		},
 	}
@@ -72,10 +72,12 @@ func TestFmValue(t *testing.T) {
 		wantScalar   string
 		wantIsScalar bool
 		wantPresent  bool
+		wantStrings  []string
 	}{
-		{name: "non-empty scalar", value: fmValue{scalar: "x"}, wantScalar: "x", wantIsScalar: true, wantPresent: true},
+		{name: "non-empty scalar", value: fmValue{scalar: "x", scalarIsString: true}, wantScalar: "x", wantIsScalar: true, wantPresent: true, wantStrings: []string{"x"}},
 		{name: "empty scalar", value: fmValue{scalar: ""}, wantScalar: "", wantIsScalar: true, wantPresent: false},
-		{name: "non-empty list", value: fmValue{list: []string{"a"}, isList: true}, wantScalar: "", wantIsScalar: false, wantPresent: true},
+		{name: "coerced scalar", value: fmValue{scalar: "7"}, wantScalar: "7", wantIsScalar: true, wantPresent: true},
+		{name: "non-empty list", value: fmValue{list: []string{"a", "7"}, stringList: []string{"a"}, isList: true}, wantScalar: "", wantIsScalar: false, wantPresent: true, wantStrings: []string{"a"}},
 		{name: "empty list", value: fmValue{list: nil, isList: true}, wantScalar: "", wantIsScalar: false, wantPresent: false},
 	}
 	for _, tt := range tests {
@@ -87,6 +89,9 @@ func TestFmValue(t *testing.T) {
 			}
 			if got := tt.value.present(); got != tt.wantPresent {
 				t.Errorf("present() = %v, want %v", got, tt.wantPresent)
+			}
+			if got := tt.value.stringValues(); !slices.Equal(got, tt.wantStrings) {
+				t.Errorf("stringValues() = %v, want %v", got, tt.wantStrings)
 			}
 		})
 	}
@@ -100,6 +105,7 @@ func TestFmValue(t *testing.T) {
 // Obsidian's canonical NFC form.
 func TestCollectNotesScanBoundary(t *testing.T) {
 	root := t.TempDir()
+	writeTestContract(t, root, nil)
 	write(t, root, "notes/keep.md", "---\ntype: concept\n---\n")
 	write(t, root, "notes/image.png", "not markdown, a linkable resource\n")
 	write(t, root, ".obsidian/config.md", "hidden directory, skipped\n")
@@ -113,20 +119,13 @@ func TestCollectNotesScanBoundary(t *testing.T) {
 		"notes/keep.md",
 		"secret.md",
 	}
-	// A note whose filename is stored decomposed must come back composed. This
-	// holds only on a filesystem that folds NFC and NFD on lookup, as macOS
-	// does and as the reader relies on to open a note by its normalized path; a
-	// byte-exact filesystem stores and returns the decomposed name unchanged, so
-	// the case does not apply there and the file is removed rather than left to
-	// fail an open by its composed path.
+	// A note whose filename is stored decomposed comes back composed while its
+	// captured entry retains the raw spelling needed to read it on a byte-exact
+	// filesystem.
 	const composed = "だ.md"
 	if decomposed := norm.NFD.String(composed); decomposed != composed {
 		write(t, root, "notes/"+decomposed, "---\ntype: x\n---\n")
-		if _, err := os.Stat(filepath.Join(root, "notes", composed)); err == nil {
-			want = append(want, "notes/"+composed)
-		} else if err := os.Remove(filepath.Join(root, "notes", decomposed)); err != nil {
-			t.Fatalf("remove decomposed probe file: %v", err)
-		}
+		want = append(want, "notes/"+composed)
 	}
 
 	notes, err := collectNotes(root)
@@ -145,13 +144,13 @@ func TestCollectNotesScanBoundary(t *testing.T) {
 }
 
 // write creates a file at root/rel (rel in slash form), making parents.
-func write(t *testing.T, root, rel, content string) {
-	t.Helper()
+func write(tb testing.TB, root, rel, content string) {
+	tb.Helper()
 	full := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		t.Fatalf("mkdir for %q: %v", rel, err)
+		tb.Fatalf("mkdir for %q: %v", rel, err)
 	}
-	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-		t.Fatalf("write %q: %v", rel, err)
+	if err := os.WriteFile(full, []byte(content), 0o600); err != nil { // #nosec G703 -- test fixture paths are owned by each caller's temporary root
+		tb.Fatalf("write %q: %v", rel, err)
 	}
 }

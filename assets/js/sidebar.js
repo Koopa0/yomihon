@@ -1,0 +1,82 @@
+// Sidebar disclosure state and filtering. Manual disclosure choices persist
+// for the session; wayfinding and filter-open state remain transient.
+export function initSidebar() {
+  const rail = document.querySelector('.y-rail-left');
+  const input = rail?.querySelector('[data-nav-filter]');
+  if (!input) {
+    return { canFocusFilter: () => false, focusFilter() {} };
+  }
+
+  const storageKey = 'yomihon.nav';
+  let filtering = false;
+  const serverOpen = new Map();
+
+  function readDisclosureState() {
+    try {
+      return JSON.parse(sessionStorage.getItem(storageKey) || '{}') || {};
+    } catch {
+      return {};
+    }
+  }
+
+  rail.querySelectorAll('details[data-key]').forEach((details) => {
+    serverOpen.set(details, details.open);
+  });
+  rail.addEventListener('toggle', (event) => {
+    const details = event.target;
+    if (filtering || !details.dataset?.key || details.hasAttribute('data-chain')) return;
+    const stored = readDisclosureState();
+    stored[details.dataset.key] = details.open;
+    sessionStorage.setItem(storageKey, JSON.stringify(stored));
+  }, true);
+
+  function restingState(details) {
+    if (details.hasAttribute('data-chain')) return true;
+    const stored = readDisclosureState()[details.dataset.key];
+    return typeof stored === 'boolean' ? stored : serverOpen.get(details);
+  }
+
+  const empty = rail.querySelector('[data-filter-empty]');
+  const groups = [...rail.querySelectorAll('details, .y-here')];
+  const rows = [...rail.querySelectorAll('a, span.ui-navitem')];
+
+  function applyFilter() {
+    const query = input.value.trim().toLowerCase();
+    filtering = query !== '';
+    if (empty) empty.hidden = true;
+    if (!query) {
+      rows.forEach((row) => { row.hidden = false; });
+      groups.forEach((group) => {
+        group.hidden = false;
+        if (group.tagName === 'DETAILS') group.open = restingState(group);
+      });
+      return;
+    }
+    rows.forEach((row) => { row.hidden = !row.textContent.toLowerCase().includes(query); });
+    groups.forEach((group) => {
+      const hit = [...group.querySelectorAll('a, span.ui-navitem')].some((row) => !row.hidden);
+      group.hidden = !hit;
+      if (group.tagName === 'DETAILS') group.open = hit;
+    });
+    if (empty) empty.hidden = rows.some((row) => !row.hidden);
+  }
+
+  input.addEventListener('input', applyFilter);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      rail.querySelector('a:not([hidden])')?.click();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      input.value = '';
+      applyFilter();
+      input.blur();
+    }
+  });
+
+  return {
+    canFocusFilter: () => !input.hidden,
+    focusFilter: () => input.focus(),
+  };
+}

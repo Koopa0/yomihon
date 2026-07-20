@@ -2,7 +2,7 @@
 // inline script and not by the deferred enhancement file, and it stays hidden
 // when JavaScript is off. Three cases pin that together:
 //   1. normal load        -> visible once the document is parsed
-//   2. yomihon.js aborted -> still visible, so the inline script revealed it
+//   2. the yomihon.js entry aborted -> still visible, so the inline script revealed it
 //   3. JavaScript off     -> stays hidden (an inert control shows no face)
 // Case 2 is the one that catches the regression class: the reveal drifting back
 // into the deferred file, which shows a hidden control on every navigation and
@@ -92,11 +92,11 @@ const rewriteDocument = (needle, replacement) => async (page) => {
 const MUTATIONS = {
   'strip-inline-normal': {
     target: 'reveal-on-normal-load',
-    apply: rewriteDocument(/<script>[\s\S]*?<\/script>/g, ''),
+    apply: rewriteDocument(/<script nonce="[^"]+">[\s\S]*?<\/script>/g, ''),
   },
   'strip-inline-blocked': {
     target: 'reveal-without-the-deferred-script',
-    apply: rewriteDocument(/<script>[\s\S]*?<\/script>/g, ''),
+    apply: rewriteDocument(/<script nonce="[^"]+">[\s\S]*?<\/script>/g, ''),
   },
   'unhide-filter': {
     target: 'hidden-without-javascript',

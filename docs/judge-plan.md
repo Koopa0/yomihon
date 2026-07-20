@@ -5,8 +5,11 @@
 > is **byte-compatibility with kura**, a different discipline from the search
 > face's determinism: the retirement gate (D11) is a byte-for-byte match of
 > kura's JSONL and its conformance snapshots, plus switching the four real
-> pipelines over. Every "contract" below is quoted from the actual kura source
+> pipelines over. The inherited 15-rule baseline and predecessor-compatible
+> command contracts below are quoted from the actual kura source
 > (`/Users/koopa/rust/github.com/koopa0/kura`) — verified, not paraphrased.
+> Later local rules and explicitly recorded divergences name their own
+> authority instead of being attributed retroactively to kura.
 
 ## 1. Goal and the retirement gate (D11)
 
@@ -49,7 +52,7 @@ omit rules:
 | 8 | `suggested_action` | string | always |
 | 9 | `source_rule` | string | always |
 | 10 | `target` | `*string` | omit when nil |
-| 11 | `resolved_to` | `*string` | omit when nil (in practice only `map.disk_unlisted` sets it) |
+| 11 | `resolved_to` | `*string` | omit when nil (`map.disk_unlisted` and `supersession.archived_navigation_target` set it) |
 | 12 | `collision_members` | `[]string` | omit when empty |
 | 13 | `fingerprint` | string | always |
 
@@ -94,6 +97,10 @@ Per-rule feed of `path`/`target` is load-bearing (a mismatch changes the hash):
 - `schema.*`: `(rule_id, note.path, field + "\x1f" + value)` — the `target`
   argument itself contains an **embedded `0x1f`** (so there are effectively two
   separators around the field name; reproduce the exact string).
+- `supersession.predecessor_not_archived`:
+  `("supersession.predecessor_not_archived", note.path, configuredSuccessorField)`.
+- `supersession.archived_navigation_target`:
+  `("supersession.archived_navigation_target", source.path, link.target)`.
 
 ### 3c. Sort — `(path, line, rule_id)`
 
@@ -119,7 +126,7 @@ Matches (normalized query vs): filename **stem**, full filename (if different),
 + `\n`): `{"query":..., "matches":[{"path":..., "field":"filename|title|alias|title_en", "value":...}]}`,
 sorted by `(path, field)`. Exit **0** if any match, **1** if none.
 
-## 4. The 15 rules
+## 4. Rule set: the inherited 15-rule baseline plus two D53 extensions
 
 From `RULE_IDS` (kura `src/lib.rs`): `link.title_not_alias`, `link.broken`,
 `collision.alias`, `provenance.unresolved`, `map.disk_mismatch`, `map.disk_unlisted`,
@@ -145,6 +152,14 @@ Severity/gating detail (Info vs Warn for planned forward-refs on `link.broken` a
 `map.disk_mismatch`) is in the fact-gathering notes and will be pinned per rule
 during the build.
 
+D53 later added two warning rules without changing the inherited 15:
+`supersession.predecessor_not_archived` and
+`supersession.archived_navigation_target`. Their configured vocabulary,
+capability cross-product, privacy/instance exclusions, authority citations,
+and frozen JSONL live in D53 and `spec.md` §5. The current command therefore
+has 17 rules; references below to 15 describe the completed historical
+retirement baseline, not the current allowlist.
+
 ## 5. CLI surface, `--deny`, exit codes
 
 - `check [PATHS...] [--all] [--deny <val>]... [--baseline <file>]`, `coverage`,
@@ -156,8 +171,13 @@ during the build.
   via its rule id). An unknown `--deny` token → exit 2.
 - **Exit codes: 0** clean (no deny-level finding; with no `--deny`, always 0),
   **1** gate-hit, **2** tool-error (bad root, unknown flag, unreadable baseline,
-  unparseable schema) — printed to **stderr** as `kura: <err>` … (see §8 on the
-  `kura:` prefix decision).
+  unparseable schema) — printed to **stderr** as `yomihon: <err>`.
+- D54 adds one current tool-error contract shared by all three commands:
+  missing, invalid, or source-stale privacy authority emits zero stdout in
+  every format, exits 2, and writes exactly
+  `yomihon: privacy authority unavailable; agent-facing output disabled\n`.
+  A declared empty exclusion list is valid. The same authority is rechecked
+  after payload construction and immediately before emission.
 - Format resolution: explicit `--format` wins; else **json when stdout is piped,
   human when a TTY**. `md` is check-only (coverage/exists fall back to human).
 
@@ -176,25 +196,24 @@ during the build.
 
 ## 7. NFC
 
-Reuse `graph.NormalizeNFC` (already exported) + the shared `trim → NFC → lower`
+Reuse `vault.NormalizeNFC` + the shared `trim → NFC → lower`
 (Unicode lowercase, not ASCII) — yomihon's `graph.normalize` already matches kura's
 `graph.rs::normalize` byte-for-byte. Walk-time path normalization must also be NFC
 (kura NFC-normalizes every relative path); `internal/vault.List` already does this
 (D-note: verified earlier). A mismatch here breaks both resolution and fingerprints
 (collision.alias / schema.* feed normalized text into the hash).
 
-## 8. Package layout, and two naming/output decisions
+## 8. Package layout and resolved naming/output decisions
 
-- New package `internal/judge` (or `internal/check`): the `Finding` type + its
-  byte-exact serializer, the fingerprint, the 15 rules, and `check`/`exists`/
+- Package `internal/judge`: the `Finding` type + its
+  byte-exact serializer, the fingerprint, the inherited 15 rules (17 after
+  D53), and `check`/`exists`/
   `coverage`. `cmd/yomihon` gains the `check`/`exists`/`coverage` subcommands
   (dispatch only; the existing `serve` is untouched).
-- **Open decision — the error prefix.** kura prints tool errors as `kura: <err>`.
-  For byte-exactness of stderr, do we emit `kura:` (a lie — it's yomihon) or
-  `yomihon:`? stderr is not consumed by any cron (they read exit codes and stdout),
-  so `yomihon:` is safe and honest. Proposed: `yomihon:`. Confirm.
-- **Open decision — coverage/exists pretty vs compact.** The CLI is compact; I'll
-  match the compact CLI bytes (the pretty `.snap` is insta's, not on-wire).
+- Tool errors use `yomihon:`. Historical predecessor prefixes are not current
+  wire contracts.
+- Coverage and exists use compact JSON plus one trailing newline. A historical
+  pretty snapshot defines coverage value shape, not emitted bytes.
 
 ## 9. Testing — byte-compat is proven two ways
 
@@ -222,32 +241,34 @@ Reuse `graph.NormalizeNFC` (already exported) + the shared `trim → NFC → low
 compact JSONL bytes for `link.broken` + `"severity":"warn"`; the `--format md`
 report body and `--format human` summary first line. **Parity-for-completeness
 (no live consumer, but required for the retirement gate):** the full JSONL of all
-15 rules, `coverage`, `exists`, `--baseline`, `--format` niceties. Both must be
-byte-exact for retirement, but if the build is staged, the load-bearing set is the
-switchover blocker; the rest can land before the gate is declared met.
+15 inherited rules, `coverage`, `exists`, `--baseline`, `--format` niceties.
+The two D53 extensions have their own current goldens. Both sets must be
+byte-exact, but if the build is staged, the load-bearing set is the switchover
+blocker; the rest can land before the gate is declared met.
 
 ## 11. Scope and open decisions
 
-- **Build all 15 rules + coverage + exists** in this face (the retirement gate and
+- **Build all 15 inherited rules + coverage + exists** in this face (the retirement gate and
   the real-vault diff need the whole surface). `--baseline` (delta gate) has **zero
   live consumers** (verified) — implement for byte-compat, not as a hot path.
-- Open decisions for sign-off: (1) error prefix `yomihon:` vs `kura:` (§8 — I
-  propose `yomihon:`); (2) package name `internal/judge` vs `internal/check`
-  (I propose `judge` — it is the judge face, and it holds three commands, not just
-  check); (3) confirm the real-vault diff-vs-kura test as the primary acceptance
-  gate (it needs `~/.cargo/bin/kura` present and a quiescent vault at test time).
+- Historical sign-off items are closed: the package is `internal/judge`, stderr
+  uses `yomihon:`, and coverage/exists emit compact JSON plus one newline. The
+  completed differential campaign remains historical evidence, not a runtime
+  dependency.
 - Out of scope: the serve/snapshot world (untouched), the write face (wall 1),
   search, export, any frontend.
 
-## 12. Divergence register (the complete list; the retirement gate = byte-compat except exactly these)
+## 12. Divergence register (complete for the inherited 15-rule retirement baseline)
 
-Every deliberate or latent departure from the reference bytes, each verified
-against the real binary and each with its guard stated honestly. Anything not
-on this list that diffs is a bug.
+Every deliberate or latent departure from the inherited reference bytes, each
+verified against the real binary and each with its guard stated honestly.
+Post-retirement local rules such as D53's supersession checks extend the output
+under their own canon and are not predecessor divergences. Within the inherited
+baseline, anything not on this list that diffs is a bug.
 
-1. **stderr error prefix `kurodo:`** (deliberate; ruled in §8). No consumer
+1. **stderr error prefix `yomihon:`** (deliberate; ruled in §8). No consumer
    reads stderr; exit codes and stdout are the contract.
-2. **`--format md` preamble, two lines** (`tool: kurodo`, `# kurodo check`;
+2. **`--format md` preamble, two lines** (`tool: yomihon`, `# yomihon check`;
    deliberate, Koopa 2026-07-05). Golden hand-pinned; the real-vault sandwich
    compares the report body and skips the preamble. **Switchover checklist
    item**: confirm the md-consuming pipeline does not match on the old tool
@@ -283,48 +304,27 @@ on this list that diffs is a bug.
    Unreachable from the four pipelines (their invocations are fixed strings);
    guard: the property only manifests on a malformed call nothing makes, and
    the dedicated flag tests pin it.
-8. **Findings whose resolution touches the private daily journal are dropped
-   from check output** (deliberate, Koopa 2026-07-05; a finding is dropped when
-   a path it touches — its citing path, a collision member, or the note a link
-   resolved to — begins with Diary/, unconditionally, the full unfiltered set
-   included; and a link resolving to a journal note's title is dropped at its
-   source, so the journal path never reaches the finding's evidence text. The
-   link's own target text is the citing author's words and is deliberately not
-   counted. The reference reports a journal note's findings like any other's;
-   this fail-closed drop is the divergence). The journal is still scanned, so
-   its links resolve for other notes. Fixture + dedicated test pin the intent
-   (the drop holds under the full set and across the citing, collision,
-   resolved-to, and title-owner channels; a broken link outside the journal is
-   still reported); the real vault currently emits no journal-touching finding,
-   so the sandwich also holds.
-9. **The existence oracle never reports a note in the private daily journal**
-   (deliberate, Koopa 2026-07-05; exists drops every match whose path is under
-   Diary/, so a dedup query cannot learn a journal note's name, path, or alias.
-   The oracle is a read by an agent — an egress path the journal must stay out
-   of — and the reference matches journal notes like any other). The real
-   vault's fixed exists queries name no journal note, so the sandwich holds; a
-   dedicated test pins the drop and that a public note still matches. Coverage
-   also drops every concept or routable note under Diary/, so a journal note
-   mistyped as a concept never reaches that report either; a fixture with such a
-   note and a test pin it.
-10. **Journal content exerts no influence on egress verdicts** (deliberate,
-   D42, ruled 2026-07-06 under delegation): the reference counts a journal
-   note's outgoing edges toward coverage's referenced/mounted sets, and its
-   planned-name lists toward broken-link severity; this engine excludes
-   journal sources from both, so a public concept's mount state and a public
-   broken link's severity never encode journal content. A public link naming
-   a journal title remains the author's own words (entry 8) and its
-   resolution is unchanged. Guard: dedicated fixtures pin both exclusions (a
-   journal-only mount edge leaves the concept orphaned here, mounted on the
-   reference; a journal-only planned name leaves the public link warn here,
-   info there). The same excluded mount set also feeds the routed/unrouted
-   classification, so a routable note mounted only by a journal map counts
-   as unrouted here and routed on the reference — the same divergence seen
-   through a third window, not a separate mechanism; the differential
-   generator does not construct that case (the normalizer set stays closed)
-   and the real-vault sandwich guards it. The sandwich was run at
-   implementation time and held: the real journal currently exerts no such
-   influence on any surface.
+8. **Findings whose touched paths are privacy-denied are absent from check
+   output**. The contract capability, not a Go path literal, owns the boundary.
+   It covers the citing path, collision members, and `resolved_to`; `--all`
+   never relaxes it. The full graph still resolves a public author's filename
+   or alias target through the complete corpus. Secondary title evidence is
+   built only from egress-allowed notes, so a public unresolved link whose only
+   title owner is private remains the same public broken-link finding it would
+   be if that private note did not exist.
+9. **Exists and coverage apply the same contract capability**. Exists removes
+   denied matches before rendering. Coverage excludes denied candidates,
+   sources, mount edges, and unrouted rows. Dedicated mixed public/private
+   fixtures pin that a public result remains visible while denied names and
+   paths never enter either wire shape.
+10. **Privacy-denied content exerts no influence on public verdicts**. Coverage
+   mount/reference edges, planned-name severity, title/slug/alias secondary
+   indexes, and disk-reference existence checks all exclude denied sources or
+   targets before aggregation or filesystem inspection. A public note's own
+   target text and the primary graph's filename/alias resolution remain the
+   author's visible facts. Mixed-source fixtures cover the influence channels;
+   strict-walk and fixed-error tests cover incomplete scans without publishing
+   partial certification.
 
 ## 13. The differential campaign (the declaration's final prerequisite)
 
@@ -364,7 +364,8 @@ hold:**
    absorbed the intervening hardening work, which is the variance the clause
    was after. Run dates are still recorded per item 5.)
 2. Zero unexplained byte differences after §12 normalization.
-3. The rule-reach self-check passes in every run: all fifteen rules and both
+3. The historical rule-reach self-check passes in every run: all fifteen
+   inherited rules and both
    frontmatter failure classes — a note with no frontmatter block at all, and
    a note whose block does not parse — exercised at least once.
 4. Every divergence the campaign finds is adjudicated before its run counts,

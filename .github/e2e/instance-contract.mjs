@@ -14,7 +14,7 @@ const MAP_TITLE = 'TEMPLATE MAP LEAK SENTINEL';
 const MAP_BODY = 'TEMPLATE MAP BODY SENTINEL';
 const LESSON_TITLE = 'TEMPLATE LESSON WRITE SENTINEL';
 const LESSON_BODY = 'TEMPLATE LESSON BODY SENTINEL';
-const QUIET_REASON = 'not a governable artifact';
+const QUIET_REASON = '不屬於生命週期治理範圍';
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
@@ -63,15 +63,15 @@ const MUTATIONS = {
   'inject-template-map-projection': {
     target: 'map-projection-omitted',
     apply: rewriteDocument((body) => body.replaceAll(
-      'id="sidebar-maps-title">Maps</h2>',
-      'id="sidebar-maps-title">Maps</h2><details data-map-tree="System/templates/Template map.md"></details>',
+      'id="sidebar-maps-title">地圖</h2>',
+      'id="sidebar-maps-title">地圖</h2><details data-map-tree="System/templates/Template map.md"></details>',
     )),
   },
   'inject-template-home-recent': {
     target: 'home-recent-omitted',
     apply: rewritePath(HOME, (body) => body.replaceAll(
-      'id="home-recent-title">Recently changed</h2>',
-      `id="home-recent-title">Recently changed</h2><span>${MAP_TITLE}</span>`,
+      'id="home-recent-title">最近變更</h2>',
+      `id="home-recent-title">最近變更</h2><span>${MAP_TITLE}</span>`,
     )),
   },
   'drop-template-folder-link': {

@@ -10,12 +10,12 @@ import (
 	"strings"
 )
 
-// The three subcommands — check, coverage, exists — run as stateless scans: a
-// process walks the vault fresh, prints, and exits. There is no server, no
-// daemon, and no persistent store behind them. Each runner takes already-parsed
-// options and returns the bytes to print and the process exit code, so the
-// binary's own main only wires arguments in and the exit code out, and every
-// exit-code decision is exercised by a test.
+// The three subcommands — check, coverage, exists — run as stateless actions:
+// a process opens the selected vault once, captures its complete file domain,
+// prints, and exits. There is no server, daemon, or persistent store behind
+// them. Each runner takes already-parsed options and returns the bytes to print
+// and the process exit code, so the binary's main only wires arguments in and
+// the exit code out, and every exit-code decision is exercised by a test.
 //
 // Exit codes match the frozen contract the pipelines depend on: 0 clean, 1 a
 // gate hit or a "does not exist", 2 a tool error. A tool error is returned as a
@@ -39,6 +39,8 @@ var ruleIDs = []string{
 	"schema.legacy_tag",
 	"schema.provenance",
 	"schema.frontmatter",
+	predecessorNotArchivedRule,
+	archivedNavigationRule,
 }
 
 // Format is the output format of a subcommand.
@@ -97,32 +99,67 @@ type CheckOptions struct {
 	Format   Format
 }
 
+type preparedCommand struct {
+	stdout []byte
+	exit   int
+	action *action
+}
+
+func (p *preparedCommand) finish() error {
+	if p == nil || p.action == nil {
+		return errVaultScan
+	}
+	a := p.action
+	p.action = nil
+	return a.finish()
+}
+
 // RunCheck scans the vault and renders the findings. It returns the bytes to
 // print and the exit code: 1 when a finding gates, 0 otherwise. An unknown
 // --deny token, an unreadable baseline, or a scan failure is returned as an
 // error, which the caller turns into a tool-error exit.
 func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
-	for _, d := range o.Deny {
-		if !isSeverityKeyword(d) && !slices.Contains(ruleIDs, d) {
-			return nil, 0, fmt.Errorf("unknown --deny %q; use a severity (error|warn|info) or a rule id", d)
-		}
-	}
-	findings, err := check(o.Root, o.Paths, o.All)
+	prepared, err := prepareCheck(o)
 	if err != nil {
 		return nil, 0, err
+	}
+	if err := prepared.finish(); err != nil {
+		return nil, 0, err
+	}
+	return prepared.stdout, prepared.exit, nil
+}
+
+func prepareCheck(o *CheckOptions) (preparedCommand, error) {
+	return prepareCheckWithHooks(o, actionHooks{})
+}
+
+func prepareCheckWithHooks(o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
+	for _, d := range o.Deny {
+		if !isSeverityKeyword(d) && !slices.Contains(ruleIDs, d) {
+			return preparedCommand{}, fmt.Errorf("unknown --deny %q; use a severity (error|warn|info) or a rule id", d)
+		}
+	}
+	a, err := openAction(o.Root, hooks)
+	if err != nil {
+		return preparedCommand{}, err
+	}
+	findings, err := checkAction(a, o.Paths, o.All)
+	if err != nil {
+		return preparedCommand{}, a.abort(err)
 	}
 	if o.Baseline != "" {
 		data, err := os.ReadFile(o.Baseline) // #nosec G304 -- the baseline path is an operator-supplied CLI argument, not untrusted input
 		if err != nil {
-			return nil, 0, fmt.Errorf("read baseline %s: %w", o.Baseline, err)
+			return preparedCommand{}, a.abort(fmt.Errorf("read baseline %s: %w", o.Baseline, err))
 		}
 		findings = retainNew(findings, parseBaseline(string(data)))
 	}
+	var stdout []byte
 	switch o.Format {
 	case FormatJSON:
 		var buf bytes.Buffer
 		if err := WriteJSONL(&buf, findings); err != nil {
-			return nil, 0, fmt.Errorf("serialize findings: %w", err)
+			return preparedCommand{}, a.abort(fmt.Errorf("serialize findings: %w", err))
 		}
 		stdout = buf.Bytes()
 	case FormatHuman:
@@ -132,10 +169,11 @@ func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
 	default:
 		panic("judge: unknown Format: " + strconv.Itoa(int(o.Format)))
 	}
+	exit := 0
 	if gated(findings, o.Deny) {
-		return stdout, 1, nil
+		exit = 1
 	}
-	return stdout, 0, nil
+	return preparedCommand{stdout: stdout, exit: exit, action: a}, nil
 }
 
 // CoverageOptions is the parsed coverage command.
@@ -148,20 +186,38 @@ type CoverageOptions struct {
 // reports state, it never gates. A scan or serialization failure is returned as
 // an error.
 func RunCoverage(o *CoverageOptions) (stdout []byte, exit int, err error) {
-	notes, resources, err := collectVault(o.Root)
+	prepared, err := prepareCoverage(o)
 	if err != nil {
 		return nil, 0, err
 	}
-	cov := computeCoverage(notes, buildIndex(notes, resources))
+	if err := prepared.finish(); err != nil {
+		return nil, 0, err
+	}
+	return prepared.stdout, prepared.exit, nil
+}
+
+func prepareCoverage(o *CoverageOptions) (preparedCommand, error) {
+	return prepareCoverageWithHooks(o, actionHooks{})
+}
+
+func prepareCoverageWithHooks(o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(o.Root, hooks)
+	if err != nil {
+		return preparedCommand{}, err
+	}
+	cov := computeCoverage(a.notes, buildIndex(a.notes, a.resources), a.authority)
+	var stdout []byte
 	if o.Format == FormatJSON {
 		out, err := marshalWire(cov)
 		if err != nil {
-			return nil, 0, fmt.Errorf("serialize coverage: %w", err)
+			return preparedCommand{}, a.abort(fmt.Errorf("serialize coverage: %w", err))
 		}
-		return out, 0, nil
+		stdout = out
+	} else {
+		// md is a check-only format; coverage falls back to the human view.
+		stdout = []byte(renderCoverage(&cov))
 	}
-	// md is a check-only format; coverage falls back to the human view.
-	return []byte(renderCoverage(&cov)), 0, nil
+	return preparedCommand{stdout: stdout, action: a}, nil
 }
 
 // ExistsOptions is the parsed exists command.
@@ -176,25 +232,42 @@ type ExistsOptions struct {
 // write-if-absent on the exit code alone. A scan or serialization failure is
 // returned as an error.
 func RunExists(o *ExistsOptions) (stdout []byte, exit int, err error) {
-	notes, err := collectNotes(o.Root)
+	prepared, err := prepareExists(o)
 	if err != nil {
 		return nil, 0, err
 	}
-	report := existsLookup(notes, o.Name)
+	if err := prepared.finish(); err != nil {
+		return nil, 0, err
+	}
+	return prepared.stdout, prepared.exit, nil
+}
+
+func prepareExists(o *ExistsOptions) (preparedCommand, error) {
+	return prepareExistsWithHooks(o, actionHooks{})
+}
+
+func prepareExistsWithHooks(o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(o.Root, hooks)
+	if err != nil {
+		return preparedCommand{}, err
+	}
+	report := existsLookup(a.notes, o.Name, a.authority)
+	var stdout []byte
 	if o.Format == FormatJSON {
 		out, err := marshalWire(report)
 		if err != nil {
-			return nil, 0, fmt.Errorf("serialize exists: %w", err)
+			return preparedCommand{}, a.abort(fmt.Errorf("serialize exists: %w", err))
 		}
 		stdout = out
 	} else {
 		// md is a check-only format; exists falls back to the human view.
 		stdout = []byte(renderExists(report))
 	}
+	exit := 1
 	if report.found() {
-		return stdout, 0, nil
+		exit = 0
 	}
-	return stdout, 1, nil
+	return preparedCommand{stdout: stdout, exit: exit, action: a}, nil
 }
 
 // gated reports whether any finding reaches the deny gate. A --deny token is

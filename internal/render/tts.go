@@ -89,5 +89,5 @@ func spokenText(inner string) string {
 // data-tts.
 func speakButton(text string) string {
 	return `<button class="y-tts" type="button" data-tts="` + html.EscapeString(text) +
-		`" aria-label="朗讀這段日文">` + ttsSpeaker + `</button>`
+		`" lang="zh-Hant" aria-label="朗讀這段日文">` + ttsSpeaker + `</button>`
 }

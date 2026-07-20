@@ -1,0 +1,64 @@
+# Loader fixture for the advanceable-note tally. The named transition after
+# ready makes the seal non-terminal and therefore advanceable like any other
+# contract-owned state.
+schema_version = "1"
+
+[enums]
+type = ["lesson"]
+domain = ["japanese"]
+
+[enums.status]
+note = []
+lesson = ["imported", "draft", "ready", "beyond", "archived"]
+
+[fields]
+required = ["title", "type", "domain", "status", "created", "updated"]
+known = ["title", "type", "domain", "status", "created", "updated", "lang"]
+
+[fields.status_group]
+lesson = ["lesson"]
+
+[rules]
+slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+
+[scan]
+knowledge_dirs = ["Writing"]
+skip_basenames = ["README.md"]
+no_frontmatter_is_legal = true
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
+[[lifecycle]]
+status = "imported"
+applies_to = ["lesson"]
+from = []
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["lesson"]
+from = ["imported"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["lesson"]
+from = ["draft"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "beyond"
+applies_to = ["lesson"]
+from = ["ready"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["koopa"]

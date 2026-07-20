@@ -10,6 +10,46 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
+func TestNoteArticleLanguageIsExplicit(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		lang string
+		want string
+	}{
+		{name: "missing authority is undetermined", want: `lang="und"`},
+		{name: "Japanese", lang: "ja", want: `lang="ja"`},
+		{name: "Traditional Chinese", lang: "zh-Hant", want: `lang="zh-Hant"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Note(NoteView{Language: tt.lang}, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			if html := buf.String(); !strings.Contains(html, `<article class="y-article" `+tt.want+`>`) {
+				t.Errorf("article language missing: want %q in %q", tt.want, html)
+			}
+		})
+	}
+}
+
+func TestInlineReadingAidsUseChromeLanguage(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	view := NoteView{
+		Language:   "ja",
+		Diagnostic: "invalid frontmatter",
+	}
+	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if html := buf.String(); !strings.Contains(html, `<div class="y-inlineaids" lang="zh-Hant">`) {
+		t.Errorf("inline reading aids do not restore the chrome language inside a Japanese article: %q", html)
+	}
+}
+
 // TestWriteFaceReachableInEveryLayoutState is the write-face safety lock over
 // the layout matrix. The right rail exists to hold reading aids; a note with
 // none drops the rail's column, and narrow viewports hide the rail outright —
@@ -41,23 +81,23 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"y-shell--rail-empty",
 				"y-sealbar",
 				"data-seal",
-				"actor · koopa",
+				"操作者 · koopa",
 			},
 		},
 		{
 			name:     "no aids, closed contract: the seal bar carries the fail-closed notice",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus, "archived"}, WriteDiagnostic: "Contract unavailable — the write face is closed (fail-closed)."},
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus, "archived"}, WriteDiagnostic: "contract unavailable"},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
 				"y-sealbar",
 				"ui-status--draft",
-				"the write face is closed (fail-closed)",
+				"生命週期寫入目前無法使用",
 			},
-			wantAbsent: []string{`action="/status"`, "actor · koopa"},
+			wantAbsent: []string{`action="/status"`, "操作者 · koopa"},
 			wantCounts: map[string]int{
-				`data-status-state="unavailable"`:                                2,
-				"Contract unavailable — the write face is closed (fail-closed).": 2,
+				`data-status-state="unavailable"`: 2,
+				"生命週期寫入目前無法使用":                    2,
 			},
 		},
 		{
@@ -75,12 +115,12 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantPresent: []string{
 				"y-statuspanel",
 				"y-sealbar",
-				"Diagnostics",
+				"診斷",
 			},
-			wantAbsent: []string{`action="/status"`, "actor · koopa", "ui-status--draft"},
+			wantAbsent: []string{`action="/status"`, "操作者 · koopa", "ui-status--draft"},
 			wantCounts: map[string]int{
 				`data-status-state="non-instance"`: 2,
-				"not a governable artifact":        2,
+				"不屬於生命週期治理範圍":                      2,
 			},
 		},
 		{
@@ -90,7 +130,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantPresent: []string{
 				"y-shell--rail-empty",
 				"y-sealbar",
-				"No frontmatter (valid).",
+				"沒有 frontmatter（合法）。",
 			},
 		},
 		{
@@ -101,7 +141,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"y-statuspanel",
 				"y-inlineaids",
 				"y-toc-inline",
-				"On this page",
+				"本頁內容",
 			},
 			wantAbsent: []string{"y-shell--rail-empty"},
 		},
@@ -110,7 +150,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Title: "T", RelPath: "a.md", Diagnostic: "unterminated string"},
 			wantAids: true,
 			wantPresent: []string{
-				"Diagnostics",
+				"診斷",
 				"y-inlineaids",
 			},
 			wantAbsent: []string{"y-shell--rail-empty", "y-sealbar", "y-statuspanel"},
@@ -120,7 +160,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
 			wantAids: true,
 			wantPresent: []string{
-				"Diagnostics",
+				"診斷",
 				"y-inlineaids",
 				"y-statuspanel",
 			},
@@ -225,7 +265,7 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 		wantSealBar bool
 	}{
 		{name: "open contract", view: NoteView{Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: true},
-		{name: "closed contract", view: NoteView{Status: "draft", WriteDiagnostic: "Contract unavailable — the write face is closed (fail-closed)."}, wantSealBar: true},
+		{name: "closed contract", view: NoteView{Status: "draft", WriteDiagnostic: "contract unavailable"}, wantSealBar: true},
 		{name: "no frontmatter", view: NoteView{NoFrontmatter: true}, wantSealBar: true},
 		{name: "sealed note", view: NoteView{Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true}, wantSealBar: true},
 		{name: "frontmatter diagnostic", view: NoteView{Diagnostic: "bad yaml"}, wantSealBar: false},

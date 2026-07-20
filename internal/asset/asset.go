@@ -1,6 +1,6 @@
 // Package asset serves yomihon's fixed, compile-time-known set of static
-// files: the vendored mermaid ES-module runtime, yomihon's own
-// hand-written client script, and the generated chroma stylesheet.
+// files: the vendored mermaid ES-module runtime, yomihon's own fixed native
+// client-module graph, and the generated chroma stylesheet.
 //
 // This is the FIRST route in this repo that serves something other than
 // rendered vault content, and its entire security property rests on one
@@ -47,9 +47,9 @@ type entry struct {
 // package init (see buildRegistry) and never mutated afterward.
 var registry = buildRegistry()
 
-// buildRegistry assembles the fixed asset set: yomihon.js and the whole
-// vendored mermaid/ subtree from assets.Files (see that package's doc
-// comment for why the mermaid tree is more than one file), plus
+// buildRegistry assembles the fixed asset set: the explicitly named product
+// modules and the whole vendored mermaid/ subtree from assets.Files (see that
+// package's doc comment for why the mermaid tree is more than one file), plus
 // render.ChromaCSS's computed stylesheet, which has no embedded file
 // backing it at all.
 func buildRegistry() map[string]entry {
@@ -59,7 +59,20 @@ func buildRegistry() map[string]entry {
 			body:        func() []byte { return []byte(render.ChromaCSS()) },
 		},
 	}
-	embedFile(reg, "yomihon.js", "js/yomihon.js", jsContentType)
+	for _, name := range []string{
+		"yomihon.js",
+		"preferences.js",
+		"drawer.js",
+		"sidebar.js",
+		"contents.js",
+		"status.js",
+		"search.js",
+		"shortcuts.js",
+		"diagrams.js",
+		"lesson.js",
+	} {
+		embedFile(reg, name, "js/"+name, jsContentType)
+	}
 	embedFile(reg, "app.css", "css/output.css", cssContentType)
 	embedTree(reg, "js/mermaid")
 	embedFonts(reg, "fonts")
@@ -153,10 +166,10 @@ func Register(mux *http.ServeMux) {
 func serve(w http.ResponseWriter, r *http.Request) {
 	e, ok := registry[r.PathValue("path")]
 	if !ok {
-		http.NotFound(w, r)
+		http.Error(w, "找不到指定的資產", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", e.contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(e.body())
+	_, _ = w.Write(e.body()) //nolint:errcheck // response is committed and Handler has no later recovery channel
 }

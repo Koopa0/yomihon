@@ -15,43 +15,27 @@
 package graph
 
 import (
-	"fmt"
 	"slices"
 	"strings"
-
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// NormalizeNFC returns s in Unicode Normalization Form C (NFC) — the single
-// NFC primitive the vault ecosystem shares. This vault's CJK content can
-// arrive NFC or NFD (macOS stores filenames NFD on disk, and note bodies may
-// be typed either way), so any consumer that compares or stores such text must
-// first fold that difference away. graph.normalize composes it with
-// trim+lowercase for wikilink keys; internal/search composes it with lowercase
-// for its case-insensitive match, and uses it alone (case-preserving) for the
-// canonical field values it stores and compares. Exporting this one step keeps
-// exactly one definition of "NFC" in the repo — a second copy would be free to
-// drift.
-func NormalizeNFC(s string) string {
-	return norm.NFC.String(s)
-}
-
 // normalize is the single normalization every resolution key passes
 // through, applied identically at index-build time and lookup time: trim,
-// Unicode NFC, lowercase. It calls NormalizeNFC for the NFC step so there is exactly one
-// NFC definition in the repo (see NormalizeNFC's doc). NFC matters because
+// Unicode NFC, lowercase. It calls vault.NormalizeNFC for the NFC step so there
+// is exactly one NFC definition in the repo. NFC matters because
 // this vault's CJK filenames can arrive NFC or NFD (macOS itself stores
 // filenames NFD on disk, independent of how a note's frontmatter aliases were
 // typed).
 func normalize(name string) string {
-	return strings.ToLower(NormalizeNFC(strings.TrimSpace(name)))
+	return strings.ToLower(vault.NormalizeNFC(strings.TrimSpace(name)))
 }
 
 // Kind distinguishes the three possible outcomes of Resolve.
 type Kind int
 
+// Resolution kinds distinguish absence, one exact answer, and ambiguity.
 const (
 	Unresolved Kind = iota
 	Unique
@@ -69,8 +53,7 @@ type Resolution struct {
 }
 
 // Index maps every normalized name a note or resource is resolvable by to
-// the vault-relative path(s) it names. Read-only once built (see Build
-// and BuildFromNotes).
+// the vault-relative path(s) it names. Read-only once built.
 type Index struct {
 	names map[string][]string
 }
@@ -83,47 +66,27 @@ type NoteInput struct {
 	Aliases []string
 }
 
-// Build walks root (via vault.List) and indexes every markdown note and
-// every other regular file. A note whose frontmatter fails to parse
-// contributes no alias keys but is still indexed by its path-derived keys
-// — one bad file must not narrow what the rest of the index can
-// resolve. Building the index walks and parses the entire vault; it
-// runs once at process startup, not per request, so this favors
-// simplicity over speed.
-func Build(root string) (*Index, error) {
-	paths, err := vault.List(root)
-	if err != nil {
-		return nil, fmt.Errorf("graph: build index: %w", err)
-	}
-
-	var notes []NoteInput
-	var resources []string
-	for _, p := range paths {
-		if !strings.HasSuffix(p, ".md") {
-			resources = append(resources, p)
+// New builds an Index from notes and non-Markdown resources that have already
+// been captured from the vault. Alias extraction stays in graph so callers do
+// not need to duplicate Obsidian's resolution vocabulary. The inputs are read
+// only during construction; the returned index owns its derived keys.
+func New(notes []*vault.Note, resources []string) *Index {
+	inputs := make([]NoteInput, 0, len(notes))
+	for _, note := range notes {
+		if note == nil {
 			continue
 		}
-		n := NoteInput{Path: p}
-		if note, readErr := vault.ReadNote(root, p); readErr == nil {
-			n.Aliases = aliases(note)
-		}
-		// readErr != nil: the file vault.List just found is now
-		// unreadable (race, permissions) or, more likely, its
-		// frontmatter is malformed — vault.ReadNote itself already
-		// tolerates bad YAML (returns a Note with FMDiagnostic set, no
-		// error); an actual error here means the read itself failed.
-		// Either way this note keeps its path-derived keys, it just
-		// loses its aliases.
-		notes = append(notes, n)
+		inputs = append(inputs, NoteInput{
+			Path:    note.RelPath,
+			Aliases: aliases(note),
+		})
 	}
-	return BuildFromNotes(notes, resources), nil
+	return BuildFromNotes(inputs, resources)
 }
 
 // BuildFromNotes builds an Index directly from already-loaded note and
-// resource data, with no disk access — the pure indexing logic Build (the
-// disk-walking entry point) delegates to. Keeping the indexing logic
-// disk-agnostic lets tests build an index from in-memory data without a
-// filesystem.
+// resource data, with no disk access. It accepts the already-extracted alias
+// projection used by corpus judges that do not retain vault.Note values.
 func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 	idx := &Index{names: make(map[string][]string)}
 	for _, n := range notes {
@@ -157,7 +120,7 @@ func (idx *Index) Resolve(name string) Resolution {
 	case 1:
 		return Resolution{Kind: Unique, Path: members[0]}
 	default:
-		return Resolution{Kind: Ambiguous, Candidates: members}
+		return Resolution{Kind: Ambiguous, Candidates: slices.Clone(members)}
 	}
 }
 

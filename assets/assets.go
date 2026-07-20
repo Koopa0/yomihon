@@ -13,8 +13,8 @@ import "embed"
 
 // Files holds:
 //
-//   - js/yomihon.js — yomihon's own hand-written client script (see that
-//     file's doc comment).
+//   - js/*.js — yomihon's hand-written native client modules. yomihon.js is
+//     the sole entry; the other nine files each own one product concept.
 //
 //   - js/mermaid/ — the vendored mermaid@11.15.0 ES-module runtime.
 //     mermaid's published ESM build is itself code-split: dist/mermaid.esm.min.mjs
@@ -32,7 +32,8 @@ import "embed"
 //     /static/ route as they do in mermaid's own dist/ layout.
 //     Source: https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/ (fetched
 //     2026-07-02; update by re-fetching a newer @<version> from the same
-//     path and re-running the same file list).
+//     path, then regenerate js/mermaid/SHA256SUMS from LICENSE and the
+//     complete .mjs inventory).
 //
 //   - css/output.css — the Tailwind v4 stylesheet, built by `make css`
 //     from css/input.css (@import tailwindcss + the design tokens + the
@@ -43,5 +44,5 @@ import "embed"
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine (D-brief: zero external requests).
 //
-//go:embed js/yomihon.js js/mermaid css/output.css fonts
+//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/status.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts
 var Files embed.FS

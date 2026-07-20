@@ -60,7 +60,18 @@ A structural layer, not decoration (see layer 2). Fault-tolerance requirement: b
 
 ### Raw HTML in the body
 
-Japanese lessons hand-write whole passages of `<ruby>…<rt>…</rt></ruby>` and `<br>`, which **must pass through verbatim, unsanitized** (goldmark `WithUnsafe`). This holds only under a trusted corpus plus local-only — one of the reasons wall 2 exists. Do not set automatic hard line breaks; let explicit `<br>` take effect.
+Japanese lessons hand-write whole passages of `<ruby>…<rt>…</rt></ruby>` and
+`<br>`. The reading projection preserves that inert dialect: `ruby`, `rt`,
+`rp`, `br`, plus a conservatively validated quoted `lang` attribute on the
+first three elements. The exact inert `<!-- read-aloud: ja -->` marker is also
+accepted and consumed into the lesson's TTS projection. It does **not** grant
+arbitrary authored HTML browser
+authority. Scripts, event handlers, refresh/navigation elements, styles,
+frames, forms, media, and automatically loaded remote subresources render as
+visible text. Remote Markdown images become explicit links; local and safe
+self-contained raster images remain images. Source bytes in the vault are
+never rewritten. Do not set automatic hard line breaks; let explicit `<br>`
+take effect. D59 owns this boundary.
 
 Example: `Writing/lessons/japanese/L20 普通形と常体.md:141` (katakana gets ruby too); particles are annotated with their actual reading — `<ruby>は<rt>わ</rt></ruby>`, `<ruby>を<rt>お</rt></ruby>`.
 
@@ -76,7 +87,7 @@ Line-oriented preprocessing (the callout / wikilink / table passes) doesn't unde
 | `.canvas` | Exactly 1: `Diagrams/canvas/DDIA-Ch1-Overview.canvas` (JSON) | Same as above — link back or thumbnail |
 | `.d2` | 2 under `Diagrams/d2/` | **Do not render** — koopa0.dev already decided the 7.8 MB WASM isn't worth it; don't overturn that |
 | mermaid code fence | Used in Writing/ | Render (client-side; already aligned with koopa0.dev) |
-| `System/reports/daily-briefing/*.html` | hermes daily briefings | Serve as-is (trusted corpus) |
+| `System/reports/daily-briefing/*.html` | hermes daily briefings | Serve bytes unchanged as static HTML/CSS/SVG/data media in a bare opaque-origin sandbox; authored code and automatic egress never run (D30/D59) |
 
 ---
 
@@ -103,6 +114,9 @@ The main flow: `Inbox → Sources → Concepts → Maps / Synthesis → Writing`
 - `type` has 20 values, `domain` has 13 (golang, rust, japanese, meta, …) — **enums are always governed by the toml; never copy them into code** (wall 3).
 - Source-type notes additionally have five provenance fields (`source_kind / source_provider / source_work / source_locator` plus `based_on`); a concept must have either `based_on` or `source_locator` (kura `schema.provenance`).
 - Lesson-specific fields: `slug, title_en, version_sensitive, objectives_count, assessment_item_count, corrections, evolution_predecessor, evolution_successors`.
+- `lang` is an optional universal BCP 47 tag for authored note content when
+  listed in `fields.known`. It is the only article-language authority; absence
+  or invalidity means `und`, never a guess from domain, path, or prose.
 - The `domain` value must equal the name of the folder the note lives in (kura `schema.domain_folder`).
 - The schema is **closed**: any key outside `fields.known` is an error.
 
@@ -142,11 +156,32 @@ The toml's `[fields.status_group]` maps types into three groups:
 - **note group**: captured → cleaned (sources); seedling → growing → evergreen (concepts); draft → ready (writing)
 - **lesson group**: imported → draft → ready
 - **system group**: active / archived
-- `archived` can be entered from any state (`from = ["*"]`).
+- `archived` can be entered from the initial state or any other declared state
+  (`from = ["*"]`); a wildcard never authorizes unknown status bytes or a
+  self-transition (D52).
 
 The toml's `[[lifecycle]]` table declares, for each status, its `from` (legal prior states) and `owner` — **the owner of `ready` is `koopa`; any agent writing ready is a violation**. yomihon is a single-user local app whose operator *is* Koopa, so a ready button in the UI is legal; but illegal from→to transitions must be blocked.
 
+`published` is selection for membership in the public collection: desired
+state consumed by a future publisher, not proof that an external deployment
+succeeded or remains live (D51). The lifecycle table alone offers or refuses
+that transition; Go code must not special-case the status word. Publication
+receipts, retries, and deployed revisions belong to the publisher.
+
 Key fact: the toml comments admit that a file-scan tool (kura) cannot see the *previous* state, so it validates only enum + owner, and from→to enforcement is deferred. **yomihon is an interactive writer that reads the current state before writing, so it can naturally enforce the full from→to + owner check** — this is yomihon's first substantive contribution to the contract, not a repeat of kura's work.
+
+### Supersession is configured, not named in Go
+
+The optional `[supersession]` section names the lesson predecessor/successor
+fields, the general-link field used by other note types, and the common archive
+status. When present, that archive state must be structurally reachable from
+every other declared state for every note type. Lifecycle owners remain a
+separate trust boundary: an empty owner list may intentionally pause the write
+surface without invalidating the replacement vocabulary (D53).
+
+`aligned_with` points reviewers to the human doctrine; yomihon does not pretend
+to prove prose alignment. `generated_at_must_match` belongs to the vault's
+generated-fileclass check, not to yomihon's runtime (D53).
 
 ### slug
 
@@ -183,7 +218,7 @@ Revised lessons carry a **corrections ledger**: a frontmatter `corrections:` lis
 ### The vault-side projection and authoring contracts
 
 `System/agent-guides/Yomihon-Obsidian-Projection-Contract.md` is the human
-semantic adapter between this consumer and the vault. It records the distinctions
+semantic bridge between this consumer and the vault. It records the distinctions
 that must survive projection — artifact identity versus placement, provenance
 versus contextual links, lifecycle versus priority, and Base views versus canon.
 It does not outrank the toml and must not become a second machine schema.
@@ -203,9 +238,18 @@ serve the output according to the existing raw/sandbox contract, but it does not
 edit generated output, parse it into a competing knowledge model, or treat the
 presence of a dashboard as evidence that its claims are correct.
 
-### kura is the corpus judge (15 rules)
+### yomihon is the corpus judge (17 rules)
 
-7 link/graph rules (`link.title_not_alias`, `link.broken`, `link.broken.path`, `collision.alias`, `provenance.unresolved`, `map.disk_mismatch`, `map.disk_unlisted`) plus 8 schema.* rules (enum / required / unknown_key / slug / domain_folder / legacy_tag / provenance / frontmatter, all at error level). Gate semantics: `--deny error`; info never gates.
+The inherited baseline is 7 link/graph rules (`link.title_not_alias`,
+`link.broken`, `link.broken.path`, `collision.alias`,
+`provenance.unresolved`, `map.disk_mismatch`, `map.disk_unlisted`) plus 8
+schema.* rules (enum / required / unknown_key / slug / domain_folder /
+legacy_tag / provenance / frontmatter, all at error level). D53 adds
+`supersession.predecessor_not_archived` and
+`supersession.archived_navigation_target`, both warnings, for 17 current
+rules. The four pipelines use `--deny error`; callers may explicitly gate a
+warning by `--deny warn` or its rule id, and `--deny info` is the only severity
+threshold that gates informational findings.
 
 When yomihon sees something broken: **render it anyway and flag a diagnostic; don't fix, don't block, don't overstep** (wall 4).
 
@@ -219,11 +263,15 @@ When yomihon sees something broken: **render it anyway and flag a diagnostic; do
 - `kura exists` = the dedup oracle before creating a concept (exit 0/1 is the answer); `kura coverage` = the orphan/routing watchdog (`Maps/研究 Brief 索引.md:15` depends on it explicitly)
 - `--baseline` and `--all`: **zero real consumers** (verified absent) — carried over for byte-compat, not a hot path
 
-The JSONL contract (the retirement gate's golden comparison target, field shape): `rule_id, severity, path, line?, field?, message, evidence, suggested_action, source_rule, target?, resolved_to?, collision_members?, fingerprint`. Sorted `path → line → rule_id`; the fingerprint = FNV-1a over (rule_id, path, target), each segment followed by a `0x1f` separator byte, 16-digit lowercase hex; exit codes 0 / 1 / 2. Byte-exact targets: `kura/tests/snapshots/conformance__jsonl_output.snap` and `conformance__coverage_report.snap`.
+The JSONL contract (the retirement gate's golden comparison target, field shape): `rule_id, severity, path, line?, field?, message, evidence, suggested_action, source_rule, target?, resolved_to?, collision_members?, fingerprint`. Sorted `path → line → rule_id`; the fingerprint = FNV-1a over (rule_id, path, target), each segment followed by a `0x1f` separator byte, 16-digit lowercase hex; exit codes 0 / 1 / 2. The inherited JSONL snapshot defines byte compatibility; the historical pretty coverage snapshot defines value shape only, while yomihon's coverage wire is compact JSON plus one newline.
 
 ### Scan boundary ≠ render boundary
 
-By default kura **does not scan** `System/`, `Diagrams/`, `Views/` (only `--all` does). yomihon's render surface is larger than kura's scan surface (it must read reports and briefings); but when aligning a `yomihon check`, it must replicate kura's scan boundary, or the JSONL won't line up.
+The current judge strictly scans the complete non-hidden vault. Default
+`check` output drops only findings whose touched paths are all under `System/`;
+`--all` disables that output filter. `Diagrams/` and `Views/` remain ordinary
+scan inputs and linkable resources. Contract-declared privacy exclusions apply
+to output and influence in every scope.
 
 ### git is the audit layer
 
@@ -235,9 +283,16 @@ hermes goes through a worktree branch → the three QA-Gate layers (kura → Cod
 
 ### The privacy line (a dedicated doc is drafted: `System/agent-guides/Privacy-Boundary.md`, pending Koopa's final review)
 
-- The line is a **folder**: the top-level `Diary/` never egresses (a folder is fail-closed, a frontmatter flag is fail-open, so use the folder).
-- For yomihon: local-only rendering for Koopa himself is **legal**; every egress surface (export, check findings, snapshots, feeding an agent) unconditionally excludes `Diary/` — not even `--all` includes it, because findings written into a report would be read by agents.
-- The mechanical source: the toml will add `[privacy] never_egress_dirs = ["Diary"]` — kura, yomihon, and hermes all read the same one (wall 3); no hard-coding.
+- The line is a **contract-declared directory boundary**: paths under
+  `[privacy].never_egress_dirs` never egress (a directory is fail-closed; a
+  per-note frontmatter flag would be fail-open).
+- For yomihon: local-only rendering for Koopa himself is **legal**; every
+  egress surface (export, judge findings/coverage/exists, semantic snapshots,
+  feeding an agent) unconditionally excludes those paths — not even `--all`
+  includes them, because findings written into a report are read by agents.
+- The mechanical source has landed in the toml and is decoded only by
+  `internal/schema` (wall 3); consumers receive a capability and never copy
+  the current directory value into Go.
 - The `type: diary` draft: lives in `Diary/`, domain-exempt, does not require a status. The boundary test is a single sentence: **if you want an agent to look at it, it isn't a diary** (a Japanese diary-writing exercise is not a diary).
 
 ---

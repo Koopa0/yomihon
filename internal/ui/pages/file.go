@@ -11,6 +11,7 @@ import (
 // it honestly — a page that says what it is and where its bytes are.
 type FileKind string
 
+// File presentation kinds select the least surprising native reading surface.
 const (
 	FileSource FileKind = "source"
 	FileImage  FileKind = "image"
@@ -48,10 +49,10 @@ var byteUnits = []string{"KB", "MB", "GB"}
 // its own is a rounding, not a fact.
 func humanSize(n int64) string {
 	if n == 1 {
-		return "1 byte"
+		return "1 位元組"
 	}
 	if n < 1024 {
-		return withThousands(n) + " bytes"
+		return withThousands(n) + " 位元組"
 	}
 	value := float64(n)
 	unit := byteUnits[0]
@@ -62,7 +63,22 @@ func humanSize(n int64) string {
 			break
 		}
 	}
-	return fmt.Sprintf("%.1f %s (%s bytes)", value, unit, withThousands(n))
+	return fmt.Sprintf("%.1f %s（%s 位元組）", value, unit, withThousands(n))
+}
+
+func fileKindLabel(kind FileKind) string {
+	switch kind {
+	case FileSource:
+		return "原始碼"
+	case FileImage:
+		return "圖片"
+	case FilePDF:
+		return "PDF"
+	case FileInfo, "":
+		return "檔案資訊"
+	default:
+		panic("pages: unknown FileKind: " + string(kind))
+	}
 }
 
 // withThousands groups a byte count in threes, so a seven-digit figure can be

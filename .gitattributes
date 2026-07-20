@@ -4,3 +4,5 @@
 assets/js/mermaid/** linguist-vendored
 assets/css/output.css linguist-generated
 *_templ.go linguist-generated
+internal/search/semantic/catalog/** linguist-generated
+internal/search/evalset/recording/testdata/*.json -diff linguist-generated

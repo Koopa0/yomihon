@@ -1,8 +1,11 @@
+//go:build realvault
+
 package render_test
 
 import (
+	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -10,71 +13,119 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// TestRealVaultRendersWithoutFaults is the mechanical definition of the
-// acceptance criterion "every real .md file opens: zero 500s, zero blank
-// pages".
-// It builds a real graph.Index and render.Renderer against
-// ~/obsidian (or YOMIHON_ROOT) and renders every single .md file under
-// it, asserting for each: no panic, no error, non-empty HTML. This is a
-// permanent regression guard, following the same t.Skipf-when-vault-
-// absent pattern as internal/schema's TestLoadRealContract — it runs (and
-// is skipped loudly, not silently vacuous) whenever the real vault is
-// present.
+// TestRealVaultRendersWithoutFaults checks that every markdown note in an
+// explicitly selected private vault can be read and rendered without a panic
+// or blank page. Paths and note contents never enter the test output.
 func TestRealVaultRendersWithoutFaults(t *testing.T) {
 	t.Parallel()
+	testRealVaultRendersWithoutFaults(t)
+}
 
-	root := os.Getenv("YOMIHON_ROOT")
-	if root == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Skipf("no home dir: %v", err)
+func testRealVaultRendersWithoutFaults(t *testing.T) {
+	t.Helper()
+	defer redactRealVaultPanic(t)
+
+	root := requireRealVaultRoot(t)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal("open configured real vault failed")
+	}
+	t.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			t.Error("close configured real vault failed")
 		}
-		root = filepath.Join(home, "obsidian")
-	}
-	if _, err := os.Stat(root); err != nil { // #nosec G703 -- probing the operator's own vault to decide whether to skip
-		t.Skipf("real vault not available: %v", err)
-	}
+	})
 
-	idx, err := graph.Build(root)
+	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
-		t.Fatalf("graph.Build(%q) = %v", root, err)
-	}
-	r := render.New(root, idx)
-
-	paths, err := vault.List(root)
-	if err != nil {
-		t.Fatalf("vault.List(%q) = %v", root, err)
+		t.Fatal("scan configured real vault failed")
 	}
 
-	var mdCount int
-	for _, p := range paths {
-		if filepath.Ext(p) != ".md" {
+	entries := scan.Files()
+	notes := make([]*vault.Note, 0, len(entries))
+	resources := make([]string, 0, len(entries))
+	bodies := make(transclusions)
+	for _, entry := range entries {
+		if path.Ext(entry.Path()) != ".md" {
+			resources = append(resources, entry.Path())
 			continue
 		}
+		data, err := reader.ReadFile(t.Context(), entry)
+		if err != nil {
+			t.Fatal("capture configured real-vault note failed")
+		}
+		note := vault.Parse(entry.Path(), data)
+		notes = append(notes, note)
+		bodies[entry.Path()] = note.Body
+	}
+	r := render.New(graph.New(notes, resources), bodies)
+
+	mdCount := 0
+	for _, entry := range entries {
+		if path.Ext(entry.Path()) != ".md" {
+			continue
+		}
+		ordinal := mdCount
 		mdCount++
-		t.Run(p, func(t *testing.T) {
+		t.Run(fmt.Sprintf("note-%d", ordinal), func(t *testing.T) {
 			t.Parallel()
 
-			n, err := vault.ReadNote(root, p)
-			if err != nil {
-				t.Fatalf("ReadNote(%q) = %v", p, err)
-			}
-
-			result := r.HTML(n.Body)
-			if result.HTML == "" {
-				t.Errorf("HTML(%q) produced a blank page", p)
+			switch renderRealVaultNote(bodies[entry.Path()], r) {
+			case renderOK:
+			case renderPanic:
+				t.Error("real-vault note render panicked")
+			case renderBlank:
+				t.Error("real-vault note rendered a blank page")
+			default:
+				t.Error("real-vault note returned an unknown render result")
 			}
 		})
 	}
 
-	// The real vault held 419 .md files when this guard was written,
-	// and grows — this is the "did the sweep actually run against the
-	// real vault, not a near-empty stand-in" guard, not a hardcoded
-	// vault census.
-	const minExpectedNotes = 400
-	if mdCount < minExpectedNotes {
-		t.Errorf("swept %d .md files, want at least %d — is %s the real vault?", mdCount, minExpectedNotes, root)
-	} else {
-		t.Logf("swept %d .md files under %s with 0 faults", mdCount, root)
+	if mdCount == 0 {
+		t.Error("real-vault sweep found zero markdown notes")
 	}
+	t.Logf("real-vault aggregate: markdown_notes=%d", mdCount)
+}
+
+func redactRealVaultPanic(t *testing.T) {
+	t.Helper()
+
+	if recover() != nil {
+		t.Fatal("real-vault render verification panicked")
+	}
+}
+
+type renderResult uint8
+
+const (
+	renderOK renderResult = iota
+	renderPanic
+	renderBlank
+)
+
+func renderRealVaultNote(body string, r *render.Pipeline) (result renderResult) {
+	defer func() {
+		if recover() != nil {
+			result = renderPanic
+		}
+	}()
+
+	if r.HTML(body).HTML == "" {
+		return renderBlank
+	}
+	return renderOK
+}
+
+func requireRealVaultRoot(t *testing.T) string {
+	t.Helper()
+
+	root := os.Getenv("YOMIHON_ROOT")
+	if root == "" {
+		t.Skip("YOMIHON_ROOT is required for real-vault verification")
+	}
+	if _, err := os.Stat(root); err != nil { // #nosec G703 -- an explicit test-only opt-in selects the private root
+		t.Fatal("configured real vault is unavailable")
+	}
+	return root
 }

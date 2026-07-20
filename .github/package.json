@@ -1,0 +1,14 @@
+{
+  "name": "yomihon-development-tools",
+  "private": true,
+  "description": "Pinned development-only tools; yomihon has no Node.js runtime dependency.",
+  "engines": {
+    "node": ">=22.23.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.2",
+    "playwright-core": "1.61.1",
+    "stylelint": "17.14.0",
+    "stylelint-config-recommended": "18.0.0"
+  }
+}

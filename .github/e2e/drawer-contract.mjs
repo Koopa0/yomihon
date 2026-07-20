@@ -21,12 +21,14 @@ const RAIL = '#nav-rail';
 const TOGGLE = '[data-nav-toggle]';
 const SCRIM = '[data-nav-close]';
 const FILTER = '[data-nav-filter]';
+const SKIP_LINK = '.y-skiplink';
 
 const SITES = [
   'server-nav-state-free',
   'no-js-sidebar-navigation',
   'no-js-hamburger-hidden',
   'closed-rail-inert',
+  'focused-skip-link-clears-toggle',
   'open-focus-entry',
   'open-tab-contained',
   'scrim-focus-return',
@@ -78,10 +80,10 @@ const rewriteDocument = (needle, replacement) => async (page) => {
   return () => matches === 1 ? '' : `document needle matched ${matches} times, want exactly 1`;
 };
 
-const rewriteRuntime = (needle, replacement) => async (page) => {
+const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
   let matches = 0;
   let requests = 0;
-  await page.route('**/yomihon.js', async (route) => {
+  await page.route(`**/${moduleName}`, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -91,8 +93,8 @@ const rewriteRuntime = (needle, replacement) => async (page) => {
     return route.fulfill({ response, body });
   });
   return () => {
-    if (requests !== 1) return `runtime was requested ${requests} times, want exactly 1`;
-    if (matches !== 1) return `runtime needle matched ${matches} times, want exactly 1`;
+    if (requests !== 1) return `${moduleName} was requested ${requests} times, want exactly 1`;
+    if (matches !== 1) return `${moduleName} needle matched ${matches} times, want exactly 1`;
     return '';
   };
 };
@@ -112,31 +114,47 @@ const MUTATIONS = {
   },
   'suppress-closed-inert': {
     target: 'closed-rail-inert',
-    apply: rewriteRuntime('drawerRail.inert = !open;', 'drawerRail.inert = false;'),
+    apply: rewriteRuntime('drawer.js', '    rail.inert = !open;', '    rail.inert = false;'),
+  },
+  'overlap-toggle-with-focused-skip-link': {
+    target: 'focused-skip-link-clears-toggle',
+    apply: injectDocumentStyle('@media (max-width:900px){.y-skiplink{top:8px!important}}'),
   },
   'suppress-open-focus': {
     target: 'open-focus-entry',
-    apply: rewriteRuntime('focusDrawer();', 'void 0;'),
+    apply: rewriteRuntime('drawer.js', '    focusFirst();', '    void 0;'),
   },
   'suppress-tab-containment': {
     target: 'open-tab-contained',
-    apply: rewriteRuntime("if (!drawerOpen() || e.key !== 'Tab') return;", 'if (true) return;'),
+    apply: rewriteRuntime('drawer.js', "    if (!isOpen() || event.key !== 'Tab') return;", '    if (true) return;'),
   },
   'suppress-scrim-focus-return': {
     target: 'scrim-focus-return',
-    apply: rewriteRuntime("document.querySelector('[data-nav-close]')?.addEventListener('click', () => {\n      closeDrawer(true);\n    });", "document.querySelector('[data-nav-close]')?.addEventListener('click', () => {\n      closeDrawer(false);\n    });"),
+    apply: rewriteRuntime(
+      'drawer.js',
+      "  document.querySelector('[data-nav-close]')?.addEventListener('click', closeAndRestoreFocus);",
+      "  document.querySelector('[data-nav-close]')?.addEventListener('click', () => setOpen(false));",
+    ),
   },
   'suppress-filter-escape-layer': {
     target: 'filter-escape-layering',
-    apply: rewriteRuntime('        e.stopPropagation();', '        void 0;'),
+    apply: rewriteRuntime('sidebar.js', '      event.stopPropagation();', '      void 0;'),
   },
   'suppress-escape-focus-return': {
     target: 'escape-focus-return',
-    apply: rewriteRuntime("        if (drawerOpen()) closeDrawer(true);", "        if (drawerOpen()) closeDrawer(false);"),
+    apply: rewriteRuntime(
+      'shortcuts.js',
+      '      if (drawer.isOpen()) drawer.closeAndRestoreFocus();',
+      "      if (drawer.isOpen()) document.documentElement.dataset.nav = 'closed';",
+    ),
   },
   'suppress-toggle-focus-return': {
     target: 'toggle-focus-return',
-    apply: rewriteRuntime("    drawerToggle.addEventListener('click', () => {\n      if (drawerOpen()) { closeDrawer(true); } else { openDrawer(); }\n    });", "    drawerToggle.addEventListener('click', () => {\n      if (drawerOpen()) { closeDrawer(false); } else { openDrawer(); }\n    });"),
+    apply: rewriteRuntime(
+      'drawer.js',
+      '    if (isOpen()) closeAndRestoreFocus();',
+      '    if (isOpen()) setOpen(false);',
+    ),
   },
 };
 
@@ -263,6 +281,16 @@ try {
     for (let i = 0; i < 20; i += 1) {
       await page.keyboard.press('Tab');
       if (await activeInsideRail(page)) fail('closed-rail-inert', `Tab ${i + 1} entered the closed rail`);
+    }
+
+    await page.locator(SKIP_LINK).focus();
+    const toggleHit = await page.$eval(TOGGLE, (toggle) => {
+      const rect = toggle.getBoundingClientRect();
+      const atPoint = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return atPoint === toggle || toggle.contains(atPoint);
+    });
+    if (!toggleHit) {
+      fail('focused-skip-link-clears-toggle', 'the focused skip link covers the navigation trigger');
     }
 
     await openDrawer(page);

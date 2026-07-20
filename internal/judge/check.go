@@ -1,63 +1,65 @@
 package judge
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Check scans the vault rooted at root for corpus-level findings — broken and
 // title-only links, alias collisions, unresolved provenance, syllabus-vs-disk
 // mismatches, dead file references, and frontmatter schema violations — and
 // returns them in the deterministic wire order. The graph is always built from
-// the whole vault; findings touching the private daily journal are dropped in
-// every scope, and the default scope additionally drops findings that touch
-// only System/ files, which cite reference material rather than carry live
-// links. A missing schema contract skips the frontmatter checks; a malformed
-// one is an error.
+// the whole vault; findings touching a contract-declared private path are
+// dropped in every scope, and the default scope additionally drops findings
+// that touch only System/ files, which cite reference material rather than
+// carry live links. A missing, malformed, or privacy-incomplete schema contract
+// is an error because agent-facing output has no authority without it.
 func Check(root string) ([]Finding, error) {
-	return check(root, nil, false)
+	return runCheckAction(root, nil, false)
 }
 
 // check is the whole-engine scan behind the check command. The graph is always
 // built from the entire vault; paths and all only decide which findings are
-// kept. Findings that touch the private daily journal are always dropped,
-// whatever all is. Without all, findings that touch only System/ are dropped,
-// since those files cite reference material rather than carry live links. When
-// paths are given, a finding is kept only if one of the paths it touches lies at
-// or below one of them. The findings are returned in the deterministic wire
-// order.
+// kept. Findings that touch a contract-declared private path are always
+// dropped, whatever all is. Without all, findings that touch only System/ are
+// dropped, since those files cite reference material rather than carry live
+// links. When paths are given, a finding is kept only if one of the paths it
+// touches lies at or below one of them. The findings are returned in the
+// deterministic wire order.
 func check(root string, paths []string, all bool) ([]Finding, error) {
-	notes, resources, err := collectVault(root)
+	return runCheckAction(root, paths, all)
+}
+
+func runCheckAction(root string, paths []string, all bool) ([]Finding, error) {
+	a, err := openAction(root, actionHooks{})
 	if err != nil {
 		return nil, err
 	}
-	idx := buildIndex(notes, resources)
-
-	findings := runGraphRules(notes, idx)
-	findings = append(findings, checkDiskRefs(notes, root)...)
-	switch s, serr := schema.Load(root); {
-	case serr == nil:
-		schemaFindings, cerr := checkSchema(notes, s)
-		if cerr != nil {
-			return nil, cerr
-		}
-		findings = append(findings, schemaFindings...)
-	case errors.Is(serr, fs.ErrNotExist):
-		// A vault with no contract skips the frontmatter checks.
-	default:
-		return nil, fmt.Errorf("load contract: %w", serr)
+	findings, err := checkAction(a, paths, all)
+	if err != nil {
+		return nil, a.abort(err)
 	}
+	if err := a.finish(); err != nil {
+		return nil, err
+	}
+	return findings, nil
+}
 
-	findings = dropDiaryScoped(findings)
+func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
+	idx := buildIndex(a.notes, a.resources)
+
+	findings := runGraphRules(a.notes, idx, a.authority)
+	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority)...)
+	schemaFindings, err := checkSchema(a.notes, a.authority.contract)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, schemaFindings...)
+
+	findings = dropEgressDenied(findings, a.authority)
 	if !all {
 		findings = dropSystemScoped(findings)
 	}
@@ -103,37 +105,30 @@ func touchesOutsideSystem(f *Finding) bool {
 	})
 }
 
-// dropDiaryScoped removes every finding whose resolution touches the private
-// daily journal. The journal is still scanned so its links resolve for other
-// notes, but its path never surfaces in a finding a reader would see, and the
-// drop holds even when the full, unfiltered set is requested.
-func dropDiaryScoped(findings []Finding) []Finding {
+// dropEgressDenied removes every finding whose resolution touches a path the
+// contract forbids from agent-facing output. Private notes are still scanned so
+// a public link resolves consistently, but their paths never surface in a
+// finding and the drop holds even for the full, unfiltered set.
+func dropEgressDenied(findings []Finding, authority scanAuthority) []Finding {
 	out := findings[:0]
 	for i := range findings {
-		if !touchesDiary(&findings[i]) {
+		if !touchesEgressDenied(&findings[i], authority) {
 			out = append(out, findings[i])
 		}
 	}
 	return out
 }
 
-// underDiary reports whether a vault-relative path lies within the private
-// daily journal.
-func underDiary(p string) bool {
-	return strings.HasPrefix(p, "Diary/")
-}
-
-// touchesDiary reports whether a finding's resolution touches the private daily
-// journal: the note it cites, a collision member, or the note a link resolved
-// to. A public note whose link resolves into the journal must not surface the
-// journal's path, so the resolved target counts as well. The link's own target
-// text is the citing author's words and is deliberately not counted — a public
-// note whose link merely reads like a journal name is not a journal reference.
-func touchesDiary(f *Finding) bool {
-	if anyTouchedPath(f, underDiary) {
+// touchesEgressDenied reports whether a finding's resolution touches a
+// contract-private path: the note it cites, a collision member, or the note a
+// link resolved to. The link's own target text is the citing author's words
+// and is deliberately not counted.
+func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
+	denied := func(relPath string) bool { return !authority.egressAllowed(relPath) }
+	if anyTouchedPath(f, denied) {
 		return true
 	}
-	return f.ResolvedTo != nil && underDiary(*f.ResolvedTo)
+	return f.ResolvedTo != nil && denied(*f.ResolvedTo)
 }
 
 // filterByPaths keeps only findings that touch one of the given path prefixes.
@@ -177,27 +172,4 @@ func underAnyPrefix(p string, prefixes []string) bool {
 // its citing path or any collision member.
 func anyTouchedPath(f *Finding, pred func(string) bool) bool {
 	return pred(f.Path) || slices.ContainsFunc(f.CollisionMembers, pred)
-}
-
-// collectVault walks the vault once, parsing every markdown file into a note
-// and keeping every other file as a linkable resource. It reuses the shared
-// walk, so the scan boundary is the resolver's: dot-prefixed directories are
-// skipped, a .gitignore is never consulted, and every path is NFC-normalized.
-func collectVault(root string) (notes []note, resources []string, err error) {
-	paths, err := vault.List(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	for _, rel := range paths {
-		if filepath.Ext(rel) != ".md" {
-			resources = append(resources, rel)
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- rel is a vault-relative path from the shared walk over the operator's own local vault, not untrusted input
-		if err != nil {
-			return nil, nil, fmt.Errorf("read note %s: %w", rel, err)
-		}
-		notes = append(notes, parseNote(rel, data))
-	}
-	return notes, resources, nil
 }

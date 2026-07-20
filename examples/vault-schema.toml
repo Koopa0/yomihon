@@ -1,0 +1,63 @@
+# Starting point for a new vault contract.
+#
+# Copy this file to System/schemas/vault-schema.toml inside your vault, then
+# deliberately adapt every directory, enum, privacy boundary, and transition
+# to that vault. Yomihon reads this contract but never creates or edits it.
+
+schema_version = "1"
+
+[enums]
+type = ["note", "lesson", "study-path", "moc"]
+
+[enums.status]
+note = ["draft", "ready", "archived"]
+lesson = ["draft", "ready", "archived"]
+
+[fields]
+required = ["title", "type", "status"]
+known = ["title", "aliases", "type", "status", "created", "updated"]
+lesson_only = ["slug"]
+
+[fields.status_group]
+lesson = ["lesson"]
+
+[rules]
+slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+
+[scan]
+knowledge_dirs = ["Notes", "Lessons"]
+skip_basenames = ["README.md"]
+no_frontmatter_is_legal = true
+
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
+[privacy]
+# Replace this example with every top-level directory whose content must never
+# influence or enter agent output or embedding-provider egress.
+never_egress_dirs = ["Private"]
+
+# The shipped status action uses the fixed actor ID "koopa". Keep every
+# lifecycle owner below exactly "koopa"; this is product policy, not a user
+# identity setting. Other actor models require a separate product decision.
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["*"]
+from = ["draft"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["koopa"]

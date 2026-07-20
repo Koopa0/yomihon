@@ -1,8 +1,17 @@
 version: "2"
 
+run:
+  modules-download-mode: readonly
+
+issues:
+  # A gate must report the whole failure surface. The CLI defaults (50 per
+  # linter, 3 repeated messages) are useful interactively but can hide debt.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
 # ============================================================
-# Evaluated and REJECTED linters — do not re-enable without a new
-# observed failure case (2026-06 audit; see project memory):
+# Evaluated and REJECTED linters — do not re-enable without a concrete
+# observed failure class that outweighs the listed false-positive cost:
 #   testpackage   — white-box same-package unit tests are doctrine
 #                   (handlers are unexported closures; rules/testing.md)
 #   godot         — comment-period style nagging, no correctness value
@@ -18,15 +27,25 @@ version: "2"
 #   revive        — overlaps staticcheck/gocritic; config burden > value
 #   ireturn       — superseded by iface (identical/unused/opaque)
 #   gomodguard    — superseded by depguard
+#   wrapcheck     — requires wrapping transparent interface/context errors,
+#                   obscuring identity without adding recovery information
+#   canonicalheader — net/http canonicalizes field names; enforcing source
+#                   spelling adds no wire or API safety
+#   musttag       — flags local decode-only fixture structs where field names
+#                   deliberately mirror a trusted tool's stable JSON
+#   mirror        — allocation micro-style, not a correctness gate
 # ============================================================
 
 linters:
+  default: none
   enable:
     # Error handling
     - errcheck          # Detect unchecked errors
     - errorlint         # Error wrapping and comparison
     - errname           # Sentinel error naming
     - nilnesserr        # nil-check on the wrong error variable
+    - nilerr            # returning nil from an error branch needs an explicit waiver
+    - nilnil            # invalid value plus nil error is an ambiguous contract
 
     # Static analysis
     - staticcheck       # Comprehensive static analysis (SA*, S*, ST*, QF*)
@@ -35,6 +54,8 @@ linters:
 
     # Security
     - gosec             # Security vulnerability scan
+    - bidichk           # Reject bidirectional Unicode control attacks in source
+    - asciicheck        # Package-owned identifiers stay in the Go ecosystem's ASCII naming convention
 
     # Code quality
     - ineffassign       # Ineffectual assignments
@@ -42,6 +63,15 @@ linters:
     - unconvert         # Unnecessary type conversions
     - unparam           # Unused function parameters
     - wastedassign      # Wasted assignments
+    - makezero          # Catch append-to-pre-sized-slice mistakes
+    - durationcheck     # Catch nonsensical time.Duration arithmetic
+    - errchkjson        # Reject unsupported JSON values and unchecked encodes
+    - gocheckcompilerdirectives # Validate //go: directives before the compiler silently ignores them
+    - gomoddirectives   # Module replace/retract/exclude hygiene
+    - nosprintfhostport # net.JoinHostPort correctness, including IPv6
+    - predeclared       # Do not shadow Go's predeclared identifiers
+    - reassign          # Package-level sentinels and standard variables are not mutable aliases
+    - goprintffuncname  # Printf-like APIs advertise their formatting contract in the name
 
     # Style
     - misspell          # Spelling errors
@@ -53,6 +83,7 @@ linters:
     - intrange          # Go 1.22+ integer range
     - usestdlibvars     # http.MethodGet etc. over string literals
     - perfsprint        # fmt.Sprintf → faster stdlib equivalents
+    - modernize         # Go 1.26 stdlib and language forms
 
     # Forbidden imports / calls — mechanizes the rules/go-version.md
     # blacklist and the rules/testing.md mock ban (was rule prose only)
@@ -95,16 +126,12 @@ linters:
 
     # Other
     - exhaustive        # Switch exhaustiveness
-    - prealloc          # Slice pre-allocation suggestions
     - nolintlint        # nolint directive format
 
   settings:
     errcheck:
       check-type-assertions: true
       check-blank: true
-      exclude-functions:
-        - (io.Closer).Close
-        - (net/http.ResponseWriter).Write
 
     staticcheck:
       checks:
@@ -132,15 +159,12 @@ linters:
     gosec:
       excludes:
         - G104  # Handled by errcheck
-      config:
-        G306: "0644"  # File permissions
 
     gocritic:
       enabled-tags:
         - diagnostic
         - style
         - performance
-        - experimental
       disabled-checks:
         - whyNoLint  # Handled by nolintlint
 
@@ -172,7 +196,7 @@ linters:
               desc: NEVER mock the database — testcontainers-go (rules/testing.md)
             # Database (rules/database.md)
             - pkg: database/sql
-              desc: use pgx/v5 native API (rules/database.md)
+              desc: only the semantic SQLite owner may use database/sql; application queries go through sqlc
             # HTTP frameworks (go-philosophy — std net/http only)
             - pkg: github.com/go-chi/chi
               desc: no HTTP frameworks — net/http Go 1.22+ routing
@@ -244,10 +268,6 @@ linters:
         - record-error
         - set-status
 
-    rowserrcheck:
-      packages:
-        - github.com/jackc/pgx/v5
-
     embeddedstructfieldcheck:
       forbid-mutex: true
 
@@ -271,10 +291,9 @@ linters:
       require-specific: true
 
   exclusions:
-    generated: lax
+    generated: strict
     paths:
       - ^vendor/
-      - ^internal/db/   # sqlc-generated — never hand-edited, never linted
       - ^node_modules/  # a frontend dev dependency ships a stray Go file; gitignored, absent in CI
     rules:
       # Test files allow higher complexity
@@ -282,11 +301,6 @@ linters:
         linters:
           - gocyclo
           - gocognit
-          - errcheck
-      # main() may use log.Fatal at startup
-      - path: ^cmd/
-        linters:
-          - forbidigo
 
 formatters:
   enable:
@@ -299,11 +313,9 @@ formatters:
           replacement: any
     goimports:
       local-prefixes:
-        # Consumer projects: replace with your module path
-        # (/go-project-init bootstrap mode rewrites this)
         - github.com/koopa0/yomihon
   exclusions:
+    generated: strict
     paths:
       - ^vendor/
-      - ^internal/db/
       - ^node_modules/  # a frontend dev dependency ships a stray Go file; gitignored, absent in CI

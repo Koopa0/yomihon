@@ -26,7 +26,7 @@ yomihon reads everything, writes one field, never edits notes, and never overste
 | a-h/templ                  | Server-rendered HTML; existing muscle memory (yomihon-dev, goilerplate)         |
 | Tailwind v4 standalone CLI | No Node dependency; the typography plugin handles prose                          |
 | `os/exec` git              | The audit layer must share exactly the same semantics as hand-run git; no go-git |
-| vanilla JS (single file)   | Inherits from yomihon-dev: native elements first (details/dialog), no framework |
+| vanilla JS (one entry, flat native modules) | Native elements first (details/dialog), explicit behavior owners, no framework or bundler |
 
 The search index is **in-memory** (D24) — see §6. Databases and vector stores are per-feature engineering calls (D31): the in-process shape is the default at the current scale, and the escalation ladders with explicit triggers live in `roadmap.md` §4.
 
@@ -39,30 +39,56 @@ A single binary `yomihon`; `cmd/yomihon` does wiring only (go-spec doctrine). It
 | Command                      | Purpose (spec in spec.md)                                                                                       |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `yomihon serve`               | The workbench itself, `127.0.0.1:9610` (9610 is goroawase for ku-ro-do, this project's former name; only the port is configurable) |
+| `yomihon search`              | Agent-facing lexical search, with explicit `--semantic` hybrid retrieval                                      |
+| `yomihon search-index build [--renew-attempt-budget]` | Explicitly build or refresh the local semantic generation; the flag authorizes one eligible exhausted replacement batch |
 | `yomihon check`               | A Go rewrite of kura check, JSONL golden comparison (yomihon-dev SPEC §13's check plan is retired; lint moves here) |
 | `yomihon exists` / `coverage` | Absorbed in sync from kura's agent toolbox; further extensions enter the yard per real vault-side needs         |
 
-This is the current command surface. `search`, graph relation/export verbs,
-frontmatter query, and SSG `export` remain planned in `roadmap.md`; none is a
-command contract until its plan and golden tests land.
+This is the current command surface. Graph relation/export verbs, frontmatter
+query, and SSG `export` remain planned in `roadmap.md`; none is a command
+contract until its plan and golden tests land.
 
-Configuration (the config struct follows go-spec config-management): `YOMIHON_ROOT` (vault path, default `~/obsidian`), `YOMIHON_PORT` (default 9610). There is no `YOMIHON_DB` (the index is in-memory, D24) and **no `YOMIHON_ADDR`** — hard-wiring loopback is what wall 2 looks like once it has grown into code.
+`yomihon help [command]`, top-level `-h`/`--help`, and recognized command
+`-h`/`--help` forms are a side-effect-free dispatch surface: they print usage
+before configuration, vault scanning, key access, or semantic-store access.
+
+Configuration surface:
+`YOMIHON_ROOT` (vault path, default `~/obsidian`), `YOMIHON_PORT` (default
+9610), and `YOMIHON_EMBED_KEY` (the user's credential, read only after an
+explicit semantic CLI action reaches the provider gate). There is no
+`YOMIHON_DB`: the semantic generation owns a fixed path under the user's cache
+directory. There is **no `YOMIHON_ADDR`** — hard-wiring loopback is what wall 2
+looks like once it has grown into code.
 
 ## 4. Package layout (proposal, package-by-feature)
 
 ```
 cmd/yomihon/        wiring only: config, deps, routes, graceful shutdown
+internal/asset/     fixed embedded static-asset registry and HTTP route
 internal/vault/     fs walk (NFC-normalize paths), frontmatter splitting and fault-tolerant parsing
 internal/schema/    load vault-schema.toml (enums, lifecycle, navigation roles, artifact policy) — the only reader of the toml (wall 3)
-internal/render/    Obsidian dialect → HTML: goldmark pipeline (following yomihon-dev parser.go) plus the ==highlight== and ![[embed]] that yomihon-dev lacks
+internal/render/    Obsidian dialect projections: HTML plus shared plain-text/section extraction for retrieval
 internal/graph/     wikilink resolution (following kura graph.rs semantics), link index, diagnostics
+internal/judge/     privacy-gated agent adjudication and its frozen CLI formats
+internal/lesson/    lesson sidecars, concept sheets, and lesson interaction data
 internal/nav/       content navigation: Paths, Maps, Journal, reports, Folders, and reverse placements
-internal/search/    in-memory search: readable text/path corpus plus policy-gated instance metadata filters and aggregates
-internal/snapshot/  Snapshot{Graph, Nav, Search, ArtifactPolicy} + the ~2s rescanner behind an atomic.Pointer; handlers read one generation
+internal/search/    lexical UI index/query; agent/, semantic/, and evalset/ own the explicit agent hybrid-search surface
+internal/snapshot/  opaque read-only View + the ~2s rooted rescanner behind an atomic.Pointer; handlers capture one generation and its authority
 internal/status/    the only write: state machine validation, surgical single-line rewrite, git commit (wall 1)
-internal/note/      reading feature: load + render + TOC + diagnostics panel
-internal/ui/        templ: layouts / pages / blocks (yomihon-dev's three-layer convention)
+internal/note/      general reading surface: Home, notes, raw bytes, file fallbacks, TOC, and diagnostics
+internal/origin/    server-wide same-origin browser response boundary
+internal/report/    sandboxed daily-briefing report surface
+internal/shell/     request-scoped navigation/lifecycle projection shared by full pages
+internal/syllabus/  study-path reading surface
+internal/ui/        templ layouts and presentation values; no domain source reads
 ```
+
+`internal/search/agent` owns CLI parsing, privacy/capability gates, RRF fusion,
+the byte-frozen wire contract, and production semantic-search composition.
+`internal/search/semantic` owns chunking, provider egress, the feature-local
+sqlc SQLite generation store, and exact vector ranking. This keeps every search
+concept below one feature root while leaving `cmd/yomihon` as dispatch and
+dependency hand-off rather than a second implementation of search policy.
 
 How the walls grow into code: `internal/status` is the only package with file-write and git capability; `internal/schema` is the only package that touches the toml; `internal/render`'s diagnostic types are read-only; the listener hard-wires loopback.
 
@@ -70,7 +96,7 @@ How the walls grow into code: `internal/status` is the only package with file-wr
 
 **Read**: load the vault contract once → derive immutable navigation roles and
 artifact policy → full scan at startup → build graph, nav, and search into one
-`Snapshot` → a ~2s mtime scan rebuilds and swaps the derived models on any change
+`snapshot.View` → a ~2s mtime scan rebuilds and swaps the derived models on any change
 without re-reading the contract (D21, D25, D47). Rendering is per-request
 (millisecond-scale at the 419-file scale; add an HTML cache only if measurements
 actually show it is slow — convergent).
@@ -82,19 +108,21 @@ file for its current state → state-machine validation (from + owner,
 actor=koopa) → dirty check → surgical single-line rewrite → atomic write-back →
 git commit (author = Koopa's identity, `(via yomihon)`) → PRG redirect.
 
-## 6. Derived state — in-memory (D24, D25)
+## 6. Reading-server derived state — in-memory (D24, D25)
 
-All derived state is built in memory from the vault and
-held in one snapshot behind an `atomic.Pointer`:
+All `serve`/reading derived state is built in memory from the vault and held in
+one snapshot behind an `atomic.Pointer`. Explicit semantic CLI actions use the
+separate disposable generation store described in §3 and D50; the server never
+opens it.
 
 ```go
-type Snapshot struct {
+type View struct {
     Graph          *graph.Index          // wikilink resolution over readable files
     Nav            *nav.Model            // policy-aware content navigation
     Search         *search.Index         // text/path corpus + metadata capability
     ArtifactPolicy schema.ArtifactPolicy // startup authority used by request faces
 }
-// atomic.Pointer[Snapshot]; every handler reads the pointer once per request
+// atomic.Pointer[View]; every handler reads the pointer once per request
 ```
 
 A single scanner goroutine (D25) `stat`-walks the vault about every 2 seconds;

@@ -1,31 +1,14 @@
 package vault_test
 
 import (
-	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-func writeNote(t *testing.T, root, rel, content string) {
-	t.Helper()
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-}
-
-func TestReadNote(t *testing.T) {
+func TestParse(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -90,13 +73,7 @@ func TestReadNote(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := t.TempDir()
-			writeNote(t, root, "Concepts/note.md", tt.content)
-
-			n, err := vault.ReadNote(root, "Concepts/note.md")
-			if err != nil {
-				t.Fatalf("ReadNote() = %v", err)
-			}
+			n := vault.Parse("Concepts/note.md", []byte(tt.content))
 			if got := n.Title(); got != tt.wantTitle {
 				t.Errorf("Title() = %q, want %q", got, tt.wantTitle)
 			}
@@ -116,67 +93,34 @@ func TestReadNote(t *testing.T) {
 	}
 }
 
-func TestReadNoteRejectsEscape(t *testing.T) {
+func TestParseFrontmatterBoundary(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-
-	if _, err := vault.ReadNote(root, "../outside.md"); err == nil {
-		t.Error("ReadNote(../outside.md) = nil error, want path escape error")
+	tests := []struct {
+		name       string
+		content    string
+		wantTitle  string
+		wantStatus string
+		wantBody   string
+	}{
+		{name: "LF dash closer", content: "---\ntitle: LF\nstatus: draft\n---\nbody\n", wantTitle: "LF", wantStatus: "draft", wantBody: "body\n"},
+		{name: "CRLF dash closer", content: "---\r\ntitle: CRLF\r\nstatus: ready\r\n---\r\nbody\r\n", wantTitle: "CRLF", wantStatus: "ready", wantBody: "body\r\n"},
+		{name: "YAML document closer", content: "---\ntitle: Dots\nstatus: draft\n...\nbody\n", wantTitle: "Dots", wantStatus: "draft", wantBody: "body\n"},
+		{name: "closer at EOF", content: "---\ntitle: EOF\nstatus: ready\n---", wantTitle: "EOF", wantStatus: "ready", wantBody: ""},
+		{name: "unterminated is body", content: "---\ntitle: Open\nstatus: draft\nbody\n", wantTitle: "note", wantStatus: "", wantBody: "---\ntitle: Open\nstatus: draft\nbody\n"},
 	}
-}
-
-func TestList(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-
-	writeNote(t, root, "Concepts/A.md", "a\n")
-	writeNote(t, root, "Diagrams/x.canvas", "{}\n")
-	writeNote(t, root, ".obsidian/workspace.json", "{}\n")
-	writeNote(t, root, ".git/HEAD", "ref: refs/heads/main\n")
-
-	got, err := vault.List(root)
-	if err != nil {
-		t.Fatalf("List(%q) = %v", root, err)
-	}
-
-	want := []string{"Concepts/A.md", "Diagrams/x.canvas"}
-	slices.Sort(got)
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("List(%q) mismatch (-want +got):\n%s", root, diff)
-	}
-}
-
-// TestListNormalizesToNFC guards the requirement that List NFC-normalize
-// every walked path at walk time. macOS filesystems can hold a filename
-// as raw NFD bytes regardless of how it was typed or how the filesystem
-// otherwise preserves names; a walker that hands back those bytes
-// untouched would leak them into graph.Index's stored path values,
-// rendered <a href> targets, and diagnostic candidate lists — silently
-// diverging from Obsidian's canonical NFC path representation.
-func TestListNormalizesToNFC(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-
-	// だ (U+3060) decomposes to た (U+305F) + the combining voiced sound
-	// mark (U+3099) — the real failure mode this vault hits in
-	// Writing/lessons/japanese/, where dakuten kana are common in
-	// filenames.
-	const composed = "だ体.md"
-	decomposed := norm.NFD.String(composed)
-	if decomposed == composed {
-		t.Fatalf("test setup invalid: NFD form of %q did not change", composed)
-	}
-	writeNote(t, root, decomposed, "body\n")
-
-	got, err := vault.List(root)
-	if err != nil {
-		t.Fatalf("List(%q) = %v", root, err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("List(%q) = %v, want exactly one entry", root, got)
-	}
-	if got[0] != composed {
-		t.Errorf("List(%q)[0] = %q (% x), want NFC-normalized %q (% x)",
-			root, got[0], []byte(got[0]), composed, []byte(composed))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse("note.md", []byte(tt.content))
+			if got := n.Title(); got != tt.wantTitle {
+				t.Errorf("Title() = %q, want %q", got, tt.wantTitle)
+			}
+			if got := n.Status(); got != tt.wantStatus {
+				t.Errorf("Status() = %q, want %q", got, tt.wantStatus)
+			}
+			if n.Body != tt.wantBody {
+				t.Errorf("Body = %q, want %q", n.Body, tt.wantBody)
+			}
+		})
 	}
 }

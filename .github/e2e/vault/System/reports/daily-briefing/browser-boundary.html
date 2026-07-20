@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Browser boundary report</title>
+<meta http-equiv="refresh" content="0;url=http://BROWSER_BOUNDARY_ATTACKER/report-refresh">
+<style>
+  body { color: rgb(12 34 56); background-image: url("http://BROWSER_BOUNDARY_ATTACKER/report-style"); }
+</style>
+<link rel="prefetch" href="http://BROWSER_BOUNDARY_ATTACKER/report-prefetch">
+</head>
+<body>
+<p id="self-contained-report">Self-contained report</p>
+<svg id="self-contained-svg" viewBox="0 0 10 10" aria-label="Static chart">
+  <circle cx="5" cy="5" r="4"></circle>
+</svg>
+<img id="self-contained-data-image" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="Static data asset">
+<img src="http://BROWSER_BOUNDARY_ATTACKER/report-image" alt="remote report image">
+<script>
+  document.documentElement.dataset.inlineReport = 'ran';
+  fetch('http://BROWSER_BOUNDARY_ATTACKER/report-fetch').catch(() => {});
+</script>
+<script>
+  const peer = new RTCPeerConnection({iceServers: [{urls: 'stun:BROWSER_BOUNDARY_STUN'}]});
+  peer.createDataChannel('probe');
+  peer.createOffer().then((offer) => peer.setLocalDescription(offer));
+</script>
+</body>
+</html>

@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The diagnostics parse untrusted vault bytes by hand at the boundaries where a
@@ -41,22 +43,23 @@ func FuzzSplitFrontmatter(f *testing.F) {
 	f.Add([]byte("text\n---\nnot at start\n---\n"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		fm, body, bodyLine, found := splitFrontmatter(data)
+		block, found := vault.SplitFrontmatter(data)
+		fm, body, bodyLine := block.Content, block.Body, block.BodyStartLine
 
-		fm2, body2, bodyLine2, found2 := splitFrontmatter(data)
-		if found != found2 || bodyLine != bodyLine2 || !bytes.Equal(fm, fm2) || !bytes.Equal(body, body2) {
-			t.Fatalf("splitFrontmatter is not deterministic for %q", data)
+		block2, found2 := vault.SplitFrontmatter(data)
+		if found != found2 || bodyLine != block2.BodyStartLine || !bytes.Equal(fm, block2.Content) || !bytes.Equal(body, block2.Body) {
+			t.Fatalf("vault.SplitFrontmatter is not deterministic for %q", data)
 		}
 
 		if !found {
 			if bodyLine != 1 {
-				t.Errorf("splitFrontmatter(%q) not found: bodyLine = %d, want 1", data, bodyLine)
+				t.Errorf("vault.SplitFrontmatter(%q) not found: bodyLine = %d, want 1", data, bodyLine)
 			}
 			if fm != nil {
-				t.Errorf("splitFrontmatter(%q) not found: fm = %q, want nil", data, fm)
+				t.Errorf("vault.SplitFrontmatter(%q) not found: fm = %q, want nil", data, fm)
 			}
 			if !bytes.Equal(body, data) {
-				t.Errorf("splitFrontmatter(%q) not found: body = %q, want the whole input", data, body)
+				t.Errorf("vault.SplitFrontmatter(%q) not found: body = %q, want the whole input", data, body)
 			}
 			return
 		}
@@ -68,7 +71,7 @@ func FuzzSplitFrontmatter(f *testing.F) {
 		// fence with no trailing newline is still its own line — the body is
 		// empty in that case, but the line count still advances past it.
 		if !bytes.HasSuffix(data, body) {
-			t.Fatalf("splitFrontmatter(%q) found: body %q is not a suffix of the input", data, body)
+			t.Fatalf("vault.SplitFrontmatter(%q) found: body %q is not a suffix of the input", data, body)
 		}
 		prefix := data[:len(data)-len(body)]
 		prefixLines := bytes.Count(prefix, []byte("\n"))
@@ -76,21 +79,21 @@ func FuzzSplitFrontmatter(f *testing.F) {
 			prefixLines++
 		}
 		if want := 1 + prefixLines; bodyLine != want {
-			t.Errorf("splitFrontmatter(%q) bodyLine = %d, want %d (one past the %d lines in %q)", data, bodyLine, want, prefixLines, prefix)
+			t.Errorf("vault.SplitFrontmatter(%q) bodyLine = %d, want %d (one past the %d lines in %q)", data, bodyLine, want, prefixLines, prefix)
 		}
 
 		// The prefix opens with a fence, carries the returned block right after
 		// it, and ends with a line that trims to a closing fence.
 		openLen := openingFenceLen(data)
 		if openLen == 0 {
-			t.Fatalf("splitFrontmatter(%q) found without a leading fence", data)
+			t.Fatalf("vault.SplitFrontmatter(%q) found without a leading fence", data)
 		}
 		if len(fm) > len(prefix)-openLen || !bytes.Equal(data[openLen:openLen+len(fm)], fm) {
-			t.Fatalf("splitFrontmatter(%q) block %q does not sit right after the opening fence", data, fm)
+			t.Fatalf("vault.SplitFrontmatter(%q) block %q does not sit right after the opening fence", data, fm)
 		}
 		closing := bytes.TrimRight(prefix[openLen+len(fm):], "\r\n")
 		if string(closing) != "---" && string(closing) != "..." {
-			t.Errorf("splitFrontmatter(%q) closing fence line = %q, want \"---\" or \"...\"", data, closing)
+			t.Errorf("vault.SplitFrontmatter(%q) closing fence line = %q, want \"---\" or \"...\"", data, closing)
 		}
 	})
 }

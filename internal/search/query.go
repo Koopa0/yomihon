@@ -1,9 +1,10 @@
 package search
 
 import (
+	"slices"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Filter is one structured constraint: a fixed key and its literal value.
@@ -13,15 +14,34 @@ type Filter struct {
 }
 
 // Query is a parsed search query: folded bare tokens and structured filters,
-// each in input order. A repeated filter key is an AND at the match layer,
-// not last-wins.
+// each in input order. BareText preserves the original bare tokens, joined by
+// one ASCII space, for consumers whose semantics depend on the user's text
+// rather than lexical folding. A repeated filter key is an AND at the match
+// layer, not last-wins.
 type Query struct {
-	Tokens  []string
-	Filters []Filter
+	tokens   []string
+	filters  []Filter
+	bareText string
 }
 
-func (q Query) requiresMetadata() bool {
-	for _, f := range q.Filters {
+// Tokens returns the folded bare terms in input order.
+func (q Query) Tokens() []string {
+	return slices.Clone(q.tokens)
+}
+
+// Filters returns the structured constraints in input order.
+func (q Query) Filters() []Filter {
+	return slices.Clone(q.filters)
+}
+
+// BareText returns the original bare terms joined by one ASCII space.
+func (q Query) BareText() string {
+	return q.bareText
+}
+
+// RequiresMetadata reports whether evaluating the query needs frontmatter.
+func (q Query) RequiresMetadata() bool {
+	for _, f := range q.filters {
 		kind, ok := classifyFilterKey(f.Key)
 		if ok && kind == filterMetadata {
 			return true
@@ -72,13 +92,16 @@ func isFilterKey(key string) bool {
 // (nil slices), which the match layer treats as "return nothing".
 func Parse(q string) Query {
 	var out Query
+	var bare []string
 	for raw := range strings.FieldsSeq(q) {
 		if key, value, ok := splitFilter(raw); ok {
-			out.Filters = append(out.Filters, Filter{Key: key, Value: value})
+			out.filters = append(out.filters, Filter{Key: key, Value: value})
 			continue
 		}
-		out.Tokens = append(out.Tokens, fold(raw))
+		out.tokens = append(out.tokens, fold(raw))
+		bare = append(bare, raw)
 	}
+	out.bareText = strings.Join(bare, " ")
 	return out
 }
 
@@ -95,7 +118,7 @@ func splitFilter(raw string) (key, value string, ok bool) {
 	if !isFilterKey(key) {
 		return "", "", false
 	}
-	value = graph.NormalizeNFC(rest)
+	value = vault.NormalizeNFC(rest)
 	if key == "folder" {
 		value = strings.TrimSuffix(value, "/")
 	}

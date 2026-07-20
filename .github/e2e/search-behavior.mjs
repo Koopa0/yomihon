@@ -44,7 +44,6 @@ const fail = (site, message) => {
   if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN search-behavior: unknown assertion site ${site}`);
   throw new LockFired(site, `FAIL search-behavior: ${message}`);
 };
-const broken = (message) => { throw new ProbeBroken(`BROKEN search-behavior: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED search-behavior: ${message}`); };
 
 const occurrences = (body, needle) => body.split(needle).length - 1;
@@ -82,26 +81,43 @@ const rewriteResponse = async (page, url, replacements, label) => {
 
 const rewriteHome = (replacements, label) => (page) => rewriteResponse(page, BASE + PAGE, replacements, label);
 const rewriteSearchPage = (replacements, label) => (page) => rewriteResponse(page, BASE + '/search', replacements, label);
-const rewriteScript = (replacements, label) => (page) => rewriteResponse(page, '**/yomihon.js', replacements, label);
+const rewriteScript = (replacements, label, moduleName = 'search.js') => (page) => rewriteResponse(page, `**/${moduleName}`, replacements, label);
 
 const MUTATIONS = {
   'home-autofocus': {
-    target: 'home-starts-at-top',
+    target: 'home-does-not-take-focus',
     before: rewriteHome([
       {
-        needle: 'name="q" placeholder="Search the storehouse…" aria-label="Search notes">',
-        replacement: 'name="q" placeholder="Search the storehouse…" aria-label="Search notes" autofocus>',
+        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
+        replacement: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記" autofocus>',
       },
     ], 'Home document'),
+  },
+  'scroll-home-main': {
+    target: 'home-starts-at-top',
+    after: async (page) => {
+      const state = await page.locator('.y-main').evaluate((element) => {
+        const overflow = document.createElement('div');
+        overflow.style.blockSize = '2000px';
+        overflow.dataset.e2eScrollMutation = '';
+        element.append(overflow);
+        element.style.blockSize = '100px';
+        element.style.overflowY = 'auto';
+        element.style.scrollBehavior = 'auto';
+        element.scrollTop = 80;
+        return { scrollTop: element.scrollTop, marked: overflow.hasAttribute('data-e2e-scroll-mutation') };
+      });
+      return () => state.marked && state.scrollTop > 0 ? '' : `Home main stayed at ${state.scrollTop} after the scroll mutation`;
+    },
   },
   'focus-home-without-scroll': {
     target: 'home-does-not-take-focus',
     before: rewriteScript([
       {
-        needle: '    initLiveSearch();',
-        replacement: "    document.querySelector('[data-home-block=\"search\"] input[name=\"q\"]')?.focus({ preventScroll: true });\n    initLiveSearch();",
+        needle: '  const search = initSearch();',
+        replacement: "  document.querySelector('[data-home-block=\"search\"] input[name=\"q\"]')?.focus({ preventScroll: true });\n  const search = initSearch();",
       },
-    ], 'Home focus script'),
+    ], 'Home focus script', 'yomihon.js'),
   },
   'enhance-home-search': {
     target: 'home-remains-plain-get',
@@ -117,13 +133,13 @@ const MUTATIONS = {
         expected: 1,
       },
       {
-        needle: 'name="q" placeholder="Search the storehouse…" aria-label="Search notes">',
-        replacement: 'name="q" placeholder="Search the storehouse…" aria-label="Search notes" data-live-search-input>',
+        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
+        replacement: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記" data-live-search-input>',
         expected: 1,
       },
       {
-        needle: '<button type="submit" class="y-xbtn">Search</button></form></section>',
-        replacement: '<button type="submit" class="y-xbtn">Search</button></form><p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p><div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div></section>',
+        needle: '<button type="submit" class="y-xbtn">搜尋</button></form></section>',
+        replacement: '<button type="submit" class="y-xbtn">搜尋</button></form><p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p><div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div></section>',
         expected: 1,
       },
     ], 'Home plain search'),
@@ -141,8 +157,8 @@ const MUTATIONS = {
     target: 'button-submits-get',
     before: rewriteHome([
       {
-        needle: 'name="q" placeholder="Search the storehouse…" aria-label="Search notes">',
-        replacement: 'name="query" placeholder="Search the storehouse…" aria-label="Search notes">',
+        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
+        replacement: 'name="query" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
       },
     ], 'Home query field'),
   },
@@ -188,8 +204,8 @@ const MUTATIONS = {
     target: 'trailing-debounce',
     before: rewriteScript([
       {
-        needle: '      function schedule() {\n        clearTimeout(timer);',
-        replacement: '      function schedule() {\n        void timer;',
+        needle: '    function schedule() {\n      clearTimeout(timer);',
+        replacement: '    function schedule() {\n      void timer;',
       },
     ], 'live-search script'),
   },
@@ -197,8 +213,8 @@ const MUTATIONS = {
     target: 'ime-waits-for-composition',
     before: rewriteScript([
       {
-        needle: '        if (!composing) schedule();',
-        replacement: '        schedule();',
+        needle: '      if (!composing) schedule();',
+        replacement: '      schedule();',
       },
     ], 'live-search IME guard'),
   },
@@ -206,8 +222,8 @@ const MUTATIONS = {
     target: 'superseded-request-is-aborted',
     before: rewriteScript([
       {
-        needle: '        const requestID = ++latestRequest;\n        activeController?.abort();\n        activeController = null;',
-        replacement: '        const requestID = ++latestRequest;\n        void activeController;\n        activeController = null;',
+        needle: '      const requestID = ++latestRequest;\n      activeController?.abort();\n      activeController = null;',
+        replacement: '      const requestID = ++latestRequest;\n      void activeController;\n      activeController = null;',
       },
     ], 'live-search abort guard'),
   },
@@ -215,8 +231,8 @@ const MUTATIONS = {
     target: 'latest-query-wins',
     before: rewriteScript([
       {
-        needle: '          if (requestID !== latestRequest) return;',
-        replacement: '          if (false) return;',
+        needle: '        if (requestID !== latestRequest) return;',
+        replacement: '        if (false) return;',
       },
     ], 'live-search request-ID guard'),
   },
@@ -231,8 +247,8 @@ const MUTATIONS = {
     target: 'live-error-recovery',
     before: rewriteScript([
       {
-        needle: "          status.textContent = 'Live results unavailable. Press Enter to search.';",
-        replacement: "          status.textContent = '';",
+        needle: "        status.textContent = '即時結果目前無法使用；按 Enter 執行完整搜尋。';",
+        replacement: "        status.textContent = '';",
       },
     ], 'live-search recovery message'),
   },
@@ -240,8 +256,8 @@ const MUTATIONS = {
     target: 'enter-submits-get',
     before: rewriteScript([
       {
-        needle: "      form.addEventListener('submit', cancelPending);",
-        replacement: "      form.addEventListener('submit', (e) => { e.preventDefault(); cancelPending(); });",
+        needle: "    form.addEventListener('submit', cancelPending);",
+        replacement: "    form.addEventListener('submit', (event) => { event.preventDefault(); cancelPending(); });",
       },
     ], 'live-search submit observer'),
   },
@@ -569,7 +585,7 @@ try {
           const requestURL = new URL(resource instanceof Request ? resource.url : String(resource), location.href);
           if (requestURL.pathname === '/search/results' && requestURL.searchParams.get('q') === 'beta') {
             window.__searchAbortState.started = true;
-            return new Promise((resolve, reject) => {
+            return new Promise((_, reject) => {
               const abort = () => {
                 window.__searchAbortState.aborted = true;
                 reject(new DOMException('The operation was aborted.', 'AbortError'));
@@ -659,7 +675,7 @@ try {
       if (await status.getAttribute('aria-live') !== 'polite') fail(site, 'settled count is not polite');
       if (await status.getAttribute('aria-atomic') !== 'true') fail(site, 'settled count is not atomic');
       const text = await status.textContent();
-      if (text !== '1 result for “tortoise”.') fail(site, `settled count = ${JSON.stringify(text)}, want the literal one-result announcement`);
+      if (text !== '「tortoise」有 1 筆結果。') fail(site, `settled count = ${JSON.stringify(text)}, want the literal one-result announcement`);
     } finally {
       await context.close();
     }
@@ -688,7 +704,7 @@ try {
       await waitFor(
         page,
         site,
-        (scope) => document.querySelector(scope)?.querySelector('[data-live-search-status]')?.textContent === 'Live results unavailable. Press Enter to search.',
+        (scope) => document.querySelector(scope)?.querySelector('[data-live-search-status]')?.textContent === '即時結果目前無法使用；按 Enter 執行完整搜尋。',
         scope,
         'the actionable live-search recovery message was not announced',
       );

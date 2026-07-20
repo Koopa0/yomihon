@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -41,6 +42,12 @@ type = ["concept"]
 
 [enums.status]
 note = ["draft"]
+
+[fields]
+known = ["based_on"]
+
+[rules]
+concept_requires_provenance = ["based_on"]
 
 ` + section + `
 [[lifecycle]]
@@ -77,10 +84,36 @@ func searchResults(tb testing.TB, idx *Index, q Query) []Result {
 	return results
 }
 
+func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "title-only.md", Title: "Needle", PlainText: "unrelated body"},
+		{RelPath: "title-and-body.md", Title: "Needle Too", PlainText: "needle appears here"},
+		{RelPath: "filter-only.md", Title: "Filter", PlainText: "body start", NoteType: "concept"},
+	}, validArtifactPolicy(t))
+
+	text := searchResults(t, idx, Parse("needle"))
+	if len(text) != 2 {
+		t.Fatalf("text results = %+v", text)
+	}
+	if text[0].RelPath != "title-and-body.md" || text[0].Snippet == "" {
+		t.Errorf("title+body result = %+v, want body evidence", text[0])
+	}
+	if text[1].RelPath != "title-only.md" || text[1].Snippet != "" {
+		t.Errorf("title-only result = %+v, want no snippet", text[1])
+	}
+
+	filtered := searchResults(t, idx, Parse("type:concept"))
+	if len(filtered) != 1 || filtered[0].Snippet != "" {
+		t.Errorf("pure-filter result = %+v, want no snippet", filtered)
+	}
+}
+
 func TestSearchNonInstanceCapability(t *testing.T) {
 	t.Parallel()
 
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "Concepts/Instance.md", Title: "Instance", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "instance", Topics: []string{"cards"}, PlainText: "shared needle"},
 		{RelPath: "System/templates/Card.md", Title: "Template Card", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "card", Topics: []string{"cards"}, PlainText: "shared template needle"},
 	}, validArtifactPolicy(t))
@@ -143,7 +176,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 	for _, policyTest := range policies {
 		t.Run(policyTest.name, func(t *testing.T) {
 			t.Parallel()
-			idx := BuildFromDocs([]Doc{{
+			idx := NewIndex([]Document{{
 				RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "note", Topics: []string{"cards"}, PlainText: "needle",
 			}}, policyTest.policy)
 
@@ -175,6 +208,39 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 	}
 }
 
+func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{{
+		RelPath:  "Concepts/Note.md",
+		Title:    "Note",
+		NoteType: "concept",
+		Status:   "draft",
+	}}, validArtifactPolicy(t))
+	closed := idx.WithArtifactPolicy(schema.ArtifactPolicy{})
+
+	openResults, err := idx.Search(Parse("Note"))
+	if err != nil {
+		t.Fatalf("original Search(Note) error = %v", err)
+	}
+	if len(openResults) != 1 || openResults[0].Status != "draft" {
+		t.Fatalf("original Search(Note) = %+v, want draft metadata badge", openResults)
+	}
+	closedResults, err := closed.Search(Parse("Note"))
+	if err != nil {
+		t.Fatalf("closed Search(Note) error = %v", err)
+	}
+	if len(closedResults) != 1 || closedResults[0].Status != "" {
+		t.Errorf("closed Search(Note) = %+v, want lexical result without metadata badge", closedResults)
+	}
+	if _, err := closed.Search(Parse("status:draft")); !errors.Is(err, ErrMetadataUnavailable) {
+		t.Errorf("closed Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
+	}
+	if _, err := idx.Search(Parse("status:draft")); err != nil {
+		t.Errorf("original Search(status:draft) error = %v, want functional copy not to mutate original", err)
+	}
+}
+
 func TestZeroValueIndexMetadataUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -202,7 +268,7 @@ func TestZeroValueIndexMetadataUnavailable(t *testing.T) {
 // "Writing/..." ('-' 0x2D < '/' 0x2F), which pins the rel_path result order.
 func filterFixture(tb testing.TB) *Index {
 	tb.Helper()
-	return BuildFromDocs([]Doc{
+	return NewIndex([]Document{
 		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Domain: "golang", Status: "draft", Slug: "kafka-basics", Topics: []string{"messaging", "distributed"}, PlainText: "Kafka is a distributed log; 50% done."},
 		{RelPath: "Writing-old/Legacy.md", Title: "Legacy", NoteType: "note", Domain: "golang", Status: "archived", Slug: "legacy", Topics: []string{"messaging"}, PlainText: "older kafka streams notes"},
 		{RelPath: "Concepts/Focus.md", Title: "深度工作", NoteType: "concept", Domain: "meta", Status: "evergreen", Topics: []string{"focus"}, PlainText: "深度工作 需要 專注"},
@@ -233,6 +299,24 @@ func TestSearchFilters(t *testing.T) {
 				t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", tt.query, diff)
 			}
 		})
+	}
+}
+
+func TestAllowedPathsAppliesOnlyStructuredFilters(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Writing/a.md", Title: "Alpha", NoteType: "lesson", PlainText: "no lexical match"},
+		{RelPath: "Writing/b.md", Title: "Beta", NoteType: "concept", PlainText: "needle"},
+		{RelPath: "System/templates/card.md", Title: "Template", NoteType: "lesson", PlainText: "needle"},
+	}, validArtifactPolicy(t))
+	got, err := idx.AllowedPaths(Parse("needle type:lesson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]struct{}{"Writing/a.md": {}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("AllowedPaths mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -283,7 +367,7 @@ func TestSearchTokens(t *testing.T) {
 // only in the body.
 func TestSearchOrdering(t *testing.T) {
 	t.Parallel()
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "a.md", Title: "Kafka Guide", PlainText: "intro"},
 		{RelPath: "b.md", Title: "Streaming", PlainText: "a kafka pipeline"},
 		{RelPath: "c.md", Title: "Kafka Intro", PlainText: "more"},
@@ -301,7 +385,7 @@ func TestSearchOrdering(t *testing.T) {
 // normalizes NFC on both index and query.
 func TestSearchNFDContent(t *testing.T) {
 	t.Parallel()
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "n.md", Title: "note", PlainText: "reading \u304b\u3099 today"},
 	}, validArtifactPolicy(t))
 	got := paths(searchResults(t, idx, Parse("\u304c")))
@@ -334,7 +418,7 @@ func TestSearchEmptyQuery(t *testing.T) {
 // field's "" bucket.
 func TestCountByTypeStatus(t *testing.T) {
 	t.Parallel()
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "a.md", NoteType: "lesson", Status: "s1"},
 		{RelPath: "b.md", NoteType: "lesson", Status: "s1"},
 		{RelPath: "c.md", NoteType: "lesson", Status: "s2"},
@@ -360,7 +444,7 @@ func TestCountByTypeStatus(t *testing.T) {
 func TestCountByStatusExcludesNonInstances(t *testing.T) {
 	t.Parallel()
 
-	idx := BuildFromDocs([]Doc{
+	idx := NewIndex([]Document{
 		{RelPath: "Concepts/Empty.md", NoteType: "concept", Status: ""},
 		{RelPath: "Concepts/Draft.md", NoteType: "concept", Status: "draft"},
 		{RelPath: "System/templates/Card.md", NoteType: "concept", Status: "draft"},
@@ -389,7 +473,7 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	for _, tt := range policies {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			idx := BuildFromDocs([]Doc{{RelPath: "Concepts/Note.md", NoteType: "concept", Status: "draft"}}, tt.policy)
+			idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", NoteType: "concept", Status: "draft"}}, tt.policy)
 
 			if got, err := idx.CountByStatus(); !errors.Is(err, ErrMetadataUnavailable) {
 				t.Errorf("CountByStatus() = (%v, %v), want ErrMetadataUnavailable", got, err)
@@ -405,21 +489,72 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	}
 }
 
-// TestBuildFromDocsDeterministic pins that building the same input twice yields
+// TestNewIndexDeterministic pins that building the same input twice yields
 // byte-identical indexes (input order does not leak into the result — entries
 // are sorted by RelPath).
-func TestBuildFromDocsDeterministic(t *testing.T) {
+func TestNewIndexDeterministic(t *testing.T) {
 	t.Parallel()
-	docs := []Doc{
+	docs := []Document{
 		{RelPath: "b.md", Title: "B", PlainText: "beta"},
 		{RelPath: "a.md", Title: "A", Topics: []string{"x"}, PlainText: "alpha"},
 		{RelPath: "c.md", Title: "C", PlainText: "gamma"},
 	}
 	policy := validArtifactPolicy(t)
-	first := BuildFromDocs(docs, policy)
-	second := BuildFromDocs(docs, policy)
-	if diff := cmp.Diff(first, second, cmp.AllowUnexported(Index{}, entry{})); diff != "" {
-		t.Errorf("BuildFromDocs is not deterministic (-first +second):\n%s", diff)
+	first := NewIndex(docs, policy)
+	second := NewIndex(docs, policy)
+	if diff := cmp.Diff(
+		first,
+		second,
+		cmp.AllowUnexported(Index{}, entry{}),
+		cmpopts.IgnoreFields(Index{}, "policy"),
+	); diff != "" {
+		t.Errorf("NewIndex is not deterministic (-first +second):\n%s", diff)
+	}
+}
+
+func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
+	t.Parallel()
+
+	contractBytes, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read contract fixture: %v", err)
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+	policy := contract.ArtifactPolicy()
+	idx := NewIndex([]Document{{
+		RelPath:   "Concepts/A.md",
+		Title:     "A",
+		Status:    "seedling",
+		PlainText: "needle",
+	}}, policy)
+
+	if err = os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("change contract: %v", err)
+	}
+	if policy.ValidateSource().Available() {
+		t.Fatal("policy remained available after source drift")
+	}
+	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("restore contract: %v", err)
+	}
+
+	if _, countErr := idx.CountByStatus(); !errors.Is(countErr, ErrMetadataUnavailable) {
+		t.Errorf("CountByStatus() error = %v, want %v", countErr, ErrMetadataUnavailable)
+	}
+	query := Parse("needle")
+	results, err := idx.Search(query)
+	if err != nil {
+		t.Fatalf("bare-text Search() error = %v", err)
+	}
+	if len(results) != 1 || results[0].RelPath != "Concepts/A.md" {
+		t.Errorf("bare-text Search() results = %v, want readable corpus preserved", results)
 	}
 }
 
@@ -432,7 +567,7 @@ func TestFrontmatterExcludedFromPlainText(t *testing.T) {
 	t.Parallel()
 	raw := []byte("---\ntitle: My Note\ntype: concept\ndomain: golang\ncreated: 2020-01-15\n---\n\nThe body mentions widgets.\n")
 	n := vault.Parse("Concepts/My Note.md", raw)
-	idx := BuildFromDocs([]Doc{docFromNote(n)}, validArtifactPolicy(t))
+	idx := NewIndex([]Document{DocumentFromNote(n)}, validArtifactPolicy(t))
 
 	if got := searchResults(t, idx, Parse("2020")); len(got) != 0 {
 		t.Errorf("frontmatter date leaked into plain_text: search 2020 = %v", paths(got))

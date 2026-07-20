@@ -1,12 +1,13 @@
 package judge
 
 import (
-	"bytes"
 	"slices"
 	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // note is one markdown file as the diagnostics see it: its vault-relative
@@ -30,18 +31,16 @@ type note struct {
 	badFrontmatter bool
 	frontmatter    map[string]fmValue
 
-	title                string
-	titleEn              string
-	aliases              []string
-	noteType             string
-	domain               string
-	status               string
-	sourceKind           string
-	slug                 string
-	basedOn              []string
-	related              []string
-	evolutionPredecessor string
-	evolutionSuccessors  []string
+	title      string
+	titleEn    string
+	aliases    []string
+	noteType   string
+	domain     string
+	status     string
+	sourceKind string
+	slug       string
+	basedOn    []string
+	related    []string
 
 	wikilinks    []wikiLink
 	pathRefs     []pathRef
@@ -54,9 +53,11 @@ type note struct {
 // a list, and a required-field check treats an empty scalar or an empty list
 // as absent.
 type fmValue struct {
-	scalar string
-	list   []string
-	isList bool
+	scalar         string
+	list           []string
+	stringList     []string
+	isList         bool
+	scalarIsString bool
 }
 
 // asScalar reports the scalar text, or false when the value is a list.
@@ -76,14 +77,16 @@ func (v fmValue) present() bool {
 	return v.scalar != ""
 }
 
-// collectNotes walks the vault and parses every markdown file into a note,
-// discarding the non-note resources the full walk also finds. A ".md" extension
-// is the boundary between a note and a linkable resource; only notes are
-// returned. It shares collectVault's single walk, so the scan boundary is the
-// resolver's.
-func collectNotes(root string) ([]note, error) {
-	notes, _, err := collectVault(root)
-	return notes, err
+// stringValues returns only genuine YAML strings. Unlike scalar and list,
+// these values are not coerced from numbers, booleans, or nulls.
+func (v fmValue) stringValues() []string {
+	if v.isList {
+		return v.stringList
+	}
+	if v.scalarIsString && v.scalar != "" {
+		return []string{v.scalar}
+	}
+	return nil
 }
 
 // parseNote splits a file's leading frontmatter and reads it into the note
@@ -94,12 +97,12 @@ func collectNotes(root string) ([]note, error) {
 // which the frontmatter check reports as a single fault rather than a cascade
 // of "field missing" for fields that may sit above the fault.
 func parseNote(rel string, data []byte) note {
-	fm, bodyBytes, bodyLine, found := splitFrontmatter(data)
-	body := string(bodyBytes)
+	block, found := vault.SplitFrontmatter(data)
+	body := string(block.Body)
 	n := note{
 		path:         rel,
-		wikilinks:    extractWikilinks(body, bodyLine),
-		pathRefs:     extractPathRefs(body, bodyLine),
+		wikilinks:    extractWikilinks(body, block.BodyStartLine),
+		pathRefs:     extractPathRefs(body, block.BodyStartLine),
 		plannedNames: extractPlannedNames(body),
 	}
 	if !found {
@@ -107,7 +110,7 @@ func parseNote(rel string, data []byte) note {
 		return n
 	}
 	var doc yaml.Node
-	if err := yaml.Unmarshal(fm, &doc); err != nil {
+	if err := yaml.Unmarshal(block.Content, &doc); err != nil {
 		n.badFrontmatter = true
 		return n
 	}
@@ -146,8 +149,6 @@ func readTypedFields(n *note, doc *yaml.Node) {
 	n.slug = strField(root, "slug")
 	n.basedOn = listField(root, "based_on")
 	n.related = listField(root, "related")
-	n.evolutionPredecessor = strField(root, "evolution_predecessor")
-	n.evolutionSuccessors = listField(root, "evolution_successors")
 }
 
 // mappingValue returns the value node for a top-level key, or false when the
@@ -228,43 +229,6 @@ func asString(n *yaml.Node) (string, bool) {
 		return n.Value, true
 	}
 	return "", false
-}
-
-// splitFrontmatter separates a leading frontmatter block from the body. It
-// returns the block's bytes, the body's bytes, the 1-based file line the body
-// starts on, and whether a block was present. A block is recognized only at the
-// very start of the file, opened by a "---" line and closed by the next "---"
-// or "..." line; without a closing fence there is no frontmatter and the whole
-// file is the body starting at line 1. Both line endings are accepted. The
-// returned block keeps the newline that ends its last line — the byte before
-// the closing fence — because a trailing newline is part of a block scalar's
-// value, and dropping it would change what the author wrote. Line numbers count
-// the opening and closing fence lines, so the body of an N-line block starts on
-// line N+1. This reads the block on the diagnostics' own terms rather than
-// reusing the renderer's split, whose fence handling is shaped for display, not
-// for the frozen wire format.
-func splitFrontmatter(data []byte) (fm, body []byte, bodyStartLine int, found bool) {
-	rest, ok := bytes.CutPrefix(data, []byte("---\n"))
-	if !ok {
-		if rest, ok = bytes.CutPrefix(data, []byte("---\r\n")); !ok {
-			return nil, data, 1, false
-		}
-	}
-	line := 1 // the opening "---"
-	for offset := 0; offset < len(rest); {
-		raw := rest[offset:]
-		advance := len(raw)
-		if nl := bytes.IndexByte(raw, '\n'); nl >= 0 {
-			advance = nl + 1
-		}
-		line++
-		switch string(bytes.TrimRight(raw[:advance], "\r\n")) {
-		case "---", "...":
-			return rest[:offset], rest[offset+advance:], line + 1, true
-		}
-		offset += advance
-	}
-	return nil, data, 1, false
 }
 
 // hasDuplicateKey reports whether any mapping anywhere in the document repeats a
@@ -379,12 +343,17 @@ func nodeValue(n *yaml.Node) fmValue {
 	switch n.Kind {
 	case yaml.SequenceNode:
 		items := make([]string, 0, len(n.Content))
+		stringItems := make([]string, 0, len(n.Content))
 		for _, item := range n.Content {
 			items = append(items, scalarText(item))
+			if value, ok := asString(item); ok && value != "" {
+				stringItems = append(stringItems, value)
+			}
 		}
-		return fmValue{list: items, isList: true}
+		return fmValue{list: items, stringList: stringItems, isList: true}
 	case yaml.ScalarNode:
-		return fmValue{scalar: scalarText(n)}
+		_, scalarIsString := asString(n)
+		return fmValue{scalar: scalarText(n), scalarIsString: scalarIsString}
 	default:
 		return fmValue{}
 	}

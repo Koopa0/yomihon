@@ -16,6 +16,27 @@
    ============================================================ */
 html, body { margin: 0; background: var(--bg); }
 
+.y-skiplink {
+  position: fixed;
+  z-index: 101;
+  /* Keep the focused link below the 56px header so it cannot cover the
+     navigation trigger or another persistent header control. */
+  top: 64px;
+  left: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--fg);
+  font: var(--fw-medium) var(--fs-13)/var(--lh-normal) var(--font-sans);
+  translate: 0 calc(-100% - 72px);
+}
+.y-skiplink:focus {
+  translate: 0;
+  outline: 2px solid var(--fg-subtle);
+  outline-offset: 2px;
+}
+
 .yomihon {
   min-height: 100vh;
   display: flex;
@@ -145,6 +166,21 @@ html, body { margin: 0; background: var(--bg); }
 }
 .y-iconbtn:hover { color: var(--fg); background: var(--overlay); }
 .y-iconbtn svg { width: 16px; height: 16px; }
+.y-shortcutpref {
+  display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 8px;
+  box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--r-sm);
+  color: var(--fg-muted); font-family: var(--font-sans); font-size: var(--fs-11);
+  cursor: pointer; flex: none;
+}
+.y-shortcutpref:hover { color: var(--fg); background: var(--overlay); }
+.y-shortcutpref__input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.y-shortcutpref__label { white-space: nowrap; }
+.y-shortcutpref__label-compact { display: none; white-space: nowrap; }
+.y-shortcutpref__on, .y-shortcutpref__off {
+  display: none; font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em;
+}
+[data-single-key-shortcuts="on"] .y-shortcutpref__on { display: inline; color: var(--accent); font-weight: 500; }
+[data-single-key-shortcuts="off"] .y-shortcutpref__off { display: inline; color: var(--fg-faint); }
 .y-rubybtn { width: auto; gap: 7px; padding: 0 11px; }
 .y-rubybtn__glyph { font-family: var(--font-kai); font-size: 15px; line-height: 1; }
 .y-rubybtn__on, .y-rubybtn__off { font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; }
@@ -181,6 +217,7 @@ html, body { margin: 0; background: var(--bg); }
   border-left: 1px solid var(--border); overflow-y: auto; max-height: calc(100vh - 56px);
   position: sticky; top: 56px; padding: 26px 22px 48px; display: flex; flex-direction: column; gap: 26px;
 }
+.y-rail-right > * { flex: none; }
 .y-main { overflow-y: auto; max-height: calc(100vh - 56px); min-width: 0; }
 
 /* left-rail disclosure groups */
@@ -417,7 +454,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-sealby { margin-top: 10px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); display: flex; align-items: center; gap: 7px; }
 .y-sealby svg { width: 12px; height: 12px; }
 .y-sealgit { margin-top: 5px; font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); opacity: .75; }
-/* one-shot ceremony (added by yomihon.js when ?sealed=1) */
+/* one-shot ceremony (activated by status.js when ?sealed=1) */
 .y-justsealed .y-sealed { animation: y-sealBed .5s var(--ease-standard) both; }
 .y-justsealed .y-sealed__stamp { animation: y-inkBloom .65s ease-out both; }
 .y-justsealed .y-sealline { animation: y-hairline .55s .1s var(--ease-standard) both; }
@@ -504,7 +541,7 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    TTS — read-aloud speak button on lesson sentences.
    Server-rendered (render.InjectTTS) with reading-stripped data-tts; the
-   button hangs in the left gutter and is revealed only once yomihon.js
+   button hangs in the left gutter and is revealed only once the lesson module
    confirms a Web Speech engine (root[data-speech]), so with no JS or no
    engine the sentence still reads and the affordance is simply absent.
    ============================================================ */
@@ -753,6 +790,26 @@ html, body { margin: 0; background: var(--bg); }
 .y-fileinfo__list dd { margin: 0; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg); overflow-wrap: anywhere; }
 .y-fileinfo__raw { display: inline-block; margin: 18px 0 0; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
+/* Status-write recovery — an ordinary reading-shell page whose visual weight
+   follows the mutation boundary. Actions are GET links only; the failed POST
+   is deliberately not repeatable from this surface. */
+.y-recoverymain { padding: 42px 48px 120px; }
+.y-recovery { max-width: var(--measure-article); margin: 0 auto; }
+.y-recovery__kicker { margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; color: var(--fg-faint); }
+.y-recovery__state { margin: 24px 0 0; padding: 14px 16px; border-left: 3px solid var(--accent); background: var(--accent-muted); font-family: var(--font-sans); font-size: var(--fs-14); color: var(--fg); }
+.y-recovery__state[data-status-changed="false"] { border-left-color: var(--border-strong); background: var(--elevated); }
+.y-recovery__summary { margin: 22px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg); }
+.y-recovery__detail, .y-recovery__next { margin: 28px 0 0; }
+.y-recovery__detail h2, .y-recovery__next h2 { margin: 0 0 8px; font-family: var(--font-sans); font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--fg); }
+.y-recovery__detail pre { overflow-x: auto; margin: 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--panel); white-space: pre-wrap; overflow-wrap: anywhere; }
+.y-recovery__detail code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); }
+.y-recovery__next p { margin: 0; font-family: var(--font-serif); color: var(--fg-subtle); }
+.y-recovery__actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 30px 0 0; }
+.y-recovery__action { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); color: var(--on-accent); text-decoration: none; }
+.y-recovery__action:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.y-recovery__action--quiet { border-color: var(--border); background: var(--panel); color: var(--fg); }
+.y-recovery__action--quiet:hover { border-color: var(--border-strong); background: var(--elevated); }
+
 .y-syl { max-width: 800px; margin: 0 auto; padding: 44px 56px 120px; }
 .y-syl-kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
 .y-syl .y-title { margin-top: 12px; }
@@ -760,14 +817,14 @@ html, body { margin: 0; background: var(--bg); }
 .y-syl-ready { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 
 .y-part-block { margin-top: 30px; }
-.y-part { display: flex; align-items: baseline; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 72px; }
+.y-part { display: flex; align-items: baseline; gap: 14px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 72px; }
 .y-part__num { flex: none; min-width: 24px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
 .y-part__name { flex: 1; min-width: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); color: var(--fg); }
 .y-partcount { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle); background: var(--elevated); border: 1px solid var(--border-faint); border-radius: var(--r-sm); padding: 3px 8px; white-space: nowrap; }
 .y-partcount.is-complete { color: var(--sage); background: var(--sage-bg); border-color: transparent; }
 
 .y-module { padding: 22px 0 0 38px; }
-.y-module__label { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.y-module__label { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
 .y-module__tag { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.05em; color: var(--fg-faint); }
 .y-module__name { flex: none; font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--fg-muted); }
 .y-module__rule { flex: 1; height: 1px; background: var(--border-faint); }
@@ -951,6 +1008,7 @@ html, body { margin: 0; background: var(--bg); }
   .y-homenote { align-items: flex-start; }
   .y-homenote__meta { align-items: flex-end; flex-direction: column; }
   .y-syl { padding: 32px 20px 120px; }
+	.y-recoverymain { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lesson { gap: 10px; }
   /* The sidebar is ordinary stacked content until the enhancement runtime
@@ -977,6 +1035,9 @@ html, body { margin: 0; background: var(--bg); }
   .y-header { gap: 8px; padding-inline: 12px; }
   .y-brand { gap: 7px; }
   .y-brand__tag { display: none; }
+  .y-shortcutpref { gap: 4px; padding-inline: 4px; }
+  .y-shortcutpref__label { display: none; }
+  .y-shortcutpref__label-compact { display: inline; }
   .y-rubybtn { width: 32px; gap: 0; padding: 0; }
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }

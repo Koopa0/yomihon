@@ -309,6 +309,6 @@ func TestSeverityMarshalText(t *testing.T) {
 				t.Error("MarshalText on an out-of-range severity must panic")
 			}
 		}()
-		_, _ = Severity(3).MarshalText()
+		_, _ = Severity(3).MarshalText() //nolint:errcheck // this branch must panic before any return value exists
 	})
 }

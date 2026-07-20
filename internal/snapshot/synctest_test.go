@@ -2,62 +2,122 @@ package snapshot
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/search"
 )
 
-// TestRunSwapsOnlyOnChange pins the scanner's timing behavior on a fake clock:
-// a tick over an unchanged vault leaves the published snapshot untouched, a
-// tick after a note is added reflects the new note, and a cancelled context
-// returns the loop promptly. Only time is virtual — the vault is a real
-// directory and the scans do real file I/O — so the whole test finishes in
-// milliseconds of wall clock rather than waiting out the scan cadence. The
-// synctest bubble fails the test if the scanner goroutine is still alive at the
-// end, which is how the prompt-return guarantee is enforced.
-func TestRunSwapsOnlyOnChange(t *testing.T) {
+// TestRunScannerTicksAndStops pins only the scanner loop's clock, cancellation,
+// and goroutine behavior. Filesystem rebuilding belongs to ordinary tests:
+// system calls are not durably blocking inside a synctest bubble.
+func TestRunScannerTicksAndStops(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		root := t.TempDir()
-		writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\n\nalpha body\n")
-
-		roles, policy := testCapabilities(t)
-		store := New(root, discardLogger(), roles, policy)
-		first := store.Current()
-
 		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan struct{})
+		var scans atomic.Int32
 		go func() {
-			store.Run(ctx)
+			runScanner(ctx, func() {
+				scans.Add(1)
+			})
 			close(done)
 		}()
 
-		// A tick with nothing changed on disk must not swap the pointer.
-		time.Sleep(scanInterval + time.Second)
+		time.Sleep(scanInterval - time.Nanosecond)
 		synctest.Wait()
-		if store.Current() != first {
-			t.Error("snapshot pointer swapped after a tick with no vault change")
+		if got := scans.Load(); got != 0 {
+			t.Errorf("scanner calls before interval = %d, want 0", got)
+		}
+		select {
+		case <-done:
+			t.Fatal("runScanner returned before cancellation")
+		default:
 		}
 
-		// A new note, then a tick: the live snapshot reflects it. The freshness
-		// is checked by observable content rather than an internal counter.
-		writeNote(t, root, "Concepts/Beta.md", "---\ntitle: Beta\ntype: concept\n---\n\nbeta mentions widgets\n")
-		time.Sleep(scanInterval + time.Second)
+		time.Sleep(time.Nanosecond)
 		synctest.Wait()
-		if store.Current() == first {
-			t.Error("snapshot pointer did not swap after a vault change")
+		if got := scans.Load(); got != 1 {
+			t.Errorf("scanner calls after interval = %d, want 1", got)
 		}
-		if got := snapshotSearch(t, store.Current().Search, "widgets"); len(got) == 0 {
-			t.Error("rescan did not reflect the added note")
+		select {
+		case <-done:
+			t.Fatal("runScanner returned after a scan without cancellation")
+		default:
 		}
 
-		// A cancelled context returns the loop; the bubble's leak check would
-		// fail the test if it did not.
 		cancel()
 		synctest.Wait()
+		if got := scans.Load(); got != 1 {
+			t.Errorf("scanner calls after cancellation = %d, want 1", got)
+		}
 		select {
 		case <-done:
 		default:
-			t.Error("Run did not return after the context was cancelled")
+			t.Error("runScanner did not return after cancellation")
 		}
 	})
+}
+
+func TestViewConcurrentReadersCannotMutateGeneration(t *testing.T) {
+	t.Parallel()
+	view, _ := immutableViewFixture(t)
+
+	synctest.Test(t, func(t *testing.T) {
+		for range 32 {
+			go func() {
+				for range 100 {
+					request := view.Capture()
+					resolution := request.Graph().Resolve("Foo")
+					resolution.Candidates[0] = "mutated"
+
+					folders := request.Navigation().Folders()
+					folders[0].Name = "mutated"
+
+					results, err := request.Search().Search(search.Parse("Foo"))
+					if err != nil {
+						t.Errorf("Search(Foo) error = %v", err)
+						continue
+					}
+					results[0].Title = "mutated"
+					counts, err := request.Search().CountByStatus()
+					if err != nil {
+						t.Errorf("CountByStatus() error = %v", err)
+						continue
+					}
+					counts["draft"] = 0
+
+					slot, ok := request.Slots().Lookup("lesson-l01")
+					if !ok {
+						t.Error("Slots().Lookup(lesson-l01) = false")
+						continue
+					}
+					position := slot.Patterns[0].Slots["A"]
+					position.Fills[0].JP = "mutated"
+					slot.Patterns[0].Slots["A"] = position
+
+					_ = request.ArtifactPolicy().ValidateSource()
+				}
+			}()
+		}
+		synctest.Wait()
+	})
+
+	if got := view.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
+		t.Errorf("Resolve(Foo) after concurrent mutation starts with %q, want %q", got, "A/Foo.md")
+	}
+	if got := view.Navigation().Folders()[0].Name; got == "mutated" {
+		t.Error("Navigation().Folders() retained a concurrent caller mutation")
+	}
+	if got := snapshotSearch(t, view.Search(), "Foo")[0].Title; got != "Foo" {
+		t.Errorf("Search(Foo) after concurrent mutation starts with title %q, want %q", got, "Foo")
+	}
+	slot, ok := view.Slots().Lookup("lesson-l01")
+	if !ok {
+		t.Fatal("Slots().Lookup(lesson-l01) = false")
+	}
+	if got := slot.Patterns[0].Slots["A"].Fills[0].JP; got != "私" {
+		t.Errorf("Slots().Lookup() after concurrent mutation fill = %q, want %q", got, "私")
+	}
 }

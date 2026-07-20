@@ -9,7 +9,6 @@ package vault
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -26,35 +25,20 @@ type Note struct {
 	Body         string
 }
 
-// ReadNote loads one note by vault-relative path. The path must stay inside
-// root; anything else is an error even on this trusted, local corpus.
-func ReadNote(root, rel string) (*Note, error) {
-	rel = filepath.FromSlash(rel)
-	if !filepath.IsLocal(rel) {
-		return nil, fmt.Errorf("read note: path %q escapes vault root", rel)
-	}
-	data, err := os.ReadFile(filepath.Join(root, rel)) // #nosec G304 -- rel is validated local by filepath.IsLocal above; root is the operator's own vault
-	if err != nil {
-		return nil, fmt.Errorf("read note %s: %w", rel, err)
-	}
-	return Parse(filepath.ToSlash(rel), data), nil
-}
-
 // Parse splits raw file bytes into frontmatter and body and decodes the
 // frontmatter. rel is stored on the returned Note as-is (callers pass a
-// slash-form vault-relative path). This is the one place that decides what
-// a note's frontmatter means; both ReadNote and the status package's write
-// path (which must never disagree with a reader about the current status)
-// call it.
+// slash-form vault-relative path). This is the one place that decides what a
+// captured note's frontmatter means, so read and write projections cannot
+// disagree about the current status.
 func Parse(rel string, data []byte) *Note {
 	n := &Note{RelPath: rel}
-	fm, body := SplitFrontmatter(data)
-	n.Body = string(body)
-	if fm == nil {
+	block, found := SplitFrontmatter(data)
+	n.Body = string(block.Body)
+	if !found {
 		return n
 	}
 	var fields map[string]any
-	if err := yaml.Unmarshal(fm, &fields); err != nil {
+	if err := yaml.Unmarshal(block.Content, &fields); err != nil {
 		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
 		return n
 	}
@@ -107,23 +91,50 @@ func (n *Note) Slug() string {
 	return ""
 }
 
-// SplitFrontmatter separates a leading ----fenced YAML block from the body.
-// It returns a nil frontmatter slice when the file has no block. Splitting
-// happens before any body preprocessing so that wikilink-looking values
-// (e.g. based_on: "[[...]]") are never corrupted by later passes.
-//
-// Exported so the status package can locate the raw frontmatter block for
-// its surgical status-line rewrite without re-implementing this split.
-func SplitFrontmatter(data []byte) (fm, body []byte) {
+// Frontmatter is the byte-level split of one note. Content is the YAML between
+// the fence lines, including the newline before the closing fence when one is
+// present. ContentStart locates that slice in the original input so the status
+// write face can replace one line without rebuilding any delimiter or newline.
+type Frontmatter struct {
+	Content       []byte
+	Body          []byte
+	ContentStart  int
+	BodyStartLine int
+}
+
+// SplitFrontmatter separates a leading YAML frontmatter block from the body.
+// A block opens with a "---" line and closes with the next "---" or "..."
+// line. LF and CRLF are accepted, as is a closing fence at EOF. An unterminated
+// opening fence is body text, not a partial block. The split happens before
+// body preprocessing, so frontmatter values that resemble body syntax remain
+// untouched.
+func SplitFrontmatter(data []byte) (Frontmatter, bool) {
+	block := Frontmatter{Body: data, BodyStartLine: 1}
 	rest, found := bytes.CutPrefix(data, []byte("---\n"))
 	if !found {
-		return nil, data
+		if rest, found = bytes.CutPrefix(data, []byte("---\r\n")); !found {
+			return block, false
+		}
 	}
-	fm, body, found = bytes.Cut(rest, []byte("\n---\n"))
-	if !found {
-		// Unterminated block: treat the whole file as body and let the
-		// YAML diagnostic surface via the (missing) frontmatter instead.
-		return nil, data
+	contentStart := len(data) - len(rest)
+	line := 1
+	for offset := 0; offset < len(rest); {
+		raw := rest[offset:]
+		advance := len(raw)
+		if nl := bytes.IndexByte(raw, '\n'); nl >= 0 {
+			advance = nl + 1
+		}
+		line++
+		switch string(bytes.TrimRight(raw[:advance], "\r\n")) {
+		case "---", "...":
+			return Frontmatter{
+				Content:       rest[:offset],
+				Body:          rest[offset+advance:],
+				ContentStart:  contentStart,
+				BodyStartLine: line + 1,
+			}, true
+		}
+		offset += advance
 	}
-	return fm, body
+	return block, false
 }

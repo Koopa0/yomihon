@@ -115,17 +115,17 @@ const MUTATIONS = {
   },
   'inject-lifecycle': {
     target: 'lifecycle-retired',
-    apply: replaceEvery('id="nav-rail">', 'id="nav-rail"><span>Lifecycle</span>'),
+    apply: replaceEvery('id="nav-rail" aria-label="Vault 導覽">', 'id="nav-rail" aria-label="Vault 導覽"><span>Lifecycle</span>'),
   },
   'rename-advanceable': {
     target: 'advanceable-chip',
-    apply: replaceEvery('aria-label="1 notes have a legal next status"', 'aria-label="advanceable"'),
+    apply: replaceEvery('aria-label="1 篇筆記可進入下一個合法狀態"', 'aria-label="advanceable"'),
   },
   'autofocus-home-search': {
     target: 'home-start-top',
     apply: rewritePath(HOME, (body) => body.replaceAll(
-      'placeholder="Search the storehouse…" aria-label="Search notes">',
-      'placeholder="Search the storehouse…" aria-label="Search notes" autofocus>',
+      'placeholder="搜尋書庫…" aria-label="搜尋筆記">',
+      'placeholder="搜尋書庫…" aria-label="搜尋筆記" autofocus>',
     )),
   },
 };
@@ -199,7 +199,7 @@ try {
     fail('lifecycle-retired', 'Lifecycle still appears in the sidebar');
   }
   const chip = page.locator('a[data-advanceable-chip]');
-  if (await chip.count() !== 1 || await chip.getAttribute('aria-label') !== '1 notes have a legal next status' || await chip.getAttribute('href') !== '/') {
+  if (await chip.count() !== 1 || await chip.getAttribute('aria-label') !== '1 篇筆記可進入下一個合法狀態' || await chip.getAttribute('href') !== '/') {
     fail('advanceable-chip', 'the shared advanceable-note chip is absent, mislabeled, or does not link Home');
   }
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // BenchmarkBuildSnapshot measures one scan-and-rebuild of all three derived
@@ -17,10 +19,29 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 		writeBenchNote(b, root, rel, content)
 	}
 	log := discardLogger()
-	roles, policy := testCapabilities(b)
+	contract := testContract(b, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() { closeReader(b, reader) })
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = buildSnapshot(root, log, scanMtimes(root), roles, policy)
+		scan, err := reader.ScanAvailable(b.Context())
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, _, err := buildView(
+			b.Context(),
+			reader,
+			scan,
+			log,
+			contract.NavigationRoles(),
+			contract.ArtifactPolicy(),
+			contract.ArticleLanguage(),
+		); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -44,7 +65,7 @@ func writeBenchNote(tb testing.TB, root, rel, content string) {
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		tb.Fatalf("mkdir for %s: %v", rel, err)
 	}
-	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 		tb.Fatalf("write %s: %v", rel, err)
 	}
 }
