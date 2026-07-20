@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   rel_path TEXT NOT NULL CHECK (length(rel_path) > 0),
   -- Target chunk ordinal paired with rel_path.
   ordinal INTEGER NOT NULL CHECK (ordinal BETWEEN 0 AND 4294967295),
-  -- Durably reserved HTTP sends, capped before the sixth request can occur.
+  -- Durable send-slot reservations, capped before a sixth capability invocation.
   attempts INTEGER NOT NULL CHECK (attempts BETWEEN 1 AND 5),
   -- Earliest Unix millisecond eligible for another attempt; NULL means now.
   retry_not_before_unix_ms INTEGER

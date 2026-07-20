@@ -1,6 +1,7 @@
 // Cross-feature keyboard policy. Feature modules own their mechanics; this
 // module alone decides shortcut priority, typing exclusions, and modifiers.
 export function initShortcuts({ drawer, sidebar, status, search }) {
+  const root = document.documentElement;
   window.addEventListener('keydown', (event) => {
     const target = event.target;
     const typing = target && (
@@ -26,6 +27,7 @@ export function initShortcuts({ drawer, sidebar, status, search }) {
       return;
     }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (root.dataset.singleKeyShortcuts === 'off') return;
     if (typing || search.isOpen()) return;
     if (event.key === '/') {
       if (sidebar.canFocusFilter()) {

@@ -13,8 +13,9 @@ func TestParseBuildArgs(t *testing.T) {
 		args []string
 		want buildArgs
 	}{
-		{name: "flags", args: []string{"build", "--json", "--root=/vault"}, want: buildArgs{root: "/vault", json: true}},
+		{name: "flags", args: []string{"build", "--json", "--renew-attempt-budget", "--root=/vault"}, want: buildArgs{root: "/vault", json: true, renewAttemptBudget: true}},
 		{name: "idempotent JSON and empty end marker", args: []string{"build", "--json", "--json", "--"}, want: buildArgs{json: true}},
+		{name: "idempotent renewal", args: []string{"build", "--renew-attempt-budget", "--renew-attempt-budget"}, want: buildArgs{renewAttemptBudget: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -44,6 +45,7 @@ func TestParseBuildArgsErrors(t *testing.T) {
 		{name: "duplicate root", args: []string{"build", "--root", "/a", "--root=/b"}, want: "flag --root specified more than once"},
 		{name: "root too long", args: []string{"build", "--root", strings.Repeat("x", 4097)}, want: "root exceeds 4096 bytes"},
 		{name: "json value", args: []string{"build", "--json=true"}, want: "flag --json takes no value"},
+		{name: "renewal value", args: []string{"build", "--renew-attempt-budget=true"}, want: "flag --renew-attempt-budget takes no value"},
 		{name: "invalid UTF-8", args: []string{"build", string([]byte{0xff})}, want: "arguments must be valid UTF-8"},
 	}
 	for _, tt := range tests {
@@ -58,6 +60,7 @@ func TestParseBuildArgsErrors(t *testing.T) {
 
 func FuzzParseBuildArgs(f *testing.F) {
 	f.Add("--json", "--root=/vault")
+	f.Add("--renew-attempt-budget", "--renew-attempt-budget")
 	f.Add("--", "--json")
 	f.Add("--root=bad\npath", "--json")
 	f.Fuzz(func(t *testing.T, a, b string) {

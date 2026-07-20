@@ -66,7 +66,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 	command := map[string]string{
 		"serve":        "Usage: yomihon serve\n",
 		"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
-		"search-index": "Usage: yomihon search-index build [--json] [--root <dir>]\n",
+		"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
 		"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",
 		"coverage":     "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n",
 		"exists":       "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n",
@@ -195,7 +195,7 @@ func TestAgentCommandsReachProductionComposition(t *testing.T) {
 		if exit != 3 {
 			t.Fatalf("yomihon search-index build exit = %d, want 3; stderr = %q", exit, stderr)
 		}
-		if got, want := stdout, "{\"error\":{\"reason\":\"embedder-unconfigured\"}}\n"; got != want {
+		if got, want := stdout, "{\"error\":{\"reason\":\"embedder-unconfigured\",\"active_generation\":\"absent\",\"staging_generation\":\"resumable\",\"retry_safe\":false,\"next_action\":\"repair-configuration\"}}\n"; got != want {
 			t.Errorf("yomihon search-index build stdout = %q, want %q", got, want)
 		}
 		if got, want := stderr, "yomihon search-index: embedder-unconfigured: no embedding key is configured, so semantic search is off\n"; got != want {

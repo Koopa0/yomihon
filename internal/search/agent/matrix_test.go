@@ -100,19 +100,20 @@ never_egress_dirs = ["Private"]
 		{row: 17, variant: "incomplete", stage: matrixReconcileFailure, err: semantic.ErrGenerationIncomplete, wantExit: 3, reason: searchReasonIndexIncomplete},
 		{row: 18, variant: "future retry", stage: matrixReconcileFailure, err: semantic.ErrRetryNotReady, wantExit: 3, reason: searchReasonRateLimited},
 		{row: 18, variant: "document throttle", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureRateLimited), wantExit: 3, reason: searchReasonRateLimited},
-		{row: 19, variant: "document transport", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureUnreachable), wantExit: 3, reason: searchReasonEmbedderUnreachable},
-		{row: 20, variant: "document rejected", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureRejected), wantExit: 3, reason: searchReasonEmbedderRejected},
-		{row: 21, variant: "document provider", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureProvider), wantExit: 3, reason: searchReasonEmbedderFailed},
-		{row: 21, variant: "document unknown", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureKind("future-provider-status")), wantExit: 3, reason: searchReasonEmbedderFailed},
-		{row: 22, variant: "document malformed", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureMalformedRequest), wantExit: 1},
-		{row: 22, variant: "document local formation", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureInternal), wantExit: 1},
-		{row: 23, variant: "vault changed", stage: matrixReconcileFailure, err: semantic.ErrVaultChanged, wantExit: 3, reason: searchReasonVaultChanged},
-		{row: 24, variant: "activated success", wantExit: 0},
-		{row: 24, variant: "activated unreachable", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureUnreachable), wantExit: 3, reason: searchReasonEmbedderUnreachable},
-		{row: 24, variant: "activated throttle", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureRateLimited), wantExit: 3, reason: searchReasonRateLimited},
-		{row: 24, variant: "activated rejected", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureRejected), wantExit: 3, reason: searchReasonEmbedderRejected},
-		{row: 24, variant: "activated provider", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureProvider), wantExit: 3, reason: searchReasonEmbedderFailed},
-		{row: 24, variant: "activated malformed", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureMalformedRequest), wantExit: 1},
+		{row: 19, variant: "document attempt budget exhausted", stage: matrixReconcileFailure, err: semantic.ErrAttemptLimit, wantExit: 3, reason: searchReasonAttemptBudgetExhausted},
+		{row: 20, variant: "document transport", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureUnreachable), wantExit: 3, reason: searchReasonEmbedderUnreachable},
+		{row: 21, variant: "document rejected", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureRejected), wantExit: 3, reason: searchReasonEmbedderRejected},
+		{row: 22, variant: "document provider", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureProvider), wantExit: 3, reason: searchReasonEmbedderFailed},
+		{row: 22, variant: "document unknown", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureKind("future-provider-status")), wantExit: 3, reason: searchReasonEmbedderFailed},
+		{row: 23, variant: "document malformed", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureMalformedRequest), wantExit: 1},
+		{row: 23, variant: "document local formation", stage: matrixReconcileFailure, err: provider(semantic.EmbedFailureInternal), wantExit: 1},
+		{row: 24, variant: "vault changed", stage: matrixReconcileFailure, err: semantic.ErrVaultChanged, wantExit: 3, reason: searchReasonVaultChanged},
+		{row: 25, variant: "activated success", wantExit: 0},
+		{row: 25, variant: "activated unreachable", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureUnreachable), wantExit: 3, reason: searchReasonEmbedderUnreachable},
+		{row: 25, variant: "activated throttle", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureRateLimited), wantExit: 3, reason: searchReasonRateLimited},
+		{row: 25, variant: "activated rejected", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureRejected), wantExit: 3, reason: searchReasonEmbedderRejected},
+		{row: 25, variant: "activated provider", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureProvider), wantExit: 3, reason: searchReasonEmbedderFailed},
+		{row: 25, variant: "activated malformed", stage: matrixQueryFailure, err: provider(semantic.EmbedFailureMalformedRequest), wantExit: 1},
 	}
 
 	assertMatrixRows(t, tests)
@@ -164,16 +165,16 @@ func assertMatrixRows(t *testing.T, tests []matrixCase) {
 }
 
 func missingMatrixRows(tests []matrixCase) []int {
-	rows := make(map[int]struct{}, 25)
+	rows := make(map[int]struct{}, 26)
 	for _, item := range tests {
 		row := item.row
-		if row < 0 || row > 24 {
+		if row < 0 || row > 25 {
 			continue
 		}
 		rows[row] = struct{}{}
 	}
-	missing := make([]int, 0, 25-len(rows))
-	for row := range 25 {
+	missing := make([]int, 0, 26-len(rows))
+	for row := range 26 {
 		if _, ok := rows[row]; !ok {
 			missing = append(missing, row)
 		}
@@ -233,7 +234,7 @@ func assertMatrixEnvelope(t *testing.T, stdout []byte, stderr string, exit int, 
 
 func TestSearchGateMatrixRejectsMissingBaseRow(t *testing.T) {
 	missing := missingMatrixRows([]matrixCase{{row: 0}})
-	if len(missing) != 24 || missing[0] != 1 || missing[len(missing)-1] != 24 {
-		t.Fatalf("missingMatrixRows() = %v, want 1..24", missing)
+	if len(missing) != 25 || missing[0] != 1 || missing[len(missing)-1] != 25 {
+		t.Fatalf("missingMatrixRows() = %v, want 1..25", missing)
 	}
 }

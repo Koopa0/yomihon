@@ -46,6 +46,54 @@ func TestBaseLoadsOneModuleEntry(t *testing.T) {
 	}
 }
 
+func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		enabled     bool
+		wantState   string
+		wantChecked bool
+	}{
+		{name: "enabled", enabled: true, wantState: "on", wantChecked: true},
+		{name: "disabled", wantState: "off", wantChecked: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			chrome := Chrome{Title: "測試", SingleKeyShortcutsEnabled: tt.enabled}
+			if err := Base(chrome).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render base: %v", err)
+			}
+			html := buf.String()
+			for _, want := range []string{
+				`data-single-key-shortcuts="` + tt.wantState + `"`,
+				`data-single-key-shortcuts-toggle`,
+				`aria-label="單字鍵快捷鍵"`,
+				`>單字鍵<`,
+				`>開<`,
+				`>關<`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Errorf("Base() is missing %q; html = %q", want, html)
+				}
+			}
+			controlStart := strings.Index(html, `data-single-key-shortcuts-toggle`)
+			if controlStart < 0 {
+				t.Fatalf("Base() has no single-key shortcut control; html = %q", html)
+			}
+			controlEnd := strings.IndexByte(html[controlStart:], '>')
+			if controlEnd < 0 {
+				t.Fatalf("single-key shortcut control is not closed; html = %q", html)
+			}
+			control := html[controlStart : controlStart+controlEnd]
+			if got := strings.Contains(control, "checked"); got != tt.wantChecked {
+				t.Errorf("single-key shortcut control checked = %t, want %t; control = %q", got, tt.wantChecked, control)
+			}
+		})
+	}
+}
+
 func TestBaseNeverEmitsAnUnnoncedExecutableScript(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer

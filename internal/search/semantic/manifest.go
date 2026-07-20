@@ -316,6 +316,13 @@ func validateCompleteGenerationRows(
 	if len(rows) != metadata.expectedChunks {
 		return incomplete
 	}
+	pendingCount, err := q.GenerationPendingCount(ctx, metadata.id)
+	if err != nil {
+		return fmt.Errorf("read semantic generation pending count: %w", err)
+	}
+	if pendingCount != 0 {
+		return incomplete
+	}
 	fingerprint, err := CorpusFingerprint(rows)
 	if err != nil {
 		return fmt.Errorf("%w: invalid generation corpus: %w", ErrStoreCorrupt, err)

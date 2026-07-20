@@ -16,7 +16,7 @@ Use "yomihon <command> --help" for command help.
 var commandHelp = map[string]string{
 	"serve":        "Usage: yomihon serve\n",
 	"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
-	"search-index": "Usage: yomihon search-index build [--json] [--root <dir>]\n",
+	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
 	"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",
 	"coverage":     "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n",
 	"exists":       "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n",

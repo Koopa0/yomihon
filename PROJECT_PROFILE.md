@@ -2,7 +2,7 @@
 
 Status: Proposed normative profile; initial approval is pending  
 Standard: `ENGINEERING_STANDARD.md` version 2.0  
-Last reviewed: 2026-07-19; independent review not yet performed
+Last reviewed: 2026-07-20; independent review not yet performed
 Profile owner: Koopa (`@Koopa0`)  
 Independent approver: Pending designation for an immutable candidate
 
@@ -50,13 +50,13 @@ Security and privacy commitments: Loopback-only ingress; no authentication in
 | Area | Authority or decision source | Semantic owner | Operational owner |
 |---|---|---|---|
 | Product behavior | `docs/product.md`, `docs/spec.md`, then accepted rulings in `docs/decisions.md` | The feature package named in `docs/design.md`; unresolved behavior returns to Koopa | Koopa |
-| Public API / CLI / UI | `docs/spec.md`, the owning face plan, D14/D28/D37/D50/D55, and frozen goldens | `internal/judge`, `internal/search/agent`, the relevant HTTP feature package, and `internal/ui` only for presentation | Koopa |
+| Public API / CLI / UI | `docs/spec.md`, the owning face plan, D14/D28/D37/D50/D55/D60, and frozen goldens | `internal/judge`, `internal/search/agent`, the relevant HTTP feature package, and `internal/ui` only for presentation | Koopa |
 | Authentication / authorization | D17's local same-account boundary, wall 2, `http.CrossOriginProtection`, and lifecycle owner rules from the vault contract | `internal/origin`, `internal/status`, and `internal/schema` | Koopa |
 | Durable data | The external vault contract, vault git history, D06/D07/D22/D32/D51/D58 | `internal/status` for the sole authoritative write; `internal/search/semantic` for disposable generations | Koopa |
 | Network ingress | Wall 2, D17, D30, D45, D59, and `SECURITY.md` | `cmd/yomihon` and `internal/origin` | Koopa |
-| Network egress | Wall 2 and D18/D32/D39/D42/D50/D54/D57/D59 | `internal/schema` supplies privacy capability; `internal/search/semantic` owns provider sends; `internal/judge` owns agent-output publication | Koopa |
-| Privacy / telemetry | `[privacy]` in the external vault contract, `docs/privacy/data-inventory.md`, wall 2, D18/D39/D42/D50/D54/D57, and `SECURITY.md` | `internal/schema` for authority; the final emitting/sending package for enforcement | Koopa |
-| Release / compatibility | `docs/release.md`, `docs/merge-policy.md`, D19, D37, D50, D55, and frozen contract fixtures | The package owning each public contract; release-wide compatibility is owned here and in `docs/release.md` | Koopa |
+| Network egress | Wall 2 and D18/D32/D39/D42/D50/D54/D57/D59/D60 | `internal/schema` supplies privacy capability; `internal/search/semantic` owns provider sends; `internal/judge` owns agent-output publication | Koopa |
+| Privacy / telemetry | `[privacy]` in the external vault contract, `docs/privacy/data-inventory.md`, wall 2, D18/D39/D42/D50/D54/D57/D60, and `SECURITY.md` | `internal/schema` for authority; the final emitting/sending package for enforcement | Koopa |
+| Release / compatibility | `docs/release.md`, `docs/merge-policy.md`, D19, D37, D50, D55, D60, and frozen contract fixtures | The package owning each public contract; release-wide compatibility is owned here and in `docs/release.md` | Koopa |
 | Incident response | `SECURITY.md` and `docs/security/threat-model.md`; provider-account response remains the operator's responsibility | The affected final-boundary owner | Koopa; no separate incident team is named |
 
 Accepted product decisions live at: `docs/decisions.md`  
@@ -202,17 +202,25 @@ Judge CLI:
 Semantic agent CLI:
   Stable code: exit 0 answer; exit 3 semantic unavailable or request
     unanswerable; exit 2 usage; exit 1 confirmed yomihon/internal fault.
-  Human message: frozen stderr reason; JSON uses answer, error, or
-    internal_error discriminated envelopes and never echoes the query.
+  Human message: frozen stderr reason. Search JSON uses answer, error, or
+    internal_error discriminated envelopes. Build failures instead use the
+    dedicated reason/active_generation/staging_generation/retry_safe/next_action
+    recovery envelope. Neither surface echoes the query.
   Fault owner: configuration, local capability/store, provider, caller, or
     confirmed yomihon request formation.
-  Retry safety: query sends at most once; interactive reconciliation is
-    single-attempt; explicit full build alone has bounded persisted retries.
+  Retry safety: query sends at most once. A full build durably reserves one
+    send slot before each chunk-send capability invocation; only provider 429
+    retries automatically, and each pending chunk has five slots per storage
+    generation. Every current build exit-3 recovery envelope says
+    retry_safe=false. Only `search-index build --renew-attempt-budget` may
+    authorize one matching exhausted replacement batch.
   Partial-result validity: an answer envelope may preserve truthful lexical
     results with exit 3, but never labels partial/stale semantic ranking as
     complete. Capability failure can suppress the entire payload.
-  Recovery / next action: reason directs build, configuration, retry-later, or
-    local repair.
+  Recovery / next action: search coverage keeps the typed reason. Build's
+    frozen next_action directs explicit retry, wait, budget renewal,
+    configuration/contract/input repair, supported platform, capacity review,
+    or yomihon repair; it is never permission for an automatic wrapper loop.
   Correlation ID: N/A; local synchronous command.
   Sensitive-data policy: no raw query, credential, provider body, denied path,
     or submitted document in logs/errors/metrics/traces.
@@ -241,13 +249,15 @@ Relevant states and why they are distinct:
 | off | Semantic retrieval was not requested; lexical behavior is complete | Lexical answer | exit 0 | Safe | No provider/store action | None |
 | not-applicable | `--semantic` has no bare text to embed, such as a pure-filter query | Lexical answer with semantic not-applicable | exit 0 | Safe | Zero key/store/provider access | Refine only if semantic text was intended |
 | empty | A valid complete local query or judge run found zero matching results/findings | Valid empty result, not an error | exit 0 unless `exists` no-match uses 1 | Safe | None | Change query or input; do not diagnose provider failure |
-| unavailable-with-lexical | Semantic was applicable and requested, but platform, generation, key, provider, capacity, drift, or writer state prevented a complete hybrid answer | Answer envelope with valid lexical results and semantic unavailable reason | exit 3 | Reason-dependent; no automatic query retry | At most the ruled document work; query at most once; failed activation leaves old active generation intact | Follow typed reason, often explicit build/configuration/retry-later |
+| unavailable-with-lexical | Semantic was applicable and requested, but platform, generation, key, provider, capacity, drift, or writer state prevented a complete hybrid answer | Answer envelope with valid lexical results and semantic unavailable reason | exit 3 | Reason-dependent; no automatic query retry | At most the ruled document work; query at most once; failed activation preserves a valid active generation, while an explicit corrupt-store reset may truthfully leave none | Follow typed reason, often explicit build/configuration/retry-later |
 | unanswerable | Required privacy or artifact authority is missing/invalid, so no honest result payload can be formed | Error envelope or zero judge stdout | semantic exit 3; judge exit 2 | After authority repair/restart | No protected output; no provider send | Repair contract and restart when source-drift latch requires it |
 | invalid | Command grammar, form, path, transition, or owner rule is illegal | Usage/tool diagnostic or status recovery page | CLI exit 2; HTTP 400/422 | Correct first | No authoritative write/provider send | Use help or correct the named field/path/transition |
-| conflict | Another writer/editor or dirty worktree prevents safe ownership | Typed unavailable or recovery page | semantic exit 3; HTTP 409 | Safe after conflict clears and state is reread | No status write; old semantic active generation remains | Reload/reconcile/commit external edits, then retry as a new action |
+| conflict | Another writer/editor or dirty worktree prevents safe ownership | Typed unavailable or recovery page | semantic exit 3; HTTP 409 | Safe after conflict clears and state is reread | No status write; any valid semantic active generation remains | Reload/reconcile/commit external edits, then retry as a new action |
 | stale | Page, contract authority, or semantic corpus identity no longer matches current authority | Status stale/closed recovery or semantic reconciliation outcome | HTTP 409/503; semantic exit 3 on failed reconciliation | Only after reread/restart/build as instructed | No status write on stale page; no stale vector is ranked | Reload page; restart for latched contract change; explicit build when required |
 | not-found | A local route/file or `exists` identity is absent | Honest 404 or no-match result | HTTP 404; `exists` exit 1 | Safe if source may appear | None | Correct identity or create through the owning external tool |
-| provider-failed | A known or unknown provider fault prevented semantic completion | Lexical answer retained; sanitized provider classification | exit 3 | Query is not retried in place; full build follows bounded schedule only for eligible retry | At most one query request; no provider body propagated | Retry a new explicit action when appropriate or use lexical result |
+| provider-failed | A known or unknown provider fault prevented semantic completion | Lexical answer retained for search; build uses its recovery envelope | exit 3 | Query is not retried in place; build auto-retries only a 429 while a reserved slot remains | At most one query request; each build send consumes a durable slot; no provider body propagated | Follow the typed next action or use the lexical search result |
+| attempt-budget-exhausted | At least one pending chunk in the matching staging generation has consumed all five send slots | Search coverage reason or build recovery envelope with `staging_generation=requires-authorization` | exit 3 | `retry_safe=false`; an ordinary build cannot mint slots | No implicit send or ledger reset; a valid active role is unchanged | Run `search-index build --renew-attempt-budget` only after explicitly authorizing one replacement batch |
+| attempt-budget-not-renewable | The renewal flag found missing, mismatched, corrupt, or not-exhausted staging | Build recovery envelope; physical mismatched/stale staging is `incompatible`, not `absent` | exit 3 | `retry_safe=false`; never falls back to ordinary build | Zero domain mutation and zero provider send; missing storage creates no path; an existing store may perform SQLite recovery/WAL bookkeeping while roles and domain rows remain unchanged | Inspect the typed generation states, then start an ordinary build or repair the named prerequisite as a new action |
 | durable-publication-uncertain | Status bytes may be replaced but durability could not be confirmed | Same-shell recovery says bytes changed and do not resend | HTTP 500 | Unsafe until inspected | File may have changed; no success claim | Inspect file and git manually; finish audit trail without resubmitting |
 | commit-failed-after-write | Status bytes changed but git commit failed | Same-shell recovery with allowlisted git detail and do-not-resend | HTTP 500 | Unsafe until inspected | File changed, commit missing | Commit/repair manually, then reload |
 | internal-error | Yomihon violated an invariant or could not safely form an operation | Internal-error envelope, generic HTTP 500, or process error | semantic exit 1; HTTP 500; serve exit 1 | Do not blind-retry | Depends on explicitly reported mutation truth | Preserve diagnostics without private data and repair invariant |
@@ -306,13 +316,13 @@ Initialization / global-state policy: No hidden network/filesystem writes or
 
 | Effect | Single owner / choke point | Required capability | Final checks | Retry / duplicate control | Evidence |
 |---|---|---|---|---|---|
-| Network egress | `internal/search/semantic` provider wire; fixed synthetic tests are a separate test-only path | Explicit semantic/build/certification action, current privacy/artifact capability, eligible input, lazy key | Exact endpoint/protocol, content hash, current policy source, size/token limits, direct transport, no redirect/proxy, timeout | Query and interactive reconcile send once; full build alone uses persisted 1s/4s/9s/16s retry schedule | Recording transport tests, `egress_boundary_test.go`, agent command tests; conditional live commands in Sections 13/14 |
+| Network egress | `internal/search/semantic` provider wire; fixed synthetic tests are a separate test-only path | Explicit semantic/build/certification action, current privacy/artifact capability, eligible input, lazy key | Exact endpoint/protocol, content hash, current policy source, size/token limits, direct transport, no redirect/proxy, timeout; build commits a durable send-slot reservation before invoking the chunk-send capability | Query sends once; build auto-retries only 429, with valid `Retry-After` or 1s/4s/9s/16s fallback, and each pending chunk has five slots per generation | Recording transport tests, `egress_boundary_test.go`, send-slot interruption tests, agent command tests; conditional live commands in Sections 13/14 |
 | Durable commit | `internal/status` | Supported Darwin/Linux platform, current lifecycle and artifact policy, legal actor transition, clean file, unchanged source identity/bytes | Revalidate policy bytes and source bytes immediately before descriptor-relative rename; fsync file and parent; then scoped git add/commit | No automatic retry or rollback; stale/dirty/concurrent actions abort; post-write failure says do not resend | Real temporary git/filesystem tests, platform contracts, `make test`, Gate 2 destructive-action scenario |
-| File replacement | `internal/status` for vault notes; `internal/search/semantic` for the disposable store | Status capability or explicit semantic build/reconcile writer lease | Same-filesystem/root confinement, modes, complete generation/manifest, policy freshness, atomic activation | Status is one replace; semantic active/previous are immutable and staging alone resumes; failed activation preserves active | Status TOCTOU/durability tests; semantic real-SQLite crash/activation/store tests |
-| Publication / activation | External publication is N/A. Semantic generation activation is owned by `internal/search/semantic` | Complete compatible staging generation and writer lease | Complete row set, retry ledger clear, manifest/policy recheck, one SQLite transaction | `previous=active; active=staging; staging=NULL`; no automatic previous fallback | Semantic store/manifest/staging tests and Darwin/Windows platform jobs |
+| File replacement | `internal/status` for vault notes; `internal/search/semantic` for the disposable store | Status capability or explicit semantic build/reconcile writer lease | Same-filesystem/root confinement, modes, complete generation/manifest, policy freshness, atomic activation or renewal | Status is one replace; semantic active/previous are immutable, staging alone resumes, and renewal atomically replaces only an exact exhausted staging batch; failure preserves any valid active except an explicit ordinary-build corrupt-store reset may leave none | Status TOCTOU/durability tests; semantic real-SQLite crash/activation/renewal/store tests |
+| Publication / activation | External publication is N/A. Semantic generation activation is owned by `internal/search/semantic` | Complete compatible staging generation and writer lease | Complete row set, send-attempt ledger clear, manifest/policy recheck, one SQLite transaction | `previous=active; active=staging; staging=NULL`; no automatic previous fallback; renewal changes staging only and the same action continues the ordinary build | Semantic store/manifest/staging/renewal tests and Darwin/Windows platform jobs |
 | Credential use | Provider construction inside `internal/search/semantic`; D57 test path for fixed certification | Explicit action plus nonblank exact `YOMIHON_EMBED_KEY` | Read lazily after earlier gates; header use only; no storage/format/log/error | One action-scoped provider; no cross-request auth latch | Provider HTTP tests, import-boundary test, conditional provider certification |
 | Subprocess execution | `internal/status` same-binary git child, which descriptor-chdirs and `exec`s resolved `git` | Supported status action and inherited vault-root descriptor | Discrete argv; every `GIT_*` and `YOMIHON_*` entry stripped before external Git; fixed child protocol; clean scoped path | Each status action owns its git sequence; failure is surfaced after write | `git_child_test.go`, real temporary git/environment tests, `make test` |
-| Billing / paid provider | Same provider choke point and fixed synthetic certification path | BYOK operator consent through explicit action | Exact approved bytes/destination/dimension, no hidden retry; full build retry is bounded | Operator pays; query has at most one request; certification refuses without opt-in | `make provider-live` and, when required, fixed recording capture; evidence must name date/model/dimension without exposing key |
+| Billing / paid provider | Same provider choke point and fixed synthetic certification path | BYOK operator consent through explicit action; exhausted build work needs the separate renewal flag | Exact approved bytes/destination/dimension; durable reservation precedes chunk-send capability; only 429 retries automatically | Operator pays; query has at most one request; each pending chunk has five send slots per generation; one renewal invocation authorizes at most one replacement batch; certification refuses without opt-in | `make provider-live` and, when required, fixed recording capture; evidence must name date/model/dimension without exposing key |
 
 No row is deleted as a convenience. External publication remains explicitly
 N/A until a separately designed publisher exists.
@@ -440,7 +450,7 @@ Example configuration test: make test includes cmd/yomihon configuration and
 | Snapshot change visibility over a low-thousands local vault | Supported local machine; one scanner | Edited/created/deleted content becomes visible without torn graph/nav/search state | At most 3 seconds worst case: about 2-second cadence plus rebuild margin | Canon records about 100 ms at roughly 419 notes; this is historical, not an immutable current benchmark | Bound breaks or corpus approaches about 10,000 files; measure before changing mechanism | `internal/snapshot` |
 | Lexical query | Captured in-memory index | Interactive local substring/filter search | No numeric latency percentile is canonically fixed; `UNRESOLVED` for release performance claims | `BenchmarkSearch`; no immutable profile-bound result | Any claimed improvement/regression or user-visible delay requires same-machine benchstat evidence | `internal/search` |
 | Semantic exact top-k | Complete compatible generation, 1,536 dimensions | Exact recall baseline before any approximate index | p95 about 100 ms opens the next-rung evaluation; it is an escalation threshold, not a universal CI timeout | Production generation records 40 queries × 3 runs; current source artifacts are not bound to this unapproved profile snapshot | p95 exceeds threshold, chunks reach 100,000, or raw vector payload exceeds 1 GiB | `internal/search/semantic` |
-| Semantic generation store | Darwin/Linux owner-only cache; fixed synthetic workload | Complete atomic build/reconcile/load with bounded footprint | Fewer than 100,000 chunks and at most 1 GiB raw vectors; interactive reconcile at most 128 chunks and 100,000 proxy tokens | `docs/benchmarks/semantic-storage-2026-07-18/` contains moving-worktree Darwin/arm64 evidence, not release certification | Identity/schema/corpus/driver change or capacity rung opening | `internal/search/semantic` |
+| Semantic generation store | Darwin/Linux owner-only cache; fixed synthetic workload | Complete atomic build/reconcile/load with bounded footprint | Fewer than 100,000 chunks and at most 1 GiB raw vectors; interactive reconcile at most 128 chunks and 100,000 proxy tokens | `docs/benchmarks/semantic-storage-2026-07-20/` contains moving-worktree Darwin/arm64 evidence, not release certification | Identity/schema/corpus/driver change or capacity rung opening | `internal/search/semantic` |
 | Browser interaction/startup | Supported Chrome in CI and local loopback | Primary reading/search/status task is responsive and stable | Numeric LCP/INP/startup/memory budgets are `UNRESOLVED` | E2E behavior exists; no Core Web Vitals baseline is retained | Any performance claim or observed interaction pain requires a declared workload and budget | UI feature owner |
 
 ```text
@@ -463,7 +473,9 @@ Connection pool bounds: SQLite uses one open connection per store handle.
   Provider transport allows up to 100 idle connections, 90-second idle timeout,
   30-second request timeout, no proxy, and no redirects. There is no remote DB.
 Startup budget: UNRESOLVED. Readiness is Home's direct HTTP 200 after the
-  synchronous scan, not merely a bound socket.
+  synchronous scan, not merely a bound socket. With a valid vault contract,
+  a missing root README still produces that 200 and the complete dashboard;
+  only the README body becomes an explicit read-only recovery state.
 Memory budget: Semantic raw vectors are capped at 1 GiB; overall process and
   snapshot memory budgets are UNRESOLVED.
 Load-shedding policy: Status/search input and provider bodies are bounded;
@@ -489,7 +501,10 @@ Liveness meaning: The local process remains running and can answer requests;
 Readiness meaning: Home answers 200 after routes and initial snapshot are live.
   Browser fixture acceptance additionally requires exactly one successful
   contract-load log; the reading product itself intentionally remains ready
-  with the write/metadata faces degraded when the contract is invalid.
+  with the write/metadata faces degraded when the contract is invalid. A
+  missing root README under a valid contract is ready: `/` renders the full
+  snapshot-backed dashboard with a README recovery body, while direct
+  `/notes/README.md` remains 404.
 Graceful shutdown deadline and behavior: SIGINT/SIGTERM cancel the process;
   http.Server.Shutdown receives 5 seconds. The site then closes owned request
   and scanner lifetimes; shutdown failure is returned and causes process failure.
@@ -510,8 +525,11 @@ Backup / restore procedure: Vault/git backup is external; status failures are
   for a formal recovery claim is UNVERIFIED.
 Disaster or corruption recovery: Fail closed on uncertain status publication;
   preserve the file and manual git evidence. Treat corrupt/incompatible
-  semantic storage as unavailable and rebuild explicitly. Never silently call
-  an empty or partial result success.
+  semantic storage as unavailable and rebuild explicitly. An ordinary build
+  may reset corrupt derived storage, so a later failure can truthfully report
+  active absent. Budget renewal never performs that reset and never treats
+  mismatched or stale physical staging as absent. Never silently call an empty
+  or partial result success.
 Post-release checks: Bind identity and configuration to the source tag/commit;
   verify exact loopback socket, Home/primary reading task, one supported status
   path on Darwin/Linux, lexical and judge CLI contracts, semantic BYOK behavior
@@ -751,10 +769,11 @@ or another writer receives access.
 | Contract is sole schema authority and write/metadata faces fail closed on invalid/stale source | Unauthorized transition or false projection | Real contract file and final status boundary | Cross-product table tests, source-drift latch, direct POST | Structural test rejects hardcoded statuses; replay required when authority path changes | Independent reviewer |
 | Denied paths neither appear nor influence judge/provider output | Private-data inference or direct egress | Judge stdout and provider transport | Real graph/judge fixtures, recording transport, policy-source recheck, import analysis | Bypass/drop final privacy check must make the named privacy/egress test fail | Privacy reviewer independent of builder |
 | Query is sent only for explicit applicable semantic action, at most once, and never logged/echoed | Private query leak or amplified billing | Final provider HTTP request and CLI serialization | Recording HTTP transport, CLI matrix, log/error absence tests | Alternate-send/retry/query-echo mutation required for changes to this path | Privacy reviewer independent of builder |
+| Every build chunk send consumes prior durable authority; only 429 auto-retries; exhausted work renews only through one exact replacement batch | Amplified billing, invisible retry, or consent bypass | Send-slot ledger transaction, final provider request, and renewal role transaction | Real-SQLite interruption points, recording HTTP counts, 429/Retry-After schedules, exhaustion and every non-renewable precondition, recovery-wire goldens | Moving reservation after transport, refunding a pre-vector abort, retrying a non-429, or ordinary-build slot minting must make the named lock fail | Privacy/storage reviewer independent of builder |
 | Agent wire bytes and exit codes remain frozen and honest | Automation breakage or partial result reported success | stdout/stderr and process exit | Golden bytes, subprocess/CLI tests, fixture compatibility | Golden/update path must not auto-accept; deliberate byte/status mutation must fail the consumer test | Independent agent-surface reviewer |
 | One immutable snapshot generation feeds graph/nav/search per request | Torn or stale authority, races | Scanner goroutine and atomic publication | Race, synctest, deterministic interleaving, request-capture tests | Publish/capture bypass mutation required when generation mechanics change | Concurrency reviewer |
 | Authored Markdown/report HTML cannot execute first-party or automatic remote behavior | Script execution, automatic egress, same-origin abuse | Real browser parser, CSP, raw routes, sandbox iframe | Renderer unit/fuzz, route headers, live Chrome probes | `browser-boundary.mjs` registered mutations and exact caught markers | Security reviewer |
-| Semantic activation exposes only one complete compatible generation | Partial/stale ranking, corrupt store, paid-vector loss | Real SQLite transactions/files and writer lease | Real-SQLite integration, crash/interruption, corruption, manifest, capacity, Darwin/Windows runtime | Activation/previous-fallback/staging-visibility mutations required on change; profile-bound replay currently `UNVERIFIED` | Storage reviewer independent of builder |
+| Semantic activation exposes only one complete compatible generation and budget renewal changes staging without changing active | Partial/stale ranking, corrupt store, paid-vector loss, or false preservation | Real SQLite transactions/files and writer lease | Real-SQLite integration, crash/interruption, corruption, manifest, capacity, renewal, Darwin/Windows runtime | Activation/previous-fallback/staging-visibility/renewal-active mutations required on change; profile-bound replay currently `UNVERIFIED` | Storage reviewer independent of builder |
 | Unsupported platforms refuse before target filesystem/key/provider access | Side effect outside proved durability/privacy model | Real Windows/macOS runner | Focused runtime platform tests plus compile matrix | Test must detect created directory/file/key/provider access under refusal | Independent cross-platform reviewer |
 | Checked-in generated and redistributed assets match owned source | Stale build, hand edit, missing provenance | templ/sqlc/Tailwind generation and distributed source tree | Drift jobs, format checks, `make license-check`, semantic license review | Generator/manifests mechanically reject source/output or digest mismatch; profile-bound watched-red and compatibility review remain `UNVERIFIED` | Release reviewer |
 
@@ -768,17 +787,17 @@ candidate and uses only supported public surfaces.
 
 | Scenario | Public entry point | Expected result / recovery | Evidence artifact | Owner |
 |---|---|---|---|---|
-| Clean first use | Source build; `yomihon serve` against a reviewable fixture; browser Home/note/search | Direct Home 200 after scan, readable content, discoverable help and primary task; no hidden service/provider prerequisite | Candidate CI E2E logs plus cold-session transcript/screenshot | Independent acceptance operator |
-| Experienced use | Restart against an existing fixture, revisit reading and lexical workflows, then build and query a compatible semantic generation through the documented CLI | Existing local state remains understandable; ordinary reading/search stays provider-independent; semantic reuse and rebuild behavior are explicit and no hidden migration or send occurs | Second cold-session transcript with store/CLI before-after evidence | Independent acceptance operator |
+| Clean first use | Source build; inspect the tracked `examples/vault-schema.toml`; serve a reviewable valid-contract fixture whose root README is absent; browser Home/note/search | `/` is a direct 200 with the complete snapshot dashboard and an explicit read-only README recovery body that says to create the root file with an external editor/file tool and reload; direct `/notes/README.md` is 404. Help points to the parser-gated example, but yomihon has no init command and creates or edits no vault contract | Candidate parser test, CI E2E logs, filesystem before/after, and cold-session transcript/screenshot | Independent acceptance operator |
+| Experienced use | Restart against an existing fixture, revisit reading and lexical workflows, then build and query a compatible semantic generation through the documented CLI | Existing local state remains understandable; ordinary reading/search stays provider-independent; semantic reuse, exhaustion, dedicated recovery fields, and explicit one-batch renewal are visible, with no hidden migration, send, or authorization reset | Second cold-session transcript with store/CLI/transport before-after evidence | Independent acceptance operator |
 | Missing configuration | `yomihon help`; serve with absent root; `search --semantic` without key | Help performs no config/filesystem/key access; missing vault fails before listen; missing key is typed `embedder-unconfigured` only after explicit applicable semantic request while lexical remains valid | CLI subprocess transcript and no-side-effect observation | Independent acceptance operator |
 | Invalid input | Invalid command/flag, oversized query, malformed status form/path/transition | CLI exit 2 or HTTP 400/422 with fault ownership; no file/provider send; supported next action visible | CLI/HTTP transcript and filesystem/transport before-after evidence | Independent acceptance operator |
 | Offline / dependency failure | Reader/lexical/judge plus explicit semantic CLI with provider unreachable | Local surfaces remain usable; semantic exits 3 with sanitized reason and truthful lexical result where answerable; no in-place retry | Recording/offline transport artifact and public CLI transcript | Independent acceptance operator |
 | Partial or stale result | Stale status page, changed contract, compatible/incompatible semantic generation | Status 409/503 with no unauthorized write; strict semantic never ranks stale/partial vectors and names rebuild/restart/reconcile action | State matrix transcript plus store/file hashes | Independent acceptance operator |
-| Cancellation and retry | SIGINT/SIGTERM during serve, semantic action, and status-adjacent work | Server drains for up to 5 seconds; query is not resent; status/semantic outcome says whether a side effect happened and whether a new action is safe | Process transcript, provider call count, git/store state | Independent acceptance operator |
+| Cancellation and retry | SIGINT/SIGTERM during serve, semantic action, and status-adjacent work; interrupt build before reservation, after reservation before HTTP, after HTTP before vector commit, and after renewal commit | Server drains for up to 5 seconds; query is not resent; every post-reservation abort consumes its slot; renewal survives interruption; build recovery exposes exact generation states, `retry_safe=false`, and the next action without silently minting or refunding authority | Process transcript, provider call count, exact recovery bytes, git/store/ledger state | Independent acceptance operator |
 | Privacy-sensitive operation | Local Diary reading; judge/semantic against denied paths; invalid privacy authority | Human local read remains available; denied content has zero output/influence/send; invalid authority produces no protected payload; no raw query/key/provider body in diagnostics | Recording transport/output hashes and sanitized log capture | Independent privacy reviewer |
 | Non-ASCII / boundary input | CJK/NFC/NFD paths and search, CRLF/YAML/wikilink scars, 4,096-byte limits | Deterministic normalized behavior, frozen wire, explicit rejection at limit, no panic or path escape | Golden/fuzz corpus replay and public output transcript | Independent acceptance operator |
 | Supported platforms | Public commands on Linux, macOS, Windows | Read/judge/lexical work on all three; status/semantic store work on Darwin/Linux; Windows refuses before any write/key/provider action | Named platform CI run and filesystem before-after evidence | Independent cross-platform reviewer |
-| UI keyboard / narrow / no-JS | Real Chrome at keyboard-only, zoom/narrow widths, reduced motion, and JavaScript disabled | Reading/navigation and plain GET search remain truthful; status forms work without JS; focus and controls remain reachable; D49 is separately unresolved under v2 | Behavior/mutation logs plus screenshots/DOM/accessibility observations | Independent browser reviewer |
+| UI keyboard / narrow / no-JS | Real Chrome at keyboard-only, zoom/narrow widths, reduced motion, and JavaScript disabled; toggle the persisted single-key-shortcut control and restart | Reading/navigation and plain GET search remain truthful; status forms work without JS; focus and controls remain reachable. The default-on local per-device control disables exactly `/`, `[`, and held `R`; Cmd-K, Escape, typing/dialog suppression, held-R timing/blur/visibility guards, and lifecycle legality remain unchanged; no remapping surface appears | Behavior/mutation logs, persisted-state/restart transcript, exact key matrix, screenshots/DOM/accessibility observations | Independent browser reviewer |
 | Upgrade / migration / restart | Change contract source, semantic identity/schema, or binary version | Contract-source drift closes relevant capabilities until restart; incompatible semantic identity requires explicit build; known-compatible future schema copies forward into a new file | Before/after store and process transcript tied to released fixture | Independent compatibility reviewer |
 | Destructive action / recovery | Real temp-vault status transition and induced post-write git failure | Clean success is one line/one commit/303; uncertain or commit-failed state says bytes changed and do not retry; git/file inspection enables manual recovery | `git show --stat --oneline`, byte diff, recovery transcript | Independent write-boundary reviewer |
 
@@ -908,11 +927,11 @@ Proposed exception records with no current force:
 |---|---|---|---|---|---|
 | None | No exception is currently proposed | Repository | Koopa | N/A | N/A |
 
-Legacy deviation requiring conversion or closure:
+Closed legacy deviation record (not an active exception or blocker):
 
 | ID | Clauses | Scope | Owner | Expiry / trigger | Gate effect |
 |---|---|---|---|---|---|
-| D49 | Browser keyboard accessibility and Gate 2 keyboard scenarios | Global printable shortcuts without disable/remap, limited to the current one-user local product and guarded typing/dialog contexts | Koopa | Re-rule on multi-user, remote, voice-control, or alternative-input scope | Product canon records the deviation, but it lacks the full v2 exception fields and independent approval. It is `UNRESOLVED`, not a GO-supporting exception. |
+| D49/D60 | Browser keyboard accessibility and Gate 2 keyboard scenarios | The 2026-07-20 amendment added one default-on, local per-device persisted control that disables exactly `/`, `[`, and held `R`; no remapping; Cmd-K, Escape, suppression contexts, held-R guards, and lifecycle legality remain | Koopa | Re-rule only if the supported input/product scope changes | Closed by implementing the required turn-off surface in product canon. It waives no v2 requirement, is not an exception, and is not an unresolved gate. |
 
 Known debt accepted by v2 policy:
 

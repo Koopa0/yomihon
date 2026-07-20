@@ -1,6 +1,6 @@
 # Reading-surface UX plan (navigation, motion, and the sidebar)
 
-Status: **ruled 2026-07-06; consolidated 2026-07-07; amended 2026-07-11** after a three-source
+Status: **ruled 2026-07-06; consolidated 2026-07-07; amended through 2026-07-20** after a three-source
 adversarial round (two internal lenses plus an external reviewer, 32 findings
 triaged) — the amendments that had accumulated as sediment are folded into one
 coherent design. §9 keeps the ruling record; §14 records the round. This is
@@ -67,17 +67,20 @@ including per-note resume state — §14.6) and the ⌘K panel's retrieval conte
   form with `fetch`; that is exactly the write-path scripting D27 forbids.
   The seal's feedback is §7's pulse and toast.
 - Keyboard: `⌘K` focuses search; `/` focuses the sidebar filter; `[` toggles
-  the drawer at narrow widths. Single-key bindings stay live when focus sits
-  on links, summaries, or buttons (the keyboard-navigation convention
-  everywhere else); they are suppressed only inside text entry and dialogs.
-  The single-key posture is a recorded, narrow deviation from WCAG 2.1.4 for
-  the single-operator local form — its terms and reopen conditions are D49
-  (decisions.md); the suppression contexts above are part of those terms.
+  the drawer at narrow widths. The one local per-device **single-key
+  shortcuts** control defaults on and persists. Turning it off disables
+  exactly `/`, `[`, and held `R`; it does not disable `⌘K` or Escape and does
+  not offer remapping. When enabled, single-key bindings stay live on links,
+  summaries, and buttons, but remain suppressed inside text entry and dialogs;
+  held `R` retains its timing, blur, visibility, and lifecycle-legality guards.
+  This 2026-07-20 D49/D60 amendment supplies the WCAG 2.1.4 turn-off surface;
+  the historical no-disable deviation is closed, not an active exception.
 
 ## 3. Landing (`/`)
 
-Today `/` redirects to `/notes/README.md`. The vault README is genuinely good
-(verified 2026-07-06); the failure was making it the *only* thing on landing.
+Before the Home unit, `/` redirected to `/notes/README.md`. The vault README is
+genuinely good (verified 2026-07-06); the failure was making it the *only*
+thing on landing.
 
 **Design (Koopa's ruling): `/` renders Home v0.5 — the dashboard blocks
 first, then the vault README rendered in full below them.** No redirect, no
@@ -109,8 +112,14 @@ snapshot (no new state *store*; the reading-tracker stays cockpit territory):
    unavailable. The script never intercepts submit, so both enhanced surfaces
    retain their ordinary GET path too.
 
-Below the blocks, the README body renders through the same pipeline as any
-note; `/notes/README.md` and every direct link keep working.
+Below the blocks, an existing README body renders through the same pipeline as
+any note. With a valid vault contract and no root `README.md`, `/` still
+returns 200 and renders every snapshot-backed dashboard block; only this body
+position becomes an explicit read-only recovery state. Direct
+`/notes/README.md` remains an honest 404 when absent and works normally when
+present. The recovery state tells the operator to create `README.md` at the
+vault root with an external editor or file tool, then reload. Home never creates
+or repairs the file.
 
 **Boundary against spec §2**: spec §2's four home blocks (domain MOC entries,
 cross-domain boards, the mechanical-gate list, doc pointers) are **not**
@@ -248,7 +257,14 @@ Corrections this consolidation makes explicit:
 8. Empty states are designed, not accidental: search no-results, filter
    no-match, empty sections — each says what happened and what to do next,
    in the interface's quiet register.
-9. `standards.md` §5 protocol, as for every PR.
+9. Missing-root-README fixture: `/` is a direct 200 with the complete Home
+   dashboard and read-only recovery body naming the external-editor/file-tool
+   creation and reload action; `/notes/README.md` is 404; no vault byte changes.
+10. Shortcut-control matrix: default-on and persisted across restart; off
+    disables exactly `/`, `[`, and held `R`; `⌘K`, Escape, typing/dialog
+    suppression, held-R timing/blur/visibility guards, and lifecycle legality
+    are unchanged; there is no remapping UI.
+11. `standards.md` §5 protocol, as for every PR.
 
 ## 9. Resolutions (ruled 2026-07-06; item 1 by Koopa, 2–15 delegated to the
 guide; §14 records the 2026-07-07 consolidation round)
@@ -454,10 +470,12 @@ The consequential corrections, so their reasons survive:
 6. "Resume where I left off" is a real product gap this batch does not
    close: recorded as a D-plan-doc obligation (per-note resume anchor keyed
    by content hash) in roadmap §5a.
-7. External-review rejects, with reasons: single-key shortcuts stay live on
-   focused links/buttons (keyboard-navigation convention; suppressed only in
-   text entry and dialogs); the "missing product.md" finding was an artifact
-   of reviewing a branch cut before that document landed on main.
+7. External-review rejects at that time, with reasons: enabled single-key
+   shortcuts stay live on focused links/buttons (keyboard-navigation
+   convention; suppressed only in text entry and dialogs); D49/D60 later added
+   the persisted turn-off control without changing that enabled-state rule.
+   The "missing product.md" finding was an artifact of reviewing a branch cut
+   before that document landed on main.
 
 ## 15. The frontend fix batch (ruled 2026-07-08; three sources: guide probe, platform audit, external review)
 
@@ -474,7 +492,8 @@ Merged rulings. In batch scope (one PR, together with §14's ruby-TOC repair):
    at equal specificity and zeroes its panel fill — the palette body is
    transparent over the half-black backdrop, a contrast failure in light
    mode. One rule owns the dialog's box; the overriding declarations go.
-3. **Seal shortcut vs. focused selects.** The global-shortcut typing guard
+3. **Seal shortcut vs. focused selects.** When single-key shortcuts are
+   enabled, the global-shortcut typing guard
    treats only inputs, textareas, and contentEditable as typing surfaces; a
    focused slot-machine `<select>` still feeds `/`, `[`, and a held `R` —
    which starts the seal hold — while those keys are meaningful typeahead

@@ -297,6 +297,9 @@ func runSemanticSearch(ctx context.Context, prepared *preparedSearch, deps searc
 }
 
 func classifySearchSemanticError(err error, source semanticFailureSource) commandFailure {
+	if errors.Is(err, semantic.ErrAttemptLimit) {
+		return unavailableFailure(searchReasonAttemptBudgetExhausted)
+	}
 	if embedErr, ok := errors.AsType[*semantic.EmbedError](err); ok {
 		return classifyEmbedError(embedErr)
 	}
@@ -327,8 +330,10 @@ func classifySemanticActionError(err error) (commandFailure, bool) {
 		return unavailableFailure(searchReasonIndexIncomplete), true
 	case matchesAnyError(err, semantic.ErrVaultChanged, semantic.ErrChunkEgressDenied, semantic.ErrSourceNoteChanged, semantic.ErrSourceNoteUnavailable):
 		return unavailableFailure(searchReasonVaultChanged), true
-	case matchesAnyError(err, semantic.ErrRetryNotReady, semantic.ErrAttemptLimit):
+	case errors.Is(err, semantic.ErrRetryNotReady):
 		return unavailableFailure(searchReasonRateLimited), true
+	case errors.Is(err, semantic.ErrAttemptLimit):
+		return unavailableFailure(searchReasonAttemptBudgetExhausted), true
 	default:
 		return commandFailure{}, false
 	}

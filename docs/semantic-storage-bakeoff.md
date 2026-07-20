@@ -1,10 +1,13 @@
-# Semantic generation-store measurement (2026-07-18)
+# Semantic generation-store measurement (2026-07-20)
 
 This report measures the implemented immutable generation store and the two
-SQLite drivers that were seriously considered. It supersedes the 2026-07-13
-mutable-row JSONL/CAS/packed/SQLite bake-off. Those old timing and footprint
-numbers describe a storage shape that no longer exists and are not evidence
-for the active/previous/staging design.
+SQLite drivers that were seriously considered. This run refreshes the
+2026-07-18 evidence after D60 changed the canonical query and generated sqlc
+inputs; the earlier raw files remain historical but no longer certify the
+current source. It also supersedes the 2026-07-13 mutable-row
+JSONL/CAS/packed/SQLite bake-off. Those old timing and footprint numbers
+describe a storage shape that no longer exists and are not evidence for the
+active/previous/staging design.
 
 ## Outcome
 
@@ -12,19 +15,19 @@ Keep **SQLite through `database/sql` and `modernc.org/sqlite` v1.53.0**.
 
 That is not a claim that one noisy local run establishes a generally faster
 driver. On the full 6,496-row, 1,536-dimension workload, the current comparison
-proved no difference in initial build or compatible one-note drift. Modernc's
-process-cold, 256-row keyset-page load was lower in this sample; mattn was
-28.73% slower (`p=0.015`, `n=20`). Both drivers produced identical SQLite
-file-plus-sidecar byte counts under the same schema and sqlc queries.
+measured mattn's initial build 9.26% lower (`p=0.004`, `n=20`) and found no
+proven difference in compatible one-note drift (`p=0.072`, `n=20`). Modernc's
+process-cold, 256-row keyset-page load was 15.06% lower (`p=0.000`, `n=20`).
+Both drivers produced identical SQLite file-plus-sidecar byte counts under the
+same schema and sqlc queries.
 
 Modernc remains the better product trade because this is an optional local CLI
 distributed as a Go binary, not a continuously busy database server:
 
-- both drivers completed the full recorded workload. Their initial-build
-  medians differed by 24 ms and the one-chunk-drift medians by 64.5 ms, but
-  neither difference survived benchstat's significance test. Process-cold
-  paged hydration—the local SQL work on every semantic query—favored modernc
-  by 11.89 ms in this run;
+- both drivers completed the full recorded workload. Mattn's initial-build
+  median was 139 ms lower; the one-chunk-drift medians differed by 111.2 ms
+  without a proven difference. Process-cold paged hydration—the local SQL work
+  on every semantic query—favored modernc by 6.44 ms in this run;
 - modernc built and executed this workload with `CGO_ENABLED=0`, and the
   driver-comparison source cross-built for Linux and Windows using only the Go
   toolchain. Those cross-builds prove compile portability only: the product's
@@ -86,12 +89,12 @@ cannot exist.
 
 | Operation / state | Result |
 |---|---:|
-| Initial full local build | 2.499 s |
-| Compatible one-note drift | 904.1 ms |
+| Initial full local build | 2.856 s |
+| Compatible one-note drift | 751.8 ms |
 | Drift reuse / new completion | 6,495 / 1 chunks |
-| Process-cold open + complete active hydration + close | 95.06 ms |
+| Process-cold open + complete active hydration + close | 93.55 ms |
 | One active generation, cleanly closed | 54,272,000 B (51.76 MiB) |
-| One active generation, observed peak including sidecars | 58,420,896 B (55.71 MiB) |
+| One active generation, observed peak including sidecars | 58,146,464 B (55.45 MiB) |
 | Active + previous + resumable staging, cleanly closed | 162,725,888 B (155.19 MiB) |
 | Active + previous + staging, observed peak including sidecars | 220,969,592 B (210.73 MiB) |
 | Sidecars at the three-role observed peak | WAL 58,112,632 B; SHM 131,072 B; journal 0 B |
@@ -112,16 +115,21 @@ go test ./internal/search/semantic -run '^$' -bench '^BenchmarkGenerationStore$'
 ```
 
 The raw output used above had SHA-256
-`c2e1aeab0b6e10d59c3eb32e1655cb1721546ce3f4455a10a81abd1a9b732ee8`.
+`95064af0de8aaf2282b88ac14a2577d48c2960c9ebe9382a1cede32a921d1426`.
 It is retained at
-`docs/benchmarks/semantic-storage-2026-07-18/product.txt` rather than existing
+`docs/benchmarks/semantic-storage-2026-07-20/product.txt` rather than existing
 only as an unverifiable digest.
-The run was anchored to `store.go`
-`df12f291ac2e7b655db74de627e2e162e91dfd85ad0bcaf6d548efe664f035d2`,
-`bakeoff_test.go`
-`1873c63ad674c2803a0275f85a2b06eddc805dfd3dcce4c2448c5fb13acd1263`,
-schema `7aa000c5bb2c467d0e000c1d58d5006308ce88bc48587daa6a0b428ca3a8dc74`,
-and query `8a94d6694d033e4ac690928e96a2f9b866c5ec18368ed7584ada3a3a1a402739`.
+The run was anchored to these SHA-256 values:
+
+- `store.go`: `1451cfa5206e20a002e9afa197492e38dda78a546b551d98a3773ef9f0debd09`;
+- `writer.go`: `a9411024e0dcd34c1bcd8b2f08f6202247869165ac4d327bf285fc41dc87b6d2`;
+- `staging.go`: `95e7d3fc26ab7e2a17f8980d18958d6be30255e7cd2243c3829d500537e33ffb`;
+- `manifest.go`: `2302f1f9872d176dbcb7bb61fd0dcf92b6fe8aaf595aeab2c03b91b9a1f8dd7a`;
+- `schema.go`: `c37ca46584c5427776b926c0a9a72ae924f1cf6f17ac4a21c5518a1ffb1964f7`;
+- `bakeoff_test.go`: `1873c63ad674c2803a0275f85a2b06eddc805dfd3dcce4c2448c5fb13acd1263`;
+- SQL schema: `b8ad043ac5aee1a506847feac51d09638d95596a9f2e7bf6f13bc7a54680c623`;
+- SQL query: `0181cb39d981e01845563f33c20b40da71a735a40163e2a19c46d537f918d189`;
+- generated query: `cd6c7670cc0d21b0fa3ce7186685ffad72515e2660d8ff85bd4a2233066c25f8`.
 
 ## Crash, publication, and reuse correctness
 
@@ -177,9 +185,9 @@ was `golang.org/x/perf` revision
 
 | Operation | modernc | mattn | Benchstat conclusion |
 |---|---:|---:|---|
-| Initial build | 1.555 s ±7% | 1.579 s ±18% | no proven difference (`p=0.883`, n=20) |
-| Compatible one-note drift | 449.4 ms ±10% | 384.9 ms ±27% | no proven difference (`p=0.108`, n=20) |
-| Process-cold paged load | 41.39 ms ±14% | 53.28 ms ±43% | mattn +28.73% (`p=0.015`, n=20) |
+| Initial build | 1.502 s ±6% | 1.363 s ±9% | mattn −9.26% (`p=0.004`, n=20) |
+| Compatible one-note drift | 414.1 ms ±5% | 302.9 ms ±60% | no proven difference (`p=0.072`, n=20) |
+| Process-cold paged load | 42.77 ms ±5% | 49.21 ms ±5% | mattn +15.06% (`p=0.000`, n=20) |
 | Closed SQLite bytes | 54,214,656 | 54,214,656 | identical |
 | Open SQLite + sidecar bytes | 57,773,728 | 57,773,728 | identical |
 
@@ -188,15 +196,17 @@ isolates driver and generated-query work; it does not decode and validate every
 vector into the domain `Generation` type. The comparison is for driver choice,
 not a substitute for the product measurement above.
 
-Raw-output SHA-256 digests:
+Retained-output SHA-256 digests:
 
-- combined modernc blocks: `197982e00aa847295dd1a8cdff04e1838d46cb45b9ffc0db873bb0e1a588ed87`
-- combined mattn blocks: `caabe2e6bf54f5408a22242f2c8e0878db51dba63789ccc13fa5d1c84fbb4d53`
-- benchstat output: `190b6cea1be65a33e9778f98186b6c7a8ecc17b80e1476a528067e27c8350100`
+- combined modernc blocks: `a62624bc8724386360b46c2506f9527b1d5ae467860018b2be6fc02b7fb4c209`
+- combined mattn blocks: `62db35685e3ac36e2426ca9f15e42e7443c82f16482eaf1ba577bed2bc5aa54c`
+- benchstat output: `4bd103bcd5a8053eae9510e6f2820ec585b41c6cb33943d9a34263e9eeea973c`
 
 All three files are retained under
-`docs/benchmarks/semantic-storage-2026-07-18/`; the names are `modernc.txt`,
+`docs/benchmarks/semantic-storage-2026-07-20/`; the names are `modernc.txt`,
 `mattn.txt`, and `benchstat.txt`.
+The benchstat file canonicalizes only its machine-specific temporary directory
+prefix to `/tmp/yomihon-bakeoff-20260720`; its numerical output is unchanged.
 
 This is on-demand decision evidence, not a product CI invariant. The result is
 historical and cannot support a new driver decision after any input below
@@ -206,9 +216,9 @@ comparison is intentionally outside that gate.
 
 | Measured input | SHA-256 |
 |---|---|
-| `internal/search/semantic/sql/schema.sql` | `7aa000c5bb2c467d0e000c1d58d5006308ce88bc48587daa6a0b428ca3a8dc74` |
-| `internal/search/semantic/sql/query.sql` | `8a94d6694d033e4ac690928e96a2f9b866c5ec18368ed7584ada3a3a1a402739` |
-| generated `internal/search/semantic/catalog/query.sql.go` | `376f5807228363dda3a54daff35cad36ce32d4b7354ed44feb0fb06edcc615ac` |
+| `internal/search/semantic/sql/schema.sql` | `b8ad043ac5aee1a506847feac51d09638d95596a9f2e7bf6f13bc7a54680c623` |
+| `internal/search/semantic/sql/query.sql` | `0181cb39d981e01845563f33c20b40da71a735a40163e2a19c46d537f918d189` |
+| generated `internal/search/semantic/catalog/query.sql.go` | `cd6c7670cc0d21b0fa3ce7186685ffad72515e2660d8ff85bd4a2233066c25f8` |
 | `sqlc.yaml` | `1f160a5271124ea0265c7cdb1a54c411040c5569615a5576e462e238052aa333` |
 | nested `go.mod` | `4896509a5e1049eb2daca55783d1b0b7ae2336fbe9bc0f214139dc287d122980` |
 | common benchmark | `a43bad9b7f9f46ba0d73ebac6d4e190535f1cb3d37c9679a4fc309acf46b686e` |

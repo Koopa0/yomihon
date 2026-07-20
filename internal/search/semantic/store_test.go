@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -78,6 +79,245 @@ func TestGenerationStoreRetryLedgerSurvivesRestartAndPreventsSixthSend(t *testin
 	if err := build.activate(ctx); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestGenerationStoreRenewalReadsCommittedHotWAL(t *testing.T) {
+	t.Parallel()
+
+	for _, removeSharedMemory := range []bool{false, true} {
+		name := "shared memory present"
+		if removeSharedMemory {
+			name = "shared memory absent"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			path := fixtureStorePath(t)
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			command := exec.CommandContext(t.Context(), executable, "-test.run=^TestGenerationStoreHotWALHelper$") // #nosec G204 -- executable is this test binary and the argument is a fixed test selector
+			command.Env = append(os.Environ(), "YOMIHON_TEST_HOT_WAL=1", "YOMIHON_TEST_STORE_PATH="+path)
+			if output, runErr := command.CombinedOutput(); runErr != nil {
+				t.Fatalf("create hot WAL: %v\n%s", runErr, output)
+			}
+			walInfo, err := os.Stat(path + "-wal")
+			if err != nil || walInfo.Size() == 0 {
+				t.Fatalf("hot WAL = (%v, %v), want non-empty", walInfo, err)
+			}
+			if removeSharedMemory {
+				if removeErr := os.Remove(path + "-shm"); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+					t.Fatal(removeErr)
+				}
+			}
+			writer, err := openRenewalWriter(t.Context(), path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			identity := fixtureGenerationIdentity("hot-wal")
+			row := fixtureChunkVector("Writing/hot-wal.md", 0, identity.dimension, 1)
+			target := ChunkTarget{
+				RelPath:       row.RelPath,
+				NoteHash:      row.NoteHash,
+				Ordinal:       row.Ordinal,
+				SubmittedHash: row.SubmittedHash,
+			}
+			manifest, err := newStagingManifest(
+				&identity,
+				fixturePolicySource(&identity),
+				[]ChunkTarget{bindChunkTarget(&target)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inspection, err := writer.inspectStaging(t.Context(), manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if inspection.state != StagingGenerationRequiresAuthorization {
+				t.Fatalf("staging state = %d, want requires authorization", inspection.state)
+			}
+			renewed, err := writer.renewStagingGeneration(
+				t.Context(),
+				manifest,
+				inspection.id,
+				func(context.Context) error { return nil },
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if exhausted, err := renewed.hasExhaustedPending(t.Context()); err != nil || exhausted {
+				t.Fatalf("renewed staging exhausted = (%t, %v), want (false, nil)", exhausted, err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestGenerationStoreRenewalIsAtomicAndPreservesPerTargetDuplicateHashVectors(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	writer, openErr := openWriter(ctx, fixtureStorePath(t))
+	if openErr != nil {
+		t.Fatal(openErr)
+	}
+	closeOnCleanup(t, writer)
+	identity := fixtureGenerationIdentity("renewal-atomic")
+	firstActive := []ChunkVector{fixtureChunkVector("Writing/active-one.md", 0, identity.dimension, 10)}
+	firstBuild := prepareBuild(t, writer, &identity, firstActive)
+	putBuildRows(t, firstBuild, firstActive)
+	if activateErr := firstBuild.activate(ctx); activateErr != nil {
+		t.Fatal(activateErr)
+	}
+	secondActive := []ChunkVector{fixtureChunkVector("Writing/active-two.md", 0, identity.dimension, 11)}
+	secondBuild := prepareBuild(t, writer, &identity, secondActive)
+	putBuildRows(t, secondBuild, secondActive)
+	if activateErr := secondBuild.activate(ctx); activateErr != nil {
+		t.Fatal(activateErr)
+	}
+
+	first := fixtureChunkVector("Writing/duplicate-a.md", 0, identity.dimension, 1)
+	second := fixtureChunkVector("Writing/duplicate-b.md", 0, identity.dimension, 2)
+	second.SubmittedHash = first.SubmittedHash
+	second = bindChunkVector(&second)
+	pending := fixtureChunkVector("Writing/pending.md", 0, identity.dimension, 3)
+	targetRows := []ChunkVector{first, second, pending}
+	exhausted := prepareBuild(t, writer, &identity, targetRows)
+	for i := range targetRows[:2] {
+		row := &targetRows[i]
+		if _, reserveErr := exhausted.reserveAttempt(ctx, row.RelPath, row.Ordinal, time.Unix(0, 0)); reserveErr != nil {
+			t.Fatal(reserveErr)
+		}
+		if putErr := exhausted.put(ctx, row); putErr != nil {
+			t.Fatal(putErr)
+		}
+	}
+	now := time.Date(2026, time.July, 20, 14, 0, 0, 0, time.UTC)
+	for want := 1; want <= 5; want++ {
+		if got, reserveErr := exhausted.reserveAttempt(ctx, pending.RelPath, pending.Ordinal, now); reserveErr != nil || got != want {
+			t.Fatalf("reserve pending attempt = (%d, %v), want (%d, nil)", got, reserveErr, want)
+		}
+	}
+	targets := make([]ChunkTarget, len(targetRows))
+	for i := range targetRows {
+		row := &targetRows[i]
+		target := ChunkTarget{
+			RelPath:       row.RelPath,
+			NoteHash:      row.NoteHash,
+			Ordinal:       row.Ordinal,
+			SubmittedHash: row.SubmittedHash,
+		}
+		targets[i] = bindChunkTarget(&target)
+	}
+	manifest, manifestErr := newStagingManifest(&identity, fixturePolicySource(&identity), targets)
+	if manifestErr != nil {
+		t.Fatal(manifestErr)
+	}
+	rolesBefore, rolesErr := writer.q.Catalog(ctx)
+	if rolesErr != nil {
+		t.Fatal(rolesErr)
+	}
+	var generationsBefore int
+	if countErr := writer.db.QueryRowContext(ctx, `SELECT count(*) FROM generations`).Scan(&generationsBefore); countErr != nil {
+		t.Fatal(countErr)
+	}
+	injected := errors.New("injected renewal commit failure")
+	writer.beforeRenewCommit = func() error { return injected }
+	if _, renewErr := writer.renewStagingGeneration(
+		ctx,
+		manifest,
+		exhausted.id,
+		func(context.Context) error { return nil },
+	); !errors.Is(renewErr, injected) {
+		t.Fatalf("renewStagingGeneration() error = %v, want injected rollback", renewErr)
+	}
+	rolesAfterFailure, rolesErr := writer.q.Catalog(ctx)
+	if rolesErr != nil {
+		t.Fatal(rolesErr)
+	}
+	var generationsAfterFailure int
+	if countErr := writer.db.QueryRowContext(ctx, `SELECT count(*) FROM generations`).Scan(&generationsAfterFailure); countErr != nil {
+		t.Fatal(countErr)
+	}
+	if rolesAfterFailure != rolesBefore || generationsAfterFailure != generationsBefore {
+		t.Fatalf("failed renewal changed roles/generations = (%+v, %d), want (%+v, %d)", rolesAfterFailure, generationsAfterFailure, rolesBefore, generationsBefore)
+	}
+	attempt, attemptErr := writer.q.AttemptByKey(ctx, catalogdb.AttemptByKeyParams{
+		GenerationID: exhausted.id,
+		RelPath:      pending.RelPath,
+		Ordinal:      int64(pending.Ordinal),
+	})
+	if attemptErr != nil || attempt.Attempts != 5 {
+		t.Fatalf("failed renewal attempt ledger = (%+v, %v), want five slots on old staging", attempt, attemptErr)
+	}
+
+	writer.beforeRenewCommit = nil
+	renewed, renewErr := writer.renewStagingGeneration(
+		ctx,
+		manifest,
+		exhausted.id,
+		func(context.Context) error { return nil },
+	)
+	if renewErr != nil {
+		t.Fatal(renewErr)
+	}
+	rolesAfterSuccess, rolesErr := writer.q.Catalog(ctx)
+	if rolesErr != nil {
+		t.Fatal(rolesErr)
+	}
+	if rolesAfterSuccess.ActiveGenerationID != rolesBefore.ActiveGenerationID ||
+		rolesAfterSuccess.PreviousGenerationID != rolesBefore.PreviousGenerationID ||
+		!rolesAfterSuccess.StagingGenerationID.Valid || rolesAfterSuccess.StagingGenerationID.Int64 != renewed.id ||
+		renewed.id == exhausted.id {
+		t.Fatalf("successful renewal roles = %+v, want unchanged active/previous and new staging %d", rolesAfterSuccess, renewed.id)
+	}
+	if _, lookupErr := writer.q.GenerationByID(ctx, exhausted.id); lookupErr == nil {
+		t.Fatal("old exhausted generation remains addressable after renewal")
+	}
+	completed, rowsErr := renewed.rows(ctx)
+	if rowsErr != nil {
+		t.Fatal(rowsErr)
+	}
+	wantCompleted := []ChunkVector{first, second}
+	if diff := cmp.Diff(wantCompleted, completed, compareManifestRows); diff != "" {
+		t.Fatalf("renewed duplicate-hash vectors differ (-want +got):\n%s", diff)
+	}
+	pendingRows, pendingErr := renewed.pending(ctx)
+	if pendingErr != nil {
+		t.Fatal(pendingErr)
+	}
+	if len(pendingRows) != 1 || pendingRows[0].RelPath != pending.RelPath {
+		t.Fatalf("renewed pending rows = %+v, want only %q", pendingRows, pending.RelPath)
+	}
+	if exhausted, inspectErr := renewed.hasExhaustedPending(ctx); inspectErr != nil || exhausted {
+		t.Fatalf("renewed staging exhausted = (%t, %v), want (false, nil)", exhausted, inspectErr)
+	}
+}
+
+func TestGenerationStoreHotWALHelper(t *testing.T) {
+	if os.Getenv("YOMIHON_TEST_HOT_WAL") != "1" {
+		return
+	}
+	path := os.Getenv("YOMIHON_TEST_STORE_PATH")
+	writer, err := openWriter(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.db.ExecContext(t.Context(), `PRAGMA main.wal_checkpoint(TRUNCATE)`); err != nil {
+		t.Fatal(err)
+	}
+	identity := fixtureGenerationIdentity("hot-wal")
+	row := fixtureChunkVector("Writing/hot-wal.md", 0, identity.dimension, 1)
+	build := prepareBuild(t, writer, &identity, []ChunkVector{row})
+	for want := 1; want <= 5; want++ {
+		if got, err := build.reserveAttempt(t.Context(), row.RelPath, row.Ordinal, time.Unix(1, 0)); err != nil || got != want {
+			t.Fatalf("reserve attempt = (%d, %v), want (%d, nil)", got, err, want)
+		}
+	}
+	os.Exit(0)
 }
 
 func TestGenerationStoreActiveReadIsOldOrNewAcrossActivation(t *testing.T) {
@@ -521,6 +761,17 @@ func TestGenerationStoreActiveHydrationRejectsMalformedFields(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]func(*testing.T, *writer, int64){
+		"hidden pending chunk": func(t *testing.T, writer *writer, generationID int64) {
+			t.Helper()
+			if _, err := writer.db.ExecContext(t.Context(), `
+INSERT INTO chunks(generation_id, rel_path, ordinal, submitted_hash, vector)
+SELECT ?, rel_path, 1, zeroblob(32), NULL
+FROM notes
+WHERE generation_id = ?
+LIMIT 1`, generationID, generationID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		"non-finite vector": func(t *testing.T, writer *writer, generationID int64) {
 			t.Helper()
 			raw := make([]byte, 4*fixtureGenerationIdentity("hydrate-nan").dimension)
@@ -1298,6 +1549,81 @@ func TestEmbeddedStoreSchemaMatchesPinnedFingerprint(t *testing.T) {
 	if got != expectedStoreSchemaFingerprint {
 		t.Fatalf("embedded store schema fingerprint = %x, want %x", got, expectedStoreSchemaFingerprint)
 	}
+}
+
+func TestGenerationStoreSQLiteIntegrityPragmasDetectInvalidRows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("complete store", func(t *testing.T) {
+		t.Parallel()
+		writer, openErr := openWriter(t.Context(), fixtureStorePath(t))
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		closeOnCleanup(t, writer)
+		identity := fixtureGenerationIdentity("integrity-ok")
+		row := fixtureChunkVector("Writing/ok.md", 0, identity.dimension, 1)
+		build := prepareBuild(t, writer, &identity, []ChunkVector{row})
+		putBuildRows(t, build, []ChunkVector{row})
+		if err := build.activate(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		var result string
+		if err := writer.db.QueryRowContext(t.Context(), `PRAGMA main.integrity_check`).Scan(&result); err != nil {
+			t.Fatal(err)
+		}
+		if result != "ok" {
+			t.Fatalf("integrity_check = %q, want %q", result, "ok")
+		}
+		violations, err := foreignKeyViolationCount(t.Context(), writer.db)
+		if err != nil || violations != 0 {
+			t.Fatalf("foreign_key_check = (%d, %v), want (0, nil)", violations, err)
+		}
+	})
+
+	t.Run("check constraint", func(t *testing.T) {
+		t.Parallel()
+		writer, openErr := openWriter(t.Context(), fixtureStorePath(t))
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		closeOnCleanup(t, writer)
+		if _, err := writer.db.ExecContext(t.Context(), `PRAGMA ignore_check_constraints = ON`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.db.ExecContext(t.Context(), `UPDATE catalog SET singleton = 2`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.db.ExecContext(t.Context(), `PRAGMA ignore_check_constraints = OFF`); err != nil {
+			t.Fatal(err)
+		}
+		var result string
+		if err := writer.db.QueryRowContext(t.Context(), `PRAGMA main.integrity_check`).Scan(&result); err != nil {
+			t.Fatal(err)
+		}
+		if result == "ok" {
+			t.Fatal("integrity_check = ok, want injected CHECK violation")
+		}
+	})
+
+	t.Run("foreign key", func(t *testing.T) {
+		t.Parallel()
+		writer, openErr := openWriter(t.Context(), fixtureStorePath(t))
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		closeOnCleanup(t, writer)
+		if _, err := writer.db.ExecContext(t.Context(), `PRAGMA foreign_keys = OFF`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.db.ExecContext(t.Context(), `UPDATE catalog SET active_generation_id = 9223372036854775807`); err != nil {
+			t.Fatal(err)
+		}
+		violations, err := foreignKeyViolationCount(t.Context(), writer.db)
+		if err != nil || violations != 1 {
+			t.Fatalf("foreign_key_check = (%d, %v), want (1, nil)", violations, err)
+		}
+	})
 }
 
 func TestGenerationStorePersistsCompleteTargetBeforeEmbedding(t *testing.T) {

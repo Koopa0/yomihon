@@ -296,7 +296,7 @@ is a per-feature engineering call (D31), with escalation ladders in
 
 ---
 
-# Part II — the hybrid extension (D32 as amended by D50; revised 2026-07-14)
+# Part II — the hybrid extension (D32/D50 as amended by D60; revised 2026-07-20)
 
 ## H1. Shape, in one line
 
@@ -426,21 +426,50 @@ be mixed into ordinary search (D50 amendment, 2026-07-13).
   query embedder or semantic path.
 - **Attempt budgets are surface-specific.** The direct REST client has no hidden
   retry, follows no redirect, ignores environment proxy variables through a
-  dedicated direct transport (`Proxy=nil`), and each method call performs one
-  HTTP send. A future proxy is a new egress route and requires a ruling rather
-  than inheriting `HTTPS_PROXY` silently.
+  dedicated direct transport (`Proxy=nil`), and each method invocation performs
+  at most one HTTP send. A future proxy is a new egress route and requires a
+  ruling rather than inheriting `HTTPS_PROXY` silently.
   Interactive reconciliation inside `search --semantic` is fail-fast: one
   attempt per missing chunk, no sleep or retry, just like its later one-attempt
   query call. Before any document send it computes the entire missing work;
   more than **128 chunks or 100,000 submitted proxy tokens** is
-  `rebuild-required`, with zero document/query egress. Only the explicit
-  `search-index build` command owns the five-attempt 429 budget: it durably
-  reserves each attempt in the matching staging generation before sending, so
-  a crash cannot create a sixth attempt. A valid `Retry-After` up to 30s is
-  honored; a longer value records `retry_not_before` and exits rather than
-  blocking indefinitely. An absent/invalid value uses 1s, 4s, 9s, then 16s.
-  The staging generation may resume only with the same identity and target
-  corpus manifest; exhaustion leaves it incomplete and never active.
+  `rebuild-required`, with zero document/query egress.
+
+  Only the explicit `search-index build` command owns persisted retry
+  authority. Before it invokes the chunk-send capability, the matching staging
+  ledger commits one durable **send-slot reservation**. Provider configuration
+  and construction complete before that reservation and consume no slot. After
+  the reservation commits, every abort consumes the slot — including final
+  eligibility/freshness refusal or local cancellation before HTTP — until one
+  transaction stores the returned vector and clears the attempt row. Thus five
+  slots are a conservative upper bound on HTTP requests, not a promise that all
+  five reached the network.
+
+  One storage generation grants at most five slots to each pending chunk. Only
+  a 429 automatically retries inside the same build action. A valid
+  `Retry-After` value overrides the 1s, 4s, 9s, and 16s fallback waits; a wait
+  over 30s is durably recorded as `retry_not_before` and the action exits.
+  Every non-429 terminal ends the action after the reserved slot, even when
+  more slots remain for a later ordinary build. Last-slot precedence preserves
+  fault ownership rather than blindly replacing the terminal:
+
+  | Terminal after a reserved slot | Slots remain | That reservation consumed slot five |
+  |---|---|---|
+  | Confirmed locally malformed request | exit 1 `internal_error` | exit 1 `internal_error`, with staging `requires-authorization` |
+  | Credential rejection | exit 3 `embedder-rejected` | exit 3 `embedder-rejected`, with staging `requires-authorization` |
+  | Privacy or artifact authority refusal | its prerequisite reason | the same prerequisite reason, with staging `requires-authorization` |
+  | Local-input or vault-change prerequisite | `index-incomplete` or `vault-changed` | the same prerequisite reason, with staging `requires-authorization` |
+  | 429, transport non-answer, or unknown/provider failure | `rate-limited`, `embedder-unreachable`, or `embedder-failed` | exit 3 `attempt-budget-exhausted`, with staging `requires-authorization` |
+  | D37 local filesystem/SQLite failure, interruption, or stdout failure | exit 2, empty stdout | exit 2, empty stdout; the next inspected build observes exhaustion |
+
+  Thus only provider availability terminals with no prerequisite repair are
+  replaced by exhaustion on slot five. A successful vector still clears its
+  attempt row atomically. Ordinary build may consume remaining slots but can
+  never create another batch; any exit-3 envelope that retains a prerequisite
+  reason while reporting `requires-authorization` requires that repair first
+  and explicit renewal second. The staging generation may resume only with the
+  same identity and target corpus manifest; exhaustion leaves it incomplete
+  and never active.
 - **The embedding protocol is pinned from the successor model's own
   documentation** (the D50.9 amendment, 2026-07-13 — the first revision
   carried the predecessor generation's semantics, a verified error). What
@@ -509,7 +538,8 @@ be mixed into ordinary search (D50 amendment, 2026-07-13).
   `internal/schema` binds artifact/privacy capabilities to the exact source
   bytes. Source freshness is rechecked before every document send, before
   activation, and before query send. A change makes the action unavailable,
-  rejects any in-flight candidate, and leaves active/previous untouched; a
+  rejects any in-flight candidate, and leaves any valid active/previous roles
+  untouched; a
   later process derives the new policy fingerprint and cannot admit a prior
   generation with a different identity. This is fail-closed invalidation, not
   live reinterpretation of the contract [CANON-DERIVED from wall 3, D47, and
@@ -530,8 +560,8 @@ be mixed into ordinary search (D50 amendment, 2026-07-13).
   chunks simply do not enter staging. Heading/snippet evidence always comes
   from that action's current local chunk, never SQLite. Immediately before
   activation the whole corpus is re-read and its digest must still equal the
-  target; mismatch is `vault-changed`, leaves active byte-identical, and sends
-  no query. The same action snapshot supplies ranking evidence. Filesystem
+  target; mismatch is `vault-changed`, leaves any valid active byte-identical,
+  and sends no query. The same action snapshot supplies ranking evidence. Filesystem
   edits cannot share SQLite's transaction, so a later edit is detected by the
   next action rather than falsely described as globally atomic.
 - **Publication contract.** Only explicit CLI actions can be writers. A stable
@@ -560,31 +590,57 @@ be mixed into ordinary search (D50 amendment, 2026-07-13).
   mutable. A staging generation is resumed only when its complete identity,
   target corpus digest, expected row count, policy-source freshness, and retry
   ledger match the current action. Otherwise the writer discards it locally
-  before any egress. Activation is one `synchronous=FULL` transaction:
+  before any egress.
+
+  An exhausted matching stage is never discarded or silently renewed by an
+  ordinary build. `--renew-attempt-budget` first acquires the same writer lease
+  and requires a complete matching target with at least one pending chunk whose
+  five slots are exhausted. It revalidates privacy, artifact, corpus, and both
+  policy sources, then one `synchronous=FULL` transaction creates a new
+  matching staging generation, copies completed vectors, switches the staging
+  role, and deletes the old generation and ledger. Active/previous are unchanged
+  by that commit. Missing, mismatched, corrupt, or not-exhausted staging is
+  `attempt-budget-not-renewable`, exit 3, with zero domain mutation and zero
+  provider send; renewal never falls through to ordinary build or corruption
+  reset. Missing storage creates no path. An existing store may perform
+  SQLite-owned crash recovery and WAL/SHM bookkeeping under the already-
+  existing writer lease, but schema, catalog roles, generations, chunks, and
+  send-slot rows remain logically unchanged.
+  Once renewed, the same action continues the build. A crash after the commit
+  leaves the one newly authorized batch available to a later ordinary build,
+  and one invocation can authorize at most one batch.
+
+  Activation is one `synchronous=FULL` transaction:
   validate staging completeness, set `previous=active`, `active=staging`,
   clear staging, and delete every unreferenced generation. Readers in a
   transaction observe either the old or new catalog/rows, never a torn mix.
-  Interruption or provider/publication failure never changes active. Corruption
+  Interruption or provider/publication failure never changes a valid active.
+  Corruption
   is scoped by role: malformed active is `cache-corrupt` and never silently
   falls back to previous; malformed staging is discarded by the next writer;
   malformed previous cannot poison a valid active and is pruned by a writer.
-  Before admitting a current-schema store, the writer runs a generated,
-  sqlc-owned logical-foreign-key check covering every catalog role and every
-  manifest/retry relationship in the schema. Any dangling role or orphan row is
-  `cache-corrupt`: an ordinary writer fails closed, while an explicit build
-  resets and bootstraps the store under the same rooted writer lease.
+  Before admitting a current-schema store, the writer runs SQLite's
+  authoritative handwritten `PRAGMA main.foreign_key_check` diagnostic over
+  every declared catalog-role and manifest/retry foreign key. Any dangling
+  role or orphan row is `cache-corrupt`: an ordinary writer fails closed,
+  while an explicit build without the renewal flag resets and bootstraps the
+  store under the same rooted writer lease. That reset records no durable
+  provenance; if a later build failure occurs before replacement, current
+  active state is simply absent.
 - **Final-send revalidation**: eligibility (instance ∧ non-private) is
-  re-checked against the current snapshot at the choke point that performs
-  the network send — a note reclassified between collection and send is
-  dropped there, and the guard locks target that choke point (H5), not the
-  collector alone. (Send-side and publish-side revalidation are two
-  separate gates; each has its own lock.)
+  re-checked against the current snapshot inside the chunk-send capability,
+  after its durable slot reservation and immediately before transport. A note
+  reclassified between collection and send is dropped there and the already
+  reserved slot stays consumed; the guard locks that choke point (H5), not the
+  collector alone. (Send-side and publish-side revalidation are two separate
+  gates; each has its own lock.)
 - **Two layers, named by function rather than L1/L2.** The *generation store*
   is plain SQLite through `database/sql`, `modernc.org/sqlite`, and feature-
-  local sqlc output in `internal/search/semantic/catalog`; schema bootstrap and
-  connection PRAGMAs plus the pre-schema `user_version`/`sqlite_schema`
-  discovery needed before generated queries can assume a schema are the only
-  handwritten SQL exceptions. Current-schema shape validation and every
+  local sqlc output in `internal/search/semantic/catalog`; schema bootstrap,
+  connection PRAGMAs, the authoritative `PRAGMA main.foreign_key_check`
+  diagnostic, and the pre-schema `user_version`/`sqlite_schema` discovery
+  needed before generated queries can assume a schema are the only handwritten
+  SQL exceptions. Current-schema shape validation and every
   domain read/write remain in feature-local sqlc queries. The *immutable
   vector index* is rebuilt per CLI process from one admitted active generation:
   hydration uses 256-row keyset pages, validates the complete manifest, and
@@ -600,8 +656,10 @@ be mixed into ordinary search (D50 amendment, 2026-07-13).
   `note_hash`; `chunks` are keyed by `(generation_id, rel_path, ordinal)`,
   reference their note, and carry `submitted_hash` plus nullable `vector`
   (`NULL` only while that exact staging target is pending). A staging retry
-  ledger has a composite foreign key to the exact chunk and records reserved
-  attempt count plus `retry_not_before`. All five tables are SQLite `STRICT`;
+  ledger has a composite foreign key to the exact chunk and records committed
+  send slots plus `retry_not_before`. Successful response handling stores the
+  vector and clears that chunk's attempt row in one transaction. All five
+  tables are SQLite `STRICT`;
   hashes are raw 32-byte SHA-256, text is validated as UTF-8 on hydration, and
   every path/identity field is revalidated before admission.
   Vectors are little-endian IEEE-754 float32; the schema rejects non-BLOB,
@@ -609,7 +667,7 @@ be mixed into ordinary search (D50 amendment, 2026-07-13).
   exactly `dimension × 4` bytes with no non-finite component. The store schema
   is identified by `PRAGMA user_version`; a per-generation
   `vector_format_version` remains part of generation compatibility. Hydration
-  reads catalog, generation identity, note join, chunks, and retry count in one
+  reads catalog, generation identity, note join, chunks, and send-slot state in one
   read transaction. SQLite uses WAL, foreign keys, and `synchronous=FULL` on
   its sole writer connection; read handles are read-only/query-only. Schema
   bootstrap is one transaction. There is no in-place migration ladder and no
@@ -817,9 +875,11 @@ queries it can fail, so the gate and the collapsing rules cannot disagree):
      corpus under the lease, resumes only matching staging work, performs
      single-attempt document calls, revalidates the entire corpus/policies,
      activates a complete generation, then continues. Any provider failure,
-     local incomplete chunk, or `vault-changed` leaves active unchanged and
-     **the query is never embedded**. Capacity failure while loading a current
-     active generation is also a stage-4 terminal.
+     local incomplete chunk, or `vault-changed` leaves any valid active
+     unchanged and **the query is never embedded**. If a matching stage has a
+     pending chunk with no send slots, the terminal is
+     `attempt-budget-exhausted`; search cannot renew it. Capacity failure while
+     loading a current active generation is also a stage-4 terminal.
 4b. **configuration preflight** — reached only by a text-bearing explicit
    semantic request after stage 4 has established either a current generation
    or bounded reconcilable work. With no key, `embedder-unconfigured`: no
@@ -929,8 +989,9 @@ Fields of the answerable envelope:
   `cache-corrupt`, `cache-mismatch`, `embedder-retired`, `capacity`,
   `unsupported-platform`, `embedder-unconfigured`, `rebuild-required`, `index-refreshing`,
   `index-incomplete`, `vault-changed`, `embedder-unreachable`,
-  `embedder-rejected`, `embedder-failed`, `rate-limited`). No reason carries
-  paths, submitted text, the query, or provider response bytes.
+  `embedder-rejected`, `embedder-failed`, `rate-limited`,
+  `attempt-budget-exhausted`). No reason carries paths, submitted text, the
+  query, or provider response bytes.
 - The two **unanswerable** reasons — `privacy-capability-unavailable` and
   `metadata-filters-unavailable` — never appear in `coverage`: they carry
   the *error* envelope instead, because no honest result set exists
@@ -977,6 +1038,7 @@ Fields of the answerable envelope:
   - `yomihon search: embedder-failed: the embedding API returned an error search could not recover from`
   - `yomihon search: embedder-rejected: the embedding API refused the credential`
   - `yomihon search: rate-limited: the embedding API is rate-limiting; try again shortly`
+  - `yomihon search: attempt-budget-exhausted: semantic document sends need renewed authorization; run yomihon search-index build --renew-attempt-budget`
   - `yomihon search: rebuild-required: the vault changed too much for an interactive refresh; run yomihon search-index build`
   - `yomihon search: index-refreshing: another process is updating the semantic index`
   - `yomihon search: index-incomplete: one or more current chunks could not be indexed`
@@ -1051,6 +1113,9 @@ the gate stage it implements, so no two rules can claim the same cell):
   activates staging, and never sends the query. Document-provider failures use
   the same provider-owned reason taxonomy as gate 5. Interactive document
   calls never retry [EXPLICIT-RULING D50 final implementation clarification].
+  A matching staging target whose pending chunk has exhausted all five durable
+  send slots is `attempt-budget-exhausted`; search preserves lexical results,
+  sends no document or query, and never renews authority [EXPLICIT-RULING D60].
 - R9 (**gate 4 platform preflight**) — semantic storage is unavailable on
   Windows in the first store implementation. A text-bearing explicit semantic search preserves lexical results,
   exits 3 with `unsupported-platform`, and performs zero store/key/provider
@@ -1085,31 +1150,54 @@ the first terminal are unreachable rather than unspecified.
 | 15 | bounded drift; lease lost; re-read still stale | writer held | exit 3 `index-refreshing`, lexical | ER final amendment/clarification |
 | 16 | bounded drift; lease lost; re-read now current | query rows 7–12 | no spurious writer failure | ER final clarification |
 | 17 | bounded drift | local chunk failure | exit 3 `index-incomplete`, lexical; no activation/query | CD completeness + ER final amendment |
-| 18 | bounded drift | staging retry time is future, or document 429 | exit 3 `rate-limited`, lexical; no query | ER D50.6/clarification |
-| 19 | bounded drift | document transport non-answer | exit 3 `embedder-unreachable`, lexical; no query | ER fault taxonomy |
-| 20 | bounded drift | document credential rejected | exit 3 `embedder-rejected`, lexical; no query | ER credential taxonomy |
-| 21 | bounded drift | document provider/unknown | exit 3 `embedder-failed`, lexical; no query | ER fault-ownership taxonomy |
-| 22 | bounded drift | confirmed locally malformed document request | exit 1 `internal_error`; no activation/query | ER fault-ownership taxonomy |
-| 23 | bounded drift completed | final manifest/policy differs | exit 3 `vault-changed`, lexical; no activation/query | ER final clarification |
-| 24 | bounded drift activated | query rows 7–12 | complete current generation only | ER final amendment |
+| 18 | bounded drift | matching staging retry time is future | exit 3 `rate-limited`, lexical; no document/query send | ER D60 |
+| 19 | bounded drift | a matching staging pending chunk has no send slot | exit 3 `attempt-budget-exhausted`, lexical; no document/query send | ER D60 |
+| 20 | bounded drift | document transport non-answer | exit 3 `embedder-unreachable`, lexical; no query | ER fault taxonomy |
+| 21 | bounded drift | document credential rejected | exit 3 `embedder-rejected`, lexical; no query | ER credential taxonomy |
+| 22 | bounded drift | document provider/unknown | exit 3 `embedder-failed`, lexical; no query | ER fault-ownership taxonomy |
+| 23 | bounded drift | confirmed locally malformed document request | exit 1 `internal_error`; no activation/query | ER fault-ownership taxonomy |
+| 24 | bounded drift completed | final manifest/policy differs | exit 3 `vault-changed`, lexical; no activation/query | ER final clarification |
+| 25 | bounded drift activated | query rows 7–12 | complete current generation only | ER final amendment |
 
-Unknown/unclassifiable provider outcomes are rows 11/21, never internal error.
+Unknown/unclassifiable provider outcomes are rows 11/22, never internal error.
 A current active generation is queryable even while an unrelated writer stages
 another target. Cold/mismatch never auto-build. The build command below owns
 its own explicit retry and publication surface. **Matrix NEEDS-RULING = 0**;
 every numbered row is an acceptance case.
 
 **Explicit build command (D37-frozen before implementation).**
-`yomihon search-index build [--json] [--root PATH]` accepts no positional
-arguments and no semantic/limit flag. Boolean/value parsing, `--`, duplicate
-value flags, exit-2 handling, 4096-byte/path safety, and stdout framing follow
-the search parser rules above. It loads privacy/artifact authority, resolves
-the current identity/corpus, and is idempotent: a current active generation
+`yomihon search-index build [--json] [--renew-attempt-budget] [--root PATH]`
+accepts no positional arguments and no semantic/limit flag. Boolean/value
+parsing, `--`, duplicate value flags, exit-2 handling, 4096-byte/path safety,
+and stdout framing follow the search parser rules above. Both boolean flags are
+idempotent; repeating `--renew-attempt-budget` in one invocation still
+authorizes at most one batch.
+
+Without renewal, the command loads privacy/artifact authority, resolves the
+current identity/corpus, and is idempotent: a current active generation
 performs zero provider sends and succeeds as `current`. Otherwise it acquires
 the writer lease, re-reads state, resumes only an exactly matching staging
-generation, and builds to completion with the explicit five-attempt 429
-policy. Ctrl-C/context cancellation leaves active untouched and resumable
-staging admitted only under the H4 identity/manifest rules.
+generation, and builds to completion from its remaining durable send slots.
+Only 429 automatically retries inside this action. Provider configuration or
+construction failure happens before reservation and consumes no slot; every
+abort after reservation consumes one until the vector/attempt-clear
+transaction commits.
+
+With `--renew-attempt-budget`, current/no-stage is not a `current` success and
+the command never falls back to ordinary build. Under the lease it first
+requires one staging generation with the complete exact target manifest for
+the current build and at least one exhausted pending chunk, revalidates
+privacy/artifact/corpus/policy authority, and commits
+H4's one-batch replacement transaction. Missing, mismatched, corrupt, or
+not-exhausted staging is `attempt-budget-not-renewable`, exit 3, zero domain
+mutation, and zero provider send. A missing store creates no path; an existing
+store may perform only the SQLite recovery/bookkeeping described in H4. After a
+successful renewal transaction, the same action
+continues the ordinary build; completion therefore uses the existing `built`
+success shape, not a fourth status. Cancellation preserves any valid active and
+leaves only staging admitted by H4. An ordinary explicit build may already have
+reset corrupt derived storage, so a later failure can truthfully report active
+absent rather than claiming universal preservation.
 
 - JSON success is exactly one compact object plus `\n`, field order frozen:
   `{"status":"current","chunks":N,"embedded":0,"reused":N,"top_k_p95_us":P}`
@@ -1121,21 +1209,94 @@ staging admitted only under the H4 identity/manifest rules.
   `yomihon search-index: embedded M/N chunks` progress on stderr, at each 100
   newly embedded rows and completion; it never prints paths, prompts, key,
   retry bodies, or token text.
-- Exit 3 uses the same byte-exact `error.reason` envelope and provider/capability
-  stderr vocabulary as search, plus `index-refreshing`, `index-incomplete`,
-  `vault-changed`, and `unsupported-platform`; there is no result payload. The
-  platform line is exactly `yomihon search-index: unsupported-platform: the semantic generation store is not supported on this platform` plus `\n`. Exit 1 uses the same
-  `internal_error` body. Usage, local filesystem/SQLite failure, stdout failure,
-  or interruption is exit 2 with empty stdout and one
-  `yomihon search-index: ` stderr line. A committed activation is success even
-  if later best-effort WAL checkpoint maintenance fails.
+- Build failure has its own recovery envelope; it never reuses search's
+  one-field error body. Exit 3 JSON is exactly this compact field order plus
+  `\n`:
+  `{"error":{"reason":"...","active_generation":"...","staging_generation":"...","retry_safe":false,"next_action":"..."}}`.
+  The frozen state vocabularies are:
+  - `active_generation` ∈ `not-inspected|absent|preserved-usable|preserved-unusable`.
+    `not-inspected` means no safe catalog observation was made; `absent` means
+    the final observation has no active role; `preserved-usable` means a valid
+    active remains dispatchable for the resolved identity and corpus;
+    `preserved-unusable` means an active role remains but the current process
+    cannot dispatch it. Corrupt-reset history is not persisted: reset followed
+    by failure reports the current `absent`, not a provenance state.
+  - `staging_generation` ∈
+    `not-inspected|absent|incompatible|resumable|requires-authorization`.
+    `absent` means the catalog has no physical staging role; `incompatible`
+    means a present role is mismatched, stale, or otherwise safely known to be
+    inadmissible for the current target and is left untouched by failed
+    renewal; `resumable` means an exact stage has remaining slots, including
+    one whose `retry_not_before` is still future; `requires-authorization`
+    means an exact stage has at least one exhausted pending chunk.
+  - `retry_safe` is `true` exactly when the failed action may be repeated
+    automatically and immediately, without repair, waiting, new provider-budget
+    consent, or consuming a new provider-send slot. It is not a claim that the
+    provider will succeed. Every currently frozen exit-3 build reason carries
+    `false`: `next_action=retry-build` is an explicit operator action, not
+    permission for an agent or wrapper to loop the failed invocation.
+  - `next_action` ∈
+    `retry-build|wait-and-retry|renew-attempt-budget|repair-configuration|repair-vault-contract|repair-input|use-supported-platform|review-capacity|repair-yomihon`.
+    No `retry_after` field is frozen: a durable future wait uses
+    `wait-and-retry` without promising a wall-clock value the command cannot
+    keep current after exit.
+- The exit-3 build reason set is exactly
+  `privacy-capability-unavailable|artifact-policy-unavailable|capacity|unsupported-platform|embedder-unconfigured|index-refreshing|index-incomplete|vault-changed|embedder-unreachable|embedder-rejected|embedder-failed|rate-limited|attempt-budget-exhausted|attempt-budget-not-renewable`.
+  Search-only reasons such as `cache-cold`, `cache-corrupt`, `cache-mismatch`,
+  `metadata-filters-unavailable`, `not-applicable`, `rebuild-required`, and
+  `embedder-retired` are impossible in this build envelope. Recovery mapping
+  and retry safety are exact:
+
+  | Build exit-3 reason | `next_action` | `retry_safe` | Meaning |
+  |---|---|---:|---|
+  | `privacy-capability-unavailable`, `artifact-policy-unavailable` | `repair-vault-contract` | `false` | Repair or authorize the vault contract before any provider send. |
+  | `embedder-unconfigured`, `embedder-rejected` | `repair-configuration` | `false` | Repair provider configuration or credentials before retrying. |
+  | `unsupported-platform` | `use-supported-platform` | `false` | The local generation store cannot run here. |
+  | `capacity` | `review-capacity` | `false` | Review the frozen capacity boundary; do not loop. |
+  | `index-incomplete` | `repair-input` | `false` | Repair the local input/index prerequisite. |
+  | `index-refreshing`, `rate-limited` | `wait-and-retry` | `false` | Wait before starting another action. |
+  | `attempt-budget-exhausted` | `renew-attempt-budget` | `false` | New provider-send authority requires the explicit renewal flag. |
+  | `attempt-budget-not-renewable` | `retry-build` | `false` | The renewal action made no domain mutation or send; an existing store may have performed SQLite recovery/bookkeeping. Start an ordinary build only after inspecting why no eligible batch existed. |
+  | `vault-changed`, `embedder-unreachable`, `embedder-failed` | `retry-build` | `false` | A new invocation is an operator decision and may reserve another send slot. |
+
+  A last-slot provider-availability failure reports
+  `attempt-budget-exhausted` instead of `rate-limited`,
+  `embedder-unreachable`, or `embedder-failed`. A confirmed malformed request,
+  credential rejection, or local prerequisite retains its repair reason and
+  reports `staging_generation=requires-authorization`; after repair, renewal is
+  still required. No branch silently grants an ordinary sixth slot.
+- The platform stderr line remains exactly
+  `yomihon search-index: unsupported-platform: the semantic generation store is not supported on this platform`
+  plus `\n`. The two new lines are exactly
+  `yomihon search-index: attempt-budget-exhausted: provider-send authorization is exhausted; run yomihon search-index build --renew-attempt-budget`
+  and
+  `yomihon search-index: attempt-budget-not-renewable: no exhausted matching staging generation exists; run yomihon search-index build`,
+  each plus `\n`. Other build reasons retain the search vocabulary with the
+  `yomihon search-index: ` prefix.
+- Exit 1 build JSON carries the same recovery fields after `detail`, in this
+  exact order:
+  `{"internal_error":{"detail":"the request could not be formed correctly","active_generation":"...","staging_generation":"...","retry_safe":false,"next_action":"repair-yomihon"}}`.
+  Search's internal-error envelope stays unchanged. Usage, local
+  filesystem/SQLite failure, or interruption before emission is exit 2 with
+  empty stdout and one `yomihon search-index: ` stderr line. A stdout failure
+  is also exit 2; bytes accepted before that failure are an invalid partial
+  envelope and callers must discard them. A committed
+  activation is success even if later best-effort WAL checkpoint maintenance
+  fails.
 
 The build acceptance set includes current/no-send, cold full build,
 incompatible full build, compatible reuse, exact staging resume, stale staging
 discard, writer held, every document-provider terminal, persisted future
-`retry_not_before`, attempt exhaustion, local chunk failure, final
-`vault-changed`, interruption before/after row writes, activation rollback,
-old-or-new reader snapshots during commit, and active+previous+staging pruning.
+`retry_not_before`, pre-reservation configuration failure, abort after
+reservation but before HTTP, attempt exhaustion distinct from 429, renewal
+success followed by continued build, renewal surviving interruption, every
+non-renewable precondition with zero domain mutation/send, missing-store zero
+path creation, one-batch-per-invocation,
+local chunk failure, final `vault-changed`, interruption before/after row
+writes, corruption reset followed by an `absent` recovery state, activation
+rollback, old-or-new reader snapshots during commit, and
+active+previous+staging pruning. Golden fixtures pin every build error/internal
+envelope field, enum, order, boolean, next action, exit code, and stderr line.
 
 ## H8. Removed — source_kind moved to the H face (D50.4)
 
@@ -1247,18 +1408,20 @@ handling-only and bare-query-projection-only changes; per-role corruption
 hydration rejects a row whose path, note hash, ordinal, submitted hash, vector
 length, or finiteness is wrong; reader-during-activation observes wholly old or
 new; injected failure at each activation statement rolls back; exactly one OS
-writer lease holder; lease loss followed by one re-read covers both just-
-completed and still-stale cases; exact staging resume admits only identical
-identity/manifest/count/policy/retry state; active+previous+staging pruning;
-retry attempts are durably reserved before HTTP send; and a committed
+  writer lease holder; lease loss followed by one re-read covers both just-
+  completed and still-stale cases; exact staging resume admits only identical
+  identity/manifest/count/policy/retry state; active+previous+staging pruning;
+  send slots are durably reserved before the chunk-send capability, every
+  post-reservation abort consumes its slot, provider construction consumes
+  none, and vector storage clears the attempt row transactionally; and a committed
 activation remains success when maintenance checkpoint is fault-injected;
 filters-as-hard-constraints (a filtered-out semantic candidate never fuses)
 and the **bare-query wire lock** (`深度 type:lesson 工作` sends exactly
 `task: search result | query: 深度 工作`, preserving original case/Unicode and
 omitting the filter); lexical completeness past the fusion depth
 (`--limit` beyond 50 answers); fusion determinism (the CLI golden bytes);
-**every legal JSON pair, both unanswerable capability-error bodies, the
-byte-exact internal-error body
+**every legal search JSON pair, both unanswerable capability-error bodies, the
+byte-exact search internal-error body
 (`{"internal_error":{"detail":"the request could not be formed correctly"}}`),
 the killed `--semantic=best-effort` exit-2 usage shape, and the non-JSON
 silent-stdout shape**, each with its exit code, its
@@ -1288,11 +1451,15 @@ separate watched-red:
   compact JSON, the trailing newline, CJK, and `SetEscapeHTML(false)`, while
   `internal/judge.WriteJSONL` and its golden/fuzz locks pin the
   U+2028/U+2029 rewrite, control escaping, and literal backslash handling;
-**no envelope has a dedicated query field and no non-result surface copies
+the dedicated build failure/internal envelopes assert every recovery enum,
+field order, reason-to-next-action mapping, state distinction, and
+`retry_safe` truth table, including `absent` versus `incompatible` staging and
+first-build `absent` versus preserved-but-unusable active; **no envelope has a
+dedicated query field and no non-result surface copies
 the query text** (a sentinel query through every error, log, metric, trace,
 and diagnostic path asserts absence; result evidence is allowed to match it
 naturally); **the gate-matrix lock**
-drives H7 rows 0–24 plus the explicit-build acceptance set and rejects any
+drives H7 rows 0–25 plus the explicit-build acceptance set and rejects any
 later stage becoming reachable after an earlier terminal;
 **the ordinary-UI-absence lock** rejects a semantic toggle, embedder, vector
 cache, embedding-key read, or provider/cache diagnostic in `/search`, ⌘K, or
@@ -1320,11 +1487,21 @@ retry amplification of the query bytes); the synthetic-fixture capture driver
 has no network owner, refuses more than one query row per CLI process, and
 asserts the completed document-cache build has stopped before query capture,
 while the real-vault eval harness has no raw-query or embedder input at all;
-the document-attempt-budget lock counts at the same HTTP boundary: interactive
-reconcile sends each missing document at most once and crosses neither work
-bound; explicit build drives every bounded 429 delay, future
-`retry_not_before`, restart/resume, and exhaustion row, proving the durable
-reservation prevents a sixth send and no hidden message-based size retry;
+the document-send-slot lock separates authorization from transport:
+interactive reconcile sends each missing document at most once and crosses
+neither work bound; explicit build proves configuration/construction precede
+reservation, reservation commits before the chunk-send capability, an abort at
+every point before HTTP and before vector persistence consumes exactly one
+slot, and vector+attempt-clear is atomic. It drives 429-only automatic retry,
+every bounded fallback and valid `Retry-After`, future `retry_not_before`,
+restart/resume, last-slot exhaustion as `attempt-budget-exhausted`, and proves
+five slots prevent a sixth HTTP send without claiming five sends occurred.
+The renewal lock proves exact matching/exhausted admission, privacy/artifact/
+corpus/policy revalidation under the lease, completed-vector copy and role swap
+in one transaction, old generation/ledger deletion, valid active preservation,
+continued build in the same action, persistence across interruption, at most
+one batch per invocation, and zero domain mutation/send/no fallback for missing,
+incompatible, corrupt, or not-exhausted staging;
 **the taxonomy-totality lock** — a
 table with one row per documented provider error class, asserting the
 mapping is total, splits by fault ownership, and yields exactly one local
@@ -1368,8 +1545,9 @@ precompiled system objects in semantic/agent packages, so the Go-AST locks
 cannot be bypassed by adding a non-Go compilation unit. Timing sleeps are not
 evidence. The store-corruption lock
 independently injects dangling active/previous/staging roles and orphan
-note/chunk/attempt rows: ordinary writer open must fail, and an explicit build
-must rebuild cleanly under the lease.
+note/chunk/attempt rows: ordinary writer open must fail, an ordinary explicit
+build must rebuild cleanly under the lease, and a renewal invocation must leave
+the corrupt physical staging untouched and return its dedicated recovery state.
 
 The **Windows runtime lock** runs on `windows-latest`, exercises the package's
 reader, ordinary-writer, and explicit-rebuild entry points, and asserts typed
@@ -1511,25 +1689,33 @@ storage-engine call is closed by H4's 2026-07-13 bake-off.
 - **Provider work and paid-standard cost**: the no-failure baseline is one
   document request per kept chunk, so the current 6,496-chunk corpus starts at
   6,496 document requests; the 18k-note horizon starts at about 2.4×10⁵.
-  The explicit build's persisted five-attempt budget makes the **hard
-  per-generation ceilings 32,480 and 1.2×10⁶ requests**, respectively,
-  including bounded 429 retries. Interactive reconcile is separately capped at
-  128 one-attempt requests and 100,000 proxy tokens.
+  One authorized storage generation grants at most five durable send slots per
+  pending chunk, so its **per-authorized-generation ceilings are 32,480 and
+  1.2×10⁶ slots**, respectively. Actual HTTP requests are no greater than the
+  slots: a post-reservation local abort consumes a slot without sending.
+  Interactive reconcile is separately capped at 128 one-attempt requests and
+  100,000 proxy tokens.
   Query work remains one request per explicit semantic action. At the
   7,372-token cap, the deliberately pessimistic no-retry current-epoch ceiling
   is 47,888,512 submitted proxy tokens;
   at the [2026-07-13 listed paid-standard rate](https://ai.google.dev/gemini-api/docs/pricing)
   of $0.20 / 1M text-input tokens, that is **≤$9.58** (and the 18k-note
   no-retry cap-everywhere ceiling is **≤$353.86**). Charging every one of the
-  five allowed attempts at the cap gives the true failure-path ceilings:
+  five authorized slots at the cap gives the per-batch failure-path ceilings:
   **239,442,560 tokens / $47.89 now; 8.8464×10⁹ tokens / $1,769.28 at 18k**.
-  These are safety bounds, not estimates of typical content or a claim about
-  whether a rejected request is billed. The protocol step re-verifies pricing
-  for the ruled tier. The frozen build result records only chunks, embedded,
-  reused, and top-k p95; the staging retry ledger retains only unfinished
-  retry state. Provider billing is the charge authority. No durable token,
-  elapsed, retry-total, or estimated-invoice schema is invented without a
-  named consumer; the arithmetic above remains a reviewed safety bound.
+  These are safety bounds per authorized generation, not lifetime ceilings,
+  estimates of typical content, or a claim about whether a rejected request is
+  billed. Each explicit `--renew-attempt-budget` commit can add at most five
+  slots for each chunk still pending then; without that explicit action the
+  cumulative ceiling cannot grow. A coarse ceiling after `R` renewals is
+  `(R+1)` times the first-batch bound, while copying completed vectors makes the
+  real later-batch bound no larger and usually smaller. The protocol step
+  re-verifies pricing for the ruled tier. The frozen build result records only
+  chunks, embedded, reused, and top-k p95; the staging ledger retains only
+  unfinished send-slot/wait state. Provider billing is the charge authority.
+  No durable token, elapsed, lifetime-slot, or estimated-invoice schema is
+  invented without a named consumer; the arithmetic above remains a reviewed
+  safety bound.
 - **Deterministic capacity failure is loud**: before allocating the exact
   index, the action requires `chunks < 100,000` and
   `chunks × dimension × 4 <= 1 GiB`. Crossing either limit, or corrupt
@@ -1580,7 +1766,7 @@ storage-engine call is closed by H4's 2026-07-13 bake-off.
 | Chunking rules, chunks-per-note assumption stated | MET (H3: exact formulas, named Unicode boundaries, local pre-submit cap plus loud provider rejection, three dated measurements including current prefix cost) |
 | Durable generation-store contract and format-selection gate | MET (H4/H11 and `semantic-storage-bakeoff.md`: normalized sqlc schema; active/previous/staging, resume, flip, rollback, GC, 256-row hydration, and WAL/file high-water measured on the implemented store; modernc/mattn driver trade recorded without claiming Badger was benchmarked) |
 | RRF specifics (k, depths, aggregation) | MET (H6; shipped lexical ordering preserved) |
-| §4a degraded matrix as acceptance cases | MET at plan level (H7: semantic-request fork; R1–R9; rows 0–24 across platform/active/work/config/writer/document/query axes; explicit-build acceptance set; three search envelopes and a frozen build wire). Ordinary UI/serve are excluded structurally. |
+| §4a degraded matrix as acceptance cases | MET at plan level (H7: semantic-request fork; R1–R9; rows 0–25 across platform/active/work/config/writer/document/query axes; explicit-build acceptance set; three search envelopes and a dedicated recovery-rich build wire). Ordinary UI/serve are excluded structurally. |
 | The eval set | MET (H9; synthetic-in-repo per D50.8) |
 | Egress guard test (private paths never reach the embedder) | MET at plan level, widened (H5/H10: one provider-transport owner, enumerated direct-constructor backstop, direct proxy-free transport, five runtime flows, no-influence, final-send and corpus-wide activation race locks; the log flow already shipped) |
 | Provider account and distribution boundary | MET (H12.5/D50.11: optional BYOK, Koopa's paid live deployment, and no bundled/shared credential or proxy; it is not a matrix cell or an offline build/test prerequisite) |

@@ -1,0 +1,10 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/koopa0/yomihon/internal/search/semantic
+cpu: Apple M1
+BenchmarkGenerationStore/InitialBuild-8         	       1	2855823375 ns/op	  54272000 closed_db_bytes/op	         0 closed_journal_bytes/op	         0 closed_shm_bytes/op	  54272000 closed_total_bytes/op	         0 closed_wal_bytes/op	  53960704 observed_peak_db_bytes/op	         0 observed_peak_journal_bytes/op	     32768 observed_peak_shm_bytes/op	  58146464 observed_peak_total_bytes/op	   4152992 observed_peak_wal_bytes/op	  53661696 open_db_bytes/op	         0 open_journal_bytes/op	     32768 open_shm_bytes/op	  57847456 open_total_bytes/op	   4152992 open_wal_bytes/op
+BenchmarkGenerationStore/CompatibleOneNoteDrift-8         	       1	 751775709 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkGenerationStore/ColdLoad-8                       	       1	  93550166 ns/op
+BenchmarkGenerationStore/ActivePreviousStagingFootprint-8 	       1	4165464584 ns/op	 162725888 observed_peak_db_bytes/op	         0 observed_peak_journal_bytes/op	    131072 observed_peak_shm_bytes/op	 220969592 observed_peak_total_bytes/op	  58112632 observed_peak_wal_bytes/op	 162725888 three_roles_closed_db_bytes/op	         0 three_roles_closed_journal_bytes/op	         0 three_roles_closed_shm_bytes/op	 162725888 three_roles_closed_total_bytes/op	         0 three_roles_closed_wal_bytes/op	 162725888 three_roles_open_db_bytes/op	         0 three_roles_open_journal_bytes/op	    131072 three_roles_open_shm_bytes/op	 220969592 three_roles_open_total_bytes/op	  58112632 three_roles_open_wal_bytes/op
+PASS
+ok  	github.com/koopa0/yomihon/internal/search/semantic	14.589s

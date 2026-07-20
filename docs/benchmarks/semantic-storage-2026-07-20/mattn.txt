@@ -1,0 +1,72 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff
+cpu: Apple M1
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1237798666 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1334019792 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1208174042 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1212495250 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1211508083 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1247454000 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1366770333 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1259860500 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1234438416 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1232408959 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 304529375 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 267524500 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 278371500 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 275679167 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 280620666 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 301248792 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 281718291 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 298904875 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 296853708 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 269586084 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  47771000 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  73823666 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  47431750 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  49171583 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  45907166 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  49898125 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  53742667 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  52266791 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  46380417 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  50364125 ns/op
+PASS
+ok  	github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff	43.001s
+goos: darwin
+goarch: arm64
+pkg: github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff
+cpu: Apple M1
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1375935292 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1390447292 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1686638292 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	2551881417 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	2212642791 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	2597043917 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1419577125 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1358897375 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1616401625 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/InitialBuild-8         	       1	1465587041 ns/op	  54214656 closed_sqlite_bytes/op	  57773728 open_sqlite_bytes/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	1370921292 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 515321666 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 485023166 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 566144166 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 747804042 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 435640875 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 353709959 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	1055044250 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 292202334 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/CompatibleOneNoteDrift-8         	       1	 332571417 ns/op	         1.000 embedded_chunks/op	      6495 reused_chunks/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  52861208 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  47181167 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  38101667 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  49704250 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  41021208 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  40854833 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  47605708 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  51514416 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  51734834 ns/op
+BenchmarkDriverGeneration/ColdLoad-8                       	       1	  49248208 ns/op
+PASS
+ok  	github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff	56.649s

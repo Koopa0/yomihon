@@ -120,9 +120,10 @@ type LifecycleItem struct {
 }
 
 // chromeFromRequest builds the shell Chrome from the request: the page title
-// plus the persisted theme and furigana cookies (default light / on), so the
-// root element renders the correct state on the first byte (no FOUC). Only the
-// two known cookie values are honored; anything else falls to the default —
+// plus the persisted theme, furigana, and single-key-shortcut cookies (default
+// light / on / on), so the root element renders the correct state on the first
+// byte (no FOUC). Each
+// cookie honors only its known values; anything else falls to the default —
 // input hygiene, since a cookie is user-controllable.
 func chromeFromRequest(r *http.Request, title string, advanceable int, advanceableKnown bool) layouts.Chrome {
 	theme := "light"
@@ -133,5 +134,17 @@ func chromeFromRequest(r *http.Request, title string, advanceable int, advanceab
 	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
 		ruby = "off"
 	}
-	return layouts.Chrome{Title: title, Nonce: origin.Nonce(r.Context()), Theme: theme, Ruby: ruby, Advanceable: advanceable, AdvanceableKnown: advanceableKnown}
+	singleKeyShortcutsEnabled := true
+	if c, err := r.Cookie("yomihon_shortcuts"); err == nil && c.Value == "off" {
+		singleKeyShortcutsEnabled = false
+	}
+	return layouts.Chrome{
+		Title:                     title,
+		Nonce:                     origin.Nonce(r.Context()),
+		Theme:                     theme,
+		Ruby:                      ruby,
+		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
+		Advanceable:               advanceable,
+		AdvanceableKnown:          advanceableKnown,
+	}
 }

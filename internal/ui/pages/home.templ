@@ -19,6 +19,7 @@ type HomeView struct {
 	Paths               []HomePath
 	PathDiagnostics     []string
 	ReadmeHTML          string
+	ReadmeMissing       bool
 	Sidebar             Sidebar
 }
 
@@ -140,7 +141,15 @@ templ Home(v HomeView, c layouts.Chrome) {
 							<h2 id="home-readme-title">README</h2>
 						</div>
 						<div class="y-prose">
-							@templ.Raw(v.ReadmeHTML)
+							if v.ReadmeMissing {
+								<div data-home-readme-recovery>
+									<p><strong>找不到 vault 根目錄的 README.md。</strong></p>
+									<p>請使用外部編輯器或檔案工具，在 vault 根目錄建立 README.md，然後重新載入此頁。</p>
+									<p>yomihon 不會建立或修改這個檔案。</p>
+								</div>
+							} else {
+								@templ.Raw(v.ReadmeHTML)
+							}
 						</div>
 					</section>
 				</div>

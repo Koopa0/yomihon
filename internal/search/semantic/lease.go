@@ -14,10 +14,18 @@ type writerLease struct {
 }
 
 func acquireWriterLease(parent *storeParent, name string) (*writerLease, error) {
+	return acquireWriterLeaseFile(parent, name, true)
+}
+
+func acquireExistingWriterLease(parent *storeParent, name string) (*writerLease, error) {
+	return acquireWriterLeaseFile(parent, name, false)
+}
+
+func acquireWriterLeaseFile(parent *storeParent, name string, create bool) (*writerLease, error) {
 	if err := parent.requireCurrent(); err != nil {
 		return nil, err
 	}
-	file, err := openPrivateLeaseFile(parent.root, name)
+	file, err := openPrivateLeaseFile(parent.root, name, create)
 	if err != nil {
 		return nil, err
 	}
@@ -35,18 +43,24 @@ func acquireWriterLease(parent *storeParent, name string) (*writerLease, error) 
 	return lease, nil
 }
 
-func openPrivateLeaseFile(root *os.Root, name string) (*os.File, error) {
+func openPrivateLeaseFile(root *os.Root, name string, create bool) (*os.File, error) {
 	before, statErr := root.Lstat(name)
 	switch {
 	case statErr == nil:
 		if !before.Mode().IsRegular() || before.Mode()&os.ModeSymlink != 0 || before.Mode().Perm() != 0o600 {
 			return nil, fmt.Errorf("%w: writer lease must be a regular 0600 file", ErrStorePermissions)
 		}
+	case errors.Is(statErr, os.ErrNotExist) && !create:
+		return nil, ErrStoreNotFound
 	case !errors.Is(statErr, os.ErrNotExist):
 		return nil, fmt.Errorf("stat semantic cache writer lease: %w", statErr)
 	}
 
-	file, err := root.OpenFile(name, os.O_CREATE|os.O_RDWR, 0o600)
+	flags := os.O_RDWR
+	if create {
+		flags |= os.O_CREATE
+	}
+	file, err := root.OpenFile(name, flags, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open semantic cache writer lease: %w", err)
 	}

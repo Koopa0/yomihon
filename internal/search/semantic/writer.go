@@ -6,6 +6,7 @@ import (
 	_ "embed"      // Enable go:embed for the canonical SQLite schema below.
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -30,7 +31,8 @@ type writer struct {
 	lease     *writerLease
 	directory *storeDirectory
 
-	beforeReset func()
+	beforeReset       func()
+	beforeRenewCommit func() error
 
 	closeOnce sync.Once
 	closeErr  error
@@ -50,6 +52,62 @@ func openWriter(ctx context.Context, path string) (*writer, error) {
 // effect.
 func openRebuildWriter(ctx context.Context, path string) (*writer, error) {
 	return openGenerationWriter(ctx, path, true)
+}
+
+// openRenewalWriter opens only an existing, compatible store. It acquires the
+// existing writer lease without creating or resetting any store path. SQLite
+// may perform crash recovery and WAL housekeeping under that lease; renewal
+// eligibility is inspected in a rollback-only transaction.
+func openRenewalWriter(ctx context.Context, path string) (*writer, error) {
+	if err := requireSemanticStorePlatform(); err != nil {
+		return nil, err
+	}
+	parent, err := openStoreParent(path, false)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, ErrStoreNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	lease, err := acquireExistingWriterLease(parent, writerLeaseName(path))
+	if err != nil {
+		return nil, errors.Join(err, parent.Close())
+	}
+	writer := &writer{parent: parent, lease: lease}
+	directory, err := openStoreDirectory(parent.root, path, false)
+	if errors.Is(err, os.ErrNotExist) {
+		return failWriter(writer, ErrStoreNotFound)
+	}
+	if err != nil {
+		return failWriter(writer, err)
+	}
+	writer.directory = directory
+	exists, err := directory.inspectDatabase()
+	if err != nil {
+		return failWriter(writer, err)
+	}
+	if !exists {
+		return failWriter(writer, ErrStoreNotFound)
+	}
+	if currentErr := writer.requireCurrentFiles(); currentErr != nil {
+		return failWriter(writer, currentErr)
+	}
+	db, err := openStoreDB(ctx, path, false)
+	if err != nil {
+		return failWriter(writer, classifyStoreReadError(err))
+	}
+	writer.db = db
+	writer.q = catalog.New(db)
+	if err := requireStoreSchema(ctx, db); err != nil {
+		return failWriter(writer, err)
+	}
+	if err := inspectWriterStore(ctx, db, writer.q); err != nil {
+		return failWriter(writer, classifyStoreReadError(err))
+	}
+	if err := writer.requireCurrentFiles(); err != nil {
+		return failWriter(writer, err)
+	}
+	return writer, nil
 }
 
 type writerOpenHooks struct {
@@ -218,19 +276,42 @@ func inspectWriterStore(ctx context.Context, db *sql.DB, q *catalog.Queries) err
 	if err := requireExactStoreSchema(ctx, db); err != nil {
 		return err
 	}
+	violations, err := foreignKeyViolationCount(ctx, db)
+	if err != nil {
+		return fmt.Errorf("%w: validate foreign keys: %w", ErrStoreCorrupt, err)
+	}
+	if violations != 0 {
+		return fmt.Errorf("%w: %d foreign-key violations", ErrStoreCorrupt, violations)
+	}
 	if _, err := q.Catalog(ctx); errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("%w: missing role catalog", ErrStoreCorrupt)
 	} else if err != nil {
 		return fmt.Errorf("read semantic generation catalog: %w", err)
 	}
-	violations, err := q.LogicalForeignKeyViolationCount(ctx)
-	if err != nil {
-		return fmt.Errorf("%w: validate logical foreign keys: %w", ErrStoreCorrupt, err)
-	}
-	if violations != 0 {
-		return fmt.Errorf("%w: %d logical foreign-key violations", ErrStoreCorrupt, violations)
-	}
 	return nil
+}
+
+func foreignKeyViolationCount(ctx context.Context, db *sql.DB) (count int, resultErr error) {
+	rows, err := db.QueryContext(ctx, `PRAGMA main.foreign_key_check`)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		resultErr = errors.Join(resultErr, rows.Close())
+	}()
+	for rows.Next() {
+		var table, parent string
+		var rowID sql.NullInt64
+		var foreignKeyID int64
+		if err := rows.Scan(&table, &rowID, &parent, &foreignKeyID); err != nil {
+			return 0, err
+		}
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func failWriter(writer *writer, primary error) (*writer, error) {

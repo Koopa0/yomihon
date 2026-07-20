@@ -47,6 +47,15 @@ func newTestIndexerWithSender(
 	}, now, wait)
 }
 
+type countingRateLimitedSender struct {
+	sends *int
+}
+
+func (s countingRateLimitedSender) send(context.Context, *CorpusChunk) (EmbeddingResult, error) {
+	(*s.sends)++
+	return EmbeddingResult{}, &EmbedError{Kind: EmbedFailureRateLimited}
+}
+
 func TestIndexerCurrentGenerationSendsNothing(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +86,7 @@ func TestIndexerCurrentGenerationSendsNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +131,7 @@ func TestIndexerBuildReportsPersistedProgressAtHundredsAndCompletion(t *testing.
 		return nil
 	}
 
-	report, err := indexer.Build(t.Context())
+	report, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +289,7 @@ func TestIndexerPublishesCompleteColdGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +335,7 @@ func TestIndexerFullBuildUsesDurableFallbackRetrySchedule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -890,7 +899,7 @@ func TestIndexerFullBuildPersistsLongRetryWithoutWaiting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = indexer.Build(t.Context())
+	_, err = indexer.Build(t.Context(), BuildRequest{})
 	retryErr, ok := errors.AsType[*retryNotReadyError](err)
 	wantRetryAt := now.Add(31 * time.Second)
 	if !ok || !retryErr.At.Equal(wantRetryAt) {
@@ -940,7 +949,7 @@ func TestIndexerFullBuildHonorsValidZeroRetryAfter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -966,7 +975,7 @@ func TestIndexerExplicitBuildRecoversCorruptStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -997,7 +1006,7 @@ func TestIndexerExplicitBuildReplacesLogicallyCorruptActive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1030,7 +1039,7 @@ func TestIndexerExplicitBuildReplacesIncompatibleVectorFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1368,34 +1377,728 @@ func TestIndexerFullBuildNeverSendsSixthAttemptAcrossResume(t *testing.T) {
 	config, _ := fixtureIndexerConfig(t, 1)
 	now := time.Unix(4_000, 0)
 	sends := 0
-	sender := func(_ context.Context, _ *CorpusChunk) (EmbeddingResult, error) {
-		sends++
-		return EmbeddingResult{}, &EmbedError{Kind: EmbedFailureRateLimited}
+	sender := countingRateLimitedSender{sends: &sends}
+	factoryCalls := 0
+	openSender := func() (chunkSender, error) {
+		factoryCalls++
+		return sender.send, nil
 	}
 	wait := func(_ context.Context, delay time.Duration) error {
 		now = now.Add(delay)
 		return nil
 	}
-	indexer, err := newTestIndexer(&config, sender, func() time.Time { return now }, wait)
+	indexer, err := newTestIndexerWithSender(&config, openSender, func() time.Time { return now }, wait)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = indexer.Build(t.Context())
+	_, err = indexer.Build(t.Context(), BuildRequest{})
 	embedErr, ok := errors.AsType[*EmbedError](err)
-	if !ok || embedErr.Kind != EmbedFailureRateLimited || sends != 5 {
-		t.Fatalf("first Build() = (%v, sends %d), want rate limit after five", err, sends)
+	buildErr, buildOK := errors.AsType[*BuildError](err)
+	if !errors.Is(err, ErrAttemptLimit) || !ok || embedErr.Kind != EmbedFailureRateLimited || !buildOK ||
+		buildErr.ActiveGeneration() != ActiveGenerationAbsent ||
+		buildErr.StagingGeneration() != StagingGenerationRequiresAuthorization || sends != 5 || factoryCalls != 1 {
+		t.Fatalf("first Build() = (%v, sends %d, factories %d), want exhausted absent/requires-authorization after five", err, sends, factoryCalls)
 	}
 
-	resumed, err := newTestIndexer(&config, sender, func() time.Time { return now }, wait)
+	resumed, err := newTestIndexerWithSender(&config, openSender, func() time.Time { return now }, wait)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = resumed.Build(t.Context())
-	if !errors.Is(err, ErrAttemptLimit) {
-		t.Fatalf("resumed Build() error = %v, want ErrAttemptLimit", err)
+	_, err = resumed.Build(t.Context(), BuildRequest{})
+	buildErr, buildOK = errors.AsType[*BuildError](err)
+	if !errors.Is(err, ErrAttemptLimit) || !buildOK ||
+		buildErr.ActiveGeneration() != ActiveGenerationAbsent ||
+		buildErr.StagingGeneration() != StagingGenerationRequiresAuthorization {
+		t.Fatalf("resumed Build() error = %v, want exhausted absent/requires-authorization", err)
 	}
-	if sends != 5 {
-		t.Fatalf("resumed Build() total sends = %d, want no sixth send", sends)
+	if sends != 5 || factoryCalls != 1 {
+		t.Fatalf("resumed Build() totals = sends %d factories %d, want no sixth send or second factory", sends, factoryCalls)
+	}
+}
+
+func TestProviderAvailabilityFailureDefaultsUnknownKindsToProviderOwned(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		kind EmbedFailureKind
+		want bool
+	}{
+		{name: "unreachable", kind: EmbedFailureUnreachable, want: true},
+		{name: "rate limited", kind: EmbedFailureRateLimited, want: true},
+		{name: "provider", kind: EmbedFailureProvider, want: true},
+		{name: "unknown", kind: EmbedFailureKind("future-provider-fault"), want: true},
+		{name: "rejected", kind: EmbedFailureRejected, want: false},
+		{name: "malformed request", kind: EmbedFailureMalformedRequest, want: false},
+		{name: "internal", kind: EmbedFailureInternal, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := providerAvailabilityFailure(tt.kind); got != tt.want {
+				t.Fatalf("providerAvailabilityFailure(%q) = %t, want %t", tt.kind, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIndexerRenewAttemptBudgetReplacesExhaustedStagingAndContinues(t *testing.T) {
+	t.Parallel()
+
+	config, corpus := fixtureIndexerConfig(t, 2)
+	now := time.Date(2026, time.July, 20, 12, 0, 0, 0, time.UTC)
+	initialSends := 0
+	firstVector := fixtureIndexerVector(config.settings.identity.Dimension())
+	initial, err := newTestIndexer(&config, func(_ context.Context, chunk *CorpusChunk) (EmbeddingResult, error) {
+		initialSends++
+		if chunk.RelPath == corpus.Chunks[0].RelPath {
+			return EmbeddingResult{Vector: firstVector}, nil
+		}
+		return EmbeddingResult{}, &EmbedError{Kind: EmbedFailureRateLimited}
+	}, func() time.Time { return now }, func(_ context.Context, delay time.Duration) error {
+		now = now.Add(delay)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, initialErr := initial.Build(t.Context(), BuildRequest{}); !errors.Is(initialErr, ErrAttemptLimit) {
+		t.Fatalf("initial Build() error = %v, want ErrAttemptLimit", initialErr)
+	}
+	if initialSends != 6 {
+		t.Fatalf("initial provider sends = %d, want one completed plus five exhausted", initialSends)
+	}
+
+	renewedSends := 0
+	secondVector := make([]float32, config.settings.identity.Dimension())
+	secondVector[1] = 1
+	renewed, err := newTestIndexer(&config, func(_ context.Context, chunk *CorpusChunk) (EmbeddingResult, error) {
+		renewedSends++
+		if chunk.RelPath != corpus.Chunks[1].RelPath {
+			t.Fatalf("renewed provider chunk = %q, want only pending %q", chunk.RelPath, corpus.Chunks[1].RelPath)
+		}
+		return EmbeddingResult{Vector: secondVector}, nil
+	}, func() time.Time { return now }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := renewed.Build(t.Context(), BuildRequest{RenewAttemptBudget: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != BuildPublished || report.Embedded != 1 || report.Reused != 1 || renewedSends != 1 {
+		t.Fatalf("renewed Build() = (%+v, sends %d), want published with one embedded and one reused", report, renewedSends)
+	}
+	store, err := openStore(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.Active(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	wantVectors := [][]float32{firstVector, secondVector}
+	if got := [][]float32{active.rows[0].Vector, active.rows[1].Vector}; !cmp.Equal(got, wantVectors) {
+		t.Fatalf("active vectors = %v, want %v", got, wantVectors)
+	}
+}
+
+func TestIndexerRenewAttemptBudgetRevalidatesCorpusAtCommit(t *testing.T) {
+	t.Parallel()
+
+	config, corpus := fixtureIndexerConfig(t, 1)
+	now := time.Date(2026, time.July, 20, 12, 30, 0, 0, time.UTC)
+	initial, err := newTestIndexer(&config, func(context.Context, *CorpusChunk) (EmbeddingResult, error) {
+		return EmbeddingResult{}, &EmbedError{Kind: EmbedFailureRateLimited}
+	}, func() time.Time { return now }, func(_ context.Context, delay time.Duration) error {
+		now = now.Add(delay)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, initialErr := initial.Build(t.Context(), BuildRequest{}); !errors.Is(initialErr, ErrAttemptLimit) {
+		t.Fatalf("initial Build() error = %v, want ErrAttemptLimit", initialErr)
+	}
+
+	targets, _, err := buildTargets(corpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := newStagingManifest(&config.settings.identity, config.settings.policySource, targets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspector, err := openRenewalWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rolesBefore, err := inspector.q.Catalog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspectionBefore, err := inspector.inspectStaging(t.Context(), manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inspectionBefore.state != StagingGenerationRequiresAuthorization {
+		t.Fatalf("staging state = %d, want requires authorization", inspectionBefore.state)
+	}
+	generationsBefore, err := inspector.q.GenerationCount(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closeErr := inspector.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+
+	driftedChunks := slices.Clone(corpus.Chunks)
+	driftedChunks[0].Submitted = []byte("title: Note | text: changed after initial renewal validation")
+	driftedChunks[0].SubmittedHash = sha256.Sum256(driftedChunks[0].Submitted)
+	driftedChunks[0].NoteHash = sha256.Sum256([]byte("changed note"))
+	drifted := fixtureIndexerCorpus(t, driftedChunks)
+	commitBoundaryReached := false
+	corpusReads := 0
+	config.deps.beforeRenewCommit = func() error {
+		commitBoundaryReached = true
+		return nil
+	}
+	config.deps.readCorpus = func(context.Context) (Corpus, error) {
+		corpusReads++
+		if commitBoundaryReached {
+			return drifted, nil
+		}
+		return corpus, nil
+	}
+	providerFactories := 0
+	renewer, err := newTestIndexerWithSender(&config, func() (chunkSender, error) {
+		providerFactories++
+		return func(context.Context, *CorpusChunk) (EmbeddingResult, error) {
+			t.Fatal("stale renewal reached the provider")
+			return EmbeddingResult{}, nil
+		}, nil
+	}, func() time.Time { return now }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = renewer.Build(t.Context(), BuildRequest{RenewAttemptBudget: true})
+	if !errors.Is(err, ErrVaultChanged) {
+		t.Fatalf("renewal error = %v, want ErrVaultChanged", err)
+	}
+	if !commitBoundaryReached || corpusReads != 2 || providerFactories != 0 {
+		t.Fatalf(
+			"renewal evidence = (boundary %t, corpus reads %d, provider factories %d), want (true, 2, 0)",
+			commitBoundaryReached,
+			corpusReads,
+			providerFactories,
+		)
+	}
+
+	inspector, err = openRenewalWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if closeErr := inspector.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	}()
+	rolesAfter, err := inspector.q.Catalog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspectionAfter, err := inspector.inspectStaging(t.Context(), manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationsAfter, err := inspector.q.GenerationCount(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rolesAfter != rolesBefore || inspectionAfter.state != StagingGenerationRequiresAuthorization ||
+		inspectionAfter.id != inspectionBefore.id || generationsAfter != generationsBefore {
+		t.Fatalf(
+			"failed renewal changed durable state = (roles %+v, staging state %d id %d, generations %d), want (%+v, %d, %d, %d)",
+			rolesAfter,
+			inspectionAfter.state,
+			inspectionAfter.id,
+			generationsAfter,
+			rolesBefore,
+			StagingGenerationRequiresAuthorization,
+			inspectionBefore.id,
+			generationsBefore,
+		)
+	}
+}
+
+func TestIndexerOrdinaryBuildResumesCommittedRenewalAfterInterruption(t *testing.T) {
+	t.Parallel()
+
+	config, corpus := fixtureIndexerConfig(t, 2)
+	now := time.Date(2026, time.July, 20, 13, 0, 0, 0, time.UTC)
+	firstVector := fixtureIndexerVector(config.settings.identity.Dimension())
+	initial, err := newTestIndexer(&config, func(_ context.Context, chunk *CorpusChunk) (EmbeddingResult, error) {
+		if chunk.RelPath == corpus.Chunks[0].RelPath {
+			return EmbeddingResult{Vector: firstVector}, nil
+		}
+		return EmbeddingResult{}, &EmbedError{Kind: EmbedFailureRateLimited}
+	}, func() time.Time { return now }, func(_ context.Context, delay time.Duration) error {
+		now = now.Add(delay)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, initialErr := initial.Build(t.Context(), BuildRequest{}); !errors.Is(initialErr, ErrAttemptLimit) {
+		t.Fatalf("initial Build() error = %v, want ErrAttemptLimit", initialErr)
+	}
+
+	interrupted := errors.New("interrupt immediately after renewal commit")
+	config.deps.afterRenewCommit = func() error { return interrupted }
+	providerFactories := 0
+	renewer, err := newTestIndexerWithSender(&config, func() (chunkSender, error) {
+		providerFactories++
+		return func(context.Context, *CorpusChunk) (EmbeddingResult, error) {
+			t.Fatal("renewal reached the provider after the injected interruption")
+			return EmbeddingResult{}, nil
+		}, nil
+	}, func() time.Time { return now }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = renewer.Build(t.Context(), BuildRequest{RenewAttemptBudget: true})
+	buildErr, ok := errors.AsType[*BuildError](err)
+	if !errors.Is(err, interrupted) || !ok ||
+		buildErr.ActiveGeneration() != ActiveGenerationAbsent ||
+		buildErr.StagingGeneration() != StagingGenerationResumable {
+		t.Fatalf("interrupted renewal error = %v, want absent/resumable observation", err)
+	}
+	if providerFactories != 0 {
+		t.Fatalf("interrupted renewal provider factories = %d, want 0", providerFactories)
+	}
+
+	inspector, err := openRenewalWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rolesBefore, err := inspector.q.Catalog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rolesBefore.StagingGenerationID.Valid {
+		t.Fatal("committed renewal has no resumable staging role")
+	}
+	renewedID := rolesBefore.StagingGenerationID.Int64
+	generationsBefore, err := inspector.q.GenerationCount(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closeErr := inspector.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+
+	config.deps.afterRenewCommit = nil
+	ordinaryFactories := 0
+	ordinarySends := 0
+	secondVector := make([]float32, config.settings.identity.Dimension())
+	secondVector[1] = 1
+	ordinary, err := newTestIndexerWithSender(&config, func() (chunkSender, error) {
+		ordinaryFactories++
+		return func(_ context.Context, chunk *CorpusChunk) (EmbeddingResult, error) {
+			ordinarySends++
+			if chunk.RelPath != corpus.Chunks[1].RelPath {
+				t.Fatalf("ordinary build provider chunk = %q, want pending %q", chunk.RelPath, corpus.Chunks[1].RelPath)
+			}
+			return EmbeddingResult{Vector: secondVector}, nil
+		}, nil
+	}, func() time.Time { return now }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := ordinary.Build(t.Context(), BuildRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != BuildPublished || report.Embedded != 1 || report.Reused != 1 ||
+		ordinaryFactories != 1 || ordinarySends != 1 {
+		t.Fatalf("ordinary Build() = (%+v, factories %d, sends %d), want one resumed pending chunk", report, ordinaryFactories, ordinarySends)
+	}
+
+	inspector, err = openRenewalWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if closeErr := inspector.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	}()
+	rolesAfter, err := inspector.q.Catalog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rolesAfter.ActiveGenerationID.Valid || rolesAfter.ActiveGenerationID.Int64 != renewedID ||
+		rolesAfter.StagingGenerationID.Valid {
+		t.Fatalf("ordinary build roles = %+v, want renewed generation %d active with no staging", rolesAfter, renewedID)
+	}
+	generationsAfter, err := inspector.q.GenerationCount(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generationsAfter != generationsBefore {
+		t.Fatalf("ordinary build generation count = %d, want committed renewal count %d", generationsAfter, generationsBefore)
+	}
+}
+
+func TestIndexerRenewAttemptBudgetUsesExactExhaustedStagingWhenActiveIsCorrupt(t *testing.T) {
+	t.Parallel()
+
+	config, activeCorpus := fixtureIndexerConfig(t, 1)
+	seedActiveGeneration(t, &config, activeCorpus)
+	changed := slices.Clone(activeCorpus.Chunks)
+	changed[0].Submitted = []byte("title: changed | text: changed")
+	changed[0].SubmittedHash = sha256.Sum256(changed[0].Submitted)
+	changed[0].NoteHash = sha256.Sum256([]byte("changed note"))
+	currentCorpus := fixtureIndexerCorpus(t, changed)
+	config.deps.readCorpus = func(context.Context) (Corpus, error) { return currentCorpus, nil }
+
+	writer, err := openWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, _, err := buildTargets(currentCorpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exhausted, err := writer.prepare(
+		t.Context(),
+		&config.settings.identity,
+		config.settings.policySource,
+		targets,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, time.July, 20, 16, 0, 0, 0, time.UTC)
+	for want := 1; want <= 5; want++ {
+		got, reserveErr := exhausted.reserveAttempt(
+			t.Context(),
+			currentCorpus.Chunks[0].RelPath,
+			currentCorpus.Chunks[0].Ordinal,
+			now,
+		)
+		if reserveErr != nil || got != want {
+			t.Fatalf("reserve changed chunk = (%d, %v), want (%d, nil)", got, reserveErr, want)
+		}
+	}
+	roles, err := writer.q.Catalog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	corruptStoredVectorLength(t, writer, roles.ActiveGenerationID.Int64)
+	oldStagingID := exhausted.id
+	if closeErr := writer.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+
+	providerFailure := &EmbedError{Kind: EmbedFailureUnreachable}
+	factories := 0
+	sends := 0
+	indexer, err := newTestIndexerWithSender(&config, func() (chunkSender, error) {
+		factories++
+		return func(context.Context, *CorpusChunk) (EmbeddingResult, error) {
+			sends++
+			return EmbeddingResult{}, providerFailure
+		}, nil
+	}, func() time.Time { return now }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = indexer.Build(t.Context(), BuildRequest{RenewAttemptBudget: true})
+	buildErr, ok := errors.AsType[*BuildError](err)
+	if !errors.Is(err, providerFailure) || errors.Is(err, ErrAttemptBudgetNotRenewable) || !ok ||
+		buildErr.ActiveGeneration() != ActiveGenerationPreservedUnusable ||
+		buildErr.StagingGeneration() != StagingGenerationResumable {
+		t.Fatalf("Build(renew) error = %v, want provider failure with preserved-unusable active and resumable staging", err)
+	}
+	if factories != 1 || sends != 1 {
+		t.Fatalf("renewal provider activity = factories %d sends %d, want one/one", factories, sends)
+	}
+
+	inspector, err := openRenewalWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeOnCleanup(t, inspector)
+	roles, err = inspector.q.Catalog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !roles.StagingGenerationID.Valid || roles.StagingGenerationID.Int64 == oldStagingID {
+		t.Fatalf("staging role = %+v, want a replacement for exhausted generation %d", roles.StagingGenerationID, oldStagingID)
+	}
+	if _, lookupErr := inspector.q.GenerationByID(t.Context(), oldStagingID); lookupErr == nil {
+		t.Fatal("old exhausted generation remains addressable after renewal")
+	}
+}
+
+func TestIndexerRenewAttemptBudgetUsesExactExhaustedStagingWhenActiveExceedsQueryCapacity(t *testing.T) {
+	t.Parallel()
+
+	config, activeCorpus := fixtureIndexerConfig(t, 1)
+	seedActiveGeneration(t, &config, activeCorpus)
+	changed := slices.Clone(activeCorpus.Chunks)
+	changed[0].Submitted = []byte("title: changed | text: changed")
+	changed[0].SubmittedHash = sha256.Sum256(changed[0].Submitted)
+	changed[0].NoteHash = sha256.Sum256([]byte("changed note"))
+	currentCorpus := fixtureIndexerCorpus(t, changed)
+	config.deps.readCorpus = func(context.Context) (Corpus, error) { return currentCorpus, nil }
+
+	writer, err := openWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, _, err := buildTargets(currentCorpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exhausted, err := writer.prepare(
+		t.Context(),
+		&config.settings.identity,
+		config.settings.policySource,
+		targets,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, time.July, 20, 17, 0, 0, 0, time.UTC)
+	for want := 1; want <= 5; want++ {
+		got, reserveErr := exhausted.reserveAttempt(
+			t.Context(),
+			currentCorpus.Chunks[0].RelPath,
+			currentCorpus.Chunks[0].Ordinal,
+			now,
+		)
+		if reserveErr != nil || got != want {
+			t.Fatalf("reserve changed chunk = (%d, %v), want (%d, nil)", got, reserveErr, want)
+		}
+	}
+	roles, err := writer.q.Catalog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, execErr := writer.db.ExecContext(
+		t.Context(),
+		`UPDATE generations SET expected_chunks = ? WHERE id = ?`,
+		exactScanChunkTrigger,
+		roles.ActiveGenerationID.Int64,
+	); execErr != nil {
+		t.Fatal(execErr)
+	}
+	if closeErr := writer.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+
+	providerFailure := &EmbedError{Kind: EmbedFailureUnreachable}
+	factories := 0
+	sends := 0
+	indexer, err := newTestIndexerWithSender(&config, func() (chunkSender, error) {
+		factories++
+		return func(context.Context, *CorpusChunk) (EmbeddingResult, error) {
+			sends++
+			return EmbeddingResult{}, providerFailure
+		}, nil
+	}, func() time.Time { return now }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = indexer.Build(t.Context(), BuildRequest{RenewAttemptBudget: true})
+	buildErr, ok := errors.AsType[*BuildError](err)
+	if !errors.Is(err, providerFailure) || errors.Is(err, ErrAttemptBudgetNotRenewable) || !ok ||
+		buildErr.ActiveGeneration() != ActiveGenerationPreservedUnusable ||
+		buildErr.StagingGeneration() != StagingGenerationResumable {
+		t.Fatalf("Build(renew) error = %v, want provider failure with preserved-unusable active and resumable staging", err)
+	}
+	if factories != 1 || sends != 1 {
+		t.Fatalf("renewal provider activity = factories %d sends %d, want one/one", factories, sends)
+	}
+}
+
+func TestIndexerRenewAttemptBudgetRejectsWithoutDomainMutationOrProvider(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		seed        func(*testing.T, *indexerSetup, Corpus)
+		change      func(*testing.T, *indexerSetup, Corpus)
+		wantActive  ActiveGenerationState
+		wantStaging StagingGenerationState
+	}{
+		{
+			name:        "store missing",
+			wantActive:  ActiveGenerationNotInspected,
+			wantStaging: StagingGenerationNotInspected,
+		},
+		{
+			name:        "matching staging is not exhausted",
+			seed:        seedPendingIndexerStaging,
+			wantActive:  ActiveGenerationAbsent,
+			wantStaging: StagingGenerationResumable,
+		},
+		{
+			name: "staging manifest differs",
+			seed: seedPendingIndexerStaging,
+			change: func(t *testing.T, config *indexerSetup, corpus Corpus) {
+				t.Helper()
+				changed := slices.Clone(corpus.Chunks)
+				changed[0].Submitted = []byte("title: changed | text: changed")
+				changed[0].SubmittedHash = sha256.Sum256(changed[0].Submitted)
+				changed[0].NoteHash = sha256.Sum256([]byte("changed note"))
+				current := fixtureIndexerCorpus(t, changed)
+				config.deps.readCorpus = func(context.Context) (Corpus, error) { return current, nil }
+			},
+			wantActive:  ActiveGenerationAbsent,
+			wantStaging: StagingGenerationIncompatible,
+		},
+		{
+			name: "store corrupt",
+			seed: func(t *testing.T, config *indexerSetup, _ Corpus) {
+				t.Helper()
+				writer, err := openWriter(t.Context(), config.settings.storePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := writer.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(config.settings.storePath, []byte("not a sqlite database"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantActive:  ActiveGenerationNotInspected,
+			wantStaging: StagingGenerationNotInspected,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			config, corpus := fixtureIndexerConfig(t, 1)
+			if tt.seed != nil {
+				tt.seed(t, &config, corpus)
+			}
+			if tt.change != nil {
+				tt.change(t, &config, corpus)
+			}
+			root := filepath.Dir(filepath.Dir(config.settings.storePath))
+			beforeTree := snapshotFileTree(t, root)
+			var beforeDomain []string
+			if tt.wantStaging == StagingGenerationResumable || tt.wantStaging == StagingGenerationIncompatible {
+				beforeDomain = snapshotSemanticDomain(t, config.settings.storePath)
+			}
+			factories := 0
+			sends := 0
+			indexer, err := newTestIndexerWithSender(&config, func() (chunkSender, error) {
+				factories++
+				return func(context.Context, *CorpusChunk) (EmbeddingResult, error) {
+					sends++
+					return EmbeddingResult{}, nil
+				}, nil
+			}, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = indexer.Build(t.Context(), BuildRequest{RenewAttemptBudget: true})
+			buildErr, ok := errors.AsType[*BuildError](err)
+			if !errors.Is(err, ErrAttemptBudgetNotRenewable) || !ok ||
+				buildErr.ActiveGeneration() != tt.wantActive || buildErr.StagingGeneration() != tt.wantStaging {
+				t.Fatalf("Build(renew) error = %v, want not-renewable with active %d and staging %d", err, tt.wantActive, tt.wantStaging)
+			}
+			if factories != 0 || sends != 0 {
+				t.Fatalf("provider activity = factories %d sends %d, want zero", factories, sends)
+			}
+			if beforeDomain != nil {
+				afterDomain := snapshotSemanticDomain(t, config.settings.storePath)
+				if diff := cmp.Diff(beforeDomain, afterDomain); diff != "" {
+					t.Fatalf("renewal rejection mutated semantic domain rows (-before +after):\n%s", diff)
+				}
+				return
+			}
+			afterTree := snapshotFileTree(t, root)
+			if tt.name == "store missing" {
+				if diff := cmp.Diff(beforeTree, afterTree); diff != "" {
+					t.Fatalf("missing-store renewal created filesystem state (-before +after):\n%s", diff)
+				}
+				return
+			}
+			database := filepath.ToSlash(filepath.Join("semantic", "generation.sqlite"))
+			if diff := cmp.Diff(beforeTree[database], afterTree[database]); diff != "" {
+				t.Fatalf("corrupt-store renewal replaced the database (-before +after):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestFifthReservedSlotPreservesFaultOwnership(t *testing.T) {
+	t.Parallel()
+
+	localFailure := errors.New("local send capability failed")
+	tests := []struct {
+		name             string
+		failure          error
+		wantAttemptLimit bool
+	}{
+		{name: "rate limited", failure: &EmbedError{Kind: EmbedFailureRateLimited}, wantAttemptLimit: true},
+		{name: "unreachable", failure: &EmbedError{Kind: EmbedFailureUnreachable}, wantAttemptLimit: true},
+		{name: "provider", failure: &EmbedError{Kind: EmbedFailureProvider}, wantAttemptLimit: true},
+		{name: "unknown provider kind", failure: &EmbedError{Kind: EmbedFailureKind("future-provider-fault")}, wantAttemptLimit: true},
+		{name: "credential rejected", failure: &EmbedError{Kind: EmbedFailureRejected}},
+		{name: "confirmed malformed", failure: &EmbedError{Kind: EmbedFailureMalformedRequest}},
+		{name: "internal", failure: &EmbedError{Kind: EmbedFailureInternal}},
+		{name: "privacy recheck", failure: ErrPolicySourceChanged},
+		{name: "interrupted", failure: context.Canceled},
+		{name: "local tool", failure: localFailure},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			identity := fixtureGenerationIdentity("fifth-slot-" + tt.name)
+			row := fixtureChunkVector("Writing/fifth.md", 0, identity.dimension, 1)
+			writer, err := openWriter(t.Context(), fixtureStorePath(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			closeOnCleanup(t, writer)
+			build := prepareBuild(t, writer, &identity, []ChunkVector{row})
+			now := time.Date(2026, time.July, 20, 13, 0, 0, 0, time.UTC)
+			for want := 1; want <= 4; want++ {
+				if got, err := build.reserveAttempt(t.Context(), row.RelPath, row.Ordinal, now); err != nil || got != want {
+					t.Fatalf("reserve attempt = (%d, %v), want (%d, nil)", got, err, want)
+				}
+			}
+			chunk := CorpusChunk{
+				RelPath:       row.RelPath,
+				NoteHash:      row.NoteHash,
+				Ordinal:       row.Ordinal,
+				SubmittedHash: row.SubmittedHash,
+			}
+			observation := buildObservation{staging: StagingGenerationResumable}
+			indexer := &Indexer{now: func() time.Time { return now }}
+			_, attempt, gotErr := indexer.embedFullBuildChunk(
+				t.Context(),
+				build,
+				&chunk,
+				func(context.Context, *CorpusChunk) (EmbeddingResult, error) { return EmbeddingResult{}, tt.failure },
+				&observation,
+			)
+			if attempt != 5 || !errors.Is(gotErr, tt.failure) ||
+				errors.Is(gotErr, ErrAttemptLimit) != tt.wantAttemptLimit ||
+				observation.staging != StagingGenerationRequiresAuthorization {
+				t.Fatalf("fifth slot = (attempt %d, error %v, staging %d), want cause preserved, attempt-limit %t, requires-authorization", attempt, gotErr, observation.staging, tt.wantAttemptLimit)
+			}
+		})
 	}
 }
 
@@ -1470,7 +2173,7 @@ func TestIndexerRecordsNearestRankTopKP95FromFixedWorkload(t *testing.T) {
 		return time.Duration(measurements) * time.Microsecond, run()
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1501,7 +2204,7 @@ func TestIndexerBuildsWithoutRecordedTopKWorkloadAndLeavesP95Unmeasured(t *testi
 		return 0, nil
 	}
 
-	got, err := indexer.Build(t.Context())
+	got, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1591,7 +2294,7 @@ func TestMeasuredTopKP95UsesOneMicrosecondAsTheSmallestMeasuredValue(t *testing.
 		t.Fatal(err)
 	}
 	indexer.measure = func(run func() error) (time.Duration, error) { return 0, run() }
-	result, err := indexer.Build(t.Context())
+	result, err := indexer.Build(t.Context(), BuildRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1694,7 +2397,7 @@ func TestIndexerFullBuildRejectsFinalCorpusChangeWithoutActivation(t *testing.T)
 		t.Fatal(err)
 	}
 
-	_, err = indexer.Build(t.Context())
+	_, err = indexer.Build(t.Context(), BuildRequest{})
 	if !errors.Is(err, ErrVaultChanged) {
 		t.Fatalf("Build() error = %v, want ErrVaultChanged", err)
 	}
@@ -1751,7 +2454,7 @@ func TestIndexerRejectsRungTwoCorpusBeforeProviderOrStaging(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = indexer.Build(t.Context())
+	_, err = indexer.Build(t.Context(), BuildRequest{})
 	if !errors.Is(err, ErrIndexCapacity) {
 		t.Fatalf("Build() error = %v, want ErrIndexCapacity", err)
 	}
@@ -1805,6 +2508,135 @@ func fixtureIndexerConfig(t *testing.T, documents int) (indexerSetup, Corpus) {
 		},
 	}
 	return config, corpus
+}
+
+type fileTreeEntry struct {
+	Mode os.FileMode
+	Data []byte
+}
+
+func snapshotFileTree(t *testing.T, root string) map[string]fileTreeEntry {
+	t.Helper()
+
+	rooted, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if closeErr := rooted.Close(); closeErr != nil {
+			t.Errorf("close snapshot root: %v", closeErr)
+		}
+	}()
+	snapshot := make(map[string]fileTreeEntry)
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		entryInfo, infoErr := entry.Info()
+		if infoErr != nil {
+			return infoErr
+		}
+		relative, relativeErr := filepath.Rel(root, path)
+		if relativeErr != nil {
+			return relativeErr
+		}
+		item := fileTreeEntry{Mode: entryInfo.Mode()}
+		if entryInfo.Mode().IsRegular() {
+			item.Data, err = rooted.ReadFile(relative)
+			if err != nil {
+				return err
+			}
+		}
+		snapshot[relative] = item
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
+
+func snapshotSemanticDomain(t *testing.T, path string) []string {
+	t.Helper()
+
+	writer, err := openWriter(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if closeErr := writer.Close(); closeErr != nil {
+			t.Errorf("close semantic domain snapshot writer: %v", closeErr)
+		}
+	}()
+	rows, err := writer.db.QueryContext(t.Context(), `
+		SELECT 'catalog',
+		       printf('%d|%s|%s|%s', singleton,
+		              coalesce(active_generation_id, 'NULL'),
+		              coalesce(previous_generation_id, 'NULL'),
+		              coalesce(staging_generation_id, 'NULL'))
+		FROM catalog
+		UNION ALL
+		SELECT 'generation',
+		       printf('%d|%d|%s|%d|%s|%s|%s|%s|%s|%s|%d|%d',
+		              id, vector_format_version, model, dimension,
+		              hex(protocol_epoch), hex(chunker_epoch), vault_root,
+		              hex(corpus_policy_fingerprint), hex(policy_source_fingerprint),
+		              hex(target_corpus_fingerprint), expected_chunks, top_k_p95_us)
+		FROM generations
+		UNION ALL
+		SELECT 'note', printf('%d|%s|%s', generation_id, rel_path, hex(note_hash))
+		FROM notes
+		UNION ALL
+		SELECT 'chunk',
+		       printf('%d|%s|%d|%s|%s', generation_id, rel_path, ordinal,
+		              hex(submitted_hash), coalesce(hex(vector), 'NULL'))
+		FROM chunks
+		UNION ALL
+		SELECT 'attempt',
+		       printf('%d|%s|%d|%d|%s', generation_id, rel_path, ordinal, attempts,
+		              coalesce(retry_not_before_unix_ms, 'NULL'))
+		FROM attempts
+		ORDER BY 1, 2
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Errorf("close semantic domain snapshot rows: %v", closeErr)
+		}
+	}()
+	var snapshot []string
+	for rows.Next() {
+		var table, row string
+		if err := rows.Scan(&table, &row); err != nil {
+			t.Fatal(err)
+		}
+		snapshot = append(snapshot, table+"|"+row)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
+
+func seedPendingIndexerStaging(t *testing.T, config *indexerSetup, corpus Corpus) {
+	t.Helper()
+
+	writer, err := openWriter(t.Context(), config.settings.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, _, err := buildTargets(corpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.prepare(t.Context(), &config.settings.identity, config.settings.policySource, targets); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func fixtureIndexerCorpus(t *testing.T, documents []CorpusChunk) Corpus {

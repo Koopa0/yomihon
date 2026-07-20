@@ -101,9 +101,16 @@ disabled and kept disabled across SDK upgrades.
   follows no redirect. Its dedicated production transport sets `Proxy=nil`, so
   `HTTP_PROXY`/`HTTPS_PROXY` cannot silently create a second egress route; a
   proxy would require a new decision and an injected, observable boundary.
-  Query methods are never retried. Document retries and
-  bounded 429 recovery are new explicit client calls owned by the H4 scheduler
-  and its five-attempt epoch budget, not hidden transport behavior. The
+  Query methods and interactive document calls are never retried. Explicit
+  build document calls are owned by H4's scheduler: provider configuration and
+  construction precede any ledger change, then the scheduler durably reserves
+  one send slot before invoking the chunk-send capability. Any later abort
+  consumes that slot even if `RoundTrip` was never reached. A successful vector
+  and attempt-row clear commit together. Only 429 creates another client call
+  inside the same action; a valid `Retry-After` overrides the 1s/4s/9s/16s
+  fallback, and a wait over 30s is persisted for a later action. Each storage
+  generation grants at most five slots per pending chunk; additional batches
+  require the explicit D60 renewal action and are not hidden transport behavior. The
   provider exposes no stable structured oversized-input discriminator, so the
   scheduler never parses error-message text or splits and retries a rejected
   body after the response; local H3 cap splitting happens before submission.
@@ -129,7 +136,13 @@ bytes. HTTP/status disagreement is unclassifiable and therefore provider-owned.
 
 No classification parses provider `message` text. The table's catch-all is
 deliberately exit-3 territory; only the exact, agreeing malformed-body class is
-an internal error.
+an internal error. `rate-limited` classifies that provider response; it does not
+classify scheduler authorization. On the last slot, H4 preserves a prerequisite
+that must be repaired first: malformed request remains internal and credential
+rejection remains `embedder-rejected`. Only 429, unreachable, or unknown/provider
+failure becomes `attempt-budget-exhausted`, because another send for that same
+target requires explicit renewal. Five slots upper-bound HTTP requests but may
+include pre-transport aborts, so they are never reported as five observed sends.
 
 ## Live protocol acceptance evidence
 

@@ -40,7 +40,7 @@ A single binary `yomihon`; `cmd/yomihon` does wiring only (go-spec doctrine). It
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `yomihon serve`               | The workbench itself, `127.0.0.1:9610` (9610 is goroawase for ku-ro-do, this project's former name; only the port is configurable) |
 | `yomihon search`              | Agent-facing lexical search, with explicit `--semantic` hybrid retrieval                                      |
-| `yomihon search-index build`  | Explicitly build or refresh the local semantic generation                                                     |
+| `yomihon search-index build [--renew-attempt-budget]` | Explicitly build or refresh the local semantic generation; the flag authorizes one eligible exhausted replacement batch |
 | `yomihon check`               | A Go rewrite of kura check, JSONL golden comparison (yomihon-dev SPEC §13's check plan is retired; lint moves here) |
 | `yomihon exists` / `coverage` | Absorbed in sync from kura's agent toolbox; further extensions enter the yard per real vault-side needs         |
 

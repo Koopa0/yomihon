@@ -549,6 +549,15 @@ focus-scoped — the deviation is recorded, not waved away, and it is narrow:
   own explicit exception here, so the canon never contradicts itself
   silently.
 
+*(Amended 2026-07-20 by Koopa, superseding only the no-disable conclusion
+above. One local, per-device, persisted control named for single-key shortcuts
+ships default-on and turns off exactly `/`, `[`, and held `R` together. It does
+not remap them. ⌘K, Escape, and every other keyboard behavior remain
+unchanged. While enabled, the existing typing/select/contenteditable/dialog
+suppression, held-R guard, and lifecycle-legality checks remain mandatory. The
+turn-off mechanism closes the WCAG 2.1.4 deviation; the historical rationale
+and reopen conditions above remain the record of the earlier ruling.)*
+
 ## D50 The hybrid-search ruling sheet (Koopa, 2026-07-12)
 
 Eleven rulings closing the B plan's adversarial round; search-plan.md Part II
@@ -762,6 +771,15 @@ the same 40/40 required-positive rank-1 result and the same 40/40
 contrast-below-positive result. Because 3,072 showed no retrieval benefit while
 doubling vector payload and exact-scan work, 1,536 is the production dimension
 and enters the cache identity and committed recording.)*
+
+*(Amended 2026-07-20 by Koopa through D60. Explicit build retry authority is
+now a durable five-send-slot batch per pending chunk and storage generation,
+not five guaranteed HTTP requests or a renewable ordinary-build loop. Only 429
+retries automatically inside one build action. Exhaustion is
+`attempt-budget-exhausted`; a separate `--renew-attempt-budget` action may
+authorize one replacement batch only under D60's exact staging preconditions.
+The build error wire now carries active/staging recovery state, immediate retry
+safety, and the next action. The search answer envelope is otherwise unchanged.)*
 
 ## D51 `published` is selection for publication, not an external-success receipt (2026-07-16, under Koopa's delegated product authority)
 
@@ -1029,3 +1047,103 @@ source or uses its own scriptless sandbox. This also amends D30's historical
 third mechanism: `/notes/` now has read-only views for non-Markdown files, so
 the invariant is no longer "non-note means 404"; it is "no alternative route
 executes those bytes with first-party authority."
+
+## D60 Semantic retry authorization, recovery wire, and first-use gaps are closed (Koopa, 2026-07-20)
+
+This ruling amends D49 and D50 without erasing their history.
+
+**Semantic send authorization and retry.** Before invoking the chunk-send
+capability, the build ledger commits one durable send-slot reservation. Any
+abort after that commit and before the transaction that stores the returned
+vector and clears the attempt row consumes the slot, even when no HTTP request
+was made. Provider configuration or construction failure happens before
+reservation and consumes no slot. Each chunk-send or query-send client method
+invocation still performs at most one HTTP request, follows no redirect, and
+uses no ambient proxy; a full-build action may invoke the chunk-send method
+again only through the bounded 429 loop below.
+
+Each storage generation grants at most five send slots to each pending chunk.
+Only a 429 automatically retries inside one `search-index build` action. A
+valid `Retry-After` overrides the 1s/4s/9s/16s fallback; a wait over 30 seconds
+is persisted and the action exits. Every other provider or local terminal ends
+that action after its reserved slot. Exhaustion does not erase fault ownership:
+a confirmed malformed request remains exit 1; credential rejection remains
+`embedder-rejected`; and privacy, artifact, local-input, or vault-change
+prerequisites retain their own reason even when the fifth slot was consumed.
+Their recovery envelope reports `staging_generation=requires-authorization`,
+so repair is followed by renewal rather than an ordinary sixth attempt. Only a
+provider availability terminal with no higher-priority repair — 429,
+unreachable, or unknown/provider-failed — becomes
+`attempt-budget-exhausted` when its reservation consumes the last slot. A
+build that begins with exhausted pending work also reports that reason. Slots
+upper-bound actual HTTP requests; a reserved slot that aborts before transport
+makes the bound conservative, and an ordinary build never mints more authority.
+
+`yomihon search-index build --renew-attempt-budget` is the only renewal. It is
+admitted only when one staging generation carries the complete exact target
+manifest for the current build and at least one pending chunk has exhausted
+its five slots. Under the writer lease it
+revalidates privacy authority, artifact authority, corpus, and both policy
+sources, then one transaction creates a new matching staging generation,
+copies completed vectors, points the staging role at the replacement, and
+deletes the old generation and ledger. The active role is unchanged by that
+authorization commit. The same action then continues the ordinary build using
+the new batch; if interrupted, the commit permanently authorizes the remaining
+slots for a later ordinary build. One invocation renews at most one batch,
+including when the flag is repeated. Missing, mismatched, corrupt, or
+not-exhausted staging returns exit 3 `attempt-budget-not-renewable` with zero
+domain mutation and zero provider send; it never falls back to ordinary build
+or to a corruption reset. A missing store creates no file. For an existing
+store, SQLite may recover committed WAL state and maintain WAL/SHM bookkeeping
+while the existing writer lease is held, but schema, catalog roles,
+generations, chunks, and send-slot rows remain logically unchanged.
+
+**Recovery wire.** `search-index build --json` exit-3 failure has a dedicated
+envelope whose `error` fields, in order, are `reason`, `active_generation`,
+`staging_generation`, `retry_safe`, and `next_action`. Internal build errors
+put the same four recovery fields after `detail` inside `internal_error`.
+That internal envelope is only the confirmed exit-1 yomihon-fault surface.
+Usage, local filesystem/SQLite failure, and interruption before emission remain
+D37 exit 2 with empty stdout and one sanitized stderr line; they do not gain a
+JSON recovery envelope. A stdout failure is also exit 2, but bytes already
+accepted by the writer form an invalid partial envelope and must be discarded;
+no contract can make those accepted bytes empty retroactively.
+`active_generation` is one of `not-inspected`, `absent`, `preserved-usable`,
+or `preserved-unusable`; `staging_generation` is one of `not-inspected`,
+`absent`, `incompatible`, `resumable`, or `requires-authorization`.
+`incompatible` means a physical staging role remains but is not admissible for
+the current target; renewal leaves it untouched. `retry_safe` means the failed
+action may be repeated automatically and immediately without repair, waiting,
+new provider-budget consent, or consuming a new provider-send slot. Every
+currently frozen build exit-3 reason is false; even
+`next_action=retry-build` names a new operator action, not an automatic loop.
+`next_action` is one of `retry-build`,
+`wait-and-retry`, `renew-attempt-budget`, `repair-configuration`,
+`repair-vault-contract`, `repair-input`, `use-supported-platform`,
+`review-capacity`, or `repair-yomihon`. No `retry_after` field is promised.
+Search keeps its answer envelope and lexical results; exhaustion appears only
+as `coverage.reason=attempt-budget-exhausted`.
+
+The recovery fields describe current observable state, not historical
+provenance. In particular, an explicit ordinary build may reset corrupt
+derived storage before later failing, in which case `active_generation` may be
+`absent`; yomihon stores no cross-restart "corruption was reset" marker.
+Failures preserve an active generation only when it was valid, and
+`preserved-usable` is reserved for an active generation the current process can
+actually serve. An incompatible, stale, retired, or otherwise nondispatchable
+active is `preserved-unusable` rather than a false preservation success.
+
+**Home, shortcuts, and first use.** With a valid vault contract, a missing
+root `README.md` does not turn Home into a redirect or 404. `/` returns 200,
+renders the complete snapshot-backed dashboard, and replaces only the README
+body with an explicit read-only recovery state telling the operator to create
+`README.md` at the vault root with an external editor or file tool, then reload.
+Direct `/notes/README.md` remains an honest 404. Yomihon never creates that
+file. The D49 amendment above adds the one default-on persisted single-key
+control and no remapping. First use is documented with one tracked
+`examples/vault-schema.toml` whose repository parser gate both loads the file
+and asserts every example lifecycle owner is exactly `["koopa"]`. That value
+is required by the shipped fixed status actor; it is product policy, not user
+identity configuration. Yomihon may diagnose a missing or invalid contract and
+point to that example, but it gains no `init` command and never creates or edits
+the vault contract.

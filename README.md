@@ -57,6 +57,14 @@ Rendering is fault-tolerant by contract: bad YAML, broken links, and unknown
 callouts surface as inline diagnostics rather than being silently repaired or
 invalidating the rest of the vault snapshot.
 
+Home is the complete snapshot-backed dashboard, not the root README by itself.
+With a valid vault contract, a missing root `README.md` still makes `/` return
+200 with navigation, search, counts, and the other dashboard surfaces intact;
+only the README body is replaced by an explicit read-only recovery state. That
+state tells the operator to create `README.md` at the vault root with an
+external editor or file tool, then reload. Opening `/notes/README.md` directly
+remains an honest 404.
+
 ### File viewer
 
 Every file in the vault is viewable, not just notes:
@@ -86,6 +94,11 @@ kanji type:lesson status:ready folder:Sources
 ```
 
 Supported filter keys: `type:` `status:` `domain:` `slug:` `topic:` `folder:`.
+
+The local per-device **single-key shortcuts** setting is on by default and is
+persisted. Turning it off disables exactly `/`, `[`, and held `R`; it does not
+disable `⌘K` or Escape, add remapping, bypass typing/dialog suppression, weaken
+held-R timing/blur/visibility guards, or bypass lifecycle legality.
 
 ### Status — the single write
 
@@ -132,6 +145,14 @@ bin/yomihon serve   # http://127.0.0.1:9610
 Use `make build` after installing the generation tools described in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Every vault needs its own contract at
+`System/schemas/vault-schema.toml`. The repository includes a parser-gated
+starting point at [`examples/vault-schema.toml`](examples/vault-schema.toml).
+Copy it into the vault with an external file tool, then deliberately adapt its
+directories, privacy boundary, enums, and lifecycle rules before serving real
+content. Yomihon only diagnoses a missing or invalid contract and points to the
+example: it has no `init` command and never creates or edits this file.
+
 Configuration is environment-only:
 
 | Variable | Purpose | Default |
@@ -162,7 +183,7 @@ yomihon <serve|search|search-index|check|coverage|exists> [options]
 |---|---|
 | `serve` | Start the reading interface |
 | `search [--semantic] <query...>` | Search the vault for an agent; lexical unless semantic retrieval is explicitly requested |
-| `search-index build` | Build or refresh the local semantic generation |
+| `search-index build [--renew-attempt-budget]` | Build or refresh the local semantic generation; the flag explicitly renews one eligible exhausted batch |
 | `check` | Scan the vault and report diagnostics |
 | `coverage` | Report how concepts are mounted into the vault's maps |
 | `exists <name>` | Test whether a note exists by filename, title, or alias |
@@ -182,11 +203,37 @@ The reading server and its search UI are always lexical-only. Semantic search
 is an explicit CLI action: first run `search-index build`, then use
 `search --semantic`. The generation stays in the user's cache directory,
 outside the vault; a source-build user supplies their own embedding key.
-Building it sends only contract-eligible instance-note chunks to the configured
-Gemini API, and each semantic query sends its bare query text once. Paths
-excluded by the vault privacy contract never enter either flow. Yomihon
-operates no shared credential or proxy; users should review the provider's
-current terms and pricing for their own account.
+Building or bounded reconciliation sends only contract-eligible instance-note
+chunks to the configured Gemini API, and each semantic query sends its bare
+query text at most once. Paths excluded by the vault privacy contract never
+enter either flow. Yomihon operates no shared credential or proxy; users
+should review the provider's current terms and pricing for their own account.
+
+Full-build retry authority is durable and explicit. Before invoking a chunk
+send, yomihon reserves one send slot in SQLite; cancellation or failure after
+that commit consumes the slot even if HTTP was not reached. Provider setup
+fails before reservation. Each pending chunk has five slots per storage
+generation, and only a provider 429 retries automatically, using a valid
+`Retry-After` or the 1s/4s/9s/16s fallback. Exhaustion is
+`attempt-budget-exhausted`, never a disguised `rate-limited` result, and an
+ordinary build cannot mint new slots.
+
+`search-index build --renew-attempt-budget` explicitly authorizes at most one
+matching exhausted replacement batch, atomically copying completed vectors and
+leaving active unchanged before the same action continues the build. Missing,
+mismatched, corrupt, or not-exhausted staging returns
+`attempt-budget-not-renewable` with no domain mutation, provider send, ordinary-build
+fallback, or corrupt-store reset. A renewal commit survives interruption.
+
+Search retains its answer envelope and may expose
+`coverage.reason=attempt-budget-exhausted`. A build exit-3 failure instead
+reports the dedicated JSON recovery fields `reason`, `active_generation`,
+`staging_generation`, `retry_safe`, and `next_action`; confirmed internal exit
+1 uses the corresponding `internal_error` recovery shape. D37 exit-2 failures
+keep empty stdout. Physical stale or mismatched staging is `incompatible`, not
+absent. Every current build exit-3 reason has `retry_safe:false`: even
+`next_action=retry-build` requests a new operator action and is not permission
+for an agent to loop.
 
 `check` also takes:
 
@@ -207,12 +254,16 @@ For `check`, `coverage`, and `exists`, exit codes are a separate frozen
 contract: `0` clean, `1` gate hit (or, for `exists`, no match), `2` tool error.
 `coverage` always exits `0`. Their JSON output is line-delimited with a stable
 field order and per-finding fingerprints, so downstream tooling can diff runs
-byte-for-byte.
+byte-for-byte. All three require a valid current privacy capability; a missing,
+invalid, or source-stale capability closes the command with exit 2, zero
+stdout, and the frozen diagnostic rather than risking private influence.
 
 ## Design guarantees
 
-1. **One write.** The only mutation yomihon ever performs is the `status`
-   flip described above. Every other byte of the vault is read-only.
+1. **One authoritative vault write.** The only vault mutation yomihon ever
+   performs is the `status` flip described above. Every other vault byte is
+   read-only; semantic SQLite generations are disposable derived data outside
+   the vault.
 2. **Loopback server, explicit provider egress.** The HTTP server never listens
    beyond `127.0.0.1`. Only the separately authorized semantic CLI and fixed
    synthetic certification actions contact the embedding provider; ordinary

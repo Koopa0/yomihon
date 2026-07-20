@@ -21,12 +21,14 @@ const RAIL = '#nav-rail';
 const TOGGLE = '[data-nav-toggle]';
 const SCRIM = '[data-nav-close]';
 const FILTER = '[data-nav-filter]';
+const SKIP_LINK = '.y-skiplink';
 
 const SITES = [
   'server-nav-state-free',
   'no-js-sidebar-navigation',
   'no-js-hamburger-hidden',
   'closed-rail-inert',
+  'focused-skip-link-clears-toggle',
   'open-focus-entry',
   'open-tab-contained',
   'scrim-focus-return',
@@ -113,6 +115,10 @@ const MUTATIONS = {
   'suppress-closed-inert': {
     target: 'closed-rail-inert',
     apply: rewriteRuntime('drawer.js', '    rail.inert = !open;', '    rail.inert = false;'),
+  },
+  'overlap-toggle-with-focused-skip-link': {
+    target: 'focused-skip-link-clears-toggle',
+    apply: injectDocumentStyle('@media (max-width:900px){.y-skiplink{top:8px!important}}'),
   },
   'suppress-open-focus': {
     target: 'open-focus-entry',
@@ -275,6 +281,16 @@ try {
     for (let i = 0; i < 20; i += 1) {
       await page.keyboard.press('Tab');
       if (await activeInsideRail(page)) fail('closed-rail-inert', `Tab ${i + 1} entered the closed rail`);
+    }
+
+    await page.locator(SKIP_LINK).focus();
+    const toggleHit = await page.$eval(TOGGLE, (toggle) => {
+      const rect = toggle.getBoundingClientRect();
+      const atPoint = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return atPoint === toggle || toggle.contains(atPoint);
+    });
+    if (!toggleHit) {
+      fail('focused-skip-link-clears-toggle', 'the focused skip link covers the navigation trigger');
     }
 
     await openDrawer(page);

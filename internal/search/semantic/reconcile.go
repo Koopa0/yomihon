@@ -177,7 +177,7 @@ func (ix *Indexer) reconcileGeneration(
 	if workErr := requireInteractiveWork(&active, target); workErr != nil {
 		return nil, workErr
 	}
-	prepared, err := ix.prepareGeneration(ctx, writer, target)
+	prepared, err := ix.prepareGeneration(ctx, writer, target, new(buildObservation))
 	if err != nil {
 		return nil, err
 	}

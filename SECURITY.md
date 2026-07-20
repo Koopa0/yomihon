@@ -35,10 +35,16 @@ model. The vault remains the source of truth. Semantic indexes are disposable
 local derived data, and embedding API access uses the operator's own key.
 
 The ordinary reading server and browser search do not contact the embedding
-provider. An explicit `search-index build` sends only contract-eligible
-instance-note chunks; an explicit `search --semantic` sends its bare query text
-once. Contract-declared private paths are excluded before their bytes are
-opened for either agent-facing flow. The provider credential is read only at
-the final semantic gate, sent only in the request header, and is never written
-to the generation store, logs, diagnostics, or fixtures. Provider account
-terms, retention, and billing remain the operator's responsibility.
+provider. An explicit `search-index build`, or bounded reconciliation inside
+explicit `search --semantic`, sends only contract-eligible instance-note
+chunks; the semantic query sends its bare query text at most once.
+Contract-declared private paths are excluded before their bytes are opened for
+either agent-facing flow. Full build commits a durable send-slot reservation
+before invoking the chunk-send capability; only 429 retries automatically, and
+each pending chunk has five slots per storage generation. Exhausted authority
+can be replaced for one exact batch only through explicit
+`--renew-attempt-budget`; ordinary build cannot silently mint it. The provider
+credential is read only at the final semantic gate, sent only in the request
+header, and is never written to the generation store, logs, diagnostics, or
+fixtures. Provider account terms, retention, and billing remain the operator's
+responsibility.

@@ -10,7 +10,7 @@ tunnel, container port, or non-loopback bind is unsupported; see
 The four product walls in [`CLAUDE.md`](../../CLAUDE.md) remain authoritative:
 yomihon writes only the `status` field, serves only on loopback, derives schema
 and privacy authority from the vault contract, and reports rather than repairs
-bad notes. D18, D32, D47, D50, D57, D58, and D59 in
+bad notes. D18, D32, D47, D50, D57, D58, D59, and D60 in
 [`docs/decisions.md`](../decisions.md) own the detailed rulings.
 
 ## Security objectives and protected assets
@@ -24,7 +24,7 @@ bad notes. D18, D32, D47, D50, D57, D58, and D59 in
 | `YOMIHON_EMBED_KEY` | Read only for an explicit provider action, sent only in the provider request header, and never persisted by yomihon. |
 | Semantic generations | Plaintext, owner-only, disposable derived state outside the vault; a query uses only one complete, compatible, current generation. |
 | Browser authority | Authored vault bytes remain display input, not first-party script, navigation, form, frame, or automatic remote-resource authority. |
-| Host resources and provider quota | Local requests and explicit builds must not gain unbounded network retries or silently spend provider quota. |
+| Host resources and provider quota | Local requests and explicit builds must not gain unbounded network retries or silently spend provider quota; each new build batch requires durable bounded authority. |
 
 ## Actors and identities
 
@@ -53,7 +53,7 @@ credential, or multi-user authorization model.
 | HTTP request to status mutation | `internal/status` alone owns vault writes and Git. `POST /status` is limited to 4 KiB; path, prior status, target status, actor ownership, clean Git state, source bytes, and current artifact authority are checked before publication. |
 | Status publication | `internal/status` writes a sibling temporary file, synchronizes it, revalidates authority and the original file, atomically renames, synchronizes the containing directory, then runs path-scoped `git add` and `git commit`. macOS and Linux are the only supported write platforms. |
 | CLI to semantic provider | `cmd/yomihon` gives semantic actions a vault reader, contract capabilities, and a lazy credential callback. `serve` receives no provider, key reader, generation store, or semantic query capability. |
-| Note chunk to final HTTP send | `internal/search/semantic.geminiEmbedder` is the production send owner. Immediately before each document send it re-reads the source through the pinned reader and revalidates instance status, privacy allowance, note hash, chunk ordinal, submitted hash, and contract-source freshness. |
+| Note chunk to final HTTP send | The build scheduler durably reserves one send slot before invoking `internal/search/semantic.geminiEmbedder`, the production chunk-send capability. That capability re-reads the source through the pinned reader and revalidates instance status, privacy allowance, note hash, chunk ordinal, submitted hash, and contract-source freshness immediately before transport. Any abort after reservation consumes the slot even if HTTP is not reached; provider configuration/construction precedes reservation and consumes none. |
 | Query to final HTTP send | A successful reconcile returns a single-use query capability. It revalidates privacy/artifact source freshness and the complete corpus immediately before its one query request. |
 | Process to semantic store | The store is outside the vault under the OS user cache. On macOS/Linux, the semantic directory is `0700`; database, SQLite sidecars, and the sibling writer lease are `0600`. Rooted descriptors, file identity checks, one writer lease, transactions, schema fingerprints, and complete manifests fail closed on drift or corruption. This is not encryption or hostile-same-UID isolation. |
 | Status process to Git | A private same-binary child enters the already-open vault root and replaces itself with `git`; arguments are discrete and path-scoped. At the final external-process boundary, every `GIT_*` and `YOMIHON_*` variable is stripped. Unrelated ambient variables retain normal Git inheritance. Git executable/configuration/hooks remain trusted local dependencies. |
@@ -85,11 +85,16 @@ credential, or multi-user authorization model.
 | Diagnostics | Server `slog` records startup vault path, capability/scan failures, and selected route/status paths; semantic CLI stderr uses fixed reason text or content-free build counts. | Process stderr. There is no application telemetry, metrics exporter, trace exporter, crash reporter, or remote log sink. Shell redirection/service capture is deployment-owned. |
 
 Production provider transport is direct: `Proxy` is `nil`, redirects are
-refused, the endpoint is not caller-configurable, and each client method makes
-one HTTP send with a 30-second request timeout. Query and interactive document
-requests do not retry. Only explicit full build may retry a 429, with a durable
-maximum of five attempts per chunk and bounded waits. Certification rows do not
-automatically retry. A proxy or a different host is a new egress decision.
+refused, the endpoint is not caller-configurable, and each client invocation
+makes at most one HTTP send with a 30-second request timeout. Query and
+interactive document requests do not retry. Only explicit full build may
+automatically retry a 429. Its storage generation grants five durable send
+slots per pending chunk; a valid `Retry-After` overrides 1s/4s/9s/16s, and a
+wait over 30 seconds is persisted before exit. Slots upper-bound HTTP requests
+because a post-reservation local abort still consumes one. Exhaustion is
+`attempt-budget-exhausted`, never `rate-limited`, and ordinary build cannot
+renew it. Certification rows do not automatically retry. A proxy or a different
+host is a new egress decision.
 
 ## Durable and transient data locations
 
@@ -97,7 +102,7 @@ automatically retry. A proxy or a different host is a new egress decision.
 |---|---|
 | Operator vault and its `.git` directory | Source of truth. Yomihon changes one status line and creates one commit; it does not create a separate vault backup. |
 | Adjacent `.yomihon-status-*.tmp` | A complete rewritten note prepared with exclusive creation before rename. It is removed best-effort on handled pre-publication failure; a process or host crash may leave it for manual inspection/removal. |
-| OS user cache: `yomihon/semantic/generation.sqlite` | Plaintext paths, hashes, generation identity, vectors, retry ledger, and p95 measure. SQLite WAL/SHM/journal files and the sibling `yomihon/semantic.lock` are part of the same boundary. At most active, previous, and one staging generation remain; there is no TTL. |
+| OS user cache: `yomihon/semantic/generation.sqlite` | Plaintext paths, hashes, generation identity, vectors, durable send-slot/wait ledger, and p95 measure. SQLite WAL/SHM/journal files and the sibling `yomihon/semantic.lock` are part of the same boundary. At most active, previous, and one staging generation remain; there is no TTL. Renewal replaces staging transactionally rather than retaining a lifetime history. |
 | Process memory | Vault bytes, rendered/search projections, agent snapshot, semantic submitted chunks, query text, vectors, and immutable exact index. They last for the request/action, snapshot generation, or process lifetime; Go does not promise secure zeroization. |
 | Stderr/stdout | Not persisted by yomihon. Terminal scrollback, shell history, pipes, service managers, and redirection may retain them outside the application. |
 | Provider systems | Authorized request content, key header, provider metadata, and returned vectors cross into Google-operated systems. Their retention, backups, access logs, and deletion are external and not asserted here. |
@@ -121,7 +126,10 @@ The detailed field-by-field handling is in
   byte/count limit.
 - Full semantic build can consume provider quota proportional to all missing
   chunks. It is explicit, single-writer, capacity-gated below 100,000 chunks and
-  1 GiB raw vectors, and retry-bounded; it is not a billing quota system.
+  1 GiB raw vectors, and send-slot-bounded per authorized storage generation;
+  it is not a billing quota system. Cumulative authority grows only when the
+  operator explicitly invokes `--renew-attempt-budget`, at most one batch per
+  invocation, and each later batch applies only to chunks still pending.
 - Interactive reconciliation refuses more than 128 missing chunks or 100,000
   proxy tokens before document/query egress. Query sends once. These limits do
   not constrain an operator repeatedly launching new processes.
@@ -171,6 +179,17 @@ Recovery actions are boundary-specific:
 - **Semantic store corrupt, unsafe, or disclosed:** stop semantic actions,
   remove the user-cache semantic directory if appropriate, and rebuild from the
   vault. The vault remains truth; there is no semantic-store restore promise.
+  An ordinary explicit build may reset corrupt derived storage, after which
+  current active state can honestly be absent; no durable corrupt-reset
+  provenance is retained.
+- **Semantic send slots exhausted:** do not loop ordinary build or describe the
+  state as rate limiting. Inspect the recovery envelope. If it reports one
+  exact staging target requiring authorization and the additional paid/provider
+  exposure is acceptable, invoke
+  `search-index build --renew-attempt-budget` once. A non-renewable response
+  performs no domain mutation or provider send; missing storage creates no
+  path, while an existing store may perform SQLite recovery/WAL bookkeeping
+  without changing roles or domain rows. Follow its ordinary-build next action.
 - **Credential suspected exposed:** remove it from the environment, revoke or
   rotate it with the provider, inspect provider-account activity, and rebuild
   only if vector integrity is in doubt. Yomihon has no credential revocation API.

@@ -48,8 +48,18 @@ type fakeGenerationBuilder struct {
 	run func(context.Context) (semantic.BuildReport, error)
 }
 
-func (f fakeGenerationBuilder) Build(ctx context.Context) (semantic.BuildReport, error) {
+func (f fakeGenerationBuilder) Build(ctx context.Context, _ semantic.BuildRequest) (semantic.BuildReport, error) {
 	return f.run(ctx)
+}
+
+type recordingGenerationBuilder struct {
+	request semantic.BuildRequest
+	report  semantic.BuildReport
+}
+
+func (b *recordingGenerationBuilder) Build(_ context.Context, request semantic.BuildRequest) (semantic.BuildReport, error) {
+	b.request = request
+	return b.report, nil
 }
 
 func TestResolveSearchRoot(t *testing.T) {
@@ -252,6 +262,23 @@ func TestSearchCommandUsageFailuresArePreCapabilityAndRedacted(t *testing.T) {
 		}
 		if bytes.Contains(stderr.Bytes(), []byte(sentinel)) {
 			t.Errorf("runSearchIndex() stderr echoed sentinel: %q", stderr.Bytes())
+		}
+	})
+	t.Run("search-index renewal takes no value", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		exit := runSearchIndex(t.Context(), []string{"build", "--json", "--renew-attempt-budget=true"}, rootConfig{}, buildCommandDeps{
+			stdout: &stdout,
+			stderr: &stderr,
+		})
+		if exit != 2 {
+			t.Errorf("runSearchIndex() exit = %d, want 2", exit)
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("runSearchIndex() stdout = %q, want empty", stdout.Bytes())
+		}
+		want := "yomihon search-index: flag --renew-attempt-budget takes no value\n"
+		if got := stderr.String(); got != want {
+			t.Errorf("runSearchIndex() stderr = %q, want %q", got, want)
 		}
 	})
 }
@@ -789,6 +816,9 @@ func assertPrivacyUnavailable(t *testing.T, command string, exit int, stdout, st
 		t.Errorf("%s() exit = %d, want 3", command, exit)
 	}
 	wantStdout := "{\"error\":{\"reason\":\"privacy-capability-unavailable\"}}\n"
+	if command == "runSearchIndex" {
+		wantStdout = "{\"error\":{\"reason\":\"privacy-capability-unavailable\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"repair-vault-contract\"}}\n"
+	}
 	if stdout != wantStdout {
 		t.Errorf("%s() stdout = %q, want %q", command, stdout, wantStdout)
 	}
@@ -840,7 +870,8 @@ func TestClassifySearchSemanticError(t *testing.T) {
 		{name: "document unavailable", err: semantic.ErrSourceNoteUnavailable, source: semanticFailureReconcile, want: unavailableFailure(searchReasonVaultChanged)},
 		{name: "document denied", err: semantic.ErrChunkEgressDenied, source: semanticFailureReconcile, want: unavailableFailure(searchReasonVaultChanged)},
 		{name: "retry deferred", err: semantic.ErrRetryNotReady, source: semanticFailureReconcile, want: unavailableFailure(searchReasonRateLimited)},
-		{name: "attempts exhausted", err: semantic.ErrAttemptLimit, source: semanticFailureReconcile, want: unavailableFailure(searchReasonRateLimited)},
+		{name: "attempts exhausted", err: semantic.ErrAttemptLimit, source: semanticFailureReconcile, want: unavailableFailure(searchReasonAttemptBudgetExhausted)},
+		{name: "last slot provider terminal", err: errors.Join(semantic.ErrAttemptLimit, &semantic.EmbedError{Kind: semantic.EmbedFailureProvider}), source: semanticFailureReconcile, want: unavailableFailure(searchReasonAttemptBudgetExhausted)},
 		{name: "transport", err: &semantic.EmbedError{Kind: semantic.EmbedFailureUnreachable}, source: semanticFailureQuery, want: unavailableFailure(searchReasonEmbedderUnreachable)},
 		{name: "throttle", err: &semantic.EmbedError{Kind: semantic.EmbedFailureRateLimited}, source: semanticFailureQuery, want: unavailableFailure(searchReasonRateLimited)},
 		{name: "credential", err: &semantic.EmbedError{Kind: semantic.EmbedFailureRejected}, source: semanticFailureQuery, want: unavailableFailure(searchReasonEmbedderRejected)},
@@ -886,7 +917,9 @@ func TestClassifySearchIndexError(t *testing.T) {
 		{name: "vault changed", err: semantic.ErrVaultChanged, want: unavailableFailure(searchReasonVaultChanged)},
 		{name: "document denied", err: semantic.ErrChunkEgressDenied, want: unavailableFailure(searchReasonVaultChanged)},
 		{name: "retry deferred", err: semantic.ErrRetryNotReady, want: unavailableFailure(searchReasonRateLimited)},
-		{name: "attempts exhausted", err: semantic.ErrAttemptLimit, want: unavailableFailure(searchReasonRateLimited)},
+		{name: "attempts exhausted", err: semantic.ErrAttemptLimit, want: unavailableFailure(searchReasonAttemptBudgetExhausted)},
+		{name: "last slot provider terminal", err: errors.Join(semantic.ErrAttemptLimit, &semantic.EmbedError{Kind: semantic.EmbedFailureProvider}), want: unavailableFailure(searchReasonAttemptBudgetExhausted)},
+		{name: "attempt budget not renewable", err: semantic.ErrAttemptBudgetNotRenewable, want: unavailableFailure(searchReasonAttemptBudgetNotRenewable)},
 		{name: "capacity", err: semantic.ErrIndexCapacity, want: unavailableFailure(searchReasonCapacity)},
 		{name: "unsupported store platform", err: semantic.ErrStoreUnsupportedPlatform, want: unavailableFailure(searchReasonUnsupportedPlatform)},
 		{name: "local store failure", err: semantic.ErrStorePermissions, want: commandFailure{kind: commandFailureTool}},
@@ -914,6 +947,7 @@ never_egress_dirs = ["Private"]
 	lexicalCold := "{\"mode\":\"lexical\",\"semantic\":\"unavailable\",\"coverage\":{\"reason\":\"cache-cold\"},\"results\":[{\"rank\":1,\"rel_path\":\"Writing/public.md\",\"title\":\"Public\",\"status\":\"draft\",\"snippet\":\"body token\",\"channels\":[\"lexical\"],\"channel_ranks\":{\"lexical\":1}}]}\n"
 	lexicalFailed := "{\"mode\":\"lexical\",\"semantic\":\"unavailable\",\"coverage\":{\"reason\":\"embedder-failed\"},\"results\":[{\"rank\":1,\"rel_path\":\"Writing/public.md\",\"title\":\"Public\",\"status\":\"draft\",\"snippet\":\"body token\",\"channels\":[\"lexical\"],\"channel_ranks\":{\"lexical\":1}}]}\n"
 	lexicalUnsupported := "{\"mode\":\"lexical\",\"semantic\":\"unavailable\",\"coverage\":{\"reason\":\"unsupported-platform\"},\"results\":[{\"rank\":1,\"rel_path\":\"Writing/public.md\",\"title\":\"Public\",\"status\":\"draft\",\"snippet\":\"body token\",\"channels\":[\"lexical\"],\"channel_ranks\":{\"lexical\":1}}]}\n"
+	lexicalExhausted := "{\"mode\":\"lexical\",\"semantic\":\"unavailable\",\"coverage\":{\"reason\":\"attempt-budget-exhausted\"},\"results\":[{\"rank\":1,\"rel_path\":\"Writing/public.md\",\"title\":\"Public\",\"status\":\"draft\",\"snippet\":\"body token\",\"channels\":[\"lexical\"],\"channel_ranks\":{\"lexical\":1}}]}\n"
 	tests := []struct {
 		name       string
 		err        error
@@ -948,6 +982,13 @@ never_egress_dirs = ["Private"]
 			wantExit:   3,
 			wantStdout: lexicalUnsupported,
 			wantStderr: "yomihon search: unsupported-platform: the semantic generation store is not supported on this platform\n",
+		},
+		{
+			name:       "document attempt budget exhausted",
+			err:        semantic.ErrAttemptLimit,
+			wantExit:   3,
+			wantStdout: lexicalExhausted,
+			wantStderr: "yomihon search: attempt-budget-exhausted: semantic document sends need renewed authorization; run yomihon search-index build --renew-attempt-budget\n",
 		},
 		{
 			name:       "internal malformed",
@@ -1074,6 +1115,40 @@ never_egress_dirs = ["Private"]
 	}
 }
 
+func TestRunSearchIndexPassesExplicitAttemptBudgetRenewal(t *testing.T) {
+	root := writeSearchTestVault(t, `
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = ["Private"]
+`, nil)
+	builder := &recordingGenerationBuilder{report: semantic.BuildReport{
+		Status:  semantic.BuildCurrent,
+		Chunks:  1,
+		Reused:  1,
+		TopKP95: time.Microsecond,
+	}}
+	var stdout, stderr bytes.Buffer
+	exit := runSearchIndex(t.Context(), []string{
+		"build",
+		"--renew-attempt-budget",
+		"--renew-attempt-budget",
+	}, rootConfig{rootEnv: root}, buildCommandDeps{
+		stdout: &stdout,
+		stderr: &stderr,
+		openBuilder: func(semanticActionConfig) (generationBuilder, error) {
+			return builder, nil
+		},
+	})
+	if exit != 0 {
+		t.Fatalf("runSearchIndex() exit = %d, want 0; stderr = %q", exit, stderr.Bytes())
+	}
+	if !builder.request.RenewAttemptBudget {
+		t.Error("BuildRequest.RenewAttemptBudget = false, want true")
+	}
+}
+
 func TestRunSearchIndexProgressIsHumanOnlyAndByteExact(t *testing.T) {
 	root := writeSearchTestVault(t, `
 [artifacts]
@@ -1196,7 +1271,7 @@ func TestRunSearchIndexCapabilityGatesBeforeBuilder(t *testing.T) {
 [artifacts]
 non_instance_dirs = []
 `,
-			wantStdout: "{\"error\":{\"reason\":\"privacy-capability-unavailable\"}}\n",
+			wantStdout: "{\"error\":{\"reason\":\"privacy-capability-unavailable\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"repair-vault-contract\"}}\n",
 			wantStderr: "yomihon search-index: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed\n",
 		},
 		{
@@ -1205,7 +1280,7 @@ non_instance_dirs = []
 [privacy]
 never_egress_dirs = ["Private"]
 `,
-			wantStdout: "{\"error\":{\"reason\":\"artifact-policy-unavailable\"}}\n",
+			wantStdout: "{\"error\":{\"reason\":\"artifact-policy-unavailable\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"repair-vault-contract\"}}\n",
 			wantStderr: "yomihon search-index: artifact-policy-unavailable: the vault contract declares no valid artifact policy, so the semantic corpus cannot exist\n",
 		},
 	}
@@ -1267,7 +1342,44 @@ non_instance_dirs = []
 	if exit != 3 {
 		t.Errorf("runSearchIndex() exit = %d, want 3", exit)
 	}
-	wantStdout := "{\"error\":{\"reason\":\"privacy-capability-unavailable\"}}\n"
+	wantStdout := "{\"error\":{\"reason\":\"privacy-capability-unavailable\",\"active_generation\":\"preserved-unusable\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"repair-vault-contract\"}}\n"
+	if got := stdout.String(); got != wantStdout {
+		t.Errorf("runSearchIndex() stdout = %q, want %q", got, wantStdout)
+	}
+	wantStderr := "yomihon search-index: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed\n"
+	if got := stderr.String(); got != wantStderr {
+		t.Errorf("runSearchIndex() stderr = %q, want %q", got, wantStderr)
+	}
+}
+
+func TestRunSearchIndexRechecksPolicyAfterPublishedBuild(t *testing.T) {
+	root := writeSearchTestVault(t, `
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = ["Private"]
+`, nil)
+	var stdout, stderr bytes.Buffer
+	exit := runSearchIndex(t.Context(), []string{"build", "--json"}, rootConfig{rootEnv: root}, buildCommandDeps{
+		stdout: &stdout,
+		stderr: &stderr,
+		openBuilder: func(semanticActionConfig) (generationBuilder, error) {
+			return fakeGenerationBuilder{run: func(context.Context) (semantic.BuildReport, error) {
+				return semantic.BuildReport{Status: semantic.BuildPublished}, nil
+			}}, nil
+		},
+		beforeCapabilityRecheck: func() {
+			writeSearchTestFile(t, root, "System/schemas/vault-schema.toml", searchTestContractBase+`
+[privacy]
+never_egress_dirs = ["Private"]
+`)
+		},
+	})
+	if exit != 3 {
+		t.Errorf("runSearchIndex() exit = %d, want 3", exit)
+	}
+	wantStdout := "{\"error\":{\"reason\":\"privacy-capability-unavailable\",\"active_generation\":\"preserved-unusable\",\"staging_generation\":\"absent\",\"retry_safe\":false,\"next_action\":\"repair-vault-contract\"}}\n"
 	if got := stdout.String(); got != wantStdout {
 		t.Errorf("runSearchIndex() stdout = %q, want %q", got, wantStdout)
 	}
@@ -1298,7 +1410,7 @@ never_egress_dirs = ["Private"]
 			args:       []string{"build", "--json"},
 			err:        semantic.ErrWriterHeld,
 			wantExit:   3,
-			wantStdout: "{\"error\":{\"reason\":\"index-refreshing\"}}\n",
+			wantStdout: "{\"error\":{\"reason\":\"index-refreshing\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"wait-and-retry\"}}\n",
 			wantStderr: "yomihon search-index: index-refreshing: another process is updating the semantic index\n",
 		},
 		{
@@ -1313,7 +1425,7 @@ never_egress_dirs = ["Private"]
 			args:       []string{"build", "--json"},
 			err:        semantic.ErrIndexCapacity,
 			wantExit:   3,
-			wantStdout: "{\"error\":{\"reason\":\"capacity\"}}\n",
+			wantStdout: "{\"error\":{\"reason\":\"capacity\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"review-capacity\"}}\n",
 			wantStderr: "yomihon search-index: capacity: the semantic index could not be loaded into memory\n",
 		},
 		{
@@ -1321,7 +1433,7 @@ never_egress_dirs = ["Private"]
 			args:       []string{"build", "--json"},
 			err:        semantic.ErrStoreUnsupportedPlatform,
 			wantExit:   3,
-			wantStdout: "{\"error\":{\"reason\":\"unsupported-platform\"}}\n",
+			wantStdout: "{\"error\":{\"reason\":\"unsupported-platform\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"use-supported-platform\"}}\n",
 			wantStderr: "yomihon search-index: unsupported-platform: the semantic generation store is not supported on this platform\n",
 		},
 		{
@@ -1329,13 +1441,43 @@ never_egress_dirs = ["Private"]
 			args:       []string{"build", "--json"},
 			err:        &semantic.EmbedError{Kind: semantic.EmbedFailureMalformedRequest},
 			wantExit:   1,
-			wantStdout: "{\"internal_error\":{\"detail\":\"the request could not be formed correctly\"}}\n",
+			wantStdout: "{\"internal_error\":{\"detail\":\"the request could not be formed correctly\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"repair-yomihon\"}}\n",
 			wantStderr: "yomihon search-index: internal: the request could not be formed correctly\n",
+		},
+		{
+			name:       "attempt budget exhausted JSON",
+			args:       []string{"build", "--json"},
+			err:        exhaustedBuildFailure(),
+			wantExit:   3,
+			wantStdout: readWireGolden(t, "index-attempt-budget-exhausted.jsonl"),
+			wantStderr: readWireGolden(t, "index-attempt-budget-exhausted.stderr"),
+		},
+		{
+			name:       "attempt budget not renewable JSON",
+			args:       []string{"build", "--json", "--renew-attempt-budget"},
+			err:        semantic.ErrAttemptBudgetNotRenewable,
+			wantExit:   3,
+			wantStdout: "{\"error\":{\"reason\":\"attempt-budget-not-renewable\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"retry-build\"}}\n",
+			wantStderr: readWireGolden(t, "index-attempt-budget-not-renewable.stderr"),
 		},
 		{
 			name:       "unknown local error redacted",
 			args:       []string{"build", "--json"},
 			err:        errors.New("sentinel-private-query key-sentinel"),
+			wantExit:   2,
+			wantStderr: "yomihon search-index: semantic build failed\n",
+		},
+		{
+			name:       "SQLite or filesystem failure stays local",
+			args:       []string{"build", "--json"},
+			err:        semantic.ErrStorePermissions,
+			wantExit:   2,
+			wantStderr: "yomihon search-index: semantic build failed\n",
+		},
+		{
+			name:       "interruption stays local",
+			args:       []string{"build", "--json"},
+			err:        context.Canceled,
 			wantExit:   2,
 			wantStderr: "yomihon search-index: semantic build failed\n",
 		},
@@ -1364,6 +1506,36 @@ never_egress_dirs = ["Private"]
 				t.Errorf("runSearchIndex() stderr = %q, want %q", got, tt.wantStderr)
 			}
 		})
+	}
+}
+
+func TestRunSearchIndexPartialRecoveryOutputIsToolFailure(t *testing.T) {
+	root := writeSearchTestVault(t, `
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = ["Private"]
+`, nil)
+	var stdout partialWriter
+	var stderr bytes.Buffer
+	exit := runSearchIndex(t.Context(), []string{"build", "--json"}, rootConfig{rootEnv: root}, buildCommandDeps{
+		stdout: &stdout,
+		stderr: &stderr,
+		openBuilder: func(semanticActionConfig) (generationBuilder, error) {
+			return fakeGenerationBuilder{run: func(context.Context) (semantic.BuildReport, error) {
+				return semantic.BuildReport{}, exhaustedBuildFailure()
+			}}, nil
+		},
+	})
+	if exit != 2 {
+		t.Errorf("runSearchIndex() exit = %d, want 2", exit)
+	}
+	if stdout.Len() == 0 || stdout.Bytes()[stdout.Len()-1] == '\n' {
+		t.Errorf("runSearchIndex() partial stdout = %q, want nonempty incomplete frame", stdout.Bytes())
+	}
+	if got, want := stderr.String(), "yomihon search-index: write output\n"; got != want {
+		t.Errorf("runSearchIndex() stderr = %q, want %q", got, want)
 	}
 }
 

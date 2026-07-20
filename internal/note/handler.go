@@ -102,13 +102,12 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	statusView := h.deps.Status()
 	snap := h.deps.Snapshot().Capture()
 	readme, ok := snap.Note("README.md")
+	readmeHTML := ""
 	if !ok {
 		h.deps.Log.Warn("home README is absent from the request snapshot")
-		http.Error(w, "找不到首頁內容", http.StatusNotFound)
-		return
+	} else {
+		readmeHTML = snap.Render(readme.Body).HTML
 	}
-
-	result := snap.Render(readme.Body)
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, artifactPolicy, snap)
 	lifecycle, lifecycleDiagnostic := h.lifecycle(statusView, snap, "")
@@ -137,7 +136,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		LifecycleDiagnostic: lifecycleDiagnostic,
 		Paths:               homePaths(visibleNav.Paths()),
 		PathDiagnostics:     pathDiagnostics,
-		ReadmeHTML:          result.HTML,
+		ReadmeHTML:          readmeHTML,
+		ReadmeMissing:       !ok,
 		Sidebar:             pages.NewSidebar(visibleNav, ""),
 	}
 	if err := pages.Home(view, pageShell.Chrome(r, "首頁")).Render(r.Context(), w); err != nil {

@@ -236,8 +236,18 @@ only, and the design keeps semantic strictly an enhancement layer:
   before its one query send. The interactive ceiling is 128 missing chunks
   and 100,000 submitted proxy tokens; above either it exits 3 with
   `rebuild-required` before document or query egress. Interactive document
-  calls are single-attempt/fail-fast. Only the explicit build may apply the
-  bounded 429 retry schedule.
+  calls are single-attempt/fail-fast. Only the explicit build may automatically
+  retry 429. Each pending chunk receives at most five durably reserved send
+  slots from its storage generation; a reservation can be consumed before HTTP,
+  so slots upper-bound sends. Exhaustion is `attempt-budget-exhausted`, not
+  `rate-limited`, and ordinary build cannot renew it.
+  `search-index build --renew-attempt-budget` is the sole renewal path: under
+  the writer lease it admits only an exact exhausted staging target, atomically
+  copies completed vectors into one replacement stage, and then continues the
+  same build action. Missing, incompatible, corrupt, or not-exhausted staging
+  returns `attempt-budget-not-renewable`, exit 3, with zero domain mutation/send
+  (SQLite recovery/WAL bookkeeping may occur on an existing store) and no
+  ordinary-build fallback.
 - **Platform scope is explicit.** Version 1 supports the semantic generation
   store only on Darwin and Linux. Windows has no store because synthetic
   mode bits cannot establish the owner-only privacy
@@ -258,8 +268,9 @@ only, and the design keeps semantic strictly an enhancement layer:
   and retry state still match. The final corpus manifest and policy-source
   bytes are revalidated, then one SQLite transaction flips
   `previous=active; active=staging; staging=NULL` and removes unreferenced
-  generations. Failure or interruption leaves the prior active generation
-  unchanged. A concurrent
+  generations. Failure or interruption leaves any valid prior active generation
+  unchanged; an ordinary explicit build that resets corrupt derived state may
+  instead truthfully leave active absent. A concurrent
   writer is `index-refreshing`; after losing the lease, a search re-reads the
   active generation once so a just-completed writer is not reported as a
   spurious failure. No stale vector and no partial hybrid ranking is served.

@@ -65,6 +65,12 @@ type BuildReport struct {
 	TopKP95  time.Duration
 }
 
+// BuildRequest selects the one explicit semantic build action to perform.
+// The zero value runs an ordinary resumable build.
+type BuildRequest struct {
+	RenewAttemptBudget bool
+}
+
 type publishedGeneration struct {
 	metadata generationMetadata
 	corpus   Corpus
@@ -111,6 +117,8 @@ type indexerDeps struct {
 	validateQueryCorpus    func(context.Context, [sha256.Size]byte) error
 	newIndex               indexFactory
 	openWriter             writerFactory
+	beforeRenewCommit      func() error
+	afterRenewCommit       func() error
 }
 
 type indexerSetup struct {
@@ -392,9 +400,18 @@ func completeIndexerDeps(deps indexerDeps) indexerDeps {
 	return deps
 }
 
-// Build runs the explicit full-build action. A generation that already equals
-// the current local corpus is returned without acquiring a writer or sending.
-func (ix *Indexer) Build(ctx context.Context) (BuildReport, error) {
+// Build runs one explicit full-build action. The zero request may return a
+// current generation without acquiring a writer or sending. Renewal instead
+// requires an exhausted matching staging generation and never takes that early
+// success path.
+func (ix *Indexer) Build(ctx context.Context, request BuildRequest) (report BuildReport, resultErr error) {
+	observation := buildObservation{}
+	defer func() {
+		resultErr = observation.wrap(resultErr)
+	}()
+	if request.RenewAttemptBudget {
+		return ix.renewAttemptBudget(ctx, &observation)
+	}
 	corpus, err := ix.readCorpus(ctx)
 	if err != nil {
 		return BuildReport{}, err
@@ -407,7 +424,117 @@ func (ix *Indexer) Build(ctx context.Context) (BuildReport, error) {
 	if current {
 		return newBuildReport(BuildCurrent, &generation.generationMetadata, &corpus, 0, len(corpus.Chunks))
 	}
-	return ix.buildGeneration(ctx, errors.Is(err, ErrStoreCorrupt))
+	return ix.buildGeneration(ctx, errors.Is(err, ErrStoreCorrupt), &observation)
+}
+
+func (ix *Indexer) renewAttemptBudget(
+	ctx context.Context,
+	observation *buildObservation,
+) (report BuildReport, resultErr error) {
+	writer, err := openRenewalWriter(ctx, ix.settings.storePath)
+	if err != nil {
+		return BuildReport{}, classifyRenewalOpenError(err)
+	}
+	published := false
+	defer func() {
+		resultErr = closeUnpublishedWriter(writer, published, resultErr)
+	}()
+
+	corpus, err := ix.readCorpus(ctx)
+	if err != nil {
+		return BuildReport{}, err
+	}
+	targets, chunks, err := buildTargets(corpus)
+	if err != nil {
+		return BuildReport{}, err
+	}
+	manifest, err := newStagingManifest(&ix.settings.identity, ix.settings.policySource, targets)
+	if err != nil {
+		return BuildReport{}, err
+	}
+	active, activeErr := writer.Active(ctx)
+	observation.active = classifyBuildActive(&active, activeErr, &ix.settings.identity, corpus.Fingerprint)
+	// Active-role corruption changes the recovery observation, not the
+	// independently validated staging batch's renewal eligibility.
+	if !renewalCanProceedPastActiveError(activeErr) {
+		return BuildReport{}, errors.Join(ErrAttemptBudgetNotRenewable, activeErr)
+	}
+	inspection, err := writer.inspectStaging(ctx, manifest)
+	observation.staging = inspection.state
+	if err != nil {
+		return BuildReport{}, errors.Join(ErrAttemptBudgetNotRenewable, err)
+	}
+	if inspection.state != StagingGenerationRequiresAuthorization {
+		return BuildReport{}, ErrAttemptBudgetNotRenewable
+	}
+	writer.beforeRenewCommit = ix.deps.beforeRenewCommit
+	build, err := writer.renewStagingGeneration(ctx, manifest, inspection.id, func(ctx context.Context) error {
+		return ix.validateRenewalCommit(ctx, corpus.Fingerprint)
+	})
+	if err != nil {
+		return BuildReport{}, err
+	}
+	observation.staging = StagingGenerationResumable
+	if ix.deps.afterRenewCommit != nil {
+		if hookErr := ix.deps.afterRenewCommit(); hookErr != nil {
+			return BuildReport{}, hookErr
+		}
+	}
+	pending, err := build.pending(ctx)
+	if err != nil {
+		return BuildReport{}, err
+	}
+	prepared := &preparedGeneration{
+		corpus:  corpus,
+		targets: targets,
+		chunks:  chunks,
+		staging: build,
+		pending: pending,
+		reused:  len(targets) - len(pending),
+	}
+	embedded, err := ix.embedFull(ctx, prepared, observation)
+	if err != nil {
+		return BuildReport{}, err
+	}
+	generation, err := ix.publishGeneration(ctx, prepared, embedded)
+	if err != nil {
+		return BuildReport{}, err
+	}
+	published = true
+	observation.active = ActiveGenerationPreservedUsable
+	observation.staging = StagingGenerationAbsent
+	return newBuildReport(
+		BuildPublished,
+		&generation.metadata,
+		&generation.corpus,
+		generation.embedded,
+		generation.reused,
+	)
+}
+
+func (ix *Indexer) validateRenewalCommit(ctx context.Context, expected [sha256.Size]byte) error {
+	current, err := ix.readCorpus(ctx)
+	if err != nil {
+		return err
+	}
+	if current.Fingerprint != expected {
+		return ErrVaultChanged
+	}
+	return nil
+}
+
+func renewalCanProceedPastActiveError(err error) bool {
+	return err == nil || errors.Is(err, ErrNoActiveGeneration) ||
+		errors.Is(err, ErrVectorFormatMismatch) || errors.Is(err, ErrStoreCorrupt) ||
+		errors.Is(err, ErrIndexCapacity)
+}
+
+func classifyRenewalOpenError(err error) error {
+	if errors.Is(err, ErrStoreNotFound) || errors.Is(err, ErrStoreSchemaMismatch) ||
+		errors.Is(err, ErrStoreCorrupt) || errors.Is(err, ErrVectorFormatMismatch) {
+		return errors.Join(ErrAttemptBudgetNotRenewable, err)
+	}
+	return err
 }
 
 func newBuildReport(
@@ -433,7 +560,11 @@ func newBuildReport(
 	}, nil
 }
 
-func (ix *Indexer) buildGeneration(ctx context.Context, replaceCorruptActive bool) (report BuildReport, resultErr error) {
+func (ix *Indexer) buildGeneration(
+	ctx context.Context,
+	replaceCorruptActive bool,
+	observation *buildObservation,
+) (report BuildReport, resultErr error) {
 	writer, err := openRebuildWriter(ctx, ix.settings.storePath)
 	if err != nil {
 		return BuildReport{}, err
@@ -448,6 +579,7 @@ func (ix *Indexer) buildGeneration(ctx context.Context, replaceCorruptActive boo
 		return BuildReport{}, err
 	}
 	active, activeErr := writer.Active(ctx)
+	observation.active = classifyBuildActive(&active, activeErr, &ix.settings.identity, corpus.Fingerprint)
 	current, err := acceptBuildActive(&active, activeErr, &ix.settings.identity, corpus.Fingerprint, replaceCorruptActive)
 	if err != nil {
 		return BuildReport{}, err
@@ -456,11 +588,11 @@ func (ix *Indexer) buildGeneration(ctx context.Context, replaceCorruptActive boo
 		return newBuildReport(BuildCurrent, &active.generationMetadata, &corpus, 0, len(corpus.Chunks))
 	}
 
-	prepared, err := ix.prepareGeneration(ctx, writer, corpus)
+	prepared, err := ix.prepareGeneration(ctx, writer, corpus, observation)
 	if err != nil {
 		return BuildReport{}, err
 	}
-	embedded, err := ix.embedFull(ctx, prepared)
+	embedded, err := ix.embedFull(ctx, prepared, observation)
 	if err != nil {
 		return BuildReport{}, err
 	}
@@ -469,6 +601,8 @@ func (ix *Indexer) buildGeneration(ctx context.Context, replaceCorruptActive boo
 		return BuildReport{}, err
 	}
 	published = true
+	observation.active = ActiveGenerationPreservedUsable
+	observation.staging = StagingGenerationAbsent
 	return newBuildReport(
 		BuildPublished,
 		&generation.metadata,
@@ -476,6 +610,25 @@ func (ix *Indexer) buildGeneration(ctx context.Context, replaceCorruptActive boo
 		generation.embedded,
 		generation.reused,
 	)
+}
+
+func classifyBuildActive(
+	active *loadedGeneration,
+	err error,
+	identity *generationIdentity,
+	corpusFingerprint [sha256.Size]byte,
+) ActiveGenerationState {
+	if errors.Is(err, ErrNoActiveGeneration) {
+		return ActiveGenerationAbsent
+	}
+	if err != nil {
+		return ActiveGenerationPreservedUnusable
+	}
+	if active != nil && active.identity == *identity && active.corpusFingerprint == corpusFingerprint &&
+		active.topKP95 >= time.Microsecond {
+		return ActiveGenerationPreservedUsable
+	}
+	return ActiveGenerationPreservedUnusable
 }
 
 func closeUnpublishedWriter(writer *writer, published bool, resultErr error) error {
@@ -529,6 +682,7 @@ func (ix *Indexer) prepareGeneration(
 	ctx context.Context,
 	writer *writer,
 	corpus Corpus,
+	observation *buildObservation,
 ) (*preparedGeneration, error) {
 	targets, chunks, err := buildTargets(corpus)
 	if err != nil {
@@ -542,6 +696,15 @@ func (ix *Indexer) prepareGeneration(
 	if err != nil {
 		return nil, err
 	}
+	exhausted, err := build.hasExhaustedPending(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if exhausted {
+		observation.staging = StagingGenerationRequiresAuthorization
+		return nil, ErrAttemptLimit
+	}
+	observation.staging = StagingGenerationResumable
 	return &preparedGeneration{
 		corpus:  corpus,
 		targets: targets,
@@ -576,7 +739,11 @@ func (ix *Indexer) embedInteractive(ctx context.Context, prepared *preparedGener
 	return len(prepared.pending), nil
 }
 
-func (ix *Indexer) embedFull(ctx context.Context, prepared *preparedGeneration) (int, error) {
+func (ix *Indexer) embedFull(
+	ctx context.Context,
+	prepared *preparedGeneration,
+	observation *buildObservation,
+) (int, error) {
 	if len(prepared.pending) == 0 {
 		return 0, nil
 	}
@@ -589,12 +756,21 @@ func (ix *Indexer) embedFull(ctx context.Context, prepared *preparedGeneration) 
 		if err != nil {
 			return 0, err
 		}
-		embedding, err := ix.embedFullBuildChunk(ctx, prepared.staging, chunk, provider.embedChunk)
+		embedding, attempt, err := ix.embedFullBuildChunk(
+			ctx,
+			prepared.staging,
+			chunk,
+			provider.embedChunk,
+			observation,
+		)
 		if err != nil {
 			return 0, err
 		}
 		if err := completePreparedChunk(ctx, prepared.staging, chunk, embedding); err != nil {
 			return 0, err
+		}
+		if attempt == 5 {
+			observation.staging = StagingGenerationResumable
 		}
 		embedded := i + 1
 		if ix.buildProgress != nil && (embedded%100 == 0 || embedded == len(prepared.pending)) {
@@ -683,37 +859,66 @@ func (ix *Indexer) embedFullBuildChunk(
 	staging *staging,
 	chunk *CorpusChunk,
 	send chunkSender,
-) (EmbeddingResult, error) {
+	observation *buildObservation,
+) (EmbeddingResult, int, error) {
 	for {
 		attempt, err := staging.reserveAttempt(ctx, chunk.RelPath, chunk.Ordinal, ix.now())
 		if err != nil {
-			return EmbeddingResult{}, err
+			return EmbeddingResult{}, 0, err
+		}
+		if attempt == 5 {
+			observation.staging = StagingGenerationRequiresAuthorization
 		}
 		result, err := send(ctx, chunk)
 		if err == nil {
-			return result, nil
+			return result, attempt, nil
 		}
-		embedErr, ok := errors.AsType[*EmbedError](err)
-		if !ok || embedErr.Kind != EmbedFailureRateLimited || attempt >= 5 {
-			return EmbeddingResult{}, err
+		embedErr, terminalErr := classifyFullBuildFailure(err, attempt)
+		if terminalErr != nil {
+			return EmbeddingResult{}, attempt, terminalErr
 		}
 		delay := fullBuildRetrySchedule[attempt-1]
 		if embedErr.RetryAfterValid {
 			if embedErr.RetryAfter < 0 {
-				return EmbeddingResult{}, err
+				return EmbeddingResult{}, attempt, err
 			}
 			delay = embedErr.RetryAfter
 		}
 		retryAt := ix.now().Add(delay)
 		if err := staging.deferRetry(ctx, chunk.RelPath, chunk.Ordinal, retryAt); err != nil {
-			return EmbeddingResult{}, err
+			return EmbeddingResult{}, attempt, err
 		}
 		if delay > 30*time.Second {
-			return EmbeddingResult{}, &retryNotReadyError{At: retryAt}
+			return EmbeddingResult{}, attempt, &retryNotReadyError{At: retryAt}
 		}
 		if err := ix.wait(ctx, delay); err != nil {
-			return EmbeddingResult{}, err
+			return EmbeddingResult{}, attempt, err
 		}
+	}
+}
+
+func classifyFullBuildFailure(err error, attempt int) (*EmbedError, error) {
+	embedErr, ok := errors.AsType[*EmbedError](err)
+	if attempt >= 5 {
+		if ok && providerAvailabilityFailure(embedErr.Kind) {
+			return nil, errors.Join(ErrAttemptLimit, err)
+		}
+		return nil, err
+	}
+	if !ok || embedErr.Kind != EmbedFailureRateLimited {
+		return nil, err
+	}
+	return embedErr, nil
+}
+
+func providerAvailabilityFailure(kind EmbedFailureKind) bool {
+	switch kind {
+	case EmbedFailureUnreachable, EmbedFailureRateLimited, EmbedFailureProvider:
+		return true
+	case EmbedFailureRejected, EmbedFailureMalformedRequest, EmbedFailureInternal:
+		return false
+	default:
+		return true
 	}
 }
 

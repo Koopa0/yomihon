@@ -166,6 +166,84 @@ type stagingResume struct {
 	resumed bool
 }
 
+type stagingInspection struct {
+	id    int64
+	state StagingGenerationState
+}
+
+func (w *writer) inspectStaging(
+	ctx context.Context,
+	manifest *stagingManifest,
+) (stagingInspection, error) {
+	if w == nil || w.db == nil {
+		return stagingInspection{}, ErrStoreNotFound
+	}
+	if err := w.requireCurrentFiles(); err != nil {
+		return stagingInspection{}, err
+	}
+	tx, err := w.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return stagingInspection{}, fmt.Errorf("begin semantic staging inspection: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after commit; a pre-commit failure is already returned
+	q := catalog.New(tx)
+	roles, err := q.Catalog(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return stagingInspection{}, fmt.Errorf("%w: missing role catalog", ErrStoreCorrupt)
+	}
+	if err != nil {
+		return stagingInspection{}, fmt.Errorf("read semantic role catalog: %w", err)
+	}
+	inspection, err := inspectStagingGeneration(ctx, q, roles.StagingGenerationID, manifest)
+	if err != nil {
+		return inspection, err
+	}
+	if err := w.requireCurrentFiles(); err != nil {
+		return stagingInspection{}, err
+	}
+	return inspection, nil
+}
+
+func inspectStagingGeneration(
+	ctx context.Context,
+	q *catalog.Queries,
+	stagingID sql.NullInt64,
+	manifest *stagingManifest,
+) (stagingInspection, error) {
+	if !stagingID.Valid {
+		return stagingInspection{state: StagingGenerationAbsent}, nil
+	}
+	inspection := stagingInspection{id: stagingID.Int64, state: StagingGenerationIncompatible}
+	metadata, err := storedGenerationByID(ctx, q, stagingID.Int64)
+	if err != nil {
+		return inspection, err
+	}
+	if metadata.vectorFormatVersion != vectorFormatVersion ||
+		metadata.identity != manifest.identity ||
+		metadata.policySourceFingerprint != manifest.policySource ||
+		metadata.corpusFingerprint != manifest.corpusFingerprint ||
+		metadata.expectedChunks != len(manifest.targets) {
+		return inspection, nil
+	}
+	admissible, err := stagingGenerationAdmissible(ctx, q, &metadata, manifest.targets)
+	if err != nil {
+		return inspection, err
+	}
+	if !admissible {
+		return inspection, nil
+	}
+	exhausted, err := exhaustedPendingAttempt(ctx, q, metadata.id)
+	if err != nil {
+		return inspection, err
+	}
+	if exhausted {
+		inspection.state = StagingGenerationRequiresAuthorization
+	} else {
+		inspection.state = StagingGenerationResumable
+	}
+	return inspection, nil
+}
+
 func stagingMatchesManifest(
 	ctx context.Context,
 	q *catalog.Queries,
@@ -217,6 +295,125 @@ func createStagingGeneration(
 	catalogRow catalog.CatalogRow,
 	manifest *stagingManifest,
 ) (int64, error) {
+	id, err := createGeneration(ctx, q, manifest)
+	if err != nil {
+		return 0, err
+	}
+	if err := reuseActiveVectors(ctx, q, catalogRow.ActiveGenerationID, id, &manifest.identity); err != nil {
+		return 0, err
+	}
+	if err := publishStaging(ctx, q, id); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (w *writer) renewStagingGeneration(
+	ctx context.Context,
+	manifest *stagingManifest,
+	expectedID int64,
+	validateCommit func(context.Context) error,
+) (*staging, error) {
+	if validateCommit == nil {
+		return nil, ErrAttemptBudgetNotRenewable
+	}
+	if err := w.requireCurrentFiles(); err != nil {
+		return nil, err
+	}
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin semantic staging renewal: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after commit; a pre-commit failure is already returned
+	q := catalog.New(tx)
+	completed, err := renewableStagingCompletedCount(ctx, q, manifest, expectedID)
+	if err != nil {
+		return nil, err
+	}
+	newID, err := replaceExhaustedStaging(ctx, q, manifest, expectedID, completed)
+	if err != nil {
+		return nil, err
+	}
+	if w.beforeRenewCommit != nil {
+		if hookErr := w.beforeRenewCommit(); hookErr != nil {
+			return nil, hookErr
+		}
+	}
+	if err := validateCommit(ctx); err != nil {
+		return nil, err
+	}
+	if err := w.commit(tx, "semantic staging renewal"); err != nil {
+		return nil, err
+	}
+	return manifest.bind(w, newID, true), nil
+}
+
+func renewableStagingCompletedCount(
+	ctx context.Context,
+	q *catalog.Queries,
+	manifest *stagingManifest,
+	expectedID int64,
+) (int, error) {
+	roles, err := q.Catalog(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("%w: missing role catalog", ErrStoreCorrupt)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read semantic role catalog: %w", err)
+	}
+	inspection, err := inspectStagingGeneration(ctx, q, roles.StagingGenerationID, manifest)
+	if err != nil {
+		return 0, err
+	}
+	if inspection.state != StagingGenerationRequiresAuthorization || inspection.id != expectedID {
+		return 0, ErrAttemptBudgetNotRenewable
+	}
+	oldMetadata, err := storedGenerationByID(ctx, q, expectedID)
+	if err != nil {
+		return 0, err
+	}
+	completed, err := generationRows(ctx, q, &oldMetadata)
+	if err != nil {
+		return 0, err
+	}
+	return len(completed), nil
+}
+
+func replaceExhaustedStaging(
+	ctx context.Context,
+	q *catalog.Queries,
+	manifest *stagingManifest,
+	expectedID int64,
+	completed int,
+) (int64, error) {
+	newID, err := createGeneration(ctx, q, manifest)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := q.CopyGenerationChunkVectors(ctx, catalog.CopyGenerationChunkVectorsParams{
+		SourceGenerationID: expectedID,
+		TargetGenerationID: newID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("copy completed semantic staging vectors: %w", err)
+	}
+	if affected != int64(completed) {
+		return 0, fmt.Errorf("%w: copied %d of %d completed staging vectors", ErrStoreCorrupt, affected, completed)
+	}
+	if publishErr := publishStaging(ctx, q, newID); publishErr != nil {
+		return 0, publishErr
+	}
+	affected, err = q.DeleteGeneration(ctx, expectedID)
+	if err != nil {
+		return 0, fmt.Errorf("remove exhausted semantic staging generation: %w", err)
+	}
+	if affected != 1 {
+		return 0, fmt.Errorf("%w: remove exhausted semantic staging generation", ErrStoreCorrupt)
+	}
+	return newID, nil
+}
+
+func createGeneration(ctx context.Context, q *catalog.Queries, manifest *stagingManifest) (int64, error) {
 	id, err := q.CreateGeneration(ctx, catalog.CreateGenerationParams{
 		VectorFormatVersion:     int64(manifest.identity.vectorFormatVersion),
 		Model:                   manifest.identity.model,
@@ -233,12 +430,6 @@ func createStagingGeneration(
 		return 0, fmt.Errorf("create semantic staging generation: %w", err)
 	}
 	if err := insertTargetManifest(ctx, q, id, manifest.targets); err != nil {
-		return 0, err
-	}
-	if err := reuseActiveVectors(ctx, q, catalogRow.ActiveGenerationID, id, &manifest.identity); err != nil {
-		return 0, err
-	}
-	if err := publishStaging(ctx, q, id); err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -441,6 +632,39 @@ func (s *staging) pending(ctx context.Context) ([]ChunkTarget, error) {
 	return targets, nil
 }
 
+func (s *staging) hasExhaustedPending(ctx context.Context) (bool, error) {
+	tx, q, err := s.beginStaging(ctx, true)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after commit; a pre-commit failure is already returned
+	exhausted, err := exhaustedPendingAttempt(ctx, q, s.id)
+	if err != nil {
+		return false, err
+	}
+	if err := s.writer.commit(tx, "semantic staging attempt inspection"); err != nil {
+		return false, err
+	}
+	return exhausted, nil
+}
+
+func exhaustedPendingAttempt(ctx context.Context, q *catalog.Queries, generationID int64) (bool, error) {
+	attempts, err := q.AttemptsByGeneration(ctx, generationID)
+	if err != nil {
+		return false, fmt.Errorf("read semantic staging attempts: %w", err)
+	}
+	for i := range attempts {
+		attempt := &attempts[i]
+		if !validStoredAttempt(attempt, generationID) {
+			return false, fmt.Errorf("%w: malformed semantic staging attempt", ErrStoreCorrupt)
+		}
+		if attempt.Attempts == 5 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // put writes one validated row only to the current staging role and clears the
 // row's retry ledger entry in the same transaction.
 func (s *staging) put(ctx context.Context, row *ChunkVector) error {
@@ -513,8 +737,8 @@ func (s *staging) setTopKP95(ctx context.Context, duration time.Duration) error 
 	return nil
 }
 
-// reserveAttempt durably consumes one of the explicit build's five allowed
-// HTTP sends before the request is made.
+// reserveAttempt durably consumes one of the explicit build's five
+// pre-transport send slots before the chunk-send capability is invoked.
 func (s *staging) reserveAttempt(
 	ctx context.Context,
 	relPath string,

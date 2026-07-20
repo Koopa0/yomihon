@@ -177,6 +177,43 @@ func (q *Queries) CompleteGenerationChunk(ctx context.Context, arg CompleteGener
 	return result.RowsAffected()
 }
 
+const copyGenerationChunkVectors = `-- name: CopyGenerationChunkVectors :execrows
+UPDATE chunks
+SET vector = (
+  SELECT source.vector
+  FROM chunks AS source
+  WHERE source.generation_id = ?1
+    AND source.rel_path = chunks.rel_path
+    AND source.ordinal = chunks.ordinal
+    AND source.submitted_hash = chunks.submitted_hash
+    AND source.vector IS NOT NULL
+)
+WHERE chunks.generation_id = ?2
+  AND chunks.vector IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM chunks AS source
+    WHERE source.generation_id = ?1
+      AND source.rel_path = chunks.rel_path
+      AND source.ordinal = chunks.ordinal
+      AND source.submitted_hash = chunks.submitted_hash
+      AND source.vector IS NOT NULL
+  )
+`
+
+type CopyGenerationChunkVectorsParams struct {
+	SourceGenerationID int64
+	TargetGenerationID int64
+}
+
+func (q *Queries) CopyGenerationChunkVectors(ctx context.Context, arg CopyGenerationChunkVectorsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, copyGenerationChunkVectors, arg.SourceGenerationID, arg.TargetGenerationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createGeneration = `-- name: CreateGeneration :one
 INSERT INTO generations(
   vector_format_version, model, dimension, protocol_epoch, chunker_epoch, vault_root,
@@ -572,62 +609,6 @@ func (q *Queries) InsertGenerationNote(ctx context.Context, arg InsertGeneration
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const logicalForeignKeyViolationCount = `-- name: LogicalForeignKeyViolationCount :one
-WITH violations AS (
-  SELECT 1
-  FROM catalog AS role
-  LEFT JOIN generations AS generation ON generation.id = role.active_generation_id
-  WHERE role.active_generation_id IS NOT NULL AND generation.id IS NULL
-  UNION ALL
-  SELECT 1
-  FROM catalog AS role
-  LEFT JOIN generations AS generation ON generation.id = role.previous_generation_id
-  WHERE role.previous_generation_id IS NOT NULL AND generation.id IS NULL
-  UNION ALL
-  SELECT 1
-  FROM catalog AS role
-  LEFT JOIN generations AS generation ON generation.id = role.staging_generation_id
-  WHERE role.staging_generation_id IS NOT NULL AND generation.id IS NULL
-  UNION ALL
-  SELECT 1
-  FROM notes AS note
-  LEFT JOIN generations AS generation ON generation.id = note.generation_id
-  WHERE generation.id IS NULL
-  UNION ALL
-  SELECT 1
-  FROM chunks AS chunk
-  LEFT JOIN generations AS generation ON generation.id = chunk.generation_id
-  WHERE generation.id IS NULL
-  UNION ALL
-  SELECT 1
-  FROM chunks AS chunk
-  LEFT JOIN notes AS note
-    ON note.generation_id = chunk.generation_id AND note.rel_path = chunk.rel_path
-  WHERE note.generation_id IS NULL
-  UNION ALL
-  SELECT 1
-  FROM attempts AS attempt
-  LEFT JOIN generations AS generation ON generation.id = attempt.generation_id
-  WHERE generation.id IS NULL
-  UNION ALL
-  SELECT 1
-  FROM attempts AS attempt
-  LEFT JOIN chunks AS chunk
-    ON chunk.generation_id = attempt.generation_id
-   AND chunk.rel_path = attempt.rel_path
-   AND chunk.ordinal = attempt.ordinal
-  WHERE chunk.generation_id IS NULL
-)
-SELECT count(*) FROM violations
-`
-
-func (q *Queries) LogicalForeignKeyViolationCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, logicalForeignKeyViolationCount)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const pendingGenerationChunks = `-- name: PendingGenerationChunks :many

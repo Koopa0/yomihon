@@ -19,7 +19,9 @@ html, body { margin: 0; background: var(--bg); }
 .y-skiplink {
   position: fixed;
   z-index: 101;
-  top: 8px;
+  /* Keep the focused link below the 56px header so it cannot cover the
+     navigation trigger or another persistent header control. */
+  top: 64px;
   left: 8px;
   padding: 8px 12px;
   border: 1px solid var(--border-strong);
@@ -27,7 +29,7 @@ html, body { margin: 0; background: var(--bg); }
   background: var(--panel);
   color: var(--fg);
   font: var(--fw-medium) var(--fs-13)/var(--lh-normal) var(--font-sans);
-  translate: 0 calc(-100% - 16px);
+  translate: 0 calc(-100% - 72px);
 }
 .y-skiplink:focus {
   translate: 0;
@@ -164,6 +166,21 @@ html, body { margin: 0; background: var(--bg); }
 }
 .y-iconbtn:hover { color: var(--fg); background: var(--overlay); }
 .y-iconbtn svg { width: 16px; height: 16px; }
+.y-shortcutpref {
+  display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 8px;
+  box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--r-sm);
+  color: var(--fg-muted); font-family: var(--font-sans); font-size: var(--fs-11);
+  cursor: pointer; flex: none;
+}
+.y-shortcutpref:hover { color: var(--fg); background: var(--overlay); }
+.y-shortcutpref__input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.y-shortcutpref__label { white-space: nowrap; }
+.y-shortcutpref__label-compact { display: none; white-space: nowrap; }
+.y-shortcutpref__on, .y-shortcutpref__off {
+  display: none; font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em;
+}
+[data-single-key-shortcuts="on"] .y-shortcutpref__on { display: inline; color: var(--accent); font-weight: 500; }
+[data-single-key-shortcuts="off"] .y-shortcutpref__off { display: inline; color: var(--fg-faint); }
 .y-rubybtn { width: auto; gap: 7px; padding: 0 11px; }
 .y-rubybtn__glyph { font-family: var(--font-kai); font-size: 15px; line-height: 1; }
 .y-rubybtn__on, .y-rubybtn__off { font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; }
@@ -1018,6 +1035,9 @@ html, body { margin: 0; background: var(--bg); }
   .y-header { gap: 8px; padding-inline: 12px; }
   .y-brand { gap: 7px; }
   .y-brand__tag { display: none; }
+  .y-shortcutpref { gap: 4px; padding-inline: 4px; }
+  .y-shortcutpref__label { display: none; }
+  .y-shortcutpref__label-compact { display: inline; }
   .y-rubybtn { width: 32px; gap: 0; padding: 0; }
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }

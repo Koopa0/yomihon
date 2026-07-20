@@ -13,8 +13,9 @@ import (
 )
 
 type buildArgs struct {
-	root string
-	json bool
+	root               string
+	json               bool
+	renewAttemptBudget bool
 }
 
 type buildCommandDeps struct {
@@ -25,7 +26,7 @@ type buildCommandDeps struct {
 }
 
 type generationBuilder interface {
-	Build(ctx context.Context) (semantic.BuildReport, error)
+	Build(ctx context.Context, request semantic.BuildRequest) (semantic.BuildReport, error)
 }
 
 func parseBuildArgs(args []string) (buildArgs, error) {
@@ -65,6 +66,12 @@ func parseBuildFlag(parsed *buildArgs, rootSet *bool, cursor *cliArgCursor, arg 
 		}
 		parsed.json = true
 		return nil
+	case "--renew-attempt-budget":
+		if hasInline {
+			return fmt.Errorf("flag %s takes no value", name)
+		}
+		parsed.renewAttemptBudget = true
+		return nil
 	case "--root":
 		if *rootSet {
 			return fmt.Errorf("flag %s specified more than once", name)
@@ -101,11 +108,11 @@ func runSearchIndex(ctx context.Context, args []string, config rootConfig, deps 
 	defer releaseVaultReader(capabilities.reader)
 	privacy := capabilities.privacy.ValidateSource()
 	if !privacy.Available() {
-		return writeSearchIndexUnavailable(deps, parsed.json, searchReasonPrivacyUnavailable)
+		return writeSearchIndexUnavailable(deps, parsed.json, searchReasonPrivacyUnavailable, nil)
 	}
 	artifact := capabilities.artifact.ValidateSource()
 	if !artifact.Available() {
-		return writeSearchIndexUnavailable(deps, parsed.json, searchReasonArtifactPolicyUnavailable)
+		return writeSearchIndexUnavailable(deps, parsed.json, searchReasonArtifactPolicyUnavailable, nil)
 	}
 	if deps.openBuilder == nil {
 		return writeSearchIndexToolError(deps.stderr, errors.New("semantic command is not wired"))
@@ -130,16 +137,16 @@ func runSearchIndex(ctx context.Context, args []string, config rootConfig, deps 
 	if builder == nil {
 		return writeSearchIndexToolError(deps.stderr, errors.New("semantic command setup failed"))
 	}
-	report, err := builder.Build(ctx)
+	report, err := builder.Build(ctx, semantic.BuildRequest{RenewAttemptBudget: parsed.renewAttemptBudget})
 	if err != nil {
 		return writeSearchIndexFailure(deps, parsed.json, privacy, artifact, err)
 	}
 	callBeforeCapabilityRecheck(deps.beforeCapabilityRecheck)
 	if !privacy.ValidateSource().Available() {
-		return writeSearchIndexUnavailable(deps, parsed.json, searchReasonPrivacyUnavailable)
+		return writeSearchIndexUnavailableAfterSuccess(deps, parsed.json, searchReasonPrivacyUnavailable, report)
 	}
 	if !artifact.ValidateSource().Available() {
-		return writeSearchIndexUnavailable(deps, parsed.json, searchReasonArtifactPolicyUnavailable)
+		return writeSearchIndexUnavailableAfterSuccess(deps, parsed.json, searchReasonArtifactPolicyUnavailable, report)
 	}
 	answer, err := searchIndexAnswer(report)
 	if err != nil {
@@ -183,9 +190,44 @@ func writeSearchIndexSuccess(deps buildCommandDeps, jsonOutput bool, answer sear
 	return 0
 }
 
-func writeSearchIndexUnavailable(deps buildCommandDeps, jsonOutput bool, reason searchReason) int {
+func writeSearchIndexUnavailable(deps buildCommandDeps, jsonOutput bool, reason searchReason, cause error) int {
+	return writeSearchIndexUnavailableWithObservation(
+		deps,
+		jsonOutput,
+		reason,
+		buildGenerationObservationFromError(cause),
+	)
+}
+
+func writeSearchIndexUnavailableAfterSuccess(
+	deps buildCommandDeps,
+	jsonOutput bool,
+	reason searchReason,
+	report semantic.BuildReport,
+) int {
+	observation := buildGenerationObservation{active: semantic.ActiveGenerationPreservedUnusable}
+	switch report.Status {
+	case semantic.BuildCurrent:
+		observation.staging = semantic.StagingGenerationNotInspected
+	case semantic.BuildPublished:
+		observation.staging = semantic.StagingGenerationAbsent
+	default:
+		return writeSearchIndexToolError(deps.stderr, errors.New("semantic build returned an invalid result"))
+	}
+	return writeSearchIndexUnavailableWithObservation(deps, jsonOutput, reason, observation)
+}
+
+func writeSearchIndexUnavailableWithObservation(
+	deps buildCommandDeps,
+	jsonOutput bool,
+	reason searchReason,
+	observation buildGenerationObservation,
+) int {
 	if jsonOutput {
-		body := searchErrorEnvelope{Error: searchError{Reason: reason}}
+		body, err := newBuildErrorEnvelopeFromObservation(reason, observation)
+		if err != nil {
+			return writeSearchIndexToolError(deps.stderr, errors.New("classify command failure"))
+		}
 		if err := writeSearchIndexJSON(deps.stdout, body); err != nil {
 			return writeSearchIndexToolError(deps.stderr, errors.New("write output"))
 		}
@@ -209,17 +251,17 @@ func writeSearchIndexFailure(
 ) int {
 	callBeforeCapabilityRecheck(deps.beforeCapabilityRecheck)
 	if !privacy.ValidateSource().Available() {
-		return writeSearchIndexUnavailable(deps, jsonOutput, searchReasonPrivacyUnavailable)
+		return writeSearchIndexUnavailable(deps, jsonOutput, searchReasonPrivacyUnavailable, err)
 	}
 	if !artifact.ValidateSource().Available() {
-		return writeSearchIndexUnavailable(deps, jsonOutput, searchReasonArtifactPolicyUnavailable)
+		return writeSearchIndexUnavailable(deps, jsonOutput, searchReasonArtifactPolicyUnavailable, err)
 	}
 	failure := classifySearchIndexError(err)
 	switch failure.kind {
 	case commandFailureUnavailable:
-		return writeSearchIndexUnavailable(deps, jsonOutput, failure.reason)
+		return writeSearchIndexUnavailable(deps, jsonOutput, failure.reason, err)
 	case commandFailureInternal:
-		return writeSearchIndexInternal(deps, jsonOutput)
+		return writeSearchIndexInternal(deps, jsonOutput, err)
 	case commandFailureTool:
 		return writeSearchIndexToolError(deps.stderr, errors.New("semantic build failed"))
 	default:
@@ -228,6 +270,9 @@ func writeSearchIndexFailure(
 }
 
 func classifySearchIndexError(err error) commandFailure {
+	if errors.Is(err, semantic.ErrAttemptLimit) {
+		return unavailableFailure(searchReasonAttemptBudgetExhausted)
+	}
 	if embedErr, ok := errors.AsType[*semantic.EmbedError](err); ok {
 		return classifyEmbedError(embedErr)
 	}
@@ -240,8 +285,10 @@ func classifySearchIndexError(err error) commandFailure {
 		return unavailableFailure(searchReasonIndexIncomplete)
 	case matchesAnyError(err, semantic.ErrVaultChanged, semantic.ErrChunkEgressDenied, semantic.ErrSourceNoteChanged, semantic.ErrSourceNoteUnavailable):
 		return unavailableFailure(searchReasonVaultChanged)
-	case matchesAnyError(err, semantic.ErrRetryNotReady, semantic.ErrAttemptLimit):
+	case errors.Is(err, semantic.ErrRetryNotReady):
 		return unavailableFailure(searchReasonRateLimited)
+	case errors.Is(err, semantic.ErrAttemptBudgetNotRenewable):
+		return unavailableFailure(searchReasonAttemptBudgetNotRenewable)
 	case errors.Is(err, semantic.ErrIndexCapacity):
 		return unavailableFailure(searchReasonCapacity)
 	case errors.Is(err, semantic.ErrStoreUnsupportedPlatform):
@@ -251,9 +298,13 @@ func classifySearchIndexError(err error) commandFailure {
 	}
 }
 
-func writeSearchIndexInternal(deps buildCommandDeps, jsonOutput bool) int {
+func writeSearchIndexInternal(deps buildCommandDeps, jsonOutput bool, cause error) int {
 	if jsonOutput {
-		if err := writeSearchIndexJSON(deps.stdout, newSearchInternalEnvelope()); err != nil {
+		body, err := newBuildInternalEnvelope(cause)
+		if err != nil {
+			return writeSearchIndexToolError(deps.stderr, errors.New("classify command failure"))
+		}
+		if err := writeSearchIndexJSON(deps.stdout, body); err != nil {
 			return writeSearchIndexToolError(deps.stderr, errors.New("write output"))
 		}
 	}

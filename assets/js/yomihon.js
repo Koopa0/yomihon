@@ -16,10 +16,10 @@ function init() {
   root.dataset.js = 'on';
   if ('speechSynthesis' in window) root.dataset.speech = 'on';
 
-  initPreferences();
   const drawer = initDrawer();
   const sidebar = initSidebar();
   const status = initStatus();
+  initPreferences({ onSingleKeyShortcutsDisabled: status.cancelHold });
   initContents();
   const search = initSearch();
   initShortcuts({ drawer, sidebar, status, search });

@@ -3,12 +3,38 @@ package agent
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/search/semantic"
 )
+
+type observedBuildError struct {
+	cause   error
+	active  semantic.ActiveGenerationState
+	staging semantic.StagingGenerationState
+}
+
+func (e observedBuildError) Error() string { return e.cause.Error() }
+func (e observedBuildError) Unwrap() error { return e.cause }
+func (e observedBuildError) ActiveGeneration() semantic.ActiveGenerationState {
+	return e.active
+}
+func (e observedBuildError) StagingGeneration() semantic.StagingGenerationState {
+	return e.staging
+}
+
+func exhaustedBuildFailure() error {
+	return observedBuildError{
+		cause:   semantic.ErrAttemptLimit,
+		active:  semantic.ActiveGenerationAbsent,
+		staging: semantic.StagingGenerationRequiresAuthorization,
+	}
+}
 
 func TestWriteSearchJSON(t *testing.T) {
 	tests := []struct {
@@ -182,6 +208,151 @@ func TestWriteSearchIndexOutput(t *testing.T) {
 				t.Errorf("write search-index output = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestWriteSearchIndexRecoveryEnvelopes(t *testing.T) {
+	tests := []struct {
+		reason searchReason
+		next   buildNextAction
+	}{
+		{reason: searchReasonPrivacyUnavailable, next: buildNextRepairVaultContract},
+		{reason: searchReasonArtifactPolicyUnavailable, next: buildNextRepairVaultContract},
+		{reason: searchReasonCapacity, next: buildNextReviewCapacity},
+		{reason: searchReasonUnsupportedPlatform, next: buildNextUseSupportedPlatform},
+		{reason: searchReasonEmbedderUnconfigured, next: buildNextRepairConfiguration},
+		{reason: searchReasonIndexRefreshing, next: buildNextWait},
+		{reason: searchReasonIndexIncomplete, next: buildNextRepairInput},
+		{reason: searchReasonVaultChanged, next: buildNextRetry},
+		{reason: searchReasonEmbedderUnreachable, next: buildNextRetry},
+		{reason: searchReasonEmbedderRejected, next: buildNextRepairConfiguration},
+		{reason: searchReasonEmbedderFailed, next: buildNextRetry},
+		{reason: searchReasonRateLimited, next: buildNextWait},
+		{reason: searchReasonAttemptBudgetExhausted, next: buildNextRenew},
+		{reason: searchReasonAttemptBudgetNotRenewable, next: buildNextRetry},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.reason), func(t *testing.T) {
+			var cause error
+			wantActive := buildActiveNotInspected
+			wantStaging := buildStagingNotInspected
+			if tt.reason == searchReasonAttemptBudgetExhausted {
+				cause = exhaustedBuildFailure()
+				wantActive = buildActiveAbsent
+				wantStaging = buildStagingRequiresAuthorization
+			}
+			body, err := newBuildErrorEnvelope(tt.reason, cause)
+			if err != nil {
+				t.Fatalf("newBuildErrorEnvelope() error: %v", err)
+			}
+			var buf bytes.Buffer
+			if err := writeSearchIndexJSON(&buf, body); err != nil {
+				t.Fatalf("writeSearchIndexJSON() error: %v", err)
+			}
+			want := fmt.Sprintf(
+				"{\"error\":{\"reason\":%q,\"active_generation\":%q,\"staging_generation\":%q,\"retry_safe\":false,\"next_action\":%q}}\n",
+				tt.reason,
+				wantActive,
+				wantStaging,
+				tt.next,
+			)
+			if got := buf.String(); got != want {
+				t.Errorf("writeSearchIndexJSON() = %q, want %q", got, want)
+			}
+		})
+	}
+
+	body, err := newBuildInternalEnvelope(nil)
+	if err != nil {
+		t.Fatalf("newBuildInternalEnvelope() error: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := writeSearchIndexJSON(&buf, body); err != nil {
+		t.Fatalf("writeSearchIndexJSON(internal) error: %v", err)
+	}
+	if got, want := buf.String(), readWireGolden(t, "index-internal-error.jsonl"); got != want {
+		t.Errorf("writeSearchIndexJSON(internal) = %q, want %q", got, want)
+	}
+}
+
+func TestBuildGenerationStateProjectionIsExhaustive(t *testing.T) {
+	active := []struct {
+		semantic semantic.ActiveGenerationState
+		wire     buildActiveState
+	}{
+		{semantic: semantic.ActiveGenerationNotInspected, wire: buildActiveNotInspected},
+		{semantic: semantic.ActiveGenerationAbsent, wire: buildActiveAbsent},
+		{semantic: semantic.ActiveGenerationPreservedUsable, wire: buildActivePreservedUsable},
+		{semantic: semantic.ActiveGenerationPreservedUnusable, wire: buildActivePreservedUnusable},
+	}
+	for _, tt := range active {
+		got, err := buildActiveFromSemantic(tt.semantic)
+		if err != nil || got != tt.wire {
+			t.Errorf("buildActiveFromSemantic(%d) = %q, %v; want %q, nil", tt.semantic, got, err, tt.wire)
+		}
+	}
+	if _, err := buildActiveFromSemantic(semantic.ActiveGenerationState(255)); err == nil {
+		t.Error("buildActiveFromSemantic(255) error = nil, want fail closed")
+	}
+
+	staging := []struct {
+		semantic semantic.StagingGenerationState
+		wire     buildStagingState
+	}{
+		{semantic: semantic.StagingGenerationNotInspected, wire: buildStagingNotInspected},
+		{semantic: semantic.StagingGenerationAbsent, wire: buildStagingAbsent},
+		{semantic: semantic.StagingGenerationIncompatible, wire: buildStagingIncompatible},
+		{semantic: semantic.StagingGenerationResumable, wire: buildStagingResumable},
+		{semantic: semantic.StagingGenerationRequiresAuthorization, wire: buildStagingRequiresAuthorization},
+	}
+	for _, tt := range staging {
+		got, err := buildStagingFromSemantic(tt.semantic)
+		if err != nil || got != tt.wire {
+			t.Errorf("buildStagingFromSemantic(%d) = %q, %v; want %q, nil", tt.semantic, got, err, tt.wire)
+		}
+	}
+	if _, err := buildStagingFromSemantic(semantic.StagingGenerationState(255)); err == nil {
+		t.Error("buildStagingFromSemantic(255) error = nil, want fail closed")
+	}
+}
+
+func TestWriteSearchIndexJSONRejectsInvalidRecovery(t *testing.T) {
+	valid, err := newBuildErrorEnvelope(searchReasonRateLimited, nil)
+	if err != nil {
+		t.Fatalf("newBuildErrorEnvelope() error: %v", err)
+	}
+	tests := []struct {
+		name string
+		body any
+		want string
+	}{
+		{name: "search envelope", body: searchErrorEnvelope{Error: searchError{Reason: searchReasonPrivacyUnavailable}}, want: "search-index output: unsupported envelope agent.searchErrorEnvelope"},
+		{name: "search-only reason", body: buildErrorEnvelope{Error: buildRecovery{Reason: searchReasonCacheCold, ActiveGeneration: buildActiveNotInspected, StagingGeneration: buildStagingNotInspected, NextAction: buildNextRetry}}, want: "search-index output: invalid unavailable reason"},
+		{name: "active state", body: buildErrorEnvelope{Error: buildRecovery{Reason: searchReasonRateLimited, ActiveGeneration: "future", StagingGeneration: buildStagingNotInspected, NextAction: buildNextWait}}, want: "search-index output: invalid active generation state"},
+		{name: "staging state", body: buildErrorEnvelope{Error: buildRecovery{Reason: searchReasonRateLimited, ActiveGeneration: buildActiveNotInspected, StagingGeneration: "future", NextAction: buildNextWait}}, want: "search-index output: invalid staging generation state"},
+		{name: "exhausted without authorization", body: buildErrorEnvelope{Error: buildRecovery{Reason: searchReasonAttemptBudgetExhausted, ActiveGeneration: buildActiveAbsent, StagingGeneration: buildStagingNotInspected, NextAction: buildNextRenew}}, want: "search-index output: exhausted attempt budget requires authorization"},
+		{name: "retry safe", body: buildErrorEnvelope{Error: buildRecovery{Reason: searchReasonRateLimited, ActiveGeneration: buildActiveNotInspected, StagingGeneration: buildStagingNotInspected, RetrySafe: true, NextAction: buildNextWait}}, want: "search-index output: retry_safe must be false"},
+		{name: "next action", body: buildErrorEnvelope{Error: buildRecovery{Reason: searchReasonRateLimited, ActiveGeneration: buildActiveNotInspected, StagingGeneration: buildStagingNotInspected, NextAction: buildNextRetry}}, want: "search-index output: invalid recovery action"},
+		{name: "internal detail", body: buildInternalEnvelope{InternalError: buildInternalRecovery{Detail: "future", ActiveGeneration: buildActiveNotInspected, StagingGeneration: buildStagingNotInspected, NextAction: buildNextRepairYomihon}}, want: "search-index output: invalid internal error detail"},
+		{name: "internal recovery", body: buildInternalEnvelope{InternalError: buildInternalRecovery{Detail: searchInternalDetail, ActiveGeneration: buildActiveNotInspected, StagingGeneration: buildStagingNotInspected, NextAction: buildNextRetry}}, want: "search-index output: invalid internal recovery"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := writeSearchIndexJSON(&buf, tt.body)
+			if err == nil || err.Error() != tt.want {
+				t.Errorf("writeSearchIndexJSON() error = %v, want %q", err, tt.want)
+			}
+			if buf.Len() != 0 {
+				t.Errorf("writeSearchIndexJSON() wrote %q for invalid recovery", buf.Bytes())
+			}
+		})
+	}
+
+	valid.Error.NextAction = buildNextRenew
+	var buf bytes.Buffer
+	if err := writeSearchIndexJSON(&buf, valid); err == nil {
+		t.Error("writeSearchIndexJSON() accepted a mismatched valid-envelope mutation")
 	}
 }
 
@@ -445,6 +616,7 @@ func TestSearchStderrLine(t *testing.T) {
 		{name: "failed", reason: searchReasonEmbedderFailed, want: readWireGolden(t, "embedder-failed.stderr")},
 		{name: "rejected", reason: searchReasonEmbedderRejected, want: "yomihon search: embedder-rejected: the embedding API refused the credential\n"},
 		{name: "rate limited", reason: searchReasonRateLimited, want: "yomihon search: rate-limited: the embedding API is rate-limiting; try again shortly\n"},
+		{name: "attempt budget exhausted", reason: searchReasonAttemptBudgetExhausted, want: "yomihon search: attempt-budget-exhausted: semantic document sends need renewed authorization; run yomihon search-index build --renew-attempt-budget\n"},
 		{name: "rebuild", reason: searchReasonRebuildRequired, want: "yomihon search: rebuild-required: the vault changed too much for an interactive refresh; run yomihon search-index build\n"},
 		{name: "refreshing", reason: searchReasonIndexRefreshing, want: "yomihon search: index-refreshing: another process is updating the semantic index\n"},
 		{name: "incomplete", reason: searchReasonIndexIncomplete, want: "yomihon search: index-incomplete: one or more current chunks could not be indexed\n"},
@@ -462,6 +634,25 @@ func TestSearchStderrLine(t *testing.T) {
 				t.Errorf("searchStderrLine() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSearchIndexAttemptBudgetStderrLines(t *testing.T) {
+	tests := []struct {
+		reason searchReason
+		want   string
+	}{
+		{reason: searchReasonAttemptBudgetExhausted, want: readWireGolden(t, "index-attempt-budget-exhausted.stderr")},
+		{reason: searchReasonAttemptBudgetNotRenewable, want: readWireGolden(t, "index-attempt-budget-not-renewable.stderr")},
+	}
+	for _, tt := range tests {
+		got, err := searchIndexStderrLine(tt.reason)
+		if err != nil {
+			t.Fatalf("searchIndexStderrLine(%q) error: %v", tt.reason, err)
+		}
+		if got != tt.want {
+			t.Errorf("searchIndexStderrLine(%q) = %q, want %q", tt.reason, got, tt.want)
+		}
 	}
 }
 

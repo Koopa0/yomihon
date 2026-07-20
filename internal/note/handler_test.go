@@ -1715,14 +1715,37 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
 	}
 }
 
-// TestHomeWithoutReadmeIsNotReady ensures a missing README is an honest 404,
-// not a blank dashboard 200 that the readiness poll could mistake for Home.
-func TestHomeWithoutReadmeIsNotReady(t *testing.T) {
+// TestHomeWithoutReadmeKeepsDashboardReadOnly pins first-use recovery: Home is
+// still the complete snapshot dashboard, only the absent README body is
+// replaced, and neither route creates the missing vault file.
+func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	t.Parallel()
-	srv := newServer(t, t.TempDir())
-	code, _ := get(t, srv.URL+"/")
-	if code != http.StatusNotFound {
-		t.Errorf("GET / without README status = %d, want %d", code, http.StatusNotFound)
+	root := t.TempDir()
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / without README status = %d, want %d", code, http.StatusOK)
+	}
+	for _, marker := range []string{
+		`data-home-block="recent"`,
+		`data-home-block="lifecycle"`,
+		`data-home-block="study-paths"`,
+		`data-home-block="search"`,
+		`data-home-readme-recovery`,
+		`請使用外部編輯器或檔案工具，在 vault 根目錄建立 README.md，然後重新載入此頁。`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("GET / without README is missing %q", marker)
+		}
+	}
+
+	noteCode, _ := get(t, srv.URL+"/notes/README.md")
+	if noteCode != http.StatusNotFound {
+		t.Errorf("GET /notes/README.md without README status = %d, want %d", noteCode, http.StatusNotFound)
+	}
+	if _, err := os.Stat(filepath.Join(root, "README.md")); !os.IsNotExist(err) {
+		t.Errorf("README.md after recovery requests: os.Stat error = %v, want not-exist", err)
 	}
 }
 

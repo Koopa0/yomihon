@@ -2,7 +2,7 @@
 
 This inventory covers the current yomihon product and D57's opt-in developer
 provider certification. Product authority comes from the four walls and
-D18/D32/D47/D50/D57, not from a hosted-service account or analytics policy.
+D18/D32/D47/D50/D57/D60, not from a hosted-service account or analytics policy.
 The operator remains responsible for any separate legal basis required by
 their use of the vault or provider.
 
@@ -175,7 +175,11 @@ document.
   bytes and explicit query, or fixed synthetic fixtures. Trigger is explicit
   build, bounded reconcile plus one explicit query, or developer certification.
   Encoded request/response stays transient in RAM; Google-side storage is
-  external. Final send requires positive policy/source checks.
+  external. Final send requires positive policy/source checks. A full build
+  durably reserves a local send slot before invoking the chunk-send capability;
+  only a 429 retries automatically, and each pending chunk has five slots per
+  storage generation. A reserved slot may be consumed even if an abort prevents
+  an HTTP request, so slots conservatively upper-bound provider requests.
 - **Retention / deletion / export / recipients:** yomihon intentionally persists
   no raw body/query. Provider retention/deletion is unasserted and no provider
   deletion API exists here. HTTPS recipient is
@@ -194,8 +198,9 @@ document.
 
 - **Fields / purpose / authority:** model/dimension/protocol/chunker/vector
   identity; vault root; policy/source/corpus fingerprints and count; p95; paths;
-  note/submission hashes; ordinals/vectors; active/previous/staging roles; retry
-  count/time. This reuses paid vectors and publishes one complete derived
+  note/submission hashes; ordinals/vectors; active/previous/staging roles;
+  committed send-slot reservations and `retry_not_before`. This reuses paid
+  vectors, accounts for send authority, and publishes one complete derived
   generation; it is not truth.
 - **Source / trigger / storage / access:** created from local eligible corpus,
   provider vectors, and retry/measurement state by explicit build or bounded
@@ -206,13 +211,22 @@ document.
   Semantic CLI and same OS account can access it; `serve` never opens it.
 - **Retention / deletion / export / recipients:** no TTL; retain active,
   previous, and at most one staging generation, pruning older unreferenced rows.
-  Explicit build may replace incompatible/corrupt state; operator may delete the
+  Explicit ordinary build may replace incompatible/corrupt state. The separate
+  `--renew-attempt-budget` action admits only one complete matching staging
+  target with exhausted pending work; one transaction copies completed vectors
+  into a replacement staging generation, replaces the role and ledger, deletes
+  the old batch, and leaves active unchanged. Missing, mismatched, corrupt, or
+  not-exhausted staging causes no domain mutation or send. Missing storage
+  creates no path; an existing store may perform SQLite crash recovery and
+  WAL/SHM bookkeeping under its writer lease without changing roles or domain
+  rows. The operator may delete the
   cache. There is no secure-erase/product-delete command, server route, remote
   vector store, or app export. Local semantic process is the recipient.
-- **Logs / backups / derived copies:** content-free state/count/retry/progress
-  may reach output; paths/vectors/hashes/text are not normal progress. No app
-  backup; host backup may copy plaintext. SQLite sidecars, RAM index/query
-  vector/rankings, and build report are copies.
+- **Logs / backups / derived copies:** content-free generation state, send-slot
+  state, counts, retry timing, recovery action, and progress may reach output;
+  paths/vectors/hashes/text are not normal progress. No app backup; host backup
+  may copy plaintext. SQLite sidecars, RAM index/query vector/rankings, and
+  build report are copies.
 - **Owner / incident path:** Koopa. Stop semantic commands, preserve minimal
   evidence if needed, delete cache where appropriate, rebuild from reviewed
   vault/contract, and rotate key if process/environment access is suspected.

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/search/semantic"
 )
 
 type searchMode string
@@ -83,6 +84,8 @@ const (
 	searchReasonEmbedderRejected          searchReason = "embedder-rejected"
 	searchReasonEmbedderFailed            searchReason = "embedder-failed"
 	searchReasonRateLimited               searchReason = "rate-limited"
+	searchReasonAttemptBudgetExhausted    searchReason = "attempt-budget-exhausted"
+	searchReasonAttemptBudgetNotRenewable searchReason = "attempt-budget-not-renewable"
 	searchReasonUnsupportedPlatform       searchReason = "unsupported-platform"
 )
 
@@ -122,6 +125,63 @@ type searchIndexAnswerEnvelope struct {
 	Embedded  int               `json:"embedded"`
 	Reused    int               `json:"reused"`
 	TopKP95US int64             `json:"top_k_p95_us"`
+}
+
+type buildActiveState string
+
+const (
+	buildActiveNotInspected      buildActiveState = "not-inspected"
+	buildActiveAbsent            buildActiveState = "absent"
+	buildActivePreservedUsable   buildActiveState = "preserved-usable"
+	buildActivePreservedUnusable buildActiveState = "preserved-unusable"
+)
+
+type buildStagingState string
+
+const (
+	buildStagingNotInspected          buildStagingState = "not-inspected"
+	buildStagingAbsent                buildStagingState = "absent"
+	buildStagingIncompatible          buildStagingState = "incompatible"
+	buildStagingResumable             buildStagingState = "resumable"
+	buildStagingRequiresAuthorization buildStagingState = "requires-authorization"
+)
+
+type buildNextAction string
+
+const (
+	buildNextRetry                buildNextAction = "retry-build"
+	buildNextWait                 buildNextAction = "wait-and-retry"
+	buildNextRenew                buildNextAction = "renew-attempt-budget"
+	buildNextRepairConfiguration  buildNextAction = "repair-configuration"
+	buildNextRepairVaultContract  buildNextAction = "repair-vault-contract"
+	buildNextRepairInput          buildNextAction = "repair-input"
+	buildNextUseSupportedPlatform buildNextAction = "use-supported-platform"
+	buildNextReviewCapacity       buildNextAction = "review-capacity"
+	buildNextRepairYomihon        buildNextAction = "repair-yomihon"
+)
+
+type buildRecovery struct {
+	Reason            searchReason      `json:"reason"`
+	ActiveGeneration  buildActiveState  `json:"active_generation"`
+	StagingGeneration buildStagingState `json:"staging_generation"`
+	RetrySafe         bool              `json:"retry_safe"`
+	NextAction        buildNextAction   `json:"next_action"`
+}
+
+type buildErrorEnvelope struct {
+	Error buildRecovery `json:"error"`
+}
+
+type buildInternalRecovery struct {
+	Detail            string            `json:"detail"`
+	ActiveGeneration  buildActiveState  `json:"active_generation"`
+	StagingGeneration buildStagingState `json:"staging_generation"`
+	RetrySafe         bool              `json:"retry_safe"`
+	NextAction        buildNextAction   `json:"next_action"`
+}
+
+type buildInternalEnvelope struct {
+	InternalError buildInternalRecovery `json:"internal_error"`
 }
 
 func lexicalWireResults(results []search.Result, limit int) []searchWireResult {
@@ -296,13 +356,10 @@ func validatedSearchIndexBody(body any) (any, error) {
 	switch envelope := body.(type) {
 	case searchIndexAnswerEnvelope:
 		return validateSearchIndexAnswer(envelope)
-	case searchErrorEnvelope:
-		if envelope.Error.Reason != searchReasonPrivacyUnavailable && !isUnavailableReason(envelope.Error.Reason) {
-			return nil, errors.New("search-index output: invalid unavailable reason")
-		}
-		return envelope, nil
-	case searchInternalEnvelope:
-		return validateSearchInternal(envelope)
+	case buildErrorEnvelope:
+		return validateBuildError(envelope)
+	case buildInternalEnvelope:
+		return validateBuildInternal(envelope)
 	default:
 		return nil, fmt.Errorf("search-index output: unsupported envelope %T", body)
 	}
@@ -327,6 +384,225 @@ func validateSearchIndexAnswer(envelope searchIndexAnswerEnvelope) (searchIndexA
 	return envelope, nil
 }
 
+func newBuildErrorEnvelope(reason searchReason, cause error) (buildErrorEnvelope, error) {
+	return newBuildErrorEnvelopeFromObservation(reason, buildGenerationObservationFromError(cause))
+}
+
+func newBuildErrorEnvelopeFromObservation(
+	reason searchReason,
+	observation buildGenerationObservation,
+) (buildErrorEnvelope, error) {
+	active, staging, err := buildGenerationStates(observation)
+	if err != nil {
+		return buildErrorEnvelope{}, err
+	}
+	next, err := buildNextActionForReason(reason)
+	if err != nil {
+		return buildErrorEnvelope{}, err
+	}
+	return buildErrorEnvelope{Error: buildRecovery{
+		Reason:            reason,
+		ActiveGeneration:  active,
+		StagingGeneration: staging,
+		RetrySafe:         false,
+		NextAction:        next,
+	}}, nil
+}
+
+func newBuildInternalEnvelope(cause error) (buildInternalEnvelope, error) {
+	active, staging, err := buildGenerationStates(buildGenerationObservationFromError(cause))
+	if err != nil {
+		return buildInternalEnvelope{}, err
+	}
+	return buildInternalEnvelope{InternalError: buildInternalRecovery{
+		Detail:            searchInternalDetail,
+		ActiveGeneration:  active,
+		StagingGeneration: staging,
+		RetrySafe:         false,
+		NextAction:        buildNextRepairYomihon,
+	}}, nil
+}
+
+type generationStateError interface {
+	error
+	ActiveGeneration() semantic.ActiveGenerationState
+	StagingGeneration() semantic.StagingGenerationState
+}
+
+type buildGenerationObservation struct {
+	active  semantic.ActiveGenerationState
+	staging semantic.StagingGenerationState
+}
+
+func buildGenerationObservationFromError(cause error) buildGenerationObservation {
+	buildErr, ok := errors.AsType[generationStateError](cause)
+	if !ok {
+		return buildGenerationObservation{}
+	}
+	return buildGenerationObservation{
+		active:  buildErr.ActiveGeneration(),
+		staging: buildErr.StagingGeneration(),
+	}
+}
+
+func buildGenerationStates(observation buildGenerationObservation) (buildActiveState, buildStagingState, error) {
+	active, err := buildActiveFromSemantic(observation.active)
+	if err != nil {
+		return "", "", err
+	}
+	staging, err := buildStagingFromSemantic(observation.staging)
+	if err != nil {
+		return "", "", err
+	}
+	return active, staging, nil
+}
+
+func buildActiveFromSemantic(state semantic.ActiveGenerationState) (buildActiveState, error) {
+	switch state {
+	case semantic.ActiveGenerationNotInspected:
+		return buildActiveNotInspected, nil
+	case semantic.ActiveGenerationAbsent:
+		return buildActiveAbsent, nil
+	case semantic.ActiveGenerationPreservedUsable:
+		return buildActivePreservedUsable, nil
+	case semantic.ActiveGenerationPreservedUnusable:
+		return buildActivePreservedUnusable, nil
+	default:
+		return "", fmt.Errorf("search-index output: unknown active generation state %d", state)
+	}
+}
+
+func buildStagingFromSemantic(state semantic.StagingGenerationState) (buildStagingState, error) {
+	switch state {
+	case semantic.StagingGenerationNotInspected:
+		return buildStagingNotInspected, nil
+	case semantic.StagingGenerationAbsent:
+		return buildStagingAbsent, nil
+	case semantic.StagingGenerationIncompatible:
+		return buildStagingIncompatible, nil
+	case semantic.StagingGenerationResumable:
+		return buildStagingResumable, nil
+	case semantic.StagingGenerationRequiresAuthorization:
+		return buildStagingRequiresAuthorization, nil
+	default:
+		return "", fmt.Errorf("search-index output: unknown staging generation state %d", state)
+	}
+}
+
+func buildNextActionForReason(reason searchReason) (buildNextAction, error) {
+	switch reason {
+	case searchReasonPrivacyUnavailable, searchReasonArtifactPolicyUnavailable:
+		return buildNextRepairVaultContract, nil
+	case searchReasonEmbedderUnconfigured, searchReasonEmbedderRejected:
+		return buildNextRepairConfiguration, nil
+	case searchReasonUnsupportedPlatform:
+		return buildNextUseSupportedPlatform, nil
+	case searchReasonCapacity:
+		return buildNextReviewCapacity, nil
+	case searchReasonIndexIncomplete:
+		return buildNextRepairInput, nil
+	case searchReasonIndexRefreshing, searchReasonRateLimited:
+		return buildNextWait, nil
+	case searchReasonAttemptBudgetExhausted:
+		return buildNextRenew, nil
+	case searchReasonAttemptBudgetNotRenewable,
+		searchReasonVaultChanged,
+		searchReasonEmbedderUnreachable,
+		searchReasonEmbedderFailed:
+		return buildNextRetry, nil
+	default:
+		return "", fmt.Errorf("search-index output: reason %q has no recovery action", reason)
+	}
+}
+
+func validateBuildError(envelope buildErrorEnvelope) (buildErrorEnvelope, error) {
+	recovery := envelope.Error
+	if !isBuildFailureReason(recovery.Reason) {
+		return buildErrorEnvelope{}, errors.New("search-index output: invalid unavailable reason")
+	}
+	if !validBuildActiveState(recovery.ActiveGeneration) {
+		return buildErrorEnvelope{}, errors.New("search-index output: invalid active generation state")
+	}
+	if !validBuildStagingState(recovery.StagingGeneration) {
+		return buildErrorEnvelope{}, errors.New("search-index output: invalid staging generation state")
+	}
+	if recovery.Reason == searchReasonAttemptBudgetExhausted && recovery.StagingGeneration != buildStagingRequiresAuthorization {
+		return buildErrorEnvelope{}, errors.New("search-index output: exhausted attempt budget requires authorization")
+	}
+	if recovery.RetrySafe {
+		return buildErrorEnvelope{}, errors.New("search-index output: retry_safe must be false")
+	}
+	wantNext, err := buildNextActionForReason(recovery.Reason)
+	if err != nil || recovery.NextAction != wantNext {
+		return buildErrorEnvelope{}, errors.New("search-index output: invalid recovery action")
+	}
+	return envelope, nil
+}
+
+func validateBuildInternal(envelope buildInternalEnvelope) (buildInternalEnvelope, error) {
+	recovery := envelope.InternalError
+	if recovery.Detail != searchInternalDetail {
+		return buildInternalEnvelope{}, errors.New("search-index output: invalid internal error detail")
+	}
+	if !validBuildActiveState(recovery.ActiveGeneration) {
+		return buildInternalEnvelope{}, errors.New("search-index output: invalid active generation state")
+	}
+	if !validBuildStagingState(recovery.StagingGeneration) {
+		return buildInternalEnvelope{}, errors.New("search-index output: invalid staging generation state")
+	}
+	if recovery.RetrySafe || recovery.NextAction != buildNextRepairYomihon {
+		return buildInternalEnvelope{}, errors.New("search-index output: invalid internal recovery")
+	}
+	return envelope, nil
+}
+
+func validBuildActiveState(state buildActiveState) bool {
+	switch state {
+	case buildActiveNotInspected,
+		buildActiveAbsent,
+		buildActivePreservedUsable,
+		buildActivePreservedUnusable:
+		return true
+	default:
+		return false
+	}
+}
+
+func validBuildStagingState(state buildStagingState) bool {
+	switch state {
+	case buildStagingNotInspected,
+		buildStagingAbsent,
+		buildStagingIncompatible,
+		buildStagingResumable,
+		buildStagingRequiresAuthorization:
+		return true
+	default:
+		return false
+	}
+}
+
+func isBuildFailureReason(reason searchReason) bool {
+	switch reason {
+	case searchReasonPrivacyUnavailable,
+		searchReasonArtifactPolicyUnavailable,
+		searchReasonCapacity,
+		searchReasonUnsupportedPlatform,
+		searchReasonEmbedderUnconfigured,
+		searchReasonIndexRefreshing,
+		searchReasonIndexIncomplete,
+		searchReasonVaultChanged,
+		searchReasonEmbedderUnreachable,
+		searchReasonEmbedderRejected,
+		searchReasonEmbedderFailed,
+		searchReasonRateLimited,
+		searchReasonAttemptBudgetExhausted,
+		searchReasonAttemptBudgetNotRenewable:
+		return true
+	default:
+		return false
+	}
+}
+
 func validateSearchAnswer(envelope searchAnswerEnvelope) (searchAnswerEnvelope, error) {
 	if !legalSearchPair(envelope.Mode, envelope.Semantic) {
 		return searchAnswerEnvelope{}, fmt.Errorf("search output: illegal mode and semantic pair %s/%s", envelope.Mode, envelope.Semantic)
@@ -343,11 +619,11 @@ func validateSearchAnswer(envelope searchAnswerEnvelope) (searchAnswerEnvelope, 
 	return envelope, nil
 }
 
-func validateSearchCoverage(semantic searchSemantic, coverage *searchCoverage) error {
-	switch semantic {
+func validateSearchCoverage(state searchSemantic, coverage *searchCoverage) error {
+	switch state {
 	case searchSemanticOff, searchSemanticOK:
 		if coverage != nil {
-			return fmt.Errorf("search output: semantic %s cannot carry coverage", semantic)
+			return fmt.Errorf("search output: semantic %s cannot carry coverage", state)
 		}
 	case searchSemanticNotApplicable:
 		if coverage == nil || coverage.Reason != searchReasonNotApplicable {
@@ -417,7 +693,7 @@ func validateSearchChannels(index int, result *searchWireResult) (bool, error) {
 	return hasSemantic, nil
 }
 
-func searchChannelSet(index int, channels []searchChannel) (lexical, semantic bool, err error) {
+func searchChannelSet(index int, channels []searchChannel) (lexical, semanticChannel bool, err error) {
 	switch len(channels) {
 	case 1:
 		switch channels[0] {
@@ -451,6 +727,7 @@ func isUnavailableReason(reason searchReason) bool {
 		searchReasonEmbedderRejected,
 		searchReasonEmbedderFailed,
 		searchReasonRateLimited,
+		searchReasonAttemptBudgetExhausted,
 		searchReasonUnsupportedPlatform:
 		return true
 	default:
@@ -463,7 +740,33 @@ func searchStderrLine(reason searchReason) (string, error) {
 }
 
 func searchIndexStderrLine(reason searchReason) (string, error) {
-	return searchCommandStderrLine("yomihon search-index", reason)
+	switch reason {
+	case searchReasonAttemptBudgetExhausted:
+		return "yomihon search-index: attempt-budget-exhausted: provider-send authorization is exhausted; run yomihon search-index build --renew-attempt-budget\n", nil
+	case searchReasonAttemptBudgetNotRenewable:
+		return "yomihon search-index: attempt-budget-not-renewable: no exhausted matching staging generation exists; run yomihon search-index build\n", nil
+	case searchReasonNotApplicable,
+		searchReasonPrivacyUnavailable,
+		searchReasonMetadataUnavailable,
+		searchReasonArtifactPolicyUnavailable,
+		searchReasonCacheCold,
+		searchReasonCacheCorrupt,
+		searchReasonCacheMismatch,
+		searchReasonEmbedderRetired,
+		searchReasonCapacity,
+		searchReasonEmbedderUnconfigured,
+		searchReasonRebuildRequired,
+		searchReasonIndexRefreshing,
+		searchReasonIndexIncomplete,
+		searchReasonVaultChanged,
+		searchReasonEmbedderUnreachable,
+		searchReasonEmbedderRejected,
+		searchReasonEmbedderFailed,
+		searchReasonRateLimited,
+		searchReasonUnsupportedPlatform:
+		return searchCommandStderrLine("yomihon search-index", reason)
+	}
+	return "", errors.New("search output: unknown reason")
 }
 
 func searchCommandStderrLine(prefix string, reason searchReason) (string, error) {
@@ -511,6 +814,8 @@ func searchGenerationMessage(reason searchReason) (string, bool) {
 		return "one or more current chunks could not be indexed", true
 	case searchReasonVaultChanged:
 		return "the vault changed while the semantic index was being updated; retry", true
+	case searchReasonAttemptBudgetExhausted:
+		return "semantic document sends need renewed authorization; run yomihon search-index build --renew-attempt-budget", true
 	case searchReasonCapacity:
 		return "the semantic index could not be loaded into memory", true
 	case searchReasonUnsupportedPlatform:
@@ -545,11 +850,11 @@ func searchIndexInternalStderrLine() string {
 	return "yomihon search-index: internal: " + searchInternalDetail + "\n"
 }
 
-func legalSearchPair(mode searchMode, semantic searchSemantic) bool {
-	return mode == searchModeLexical && semantic == searchSemanticOff ||
-		mode == searchModeHybrid && semantic == searchSemanticOK ||
-		mode == searchModeLexical && semantic == searchSemanticNotApplicable ||
-		mode == searchModeLexical && semantic == searchSemanticUnavailable
+func legalSearchPair(mode searchMode, state searchSemantic) bool {
+	return mode == searchModeLexical && state == searchSemanticOff ||
+		mode == searchModeHybrid && state == searchSemanticOK ||
+		mode == searchModeLexical && state == searchSemanticNotApplicable ||
+		mode == searchModeLexical && state == searchSemanticUnavailable
 }
 
 func unescapeSearchLineSeparators(line []byte) []byte {

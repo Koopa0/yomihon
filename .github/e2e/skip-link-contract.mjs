@@ -51,7 +51,7 @@ const MUTATIONS = {
     target: 'first-focus-visible',
     apply: rewriteDocument(
       '</head>',
-      '<style>.y-skiplink:focus{translate:0 calc(-100% - 16px)!important}</style></head>',
+      '<style>.y-skiplink:focus{opacity:0!important;pointer-events:none!important}</style></head>',
       'skip-link focus style',
     ),
   },

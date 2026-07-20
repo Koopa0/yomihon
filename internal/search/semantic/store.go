@@ -22,21 +22,22 @@ import (
 // Store errors distinguish absence, corruption, unsafe permissions,
 // compatibility, writer ownership, and incomplete generation state.
 var (
-	ErrStoreNotFound            = errors.New("semantic generation store does not exist")
-	ErrNoActiveGeneration       = errors.New("semantic generation store has no active generation")
-	ErrStoreCorrupt             = errors.New("semantic generation store is corrupt")
-	ErrStorePermissions         = errors.New("semantic generation store permissions are unsafe")
-	ErrStoreSchemaMismatch      = errors.New("semantic generation store schema is incompatible")
-	ErrStoreUnsupportedPlatform = errors.New("semantic generation store is unsupported on this platform")
-	ErrVectorFormatMismatch     = errors.New("semantic generation vector format is incompatible")
-	ErrWriterHeld               = errors.New("semantic generation writer lease is held")
-	ErrInvalidIdentity          = errors.New("invalid semantic generation identity")
-	ErrInvalidChunk             = errors.New("invalid semantic chunk vector")
-	ErrInvalidCorpus            = errors.New("invalid semantic corpus manifest")
-	ErrStagingClosed            = errors.New("semantic staging generation is no longer active")
-	ErrGenerationIncomplete     = errors.New("semantic staging generation is incomplete")
-	ErrAttemptLimit             = errors.New("semantic chunk attempt limit is exhausted")
-	ErrRetryNotReady            = errors.New("semantic chunk retry is not ready")
+	ErrStoreNotFound             = errors.New("semantic generation store does not exist")
+	ErrNoActiveGeneration        = errors.New("semantic generation store has no active generation")
+	ErrStoreCorrupt              = errors.New("semantic generation store is corrupt")
+	ErrStorePermissions          = errors.New("semantic generation store permissions are unsafe")
+	ErrStoreSchemaMismatch       = errors.New("semantic generation store schema is incompatible")
+	ErrStoreUnsupportedPlatform  = errors.New("semantic generation store is unsupported on this platform")
+	ErrVectorFormatMismatch      = errors.New("semantic generation vector format is incompatible")
+	ErrWriterHeld                = errors.New("semantic generation writer lease is held")
+	ErrInvalidIdentity           = errors.New("invalid semantic generation identity")
+	ErrInvalidChunk              = errors.New("invalid semantic chunk vector")
+	ErrInvalidCorpus             = errors.New("invalid semantic corpus manifest")
+	ErrStagingClosed             = errors.New("semantic staging generation is no longer active")
+	ErrGenerationIncomplete      = errors.New("semantic staging generation is incomplete")
+	ErrAttemptLimit              = errors.New("semantic chunk attempt limit is exhausted")
+	ErrAttemptBudgetNotRenewable = errors.New("semantic chunk attempt budget is not renewable")
+	ErrRetryNotReady             = errors.New("semantic chunk retry is not ready")
 )
 
 // generationMetadata identifies one complete immutable generation without
@@ -72,7 +73,7 @@ func openStoreParent(path string, create bool) (*storeParent, error) {
 			return nil, err
 		}
 	}
-	before, err := os.Lstat(parentPath)
+	before, err := lstatStorePath(parentPath)
 	if err != nil {
 		return nil, fmt.Errorf("stat semantic cache directory: %w", err)
 	}
@@ -137,7 +138,7 @@ type storeAncestor struct {
 
 func existingStoreAncestor(path string) (storeAncestor, error) {
 	for candidate := path; ; candidate = filepath.Dir(candidate) {
-		info, err := os.Lstat(candidate)
+		info, err := lstatStorePath(candidate)
 		if err == nil {
 			if !safeCacheDirectory(info) {
 				return storeAncestor{}, fmt.Errorf("%w: cache ancestor must not be a symlink or group/world-writable", ErrStorePermissions)
@@ -189,7 +190,7 @@ func (p *storeParent) requireCurrent() error {
 	if p == nil || p.root == nil {
 		return ErrStorePermissions
 	}
-	current, err := os.Lstat(p.path)
+	current, err := lstatStorePath(p.path)
 	if err != nil {
 		return fmt.Errorf("stat semantic cache directory: %w", err)
 	}
@@ -202,6 +203,27 @@ func (p *storeParent) requireCurrent() error {
 		return fmt.Errorf("%w: cache directory changed identity or is group/world-writable", ErrStorePermissions)
 	}
 	return nil
+}
+
+func lstatStorePath(path string) (info os.FileInfo, resultErr error) {
+	if path == string(filepath.Separator) {
+		root, err := os.OpenRoot(path)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			resultErr = errors.Join(resultErr, root.Close())
+		}()
+		return root.Stat(".")
+	}
+	parent, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		resultErr = errors.Join(resultErr, parent.Close())
+	}()
+	return parent.Lstat(filepath.Base(path))
 }
 
 func (p *storeParent) Close() error {
@@ -474,6 +496,7 @@ func sqliteStoreURL(path string, readOnly bool) string {
 		query.Set("mode", "ro")
 		query.Add("_pragma", "query_only(ON)")
 	} else {
+		query.Set("mode", "rw")
 		query.Add("_pragma", "foreign_keys(ON)")
 		query.Add("_pragma", "journal_mode(WAL)")
 		query.Add("_pragma", "synchronous(FULL)")
