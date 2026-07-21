@@ -1,0 +1,97 @@
+measurement_source_commit: 8380ab51c2e9a143b14fc1823799c1743dab245a
+measurement_source_tree: ae60639bd061d7e6e1a57e58d5a84f6d9f82e3d0
+go_version: go version go1.26.5 darwin/arm64
+goos: darwin
+goarch: arm64
+cpu: Apple M1
+gomaxprocs: 8
+benchstat_module: golang.org/x/perf v0.0.0-20260709024250-82a0b07e230d h1:mDNWm9XMiduP5opv8zcdZJixEU5+yBIj1hefXe09kSY=
+
+driver_block_order_evidence:
+recorded_invocation_order: modernc-a, mattn-a, modernc-b, mattn-b
+scratch_completion_order_utc:
+modernc-a 2026-07-21T03:19:03Z d3715600c647967bf9e1e240897caafd7606e5a59a277eb6e67ffd5d5889d638
+mattn-a 2026-07-21T03:19:48Z 888d97cd3c27c6f495f1511aba8a8f648068e8bb292c64eb3a686f07c4309d18
+modernc-b 2026-07-21T03:20:45Z 510b1bb46872782895cf519ade481502c3ecbf8b6b22196b196bfe92a6f909b4
+mattn-b 2026-07-21T03:21:29Z 33dd8fd53cdd79d6c76a109f025ac5926ccf765f9062b0a82ec115f678ab3cc0
+combined_modernc: exact concatenation of modernc-a then modernc-b
+combined_mattn: exact concatenation of mattn-a then mattn-b
+order_evidence_limit: intermediate hashes and mtimes were captured before scratch cleanup; the retained combined files prove same-driver block order, while cross-driver chronology remains operator-recorded rather than independently timestamped by a second system
+
+sha256_inputs:
+1824ef8f40fcfd58531f52763808d8057b5b6665d60a4db5e07f73a4ef056f10  go.mod
+bd7c297fd46fb27e71dd7bef918c35f5d194dc3b0cf761225523139b7951cbfd  go.sum
+4d1abc23aa67d8682fd185a1f76e32d5ca9061a2e9b03e50f5479c8b453d3f9c  tools/sqlite-driver-bakeoff/go.mod
+08e70fe0ecee3292629a8550ffee03ed86ea6da33c5d8d06479e6c2fb126f166  tools/sqlite-driver-bakeoff/go.sum
+1451cfa5206e20a002e9afa197492e38dda78a546b551d98a3773ef9f0debd09  internal/search/semantic/store.go
+a9411024e0dcd34c1bcd8b2f08f6202247869165ac4d327bf285fc41dc87b6d2  internal/search/semantic/writer.go
+95e7d3fc26ab7e2a17f8980d18958d6be30255e7cd2243c3829d500537e33ffb  internal/search/semantic/staging.go
+2302f1f9872d176dbcb7bb61fd0dcf92b6fe8aaf595aeab2c03b91b9a1f8dd7a  internal/search/semantic/manifest.go
+c37ca46584c5427776b926c0a9a72ae924f1cf6f17ac4a21c5518a1ffb1964f7  internal/search/semantic/schema.go
+1873c63ad674c2803a0275f85a2b06eddc805dfd3dcce4c2448c5fb13acd1263  internal/search/semantic/bakeoff_test.go
+b8ad043ac5aee1a506847feac51d09638d95596a9f2e7bf6f13bc7a54680c623  internal/search/semantic/sql/schema.sql
+0181cb39d981e01845563f33c20b40da71a735a40163e2a19c46d537f918d189  internal/search/semantic/sql/query.sql
+cd6c7670cc0d21b0fa3ce7186685ffad72515e2660d8ff85bd4a2233066c25f8  internal/search/semantic/catalog/query.sql.go
+1f160a5271124ea0265c7cdb1a54c411040c5569615a5576e462e238052aa333  sqlc.yaml
+a43bad9b7f9f46ba0d73ebac6d4e190535f1cb3d37c9679a4fc309acf46b686e  tools/sqlite-driver-bakeoff/benchmark_test.go
+ecaf312490f509412b97059f597f8667f7b9c5a88cf8faa670140e8b5285def4  tools/sqlite-driver-bakeoff/driver_modernc_test.go
+f24338cae00779c49c753b65243215a898160be263859bc701b4809dfae25f48  tools/sqlite-driver-bakeoff/driver_mattn_test.go
+
+root_resolved_modules:
+modernc.org/sqlite v1.54.0 h1:JCxR4qwkJvOaqAoYcgDoO25Nc+ROg6EJ2LfBVzdrgog=
+modernc.org/libc v1.74.1 h1:bdR4VTKFMC4966QSNZ05XLGI/VwzVa2kTUX51Dm0riQ=
+
+nested_resolved_modules:
+modernc.org/sqlite v1.54.0 h1:JCxR4qwkJvOaqAoYcgDoO25Nc+ROg6EJ2LfBVzdrgog=
+modernc.org/libc v1.74.1 h1:bdR4VTKFMC4966QSNZ05XLGI/VwzVa2kTUX51Dm0riQ=
+github.com/mattn/go-sqlite3 v1.14.48 h1:7XHIgl0a8HwOaiK4E47ozLkST78rR9+OtNGx27D/TFs=
+
+darwin_arm64_test_binary_sizes:
+semantic_product_bytes: 32018994
+modernc_driver_bytes: 10804338
+mattn_driver_bytes: 8388738
+modernc_overhead_bytes: 2415600
+modernc_overhead_percent_vs_mattn: 28.80%
+
+semantic_product_build_info:
+/tmp/yomihon-bakeoff-20260721/semantic-darwin-arm64.test: go1.26.5
+	path	github.com/koopa0/yomihon/internal/search/semantic.test
+	mod	github.com/koopa0/yomihon	(devel)
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+
+modernc_driver_build_info:
+/tmp/yomihon-bakeoff-20260721/modernc-darwin-arm64.test: go1.26.5
+	path	github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff.test
+	mod	github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff	(devel)
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=modernc
+	build	CGO_ENABLED=0
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+
+mattn_driver_build_info:
+/tmp/yomihon-bakeoff-20260721/mattn-darwin-arm64.test: go1.26.5
+	path	github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff.test
+	mod	github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff	(devel)
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=mattn
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
