@@ -9,6 +9,8 @@ const MARK_PATH = "/static/yomihon-mark.svg";
 const MUTATE = process.env.MUTATE || "";
 const SITES = [
 	"favicon",
+	"favicon-light-contrast",
+	"favicon-dark-contrast",
 	"accessible-name",
 	"decorative-mark",
 	"mask-source",
@@ -110,6 +112,27 @@ const collapseMarkPath = async (page) => {
 	};
 };
 
+const rewriteMarkSource = (needle, replacement, label) => async (page) => {
+	let requests = 0;
+	let matches = 0;
+	await page.route(`**${MARK_PATH}`, async (route) => {
+		requests += 1;
+		const response = await route.fetch();
+		const original = await response.text();
+		matches += original.split(needle).length - 1;
+		await route.fulfill({
+			response,
+			body: original.replace(needle, replacement),
+		});
+	});
+	return () => {
+		if (requests < 1) return `${label} mark was never requested`;
+		if (matches !== requests)
+			return `${label} matched ${matches} times across ${requests} responses, want exactly once per response`;
+		return "";
+	};
+};
+
 const exactCount = (source, needle) => source.split(needle).length - 1;
 
 const MUTATIONS = {
@@ -159,6 +182,22 @@ const MUTATIONS = {
 				exactCount(source, "background-color:currentColor") === 1 ? 1 : 0,
 			".y-brand__mark{background-color:transparent!important}",
 			"current-color paint",
+		),
+	},
+	"wash-out-light-favicon": {
+		target: "favicon-light-contrast",
+		apply: rewriteMarkSource(
+			"path{fill:#1b1b15}",
+			"path{fill:#f3f3f0}",
+			"light favicon fill",
+		),
+	},
+	"black-out-dark-favicon": {
+		target: "favicon-dark-contrast",
+		apply: rewriteMarkSource(
+			"@media (prefers-color-scheme:dark){path{fill:#f3f3f0}}",
+			"@media (prefers-color-scheme:dark){path{fill:#1b1b15}}",
+			"dark favicon fill",
 		),
 	},
 	"collapse-svg-path": {
@@ -285,6 +324,63 @@ const renderedSilhouette = async (page, mark) => {
 		},
 		`data:image/png;base64,${screenshot.toString("base64")}`,
 	);
+};
+
+const standaloneMarkSilhouette = async (page, theme, size) => {
+	await page.emulateMedia({ colorScheme: theme, forcedColors: "none" });
+	const fetched = await page.evaluate(async (path) => {
+		const response = await fetch(path, { cache: "no-store" });
+		return {
+			ok: response.ok,
+			status: response.status,
+			contentType: response.headers.get("content-type"),
+			source: await response.text(),
+		};
+	}, MARK_PATH);
+	if (!fetched.ok || fetched.contentType !== "image/svg+xml") {
+		broken(
+			`${theme} ${size}px standalone mark fetch returned ${JSON.stringify(fetched)}, want canonical image/svg+xml`,
+		);
+	}
+
+	const id = `brand-favicon-${theme}-${size}`;
+	await page.evaluate(
+		({ background, id, size, source, theme }) => {
+			document.getElementById(id)?.remove();
+			const frame = document.createElement("span");
+			frame.id = id;
+			frame.style.cssText = [
+				"display:block",
+				"position:fixed",
+				"left:80px",
+				"top:80px",
+				`width:${size}px`,
+				`height:${size}px`,
+				`background:${background}`,
+				`color-scheme:${theme}`,
+			].join(";");
+			const image = document.createElement("img");
+			image.alt = "";
+			image.width = size;
+			image.height = size;
+			image.style.display = "block";
+			image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
+			frame.append(image);
+			document.body.append(frame);
+		},
+		{
+			background: theme === "light" ? "#f9f9f6" : "#11110f",
+			id,
+			size,
+			source: fetched.source,
+			theme,
+		},
+	);
+	const frame = page.locator(`#${id}`);
+	await frame.locator("img").evaluate((image) => image.decode());
+	const silhouette = await renderedSilhouette(page, frame);
+	await frame.evaluate((element) => element.remove());
+	return silhouette;
 };
 
 const maxChannelDelta = (left, right) =>
@@ -423,7 +519,17 @@ try {
 		);
 	}
 
-	await page.emulateMedia({ forcedColors: "active" });
+	for (const theme of ["light", "dark"]) {
+		for (const size of [16, 32]) {
+			assertRenderedSilhouette(
+				`favicon-${theme}-contrast`,
+				`${theme} standalone favicon at ${size}px`,
+				await standaloneMarkSilhouette(page, theme, size),
+			);
+		}
+	}
+
+	await page.emulateMedia({ colorScheme: "dark", forcedColors: "active" });
 	const forced = await markPresentation(mark);
 	if (forced.issue) broken(forced.issue);
 	if (forced.backgroundRGBA[3] !== 255 || !(await namedBrand.isVisible())) {
@@ -447,7 +553,7 @@ try {
 	);
 
 	console.log(
-		"PASS brand-contract: one local favicon and one decorative current-color mark preserve the exact yomihon name in light, dark, and forced colors",
+		"PASS brand-contract: the local SVG has 16/32px standalone light/dark contrast, and one decorative current-color header mark preserves the exact yomihon name through forced colors",
 	);
 } catch (error) {
 	if (error instanceof NotApplied) {

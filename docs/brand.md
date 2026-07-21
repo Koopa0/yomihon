@@ -1,7 +1,8 @@
 # Brand identity
 
-Status: **selected canon**. Koopa selected Concept A, the converging-path `y`
-direction, on 2026-07-21. The repository source at
+Status: **selected canon**. On 2026-07-21 Koopa delegated the choice and
+application of the mark to Codex; Codex selected Concept A, the converging-path
+`y` direction. The repository source at
 [`assets/brand/yomihon-mark.svg`](../assets/brand/yomihon-mark.svg) is the only
 official mark geometry. This document owns its meaning, construction,
 provenance, and permitted projections; the SVG owns its exact vector bytes.
@@ -37,8 +38,10 @@ random Japanese glyph, faux brush calligraphy, distressed ink, or fake hanko.
 
 A direction also fails if it needs an explanatory paragraph before its shape
 makes sense, competes with the seal action, looks detached from the shipped UI,
-or cannot be reproduced as simple deterministic vector geometry. Image
-generation is not a source for the logo or favicon.
+or cannot be reproduced as simple deterministic vector geometry. Generated
+images may explore a direction, but generated pixels, traced paths, and opaque
+generator output are not shippable identity assets or reproducible build
+sources.
 
 ## Selected system
 
@@ -60,11 +63,18 @@ seal. The rejected margin-and-ruling exploration is not an alternate logo.
 
 The mark is a deterministic, hand-authored SVG with `viewBox="0 0 32 32"` and
 one filled `<path>`. Its canonical SHA-256 is
-`4580605b5d69ce8475c1c69103844ffb74b7ce95a1a35b695a6c0f620aa0b6b2`.
+`44d45c7fc1da3fc765f5cade688ecb29dafd6f7494f7887d0d6fae82acd3f31c`.
 It contains no text, font, raster image, filter, gradient, script, external
-reference, generator metadata, embedded style, or event handler. It was drawn
-directly for this repository; no image generator, third-party artwork, or font
-outline is its source.
+reference, generator metadata, arbitrary style, or event handler. Its only
+style content is an exact, validator-locked `prefers-color-scheme` rule: deep
+ink in light browser chrome and light ink in dark browser chrome.
+
+ChatGPT Images 2.0 produced a three-direction concept board for ideation. Codex
+selected its Concept A under Koopa's delegation, then authored the final path
+coordinates directly in this repository. No generated pixel or vector data was
+imported or traced, and no third-party artwork or font outline is part of the
+asset. Image generation is therefore recorded conceptual input, while the
+reviewable SVG bytes are the final geometry and production source.
 
 Every shipped projection uses those exact source bytes or that exact source as
 a CSS mask:
@@ -81,8 +91,7 @@ The same geometry is checked at 16, 24, 32, and 180 CSS pixels. Critical stems
 and gaps must survive the 16-pixel rendering; detail visible only when enlarged
 does not count. The required proofs are:
 
-- pure black on white and pure white on black;
-- product ink on warm paper and light ink on charcoal;
+- deep ink on white and warm paper, and light ink on black and charcoal;
 - grayscale and forced-colors use, with the textual name still present;
 - actual browser tabs at 16 and 32 pixels;
 - the real 56-pixel application header in both themes beside the live status
@@ -91,9 +100,12 @@ does not count. The required proofs are:
 The visible `yomihon` link remains the exact accessible name. Its neighboring
 mark is decorative and `aria-hidden`. The mask takes its color from
 `currentColor` in light and dark themes and uses a system-color fallback in
-forced-colors mode. Implementation tests pin the deterministic bytes, passive
-SVG grammar, closed local route, `image/svg+xml` MIME type, `nosniff` response,
-single document-head reference, accessible header name, and mask projection.
+forced-colors mode. Implementation tests pin the deterministic bytes, restricted
+SVG grammar and color rule, closed local route, `image/svg+xml` MIME type,
+`nosniff` response, single document-head reference, accessible header name,
+mask projection, and standalone 16/32-pixel contrast on simulated light and
+dark browser backgrounds. Actual browser-tab chrome remains a human release
+check; an in-page rendering test does not claim to screenshot the toolbar.
 
 ## Selection and release evidence
 
@@ -109,8 +121,9 @@ with the real interface. Surviving directions are compared with these weights:
 | Distinctiveness without novelty theatre | 15 |
 | Licensing, accessibility, and production hygiene | 10 |
 
-The selected direction records owner selection. Repository checks cover its
-construction and projections; they do not close the human visual gates. Before
+The selected direction records delegated agent selection and owner-authorized
+application. Repository checks cover its construction and projections; they do
+not close the human visual gates. Before
 `v0.1.0`, human review must still include a five-second product-impression test,
 recognition among ordinary browser tabs, delayed recall of the name and
 distinguishing feature, comparison in both real application themes, and a

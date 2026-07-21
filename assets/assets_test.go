@@ -14,6 +14,8 @@ import (
 	"testing"
 )
 
+const brandMarkColorCSS = `path{fill:#1b1b15}@media (prefers-color-scheme:dark){path{fill:#f3f3f0}}`
+
 func TestBrandMarkBytesAreCanonical(t *testing.T) {
 	t.Parallel()
 
@@ -22,13 +24,13 @@ func TestBrandMarkBytesAreCanonical(t *testing.T) {
 		t.Fatalf("read brand mark: %v", err)
 	}
 	got := sha256.Sum256(data)
-	const want = "4580605b5d69ce8475c1c69103844ffb74b7ce95a1a35b695a6c0f620aa0b6b2"
+	const want = "44d45c7fc1da3fc765f5cade688ecb29dafd6f7494f7887d0d6fae82acd3f31c"
 	if gotHash := hex.EncodeToString(got[:]); gotHash != want {
 		t.Errorf("brand mark SHA-256 = %s, want %s", gotHash, want)
 	}
 }
 
-func TestBrandMarkUsesPassiveSVGGrammar(t *testing.T) {
+func TestBrandMarkUsesRestrictedSVGGrammar(t *testing.T) {
 	t.Parallel()
 
 	data, err := Files.ReadFile("brand/yomihon-mark.svg")
@@ -36,7 +38,7 @@ func TestBrandMarkUsesPassiveSVGGrammar(t *testing.T) {
 		t.Fatalf("read brand mark: %v", err)
 	}
 	if err := validateBrandMarkSVG(data); err != nil {
-		t.Errorf("brand mark violates the passive SVG grammar: %v", err)
+		t.Errorf("brand mark violates the restricted SVG grammar: %v", err)
 	}
 }
 
@@ -71,7 +73,10 @@ func TestBrandMarkValidatorRejectsForbiddenContent(t *testing.T) {
 		{name: "filter", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><filter id="f"/><path d="M0 0Z"/></svg>`},
 		{name: "text", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text>y</text><path d="M0 0Z"/></svg>`},
 		{name: "event handler", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z" onload="alert(1)"/></svg>`},
-		{name: "style", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z" style="fill:url(https://example.com/x)"/></svg>`},
+		{name: "style attribute", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z" style="fill:url(https://example.com/x)"/></svg>`},
+		{name: "arbitrary style element", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><style>path{fill:red}</style><path d="M0 0Z"/></svg>`},
+		{name: "external style URL", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><style>path{fill:url(https://example.com/x)}</style><path d="M0 0Z"/></svg>`},
+		{name: "duplicate style", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><style>` + brandMarkColorCSS + `</style><style>` + brandMarkColorCSS + `</style><path d="M0 0Z"/></svg>`},
 		{name: "generator metadata", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><metadata>generator</metadata><path d="M0 0Z"/></svg>`},
 		{name: "comment", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><!-- generator --><path d="M0 0Z"/></svg>`},
 		{name: "processing instruction", svg: `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z"/></svg>`},
@@ -92,7 +97,10 @@ func validateBrandMarkSVG(data []byte) error {
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	depth := 0
 	roots := 0
+	styles := 0
 	paths := 0
+	inStyle := false
+	var styleText strings.Builder
 	for {
 		token, err := decoder.Token()
 		if errors.Is(err, io.EOF) {
@@ -114,24 +122,35 @@ func validateBrandMarkSVG(data []byte) error {
 				if err := validateBrandSVGRootAttributes(value.Attr); err != nil {
 					return err
 				}
+			case depth == 2 && value.Name.Space == namespace && value.Name.Local == "style":
+				styles++
+				if styles != 1 || paths != 0 || len(value.Attr) != 0 {
+					return fmt.Errorf("style count/order/attributes = %d/%d/%v, want one attribute-free style before path", styles, paths, value.Attr)
+				}
+				inStyle = true
 			case depth == 2 && value.Name.Space == namespace && value.Name.Local == "path":
 				paths++
-				if paths != 1 {
-					return fmt.Errorf("path count = %d, want 1", paths)
+				if styles != 1 || paths != 1 {
+					return fmt.Errorf("style/path count = %d/%d, want 1/1 in that order", styles, paths)
 				}
 				if len(value.Attr) != 1 || value.Attr[0].Name.Space != "" || value.Attr[0].Name.Local != "d" || strings.TrimSpace(value.Attr[0].Value) == "" {
 					return fmt.Errorf("path attributes = %v, want one non-empty d attribute", value.Attr)
 				}
 			default:
-				return fmt.Errorf("element at depth %d = {%s}%s, want svg > path only", depth, value.Name.Space, value.Name.Local)
+				return fmt.Errorf("element at depth %d = {%s}%s, want svg > style + path only", depth, value.Name.Space, value.Name.Local)
 			}
 		case xml.EndElement:
+			if depth == 2 && value.Name.Space == namespace && value.Name.Local == "style" {
+				inStyle = false
+			}
 			depth--
 			if depth < 0 {
 				return fmt.Errorf("unexpected closing element {%s}%s", value.Name.Space, value.Name.Local)
 			}
 		case xml.CharData:
-			if strings.TrimSpace(string(value)) != "" {
+			if inStyle {
+				styleText.Write(value)
+			} else if strings.TrimSpace(string(value)) != "" {
 				return errors.New("non-whitespace character data is forbidden")
 			}
 		case xml.Comment:
@@ -147,8 +166,11 @@ func validateBrandMarkSVG(data []byte) error {
 	if depth != 0 {
 		return fmt.Errorf("final XML depth = %d, want 0", depth)
 	}
-	if roots != 1 || paths != 1 {
-		return fmt.Errorf("svg/path count = %d/%d, want 1/1", roots, paths)
+	if roots != 1 || styles != 1 || paths != 1 {
+		return fmt.Errorf("svg/style/path count = %d/%d/%d, want 1/1/1", roots, styles, paths)
+	}
+	if got := styleText.String(); got != brandMarkColorCSS {
+		return fmt.Errorf("brand color CSS = %q, want exact %q", got, brandMarkColorCSS)
 	}
 	return nil
 }
