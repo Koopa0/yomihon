@@ -70,15 +70,13 @@ a unit ships when it is ready, and pain may reorder the tracks (roadmap §5b).
    cleaned, reference binaries deleted (operations alongside the PR).
 
 **The rename (kurodo → yomihon, D44) — done (PR #28, merged 2026-07-08;
-acceptance held the same day).** The coordinated migration ran as
-`rename-plan.md` records — module path, command directory, client script and
-CSS scope, client-state keys, env whitelist lock, report tool identity,
-wordmark, and living docs in one solo sweep; the directory, memory-slug, and
-GitHub moves landed around it. Independent acceptance re-ran the gates,
-kill-tested the env lock on a different channel, and probed the real vault
-under the new name. Operations remainder (Koopa's hand): the four-cron
-cutover to `~/go/bin/yomihon`, then deleting the old binary and the emptied
-old directory.
+acceptance held the same day).** PR #28 coordinated the module path, command
+directory, client script and CSS scope, client-state keys, env whitelist lock,
+report tool identity, wordmark, and living-doc migration. Independent
+acceptance re-ran the gates, kill-tested the env lock on a different channel,
+and probed the real vault under the new name. Operations remainder (Koopa's
+hand): the four-cron cutover to `~/go/bin/yomihon`, then deleting the old binary
+and the emptied old directory.
 
 **Track 2 ∥ — CI hygiene:**
 5. `PR-ci-hygiene` — **done (PR #21, merged 2026-07-07)**: the umbrella job
@@ -227,13 +225,15 @@ old directory.
      policy, frozen agent-wire exception, and the first-release evidence list.
      Before `v0.1.0`, close the independent agent usability scenario round,
      enable and test private vulnerability reporting, add release notes and a
-     changelog for the frozen candidate, capture a real privacy-safe product
-     screenshot, write a product-grounded brand brief, and select then draw the
-     app mark and SVG favicon as deterministic vector geometry. Image-generation
-     output is not a logo or favicon source; the selected mark must survive
-     monochrome, light/dark, and 16/24/32px reduction checks. A banner is
-     optional and evaluated against a professional no-banner default only after
-     the real screenshot exists.
+     changelog for the frozen candidate, and capture a real privacy-safe product
+     screenshot. The product-grounded brand brief and selected deterministic
+     Direction A SVG are done; automated checks lock its single-source
+     projections, page/obi separation, accessibility, light/dark visibility,
+     and 16/24/32px reduction. Release still requires the human tab-recognition,
+     impression/recall, real-surface comparison, similarity/trademark, and
+     licensing decisions in `brand.md`. A banner remains optional and is
+     evaluated against a professional no-banner default only after the real
+     screenshot exists.
      No manifest, PWA scope, prebuilt binary, or hosted service belongs to this
      source-release unit.
 
