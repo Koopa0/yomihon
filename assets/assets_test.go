@@ -4,11 +4,234 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
+
+const validBrandSVGFixture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"/><path data-brand-part="pages" fill="#F5F1E6" d="M1 1Z"/><path data-brand-part="obi" fill="#D62A0F" d="M2 2Z"/></svg>`
+
+func TestBrandDirectoryContainsExactlyCanonicalSVG(t *testing.T) {
+	t.Parallel()
+
+	entries, err := os.ReadDir("brand")
+	if err != nil {
+		t.Fatalf("read brand asset directory: %v", err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name()+"/")
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	if want := []string{"yomihon-mark.svg"}; !slices.Equal(names, want) {
+		t.Errorf("brand asset files = %q, want exact canonical set %q", names, want)
+	}
+}
+
+func TestBrandMarkIsEmbeddedAndUsesRestrictedSVGGrammar(t *testing.T) {
+	t.Parallel()
+
+	data, err := Files.ReadFile("brand/yomihon-mark.svg")
+	if err != nil {
+		t.Fatalf("read embedded brand mark: %v", err)
+	}
+	if validationErr := validateBrandMarkSVG(data); validationErr != nil {
+		t.Errorf("brand mark violates the restricted passive SVG grammar: %v", validationErr)
+	}
+	disk, err := os.ReadFile("brand/yomihon-mark.svg")
+	if err != nil {
+		t.Fatalf("read tracked brand mark: %v", err)
+	}
+	if !bytes.Equal(data, disk) {
+		t.Error("embedded brand mark differs from the tracked canonical SVG")
+	}
+}
+
+func TestReadmeStartsWithCanonicalBrandHeading(t *testing.T) {
+	t.Parallel()
+
+	readme, err := os.ReadFile("../README.md")
+	if err != nil {
+		t.Fatalf("read repository README: %v", err)
+	}
+	const heading = `<h1><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"> yomihon</h1>`
+	firstLine, _, _ := strings.Cut(string(readme), "\n")
+	if firstLine != heading {
+		t.Errorf("README first line = %q, want rendered canonical brand heading %q", firstLine, heading)
+	}
+	const source = `src="assets/brand/yomihon-mark.svg"`
+	if got := strings.Count(string(readme), source); got != 1 {
+		t.Errorf("README canonical brand projections = %d, want one exact %q", got, source)
+	}
+}
+
+func TestBrandMarkValidatorRejectsNonCanonicalSVG(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		svg  string
+	}{
+		{name: "script", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<script/></svg>`, 1)},
+		{name: "external use", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<use href="https://example.com/mark.svg#shape"/></svg>`, 1)},
+		{name: "raster image", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<image href="data:image/png;base64,AA=="/></svg>`, 1)},
+		{name: "style element", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<style>path{fill:red}</style></svg>`, 1)},
+		{name: "mask", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<mask id="m"/></svg>`, 1)},
+		{name: "text", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<text>yomihon</text></svg>`, 1)},
+		{name: "metadata", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<metadata>generator</metadata></svg>`, 1)},
+		{name: "nested group", svg: strings.Replace(validBrandSVGFixture, `<path data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"/>`, `<g><path data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"/></g>`, 1)},
+		{name: "fourth path", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<path data-brand-part="extra" fill="#0F0F0F" d="M3 3Z"/></svg>`, 1)},
+		{name: "wrong part order", svg: strings.Replace(validBrandSVGFixture, `data-brand-part="cover"`, `data-brand-part="pages"`, 1)},
+		{name: "wrong cover color", svg: strings.Replace(validBrandSVGFixture, `#0F0F0F`, `#101010`, 1)},
+		{name: "wrong pages color", svg: strings.Replace(validBrandSVGFixture, `#F5F1E6`, `#FFFFFF`, 1)},
+		{name: "wrong obi color", svg: strings.Replace(validBrandSVGFixture, `#D62A0F`, `#FF0000`, 1)},
+		{name: "event handler", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d="M0 0Z" onload="alert(1)"`, 1)},
+		{name: "style attribute", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d="M0 0Z" style="opacity:.5"`, 1)},
+		{name: "href attribute", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d="M0 0Z" href="https://example.com"`, 1)},
+		{name: "attribute order", svg: strings.Replace(validBrandSVGFixture, `data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"`, `fill="#0F0F0F" data-brand-part="cover" d="M0 0Z"`, 1)},
+		{name: "empty path", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d=""`, 1)},
+		{name: "comment", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<!-- generated --></svg>`, 1)},
+		{name: "processing instruction", svg: `<?xml version="1.0"?>` + validBrandSVGFixture},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if err := validateBrandMarkSVG([]byte(tt.svg)); err == nil {
+				t.Errorf("validateBrandMarkSVG() accepted non-canonical %s content", tt.name)
+			}
+		})
+	}
+}
+
+func TestBrandMarkValidatorAcceptsValidStructure(t *testing.T) {
+	t.Parallel()
+
+	if err := validateBrandMarkSVG([]byte(validBrandSVGFixture)); err != nil {
+		t.Fatalf("validateBrandMarkSVG() rejected the canonical structure: %v", err)
+	}
+}
+
+func validateBrandMarkSVG(data []byte) error {
+	const namespace = "http://www.w3.org/2000/svg"
+	wantPaths := []struct {
+		part string
+		fill string
+	}{
+		{part: "cover", fill: "#0F0F0F"},
+		{part: "pages", fill: "#F5F1E6"},
+		{part: "obi", fill: "#D62A0F"},
+	}
+
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	depth := 0
+	roots := 0
+	paths := 0
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("decode XML: %w", err)
+		}
+
+		switch value := token.(type) {
+		case xml.StartElement:
+			depth++
+			switch {
+			case depth == 1 && value.Name.Space == namespace && value.Name.Local == "svg":
+				roots++
+				if roots != 1 {
+					return fmt.Errorf("root count = %d, want 1", roots)
+				}
+				if err := validateBrandSVGRootAttributes(value.Attr); err != nil {
+					return err
+				}
+			case depth == 2 && value.Name.Space == namespace && value.Name.Local == "path":
+				if paths >= len(wantPaths) {
+					return fmt.Errorf("path count exceeds %d", len(wantPaths))
+				}
+				want := wantPaths[paths]
+				if err := validateBrandSVGPathAttributes(value.Attr, want.part, want.fill); err != nil {
+					return fmt.Errorf("%s path: %w", want.part, err)
+				}
+				paths++
+			default:
+				return fmt.Errorf("element at depth %d = {%s}%s, want svg with three direct path children only", depth, value.Name.Space, value.Name.Local)
+			}
+		case xml.EndElement:
+			depth--
+			if depth < 0 {
+				return fmt.Errorf("unexpected closing element {%s}%s", value.Name.Space, value.Name.Local)
+			}
+		case xml.CharData:
+			if strings.TrimSpace(string(value)) != "" {
+				return errors.New("character data is forbidden")
+			}
+		case xml.Comment:
+			return errors.New("comments are forbidden")
+		case xml.Directive:
+			return errors.New("directives are forbidden")
+		case xml.ProcInst:
+			return errors.New("processing instructions are forbidden")
+		default:
+			return fmt.Errorf("unsupported XML token %T", token)
+		}
+	}
+	if depth != 0 {
+		return fmt.Errorf("final XML depth = %d, want 0", depth)
+	}
+	if roots != 1 || paths != len(wantPaths) {
+		return fmt.Errorf("svg/path count = %d/%d, want 1/%d", roots, paths, len(wantPaths))
+	}
+	return nil
+}
+
+func validateBrandSVGRootAttributes(attrs []xml.Attr) error {
+	if len(attrs) != 2 {
+		return fmt.Errorf("svg attributes = %v, want exact xmlns and viewBox", attrs)
+	}
+	if attr := attrs[0]; attr.Name.Space != "" || attr.Name.Local != "xmlns" || attr.Value != "http://www.w3.org/2000/svg" {
+		return fmt.Errorf("first svg attribute = {%s}%s=%q, want xmlns=%q", attr.Name.Space, attr.Name.Local, attr.Value, "http://www.w3.org/2000/svg")
+	}
+	if attr := attrs[1]; attr.Name.Space != "" || attr.Name.Local != "viewBox" || attr.Value != "0 0 32 32" {
+		return fmt.Errorf("second svg attribute = {%s}%s=%q, want viewBox=%q", attr.Name.Space, attr.Name.Local, attr.Value, "0 0 32 32")
+	}
+	return nil
+}
+
+func validateBrandSVGPathAttributes(attrs []xml.Attr, wantPart, wantFill string) error {
+	if len(attrs) != 3 {
+		return fmt.Errorf("attributes = %v, want exact data-brand-part, fill, and d", attrs)
+	}
+	want := []struct {
+		name  string
+		value string
+	}{
+		{name: "data-brand-part", value: wantPart},
+		{name: "fill", value: wantFill},
+	}
+	for i, expected := range want {
+		attr := attrs[i]
+		if attr.Name.Space != "" || attr.Name.Local != expected.name || attr.Value != expected.value {
+			return fmt.Errorf("attribute %d = {%s}%s=%q, want %s=%q", i, attr.Name.Space, attr.Name.Local, attr.Value, expected.name, expected.value)
+		}
+	}
+	d := attrs[2]
+	if d.Name.Space != "" || d.Name.Local != "d" || strings.TrimSpace(d.Value) == "" {
+		return fmt.Errorf("third attribute = {%s}%s=%q, want non-empty d", d.Name.Space, d.Name.Local, d.Value)
+	}
+	return nil
+}
 
 // TestCSSCarriesTheMotionGuarantees locks, as stylesheet text, two
 // guarantees only the stylesheet carries; until a screenshot pipeline can

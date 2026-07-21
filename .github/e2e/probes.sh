@@ -20,6 +20,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # probe file | the page path it must be driven against
 probes=(
+  "brand-contract.mjs|/"
   "palette.mjs|/"
   "search-behavior.mjs|/"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"

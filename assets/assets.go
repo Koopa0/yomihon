@@ -40,9 +40,13 @@ import "embed"
 //     product layer). Served at /static/app.css. Committed like the
 //     generated *_templ.go so `go build ./...` needs no prior css step.
 //
+//   - brand/yomihon-mark.svg — the single canonical, hand-authored brand
+//     mark. The same embedded bytes are served to every product projection;
+//     there are no independently redrawn favicon or header variants.
+//
 //   - fonts/ — the self-hosted woff2 (Geist, Geist Mono, Newsreader),
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine (D-brief: zero external requests).
 //
-//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/status.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts
+//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/status.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
 var Files embed.FS

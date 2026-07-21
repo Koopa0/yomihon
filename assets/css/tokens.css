@@ -3,7 +3,8 @@
    ------------------------------------------------------------
    Consolidates the design bundle: theme.css's @theme values +
    colors_and_type.css's alias vocabulary, re-skinned to the product
-   accent (vermilion 朱, reserved for `ready`) and the product type
+   accent (theme-adaptive vermilion 朱, reserved for `ready` and the seal;
+   the official mark carries its separately fixed approved vermilion) and the product type
    stack (Geist + Noto Serif/Sans CJK + Newsreader + LXGW WenKai).
 
    Dark mode is a class/attribute strategy: [data-theme="dark"] is
@@ -33,7 +34,9 @@
   --border-strong: oklch(0.800 0.010 106);
   --border-faint:  oklch(0.930 0.006 106);
 
-  /* ---- The one accent — 朱 seal-ink vermilion, reserved for `ready` ---- */
+  /* ---- The one interface accent — 朱 seal-ink vermilion, reserved for
+     `ready` and the seal. The official mark's fixed publication obi carries
+     the same scarce semantic but does not consume this theme token. ---- */
   --accent:        oklch(0.470 0.175 33);
   --accent-strong: oklch(0.400 0.165 33);
   --accent-muted:  oklch(0.550 0.180 33 / 0.12);
@@ -58,7 +61,8 @@
      element reads --c; the .y-slot-<token> class only assigns it, so one token
      tints a slot's select border, its surface, and its ruby together. Muted so
      a card full of coloured words never out-shouts the reading, and hues avoid
-     the accent's red-orange (reserved for the seal). ---- */
+     the accent's red-orange (reserved for `ready` / the seal and echoed only
+     by the official mark's fixed publication obi). ---- */
   --slot-topic: oklch(0.500 0.125 250);
   --slot-pred:  oklch(0.560 0.120 65);
   --slot-poss:  oklch(0.615 0.070 250);

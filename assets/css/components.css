@@ -138,9 +138,13 @@ html, body { margin: 0; background: var(--bg); }
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
 }
 .y-header__spacer { flex: 1; }
-.y-brand { display: flex; align-items: baseline; gap: 11px; }
-.y-brand__name { font-family: var(--font-display); font-weight: var(--fw-semibold); font-size: var(--fs-18); letter-spacing: var(--track-snug); color: var(--fg); }
-.y-brand__dot { width: 5px; height: 5px; border-radius: 1px; background: var(--accent); align-self: center; }
+.y-brand { display: flex; align-items: center; gap: 11px; }
+.y-brand__name {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-display); font-weight: var(--fw-semibold);
+  font-size: var(--fs-18); letter-spacing: var(--track-snug); color: var(--fg);
+}
+.y-brand__mark { display: block; width: 24px; height: 24px; flex: none; }
 .y-brand__tag { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); letter-spacing: 0.11em; }
 
 .y-advancechip {
@@ -1032,7 +1036,7 @@ html, body { margin: 0; background: var(--bg); }
   .y-syl-guide { align-items: flex-start; flex-direction: column; gap: 10px; }
 }
 @media (max-width: 520px) {
-  .y-header { gap: 8px; padding-inline: 12px; }
+  .y-header { gap: 5px; padding-inline: 8px; }
   .y-brand { gap: 7px; }
   .y-brand__tag { display: none; }
   .y-shortcutpref { gap: 4px; padding-inline: 4px; }
@@ -1042,6 +1046,11 @@ html, body { margin: 0; background: var(--bg); }
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }
   .y-ttsbar__stop { order: 3; }
+}
+@media (forced-colors: active) {
+  /* The fixed-colour mark is decorative. Keep the exact textual product name
+     as the forced-colours identity instead of overriding user colours. */
+  .y-brand__mark { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left { transition: none; }

@@ -1,6 +1,7 @@
 // Package asset serves yomihon's fixed, compile-time-known set of static
 // files: the vendored mermaid ES-module runtime, yomihon's own fixed native
-// client-module graph, and the generated chroma stylesheet.
+// client-module graph, the canonical brand mark, and the generated chroma
+// stylesheet.
 //
 // This is the FIRST route in this repo that serves something other than
 // rendered vault content, and its entire security property rests on one
@@ -31,6 +32,7 @@ import (
 const (
 	jsContentType    = "text/javascript; charset=utf-8"
 	cssContentType   = "text/css; charset=utf-8"
+	svgContentType   = "image/svg+xml"
 	woff2ContentType = "font/woff2"
 )
 
@@ -48,10 +50,10 @@ type entry struct {
 var registry = buildRegistry()
 
 // buildRegistry assembles the fixed asset set: the explicitly named product
-// modules and the whole vendored mermaid/ subtree from assets.Files (see that
-// package's doc comment for why the mermaid tree is more than one file), plus
-// render.ChromaCSS's computed stylesheet, which has no embedded file
-// backing it at all.
+// modules, canonical brand mark, and whole vendored mermaid/ subtree from
+// assets.Files (see that package's doc comment for why the mermaid tree is
+// more than one file), plus render.ChromaCSS's computed stylesheet, which has
+// no embedded file backing it at all.
 func buildRegistry() map[string]entry {
 	reg := map[string]entry{
 		"chroma.css": {
@@ -74,6 +76,7 @@ func buildRegistry() map[string]entry {
 		embedFile(reg, name, "js/"+name, jsContentType)
 	}
 	embedFile(reg, "app.css", "css/output.css", cssContentType)
+	embedFile(reg, "yomihon-mark.svg", "brand/yomihon-mark.svg", svgContentType)
 	embedTree(reg, "js/mermaid")
 	embedFonts(reg, "fonts")
 	return reg

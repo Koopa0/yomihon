@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	projectassets "github.com/koopa0/yomihon/assets"
 	"github.com/koopa0/yomihon/internal/asset"
 )
 
@@ -52,6 +53,7 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 		{name: "reading font", path: "/static/fonts/Newsreader-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
 		{name: "italic reading font", path: "/static/fonts/Newsreader-Italic-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
 		{name: "mermaid entry module", path: "/static/mermaid.esm.min.mjs", wantType: "text/javascript; charset=utf-8", minBodyLen: 1000},
+		{name: "brand mark", path: "/static/yomihon-mark.svg", wantType: "image/svg+xml", minBodyLen: 100},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -83,6 +85,41 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 				t.Errorf("GET %s body length = %d, want at least %d", tt.path, len(body), tt.minBodyLen)
 			}
 		})
+	}
+}
+
+func TestBrandMarkServesExactEmbeddedBytes(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	want, err := projectassets.Files.ReadFile("brand/yomihon-mark.svg")
+	if err != nil {
+		t.Fatalf("read embedded brand mark: %v", err)
+	}
+	resp, err := http.Get(srv.URL + "/static/yomihon-mark.svg") //nolint:noctx // fixed, test-controlled URL
+	if err != nil {
+		t.Fatalf("GET brand mark: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read brand mark response: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /static/yomihon-mark.svg status = %d, want %d; body:\n%s", resp.StatusCode, http.StatusOK, got)
+	}
+	if contentType := resp.Header.Get("Content-Type"); contentType != "image/svg+xml" {
+		t.Errorf("GET /static/yomihon-mark.svg Content-Type = %q, want %q", contentType, "image/svg+xml")
+	}
+	if contentTypeOptions := resp.Header.Get("X-Content-Type-Options"); contentTypeOptions != "nosniff" {
+		t.Errorf("GET /static/yomihon-mark.svg X-Content-Type-Options = %q, want %q", contentTypeOptions, "nosniff")
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("GET /static/yomihon-mark.svg body differs from the canonical embedded bytes")
 	}
 }
 
@@ -180,6 +217,13 @@ func TestUnknownAssetsAre404(t *testing.T) {
 		// non-runtime file in the same tree can't leak onto /static/.
 		{name: "vendored LICENSE is embedded but not served", path: "/static/LICENSE"},
 		{name: "font LICENSE is embedded but not served", path: "/static/fonts/LICENSE.txt"},
+		{name: "brand directory alias", path: "/static/brand/yomihon-mark.svg"},
+		{name: "brand mark backup alias", path: "/static/yomihon-mark.svg.bak"},
+		{name: "brand mark wrong-case alias", path: "/static/Yomihon-mark.svg"},
+		{name: "static favicon alias", path: "/static/favicon.svg"},
+		{name: "root favicon alias", path: "/favicon.svg"},
+		{name: "legacy ico alias", path: "/favicon.ico"},
+		{name: "apple touch alias", path: "/apple-touch-icon.png"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

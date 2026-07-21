@@ -29,7 +29,7 @@
   experience batch (PR #27 — view transitions, the smoothness inventory, seal
   feedback, disclosure persistence, the search shell, the rail redesign), which
   also fixed the concept-sheet-over-TOC and search-layout bugs. The coordinated
-  rename to yomihon then completed and was accepted (D44, `rename-plan.md`).
+  rename to yomihon then completed and was accepted in PR #28 (D44).
 - **The two retirement gates** (evidence-based, D11; refined by D38/D40),
   stated precisely:
   - **kura gate — met; declared retired 2026-07-07 (D43)** = spec §5 acceptance

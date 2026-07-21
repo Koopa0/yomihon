@@ -34,6 +34,7 @@ templ Base(c Chrome) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ c.Title } — yomihon</title>
+			<link rel="icon" type="image/svg+xml" href="/static/yomihon-mark.svg"/>
 			<link rel="stylesheet" href="/static/app.css"/>
 			<link rel="stylesheet" href="/static/chroma.css"/>
 		</head>
@@ -61,8 +62,7 @@ templ header(c Chrome) {
 			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
 		</button>
 		<div class="y-brand">
-			<a class="y-brand__name" href="/">yomihon</a>
-			<span class="y-brand__dot" aria-hidden="true"></span>
+			<a class="y-brand__name" href="/"><img class="y-brand__mark" src="/static/yomihon-mark.svg" width="24" height="24" alt="" aria-hidden="true"/><span>yomihon</span></a>
 			<span class="y-brand__tag">書庫</span>
 		</div>
 		<div class="y-header__spacer"></div>

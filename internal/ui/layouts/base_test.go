@@ -46,6 +46,48 @@ func TestBaseLoadsOneModuleEntry(t *testing.T) {
 	}
 }
 
+func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{Title: "測試"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render base: %v", err)
+	}
+	html := buf.String()
+	const asset = "/static/yomihon-mark.svg"
+	const favicon = `<link rel="icon" type="image/svg+xml" href="` + asset + `">`
+	const headerMark = `<img class="y-brand__mark" src="` + asset + `" width="24" height="24" alt="" aria-hidden="true">`
+	if got := strings.Count(html, favicon); got != 1 {
+		t.Errorf("Base() favicon projections = %d, want one exact %q; html = %q", got, favicon, html)
+	}
+	if got := strings.Count(html, headerMark); got != 1 {
+		t.Errorf("Base() header mark projections = %d, want one exact %q; html = %q", got, headerMark, html)
+	}
+	if got := strings.Count(html, asset); got != 2 {
+		t.Errorf("Base() canonical brand references = %d, want favicon plus header only; html = %q", got, html)
+	}
+	for _, forbidden := range []string{`rel="manifest"`, `apple-touch-icon`, `.ico`, `y-brand__dot`} {
+		if strings.Contains(html, forbidden) {
+			t.Errorf("Base() contains forbidden brand projection %q; html = %q", forbidden, html)
+		}
+	}
+}
+
+func TestHeaderKeepsWordmarkAsExactAccessibleName(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := header(Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render header: %v", err)
+	}
+	html := buf.String()
+	const brandLink = `<a class="y-brand__name" href="/"><img class="y-brand__mark" src="/static/yomihon-mark.svg" width="24" height="24" alt="" aria-hidden="true"><span>yomihon</span></a>`
+	if got := strings.Count(html, brandLink); got != 1 {
+		t.Fatalf("header brand link projections = %d, want one exact accessible wordmark; html = %q", got, html)
+	}
+	if strings.Contains(html, `aria-label="yomihon"`) {
+		t.Errorf("header duplicates the visible accessible name with aria-label; html = %q", html)
+	}
+}
+
 func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
