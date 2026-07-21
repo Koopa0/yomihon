@@ -236,7 +236,9 @@ const MUTATIONS = {
   },
   'keep-wide-shortcut-label': {
     target: 'narrow-shortcut-control',
-    apply: injectStyle('@media(max-width:520px){.y-shortcutpref{gap:5px!important;padding-inline:8px!important}.y-shortcutpref__label{display:inline!important}.y-shortcutpref__label-compact{display:none!important}}'),
+    // Keep the mutation at the observed desktop control width so its overflow
+    // does not depend on platform-specific CJK fallback-font metrics.
+    apply: injectStyle('@media(max-width:520px){.y-shortcutpref{gap:5px!important;padding-inline:8px!important;min-inline-size:86px!important}.y-shortcutpref__label{display:inline!important}.y-shortcutpref__label-compact{display:none!important}}'),
   },
 };
 
