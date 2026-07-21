@@ -5,8 +5,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
+	"github.com/alecthomas/chroma/v3"
+	"github.com/alecthomas/chroma/v3/lexers"
 )
 
 // lexerAliases teach the highlighter the file kinds that carry a known syntax

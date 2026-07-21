@@ -101,7 +101,7 @@ var approvedSearchPackages = map[string]struct{}{
 var approvedSearchModules = map[string]struct{}{
 	"github.com/BurntSushi/toml":       {},
 	"github.com/a-h/templ":             {},
-	"github.com/alecthomas/chroma/v2":  {},
+	"github.com/alecthomas/chroma/v3":  {},
 	"github.com/dlclark/regexp2/v2":    {},
 	"github.com/dustin/go-humanize":    {},
 	"github.com/remyoudompheng/bigfft": {},
