@@ -128,8 +128,9 @@ Unsupported environments and behavior: A widened listener, proxy/tunnel
   target happens to compile, privileged writes still refuse, but other GOOS or
   GOARCH combinations have no compile or runtime promise.
 CGO policy: The product uses the pure-Go modernc SQLite driver and is CGO-free.
-  The nested mattn driver is retained only as a Linux CI comparison and is not a
-  product dependency.
+  The nested mattn driver is retained only as a non-product comparison; CI
+  exercises it on Linux, and owner decision runs may execute it on the named
+  local platform. It is not a product dependency.
 Race-detector platform: Linux in the main verify gate and macOS in portable-core
   and darwin-semantic-contract. Windows compiles tests and runs focused platform
   contracts without -race.
@@ -452,7 +453,7 @@ Example configuration test: make test includes cmd/yomihon configuration and
 | Snapshot change visibility over a low-thousands local vault | Supported local machine; one scanner | Edited/created/deleted content becomes visible without torn graph/nav/search state | At most 3 seconds worst case: about 2-second cadence plus rebuild margin | Canon records about 100 ms at roughly 419 notes; this is historical, not an immutable current benchmark | Bound breaks or corpus approaches about 10,000 files; measure before changing mechanism | `internal/snapshot` |
 | Lexical query | Captured in-memory index | Interactive local substring/filter search | No numeric latency percentile is canonically fixed; `UNRESOLVED` for release performance claims | `BenchmarkSearch`; no immutable profile-bound result | Any claimed improvement/regression or user-visible delay requires same-machine benchstat evidence | `internal/search` |
 | Semantic exact top-k | Complete compatible generation, 1,536 dimensions | Exact recall baseline before any approximate index | p95 about 100 ms opens the next-rung evaluation; it is an escalation threshold, not a universal CI timeout | Production generation records 40 queries × 3 runs; current source artifacts are not bound to this unapproved profile snapshot | p95 exceeds threshold, chunks reach 100,000, or raw vector payload exceeds 1 GiB | `internal/search/semantic` |
-| Semantic generation store | Darwin/Linux owner-only cache; fixed synthetic workload | Complete atomic build/reconcile/load with bounded footprint | Fewer than 100,000 chunks and at most 1 GiB raw vectors; interactive reconcile at most 128 chunks and 100,000 proxy tokens | `docs/benchmarks/semantic-storage-2026-07-20/` contains moving-worktree Darwin/arm64 evidence, not release certification | Identity/schema/corpus/driver change or capacity rung opening | `internal/search/semantic` |
+| Semantic generation store | Darwin/Linux owner-only cache; fixed synthetic workload | Complete atomic build/reconcile/load with bounded footprint | Fewer than 100,000 chunks and at most 1 GiB raw vectors; interactive reconcile at most 128 chunks and 100,000 proxy tokens | `docs/benchmarks/semantic-storage-2026-07-21/` contains commit-bound Darwin/arm64 decision evidence, not release certification | Identity/schema/corpus/driver change or capacity rung opening | `internal/search/semantic` |
 | Browser interaction/startup | Supported Chrome in CI and local loopback | Primary reading/search/status task is responsive and stable | Numeric LCP/INP/startup/memory budgets are `UNRESOLVED` | E2E behavior exists; no Core Web Vitals baseline is retained | Any performance claim or observed interaction pain requires a declared workload and budget | UI feature owner |
 
 ```text
