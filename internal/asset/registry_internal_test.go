@@ -1,11 +1,14 @@
 package asset
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/assets"
 )
 
 func TestEveryRegisteredAssetServesItsExactEntry(t *testing.T) {
@@ -59,5 +62,44 @@ func TestProductScriptRegistryIsExact(t *testing.T) {
 	slices.Sort(got)
 	if !slices.Equal(got, want) {
 		t.Errorf("registered product scripts = %q, want exact closed set %q", got, want)
+	}
+}
+
+func TestBrandMarkRegistryIsExact(t *testing.T) {
+	t.Parallel()
+
+	wantBody, err := assets.Files.ReadFile("brand/yomihon-mark.svg")
+	if err != nil {
+		t.Fatalf("read embedded brand mark: %v", err)
+	}
+	wantNames := []string{"yomihon-mark.svg"}
+	var gotSVGNames []string
+	var gotBodyNames []string
+	for name, candidate := range registry {
+		if strings.HasSuffix(name, ".svg") {
+			gotSVGNames = append(gotSVGNames, name)
+		}
+		if bytes.Equal(candidate.body(), wantBody) {
+			gotBodyNames = append(gotBodyNames, name)
+		}
+	}
+	slices.Sort(gotSVGNames)
+	slices.Sort(gotBodyNames)
+	if !slices.Equal(gotSVGNames, wantNames) {
+		t.Errorf("registered SVG assets = %q, want exact closed set %q", gotSVGNames, wantNames)
+	}
+	if !slices.Equal(gotBodyNames, wantNames) {
+		t.Errorf("registry names serving the canonical brand bytes = %q, want exact closed set %q", gotBodyNames, wantNames)
+	}
+
+	got, ok := registry["yomihon-mark.svg"]
+	if !ok {
+		t.Fatal("registry has no yomihon-mark.svg entry")
+	}
+	if got.contentType != "image/svg+xml" {
+		t.Errorf("yomihon-mark.svg content type = %q, want %q", got.contentType, "image/svg+xml")
+	}
+	if gotBody := got.body(); !bytes.Equal(gotBody, wantBody) {
+		t.Errorf("yomihon-mark.svg registry body differs from the embedded source")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/koopa0/yomihon/assets"
 	"github.com/koopa0/yomihon/internal/asset"
 )
 
@@ -83,6 +84,42 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 				t.Errorf("GET %s body length = %d, want at least %d", tt.path, len(body), tt.minBodyLen)
 			}
 		})
+	}
+}
+
+func TestBrandMarkServesCanonicalBytes(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	wantBody, err := assets.Files.ReadFile("brand/yomihon-mark.svg")
+	if err != nil {
+		t.Fatalf("read embedded brand mark: %v", err)
+	}
+	resp, err := http.Get(srv.URL + "/static/yomihon-mark.svg") //nolint:noctx // fixed, test-controlled URL
+	if err != nil {
+		t.Fatalf("GET /static/yomihon-mark.svg: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close brand mark response body: %v", closeErr)
+		}
+	}()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read brand mark response: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /static/yomihon-mark.svg status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); got != "image/svg+xml" {
+		t.Errorf("GET /static/yomihon-mark.svg Content-Type = %q, want %q", got, "image/svg+xml")
+	}
+	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("GET /static/yomihon-mark.svg X-Content-Type-Options = %q, want %q", got, "nosniff")
+	}
+	if !bytes.Equal(body, wantBody) {
+		t.Errorf("GET /static/yomihon-mark.svg body differs from the canonical embedded source")
 	}
 }
 
@@ -180,6 +217,10 @@ func TestUnknownAssetsAre404(t *testing.T) {
 		// non-runtime file in the same tree can't leak onto /static/.
 		{name: "vendored LICENSE is embedded but not served", path: "/static/LICENSE"},
 		{name: "font LICENSE is embedded but not served", path: "/static/fonts/LICENSE.txt"},
+		{name: "brand source path is not public", path: "/static/brand/yomihon-mark.svg"},
+		{name: "favicon SVG alias", path: "/favicon.svg"},
+		{name: "legacy favicon alias", path: "/favicon.ico"},
+		{name: "apple touch icon alias", path: "/apple-touch-icon.png"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

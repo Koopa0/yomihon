@@ -4,11 +4,176 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
 )
+
+func TestBrandMarkBytesAreCanonical(t *testing.T) {
+	t.Parallel()
+
+	data, err := Files.ReadFile("brand/yomihon-mark.svg")
+	if err != nil {
+		t.Fatalf("read brand mark: %v", err)
+	}
+	got := sha256.Sum256(data)
+	const want = "4580605b5d69ce8475c1c69103844ffb74b7ce95a1a35b695a6c0f620aa0b6b2"
+	if gotHash := hex.EncodeToString(got[:]); gotHash != want {
+		t.Errorf("brand mark SHA-256 = %s, want %s", gotHash, want)
+	}
+}
+
+func TestBrandMarkUsesPassiveSVGGrammar(t *testing.T) {
+	t.Parallel()
+
+	data, err := Files.ReadFile("brand/yomihon-mark.svg")
+	if err != nil {
+		t.Fatalf("read brand mark: %v", err)
+	}
+	if err := validateBrandMarkSVG(data); err != nil {
+		t.Errorf("brand mark violates the passive SVG grammar: %v", err)
+	}
+}
+
+func TestBrandMarkREADMEProjectionIsCanonical(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../README.md")
+	if err != nil {
+		t.Fatalf("read repository README: %v", err)
+	}
+	readme := string(data)
+	if firstLine, _, _ := strings.Cut(readme, "\n"); firstLine != "# yomihon" {
+		t.Errorf("README first line = %q, want exact product heading %q", firstLine, "# yomihon")
+	}
+	const projection = `<img src="assets/brand/yomihon-mark.svg" width="32" height="32" alt="" aria-hidden="true">`
+	if got := strings.Count(readme, projection); got != 1 {
+		t.Errorf("README canonical decorative mark projections = %d, want 1 exact %q", got, projection)
+	}
+}
+
+func TestBrandMarkValidatorRejectsForbiddenContent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		svg  string
+	}{
+		{name: "script", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z"/><script/></svg>`},
+		{name: "external use", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z"/><use href="https://example.com/mark.svg#shape"/></svg>`},
+		{name: "raster image", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z"/><image href="data:image/png;base64,AA=="/></svg>`},
+		{name: "gradient", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><linearGradient id="g"/><path d="M0 0Z"/></svg>`},
+		{name: "filter", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><filter id="f"/><path d="M0 0Z"/></svg>`},
+		{name: "text", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text>y</text><path d="M0 0Z"/></svg>`},
+		{name: "event handler", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z" onload="alert(1)"/></svg>`},
+		{name: "style", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z" style="fill:url(https://example.com/x)"/></svg>`},
+		{name: "generator metadata", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><metadata>generator</metadata><path d="M0 0Z"/></svg>`},
+		{name: "comment", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><!-- generator --><path d="M0 0Z"/></svg>`},
+		{name: "processing instruction", svg: `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M0 0Z"/></svg>`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if err := validateBrandMarkSVG([]byte(tt.svg)); err == nil {
+				t.Errorf("validateBrandMarkSVG() accepted forbidden %s content", tt.name)
+			}
+		})
+	}
+}
+
+func validateBrandMarkSVG(data []byte) error {
+	const namespace = "http://www.w3.org/2000/svg"
+
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	depth := 0
+	roots := 0
+	paths := 0
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("decode XML: %w", err)
+		}
+
+		switch value := token.(type) {
+		case xml.StartElement:
+			depth++
+			switch {
+			case depth == 1 && value.Name.Space == namespace && value.Name.Local == "svg":
+				roots++
+				if roots != 1 {
+					return fmt.Errorf("root count = %d, want 1", roots)
+				}
+				if err := validateBrandSVGRootAttributes(value.Attr); err != nil {
+					return err
+				}
+			case depth == 2 && value.Name.Space == namespace && value.Name.Local == "path":
+				paths++
+				if paths != 1 {
+					return fmt.Errorf("path count = %d, want 1", paths)
+				}
+				if len(value.Attr) != 1 || value.Attr[0].Name.Space != "" || value.Attr[0].Name.Local != "d" || strings.TrimSpace(value.Attr[0].Value) == "" {
+					return fmt.Errorf("path attributes = %v, want one non-empty d attribute", value.Attr)
+				}
+			default:
+				return fmt.Errorf("element at depth %d = {%s}%s, want svg > path only", depth, value.Name.Space, value.Name.Local)
+			}
+		case xml.EndElement:
+			depth--
+			if depth < 0 {
+				return fmt.Errorf("unexpected closing element {%s}%s", value.Name.Space, value.Name.Local)
+			}
+		case xml.CharData:
+			if strings.TrimSpace(string(value)) != "" {
+				return errors.New("non-whitespace character data is forbidden")
+			}
+		case xml.Comment:
+			return errors.New("comments are forbidden")
+		case xml.Directive:
+			return errors.New("directives are forbidden")
+		case xml.ProcInst:
+			return errors.New("processing instructions are forbidden")
+		default:
+			return fmt.Errorf("unsupported XML token %T", token)
+		}
+	}
+	if depth != 0 {
+		return fmt.Errorf("final XML depth = %d, want 0", depth)
+	}
+	if roots != 1 || paths != 1 {
+		return fmt.Errorf("svg/path count = %d/%d, want 1/1", roots, paths)
+	}
+	return nil
+}
+
+func validateBrandSVGRootAttributes(attrs []xml.Attr) error {
+	if len(attrs) != 2 {
+		return fmt.Errorf("svg attribute count = %d, want xmlns and viewBox", len(attrs))
+	}
+	seenNamespace := false
+	seenViewBox := false
+	for _, attr := range attrs {
+		switch {
+		case attr.Name.Space == "" && attr.Name.Local == "xmlns" && attr.Value == "http://www.w3.org/2000/svg":
+			seenNamespace = true
+		case attr.Name.Space == "" && attr.Name.Local == "viewBox" && attr.Value == "0 0 32 32":
+			seenViewBox = true
+		default:
+			return fmt.Errorf("svg attribute {%s}%s=%q is forbidden", attr.Name.Space, attr.Name.Local, attr.Value)
+		}
+	}
+	if !seenNamespace || !seenViewBox {
+		return errors.New("svg attributes missing exact xmlns or viewBox")
+	}
+	return nil
+}
 
 // TestCSSCarriesTheMotionGuarantees locks, as stylesheet text, two
 // guarantees only the stylesheet carries; until a screenshot pipeline can

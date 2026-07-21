@@ -2,6 +2,7 @@ package layouts
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -43,6 +44,44 @@ func TestBaseLoadsOneModuleEntry(t *testing.T) {
 	}
 	if got := strings.Count(html, `<script`); got != 1 {
 		t.Errorf("Base() script elements = %d, want only the module entry; html = %q", got, html)
+	}
+}
+
+func TestBaseUsesOneCanonicalSVGFavicon(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{Title: "測試"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render base: %v", err)
+	}
+	html := buf.String()
+	const favicon = `<link rel="icon" type="image/svg+xml" href="/static/yomihon-mark.svg">`
+	iconLink := regexp.MustCompile(`<link\b[^>]*\brel="[^"]*\bicon\b[^"]*"[^>]*>`)
+	if got := len(iconLink.FindAllString(html, -1)); got != 1 {
+		t.Errorf("Base() favicon declarations = %d, want 1; html = %q", got, html)
+	}
+	if !strings.Contains(html, favicon) {
+		t.Errorf("Base() is missing canonical favicon %q; html = %q", favicon, html)
+	}
+	for _, forbidden := range []string{"manifest", "apple-touch-icon", "favicon.ico"} {
+		if strings.Contains(html, forbidden) {
+			t.Errorf("Base() contains out-of-scope head reference %q; html = %q", forbidden, html)
+		}
+	}
+}
+
+func TestHeaderBrandKeepsVisibleAccessibleNameAndDecorativeMark(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := header(Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render header: %v", err)
+	}
+	html := buf.String()
+	const brandLink = `<a class="y-brand__name" href="/"><span class="y-brand__mark" aria-hidden="true"></span><span>yomihon</span></a>`
+	if got := strings.Count(html, brandLink); got != 1 {
+		t.Errorf("header canonical brand links = %d, want 1 exact %q; html = %q", got, brandLink, html)
+	}
+	if strings.Contains(html, "y-brand__dot") {
+		t.Errorf("header retains the obsolete accent dot; html = %q", html)
 	}
 }
 

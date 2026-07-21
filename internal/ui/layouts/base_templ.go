@@ -111,7 +111,7 @@ func Base(c Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " — yomihon</title><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"></head><body><a class=\"y-skiplink\" href=\"#main-content\">跳至主要內容</a><div class=\"yomihon\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " — yomihon</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/yomihon-mark.svg\"><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"></head><body><a class=\"y-skiplink\" href=\"#main-content\">跳至主要內容</a><div class=\"yomihon\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -134,7 +134,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Nonce)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 47, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 48, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -175,7 +175,7 @@ func header(c Chrome) templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<header class=\"y-header\"><button class=\"y-iconbtn y-hamburger\" type=\"button\" data-nav-toggle aria-label=\"切換導覽\" aria-expanded=\"false\" aria-controls=\"nav-rail\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"y-brand\"><a class=\"y-brand__name\" href=\"/\">yomihon</a> <span class=\"y-brand__dot\" aria-hidden=\"true\"></span> <span class=\"y-brand__tag\">書庫</span></div><div class=\"y-header__spacer\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<header class=\"y-header\"><button class=\"y-iconbtn y-hamburger\" type=\"button\" data-nav-toggle aria-label=\"切換導覽\" aria-expanded=\"false\" aria-controls=\"nav-rail\"><svg aria-hidden=\"true\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"></path></svg></button><div class=\"y-brand\"><a class=\"y-brand__name\" href=\"/\"><span class=\"y-brand__mark\" aria-hidden=\"true\"></span><span>yomihon</span></a> <span class=\"y-brand__tag\">書庫</span></div><div class=\"y-header__spacer\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

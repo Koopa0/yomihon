@@ -1,8 +1,10 @@
-# Brand brief
+# Brand identity
 
-Status: **identity brief, not a selected mark**. This document defines what a
-future logo and favicon must communicate and how they are judged. It does not
-authorize an arbitrary icon to fill an empty asset slot.
+Status: **selected canon**. Koopa selected Concept A, the converging-path `y`
+direction, on 2026-07-21. The repository source at
+[`assets/brand/yomihon-mark.svg`](../assets/brand/yomihon-mark.svg) is the only
+official mark geometry. This document owns its meaning, construction,
+provenance, and permitted projections; the SVG owns its exact vector bytes.
 
 ## Product truth
 
@@ -38,29 +40,42 @@ makes sense, competes with the seal action, looks detached from the shipped UI,
 or cannot be reproduced as simple deterministic vector geometry. Image
 generation is not a source for the logo or favicon.
 
-## Direction to explore first
+## Selected system
 
-Start with a wordmark-first system: a deliberately drawn lowercase `yomihon`
-wordmark that grows from the proportions and restraint of the existing header
-rather than attaching a foreign symbol to it. One identifiable construction
-detail may be reduced into the favicon, but the favicon must remain part of the
-same system rather than an unrelated glyph.
+The system remains wordmark-first in use: the visible lowercase `yomihon` name
+is always the identity and accessible name in the application header. The mark
+is a restrained lowercase-`y` construction. Two upright upper strokes turn
+inward, converge through one angular reading path, and continue as one vertical
+descender. Its single filled silhouette and open upper field keep it legible at
+favicon scale without borrowing the ceremonial vermilion used by `ready` and
+the seal.
 
-Two secondary territories may be compared, not presumed correct:
+In product chrome and documentation where text can be presented, the mark must
+be shown beside the name; it is not a replacement for the product name. The
+favicon is the deliberate small-format exception. Do not embellish the mark
+into a funnel, martini glass, location pin, generic letter tile, book, page, or
+seal. The rejected margin-and-ruling exploration is not an alternate logo.
 
-1. A restrained `y` whose upper strokes converge into one reading path.
-2. A margin-and-ruling construction with at most two major shapes and one
-   negative-space relationship.
+## Construction and projections
 
-Reject the `y` if it reads as a funnel, martini glass, location pin, or generic
-letter tile. Reject the margin direction if it reads as a menu, list, document,
-or code editor.
+The mark is a deterministic, hand-authored SVG with `viewBox="0 0 32 32"` and
+one filled `<path>`. Its canonical SHA-256 is
+`4580605b5d69ce8475c1c69103844ffb74b7ce95a1a35b695a6c0f620aa0b6b2`.
+It contains no text, font, raster image, filter, gradient, script, external
+reference, generator metadata, embedded style, or event handler. It was drawn
+directly for this repository; no image generator, third-party artwork, or font
+outline is its source.
 
-## Construction contract
+Every shipped projection uses those exact source bytes or that exact source as
+a CSS mask:
 
-The selected asset is a reviewable, hand-authored SVG with a fixed `viewBox`
-and filled geometry. It contains no `<text>`, embedded font, raster image,
-filter, gradient, script, external reference, or generator metadata.
+- `/static/yomihon-mark.svg` is the sole served URL and the sole SVG favicon;
+- the header uses that URL as a `currentColor` CSS mask beside the live text;
+- this repository's README embeds the source file decoratively.
+
+There is no ICO, Apple touch icon, web app manifest, install flow, PWA claim,
+or independent wordmark asset. New identity projections require an explicit
+canon update; they must not fork or trace the geometry.
 
 The same geometry is checked at 16, 24, 32, and 180 CSS pixels. Critical stems
 and gaps must survive the 16-pixel rendering; detail visible only when enlarged
@@ -73,13 +88,14 @@ does not count. The required proofs are:
 - the real 56-pixel application header in both themes beside the live status
   and seal surfaces.
 
-The visible `yomihon` link remains the accessible name. A neighboring mark is
-normally decorative and `aria-hidden`. Implementation tests must pin local
-serving, the SVG MIME type, the document-head reference, absence of external
-requests, and deterministic asset bytes. A favicon does not imply a manifest,
-install flow, or PWA.
+The visible `yomihon` link remains the exact accessible name. Its neighboring
+mark is decorative and `aria-hidden`. The mask takes its color from
+`currentColor` in light and dark themes and uses a system-color fallback in
+forced-colors mode. Implementation tests pin the deterministic bytes, passive
+SVG grammar, closed local route, `image/svg+xml` MIME type, `nosniff` response,
+single document-head reference, accessible header name, and mask projection.
 
-## Selection evidence
+## Selection and release evidence
 
 Hard rejection gates come first: monochrome failure, 16-pixel failure, trope
 similarity, conflict with the seal, unexplained geometry, or incompatibility
@@ -93,15 +109,18 @@ with the real interface. Surviving directions are compared with these weights:
 | Distinctiveness without novelty theatre | 15 |
 | Licensing, accessibility, and production hygiene | 10 |
 
-Before `v0.1.0`, human review must include a five-second product-impression
-test, recognition among ordinary browser tabs, delayed recall of the name and
+The selected direction records owner selection. Repository checks cover its
+construction and projections; they do not close the human visual gates. Before
+`v0.1.0`, human review must still include a five-second product-impression test,
+recognition among ordinary browser tabs, delayed recall of the name and
 distinguishing feature, comparison in both real application themes, and a
 basic similarity and trademark-conflict screen. Agent sessions may verify
 assets, references, accessibility, and documentation, but do not substitute
 for human visual judgment.
 
-The current self-hosted typefaces are optical references, not runtime logo
-dependencies. Final wordmark paths need documented provenance. Before public
-release, Koopa also decides whether the mark follows the repository's MIT
-license or has a separate, plainly stated trademark policy; no restriction is
-implied before that decision.
+The current self-hosted typefaces remain runtime presentation for the live
+text, not a dependency of the SVG. Before public release, Koopa also decides
+whether the mark follows the repository's MIT license or has a separate,
+plainly stated trademark policy; no restriction is implied before that
+decision. Until the remaining human checks and that owner decision are
+recorded, this selected identity is not by itself release-readiness evidence.
