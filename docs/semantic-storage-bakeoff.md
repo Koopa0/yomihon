@@ -3,8 +3,9 @@
 This report measures the implemented immutable generation store and the two
 SQLite drivers that were seriously considered. This run refreshes the
 2026-07-20 evidence after the root and nested modules moved from
-`modernc.org/sqlite` v1.53.0 to v1.54.0; the earlier raw files remain
-historical but no longer certify the current dependency graph. It also
+`modernc.org/sqlite` v1.53.0 to v1.54.0; the earlier raw files, now
+superseded, are retained only in Git history and no longer certify the
+current dependency graph. It also
 supersedes the 2026-07-13 mutable-row
 JSONL/CAS/packed/SQLite bake-off. Those old timing and footprint numbers
 describe a storage shape that no longer exists and are not evidence for the
