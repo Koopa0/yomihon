@@ -133,3 +133,75 @@ a sovereign's reading room. Decisions that follow from it:
    clever.
 6. Pain reorders the roadmap; taste belongs to the owner; quality is not
    negotiable (standards.md).
+
+## 7. The four walls (the boundaries that do not move)
+
+Everything above is the wide interior yomihon is free to shape. These
+four boundaries are the parts it may not adjust, route around, or
+"improve": each stands at an irreversible edge, so widening one is a
+ruling for the owner, never a session's call. They are stated here in
+product terms; the detailed contracts they compress live in the
+functional spec, the vault model, the threat model, and the vault
+contract (`vault-schema.toml`), and the rulings that shaped them are in
+the decision log.
+
+**Wall 1 — the write face is a single field.** The only thing yomihon
+writes into the vault is one frontmatter field, `status`. A transition is
+legal only when the vault contract's state machine accepts it — the
+move's `from` state and the acting owner both check out — and each
+accepted transition becomes exactly one Git commit authored under Koopa's
+own identity. Writing any other field, or widening what the write face
+can touch, is not a feature but a constitutional amendment: shaped in §4,
+ruled only by Koopa.
+
+**Wall 2 — the process serves only the local machine.** The listener is
+fixed to loopback (`127.0.0.1`); only the port is configurable, and
+yomihon never serves or exposes the vault or any data derived from it
+beyond the machine. Exactly three outbound exceptions are authorized, and
+nothing else leaves without a new ruling. The three share only this:
+each is triggered by an explicit action, each may reach only the fixed
+Gemini provider API surfaces authorized for that exception, and each
+validates its own approved input class at that final boundary — the
+guarantees below belong to each exception, not a common filter run over
+all three:
+
+- **Document embeddings (D32).** When the vault contract's privacy policy
+  permits it, eligible instance note content is sent to the provider's
+  fixed `embedContent` endpoint to compute search vectors, which are then
+  stored locally. Contract-declared private paths (`[privacy]` never-egress
+  directories, D18) and non-instance artifacts (D47) are excluded from this
+  payload, and the note's privacy allowance, its contract-source freshness,
+  and the exact submitted bytes are revalidated immediately before the send.
+  Semantic search is optional and bring-your-own-key — yomihon bundles no
+  credential and runs no shared proxy.
+- **Semantic query text (D50.1).** An explicit, applicable semantic search
+  action sends its query text to that same fixed `embedContent` endpoint,
+  at most once per action, and only after a current, compatible generation
+  and its corpus are admitted. The raw query is owner-typed text, not vault
+  content, so the D18/D47 path exclusions do not describe it; its
+  protection is that it never enters yomihon's logs, caches, errors,
+  metrics, or traces. Ordinary reading and lexical search send nothing.
+- **Developer certification (D57).** An opt-in, test-only certification
+  action reaches only two fixed Gemini endpoints, never a
+  caller-configurable destination: its synthetic embedding inputs go to
+  that same fixed `embedContent` endpoint, and its synthetic protocol probe
+  may additionally call the fixed `countTokens` endpoint. It sends only
+  repo-owned synthetic fixtures — the hard-coded protocol probes are fixed
+  synthetic text, and the committed evaluation corpus paths and queries each
+  carry the repository's synthetic marker. No argument or environment value
+  can supply arbitrary text, a vault root, a vault path, or vault bytes, and
+  it reads no live-vault D18/D47 authority because it never touches vault
+  content.
+
+**Wall 3 — the schema is understood from one source.** The single source
+of schema truth is the vault contract, `vault-schema.toml`; one package
+reads it, and no enum or state machine is ever copied a second time
+anywhere. Semantic and AI capabilities may rank, summarize, and suggest,
+but they never own schema truth, membership, privacy, mode existence,
+content hiding, status, or a write.
+
+**Wall 4 — the reader reports, it never repairs.** The renderer reads
+fault-tolerantly and surfaces what is wrong — malformed YAML, broken
+links, colliding names — as diagnostics; the judge reports and does not
+edit. Correcting a note is a human act performed in the authoring tool,
+never a silent fix by yomihon.

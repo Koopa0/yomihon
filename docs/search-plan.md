@@ -26,7 +26,7 @@
 > (D24/D25). Part II is deliberately separate: explicit CLI actions use one
 > local SQLite generation store plus a per-process immutable RAM vector index;
 > `serve` and the ~2s Snapshot scanner never touch it. The four walls
-> (`CLAUDE.md`) and the dependency boundary (`spec.md` §0.1) govern everything
+> (`product.md`) and the dependency boundary (`spec.md` §0.1) govern everything
 > below.
 
 ## 1. Shape, in one line
@@ -281,7 +281,7 @@ empty-results message; source comments and wire contracts remain English.
 
 Removed so a future session cannot reinstate PG from stale config: `sqlc.yaml`,
 the Makefile `sqlc` target, the empty `migrations/`, `YOMIHON_DB` (D12), and the
-PG lines in `CLAUDE.md` Facts / `design.md` §2 stack. The go-spec harness rules
+PG lines in the repository facts summary / `design.md` §2 stack. The go-spec harness rules
 under `.claude/rules/` still describe pgx/sqlc generically (they are shared
 reference, not a yomihon claim). Database posture has since moved on: adoption
 is a per-feature engineering call (D31), with escalation ladders in
@@ -315,10 +315,14 @@ be mixed into ordinary search (D50 amendment, 2026-07-13).
   split are frozen as shipped; hybrid adds a channel, never a syntax. The
   `source_kind` filter moved to the H face (D50.4) — this plan touches no
   grammar.
-- The four walls. Exactly two egress authorizations exist, precisely
-  bounded: **instance, non-private note content** to the embedding API
-  (D32's bounded reading of wall 2), and **the query text of an explicitly
-  requested semantic search** (D50.1). Any widening is a new decision.
+- The four walls. The production hybrid action has exactly two egress
+  classes, precisely bounded: **instance, non-private note content** to the
+  embedding API (D32's bounded reading of wall 2), and **the query text of
+  an explicitly requested semantic search** (D50.1). Wall 2's third
+  outbound exception — the fixed, repo-owned synthetic certification probes
+  and eval fixtures (D57) — is test-only and belongs to neither hybrid
+  corpus, so the product search path never sends it. Any widening beyond
+  these is a new decision.
 - **The corpora, named.** The *embedding corpus* is instance markdown minus
   private sources — never templates, never anything under a privacy-declared
   directory. The *agent corpus* — what the CLI may output or allow to

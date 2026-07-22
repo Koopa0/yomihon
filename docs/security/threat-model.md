@@ -7,7 +7,7 @@ listener hard-coded to `127.0.0.1`. Exposing that listener through a proxy,
 tunnel, container port, or non-loopback bind is unsupported; see
 [`SECURITY.md`](../../SECURITY.md).
 
-The four product walls in [`CLAUDE.md`](../../CLAUDE.md) remain authoritative:
+The four product walls in [`product.md`](../product.md) remain authoritative:
 yomihon writes only the `status` field, serves only on loopback, derives schema
 and privacy authority from the vault contract, and reports rather than repairs
 bad notes. D18, D32, D47, D50, D57, D58, D59, and D60 in

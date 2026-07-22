@@ -426,13 +426,16 @@ each face at two widths, compare against a committed baseline.
 
 ## 6. Standing rules that survive this roadmap
 
-- The four walls (CLAUDE.md) stand; wall 2's text carries both authorized
-  egress exceptions explicitly — instance, non-private note content to the
-  embedding API (D32, never `Diary/`, D18, never non-instance artifacts,
-  D47), and the query text of an explicitly requested semantic search
-  (D50.1, at most once per explicit action, never logged or stored) — so
-  the wall text and its authoritative reading are the same text (synced
-  2026-07-13). Any future widening of egress is a new ruling.
+- The four walls (product.md) stand; wall 2's text carries its three
+  authorized egress exceptions explicitly — instance, non-private note
+  content to the embedding API (D32, never any contract-declared private
+  path (D18), never non-instance artifacts (D47)), the query text of an
+  explicitly requested semantic search (D50.1, at most once per explicit
+  action, never logged or stored), and the fixed synthetic certification
+  probes and eval fixtures of an explicit developer certification action
+  (D57, test-only, never arbitrary input or vault bytes) — so the wall text
+  and its authoritative reading are the same text. Any widening beyond these
+  three is a new ruling.
 - Every new capability gets both surfaces where it makes sense (§2). Hybrid
   retrieval is deliberately agent-only; the ordinary UI is not a degraded
   copy of it but a separately frozen lexical surface.

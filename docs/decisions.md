@@ -8,7 +8,7 @@ Naming took three steps: fuzukue (文机, discarded) → reuse yomihon (folder p
 
 kurodo (蔵人, _kurōdo_): the Kurōdo-dokoro was the emperor's secretariat — it kept the document store, read documents for the sovereign, relayed rulings, and controlled what came and went. The authority to rule rested with the sovereign, the execution with the kurodo — exactly the shape of "only Koopa can press ready." Literally "the person of the store" (蔵の人), it continues the kura (蔵, "store") lineage directly. Binary `kurodo`, module `github.com/koopa0/kurodo`. yomihon keeps its name, frozen in service until its retirement gate — no module name collision, no v1/v2 disambiguation.
 
-## D02 The four walls (see CLAUDE.md; the rationale is recorded here)
+## D02 The four walls (stated in `product.md`; the rationale is recorded here)
 
 The dangerous axis is never "how widely it reads," but "how deeply it writes" and "how open it is to the outside." So the walls stand at: the write face (single status field + state machine + git commit), the network face (loopback hard-wired), the contract face (toml as the single source), and the honesty face (the renderer never edits notes). Inside the walls the feature space is wide open.
 
@@ -18,7 +18,7 @@ The original narrow v0 (render only Writing/Concepts, no search) was rejected by
 
 ## D04 Don't import yomihon packages; transfer correctness via fixtures
 
-Koopa's architectural decision: implement everything fresh, using the existing components as reference. What really needs preventing is not rewriting but the **silent drift of two implementations with the same semantics** — so the transfer medium changes from code to tests: yomihon's `testdata/lesson.md` assertion patterns, the m1-review screenshots, and kura's conformance snapshots are brought over as acceptance specs. The definition of correctness may not be reinvented. The three reference implementations and their respective roles are in the CLAUDE.md table.
+Koopa's architectural decision: implement everything fresh, using the existing components as reference. What really needs preventing is not rewriting but the **silent drift of two implementations with the same semantics** — so the transfer medium changes from code to tests: yomihon's `testdata/lesson.md` assertion patterns, the m1-review screenshots, and kura's conformance snapshots are brought over as acceptance specs. The definition of correctness may not be reinvented. The three reference implementations and their respective roles are listed in `vault-model.md` Layer 4.
 
 ## D05 — removed (2026-07-05)
 
@@ -38,7 +38,7 @@ vault-schema.toml already contains `[[lifecycle]]` (from + owner) and the slug p
 
 ## D09 harness: from thin to full (updated 2026-07-02)
 
-The original plan was a thin harness (a one-page CLAUDE.md + pointer). Koopa reversed it: kurodo syncs the full go-spec Claude Code configuration (bootstrap: rules / agents / hooks / skills / tests / verify-spec) — it is already a production-grade repo, the successor to two tools and a reader used daily. Drop the pieces that don't apply (genkit, nats, auth, docker, otel, ristretto, api-design; keep 8 agents). AGENTS.md stays a pointer; don't build .codex/.agents mirrors (kura's mirror carrying bad strings is the cautionary precedent). `.golangci.yml` and `.lsp.json` sync from go-spec (only the module path changes; `sqlc.yaml` was synced too but later removed with PostgreSQL — D24). goilerplate serves only as a source of UI blocks — its boilerplate is service/repository layering, contrary to go-spec doctrine, so the structure is not taken.
+The original plan was a thin harness (a one-page contributor guide plus a pointer). Koopa reversed it: kurodo syncs the full go-spec Claude Code configuration (bootstrap: rules / agents / hooks / skills / tests / verify-spec) — it is already a production-grade repo, the successor to two tools and a reader used daily. Drop the pieces that don't apply (genkit, nats, auth, docker, otel, ristretto, api-design; keep 8 agents). The agent entry point stays a pointer; don't build .codex/.agents mirrors (kura's mirror carrying bad strings is the cautionary precedent). `.golangci.yml` and `.lsp.json` sync from go-spec (only the module path changes; `sqlc.yaml` was synced too but later removed with PostgreSQL — D24). goilerplate serves only as a source of UI blocks — its boilerplate is service/repository layering, contrary to go-spec doctrine, so the structure is not taken.
 
 ## D10 v0 shipping bar
 
