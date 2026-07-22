@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/alecthomas/chroma/v2 v2.27.0
+	github.com/alecthomas/chroma/v3 v3.0.0-alpha.5
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.40.0
 	golang.org/x/tools v0.48.0
