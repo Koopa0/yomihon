@@ -1,7 +1,7 @@
 # yomihon Design
 
 > One-line positioning: a local reading and adjudication interface for private knowledge, the shared successor to yomihon-dev and kura. Local, single-user, never served outside.
-> Boundary model: **a large yard with irreversible walls** — the feature space is wide open; walls stand only at irreversible boundaries (the four walls are in `CLAUDE.md`). The functional spec and acceptance criteria live in `spec.md`; this document covers architecture. Except for the walls and the retirement gates, everything else is a "proposal" — the building session has latitude to adjust.
+> Boundary model: **a large yard with irreversible walls** — the feature space is wide open; walls stand only at irreversible boundaries (the four walls are in `product.md`). The functional spec and acceptance criteria live in `spec.md`; this document covers architecture. Except for the walls and the retirement gates, everything else is a "proposal" — the building session has latitude to adjust.
 
 ## 1. System context
 

@@ -90,7 +90,7 @@ loopback-only.
 | public-api | APPLIES | Frozen agent CLI, JSON/JSONL bytes, field order, reason strings, and exit codes are public compatibility contracts. HTTP is a supported local UI surface, not a remote API. |
 | durable-storage | APPLIES | Vault status plus git are authoritative writes; the semantic SQLite store is durable but disposable derived data. |
 | network-ingress | APPLIES | The HTTP server accepts local browser/curl input on hard-coded `127.0.0.1`; remote ingress is unsupported. |
-| network-egress | APPLIES | Only eligible document chunks, one explicit semantic query submission, and fixed synthetic certification inputs may reach the fixed embedding endpoint. |
+| network-egress | APPLIES | Only eligible document chunks, one explicit semantic query submission, and fixed synthetic certification inputs may reach the fixed Gemini provider: the `embedContent` endpoint for the chunks, the query, and the synthetic embedding, and the `countTokens` endpoint for the certification protocol probe alone. |
 | credentials | APPLIES | `YOMIHON_EMBED_KEY` is read lazily for an explicit provider action and must not enter storage, output, logs, errors, fixtures, or source. |
 | personal-data | APPLIES | The vault, query text, semantic vectors, paths, and derived judgments can reveal personal knowledge. |
 | irreversible-actions | APPLIES | Status writes are git-recoverable, but provider disclosure and quota/billing cannot be recalled. External publication is not implemented. |
@@ -353,8 +353,11 @@ Authorization model: Browser cross-site status requests are rejected;
 Credential source and rotation: YOMIHON_EMBED_KEY from the operator environment,
   read only for an explicit provider action. Rotation/revocation happens in the
   operator's provider account; yomihon stores no copy and provides no key UI.
-Approved egress destinations: The fixed Gemini embedding REST endpoint owned by
-  internal/search/semantic, and only for the three D32/D50.1/D57 input classes.
+Approved egress destinations: Two fixed Gemini REST endpoints owned by
+  internal/search/semantic, and only for the D32/D50.1/D57 input classes: the
+  `embedContent` endpoint for D32 chunks, the D50.1 query, and the D57 synthetic
+  embedding corpus and queries; and the `countTokens` endpoint for the D57
+  synthetic protocol probe alone.
   No generic destination, proxy, analytics, update check, crash reporter, or CDN
   is approved.
 Redirect / proxy / DNS policy: Provider redirects are refused; environment
