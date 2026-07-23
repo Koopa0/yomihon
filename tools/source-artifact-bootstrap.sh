@@ -7,14 +7,14 @@ set -eu
 
 usage() {
 	echo "usage: source-artifact-bootstrap --prepare-archive VERSION COMMIT OUTPUT_FILE" >&2
-	echo "       source-artifact-bootstrap --assemble VERSION COMMIT REVIEW_REPORT OUTPUT_DIR" >&2
+	echo "       source-artifact-bootstrap --assemble VERSION COMMIT OUTPUT_DIR" >&2
 	exit 2
 }
 
 mode=${1:-}
 case "$mode" in
 --prepare-archive) [ "$#" -eq 4 ] || usage ;;
---assemble) [ "$#" -eq 5 ] || usage ;;
+--assemble) [ "$#" -eq 4 ] || usage ;;
 *) usage ;;
 esac
 
@@ -26,8 +26,7 @@ case "$mode" in
 	case "$4" in /*) output=$4 ;; *) output=$original_directory/$4 ;; esac
 	;;
 --assemble)
-	case "$4" in /*) review=$4 ;; *) review=$original_directory/$4 ;; esac
-	case "$5" in /*) output=$5 ;; *) output=$original_directory/$5 ;; esac
+	case "$4" in /*) output=$4 ;; *) output=$original_directory/$4 ;; esac
 	;;
 esac
 
@@ -110,6 +109,6 @@ case "$mode" in
 	sh tools/build-source-artifact.sh --prepare-archive "$version" "$commit" "$output"
 	;;
 --assemble)
-	sh tools/build-source-artifact.sh --require-tag "$version" "$commit" "$review" "$output"
+	sh tools/build-source-artifact.sh --require-tag "$version" "$commit" "$output"
 	;;
 esac

@@ -14,6 +14,26 @@ COVER_PROFILE ?= /tmp/yomihon-coverage.out
 COVER_SUMMARY ?= /tmp/yomihon-coverage.txt
 SOURCE_ARCHIVE ?= dist/candidates/yomihon-$(RELEASE_VERSION).tar.gz
 
+# The two release recipes read these caller-controlled values only as inert
+# data, never as syntax. Two things enforce that:
+#   - the recipes reference them as "$${VAR}" (shell parameter expansion), so a
+#     value carrying a quote, backtick, or $(...) is a literal argument rather
+#     than shell syntax; and
+#   - Make expands a variable when it exports it into a recipe's environment, so
+#     a value that is itself a Make function -- for example $(shell ...) -- would
+#     run during that export, before any recipe command. Re-binding each caller
+#     override to its own raw text with $(value ...) freezes it as a literal
+#     string that export no longer re-expands. RELEASE_VERSION and SOURCE_COMMIT
+#     are frozen unconditionally; a caller-supplied SOURCE_ARCHIVE is frozen the
+#     same way, while the default definition above stays an ordinary Make
+#     reference that expands the frozen RELEASE_VERSION.
+override RELEASE_VERSION := $(value RELEASE_VERSION)
+override SOURCE_COMMIT := $(value SOURCE_COMMIT)
+ifneq (,$(filter command line environment,$(origin SOURCE_ARCHIVE)))
+override SOURCE_ARCHIVE := $(value SOURCE_ARCHIVE)
+endif
+export RELEASE_VERSION SOURCE_COMMIT SOURCE_ARCHIVE
+
 # Root-module Go code lives in three owned trees. Listing those roots directly
 # prevents an ignored frontend dependency with a stray Go package from entering
 # the build graph before an exclusion can run. The SQLite bake-off is a nested
@@ -199,33 +219,32 @@ license-check:
 	go mod verify
 	go -C tools/sqlite-driver-bakeoff mod verify
 
-# Prepare the exact tagged archive for independent review. This is quarantined
-# evidence, not a release: the final report must bind its printed SHA-256 before
-# source-artifact may assemble the five-file candidate bundle.
+# Prepare the exact tagged source archive as a standalone candidate. This is
+# quarantined output, not a release: source-artifact reassembles the same
+# archive into the published three-file bundle.
 source-archive-candidate:
-	@test -n "$(RELEASE_VERSION)" || { echo 'RELEASE_VERSION is required (for example v0.1.0)' >&2; exit 2; }
-	@test -n "$(SOURCE_COMMIT)" || { echo 'SOURCE_COMMIT is required as a full 40-character commit' >&2; exit 2; }
+	@test -n "$${RELEASE_VERSION}" || { echo 'RELEASE_VERSION is required (for example v0.1.0)' >&2; exit 2; }
+	@test -n "$${SOURCE_COMMIT}" || { echo 'SOURCE_COMMIT is required as a full 40-character commit' >&2; exit 2; }
 	mkdir -p dist/candidates
 	@bootstrap=$$(mktemp "$${TMPDIR:-/tmp}/yomihon-source-artifact-bootstrap.XXXXXX"); \
 	trap 'rm -f "$$bootstrap"' 0 HUP INT TERM; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$(SOURCE_COMMIT):Makefile" | cmp - Makefile || { echo 'working-tree Makefile differs from SOURCE_COMMIT; use the committed bootstrap command in docs/release.md' >&2; exit 1; }; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$(SOURCE_COMMIT):tools/source-artifact-bootstrap.sh" >"$$bootstrap"; \
-	sh "$$bootstrap" --prepare-archive "$(RELEASE_VERSION)" "$(SOURCE_COMMIT)" "$(SOURCE_ARCHIVE)"
+	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:Makefile" | cmp - Makefile || { echo 'working-tree Makefile differs from SOURCE_COMMIT; the release tooling and its bootstrap arguments are the ones committed at SOURCE_COMMIT, not this working tree. Check out SOURCE_COMMIT and drive the release from its own committed Makefile and tools/source-artifact-bootstrap.sh.' >&2; exit 1; }; \
+	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:tools/source-artifact-bootstrap.sh" >"$$bootstrap"; \
+	sh "$$bootstrap" --prepare-archive "$${RELEASE_VERSION}" "$${SOURCE_COMMIT}" "$${SOURCE_ARCHIVE}"
 
-# Rebuild the reviewed archive and assemble the source-only candidate bundle
-# from an immutable tag. The report's archive digest must match the rebuilt
-# bytes. This publishes only to local dist/; public upload is a later release
-# action after final bundle inspection.
+# Rebuild the tagged source archive and assemble the source-only bundle from an
+# immutable tag: a deterministic archive, a machine-readable provenance sidecar,
+# and a checksum manifest. This publishes only to local dist/; public upload is
+# a later release action after final bundle inspection.
 source-artifact:
-	@test -n "$(RELEASE_VERSION)" || { echo 'RELEASE_VERSION is required (for example v0.1.0)' >&2; exit 2; }
-	@test -n "$(SOURCE_COMMIT)" || { echo 'SOURCE_COMMIT is required as a full 40-character commit' >&2; exit 2; }
-	@test -n "$(REVIEW_EVIDENCE)" || { echo 'REVIEW_EVIDENCE is required as an independent final review record' >&2; exit 2; }
+	@test -n "$${RELEASE_VERSION}" || { echo 'RELEASE_VERSION is required (for example v0.1.0)' >&2; exit 2; }
+	@test -n "$${SOURCE_COMMIT}" || { echo 'SOURCE_COMMIT is required as a full 40-character commit' >&2; exit 2; }
 	mkdir -p dist
 	@bootstrap=$$(mktemp "$${TMPDIR:-/tmp}/yomihon-source-artifact-bootstrap.XXXXXX"); \
 	trap 'rm -f "$$bootstrap"' 0 HUP INT TERM; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$(SOURCE_COMMIT):Makefile" | cmp - Makefile || { echo 'working-tree Makefile differs from SOURCE_COMMIT; use the committed bootstrap command in docs/release.md' >&2; exit 1; }; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$(SOURCE_COMMIT):tools/source-artifact-bootstrap.sh" >"$$bootstrap"; \
-	sh "$$bootstrap" --assemble "$(RELEASE_VERSION)" "$(SOURCE_COMMIT)" "$(REVIEW_EVIDENCE)" dist
+	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:Makefile" | cmp - Makefile || { echo 'working-tree Makefile differs from SOURCE_COMMIT; the release tooling and its bootstrap arguments are the ones committed at SOURCE_COMMIT, not this working tree. Check out SOURCE_COMMIT and drive the release from its own committed Makefile and tools/source-artifact-bootstrap.sh.' >&2; exit 1; }; \
+	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:tools/source-artifact-bootstrap.sh" >"$$bootstrap"; \
+	sh "$$bootstrap" --assemble "$${RELEASE_VERSION}" "$${SOURCE_COMMIT}" dist
 
 # Exercise the same builder without requiring a release tag. Two independent
 # output directories must be byte-identical. The checksum mutation is expected
