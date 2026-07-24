@@ -351,7 +351,7 @@ jobs:
   # by the document's own inline script rather than the deferred one, and stays
   # hidden with JavaScript off; content-derived Paths, Maps, and Journal preserve
   # grouping and wayfinding; and a held R inside a focused select never starts
-  # the seal hold, with the picker closed or open. A standalone D27 contract
+  # the seal hold, with the picker closed or open. A standalone activation contract
   # additionally proves programmatic native activation remains available while
   # pointer and keyboard ceremony clicks stay suppressed.
   e2e-behavior:

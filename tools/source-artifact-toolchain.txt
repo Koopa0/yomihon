@@ -1,3 +1,0 @@
-format: yomihon-source-artifact-toolchain-v1
-git-version: git version 2.55.0
-gzip-version: Apple gzip 479

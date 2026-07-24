@@ -14,10 +14,6 @@ at the center: read a note, understand its context, then advance its lifecycle
 > yomihon is under active development. Expect significant feature and
 > interface changes before the first stable release.
 
-The first public release will be source-only `v0.x`. The repository does not
-yet claim `v0.1.0` release readiness; the remaining evidence is tracked in the
-[release policy](docs/release.md).
-
 ## What it does
 
 - Renders Markdown, wikilinks, transclusions, callouts, ruby, Mermaid, source
@@ -80,10 +76,9 @@ navigation, diagnostics, and lexical search support macOS, Linux, and Windows.
 Status writes and semantic generations currently support macOS and Linux.
 
 Yomihon is a personal application rather than a turnkey multi-user service.
-Run `go run ./cmd/yomihon help` for the current command surface. Development
-setup and verification live in [CONTRIBUTING.md](CONTRIBUTING.md). Use
+Run `go run ./cmd/yomihon help` for the current command surface. Use
 [GitHub Issues](https://github.com/Koopa0/yomihon/issues) for questions and
-ordinary defects; security reports follow [SECURITY.md](SECURITY.md).
+defects.
 
 ## License
 

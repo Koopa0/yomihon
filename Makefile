@@ -12,27 +12,6 @@ BENCH_BASELINE ?= /tmp/yomihon-bench-baseline.txt
 BENCH_CURRENT ?= /tmp/yomihon-bench-current.txt
 COVER_PROFILE ?= /tmp/yomihon-coverage.out
 COVER_SUMMARY ?= /tmp/yomihon-coverage.txt
-SOURCE_ARCHIVE ?= dist/candidates/yomihon-$(RELEASE_VERSION).tar.gz
-
-# The two release recipes read these caller-controlled values only as inert
-# data, never as syntax. Two things enforce that:
-#   - the recipes reference them as "$${VAR}" (shell parameter expansion), so a
-#     value carrying a quote, backtick, or $(...) is a literal argument rather
-#     than shell syntax; and
-#   - Make expands a variable when it exports it into a recipe's environment, so
-#     a value that is itself a Make function -- for example $(shell ...) -- would
-#     run during that export, before any recipe command. Re-binding each caller
-#     override to its own raw text with $(value ...) freezes it as a literal
-#     string that export no longer re-expands. RELEASE_VERSION and SOURCE_COMMIT
-#     are frozen unconditionally; a caller-supplied SOURCE_ARCHIVE is frozen the
-#     same way, while the default definition above stays an ordinary Make
-#     reference that expands the frozen RELEASE_VERSION.
-override RELEASE_VERSION := $(value RELEASE_VERSION)
-override SOURCE_COMMIT := $(value SOURCE_COMMIT)
-ifneq (,$(filter command line environment,$(origin SOURCE_ARCHIVE)))
-override SOURCE_ARCHIVE := $(value SOURCE_ARCHIVE)
-endif
-export RELEASE_VERSION SOURCE_COMMIT SOURCE_ARCHIVE
 
 # Root-module Go code lives in three owned trees. Listing those roots directly
 # prevents an ignored frontend dependency with a stray Go package from entering
@@ -55,7 +34,7 @@ go version -m "$$path" | awk '$$1 == "mod" && $$2 == "$(2)" && $$3 == "$(3)" { f
 }
 endef
 
-.PHONY: build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check repository-check license-check source-archive-candidate source-artifact source-artifact-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check status-activation-mutations css css-check verify verify-spec clean
+.PHONY: build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check status-activation-mutations css css-check verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -79,10 +58,10 @@ test-real-vault:
 real-vault-build-check:
 	@$(call owned-go-list,-tags=realvault); YOMIHON_ROOT= go test -run='^$$' -tags=realvault $$list
 
-# Deliberately absent from ordinary PR verification: this sends only D57's
-# fixed synthetic protocol probes, but it spends provider quota. Unlike a
-# skipped test, the named certification gate refuses to pass without the
-# explicit opt-in and the operator's own credential.
+# Deliberately absent from ordinary PR verification: this sends only fixed
+# synthetic protocol probes, but it spends provider quota. Unlike a skipped
+# test, the named certification gate refuses to pass without the explicit
+# opt-in and the operator's own credential.
 provider-live:
 	@test "$${YOMIHON_EMBED_LIVE:-}" = 1 || { echo 'YOMIHON_EMBED_LIVE=1 is required for provider-live' >&2; exit 2; }
 	@test -n "$${YOMIHON_EMBED_KEY:-}" || { echo 'YOMIHON_EMBED_KEY is required for provider-live' >&2; exit 2; }
@@ -194,63 +173,10 @@ workflow-check:
 	actionlint -pyflakes=
 	shellcheck .github/e2e/*.sh tools/*.sh
 
-repository-check:
-	sh tools/check-repository.sh
-
-license-check:
-	@test -s LICENSE -a -s THIRD_PARTY_NOTICES.md -a -s assets/js/mermaid/LICENSE -a -s assets/fonts/LICENSE.txt || { \
-		echo 'a repository or redistributed-asset licence is missing' >&2; \
-		exit 1; \
-	}
-	@set -eu; \
-	check_manifest() { \
-		directory=$$1; \
-		if command -v sha256sum >/dev/null 2>&1; then \
-			(cd "$$directory" && sha256sum -c SHA256SUMS); \
-		elif command -v shasum >/dev/null 2>&1; then \
-			(cd "$$directory" && shasum -a 256 -c SHA256SUMS); \
-		else \
-			echo 'sha256sum or shasum is required for licence inventories' >&2; \
-			exit 1; \
-		fi; \
-	}; \
-	check_manifest assets/js/mermaid; \
-	check_manifest assets/fonts
-	go mod verify
-	go -C tools/sqlite-driver-bakeoff mod verify
-
-# Prepare the exact tagged source archive as a standalone candidate. This is
-# quarantined output, not a release: source-artifact reassembles the same
-# archive into the published three-file bundle.
-source-archive-candidate:
-	@test -n "$${RELEASE_VERSION}" || { echo 'RELEASE_VERSION is required (for example v0.1.0)' >&2; exit 2; }
-	@test -n "$${SOURCE_COMMIT}" || { echo 'SOURCE_COMMIT is required as a full 40-character commit' >&2; exit 2; }
-	mkdir -p dist/candidates
-	@bootstrap=$$(mktemp "$${TMPDIR:-/tmp}/yomihon-source-artifact-bootstrap.XXXXXX"); \
-	trap 'rm -f "$$bootstrap"' 0 HUP INT TERM; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:Makefile" | cmp - Makefile || { echo 'working-tree Makefile differs from SOURCE_COMMIT; the release tooling and its bootstrap arguments are the ones committed at SOURCE_COMMIT, not this working tree. Check out SOURCE_COMMIT and drive the release from its own committed Makefile and tools/source-artifact-bootstrap.sh.' >&2; exit 1; }; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:tools/source-artifact-bootstrap.sh" >"$$bootstrap"; \
-	sh "$$bootstrap" --prepare-archive "$${RELEASE_VERSION}" "$${SOURCE_COMMIT}" "$${SOURCE_ARCHIVE}"
-
-# Rebuild the tagged source archive and assemble the source-only bundle from an
-# immutable tag: a deterministic archive, a machine-readable provenance sidecar,
-# and a checksum manifest. This publishes only to local dist/; public upload is
-# a later release action after final bundle inspection.
-source-artifact:
-	@test -n "$${RELEASE_VERSION}" || { echo 'RELEASE_VERSION is required (for example v0.1.0)' >&2; exit 2; }
-	@test -n "$${SOURCE_COMMIT}" || { echo 'SOURCE_COMMIT is required as a full 40-character commit' >&2; exit 2; }
-	mkdir -p dist
-	@bootstrap=$$(mktemp "$${TMPDIR:-/tmp}/yomihon-source-artifact-bootstrap.XXXXXX"); \
-	trap 'rm -f "$$bootstrap"' 0 HUP INT TERM; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:Makefile" | cmp - Makefile || { echo 'working-tree Makefile differs from SOURCE_COMMIT; the release tooling and its bootstrap arguments are the ones committed at SOURCE_COMMIT, not this working tree. Check out SOURCE_COMMIT and drive the release from its own committed Makefile and tools/source-artifact-bootstrap.sh.' >&2; exit 1; }; \
-	GIT_NO_REPLACE_OBJECTS=1 git show "$${SOURCE_COMMIT}:tools/source-artifact-bootstrap.sh" >"$$bootstrap"; \
-	sh "$$bootstrap" --assemble "$${RELEASE_VERSION}" "$${SOURCE_COMMIT}" dist
-
-# Exercise the same builder without requiring a release tag. Two independent
-# output directories must be byte-identical. The checksum mutation is expected
-# to fail and proves the manifest is an active lock rather than decoration.
-source-artifact-check:
-	sh tools/test-source-artifact.sh
+# Repository hygiene, independent of any release process: a credential, private
+# key, or generated database store must never be tracked.
+tracked-paths-check:
+	sh tools/check-tracked-paths.sh
 
 gen: sqlc
 	go tool templ generate -path internal/ui
@@ -295,6 +221,8 @@ css-check:
 
 mod-check:
 	go mod tidy -diff
+	go mod verify
+	go -C tools/sqlite-driver-bakeoff mod verify
 
 tools-check-prepare:
 	@test "$$(sed -n 's|^replace github.com/koopa0/yomihon => \(.*\)$$|\1|p' tools/sqlite-driver-bakeoff/go.mod)" = "../.." || { \
@@ -427,7 +355,7 @@ status-activation-mutations:
 		}; \
 	done
 
-verify: repository-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check tools-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke license-check source-artifact-check
+verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check tools-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
 
 verify-spec:
 	@test -f tests/test-hooks.sh \
