@@ -1,4 +1,4 @@
-// Browser contract for D27's activation boundary. A preceding pointer or
+// Browser contract for the status activation boundary. A preceding pointer or
 // keyboard hold owns (and suppresses) its native click, while activation with
 // no such ceremony — including HTMLElement.click() and assistive technology —
 // keeps the ordinary submit-button behavior.
@@ -198,7 +198,7 @@ try {
     );
   }
 
-  console.log('PASS status-activation-contract: native programmatic activation submits while D27 pointer and keyboard clicks stay owned by the hold');
+  console.log('PASS status-activation-contract: native programmatic activation submits while pointer and keyboard clicks stay owned by the hold');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

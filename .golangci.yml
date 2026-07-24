@@ -135,9 +135,7 @@ linters:
 
     staticcheck:
       checks:
-        # SA1019 (deprecated APIs) intentionally ENABLED: a portable
-        # harness ships strict defaults. Brownfield consumers may add
-        # "-SA1019" locally and record the waiver in their CLAUDE.md.
+        # SA1019 (deprecated APIs) is intentionally enabled.
         - "all"
         # Package-comment and doc-comment enforcement. Already covered by
         # "all", but listed explicitly so the requirement survives any

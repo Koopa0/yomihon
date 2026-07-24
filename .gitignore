@@ -8,12 +8,22 @@ dist/
 # Frontend tools install under .github/; ignore dependency trees at any depth.
 # The product build and Go package graph need no Node.
 node_modules/
-# Optional maintainer harness internals live on disk, never in this product
-# repository. The public control plane itself (AGENTS.md and CLAUDE.md) is
-# tracked so a clean clone receives the same authority and product walls.
-# tests/ holds only local harness self-tests; yomihon's Go tests live in
+# This is a private, single-user tool. Its process, governance, agent, and
+# design docs live on the maintainer's machine, not in history: a clean clone
+# receives only the code, its build inputs, and the redistribution notices.
+# tests/ holds local harness self-tests; yomihon's Go tests live in
 # internal/*_test.go.
 .claude/
 .agents/
 .codex/
 tests/
+/AGENTS.md
+/CLAUDE.md
+/CONTRIBUTING.md
+/ENGINEERING_STANDARD.md
+/ENGINEERING_STANDARD.sha256
+/PROJECT_PROFILE.md
+/SECURITY.md
+/docs/
+/.github/CODEOWNERS
+/.github/PULL_REQUEST_TEMPLATE.md
