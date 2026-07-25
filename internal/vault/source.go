@@ -14,9 +14,33 @@ import (
 	"time"
 )
 
-// ErrSourceChanged means a vault entry no longer names the regular file that
-// was selected for this read.
-var ErrSourceChanged = errors.New("vault source changed while it was being read")
+// ErrSourceChanged means the filesystem object a vault entry selected is no
+// longer the object at that path. It is reported only where an earlier
+// observation exists to compare against, so it always describes a change
+// someone made, never a path that was never there.
+var ErrSourceChanged = errors.New("vault entry no longer names the observed file")
+
+// ErrNotRegular means a path exists but holds something other than readable
+// bytes where readable bytes are required.
+var ErrNotRegular = errors.New("vault path is not a regular file")
+
+// ErrNotDirectory means a component in the middle of a path exists but is not a
+// directory, so the walk cannot descend through it. Distinct from
+// [ErrNotRegular] because reporting "not a regular file" about a path that is
+// one — a plain file standing where a directory belongs — would be its own
+// false diagnosis.
+var ErrNotDirectory = errors.New("vault path component is not a directory")
+
+// ErrSymbolicLink means a path is a symbolic link. The pinned root never
+// follows one, because a link is the one name that can point at bytes the
+// reader never chose to expose. This is a refusal, not an accident, and it is
+// named separately so a log can show the refusal happening.
+var ErrSymbolicLink = errors.New("vault path is a symbolic link")
+
+// errUnobservedParent means a walk reached a nested file whose parent directory
+// it never observed, leaving the file's containment chain unestablished. It
+// stays unexported because no decision outside this package turns on it.
+var errUnobservedParent = errors.New("vault parent directory was not observed in this scan")
 
 // ErrCanonicalCollision means two filesystem names normalize to the same
 // vault-relative NFC path. Such a tree cannot be projected without guessing.
@@ -442,7 +466,7 @@ func observedSource(rawPath string, directories map[string]fs.FileInfo, leaf fs.
 			info = directories[name]
 		}
 		if info == nil {
-			return nil, ErrSourceChanged
+			return nil, errUnobservedParent
 		}
 		observed = append(observed, sourceObservation{rawPath: name, info: info})
 	}
@@ -474,14 +498,7 @@ func (r *Reader) Refresh(e Entry) (Entry, error) {
 	if !r.owns(e) {
 		return Entry{}, errors.New("entry does not belong to vault reader")
 	}
-	refreshed, err := r.observe(e.rawPath)
-	if err != nil {
-		return Entry{}, err
-	}
-	if refreshed.path != e.path {
-		return Entry{}, ErrSourceChanged
-	}
-	return refreshed, nil
+	return r.observe(e.rawPath)
 }
 
 func (r *Reader) observe(relPath string) (entry Entry, resultErr error) {
@@ -497,13 +514,24 @@ func (r *Reader) observe(relPath string) (entry Entry, resultErr error) {
 
 	observed := make([]sourceObservation, 0, len(components))
 	for i, name := range components[:len(components)-1] {
+		observedName := path.Join(components[:i+1]...)
 		before, err := current.Lstat(name)
-		if err != nil || !before.IsDir() || before.Mode()&os.ModeSymlink != 0 {
-			return Entry{}, ErrSourceChanged
+		if err != nil {
+			// An absent component means the caller's whole path is absent, so
+			// the error names what the caller asked for. A refusal below is the
+			// opposite case: one specific thing is in the way and naming which
+			// component it is, is the actionable half.
+			return Entry{}, pathErrorAt(relPath, err)
 		}
+		if !before.IsDir() {
+			return Entry{}, refuse("lookup", observedName, before.Mode(), true)
+		}
+		// The Lstat above is this walk's own observation of the component, so a
+		// failure to open what it just saw is a change under the walk, not a
+		// path that was never there.
 		child, err := current.OpenRoot(name)
 		if err != nil {
-			return Entry{}, ErrSourceChanged
+			return Entry{}, revalidated(pathErrorAt(relPath, err))
 		}
 		opened, openErr := child.Stat(".")
 		after, afterErr := current.Lstat(name)
@@ -513,16 +541,16 @@ func (r *Reader) observe(relPath string) (entry Entry, resultErr error) {
 		}
 		openedRoots = append(openedRoots, child)
 		current = child
-		observed = append(observed, sourceObservation{
-			rawPath: path.Join(components[:i+1]...),
-			info:    before,
-		})
+		observed = append(observed, sourceObservation{rawPath: observedName, info: before})
 	}
 
 	leafName := components[len(components)-1]
 	leaf, err := current.Lstat(leafName)
-	if err != nil || !leaf.Mode().IsRegular() || leaf.Mode()&os.ModeSymlink != 0 {
-		return Entry{}, ErrSourceChanged
+	if err != nil {
+		return Entry{}, pathErrorAt(relPath, err)
+	}
+	if !leaf.Mode().IsRegular() {
+		return Entry{}, refuse("lookup", relPath, leaf.Mode(), false)
 	}
 	observed = append(observed, sourceObservation{rawPath: relPath, info: leaf})
 	return Entry{
@@ -670,8 +698,12 @@ func (r *Reader) openParent(entry Entry, hook readHook) (parent *os.Root, opened
 
 	for i, name := range components[:len(components)-1] {
 		before, err := current.Lstat(name)
-		if err != nil || !before.IsDir() || before.Mode()&os.ModeSymlink != 0 ||
-			!sameObject(entry.observed[i].info, before) {
+		if err != nil {
+			return nil, openedRoots, revalidated(err)
+		}
+		// sameObject compares the mode, so a symlink or a file swapped in for the
+		// observed directory fails identity before any type test could run.
+		if !before.IsDir() || !sameObject(entry.observed[i].info, before) {
 			return nil, openedRoots, ErrSourceChanged
 		}
 		if hookErr := callReadHook(hook, readAfterParentCheck, name); hookErr != nil {
@@ -679,7 +711,7 @@ func (r *Reader) openParent(entry Entry, hook readHook) (parent *os.Root, opened
 		}
 		child, err := current.OpenRoot(name)
 		if err != nil {
-			return nil, openedRoots, ErrSourceChanged
+			return nil, openedRoots, revalidated(err)
 		}
 		opened, openErr := child.Stat(".")
 		after, afterErr := current.Lstat(name)
@@ -707,8 +739,10 @@ func openLeaf(parent *os.Root, entry Entry, hook readHook) (openedLeaf, error) {
 	name := components[len(components)-1]
 	expected := entry.observed[len(entry.observed)-1].info
 	before, err := parent.Lstat(name)
-	if err != nil || !before.Mode().IsRegular() || before.Mode()&os.ModeSymlink != 0 ||
-		!sameObservation(expected, before) {
+	if err != nil {
+		return openedLeaf{}, revalidated(err)
+	}
+	if !before.Mode().IsRegular() || !sameObservation(expected, before) {
 		return openedLeaf{}, ErrSourceChanged
 	}
 	if hookErr := callReadHook(hook, readAfterLeafCheck, entry.rawPath); hookErr != nil {
@@ -716,7 +750,7 @@ func openLeaf(parent *os.Root, entry Entry, hook readHook) (openedLeaf, error) {
 	}
 	file, err := parent.Open(name)
 	if err != nil {
-		return openedLeaf{}, ErrSourceChanged
+		return openedLeaf{}, revalidated(err)
 	}
 	opened, openErr := file.Stat()
 	afterOpen, afterOpenErr := parent.Lstat(name)
@@ -815,4 +849,45 @@ func readHookWithContext(ctx context.Context, hook readHook) readHook {
 		}
 		return callReadHook(hook, stage, relPath)
 	}
+}
+
+// refuse names why a present path cannot be used at the position it occupies.
+// The symbolic-link test comes first because a link is neither a regular file
+// nor a directory: asking about the mode before asking about the link would
+// report every link as some other unusable kind. wantDir distinguishes the two
+// positions, so a plain file standing where a directory belongs is not reported
+// as "not a regular file" — which it is.
+func refuse(op, relPath string, mode fs.FileMode, wantDir bool) error {
+	switch {
+	case mode&fs.ModeSymlink != 0:
+		return &fs.PathError{Op: op, Path: relPath, Err: ErrSymbolicLink}
+	case wantDir:
+		return &fs.PathError{Op: op, Path: relPath, Err: ErrNotDirectory}
+	default:
+		return &fs.PathError{Op: op, Path: relPath, Err: ErrNotRegular}
+	}
+}
+
+// revalidated classifies a filesystem error met while re-checking an object
+// this reader already observed. Only absence proves the selected object is
+// gone; a refusal or an exhausted descriptor table means the machine could not
+// answer, which is not evidence that anyone edited anything, so it is reported
+// as itself rather than as a change.
+func revalidated(err error) error {
+	if errors.Is(err, fs.ErrNotExist) {
+		return ErrSourceChanged
+	}
+	return err
+}
+
+// pathErrorAt restates a filesystem error against the vault-relative path the
+// caller named. The walk descends one component at a time into progressively
+// opened child roots, so the raw error names the bare component it was standing
+// on — "System" where the caller asked for
+// "System/schemas/vault-schema.toml", which reads as a different file missing.
+func pathErrorAt(relPath string, err error) error {
+	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
+		return &fs.PathError{Op: pathErr.Op, Path: relPath, Err: pathErr.Err}
+	}
+	return err
 }

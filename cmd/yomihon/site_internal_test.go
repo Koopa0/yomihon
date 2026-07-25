@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -235,4 +237,99 @@ func writeRecoverySiteFixture(t *testing.T, root string) {
 	if err = os.WriteFile(mapPath, []byte(studyPath), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
 		t.Fatalf("write study path: %v", err)
 	}
+}
+
+// TestContractAbsenceIsNotReportedAsAFault locks the difference between a
+// folder that never declared a lifecycle and one whose declaration is broken.
+// Both used to arrive here as the same warning, and the absent case additionally
+// arrived as "vault source changed while it was being read" — a race nobody ran.
+// Reporting an ordinary folder as a fault is what made a working tool look
+// broken to a first-time user; silencing a genuinely broken contract would be
+// the opposite and worse mistake, so both directions are asserted.
+func TestContractAbsenceIsNotReportedAsAFault(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		contract  string // empty means write no contract at all
+		wantLevel string
+	}{
+		{name: "no contract", contract: "", wantLevel: "INFO"},
+		{name: "unparseable contract", contract: "this is not toml [[[\n", wantLevel: "WARN"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "Writing", "note.md"), []byte("# note\n"), 0o600); err != nil {
+				t.Fatalf("write note: %v", err)
+			}
+			if tt.contract != "" {
+				dir := filepath.Join(root, "System", "schemas")
+				if err := os.MkdirAll(dir, 0o750); err != nil {
+					t.Fatalf("mkdir schemas: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "vault-schema.toml"), []byte(tt.contract), 0o600); err != nil {
+					t.Fatalf("write contract: %v", err)
+				}
+			}
+
+			var logged lockedBuffer
+			site, err := newReadingSite(t.Context(), root, slog.New(slog.NewTextHandler(&logged, nil)))
+			if err != nil {
+				t.Fatalf("newReadingSite: %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := site.close(); closeErr != nil {
+					t.Errorf("readingSite.close() error = %v", closeErr)
+				}
+			})
+
+			lines := logged.lines()
+			got, ok := levelFor(lines, "contract")
+			if !ok {
+				t.Fatalf("startup logged nothing about the contract; log = %v", lines)
+			}
+			if got != tt.wantLevel {
+				t.Errorf("contract log level = %s, want %s (log = %v)", got, tt.wantLevel, lines)
+			}
+		})
+	}
+}
+
+// lockedBuffer collects the real handler's output. Asserting the bytes the
+// operator would actually read is closer to the thing under test than
+// intercepting records, and it needs no slog.Handler of our own.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) lines() []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return strings.Split(strings.TrimSpace(b.buf.String()), "\n")
+}
+
+// levelFor returns the level of the first logged line mentioning substring.
+func levelFor(lines []string, substring string) (string, bool) {
+	for _, line := range lines {
+		if !strings.Contains(line, substring) {
+			continue
+		}
+		if _, rest, ok := strings.Cut(line, "level="); ok {
+			level, _, _ := strings.Cut(rest, " ")
+			return level, true
+		}
+	}
+	return "", false
 }

@@ -246,9 +246,12 @@ func TestReaderScanAvailableRecordsMissingParentObservation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("available visit(missing parent observation) error = %v", err)
 	}
+	// A parent the walk never observed is an unestablished containment chain,
+	// not an object that changed under the reader — nothing was observed to
+	// change from.
 	if got := walk.problems; len(got) != 1 || got[0].Path() != "Missing/one.md" ||
-		!errors.Is(got[0].Err(), ErrSourceChanged) {
-		t.Fatalf("available missing-parent problems = %#v, want ErrSourceChanged", got)
+		!errors.Is(got[0].Err(), errUnobservedParent) {
+		t.Fatalf("available missing-parent problems = %#v, want errUnobservedParent", got)
 	}
 	if got := len(walk.entries); got != 0 {
 		t.Errorf("available missing-parent entries len = %d, want 0", got)
@@ -904,8 +907,13 @@ func TestReaderRejectsLeafSymlink(t *testing.T) {
 	}
 
 	reader := openTestReader(t, root)
-	if _, err := reader.Lookup("Notes/one.md"); !errors.Is(err, ErrSourceChanged) {
-		t.Fatalf("Lookup(symlink) error = %v, want ErrSourceChanged", err)
+	_, err := reader.Lookup("Notes/one.md")
+	if !errors.Is(err, ErrSymbolicLink) {
+		t.Fatalf("Lookup(symlink) error = %v, want ErrSymbolicLink", err)
+	}
+	// The refusal is deliberate, so it must not present as a race someone lost.
+	if errors.Is(err, ErrSourceChanged) {
+		t.Errorf("Lookup(symlink) error = %v, which also reads as a concurrent change", err)
 	}
 }
 
@@ -919,8 +927,12 @@ func TestReaderRejectsParentSymlink(t *testing.T) {
 	}
 
 	reader := openTestReader(t, root)
-	if _, err := reader.Lookup("Notes/one.md"); !errors.Is(err, ErrSourceChanged) {
-		t.Fatalf("Lookup(parent symlink) error = %v, want ErrSourceChanged", err)
+	_, err := reader.Lookup("Notes/one.md")
+	if !errors.Is(err, ErrSymbolicLink) {
+		t.Fatalf("Lookup(parent symlink) error = %v, want ErrSymbolicLink", err)
+	}
+	if errors.Is(err, ErrSourceChanged) {
+		t.Errorf("Lookup(parent symlink) error = %v, which also reads as a concurrent change", err)
 	}
 }
 
@@ -1245,5 +1257,94 @@ func newTestSourceWalk(completeness scanCompleteness) sourceWalk {
 		seen:         make(map[string]string),
 		directories:  make(map[string]fs.FileInfo),
 		contains:     map[string]struct{}{".": {}},
+	}
+}
+
+// TestLookupClassifiesAbsentAndRefusedPaths locks the distinction this package
+// used to collapse. Every one of these cases answered "vault source changed
+// while it was being read" — a sentence that named a race nobody ran. The
+// plain-folder case is the one a user met: pointing yomihon at a directory with
+// no contract reported that the contract had changed while being read.
+func TestLookupClassifiesAbsentAndRefusedPaths(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeReaderFixture(t, root, "Notes/one.md", "body")
+	if err := os.WriteFile(filepath.Join(root, "plain"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write plain file: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "Notes", "sub"), 0o750); err != nil {
+		t.Fatalf("mkdir sub: %v", err)
+	}
+	reader := openTestReader(t, root)
+
+	tests := []struct {
+		name    string
+		lookup  string
+		want    error
+		notWant error
+	}{
+		{
+			name:    "absent leaf",
+			lookup:  "Notes/missing.md",
+			want:    fs.ErrNotExist,
+			notWant: ErrSourceChanged,
+		},
+		{
+			name:    "absent parent",
+			lookup:  "Missing/one.md",
+			want:    fs.ErrNotExist,
+			notWant: ErrSourceChanged,
+		},
+		{
+			name:    "leaf is a directory",
+			lookup:  "Notes/sub",
+			want:    ErrNotRegular,
+			notWant: ErrSourceChanged,
+		},
+		{
+			name: "parent is a regular file",
+			// Reporting ErrNotRegular here would be its own false diagnosis:
+			// the path IS a regular file, it is just standing where a
+			// directory belongs.
+			lookup:  "plain/one.md",
+			want:    ErrNotDirectory,
+			notWant: ErrNotRegular,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := reader.Lookup(tt.lookup)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("Lookup(%q) error = %v, want %v", tt.lookup, err, tt.want)
+			}
+			if errors.Is(err, tt.notWant) {
+				t.Errorf("Lookup(%q) error = %v, which also reads as %v", tt.lookup, err, tt.notWant)
+			}
+		})
+	}
+}
+
+// TestLookupNamesThePathTheCallerAsked locks the path in the error. The walk
+// descends one component at a time into child roots, so the raw error names the
+// bare component it stood on — a caller asking for a nested contract was told
+// "System" was missing, which reads as a different file.
+func TestLookupNamesThePathTheCallerAsked(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeReaderFixture(t, root, "Notes/one.md", "body")
+	reader := openTestReader(t, root)
+
+	const want = "System/schemas/vault-schema.toml"
+	_, err := reader.Lookup(want)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Lookup(%q) error = %v, want fs.ErrNotExist", want, err)
+	}
+	pathErr, ok := errors.AsType[*fs.PathError](err)
+	if !ok {
+		t.Fatalf("Lookup(%q) error = %v, want a *fs.PathError carrying the path", want, err)
+	}
+	if pathErr.Path != want {
+		t.Errorf("Lookup(%q) reported path %q, want the path the caller asked for", want, pathErr.Path)
 	}
 }

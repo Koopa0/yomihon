@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -51,10 +52,19 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	}()
 
 	contract, err := schema.LoadReader(ctx, source)
-	if err != nil {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		// A folder that carries no contract is not a folder in trouble. It has
+		// no lifecycle to govern, which is the ordinary shape of any directory
+		// yomihon is pointed at, so it is reported as the fact it is: reading
+		// and search are whole, the write face has nothing to write against.
+		log.Info("no vault contract; reading and search only, no write face",
+			"path", schema.ContractRelPath)
+		contract = nil
+	case err != nil:
 		log.Warn("vault contract unavailable; write face is closed (fail-closed)", "error", err)
 		contract = nil
-	} else {
+	default:
 		log.Info("vault contract loaded",
 			"version", contract.Version(), "lifecycle_stages", contract.StageCount())
 	}
