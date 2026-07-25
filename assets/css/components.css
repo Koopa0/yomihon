@@ -490,6 +490,12 @@ html, body { margin: 0; background: var(--bg); }
 .y-sealbar .y-sealpoem { display: none; }
 .y-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
 
+/* Stated beside the transition controls, not after the press: the working tree
+   already carries an edit this note's own commit would swallow. Amber marks it
+   as a condition the reader can clear, distinct from the neutral notices. */
+.y-writeblock { color: var(--warn); border-inline-start: 2px solid currentColor; padding-inline-start: 10px; }
+.y-sealbar__notice.y-writeblock { border-inline-start: none; padding-inline-start: 0; flex: 1 1 auto; min-width: 0; }
+
 /* ============================================================
    ⌘K search dialog (native <dialog>)
    ============================================================ */

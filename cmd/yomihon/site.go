@@ -94,6 +94,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		Status:     lifecycle.View,
 		Snapshot:   store.Current,
 		Provenance: lifecycle.LastCommitHash,
+		WriteBlock: lifecycle.WriteBlockReason,
 		Log:        log,
 	}).Register(mux)
 	status.NewHandler(lifecycle, shellProvider, log).Register(mux)

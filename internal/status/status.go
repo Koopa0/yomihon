@@ -308,6 +308,45 @@ func (lc *Lifecycle) LastCommitHash(
 	return lc.lastCommitHash(ctx, rel, expected, provenanceHooks{})
 }
 
+// Operator-facing reasons a transition would be refused, stated before the
+// press rather than after it.
+const (
+	// DirtyBlockReason explains the refusal a note with uncommitted changes
+	// would receive. Staging the file would carry the pre-existing edit into
+	// the commit that records the transition, so the write face declines
+	// instead of folding the two together.
+	DirtyBlockReason = "此筆記有尚未提交的變更。狀態操作會被拒絕，以免把既有修改一併寫進紀錄；請先在 vault 提交或還原那些變更。"
+	// GitBlockReason explains a refusal caused by the working tree being
+	// unreadable — most often a folder that is not a git repository at all.
+	GitBlockReason = "無法讀取這個資料夾的 git 狀態。狀態寫入需要可用的 git 版本庫，這個轉換會被拒絕。"
+)
+
+// WriteBlockReason reports why a transition on rel would be refused right now,
+// or "" when one could proceed. The transition controls are derived from the
+// contract alone, which cannot see the working tree, so without this the
+// reading page offers a control the write path then rejects. The answer is
+// advisory: it is computed for one request and the write path revalidates
+// under its own lock, so a stale "" costs a refusal, never a wrong write.
+func (lc *Lifecycle) WriteBlockReason(ctx context.Context, rel string) (string, error) {
+	_, osPath, err := normalizeRelPath(rel)
+	if err != nil {
+		return "", err
+	}
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	if lc.root == nil {
+		return "", ErrClosed
+	}
+	dirty, err := lc.dirty(ctx, osPath)
+	if err != nil {
+		return GitBlockReason, err
+	}
+	if dirty {
+		return DirtyBlockReason, nil
+	}
+	return "", nil
+}
+
 type provenanceHooks struct {
 	beforeLock func()
 	afterLock  func()

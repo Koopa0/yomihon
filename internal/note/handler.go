@@ -52,6 +52,10 @@ type Dependencies struct {
 	Status     func() status.View
 	Snapshot   func() *snapshot.View
 	Provenance func(ctx context.Context, rel string, content [sha256.Size]byte) (string, error)
+	// WriteBlock is a closure over the write package's read-only working-tree
+	// query. It answers why a transition on this note would be refused, so the
+	// reading page states it beside the controls rather than after a press.
+	WriteBlock func(ctx context.Context, rel string) (string, error)
 	Log        *slog.Logger
 }
 
@@ -223,6 +227,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		NoFrontmatter:     governance.noFrontmatter,
 	}
 
+	h.addWriteBlock(r.Context(), rel, &view)
 	h.addSealProvenance(r.Context(), rel, n.ContentHash, r.URL.Query().Get("sealed") == "1", &view)
 
 	pageChrome := governance.shell.Chrome(r, n.Title)
@@ -270,6 +275,22 @@ func (h *Handler) governance(
 		}
 	}
 	return state
+}
+
+// addWriteBlock asks the write package whether a transition on this note would
+// be refused, so the page can say so beside the controls instead of leaving the
+// operator to discover it by pressing. It runs only when transitions are on
+// offer; a failed query degrades to whatever reason the write package returned
+// rather than hiding the controls.
+func (h *Handler) addWriteBlock(ctx context.Context, rel string, view *pages.NoteView) {
+	if len(view.Transitions) == 0 || h.deps.WriteBlock == nil {
+		return
+	}
+	reason, err := h.deps.WriteBlock(ctx, rel)
+	if err != nil {
+		h.deps.Log.Warn("write block check", "path", rel, "error", err)
+	}
+	view.WriteBlock = reason
 }
 
 // addSealProvenance performs the git read only for a governed sealed note and

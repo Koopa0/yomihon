@@ -51,6 +51,12 @@ type NoteView struct {
 	WriteDiagnostic string
 	NoFrontmatter   bool
 
+	// WriteBlock is the reason a transition would be refused right now — an
+	// uncommitted edit to this note, or an unreadable working tree. Empty means
+	// nothing is known to stand in the way. The controls stay visible either
+	// way: the reason is advisory, and the operator can clear it and reload.
+	WriteBlock string
+
 	// JustSealed is set from a one-shot ?sealed=1 PRG signal; SealedHash is the
 	// read-only git short hash of the sealing commit. Both apply only to a sealed
 	// note.
@@ -534,6 +540,9 @@ templ statusPanel(v NoteView) {
 						<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
 					}
 				default:
+					if v.WriteBlock != "" {
+						<p class="y-statuspanel__notice y-writeblock">{ v.WriteBlock }</p>
+					}
 					<div class="y-statuspanel__forms">
 						@legalTransitionForms(v)
 					</div>
@@ -674,12 +683,18 @@ templ sealBar(v NoteView) {
 					</div>
 					<span class="y-actor">鈐印 · 已認證</span>
 					if len(v.Transitions) > 0 {
+						if v.WriteBlock != "" {
+							<span class="y-sealbar__notice y-writeblock">{ v.WriteBlock }</span>
+						}
 						<span class="y-sealbar__spacer"></span>
 						@legalTransitionForms(v)
 					}
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					}
+					if v.WriteBlock != "" {
+						<span class="y-sealbar__notice y-writeblock">{ v.WriteBlock }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
 					@legalTransitionForms(v)

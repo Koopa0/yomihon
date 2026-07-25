@@ -1286,3 +1286,53 @@ func TestFlipConcurrentNeverLiesInTheCommitMessage(t *testing.T) {
 		t.Errorf("commit count = %d, want %d (exactly one new commit; the loser must not also commit)", after, before+1)
 	}
 }
+
+func TestWriteBlockReasonReportsUncommittedChanges(t *testing.T) {
+	t.Parallel()
+
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+
+	clean, err := lifecycle.WriteBlockReason(t.Context(), testRel)
+	if err != nil {
+		t.Fatalf("WriteBlockReason(%q) on a committed note = %v", testRel, err)
+	}
+	if clean != "" {
+		t.Fatalf("WriteBlockReason(%q) on a committed note = %q, want no reason", testRel, clean)
+	}
+
+	writeNote(t, root, lessonContent("draft")+"\nan edit nobody committed\n")
+
+	dirty, err := lifecycle.WriteBlockReason(t.Context(), testRel)
+	if err != nil {
+		t.Fatalf("WriteBlockReason(%q) after an uncommitted edit = %v", testRel, err)
+	}
+	if dirty != status.DirtyBlockReason {
+		t.Errorf("WriteBlockReason(%q) after an uncommitted edit = %q, want %q",
+			testRel, dirty, status.DirtyBlockReason)
+	}
+}
+
+func TestWriteBlockReasonAgreesWithFlip(t *testing.T) {
+	t.Parallel()
+
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+	writeNote(t, root, lessonContent("draft")+"\nan edit nobody committed\n")
+
+	reason, err := lifecycle.WriteBlockReason(t.Context(), testRel)
+	if err != nil {
+		t.Fatalf("WriteBlockReason(%q) = %v", testRel, err)
+	}
+	flipErr := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	if !errors.Is(flipErr, status.ErrDirty) {
+		t.Fatalf("Flip(%q) = %v, want ErrDirty so the two faces describe one rule", testRel, flipErr)
+	}
+	if reason == "" {
+		t.Error("WriteBlockReason gave no reason for a note Flip refuses; the page would offer a control that cannot work")
+	}
+}

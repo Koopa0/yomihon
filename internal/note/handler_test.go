@@ -111,6 +111,7 @@ func newServerWithProvenance(
 		Status:     lifecycle.View,
 		Snapshot:   store.Current,
 		Provenance: provenance,
+		WriteBlock: lifecycle.WriteBlockReason,
 		Log:        log,
 	})
 	h.Register(mux)
@@ -2117,5 +2118,60 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	sidebar := body[asideStart : asideStart+asideEnd]
 	if strings.Contains(sidebar, "Ghost Essay") {
 		t.Error("general map unresolved row appears in sidebar navigation")
+	}
+}
+
+// TestWriteBlockShownBeforeThePress locks the wiring that makes the reading
+// page state a refusal the write path would otherwise only reveal after the
+// operator commits to the action. The transition controls are derived from the
+// contract, which cannot see the working tree, so a note carrying an
+// uncommitted edit used to render a fully live seal button that then failed.
+// Both directions are asserted: a committed note must stay quiet, or the notice
+// is permanent furniture rather than a signal.
+func TestWriteBlockShownBeforeThePress(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	runGit(t, root, "init", "--initial-branch=main")
+	runGit(t, root, "config", "user.name", "Test Vault")
+	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
+	runGit(t, root, "config", "commit.gpgsign", "false")
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	notePath := filepath.Join(dir, "L01.md")
+	if err := os.WriteFile(notePath, []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	runGit(t, root, "add", rel)
+	runGit(t, root, "commit", "-m", "seed lesson")
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, clean := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if !strings.Contains(clean, `name="to" value="`+schema.SealStatus+`"`) {
+		t.Fatalf("committed note is missing the seal control this test depends on; body = %q", clean)
+	}
+	if strings.Contains(clean, status.DirtyBlockReason) {
+		t.Errorf("committed note shows the uncommitted-changes notice; it would then never mean anything")
+	}
+
+	if err := os.WriteFile(notePath, []byte(lessonMD+"an edit nobody committed\n"), 0o600); err != nil {
+		t.Fatalf("dirty the note: %v", err)
+	}
+
+	code, dirty := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status after the edit = %d, want 200", code)
+	}
+	if !strings.Contains(dirty, status.DirtyBlockReason) {
+		t.Errorf("note with an uncommitted edit does not state why a transition would be refused; body = %q", dirty)
+	}
+	if !strings.Contains(dirty, `name="to" value="`+schema.SealStatus+`"`) {
+		t.Errorf("the notice removed the transition control; it is advisory and the operator may clear the edit and retry")
 	}
 }
