@@ -151,6 +151,16 @@ func recoveryFor(err error) *recovery {
 			summary:    "檔案有尚未提交的變更；yomihon 沒有把狀態操作混入既有修改，以免污染稽核紀錄。",
 			nextAction: "先在 vault 中檢查並提交或處理既有修改，再回到筆記重新操作。",
 		}
+	case errors.Is(err, ErrWorkTreeUnreadable):
+		return &recovery{
+			code:       http.StatusServiceUnavailable,
+			summary:    GitBlockReason,
+			nextAction: "在這個資料夾建立 git 版本庫，或改用一個已是版本庫的 vault；閱讀與搜尋不受影響。",
+			// git's own message names the folder, so it stays in the log and
+			// out of the page.
+			logMessage: "status flip found the working tree unreadable",
+			cause:      err,
+		}
 	case errors.Is(err, ErrStatusLine):
 		return &recovery{
 			code:       http.StatusUnprocessableEntity,

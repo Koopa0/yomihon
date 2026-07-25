@@ -32,6 +32,7 @@ func TestRecoveryClassification(t *testing.T) {
 		{name: "stale", err: ErrStale, code: http.StatusConflict, noDetail: true},
 		{name: "concurrent write", err: ErrConcurrentWrite, code: http.StatusConflict, noDetail: true},
 		{name: "dirty", err: ErrDirty, code: http.StatusConflict, noDetail: true},
+		{name: "work tree unreadable", err: errors.Join(ErrWorkTreeUnreadable, errors.New("fatal: not a git repository")), code: http.StatusServiceUnavailable, noDetail: true},
 		{name: "status line", err: ErrStatusLine, code: http.StatusUnprocessableEntity, noDetail: true},
 		{name: "unknown status", err: errors.Join(schema.ErrUnknownStatus, errors.New("unknown-status detail")), code: http.StatusUnprocessableEntity, wantDetail: "unknown-status detail"},
 		{name: "illegal transition", err: errors.Join(schema.ErrIllegalTransition, errors.New("transition detail")), code: http.StatusUnprocessableEntity, wantDetail: "transition detail"},

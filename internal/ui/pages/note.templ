@@ -458,16 +458,22 @@ templ entryLink(sb Sidebar, entry nav.Entry) {
 }
 
 // ============================ RIGHT RAIL ============================
+// The status panel comes first, before the outline. The rail is its own scroll
+// container, so an outline of any length pushed the panel past the bottom of
+// the window and scrolling the article moved it not one pixel — the one action
+// this product is built around was, on most notes, somewhere the reader never
+// looked. Ordering it first pins it a fixed distance from the rail's top on
+// every note, whatever the outline's length.
 templ rightRail(v NoteView) {
 	<aside class="y-rail-right" aria-label="閱讀輔助">
+		if v.Diagnostic == "" || v.NonInstance {
+			@statusPanel(v)
+		}
 		if len(v.TOC) > 0 {
 			<nav aria-label="本頁內容">
 				<div class="ui-side__label">本頁內容</div>
 				@tocList(v)
 			</nav>
-		}
-		if v.Diagnostic == "" || v.NonInstance {
-			@statusPanel(v)
 		}
 		@diagnostics(v)
 	</aside>

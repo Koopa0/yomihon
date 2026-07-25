@@ -173,13 +173,23 @@ try {
     for (let i = 0; i < await statusControls.count(); i += 1) {
       await assertTarget(statusControls.nth(i), `status control ${i + 1}`, height);
     }
-    await tocLinks.last().focus();
-    for (let i = 0; i < await statusControls.count(); i += 1) {
+    // Focus order follows the visual order, which puts the status panel first:
+    // the rail is its own scroll container, so an outline of any length used to
+    // push the transition controls below the window with no way to scroll to
+    // them from the article. Walking the whole chain — every control, then into
+    // the outline — locks both the panel's internal order and its handoff.
+    await statusControls.first().focus();
+    for (let i = 1; i < await statusControls.count(); i += 1) {
       await page.keyboard.press('Tab');
       const reached = await statusControls.nth(i).evaluate((element) => document.activeElement === element);
       if (!reached) {
-        fail(`Tab order did not reach status control ${i + 1} after the TOC at 1600×${height}`);
+        fail(`Tab order did not reach status control ${i + 1} at 1600×${height}`);
       }
+    }
+    await page.keyboard.press('Tab');
+    const reachedOutline = await tocLinks.first().evaluate((element) => document.activeElement === element);
+    if (!reachedOutline) {
+      fail(`Tab order did not continue from the status controls into the outline at 1600×${height}`);
     }
     const diagnosticPaint = await diagnostics.first().evaluate((element) => {
       element.scrollIntoView({ block: 'center' });

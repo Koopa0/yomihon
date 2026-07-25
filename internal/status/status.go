@@ -54,6 +54,12 @@ var (
 	// flip here would silently fold an unrelated edit into a
 	// Koopa-authored audit commit.
 	ErrDirty = errors.New("status: note has uncommitted changes")
+	// ErrWorkTreeUnreadable means the working tree could not be inspected at
+	// all — most often a folder that is no git repository. Distinct from
+	// ErrDirty: an uncommitted edit is something the operator can clear and
+	// retry, while this refuses every transition until the folder itself
+	// changes, because each accepted transition is recorded as a commit.
+	ErrWorkTreeUnreadable = errors.New("status: working tree could not be read")
 	// ErrStatusLine means the frontmatter block does not contain exactly
 	// one line beginning with "status:" — a schema violation yomihon does
 	// not repair. yomihon only reports faults; fixing the file belongs to
@@ -476,7 +482,7 @@ func (lc *Lifecycle) flip(ctx context.Context, rel, from, to string, hooks flipH
 
 	dirty, err := lc.dirty(ctx, rel)
 	if err != nil {
-		return fmt.Errorf("status: check %s for uncommitted changes: %w", relSlash, err)
+		return fmt.Errorf("%w: %s: %w", ErrWorkTreeUnreadable, relSlash, err)
 	}
 	if dirty {
 		return fmt.Errorf("%w: %s", ErrDirty, relSlash)

@@ -211,6 +211,26 @@ trap cleanup EXIT
 
 copy_fixture "$here/vault" "$vault"
 
+# The write face needs a readable working tree: every accepted transition is
+# recorded as a commit, so a copy with no repository offers no transition at
+# all and a probe for the status control finds nothing. Committing the copy
+# also makes it clean, which is the state a transition requires — an
+# uncommitted edit is refused so it cannot be folded into the audit commit.
+# Identity is local to this throwaway copy and signing is off so the commit
+# cannot block on a key.
+(
+  cd "$vault" || exit 1
+  git init --quiet --initial-branch=main
+  git config user.name "yomihon e2e"
+  git config user.email "e2e@example.invalid"
+  git config commit.gpgsign false
+  git add -A
+  git commit --quiet -m "e2e fixture baseline"
+) || {
+  echo "failed to initialize the fixture repository" >&2
+  exit 1
+}
+
 YOMIHON_ROOT="$vault" YOMIHON_PORT="$port" "$bin" serve >"$log" 2>&1 &
 server_pid=$!
 

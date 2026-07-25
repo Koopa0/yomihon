@@ -350,7 +350,15 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	}
 }
 
-func TestHandlerGenericFailure(t *testing.T) {
+// TestHandlerWorkTreeUnreadable covers a folder that is no git repository: the
+// working tree cannot be inspected, so no transition can ever be recorded there.
+// It is answered as an unavailable capability rather than an unexplained
+// failure, and — the part that matters most — neither git's own message nor the
+// filesystem path reaches the page.
+//
+// The generic unexplained-failure path keeps its own coverage in
+// handler_internal_test.go's mapping table ("unknown internal").
+func TestHandlerWorkTreeUnreadable(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir() // deliberately not a git repo
 	lifecycle := newLifecycle(t, root, loadContract(t))
@@ -359,8 +367,11 @@ func TestHandlerGenericFailure(t *testing.T) {
 	srv := newHandlerServer(t, lifecycle)
 
 	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
-	if code != http.StatusInternalServerError {
-		t.Errorf("status = %d, want %d", code, http.StatusInternalServerError)
+	if code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
+	}
+	if !strings.Contains(html.UnescapeString(body), status.GitBlockReason) {
+		t.Errorf("body = %q, does not state why the write face is closed", body)
 	}
 	if strings.Contains(body, "fatal:") || strings.Contains(body, root) {
 		t.Errorf("body = %q, leaks internal error detail (git output or filesystem path)", body)

@@ -278,10 +278,17 @@ func (h *Handler) governance(
 }
 
 // addWriteBlock asks the write package whether a transition on this note would
-// be refused, so the page can say so beside the controls instead of leaving the
+// be refused, so the page states it beside the controls instead of leaving the
 // operator to discover it by pressing. It runs only when transitions are on
-// offer; a failed query degrades to whatever reason the write package returned
-// rather than hiding the controls.
+// offer.
+//
+// The two refusals differ in kind and are presented differently. An uncommitted
+// edit is something the reader can clear and retry, so the controls stay and the
+// reason sits beside them. A working tree that cannot be read at all — most often
+// a folder that is not a git repository — cannot be cleared from inside yomihon,
+// and every transition there is recorded as a commit that can never be made, so
+// the whole write face closes and says why. Offering a control that can only fail
+// is worse than offering none.
 func (h *Handler) addWriteBlock(ctx context.Context, rel string, view *pages.NoteView) {
 	if len(view.Transitions) == 0 || h.deps.WriteBlock == nil {
 		return
@@ -289,6 +296,12 @@ func (h *Handler) addWriteBlock(ctx context.Context, rel string, view *pages.Not
 	reason, err := h.deps.WriteBlock(ctx, rel)
 	if err != nil {
 		h.deps.Log.Warn("write block check", "path", rel, "error", err)
+		if reason == "" {
+			reason = status.GitBlockReason
+		}
+		view.WriteDiagnostic = reason
+		view.Transitions = nil
+		return
 	}
 	view.WriteBlock = reason
 }

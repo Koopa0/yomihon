@@ -2175,3 +2175,91 @@ func TestWriteBlockShownBeforeThePress(t *testing.T) {
 		t.Errorf("the notice removed the transition control; it is advisory and the operator may clear the edit and retry")
 	}
 }
+
+// TestStatusPanelPrecedesOutline locks the right rail's order. The rail is its
+// own scroll container, so whatever renders first decides what the reader sees
+// without scrolling — and an outline of any length used to push the transition
+// controls past the bottom of the window on most notes, where scrolling the
+// article moved them not at all.
+func TestStatusPanelPrecedesOutline(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	runGit(t, root, "init", "--initial-branch=main")
+	runGit(t, root, "config", "user.name", "Test Vault")
+	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
+	runGit(t, root, "config", "commit.gpgsign", "false")
+	// A long outline is the case that used to bury the panel.
+	var body strings.Builder
+	for i := range 30 {
+		fmt.Fprintf(&body, "\n## 章節 %d\n\ntext\n", i)
+	}
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n" + body.String()
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	runGit(t, root, "add", rel)
+	runGit(t, root, "commit", "-m", "seed lesson")
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, page := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	railStart := strings.Index(page, `<aside class="y-rail-right"`)
+	if railStart < 0 {
+		t.Fatalf("page has no right rail; body = %q", page)
+	}
+	railEnd := strings.Index(page[railStart:], "</aside>")
+	if railEnd < 0 {
+		t.Fatalf("right rail is unterminated")
+	}
+	rail := page[railStart : railStart+railEnd]
+
+	panelAt := strings.Index(rail, "y-statuspanel")
+	outlineAt := strings.Index(rail, `<nav aria-label="本頁內容">`)
+	if panelAt < 0 {
+		t.Fatalf("right rail has no status panel; rail = %q", rail)
+	}
+	if outlineAt < 0 {
+		t.Fatalf("this fixture must render an outline for the ordering to mean anything; rail = %q", rail)
+	}
+	if panelAt > outlineAt {
+		t.Errorf("outline renders before the status panel (panel at %d, outline at %d); a long outline then pushes the transition controls out of view",
+			panelAt, outlineAt)
+	}
+}
+
+// TestFolderWithoutGitOffersNoTransition locks the fail-closed treatment of a
+// folder that is no git repository. Every accepted transition is recorded as a
+// commit, so a control offered there could only ever fail — and unlike an
+// uncommitted edit, the reader cannot clear this from inside yomihon.
+func TestFolderWithoutGitOffersNoTransition(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir() // deliberately not a git repository
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, page := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — reading must keep working without git", code)
+	}
+	if n := strings.Count(page, `action="/status"`); n != 0 {
+		t.Errorf("page offers %d transition control(s) in a folder with no git repository; each one can only fail", n)
+	}
+	if !strings.Contains(page, status.GitBlockReason) {
+		t.Errorf("page does not say why the write face is closed; body = %q", page)
+	}
+}
