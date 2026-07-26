@@ -410,7 +410,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 	if raw == "." {
 		return nil
 	}
-	if strings.HasPrefix(d.Name(), ".") {
+	if hiddenName(d.Name()) {
 		if d.IsDir() {
 			return fs.SkipDir
 		}
@@ -890,4 +890,23 @@ func pathErrorAt(relPath string, err error) error {
 		return &fs.PathError{Op: pathErr.Op, Path: relPath, Err: pathErr.Err}
 	}
 	return err
+}
+
+// hiddenName reports whether one directory-entry name is hidden from the scan.
+func hiddenName(name string) bool {
+	return strings.HasPrefix(name, ".")
+}
+
+// OutsideScan reports whether relPath lies beyond what a scan ever looks at, so
+// a caller can tell "I looked and it was not there" apart from "I never looked".
+// A judgement about a path this returns true for cannot rest on the scan: the
+// scan holds no evidence either way, and reporting absence from silence is how
+// a tool ends up asserting that a file which plainly exists does not.
+func OutsideScan(relPath string) bool {
+	for segment := range strings.SplitSeq(relPath, "/") {
+		if hiddenName(segment) {
+			return true
+		}
+	}
+	return false
 }

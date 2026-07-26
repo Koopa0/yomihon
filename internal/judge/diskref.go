@@ -58,28 +58,58 @@ func classifyPathRefWithContains(
 	contains func(string) bool,
 ) (Finding, bool) {
 	if pref.code {
-		rootRel, rootOK := resolveWithinRoot("", pref.target)
-		noteRel, noteOK := resolveWithinRoot(noteDir, pref.target)
-		if (rootOK && !authority.egressAllowed(rootRel)) ||
-			(noteOK && !authority.egressAllowed(noteRel)) {
-			return Finding{}, false
-		}
-		if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {
-			return Finding{}, false
-		}
-		if !rootOK {
-			return Finding{}, false
-		}
-		return deadInRoot(n, pref, rootRel), true
+		return classifyCodeRef(n, noteDir, pref, authority, contains)
 	}
+	return classifyProseRef(n, noteDir, pref, authority, contains)
+}
+
+// classifyCodeRef judges a reference written inside code, which may name either
+// the vault root or the note's own directory, so it is broken only when neither
+// reading finds anything.
+func classifyCodeRef(
+	n *note,
+	noteDir string,
+	pref pathRef,
+	authority scanAuthority,
+	contains func(string) bool,
+) (Finding, bool) {
+	rootRel, rootOK := resolveWithinRoot("", pref.target)
+	noteRel, noteOK := resolveWithinRoot(noteDir, pref.target)
+	// The privacy gate runs before membership is inspected at all, so a
+	// restricted path is never even looked up.
+	if (rootOK && !authority.egressAllowed(rootRel)) ||
+		(noteOK && !authority.egressAllowed(noteRel)) {
+		return Finding{}, false
+	}
+	if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {
+		return Finding{}, false
+	}
+	if !rootOK || vault.OutsideScan(rootRel) {
+		return Finding{}, false
+	}
+	return deadInRoot(n, pref, rootRel), true
+}
+
+// classifyProseRef judges a reference written in prose, which names a path
+// relative to the note that carries it.
+func classifyProseRef(
+	n *note,
+	noteDir string,
+	pref pathRef,
+	authority scanAuthority,
+	contains func(string) bool,
+) (Finding, bool) {
 	rel, ok := resolveWithinRoot(noteDir, pref.target)
 	if !ok {
 		return externalRef(n, pref), true
 	}
-	if !authority.egressAllowed(rel) {
+	if !authority.egressAllowed(rel) || contains(rel) {
 		return Finding{}, false
 	}
-	if contains(rel) {
+	// The scan never visits a hidden path, so it holds no evidence about one.
+	// Calling such a link broken would report the scan's own boundary as a
+	// missing file — and the file it named may be sitting right there.
+	if vault.OutsideScan(rel) {
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rel), true

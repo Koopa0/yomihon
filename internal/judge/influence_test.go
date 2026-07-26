@@ -3,6 +3,7 @@ package judge
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -252,4 +253,57 @@ func findingByRuleAndPath(findings []Finding, ruleID, path string) (Finding, boo
 		}
 	}
 	return Finding{}, false
+}
+
+// TestClassifyPathRefStaysSilentOutsideTheScan locks the difference between
+// looking and finding nothing, and never looking. The scan skips hidden paths,
+// so a link into one produced "does not exist in the vault" about a file that
+// was sitting right there — the judge reporting its own boundary as a fault in
+// the vault. The second half matters as much: a link that really is broken must
+// still be reported, or this fix would trade a false positive for a false
+// silence.
+func TestClassifyPathRefStaysSilentOutsideTheScan(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	authority := loadTestAuthority(t, root)
+	source := note{path: "Writing/README.md"}
+	// Nothing is in the scan, so only the boundary decides.
+	contains := func(string) bool { return false }
+
+	tests := []struct {
+		name        string
+		target      string
+		code        bool
+		wantFinding bool
+	}{
+		{name: "hidden directory", target: "../.claude/skills/share-rewrite/SKILL.md"},
+		{name: "hidden directory beside the note", target: ".config/notes.md"},
+		{name: "hidden file", target: "../.hidden.md"},
+		{name: "ordinary missing file is still reported", target: "../Notes/gone.md", wantFinding: true},
+		{name: "missing file beside the note is still reported", target: "gone.md", wantFinding: true},
+		// A reference written in code resolves against the vault root as well
+		// as the note, and takes its own branch — the boundary has to hold on
+		// both or the quieter one keeps reporting a file that is really there.
+		{name: "hidden directory in code", target: ".claude/skills/share-rewrite/SKILL.md", code: true},
+		{name: "hidden file in code", target: ".hidden.md", code: true},
+		{name: "ordinary missing file in code is still reported", target: "Notes/gone.md", code: true, wantFinding: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			finding, ok := classifyPathRefWithContains(
+				&source, "Writing", pathRef{target: tt.target, code: tt.code}, authority, contains,
+			)
+			if ok != tt.wantFinding {
+				t.Fatalf("classifyPathRefWithContains(%q) reported %t, want %t (finding = %+v)",
+					tt.target, ok, tt.wantFinding, finding)
+			}
+			if ok && !strings.Contains(finding.Evidence, "does not exist") {
+				t.Errorf("classifyPathRefWithContains(%q) evidence = %q, want it to state the absence",
+					tt.target, finding.Evidence)
+			}
+		})
+	}
 }
