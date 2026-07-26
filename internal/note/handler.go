@@ -185,6 +185,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(n.Body)
+	// Markdown addresses an image relative to its own note; the browser would
+	// resolve that against the reading route and fetch a page instead of bytes.
+	result.HTML = render.ResolveAssetHrefs(result.HTML, rel)
 
 	// Governed lesson bodies get the read-aloud affordance: wrap each ruby-bearing
 	// sentence with a speak button whose text has the furigana stripped

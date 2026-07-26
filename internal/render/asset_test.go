@@ -1,0 +1,139 @@
+package render_test
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/render"
+)
+
+// TestResolveAssetHrefs covers the rewrite and, just as importantly, everything
+// it must leave alone. A markdown image is written relative to its own note,
+// which the reading route would resolve into another reading page — the reader
+// sees a broken image and no diagnostic anywhere says why.
+func TestResolveAssetHrefs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		note string
+		src  string
+		want string
+	}{
+		{
+			name: "climbs out of the note directory",
+			note: "notes/deep/note.md",
+			src:  "../../images/diagram.png",
+			want: "/raw/images/diagram.png",
+		},
+		{
+			name: "root-relative names the vault root",
+			note: "notes/deep/note.md",
+			src:  "/images/diagram.png",
+			want: "/raw/images/diagram.png",
+		},
+		{
+			name: "beside the note",
+			note: "notes/deep/note.md",
+			src:  "./local.png",
+			want: "/raw/notes/deep/local.png",
+		},
+		{
+			name: "bare name beside a note at the vault root",
+			note: "note.md",
+			src:  "cover.png",
+			want: "/raw/cover.png",
+		},
+		{
+			name: "a space survives as one path segment",
+			note: "notes/note.md",
+			src:  "my%20image.png",
+			want: "/raw/notes/my%20image.png",
+		},
+		{
+			name: "a fragment stays attached",
+			note: "note.md",
+			src:  "d.svg#layer",
+			want: "/raw/d.svg#layer",
+		},
+		{
+			// Left alone: climbing past the root is not a vault asset, and
+			// answering it here would invent a path the routes never serve.
+			name: "escaping the vault is untouched",
+			note: "note.md",
+			src:  "../../../etc/passwd",
+			want: "../../../etc/passwd",
+		},
+		{
+			name: "remote is untouched",
+			note: "note.md",
+			src:  "https://example.com/x.png",
+			want: "https://example.com/x.png",
+		},
+		{
+			name: "protocol-relative is untouched",
+			note: "note.md",
+			src:  "//example.com/x.png",
+			want: "//example.com/x.png",
+		},
+		{
+			name: "self-contained data url is untouched",
+			note: "note.md",
+			src:  "data:image/png;base64,AAAA",
+			want: "data:image/png;base64,AAAA",
+		},
+		{
+			name: "an already-routed source is not rewritten twice",
+			note: "note.md",
+			src:  "/raw/images/diagram.png",
+			want: "/raw/images/diagram.png",
+		},
+		{
+			name: "the app's own assets are untouched",
+			note: "note.md",
+			src:  "/static/yomihon-mark.svg",
+			want: "/static/yomihon-mark.svg",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			in := `<p><img src="` + tt.src + `" alt="x"></p>`
+			got := render.ResolveAssetHrefs(in, tt.note)
+			want := `<p><img src="` + tt.want + `" alt="x"></p>`
+			if got != want {
+				t.Errorf("ResolveAssetHrefs(%q, %q) = %q, want %q", tt.src, tt.note, got, want)
+			}
+		})
+	}
+}
+
+// TestResolveAssetHrefsLeavesEverythingElseAlone guards the blast radius: this
+// runs over rendered HTML, so anything that is not a local image source must
+// come through byte-identical.
+func TestResolveAssetHrefsLeavesEverythingElseAlone(t *testing.T) {
+	t.Parallel()
+
+	const in = `<h2 id="x">標題</h2>` +
+		`<p><a href="../other.md">link</a></p>` +
+		`<p><code>&lt;img src="a.png"&gt;</code></p>` +
+		`<pre class="chroma"><span>img src="b.png"</span></pre>`
+	if got := render.ResolveAssetHrefs(in, "notes/note.md"); got != in {
+		t.Errorf("ResolveAssetHrefs rewrote content that is not an image source:\n got %q\nwant %q", got, in)
+	}
+}
+
+// TestResolveAssetHrefsRewritesEveryImageOnThePage catches a rewrite that stops
+// after the first match, which a page with one working and one broken image
+// would otherwise hide.
+func TestResolveAssetHrefsRewritesEveryImageOnThePage(t *testing.T) {
+	t.Parallel()
+
+	in := `<img src="a.png" alt=""><p>text</p><img src="sub/b.png" alt="">`
+	got := render.ResolveAssetHrefs(in, "notes/note.md")
+	for _, want := range []string{`src="/raw/notes/a.png"`, `src="/raw/notes/sub/b.png"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("ResolveAssetHrefs output %q is missing %q", got, want)
+		}
+	}
+}
