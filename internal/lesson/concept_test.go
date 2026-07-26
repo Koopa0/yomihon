@@ -129,7 +129,7 @@ func TestNewConceptIndexKeyIsNFCEvenWhenCapturedPathIsNFD(t *testing.T) {
 	if _, ok := idx.IDForPath("Concepts/japanese/" + norm.NFC.String(composed)); !ok {
 		t.Error("IDForPath missed an NFD-captured concept by its NFC path")
 	}
-	doc, ok := idx.Document(func(body string) string { return body }, "Concepts/japanese/"+norm.NFC.String(composed))
+	doc, ok := idx.Document(func(_, body string) string { return body }, "Concepts/japanese/"+norm.NFC.String(composed))
 	if !ok || doc.HTML != "the subject particle" {
 		t.Errorf("Document(NFC path for NFD input) = (%q, %t), want captured bytes", doc.HTML, ok)
 	}
@@ -156,7 +156,7 @@ func TestConceptIndexDocumentRendersBody(t *testing.T) {
 	}
 	// renderBody stands in for the note renderer; asserted only that its output
 	// reaches the doc HTML, not how it renders (that is render's own test).
-	renderBody := func(body string) string { return "<rendered>" + body + "</rendered>" }
+	renderBody := func(_, body string) string { return "<rendered>" + body + "</rendered>" }
 	doc, ok := idx.Document(renderBody, "Concepts/japanese/は.md")
 	if !ok {
 		t.Fatal("Document(は) not ok; expected the concept to load")
@@ -175,7 +175,7 @@ func TestConceptIndexDocumentRendersBody(t *testing.T) {
 func TestConceptIndexDocumentRejectsNonConcept(t *testing.T) {
 	t.Parallel()
 	idx := lesson.ConceptIndex{}
-	if _, ok := idx.Document(func(string) string { return "" }, "Writing/x.md"); ok {
+	if _, ok := idx.Document(func(_, _ string) string { return "" }, "Writing/x.md"); ok {
 		t.Error("Document accepted a path that is not in the concept index")
 	}
 }
@@ -194,14 +194,14 @@ func TestNewConceptIndexOwnsParsedNote(t *testing.T) {
 	note.Body = "replacement body"
 	note.Frontmatter["title"] = "replacement title"
 
-	doc, ok := idx.Document(func(body string) string { return "<rendered>" + body + "</rendered>" }, relPath)
+	doc, ok := idx.Document(func(_, body string) string { return "<rendered>" + body + "</rendered>" }, relPath)
 	if !ok {
 		t.Fatal("Document() did not find the captured concept after caller mutation")
 	}
 	if doc.Title != "は (主題助詞)" || !strings.Contains(doc.HTML, "Marks the topic") {
 		t.Errorf("Document() = %+v, want the captured title and body", doc)
 	}
-	if _, ok := idx.Document(func(body string) string { return body }, note.RelPath); ok {
+	if _, ok := idx.Document(func(_, body string) string { return body }, note.RelPath); ok {
 		t.Error("Document() found a path installed after construction")
 	}
 }
@@ -247,7 +247,33 @@ func TestConceptIndexZeroValue(t *testing.T) {
 	if _, ok := idx.IDForPath("Concepts/japanese/は.md"); ok {
 		t.Error("zero ConceptIndex.IDForPath() reported a concept")
 	}
-	if _, ok := idx.Document(func(body string) string { return body }, "Concepts/japanese/は.md"); ok {
+	if _, ok := idx.Document(func(_, body string) string { return body }, "Concepts/japanese/は.md"); ok {
 		t.Error("zero ConceptIndex.Document() reported a concept")
+	}
+}
+
+// TestDocumentRendersAgainstTheConceptsOwnPath locks the argument the renderer
+// needs but cannot derive. The sheet opens over whatever note the reader is on,
+// so a concept body rendered against the reader's location would address files
+// beside the wrong note — a relative image in a concept would point at the
+// lesson's directory instead of the concept's.
+func TestDocumentRendersAgainstTheConceptsOwnPath(t *testing.T) {
+	t.Parallel()
+	idx, err := lesson.NewConceptIndex([]*vault.Note{
+		conceptNote("japanese", "は.md", "---\ntitle: は\n---\n\nMarks the topic.\n"),
+	})
+	if err != nil {
+		t.Fatalf("NewConceptIndex() error = %v", err)
+	}
+	// The stand-in renders the path it was handed into the output, so the
+	// assertion is on the document, not on how the renderer was called.
+	renderBody := func(relPath, body string) string { return "[base " + relPath + "]" + body }
+	doc, ok := idx.Document(renderBody, "Concepts/japanese/は.md")
+	if !ok {
+		t.Fatal("Document(は) not ok; expected the concept to load")
+	}
+	const want = "[base Concepts/japanese/は.md]"
+	if !strings.Contains(doc.HTML, want) {
+		t.Errorf("doc.HTML = %q, want the concept's own path %q as the render base", doc.HTML, want)
 	}
 }

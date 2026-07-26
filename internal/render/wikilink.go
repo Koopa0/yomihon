@@ -352,7 +352,11 @@ func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, diags *[]D
 		}
 		inner := r.render(body, embedsDenied)
 		*diags = append(*diags, inner.Diagnostics...)
-		return `<div class="embed">` + inner.HTML + `</div>`
+		// An image inside a transcluded body was written relative to the
+		// note it came from, which is rarely the note being read, so it is
+		// resolved here — where that note's own path is still known —
+		// rather than later against the host's directory.
+		return `<div class="embed">` + resolveAssetHrefs(inner.HTML, res.Path) + `</div>`
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}

@@ -193,12 +193,12 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 		t.Errorf("Slots().Lookup() after mutation = %+v, want original fill", secondSlot)
 	}
 
-	concept, ok := view.Concepts().Document(func(body string) string { return body }, "Concepts/go/Concept.md")
+	concept, ok := view.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
 	if !ok {
 		t.Fatal("Concepts().Document() = false, want true")
 	}
 	concept.Title = "mutated"
-	secondConcept, ok := view.Concepts().Document(func(body string) string { return body }, "Concepts/go/Concept.md")
+	secondConcept, ok := view.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
 	if !ok || concept.Title != "mutated" || secondConcept.Title != "Concept" {
 		t.Errorf("Concepts().Document() after mutation = %+v, want original title", secondConcept)
 	}
@@ -435,7 +435,7 @@ func TestViewBindsResolutionAndTransclusionsToOneGeneration(t *testing.T) {
 	if !ok {
 		t.Fatal("Host.md is absent from the initial generation")
 	}
-	if got := oldView.Render(host.Body).HTML; !strings.Contains(got, "old generation body") {
+	if got := oldView.Render("Host.md", host.Body).HTML; !strings.Contains(got, "old generation body") {
 		t.Fatalf("initial render = %q, want captured target body", got)
 	}
 
@@ -445,10 +445,10 @@ func TestViewBindsResolutionAndTransclusionsToOneGeneration(t *testing.T) {
 	if newView == oldView {
 		t.Fatal("changed target did not publish a new generation")
 	}
-	if got := newView.Render(host.Body).HTML; !strings.Contains(got, "replacement generation body") {
+	if got := newView.Render("Host.md", host.Body).HTML; !strings.Contains(got, "replacement generation body") {
 		t.Errorf("new generation render = %q, want replacement target body", got)
 	}
-	if got := oldView.Render(host.Body).HTML; !strings.Contains(got, "old generation body") || strings.Contains(got, "replacement generation body") {
+	if got := oldView.Render("Host.md", host.Body).HTML; !strings.Contains(got, "old generation body") || strings.Contains(got, "replacement generation body") {
 		t.Errorf("old generation render changed after publication: %q", got)
 	}
 }

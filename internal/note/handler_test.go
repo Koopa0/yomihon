@@ -1166,6 +1166,35 @@ func TestHome(t *testing.T) {
 	}
 }
 
+// TestHomeReadmeImagesAddressTheBytes covers the landing page separately from
+// the reading page, because Home renders a body through its own call and a fix
+// applied at the reading page alone leaves the first screen anyone sees showing
+// a broken image.
+func TestHomeReadmeImagesAddressTheBytes(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "Assets"), 0o750); err != nil {
+		t.Fatalf("make Assets: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Assets", "cover.png"), []byte("png"), 0o600); err != nil {
+		t.Fatalf("write cover: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"),
+		[]byte("# Vault\n\n![cover](./Assets/cover.png)\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	srv := newServer(t, root)
+
+	code, pageHTML := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", code, http.StatusOK)
+	}
+	const want = `src="/raw/Assets/cover.png"`
+	if !strings.Contains(pageHTML, want) {
+		t.Errorf("GET / README image is not routed to the bytes; want %q in:\n%s", want, pageHTML)
+	}
+}
+
 // TestReadingRoutesKeepCapturedViewWhenCurrentSwaps is the coherence guard for
 // publication during a request. The provider atomically installs a different
 // current View while returning the previously current one; every projection in

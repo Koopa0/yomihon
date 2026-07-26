@@ -1,10 +1,8 @@
-package render_test
+package render
 
 import (
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/render"
 )
 
 // TestResolveAssetHrefs covers the rewrite and, just as importantly, everything
@@ -99,10 +97,10 @@ func TestResolveAssetHrefs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			in := `<p><img src="` + tt.src + `" alt="x"></p>`
-			got := render.ResolveAssetHrefs(in, tt.note)
+			got := resolveAssetHrefs(in, tt.note)
 			want := `<p><img src="` + tt.want + `" alt="x"></p>`
 			if got != want {
-				t.Errorf("ResolveAssetHrefs(%q, %q) = %q, want %q", tt.src, tt.note, got, want)
+				t.Errorf("resolveAssetHrefs(%q, %q) = %q, want %q", tt.src, tt.note, got, want)
 			}
 		})
 	}
@@ -118,8 +116,8 @@ func TestResolveAssetHrefsLeavesEverythingElseAlone(t *testing.T) {
 		`<p><a href="../other.md">link</a></p>` +
 		`<p><code>&lt;img src="a.png"&gt;</code></p>` +
 		`<pre class="chroma"><span>img src="b.png"</span></pre>`
-	if got := render.ResolveAssetHrefs(in, "notes/note.md"); got != in {
-		t.Errorf("ResolveAssetHrefs rewrote content that is not an image source:\n got %q\nwant %q", got, in)
+	if got := resolveAssetHrefs(in, "notes/note.md"); got != in {
+		t.Errorf("resolveAssetHrefs rewrote content that is not an image source:\n got %q\nwant %q", got, in)
 	}
 }
 
@@ -130,10 +128,10 @@ func TestResolveAssetHrefsRewritesEveryImageOnThePage(t *testing.T) {
 	t.Parallel()
 
 	in := `<img src="a.png" alt=""><p>text</p><img src="sub/b.png" alt="">`
-	got := render.ResolveAssetHrefs(in, "notes/note.md")
+	got := resolveAssetHrefs(in, "notes/note.md")
 	for _, want := range []string{`src="/raw/notes/a.png"`, `src="/raw/notes/sub/b.png"`} {
 		if !strings.Contains(got, want) {
-			t.Errorf("ResolveAssetHrefs output %q is missing %q", got, want)
+			t.Errorf("resolveAssetHrefs output %q is missing %q", got, want)
 		}
 	}
 }

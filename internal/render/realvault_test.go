@@ -111,7 +111,7 @@ func renderRealVaultNote(body string, r *render.Pipeline) (result renderResult) 
 		}
 	}()
 
-	if r.HTML(body).HTML == "" {
+	if r.HTML("note.md", body).HTML == "" {
 		return renderBlank
 	}
 	return renderOK

@@ -61,7 +61,7 @@ func TestObsidianCommentsExcludedFromAllProjections(t *testing.T) {
 			t.Parallel()
 
 			projections := map[string]string{
-				"HTML":          r.HTML(tt.body).HTML,
+				"HTML":          r.HTML("note.md", tt.body).HTML,
 				"PlainText":     render.PlainText(tt.body),
 				"PlainSections": joinedSectionText(render.PlainSections(tt.body)),
 			}
@@ -87,7 +87,7 @@ func TestObsidianCommentsExcludedFromEmbeddedNotes(t *testing.T) {
 		"Embedded.md": "visible embed %%hidden embed%%",
 	})
 
-	got := r.HTML("![[Embedded]]").HTML
+	got := r.HTML("note.md", "![[Embedded]]").HTML
 	if !strings.Contains(got, "visible embed") {
 		t.Errorf("HTML() = %q, want embedded visible text", got)
 	}

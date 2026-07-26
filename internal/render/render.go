@@ -147,20 +147,29 @@ func New(idx Resolver, transclusions Transclusions) *Pipeline {
 }
 
 // HTML renders one note's body: the markdown-to-HTML pipeline, plus the
-// two passes that only make sense once at the top level (never
+// three passes that only make sense once at the top level (never
 // recursively, for callouts or embeds — see their doc comments): the
 // body-first-H1 removal (the page's own title comes from frontmatter, a
-// duplicate leading H1 in the body would show it twice) and CJK-safe
+// duplicate leading H1 in the body would show it twice); CJK-safe
 // heading slug assignment + TOC collection, which must run over the
 // final, fully-assembled HTML (embeds and callouts already spliced in)
 // so heading ids stay unique across the whole page in one pass, rather
-// than colliding across independently-slugged sub-renders.
-func (r *Pipeline) HTML(body string) Result {
+// than colliding across independently-slugged sub-renders; and asset
+// resolution.
+//
+// relPath is where this body lives in the vault, and it is required
+// because a body alone cannot be rendered correctly: markdown writes an
+// image path relative to the note that mentions it, so the same bytes
+// mean different files depending on which note they came from. A
+// transcluded body is resolved against its own note before it is spliced
+// in, so what arrives here is already routed and passes through
+// untouched.
+func (r *Pipeline) HTML(relPath, body string) Result {
 	body = stripObsidianComments(body)
 	body = removeBodyFirstH1(body)
 	res := r.renderBody(body, embedsAllowed)
 	htmlOut, toc := assignHeadingSlugs(res.HTML)
-	res.HTML = htmlOut
+	res.HTML = resolveAssetHrefs(htmlOut, relPath)
 	res.TOC = toc
 	return res
 }

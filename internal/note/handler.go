@@ -39,6 +39,12 @@ const typeLesson = "lesson"
 // search.
 const homeRecentLimit = 7
 
+// homeReadmePath is the note Home shows as its own introduction. It is named
+// once because the lookup and the render need the same answer: the renderer
+// resolves a relative image against the note's directory, so a body fetched
+// under one path and rendered under another would address the wrong files.
+const homeReadmePath = "README.md"
+
 // Dependencies is everything the reading feature reads from. Grouping the providers in a
 // struct keeps the constructor within the parameter budget. Snapshot is one
 // closure because a request must read the atomic pointer once and derive its
@@ -105,12 +111,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	statusView := h.deps.Status()
 	snap := h.deps.Snapshot().Capture()
-	readme, ok := snap.Note("README.md")
+	readme, ok := snap.Note(homeReadmePath)
 	readmeHTML := ""
 	if !ok {
 		h.deps.Log.Warn("home README is absent from the request snapshot")
 	} else {
-		readmeHTML = snap.Render(readme.Body).HTML
+		readmeHTML = snap.Render(homeReadmePath, readme.Body).HTML
 	}
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, artifactPolicy, snap)
@@ -184,10 +190,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	governance := h.governance(&n, snap, statusView, artifactPolicy)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
-	result := snap.Render(n.Body)
-	// Markdown addresses an image relative to its own note; the browser would
-	// resolve that against the reading route and fetch a page instead of bytes.
-	result.HTML = render.ResolveAssetHrefs(result.HTML, rel)
+	result := snap.Render(rel, n.Body)
 
 	// Governed lesson bodies get the read-aloud affordance: wrap each ruby-bearing
 	// sentence with a speak button whose text has the furigana stripped
@@ -371,7 +374,7 @@ func (h *Handler) loadConcepts(
 	if len(refs) == 0 {
 		return nil
 	}
-	renderBody := func(body string) string { return snap.Render(body).HTML }
+	renderBody := func(rel, body string) string { return snap.Render(rel, body).HTML }
 	docs := make([]lesson.ConceptDoc, 0, len(refs))
 	for _, rel := range refs {
 		if d, ok := snap.Concepts().Document(renderBody, rel); ok {

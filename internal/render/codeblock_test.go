@@ -56,7 +56,7 @@ func TestFencedCodeBlockHighlighting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := r.HTML(tt.body)
+			got := r.HTML("note.md", tt.body)
 			for _, w := range tt.want {
 				if !strings.Contains(got.HTML, w) {
 					t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, w, got.HTML)

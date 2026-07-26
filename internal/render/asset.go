@@ -12,21 +12,22 @@ import (
 // wrote rather than trying to parse arbitrary HTML.
 var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)(")`)
 
-// ResolveAssetHrefs rewrites the local image sources in htmlOut so a browser
+// resolveAssetHrefs rewrites the local image sources in htmlOut so a browser
 // asks for the bytes instead of for a reading page.
 //
 // Markdown says where an image is relative to the note that mentions it, which
 // is the ordinary way anyone writes one. The reading page lives under /notes/,
 // so a browser resolves `../images/x.png` against that route and lands on
 // another reading page — served, HTML, and not an image. The bytes are on
-// /raw/. Rewriting here, after the markdown is rendered, keeps the note's own
-// directory out of the renderer, which has no notion of where it is.
+// /raw/.
 //
-// noteRelPath is the vault-relative path of the note being rendered. A
-// destination that leaves the vault, or that is not vault-local in the first
-// place, is left exactly as it was: this function resolves paths, and refusing
-// them belongs to the routes that serve them.
-func ResolveAssetHrefs(htmlOut, noteRelPath string) string {
+// noteRelPath is the vault-relative path of the note the sources were written
+// in, which is not always the note being displayed: a transcluded body carries
+// its own directory with it, so it is resolved where it is spliced rather than
+// against its host. A destination that leaves the vault, or that is not
+// vault-local in the first place, is left exactly as it was — this resolves
+// paths, and refusing them belongs to the routes that serve them.
+func resolveAssetHrefs(htmlOut, noteRelPath string) string {
 	noteDir := pathpkg.Dir(noteRelPath)
 	if noteDir == "." {
 		noteDir = ""

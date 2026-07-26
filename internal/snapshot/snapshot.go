@@ -157,11 +157,15 @@ func (v *View) Note(canonicalPath string) (Note, bool) {
 // bodies owned by this same generation. Keeping both inputs behind View makes
 // it impossible for a request to combine links from one scan with note bodies
 // from another.
-func (v *View) Render(body string) render.Result {
+//
+// relPath is where the body lives in the vault. It is the caller's answer to
+// "relative to what", which every note body needs and which nothing in the
+// body itself supplies.
+func (v *View) Render(relPath, body string) render.Result {
 	if v == nil || v.markdown == nil {
 		return render.Result{}
 	}
-	return v.markdown.HTML(body)
+	return v.markdown.HTML(relPath, body)
 }
 
 // Transclusion returns the immutable body captured for canonicalPath. It is

@@ -104,12 +104,15 @@ type ConceptDoc struct {
 // Document renders one captured concept into a sheet document. renderBody is
 // the note renderer's body-to-HTML step (the handler passes the plain note
 // pipeline, so a concept's own wikilinks stay ordinary links and never nest a
-// second sheet). The ID comes from the index so it matches the trigger the
-// post-pass wrote.
-func (x ConceptIndex) Document(renderBody func(body string) string, relPath string) (ConceptDoc, bool) {
-	source, ok := x.byPath[vault.NormalizeNFC(relPath)]
+// second sheet). It receives the concept's own path along with its body,
+// because the sheet opens over a different note and a body rendered against
+// the reader's location would address the wrong files. The ID comes from the
+// index so it matches the trigger the post-pass wrote.
+func (x ConceptIndex) Document(renderBody func(relPath, body string) string, relPath string) (ConceptDoc, bool) {
+	key := vault.NormalizeNFC(relPath)
+	source, ok := x.byPath[key]
 	if !ok || renderBody == nil {
 		return ConceptDoc{}, false
 	}
-	return ConceptDoc{ID: source.id, Title: source.title, HTML: renderBody(source.body)}, true
+	return ConceptDoc{ID: source.id, Title: source.title, HTML: renderBody(key, source.body)}, true
 }
