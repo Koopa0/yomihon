@@ -56,7 +56,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 	)
 
 	top := "Usage:\n" +
-		"  yomihon serve\n" +
+		"  yomihon serve [--root <dir>]\n" +
 		"  yomihon search [options] <query...>\n" +
 		"  yomihon search-index build [options]\n" +
 		"  yomihon check [options] [path...]\n" +
@@ -64,7 +64,10 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"  yomihon exists [options] <name>\n\n" +
 		"Use \"yomihon <command> --help\" for command help.\n"
 	command := map[string]string{
-		"serve":        "Usage: yomihon serve\n",
+		"serve": "Usage: yomihon serve [--root <dir>]\n" +
+			"\n" +
+			"Reads the folder at --root, or $YOMIHON_ROOT, or ~/obsidian.\n" +
+			"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n",
 		"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
 		"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
 		"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",
@@ -103,8 +106,9 @@ func TestServeRejectsArgumentsBeforeLoadingConfiguration(t *testing.T) {
 		"YOMIHON_ROOT="+filepath.Join(t.TempDir(), "missing-vault"),
 		"YOMIHON_PORT=not-a-port",
 	))
-	if exit != 2 || stdout != "" || stderr != "yomihon: usage: yomihon serve\n" {
-		t.Errorf("yomihon serve unexpected = exit %d, stdout %q, stderr %q; want 2, empty, %q", exit, stdout, stderr, "yomihon: usage: yomihon serve\n")
+	const wantUsage = "yomihon: usage: yomihon serve [--root <dir>]\n"
+	if exit != 2 || stdout != "" || stderr != wantUsage {
+		t.Errorf("yomihon serve unexpected = exit %d, stdout %q, stderr %q; want 2, empty, %q", exit, stdout, stderr, wantUsage)
 	}
 	assertHomeUntouched(t, home)
 }

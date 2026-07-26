@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 const topLevelHelp = `Usage:
-  yomihon serve
+  yomihon serve [--root <dir>]
   yomihon search [options] <query...>
   yomihon search-index build [options]
   yomihon check [options] [path...]
@@ -14,7 +14,10 @@ Use "yomihon <command> --help" for command help.
 `
 
 var commandHelp = map[string]string{
-	"serve":        "Usage: yomihon serve\n",
+	"serve": "Usage: yomihon serve [--root <dir>]\n" +
+		"\n" +
+		"Reads the folder at --root, or $YOMIHON_ROOT, or ~/obsidian.\n" +
+		"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n",
 	"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
 	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
 	"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",

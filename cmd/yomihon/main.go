@@ -41,12 +41,13 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "serve":
-		if len(os.Args) != 2 {
-			fmt.Fprintln(os.Stderr, "yomihon: usage: yomihon serve")
+		root, err := serveRoot(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "yomihon: %v\n", err)
 			os.Exit(2)
 		}
 		log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-		if err := run(log); err != nil {
+		if err := run(log, root); err != nil {
 			log.Error("yomihon exited", "error", err)
 			os.Exit(1)
 		}
@@ -65,6 +66,26 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "yomihon: unknown command %q; use serve, search, search-index, check, coverage, or exists\n", os.Args[1])
 		os.Exit(2)
+	}
+}
+
+// serveRoot resolves which folder to read, in the order a reader would expect:
+// what they just typed, then what their environment says, then the default. It
+// exists because the folder is the one thing a first run must be able to state
+// without reading the source — every other command already takes --root, and
+// serve silently reading a different directory than the one the operator was
+// standing in is the failure this closes.
+func serveRoot(args []string) (string, error) {
+	switch {
+	case len(args) == 0:
+		return configuredVaultRoot()
+	case len(args) == 2 && args[0] == "--root":
+		if args[1] == "" {
+			return "", errors.New("--root needs a directory")
+		}
+		return args[1], nil
+	default:
+		return "", errors.New("usage: yomihon serve [--root <dir>]")
 	}
 }
 
@@ -92,11 +113,7 @@ type config struct {
 	port string
 }
 
-func loadConfig() (config, error) {
-	root, err := configuredVaultRoot()
-	if err != nil {
-		return config{}, fmt.Errorf("resolve vault root: %w", err)
-	}
+func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
 	if cfg.port == "" {
 		cfg.port = "9610"
@@ -111,8 +128,8 @@ func loadConfig() (config, error) {
 	return cfg, nil
 }
 
-func run(log *slog.Logger) (resultErr error) {
-	cfg, err := loadConfig()
+func run(log *slog.Logger, root string) (resultErr error) {
+	cfg, err := loadConfig(root)
 	if err != nil {
 		return err
 	}
