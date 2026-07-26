@@ -391,10 +391,23 @@ func TestSidebarContentGrouping(t *testing.T) {
 	}
 }
 
+// TestSidebarRendersNavigationCapabilityDiagnostics pins the one signal a
+// reader gets outside Home: a note opened straight from the command palette
+// never renders Home, so a contract whose declarations could not be read has to
+// say so in the rail or nowhere.
 func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	model := nav.New(nil, nil, graph.BuildFromNotes(nil, nil), schema.NavigationRoles{}, schema.ArtifactPolicy{})
+	contract := rejectedCapabilityContract(t)
+	model := nav.New(
+		nil, nil, graph.BuildFromNotes(nil, nil),
+		contract.NavigationRoles(),
+		contract.ArtifactPolicy(),
+	)
+	if model.NavigationDiagnostic() == "" || model.ArtifactDiagnostic() == "" {
+		t.Fatalf("fixture produced no capability fault: navigation %q artifact %q",
+			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+	}
 	var buf bytes.Buffer
 	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
@@ -404,8 +417,9 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		`data-sidebar-group="navigation-diagnostics"`,
 		"路徑與地圖",
 		"治理項目投影目前無法使用",
-		model.NavigationDiagnostic(),
-		model.ArtifactDiagnostic(),
+		// The sentences themselves, HTML-escaped exactly as the page writes them.
+		htmlEscape(model.NavigationDiagnostic()),
+		htmlEscape(model.ArtifactDiagnostic()),
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered degraded sidebar is missing %q", want)
@@ -414,6 +428,89 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	if strings.Contains(html, `data-map-tree=`) {
 		t.Error("rendered degraded sidebar contains a map disclosure")
 	}
+}
+
+// TestSidebarSaysNothingForAnUngovernedFolder is the other half: a folder that
+// carries no contract declared nothing, so it has no paths and no maps, and the
+// rail must not apologise on every page for the ordinary shape of a directory.
+func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
+	t.Parallel()
+
+	model := nav.New(
+		nil, nil, graph.BuildFromNotes(nil, nil),
+		schema.NavigationRoles{},
+		schema.ArtifactPolicy{},
+	)
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	for _, unwanted := range []string{
+		`data-sidebar-group="navigation-diagnostics"`,
+		"路徑與地圖目前無法使用",
+		"治理項目投影目前無法使用",
+	} {
+		if strings.Contains(html, unwanted) {
+			t.Errorf("ungoverned sidebar renders %q; nothing ever claimed governance here", unwanted)
+		}
+	}
+}
+
+// htmlEscape mirrors the text escaping the renderer applies, so a test can look
+// for the exact sentence the page wrote, quotes and all. It is spelled out
+// rather than imported so the package name does not collide with the "html"
+// variable every render assertion in this file already uses.
+func htmlEscape(s string) string {
+	replacer := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&#34;", "'", "&#39;")
+	return replacer.Replace(s)
+}
+
+// rejectedCapabilityContract loads a contract that claims governance and then
+// declares a path type its own enums.type does not contain, and an artifact
+// directory that escapes the vault. Both declarations are made and rejected.
+func rejectedCapabilityContract(t *testing.T) *schema.Contract {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	text := `schema_version = "1"
+
+[enums]
+type = ["concept", "moc"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "based_on"]
+
+[rules]
+concept_requires_provenance = ["based_on"]
+
+[scan]
+knowledge_dirs = ["Concepts"]
+
+[navigation]
+path_types = ["undeclared-type"]
+map_types = ["moc"]
+
+[artifacts]
+non_instance_dirs = ["../escape"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+`
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	return contract
 }
 
 func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing.T) {

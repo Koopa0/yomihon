@@ -32,15 +32,16 @@ const (
 // An empty query (no tokens and no filters) returns nothing. A pure-filter
 // query is legal: with no tokens the title-bucket token test is vacuously true,
 // so every filter match lands in the (rel_path-ordered) title bucket.
-// Metadata filters exclude non-instance artifacts. If the artifact policy is
-// unavailable, a query containing such a filter returns
+// Metadata filters exclude non-instance artifacts. If the artifact policy was
+// declared and could not be honoured, a query containing such a filter returns
 // ErrMetadataUnavailable with the contract diagnostic; text and folder queries
-// continue against the complete readable corpus.
+// continue against the complete readable corpus. A vault that never declared
+// one excludes nothing, so those filters run over raw frontmatter.
 func (idx *Index) Search(q Query) ([]Result, error) {
 	if len(q.tokens) == 0 && len(q.filters) == 0 {
 		return nil, nil
 	}
-	metadataAvailable := idx.policy.Available()
+	metadataAvailable := idx.policy.Trustworthy()
 	requiresMetadata := q.RequiresMetadata()
 	if requiresMetadata && !metadataAvailable {
 		return nil, idx.metadataUnavailableError()
@@ -68,11 +69,11 @@ func (idx *Index) Search(q Query) ([]Result, error) {
 // text tokens are deliberately ignored: callers use this set to constrain a
 // separate retrieval channel before that channel applies its own ranking.
 // Metadata filters retain Search's instance-capability behavior, including a
-// loud error when the artifact policy is unavailable. With no filters, every
-// indexed path is allowed.
+// loud error when the artifact policy could not be honoured. With no filters,
+// every indexed path is allowed.
 func (idx *Index) AllowedPaths(q Query) (map[string]struct{}, error) {
 	requiresMetadata := q.RequiresMetadata()
-	if requiresMetadata && !idx.policy.Available() {
+	if requiresMetadata && !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()
 	}
 

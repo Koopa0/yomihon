@@ -60,7 +60,12 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	snap := h.snapshot()
 	results, diagnostic := h.query(snap.Index, q)
 
-	view := pages.SearchView{Query: q, Results: viewResults(results), Diagnostic: diagnostic, Nav: snap.Shell.Nav}
+	view := pages.SearchView{
+		Query:      q,
+		Results:    viewResults(results, snap.Shell.Governed),
+		Diagnostic: diagnostic,
+		Nav:        snap.Shell.Nav,
+	}
 	if err := pages.Search(view, snap.Shell.Chrome(r, "搜尋")).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search page", q, err)
 	}
@@ -79,7 +84,7 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if err := pages.SearchResults(q, viewResults(results), diagnostic).Render(r.Context(), w); err != nil {
+	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed), diagnostic).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }
@@ -128,14 +133,21 @@ func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 // viewResults maps the engine's results onto the view's plain field type,
 // keeping internal/ui/pages free of any dependency on this package (the same
 // one-directional import shape the reading page uses).
-func viewResults(results []Result) []pages.SearchResult {
+//
+// A hit's status is carried only for a vault something governs. The index will
+// happily match and return raw frontmatter for an ungoverned folder — that is a
+// text field like any other — but a status chip presents it as a value drawn
+// from a declared vocabulary, which is a claim no contract backs there.
+func viewResults(results []Result, governed bool) []pages.SearchResult {
 	out := make([]pages.SearchResult, len(results))
 	for i, r := range results {
 		out[i] = pages.SearchResult{
 			RelPath: r.RelPath,
 			Title:   r.Title,
-			Status:  r.Status,
 			Snippet: r.Snippet,
+		}
+		if governed {
+			out[i].Status = r.Status
 		}
 	}
 	return out

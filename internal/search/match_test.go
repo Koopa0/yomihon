@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -30,6 +31,15 @@ func invalidArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 func incompleteArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 	tb.Helper()
 	return artifactPolicyFromSection(tb, "[artifacts]\n")
+}
+
+// undeclaredArtifactPolicy is a contract that loaded and left [artifacts] out
+// altogether. It is not the zero value: the zero value belongs to a folder that
+// carries no contract, which excluded nothing on purpose, while this one meant
+// to exclude directories yomihon cannot name.
+func undeclaredArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
+	tb.Helper()
+	return artifactPolicyFromSection(tb, "")
 }
 
 func artifactPolicyFromSection(tb testing.TB, section string) schema.ArtifactPolicy {
@@ -158,7 +168,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 		name   string
 		policy schema.ArtifactPolicy
 	}{
-		{name: "missing", policy: schema.ArtifactPolicy{}},
+		{name: "undeclared", policy: undeclaredArtifactPolicy(t)},
 		{name: "invalid", policy: invalidArtifactPolicy(t)},
 		{name: "incomplete", policy: incompleteArtifactPolicy(t)},
 	}
@@ -217,7 +227,7 @@ func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
 		NoteType: "concept",
 		Status:   "draft",
 	}}, validArtifactPolicy(t))
-	closed := idx.WithArtifactPolicy(schema.ArtifactPolicy{})
+	closed := idx.WithArtifactPolicy(undeclaredArtifactPolicy(t))
 
 	openResults, err := idx.Search(Parse("Note"))
 	if err != nil {
@@ -241,25 +251,92 @@ func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
 	}
 }
 
-func TestZeroValueIndexMetadataUnavailable(t *testing.T) {
+// TestZeroValueIndexAnswersNothingWithoutInventingAFault pins the zero Index,
+// which holds no documents and no declared exclusions. Every projection over it
+// is empty, and empty is the honest answer — the index has nothing to withhold,
+// so it does not report a capability failure it did not have.
+func TestZeroValueIndexAnswersNothingWithoutInventingAFault(t *testing.T) {
 	t.Parallel()
 
 	idx := &Index{}
-	wantDiagnostic := (schema.ArtifactPolicy{}).Diagnostic()
-	if got, err := idx.Search(Parse("type:concept")); !errors.Is(err, ErrMetadataUnavailable) {
-		t.Errorf("zero Index.Search(type:concept) = (%v, %v), want ErrMetadataUnavailable", got, err)
-	} else if err.Error() != wantDiagnostic {
-		t.Errorf("zero Index.Search(type:concept) error = %q, want %q", err.Error(), wantDiagnostic)
+	results, err := idx.Search(Parse("type:concept"))
+	if err != nil {
+		t.Errorf("zero Index.Search(type:concept) error = %v, want nil", err)
 	}
-	if got, err := idx.CountByStatus(); !errors.Is(err, ErrMetadataUnavailable) {
-		t.Errorf("zero Index.CountByStatus() = (%v, %v), want ErrMetadataUnavailable", got, err)
-	} else if err.Error() != wantDiagnostic {
-		t.Errorf("zero Index.CountByStatus() error = %q, want %q", err.Error(), wantDiagnostic)
+	if len(results) != 0 {
+		t.Errorf("zero Index.Search(type:concept) = %v, want no results", results)
 	}
-	if got, err := idx.CountByTypeStatus(); !errors.Is(err, ErrMetadataUnavailable) {
-		t.Errorf("zero Index.CountByTypeStatus() = (%v, %v), want ErrMetadataUnavailable", got, err)
-	} else if err.Error() != wantDiagnostic {
-		t.Errorf("zero Index.CountByTypeStatus() error = %q, want %q", err.Error(), wantDiagnostic)
+	counts, err := idx.CountByStatus()
+	if err != nil || len(counts) != 0 {
+		t.Errorf("zero Index.CountByStatus() = (%v, %v), want an empty tally and no error", counts, err)
+	}
+	typeCounts, err := idx.CountByTypeStatus()
+	if err != nil || len(typeCounts) != 0 {
+		t.Errorf("zero Index.CountByTypeStatus() = (%v, %v), want an empty tally and no error", typeCounts, err)
+	}
+}
+
+// TestWithheldCapabilitiesRefuseMetadataWithSomethingToSay pins the hole that
+// opened when the vault-level fault was carried separately from the capability
+// it closed: the index refused the query, its reason came back empty, and the
+// results page rendered the ordinary "nothing found" copy. Zero results and
+// "cannot answer" are different sentences, and only one of them is true here.
+func TestWithheldCapabilitiesRefuseMetadataWithSomethingToSay(t *testing.T) {
+	t.Parallel()
+
+	_, policy, _ := schema.Unreadable(errors.New("toml: line 42: expected a key separator")).Capabilities(nil)
+	idx := NewIndex([]Document{
+		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft"},
+	}, policy)
+
+	_, err := idx.Search(Parse("status:draft"))
+	if !errors.Is(err, ErrMetadataUnavailable) {
+		t.Fatalf("Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
+	}
+	if err.Error() == "" {
+		t.Error("the refusal carries no reason; the page has nothing to show but a false empty result")
+	}
+	if !strings.Contains(err.Error(), "line 42") {
+		t.Errorf("the refusal does not name the cause: %q", err.Error())
+	}
+}
+
+// TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter pins the difference the
+// grant split makes to search. A folder that carries no contract excluded no
+// directory, so a metadata filter runs over every readable note's own
+// frontmatter and answers rather than refusing. What it must not do is dress
+// that raw value up as a lifecycle state; that decision belongs to the surface
+// that renders it, not to the index.
+func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft", PlainText: "needle"},
+		{RelPath: "System/templates/Card.md", Title: "Card", NoteType: "lesson", PlainText: "needle"},
+	}, schema.ArtifactPolicy{})
+
+	results, err := idx.Search(Parse("type:concept"))
+	if err != nil {
+		t.Fatalf("Search(type:concept) with an unclaimed policy error = %v, want an answer", err)
+	}
+	if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(results)); diff != "" {
+		t.Errorf("Search(type:concept) paths mismatch (-want +got):\n%s", diff)
+	}
+	// Nothing declared System/templates as an artifact, so it is an ordinary
+	// note and a plain query reaches it.
+	plain, err := idx.Search(Parse("needle"))
+	if err != nil {
+		t.Fatalf("Search(needle) error = %v", err)
+	}
+	if len(plain) != 2 {
+		t.Errorf("Search(needle) = %v, want both notes: nothing was excluded", paths(plain))
+	}
+	counts, err := idx.CountByStatus()
+	if err != nil {
+		t.Fatalf("CountByStatus() with an unclaimed policy error = %v", err)
+	}
+	if counts["draft"] != 1 {
+		t.Errorf("CountByStatus()[draft] = %d, want 1", counts["draft"])
 	}
 }
 
@@ -466,7 +543,7 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 		name   string
 		policy schema.ArtifactPolicy
 	}{
-		{name: "missing", policy: schema.ArtifactPolicy{}},
+		{name: "undeclared", policy: undeclaredArtifactPolicy(t)},
 		{name: "invalid", policy: invalidArtifactPolicy(t)},
 		{name: "incomplete", policy: incompleteArtifactPolicy(t)},
 	}

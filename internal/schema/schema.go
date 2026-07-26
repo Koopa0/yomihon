@@ -436,13 +436,13 @@ func resolveArtifactPolicy(
 ) ArtifactPolicy {
 	if typeErrorKey != "" {
 		return ArtifactPolicy{state: &artifactPolicyState{
-			diagnostic: fmt.Sprintf("invalid artifact policy: key %q has incompatible TOML type", typeErrorKey),
+			claim: Rejected(fmt.Sprintf("invalid artifact policy: key %q has incompatible TOML type", typeErrorKey)),
 		}}
 	}
 	if len(unknownKeys) > 0 {
 		slices.Sort(unknownKeys)
 		return ArtifactPolicy{state: &artifactPolicyState{
-			diagnostic: "invalid artifact policy: unknown keys " + formatContractKeys(unknownKeys),
+			claim: Rejected("invalid artifact policy: unknown keys " + formatContractKeys(unknownKeys)),
 		}}
 	}
 	return deriveArtifactPolicy(
@@ -461,13 +461,13 @@ func resolvePrivacyPolicy(
 ) PrivacyPolicy {
 	if typeErrorKey != "" {
 		return PrivacyPolicy{state: &privacyPolicyState{
-			diagnostic: fmt.Sprintf("invalid privacy policy: key %q has incompatible TOML type", typeErrorKey),
+			claim: Rejected(fmt.Sprintf("invalid privacy policy: key %q has incompatible TOML type", typeErrorKey)),
 		}}
 	}
 	if len(unknownKeys) > 0 {
 		slices.Sort(unknownKeys)
 		return PrivacyPolicy{state: &privacyPolicyState{
-			diagnostic: "invalid privacy policy: unknown keys " + formatContractKeys(unknownKeys),
+			claim: Rejected("invalid privacy policy: unknown keys " + formatContractKeys(unknownKeys)),
 		}}
 	}
 	return derivePrivacyPolicy(
@@ -1100,16 +1100,25 @@ func (c *Contract) Supersession() (Supersession, bool) {
 
 // NavigationRoles returns the contract-derived navigation role capability.
 func (c *Contract) NavigationRoles() NavigationRoles {
+	if c == nil {
+		return NavigationRoles{}
+	}
 	return c.navigationRoles
 }
 
 // ArtifactPolicy returns the contract-derived artifact policy capability.
 func (c *Contract) ArtifactPolicy() ArtifactPolicy {
+	if c == nil {
+		return ArtifactPolicy{}
+	}
 	return c.artifactPolicy
 }
 
 // PrivacyPolicy returns the contract-derived fail-closed egress capability.
 func (c *Contract) PrivacyPolicy() PrivacyPolicy {
+	if c == nil {
+		return PrivacyPolicy{}
+	}
 	return c.privacyPolicy
 }
 

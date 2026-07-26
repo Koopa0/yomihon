@@ -116,7 +116,7 @@ func newLifecycle(t *testing.T, root string, contract *schema.Contract) *status.
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := status.Open(reader, contract)
+	lifecycle, err := status.Open(reader, contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("status.Open(%q) error = %v", root, err)
 	}
@@ -294,7 +294,7 @@ func TestOpenRejectsAReplacementOfTheReadersRoot(t *testing.T) {
 		t.Fatalf("create replacement vault: %v", err)
 	}
 
-	lifecycle, err := status.Open(reader, nil)
+	lifecycle, err := status.Open(reader, nil, schema.Ungoverned())
 	if lifecycle != nil {
 		t.Cleanup(func() {
 			if closeErr := lifecycle.Close(); closeErr != nil {

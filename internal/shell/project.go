@@ -13,25 +13,37 @@ import (
 // Implementations are request-scoped views; the projector performs no contract
 // reads of its own.
 type Lifecycle interface {
-	Diagnostic() string
+	Governed() bool
+	Claim() schema.Claim
 	Advanceable(noteType, status string) bool
 }
 
 // Project derives one shell from one vault snapshot and the two immutable
 // request authorities captured by the composition point. The projector performs
 // no source reads of its own. Instance-derived navigation and counts close
-// together when either authority is unavailable.
+// together when either authority can no longer be honoured — not merely when it
+// is absent, because a folder that declared nothing excluded nothing and its
+// projections are answerable.
 func Project(
 	lifecycle Lifecycle,
 	policy schema.ArtifactPolicy,
 	snap *snapshot.View,
 ) pages.Shell {
-	projected := pages.Shell{Nav: snap.Navigation()}
-	if diagnostic := lifecycle.Diagnostic(); diagnostic != "" {
-		return projected.WithoutInstanceProjections(diagnostic)
+	governed := lifecycle.Governed()
+	projected := pages.Shell{Nav: snap.Navigation(), Governed: governed}
+	// The two authorities are sampled at different instants, so a projection
+	// stays open only while both are still answerable. Either one refusing
+	// closes the shared navigation, whichever was captured first.
+	if claim := lifecycle.Claim(); !claim.Trustworthy() {
+		return projected.WithoutInstanceProjections(claim)
 	}
-	if !policy.Available() {
-		return projected.WithoutInstanceProjections(policy.Diagnostic())
+	if !policy.Trustworthy() {
+		return projected.WithoutInstanceProjections(policy.Claim())
+	}
+	// A folder nothing governs has no notes waiting for a next status: the
+	// count is not unknown, it does not exist, so no chip is offered.
+	if !governed {
+		return projected
 	}
 
 	count, known := advanceableCount(lifecycle, snap)

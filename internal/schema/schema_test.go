@@ -638,14 +638,6 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want %q", got, wantArtifact)
 	}
 
-	var zeroRoles schema.NavigationRoles
-	if got := zeroRoles.Diagnostic(); got != wantNavigation {
-		t.Errorf("zero NavigationRoles.Diagnostic() = %q, want %q", got, wantNavigation)
-	}
-	var zeroPolicy schema.ArtifactPolicy
-	if got := zeroPolicy.Diagnostic(); got != wantArtifact {
-		t.Errorf("zero ArtifactPolicy.Diagnostic() = %q, want %q", got, wantArtifact)
-	}
 	privacy := s.PrivacyPolicy()
 	if privacy.Available() {
 		t.Fatal("PrivacyPolicy().Available() = true, want false")
@@ -657,9 +649,97 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 	if privacy.EgressAllowed("Public/note.md") {
 		t.Error("unavailable PrivacyPolicy().EgressAllowed() = true, want fail-closed false")
 	}
-	var zeroPrivacy schema.PrivacyPolicy
-	if got := zeroPrivacy.Diagnostic(); got != wantPrivacy {
-		t.Errorf("zero PrivacyPolicy.Diagnostic() = %q, want %q", got, wantPrivacy)
+	for _, trustworthy := range []struct {
+		name string
+		got  bool
+	}{
+		{"navigation roles", roles.Trustworthy()},
+		{"artifact policy", policy.Trustworthy()},
+		{"privacy policy", privacy.Trustworthy()},
+	} {
+		if trustworthy.got {
+			t.Errorf("%s of a contract that omitted the section is trustworthy; the operator meant to govern something yomihon cannot read", trustworthy.name)
+		}
+	}
+}
+
+// TestZeroCapabilitiesAreSilentAndFailClosed pins the folder that carries no
+// contract at all. Nothing asserted governance there, so nothing is reported —
+// but reporting nothing is not permission: egress and the classification of a
+// governed instance still require a declaration that was actually read.
+func TestZeroCapabilitiesAreSilentAndFailClosed(t *testing.T) {
+	t.Parallel()
+
+	var roles schema.NavigationRoles
+	var policy schema.ArtifactPolicy
+	var privacy schema.PrivacyPolicy
+
+	for _, silent := range []struct {
+		name string
+		got  string
+	}{
+		{"NavigationRoles", roles.Diagnostic()},
+		{"ArtifactPolicy", policy.Diagnostic()},
+		{"PrivacyPolicy", privacy.Diagnostic()},
+	} {
+		if silent.got != "" {
+			t.Errorf("zero %s.Diagnostic() = %q, want silence: nothing ever claimed this", silent.name, silent.got)
+		}
+	}
+	if !roles.Trustworthy() || !policy.Trustworthy() || !privacy.Trustworthy() {
+		t.Error("zero capability is untrustworthy; an undeclared set is the empty set, and a projection over it is answerable")
+	}
+	if roles.Available() || policy.Available() || privacy.Available() {
+		t.Error("zero capability reports Available; silence is not a held declaration")
+	}
+	if privacy.EgressAllowed("Public/note.md") {
+		t.Error("zero PrivacyPolicy allows egress; permission is positive authority, never the absence of a deny")
+	}
+	if policy.IsNonInstance("System/templates/Card.md") {
+		t.Error("zero ArtifactPolicy excludes a path it was never told to exclude")
+	}
+	if roles.IsPathType("study-path") || roles.IsMapType("moc") {
+		t.Error("zero NavigationRoles classifies a type nothing declared")
+	}
+}
+
+// TestStaleArtifactPolicyStopsClassifying pins the one state where the
+// trustworthiness gate carries real data behind it. A policy that was read
+// cleanly and whose source bytes then changed still holds the directory list it
+// was built from; answering from that list would classify a note against
+// exclusions the operator has since rewritten. The gate is what stops it, so it
+// is asserted directly rather than left to every caller's own check.
+func TestStaleArtifactPolicyStopsClassifying(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	text := contractText("", "\n[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n", "")
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile: %v", err)
+	}
+	policy := contract.ArtifactPolicy()
+	const template = "System/templates/Card.md"
+	if !policy.IsNonInstance(template) {
+		t.Fatalf("IsNonInstance(%q) = false while the declaration is held", template)
+	}
+
+	if err := os.WriteFile(path, []byte(text+"\n"), 0o600); err != nil {
+		t.Fatalf("change contract source: %v", err)
+	}
+	stale := policy.ValidateSource()
+
+	if stale.Trustworthy() {
+		t.Fatal("a policy whose source changed is still trustworthy")
+	}
+	if stale.IsNonInstance(template) {
+		t.Errorf("IsNonInstance(%q) = true from a policy whose source it can no longer vouch for", template)
+	}
+	if stale.Diagnostic() == "" {
+		t.Error("a latched-stale policy says nothing; drift after startup is news")
 	}
 }
 

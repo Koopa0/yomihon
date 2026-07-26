@@ -193,8 +193,19 @@ type Store struct {
 
 // New captures and builds the initial generation synchronously. source and log
 // are required wiring; contract may be nil, in which case instance-derived
-// projections remain explicitly unavailable while ordinary reading continues.
-func New(ctx context.Context, source Source, log *slog.Logger, contract *schema.Contract) (*Store, error) {
+// projections are built over the empty declared set while ordinary reading
+// continues. governance is what the folder asserted about its own contract,
+// which a nil contract cannot answer — a folder with no contract and a folder
+// whose contract could not be read both arrive with none, and only the second
+// is a fault. When contract is non-nil, governance must be
+// contract.Governance().
+func New(
+	ctx context.Context,
+	source Source,
+	log *slog.Logger,
+	contract *schema.Contract,
+	governance schema.Governance,
+) (*Store, error) {
 	if source == nil {
 		panic("snapshot: New requires a non-nil Source")
 	}
@@ -202,14 +213,8 @@ func New(ctx context.Context, source Source, log *slog.Logger, contract *schema.
 		panic("snapshot: New requires a non-nil Logger")
 	}
 
-	var roles schema.NavigationRoles
-	var policy schema.ArtifactPolicy
-	var language schema.ArticleLanguage
-	if contract != nil {
-		roles = contract.NavigationRoles()
-		policy = contract.ArtifactPolicy().ValidateSource()
-		language = contract.ArticleLanguage()
-	}
+	roles, policy, language := governance.Capabilities(contract)
+	policy = policy.ValidateSource()
 	scan, err := source.ScanAvailable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)

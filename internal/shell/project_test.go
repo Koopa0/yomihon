@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,11 @@ import (
 
 func lifecycleView(t *testing.T, contract *schema.Contract) status.View {
 	t.Helper()
+	return governedLifecycleView(t, contract, contract.Governance())
+}
+
+func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
+	t.Helper()
 	root := t.TempDir()
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -25,7 +31,7 @@ func lifecycleView(t *testing.T, contract *schema.Contract) status.View {
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := status.Open(reader, contract)
+	lifecycle, err := status.Open(reader, contract, governance)
 	if err != nil {
 		t.Fatalf("status.Open(%q) error = %v", root, err)
 	}
@@ -38,6 +44,16 @@ func lifecycleView(t *testing.T, contract *schema.Contract) status.View {
 }
 
 func snapshotView(t *testing.T, contract *schema.Contract, notes map[string]string) *snapshot.View {
+	t.Helper()
+	return governedSnapshotView(t, contract, contract.Governance(), notes)
+}
+
+func governedSnapshotView(
+	t *testing.T,
+	contract *schema.Contract,
+	governance schema.Governance,
+	notes map[string]string,
+) *snapshot.View {
 	t.Helper()
 	root := t.TempDir()
 	for relPath, body := range notes {
@@ -58,7 +74,7 @@ func snapshotView(t *testing.T, contract *schema.Contract, notes map[string]stri
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), contract)
+	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), contract, governance)
 	if err != nil {
 		t.Fatalf("snapshot.New() error = %v", err)
 	}
@@ -103,19 +119,26 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 	if err != nil {
 		t.Fatalf("LoadFile() error = %v", err)
 	}
-	open := lifecycleView(t, contract)
-	closed := lifecycleView(t, nil)
+	rejected, err := schema.LoadFile(filepath.Join("testdata", "rejected-artifacts.toml"))
+	if err != nil {
+		t.Fatalf("LoadFile(rejected-artifacts.toml) error = %v", err)
+	}
 	notes := map[string]string{"Writing/A.md": "---\ntitle: A\ntype: lesson\nstatus: draft\n---\n"}
+	open := lifecycleView(t, contract)
+	// Two ways an authority refuses, sampled independently: a contract that
+	// exists and cannot be read, and one that loaded with an artifact policy
+	// yomihon had to reject.
+	unreadable := governedLifecycleView(t, nil, schema.Unreadable(errors.New("toml: line 42: expected a key separator")))
 	openSnapshot := snapshotView(t, contract, notes)
-	closedSnapshot := snapshotView(t, nil, notes)
+	rejectedSnapshot := snapshotView(t, rejected, notes)
 
 	tests := []struct {
 		name      string
 		lifecycle Lifecycle
 		snap      *snapshot.View
 	}{
-		{name: "lifecycle", lifecycle: closed, snap: openSnapshot},
-		{name: "artifact policy", lifecycle: open, snap: closedSnapshot},
+		{name: "lifecycle", lifecycle: unreadable, snap: openSnapshot},
+		{name: "artifact policy", lifecycle: open, snap: rejectedSnapshot},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -128,9 +151,45 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 			if len(got.Nav.KnowledgeNotes()) != 0 {
 				t.Errorf("Project() retained %d instance notes", len(got.Nav.KnowledgeNotes()))
 			}
+			if !got.Nav.InstanceProjectionsClosed() {
+				t.Error("Project() left instance projections open under a refusing authority")
+			}
+			// The closure carries the refusing authority's own sentence, so a
+			// surface reading only this model still has something true to say.
 			if got.Nav.ArtifactDiagnostic() == "" {
-				t.Error("Project() has no closure diagnostic")
+				t.Error("Project() closed the projection and gave no reason")
 			}
 		})
+	}
+}
+
+// TestProjectKeepsProjectionsOpenForAnUngovernedFolder is the case the old
+// closure conflated with a failure. Nothing declared an exclusion here, so the
+// instance projections are answerable and stay open; what is absent is the
+// lifecycle vocabulary, so no advanceable chip is offered and no fault is
+// reported.
+func TestProjectKeepsProjectionsOpenForAnUngovernedFolder(t *testing.T) {
+	t.Parallel()
+
+	notes := map[string]string{"Writing/A.md": "---\ntitle: A\ntype: lesson\nstatus: draft\n---\n"}
+	view := governedLifecycleView(t, nil, schema.Ungoverned())
+	snap := governedSnapshotView(t, nil, schema.Ungoverned(), notes)
+
+	got := Project(view, snap.ArtifactPolicy(), snap)
+	if got.Governed {
+		t.Error("Project() reports an ungoverned folder as governed")
+	}
+	if got.AdvanceableKnown || got.Advanceable != 0 {
+		t.Errorf("Project() advanceable = (%d, %t), want no chip at all", got.Advanceable, got.AdvanceableKnown)
+	}
+	if got.Nav.InstanceProjectionsClosed() {
+		t.Error("Project() closed instance projections for a folder that declared no exclusions")
+	}
+	if got.Nav.ArtifactDiagnostic() != "" || got.Nav.NavigationDiagnostic() != "" {
+		t.Errorf("Project() reported a fault on an ungoverned folder: artifact %q navigation %q",
+			got.Nav.ArtifactDiagnostic(), got.Nav.NavigationDiagnostic())
+	}
+	if len(got.Nav.KnowledgeNotes()) != 1 {
+		t.Errorf("Project() KnowledgeNotes = %d, want 1: nothing was excluded", len(got.Nav.KnowledgeNotes()))
 	}
 }

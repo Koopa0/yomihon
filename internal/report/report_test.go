@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -71,7 +72,7 @@ func rootedReportView(t *testing.T, root string) (*vault.Reader, *snapshot.View)
 			t.Errorf("Reader.Close() error: %v", closeErr)
 		}
 	})
-	store, err := snapshot.New(t.Context(), source, slog.New(slog.DiscardHandler), nil)
+	store, err := snapshot.New(t.Context(), source, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
 	if err != nil {
 		t.Fatalf("snapshot.New(%q) error: %v", root, err)
 	}

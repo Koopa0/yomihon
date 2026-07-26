@@ -21,6 +21,12 @@ type scanAuthority struct {
 func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
 	contract, err := schema.LoadReader(ctx, reader)
 	if err != nil {
+		// The decoder's own words are deliberately dropped. A parse failure
+		// names keys from the contract, and this face exists to hand its output
+		// to an agent, so explaining the fault here would send vault content
+		// out under exactly the policy that is missing. The operator reads the
+		// cause where reading is the point: the server states it on the page
+		// and logs it at startup.
 		return scanAuthority{}, errPrivacyAuthorityUnavailable
 	}
 	authority := scanAuthority{

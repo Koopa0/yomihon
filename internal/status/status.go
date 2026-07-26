@@ -118,9 +118,10 @@ const actor = "koopa"
 // and commits the change. Constructed once per process with the loaded
 // vault contract (or nil, meaning fail-closed).
 type Lifecycle struct {
-	root     *os.Root
-	contract *schema.Contract
-	policy   schema.ArtifactPolicy
+	root       *os.Root
+	contract   *schema.Contract
+	governance schema.Governance
+	policy     schema.ArtifactPolicy
 	// mu serializes View, Flip, provenance reads, and Close: the vault's git repo
 	// (index, HEAD) and root capability are shared resources. Neither another
 	// flip nor a reading page may observe the rename-to-commit interval, and
@@ -146,7 +147,13 @@ type fileSnapshot struct {
 // face: no transitions are offered and every Flip is rejected. Deriving the
 // policy here makes it impossible to combine lifecycle authority from one
 // contract with instance classification from another.
-func Open(source *vault.Reader, contract *schema.Contract) (*Lifecycle, error) {
+//
+// governance is what the folder asserted about its own contract, which a nil
+// contract cannot answer: a folder carrying no contract and a folder whose
+// contract could not be read both arrive here with no contract, and only the
+// second one is a fault. When contract is non-nil, governance must be
+// contract.Governance().
+func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance) (*Lifecycle, error) {
 	if source == nil {
 		return nil, errors.New("status: open lifecycle: vault reader is nil")
 	}
@@ -165,7 +172,7 @@ func Open(source *vault.Reader, contract *schema.Contract) (*Lifecycle, error) {
 	if contract != nil {
 		policy = contract.ArtifactPolicy()
 	}
-	return &Lifecycle{root: root, contract: contract, policy: policy}, nil
+	return &Lifecycle{root: root, contract: contract, governance: governance, policy: policy}, nil
 }
 
 // Close waits for an in-progress Flip or provenance read, then releases the
@@ -205,48 +212,67 @@ func (lc *Lifecycle) close(hooks closeHooks) error {
 // sample. A later request captures another View and observes a latched source
 // change.
 type View struct {
-	contract   *schema.Contract
-	policy     schema.ArtifactPolicy
-	available  bool
-	diagnostic string
+	contract *schema.Contract
+	policy   schema.ArtifactPolicy
+	governed bool
+	claim    schema.Claim
 }
 
 // View captures the write face's current read-only authority. Flip does not use
 // this snapshot: writes revalidate the source under the publication lock.
 func (lc *Lifecycle) View() View {
+	// A released capability is a fault whichever folder it was pinned to: the
+	// process asserted a write face and then lost it.
 	if lc == nil {
-		return View{diagnostic: CoreUnavailableDiagnostic}
+		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
 	}
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	if lc.root == nil {
-		return View{diagnostic: CoreUnavailableDiagnostic}
+		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
 	}
+	governed := lc.governance.Governed()
 	if lc.contract == nil {
-		return View{diagnostic: CoreUnavailableDiagnostic}
+		// Either nothing ever claimed authority here, in which case the closed
+		// write face is the ordinary shape of a folder and says nothing, or the
+		// contract claimed it and could not be read, in which case the vault
+		// level carries the one sentence.
+		return View{governed: governed, claim: lc.governance.Claim()}
 	}
 	policy := lc.policy.Capture()
 	if !policy.Available() {
-		return View{diagnostic: policy.Diagnostic()}
+		return View{governed: governed, claim: policy.Claim()}
 	}
-	return View{contract: lc.contract, policy: policy, available: true}
+	return View{contract: lc.contract, policy: policy, governed: governed, claim: lc.governance.Claim()}
+}
+
+// Governed reports whether anything claimed authority over this vault. A false
+// answer is not a failure: the folder has no lifecycle, so no status face
+// belongs on any page it serves.
+func (v View) Governed() bool {
+	return v.governed
+}
+
+// Claim reports how far the lifecycle authority got, so a caller that closes a
+// projection carries the same reason value the contract produced.
+func (v View) Claim() schema.Claim {
+	return v.claim
 }
 
 // Closed reports whether this captured view can classify governed instances.
 func (v View) Closed() bool {
-	return !v.available
+	return !v.available()
 }
 
-// Diagnostic explains why this captured view is closed. An empty result means
-// lifecycle reads are available.
+func (v View) available() bool {
+	return v.contract != nil && v.policy.Available()
+}
+
+// Diagnostic explains why this captured view is closed. It is empty both when
+// lifecycle reads are available and when nothing ever claimed authority here —
+// a folder with no contract is not a folder in trouble.
 func (v View) Diagnostic() string {
-	if v.available {
-		return ""
-	}
-	if v.diagnostic != "" {
-		return v.diagnostic
-	}
-	return CoreUnavailableDiagnostic
+	return v.claim.Diagnostic()
 }
 
 // WriteDiagnostic explains why this captured authority cannot offer status
@@ -256,6 +282,9 @@ func (v View) Diagnostic() string {
 func (v View) WriteDiagnostic() string {
 	if diagnostic := v.Diagnostic(); diagnostic != "" {
 		return diagnostic
+	}
+	if v.Closed() {
+		return ""
 	}
 	if !durablePublicationSupported {
 		return DurablePublicationUnavailableDiagnostic
@@ -267,7 +296,7 @@ func (v View) WriteDiagnostic() string {
 // contract order. It is pure over the captured view.
 func (v View) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
-	if err != nil || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
+	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
 		v.policy.IsNonInstance(relPath) {
 		return nil
 	}
@@ -284,7 +313,7 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 // result means this view is closed; an empty non-nil result is a valid empty
 // declaration.
 func (v View) Order() []string {
-	if !v.available {
+	if !v.available() {
 		return nil
 	}
 	order := slices.Clone(v.contract.Statuses(""))
@@ -297,7 +326,7 @@ func (v View) Order() []string {
 // Advanceable reports whether the operator owns a named onward transition,
 // excluding wildcard-predecessor escape transitions.
 func (v View) Advanceable(noteType, current string) bool {
-	return v.available && v.contract.AdvanceableBy(noteType, current, actor)
+	return v.available() && v.contract.AdvanceableBy(noteType, current, actor)
 }
 
 // LastCommitHash returns the short hash of the most recent commit that touched

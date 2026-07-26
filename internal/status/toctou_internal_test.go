@@ -69,7 +69,7 @@ func internalVaultWithMutableContract(t *testing.T) (root, contractPath string, 
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err = Open(reader, contract)
+	lifecycle, err = Open(reader, contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("Open(%q) error = %v", root, err)
 	}
@@ -421,7 +421,7 @@ func internalOpenLifecycle(t *testing.T, root string, contract *schema.Contract)
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := Open(reader, contract)
+	lifecycle, err := Open(reader, contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("Open(%q) error = %v", root, err)
 	}

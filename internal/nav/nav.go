@@ -45,15 +45,37 @@ type Resolver interface {
 	Resolve(name string) graph.Resolution
 }
 
+// Closure records why a projection carries nothing. It is a reason, not a
+// message: a projection can be withheld while a broader fault owns the only
+// sentence worth printing, and a projection that is simply empty must stay
+// distinguishable from one that was withheld. The zero Closure is open — the
+// contents are the vault's true answer.
+type Closure struct {
+	claim schema.Claim
+}
+
+// Closed reports whether the projection was withheld. An open projection whose
+// contents are empty is not closed: for a vault that declared nothing, empty is
+// the answer, not a refusal to answer.
+func (c Closure) Closed() bool { return !c.claim.Trustworthy() }
+
+// Diagnostic is the operator-facing sentence, empty when there is none to say
+// here — either because nothing went wrong or because a broader fault already
+// says it.
+func (c Closure) Diagnostic() string { return c.claim.Diagnostic() }
+
+// Close builds a closure from a declaration outcome.
+func Close(claim schema.Claim) Closure { return Closure{claim: claim} }
+
 // Model is the complete navigation projection, built once and read-only
 // afterward.
 type Model struct {
-	// navigationDiagnostic explains why contract-derived paths and maps are
-	// unavailable. It is empty when navigation roles are valid.
-	navigationDiagnostic string
-	// artifactDiagnostic explains why instance projections are unavailable. It
-	// is empty when the artifact policy is valid.
-	artifactDiagnostic string
+	// navigation records whether contract-derived paths and maps were withheld,
+	// and why. It is open when navigation roles were read cleanly and open when
+	// no contract ever named a path or map type.
+	navigation Closure
+	// artifact records whether instance projections were withheld, and why.
+	artifact Closure
 
 	// folders are the top-level lifecycle folders in the vault's own
 	// artifact-lifecycle order (see lifecycleOrder), each holding its notes
@@ -74,8 +96,9 @@ type Model struct {
 	reports []Report
 	// knowledgeNotes are typed markdown notes in vault path order. Home sorts a
 	// copy by Modified for its recent-changes block; the time is the scanner's
-	// captured value, so rendering never stats a note. This projection is empty
-	// when the artifact policy is unavailable.
+	// captured value, so rendering never stats a note. This projection is
+	// withheld when the artifact declaration could not be honoured, and built
+	// over every readable note when none was ever made.
 	knowledgeNotes []NoteSummary
 
 	// placementIndex maps a note's rel-path to every map placement that lists it,
@@ -88,22 +111,42 @@ type Model struct {
 	dirNotes map[string][]NoteRef
 }
 
-// NavigationDiagnostic explains why contract-derived paths and maps are
-// unavailable. It is empty when navigation roles are valid.
-func (m *Model) NavigationDiagnostic() string {
+// NavigationClosure reports whether paths and maps were withheld, and why.
+func (m *Model) NavigationClosure() Closure {
 	if m == nil {
-		return ""
+		return Closure{}
 	}
-	return m.navigationDiagnostic
+	return m.navigation
 }
 
-// ArtifactDiagnostic explains why instance projections are unavailable. It is
-// empty when the artifact policy is valid.
-func (m *Model) ArtifactDiagnostic() string {
+// ArtifactClosure reports whether instance projections were withheld, and why.
+func (m *Model) ArtifactClosure() Closure {
 	if m == nil {
-		return ""
+		return Closure{}
 	}
-	return m.artifactDiagnostic
+	return m.artifact
+}
+
+// NavigationDiagnostic explains why contract-derived paths and maps could not
+// be built. It is empty when navigation roles were read cleanly, empty when
+// nothing declared them, and empty when a broader fault owns the sentence — ask
+// NavigationClosure whether the projection was withheld.
+func (m *Model) NavigationDiagnostic() string {
+	return m.NavigationClosure().Diagnostic()
+}
+
+// ArtifactDiagnostic explains why instance projections could not be built,
+// under the same rule as NavigationDiagnostic.
+func (m *Model) ArtifactDiagnostic() string {
+	return m.ArtifactClosure().Diagnostic()
+}
+
+// InstanceProjectionsClosed reports whether the artifact-dependent projections
+// were withheld rather than genuinely empty. Without it a vault whose
+// exclusions could not be read is indistinguishable from a vault that has no
+// study paths, which is the conflation this model exists to keep apart.
+func (m *Model) InstanceProjectionsClosed() bool {
+	return m.ArtifactClosure().Closed()
 }
 
 // Folders returns the top-level lifecycle folders in vault order. The complete
@@ -164,13 +207,15 @@ func (m *Model) KnowledgeNotes() []NoteSummary {
 }
 
 // WithoutInstanceProjections returns a request-local view that keeps ordinary
-// browsing surfaces but closes every artifact-policy-dependent projection.
-func (m *Model) WithoutInstanceProjections(diagnostic string) *Model {
+// browsing surfaces but closes every artifact-policy-dependent projection. The
+// closure travels with the model so a later reader can tell a withheld
+// projection from an empty one.
+func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 	if m == nil {
-		return &Model{artifactDiagnostic: diagnostic}
+		return &Model{artifact: closure}
 	}
 	degraded := *m
-	degraded.artifactDiagnostic = diagnostic
+	degraded.artifact = closure
 	degraded.paths = nil
 	degraded.maps = nil
 	degraded.knowledgeNotes = nil
@@ -321,17 +366,15 @@ func newModel(
 	}
 	m.folders, m.rootNotes = buildFolderTree(paths)
 	m.dirNotes = buildDirNotes(paths)
-	if !roles.Available() {
-		m.navigationDiagnostic = roles.Diagnostic()
-	}
-	if !policy.Available() {
-		m.artifactDiagnostic = policy.Diagnostic()
+	m.navigation = Close(roles.Claim())
+	m.artifact = Close(policy.Claim())
+	if m.artifact.Closed() {
 		return m
 	}
 
 	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, policy)
 	m.knowledgeNotes = knowledgeNotes
-	if !roles.Available() {
+	if m.navigation.Closed() {
 		return m
 	}
 

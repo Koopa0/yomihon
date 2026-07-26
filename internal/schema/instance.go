@@ -11,9 +11,12 @@ import (
 )
 
 const (
-	missingNavigationDiagnostic = "contract declares no navigation roles; Paths and Maps disabled until it does"
-	missingArtifactDiagnostic   = "contract declares no artifact policy; instance projections disabled until it does"
-	staleArtifactDiagnostic     = "vault artifact policy source changed after startup; instance projections disabled until restart"
+	// undeclaredNavigationDiagnostic is said only about a contract that exists
+	// and left the section out. A folder carrying no contract at all declares
+	// nothing, which is not a fault and is reported as nothing.
+	undeclaredNavigationDiagnostic = "contract declares no navigation roles; Paths and Maps disabled until it does"
+	undeclaredArtifactDiagnostic   = "contract declares no artifact policy; instance projections disabled until it does"
+	staleArtifactDiagnostic        = "vault artifact policy source changed after startup; instance projections disabled until restart"
 )
 
 type navigationSection struct {
@@ -27,43 +30,59 @@ type artifactSection struct {
 
 // NavigationRoles classifies note types used for ordered study paths and
 // general maps. Its derived membership sets cannot be changed after loading.
+// The zero value is unclaimed: no contract ever named a path or map type, so
+// both sets are empty and no note is either.
 type NavigationRoles struct {
-	pathTypes  map[string]struct{}
-	mapTypes   map[string]struct{}
-	available  bool
-	diagnostic string
+	pathTypes map[string]struct{}
+	mapTypes  map[string]struct{}
+	claim     Claim
+}
+
+// Claim reports how far the navigation declaration got.
+func (r NavigationRoles) Claim() Claim {
+	return r.claim
 }
 
 // Available reports whether the contract declared a valid navigation role set.
 func (r NavigationRoles) Available() bool {
-	return r.available
+	return r.claim.Held()
 }
 
-// Diagnostic explains why navigation roles are unavailable.
+// Trustworthy reports whether the role sets may be projected over: true when
+// they were read cleanly and true when nothing ever declared them, false only
+// when a declaration was made and could not be honoured.
+func (r NavigationRoles) Trustworthy() bool {
+	return r.claim.Trustworthy()
+}
+
+// Diagnostic explains why navigation roles could not be honoured. It is empty
+// when they were read cleanly and empty when nothing declared them.
 func (r NavigationRoles) Diagnostic() string {
-	if r.available {
-		return ""
-	}
-	if r.diagnostic != "" {
-		return r.diagnostic
-	}
-	return missingNavigationDiagnostic
+	return r.claim.Diagnostic()
 }
 
 // IsPathType reports whether noteType is declared as an ordered study path.
 func (r NavigationRoles) IsPathType(noteType string) bool {
+	if !r.Trustworthy() {
+		return false
+	}
 	_, ok := r.pathTypes[noteType]
-	return r.available && ok
+	return ok
 }
 
 // IsMapType reports whether noteType is declared as a general map.
 func (r NavigationRoles) IsMapType(noteType string) bool {
+	if !r.Trustworthy() {
+		return false
+	}
 	_, ok := r.mapTypes[noteType]
-	return r.available && ok
+	return ok
 }
 
 // ArtifactPolicy identifies vault directories whose files are readable
-// artifacts but are not governed note instances.
+// artifacts but are not governed note instances. The zero value is unclaimed:
+// no contract ever excluded a directory, so the excluded set is empty and every
+// readable file is an ordinary instance.
 type ArtifactPolicy struct {
 	state *artifactPolicyState
 }
@@ -71,39 +90,49 @@ type ArtifactPolicy struct {
 type artifactPolicyState struct {
 	nonInstanceDirs []string
 	source          policySource
-	available       bool
-	diagnostic      string
+	claim           Claim
 	frozen          bool
 	stale           atomic.Bool
 }
 
-// Available reports whether the contract declared a valid artifact policy.
-func (p ArtifactPolicy) Available() bool {
-	return p.state != nil && p.state.available && !p.state.stale.Load()
-}
-
-// Diagnostic explains why the artifact policy is unavailable.
-func (p ArtifactPolicy) Diagnostic() string {
+// Claim reports how far the artifact declaration got. A policy whose source
+// bytes changed after startup is treated as an assertion that can no longer be
+// honoured, whatever it said when it was read.
+func (p ArtifactPolicy) Claim() Claim {
 	if p.state == nil {
-		return missingArtifactDiagnostic
+		return Claim{}
 	}
 	if p.state.stale.Load() {
-		return staleArtifactDiagnostic
+		return Rejected(staleArtifactDiagnostic)
 	}
-	if p.state.available {
-		return ""
-	}
-	if p.state.diagnostic != "" {
-		return p.state.diagnostic
-	}
-	return missingArtifactDiagnostic
+	return p.state.claim
+}
+
+// Available reports whether the contract declared a valid artifact policy.
+func (p ArtifactPolicy) Available() bool {
+	return p.Claim().Held()
+}
+
+// Trustworthy reports whether the excluded set may be projected over: true when
+// it was read cleanly and true when nothing ever declared one, false only when
+// a declaration was made and could not be honoured.
+func (p ArtifactPolicy) Trustworthy() bool {
+	return p.Claim().Trustworthy()
+}
+
+// Diagnostic explains why the artifact policy could not be honoured. It is
+// empty when the policy was read cleanly and empty when nothing declared one.
+func (p ArtifactPolicy) Diagnostic() string {
+	return p.Claim().Diagnostic()
 }
 
 // IsNonInstance reports whether rel is equal to or below a declared artifact
 // directory. Component boundaries prevent a sibling with the same prefix from
-// matching.
+// matching. An unclaimed policy excludes nothing, which is the true answer for
+// a vault that never declared an exclusion; an unresolved one also answers
+// false, so callers that act on the classification gate on Trustworthy first.
 func (p ArtifactPolicy) IsNonInstance(rel string) bool {
-	if !p.Available() {
+	if !p.Trustworthy() || p.state == nil {
 		return false
 	}
 	rel = vault.NormalizeNFC(rel)
@@ -120,7 +149,7 @@ func (p ArtifactPolicy) IsNonInstance(rel string) bool {
 // same one-way stale latch, so once any consumer observes drift, all instance
 // projections remain unavailable until a freshly loaded Contract replaces it.
 func (p ArtifactPolicy) ValidateSource() ArtifactPolicy {
-	if p.state == nil || !p.state.available || p.state.frozen || p.state.stale.Load() {
+	if p.state == nil || !p.state.claim.Held() || p.state.frozen || p.state.stale.Load() {
 		return p
 	}
 	if !p.state.source.unchanged() {
@@ -140,7 +169,7 @@ func (p ArtifactPolicy) Capture() ArtifactPolicy {
 	}
 	return ArtifactPolicy{state: &artifactPolicyState{
 		nonInstanceDirs: slices.Clone(p.state.nonInstanceDirs),
-		available:       true,
+		claim:           heldClaim(),
 		frozen:          true,
 	}}
 }
@@ -151,8 +180,14 @@ func deriveNavigationRoles(
 	pathTypesDefined bool,
 	mapTypesDefined bool,
 ) NavigationRoles {
+	// A contract that exists and omits the section left an input out: it
+	// claimed authority over this vault and then did not say which types order
+	// a curriculum. That is the operator's news, and it is why this answer is
+	// produced here rather than as a fallback on the zero value — the zero
+	// value belongs to a folder that carries no contract, which asserted
+	// nothing and has nothing to report.
 	if section == nil {
-		return NavigationRoles{}
+		return NavigationRoles{claim: Rejected(undeclaredNavigationDiagnostic)}
 	}
 	switch {
 	case !pathTypesDefined && !mapTypesDefined:
@@ -189,19 +224,22 @@ func deriveNavigationRoles(
 		}
 		maps[noteType] = struct{}{}
 	}
-	return NavigationRoles{pathTypes: paths, mapTypes: maps, available: true}
+	return NavigationRoles{pathTypes: paths, mapTypes: maps, claim: heldClaim()}
 }
 
 func invalidNavigationRoles(format string, args ...any) NavigationRoles {
-	return NavigationRoles{diagnostic: fmt.Sprintf("invalid navigation roles: "+format+"; Paths and Maps disabled", args...)}
+	return NavigationRoles{claim: Rejected(fmt.Sprintf("invalid navigation roles: "+format+"; Paths and Maps disabled", args...))}
 }
 
 func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool, source policySource) ArtifactPolicy {
+	// As with navigation roles: an existing contract that omits the section
+	// left an input out, while a folder with no contract at all yields the
+	// silent zero value.
 	if section == nil {
-		return ArtifactPolicy{}
+		return ArtifactPolicy{state: &artifactPolicyState{claim: Rejected(undeclaredArtifactDiagnostic)}}
 	}
 	if !nonInstanceDirsDefined {
-		return ArtifactPolicy{state: &artifactPolicyState{diagnostic: `invalid artifact policy: missing required key "non_instance_dirs"`}}
+		return ArtifactPolicy{state: &artifactPolicyState{claim: Rejected(`invalid artifact policy: missing required key "non_instance_dirs"`)}}
 	}
 	dirs := make([]string, 0, len(section.NonInstanceDirs))
 	for _, original := range section.NonInstanceDirs {
@@ -217,12 +255,12 @@ func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool,
 	return ArtifactPolicy{state: &artifactPolicyState{
 		nonInstanceDirs: slices.Clone(dirs),
 		source:          source,
-		available:       true,
+		claim:           heldClaim(),
 	}}
 }
 
 func invalidArtifactPolicy(value string) ArtifactPolicy {
 	return ArtifactPolicy{state: &artifactPolicyState{
-		diagnostic: fmt.Sprintf("invalid artifact policy: non_instance_dirs contains %q", value),
+		claim: Rejected(fmt.Sprintf("invalid artifact policy: non_instance_dirs contains %q", value)),
 	}}
 }

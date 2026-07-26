@@ -76,7 +76,7 @@ func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store
 			tb.Errorf("Reader.Close: %v", closeErr)
 		}
 	})
-	store, err := New(tb.Context(), reader, discardLogger(), contract)
+	store, err := New(tb.Context(), reader, discardLogger(), contract, contract.Governance())
 	if err != nil {
 		tb.Fatalf("snapshot.New: %v", err)
 	}
@@ -233,6 +233,25 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) != 1 || results[0].Status != "" {
 		t.Errorf("next Search(Concept) = %+v, want lexical result without metadata badge", results)
 	}
+	// A page combines two samples of the same authority: the policy it asks for
+	// classification, and the index it asks for counts. Capture binds both to
+	// one authority, which is why a reader can trust them together. Were they
+	// ever to disagree, a page could show a lifecycle tally beside a policy that
+	// had already stopped classifying — so the agreement is asserted here rather
+	// than left to be inferred from the two halves above.
+	for _, tt := range []struct {
+		name string
+		view *View
+	}{
+		{name: "captured before the source changed", view: requestA},
+		{name: "captured after the source changed", view: requestB},
+	} {
+		_, countErr := tt.view.Search().CountByStatus()
+		if got, want := tt.view.ArtifactPolicy().Available(), countErr == nil; got != want {
+			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers counts = %t; "+
+				"one request would combine two disagreeing authorities", tt.name, got, want)
+		}
+	}
 }
 
 type recordingSource struct {
@@ -288,7 +307,7 @@ patterns:
 		reads:  make(map[string]int),
 		fail:   make(map[string]int),
 	}
-	store, err := New(t.Context(), source, discardLogger(), contract)
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +350,7 @@ func TestRescanRetriesTransientReadWithoutMetadataChange(t *testing.T) {
 		reads:  make(map[string]int),
 		fail:   map[string]int{path: 1},
 	}
-	store, err := New(t.Context(), source, discardLogger(), contract)
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +389,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 		reads:  make(map[string]int),
 		fail:   make(map[string]int),
 	}
-	store, err := New(t.Context(), source, discardLogger(), nil)
+	store, err := New(t.Context(), source, discardLogger(), nil, schema.Ungoverned())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,6 +563,11 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	}
 }
 
+// TestNewDoesNotFabricateInstanceCapabilities pins what a folder with no
+// contract gets: no held artifact authority, so no note is classified as a
+// governed instance and no type is a study path — but the projections are open
+// and silent, because nothing was ever declared and empty is the true answer
+// over an empty declared set.
 func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -553,16 +577,64 @@ func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 	snap := store.Current()
 
 	if snap.ArtifactPolicy().Available() {
-		t.Fatal("Snapshot.ArtifactPolicy().Available() = true, want unavailable zero capability")
+		t.Fatal("Snapshot.ArtifactPolicy().Available() = true, want no held declaration")
 	}
-	if snap.Navigation().NavigationDiagnostic() == "" || snap.Navigation().ArtifactDiagnostic() == "" {
-		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both named", snap.Navigation().NavigationDiagnostic(), snap.Navigation().ArtifactDiagnostic())
+	if snap.Navigation().NavigationDiagnostic() != "" || snap.Navigation().ArtifactDiagnostic() != "" {
+		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationDiagnostic(), snap.Navigation().ArtifactDiagnostic())
 	}
-	if len(snap.Navigation().Paths()) != 0 || len(snap.Navigation().Maps()) != 0 || len(snap.Navigation().KnowledgeNotes()) != 0 {
-		t.Errorf("snapshot instance projections = paths %d maps %d notes %d, want unavailable", len(snap.Navigation().Paths()), len(snap.Navigation().Maps()), len(snap.Navigation().KnowledgeNotes()))
+	if snap.Navigation().InstanceProjectionsClosed() {
+		t.Error("instance projections closed for a folder that never claimed governance")
+	}
+	if len(snap.Navigation().Paths()) != 0 || len(snap.Navigation().Maps()) != 0 {
+		t.Errorf("snapshot navigation = paths %d maps %d, want none: no type was declared as either", len(snap.Navigation().Paths()), len(snap.Navigation().Maps()))
+	}
+	// Nothing excluded this note, so it is an ordinary readable one.
+	if len(snap.Navigation().KnowledgeNotes()) != 1 {
+		t.Errorf("snapshot KnowledgeNotes = %d, want 1", len(snap.Navigation().KnowledgeNotes()))
 	}
 	if len(snap.Navigation().Folders()) == 0 {
 		t.Error("snapshot folder navigation is empty, want non-instance-independent browsing")
+	}
+}
+
+// TestNewClosesEveryProjectionForAnUnreadableContract is the companion: the
+// folder claimed governance and then could not deliver it, so the same
+// projections that stay open above must close here. Without this the two
+// folders render identically and a real fault is invisible.
+func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course\n- [[Ghost]]\n")
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close: %v", closeErr)
+		}
+	})
+	store, err := New(
+		t.Context(),
+		reader,
+		discardLogger(),
+		nil,
+		schema.Unreadable(errors.New("toml: line 42: expected a key separator")),
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	snap := store.Current()
+
+	if !snap.Navigation().InstanceProjectionsClosed() {
+		t.Error("instance projections stayed open under a contract that could not be read")
+	}
+	if len(snap.Navigation().KnowledgeNotes()) != 0 {
+		t.Error("knowledge notes were projected from a contract that could not be read")
+	}
+	if len(snap.Navigation().Folders()) == 0 {
+		t.Error("ordinary folder browsing closed with the contract")
 	}
 }
 

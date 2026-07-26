@@ -6,21 +6,30 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
-// HomeView is the read-only landing surface: four dashboard blocks assembled
-// from one vault snapshot, then the rendered vault README. Sidebar carries the
-// shared shell navigation. Recent, Lifecycle, and Study Paths carry explicit
-// capability diagnostics rather than presenting unavailable projections as
-// empty; no mutation form appears in Home.
+// HomeView is the read-only landing surface: dashboard blocks assembled from
+// one vault snapshot, then the rendered vault README. Sidebar carries the
+// shared shell navigation; no mutation form appears in Home.
+//
+// A block whose projection was withheld renders nothing at all: it neither
+// repeats the reason nor states an emptiness it cannot vouch for, because
+// "say nothing" and "say there is nothing" are different sentences. Fault
+// carries that reason once, for the whole page.
+//
+// Governed says whether anything claimed authority over this vault. A folder
+// that claimed none has no lifecycle vocabulary to show, so that block is
+// absent rather than empty or apologetic.
 type HomeView struct {
-	Recent              []HomeNote
-	RecentDiagnostic    string
-	Lifecycle           []LifecycleItem
-	LifecycleDiagnostic string
-	Paths               []HomePath
-	PathDiagnostics     []string
-	ReadmeHTML          string
-	ReadmeMissing       bool
-	Sidebar             Sidebar
+	Governed        bool
+	Fault           string
+	Recent          []HomeNote
+	RecentClosed    bool
+	Lifecycle       []LifecycleItem
+	LifecycleClosed bool
+	Paths           []HomePath
+	PathsClosed     bool
+	ReadmeHTML      string
+	ReadmeMissing   bool
+	Sidebar         Sidebar
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -58,74 +67,74 @@ templ Home(v HomeView, c layouts.Chrome) {
 						<p>查看最近變更、待判讀內容，以及接下來的學習路徑。</p>
 					</header>
 					<div class="y-homegrid">
-						<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
-							@homeBlockHead("home-recent-title", "最近變更", "磁碟上的最新異動")
-							if v.RecentDiagnostic != "" {
-								<p class="y-homeempty" data-home-recent-diagnostic>
-									@browserDiagnostic("最近變更目前無法可靠計算。", v.RecentDiagnostic)
+						if v.Fault != "" {
+							<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
+								@homeBlockHead("home-faults-title", "契約能力", "vault 宣告了無法履行的事")
+								<p class="y-homeempty" data-home-fault>
+									@browserDiagnostic("部分投影已關閉。", v.Fault)
 								</p>
-							} else if len(v.Recent) > 0 {
-								<div class="y-homerecent">
-									for _, n := range v.Recent {
-										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
-											<span class="y-homenote__main">
-												<span class="y-homenote__title">{ n.Title }</span>
-												<span class="y-homenote__path">{ n.RelPath }</span>
-											</span>
-											<span class="y-homenote__meta">
-												if n.Status != "" {
-													<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
-												}
-												if n.Modified != "" {
-													<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
-												}
-											</span>
-										</a>
-									}
-								</div>
-							} else {
-								<p class="y-homeempty">目前快照中沒有具類型的筆記。</p>
-							}
-						</section>
-						<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
-							@homeBlockHead("home-lifecycle-title", "生命週期", "開啟狀態清單")
-							if v.LifecycleDiagnostic != "" {
-								<p class="y-homeempty" data-home-lifecycle-diagnostic>
-									@browserDiagnostic("生命週期資料目前無法使用。", v.LifecycleDiagnostic)
-								</p>
-							} else if len(v.Lifecycle) > 0 {
-								<div class="y-homechips">
-									for _, it := range v.Lifecycle {
-										<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
-											<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
-											<span>{ it.Name }</span>
-											<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " 篇筆記" }>{ strconv.Itoa(it.Count) }</span>
-										</a>
-									}
-								</div>
-							}
-						</section>
-						<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
-							@homeBlockHead("home-paths-title", "學習路徑", "沿著 vault 中的課程繼續學習")
-							if len(v.PathDiagnostics) > 0 {
-								for _, diagnostic := range v.PathDiagnostics {
-									<p class="y-homeempty" data-home-paths-diagnostic>
-										@browserDiagnostic("學習路徑目前無法完整建立。", diagnostic)
-									</p>
+							</section>
+						}
+						if !v.RecentClosed {
+							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
+								@homeBlockHead("home-recent-title", "最近變更", "磁碟上的最新異動")
+								if len(v.Recent) > 0 {
+									<div class="y-homerecent">
+										for _, n := range v.Recent {
+											<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
+												<span class="y-homenote__main">
+													<span class="y-homenote__title">{ n.Title }</span>
+													<span class="y-homenote__path">{ n.RelPath }</span>
+												</span>
+												<span class="y-homenote__meta">
+													if n.Status != "" {
+														<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
+													}
+													if n.Modified != "" {
+														<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
+													}
+												</span>
+											</a>
+										}
+									</div>
+								} else {
+									<p class="y-homeempty">目前快照中沒有具類型的筆記。</p>
 								}
-							} else if len(v.Paths) > 0 {
-								<div class="y-homepaths">
-									for _, p := range v.Paths {
-										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
-											<span class="y-homepath__title">{ p.Title }</span>
-											<span class="y-homepath__progress">{ strconv.Itoa(p.Ready) } / { strconv.Itoa(p.Total) } 已完成</span>
-										</a>
-									}
-								</div>
-							} else {
-								<p class="y-homeempty">目前快照中沒有學習路徑。</p>
-							}
-						</section>
+							</section>
+						}
+						if v.Governed && !v.LifecycleClosed {
+							<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
+								@homeBlockHead("home-lifecycle-title", "生命週期", "開啟狀態清單")
+								if len(v.Lifecycle) > 0 {
+									<div class="y-homechips">
+										for _, it := range v.Lifecycle {
+											<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
+												<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
+												<span>{ it.Name }</span>
+												<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " 篇筆記" }>{ strconv.Itoa(it.Count) }</span>
+											</a>
+										}
+									</div>
+								}
+							</section>
+						}
+						if !v.PathsClosed {
+							<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
+								@homeBlockHead("home-paths-title", "學習路徑", "沿著 vault 中的課程繼續學習")
+								if len(v.Paths) > 0 {
+									<div class="y-homepaths">
+										for _, p := range v.Paths {
+											<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
+												<span class="y-homepath__title">{ p.Title }</span>
+												<span class="y-homepath__progress">{ strconv.Itoa(p.Ready) } / { strconv.Itoa(p.Total) } 已完成</span>
+											</a>
+										}
+									</div>
+								} else {
+									<p class="y-homeempty">目前快照中沒有學習路徑。</p>
+								}
+							</section>
+						}
 						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
 							@homeBlockHead("home-search-title", "搜尋", "尋找筆記或篩選 vault")
 							<form class="y-homesearch" method="get" action="/search" role="search">

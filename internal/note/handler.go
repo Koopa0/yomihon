@@ -120,35 +120,58 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, artifactPolicy, snap)
-	lifecycle, lifecycleDiagnostic := h.lifecycle(statusView, snap, "")
-	if lifecycleDiagnostic == "" && !artifactPolicy.Available() {
+	lifecycle, lifecycleClosed := h.lifecycle(statusView, snap, "")
+	// The lifecycle block is derived from the write authority while the counts
+	// under it come from the snapshot's own artifact sample, and the two are
+	// taken at different instants. This does not fire today: the request-local
+	// view binds its policy and its search index to one authority, so the count
+	// refuses first and closes the block on the way out. It stands as the guard
+	// for the day that binding is loosened, and the binding itself is what the
+	// snapshot package pins.
+	if !lifecycleClosed && !artifactPolicy.Trustworthy() {
 		lifecycle = nil
-		lifecycleDiagnostic = artifactPolicy.Diagnostic()
+		lifecycleClosed = true
 	}
 	visibleNav := pageShell.Nav
-	recent := recentHomeNotes(visibleNav.KnowledgeNotes())
-	recentDiagnostic := ""
-	if visibleNav.ArtifactDiagnostic() != "" {
-		recent = nil
-		recentDiagnostic = visibleNav.ArtifactDiagnostic()
+	recentClosed := visibleNav.InstanceProjectionsClosed()
+	var recent []pages.HomeNote
+	if !recentClosed {
+		recent = recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed)
 	}
-	pathDiagnostics := make([]string, 0, 2)
-	if visibleNav.NavigationDiagnostic() != "" {
-		pathDiagnostics = append(pathDiagnostics, visibleNav.NavigationDiagnostic())
-	}
-	if visibleNav.ArtifactDiagnostic() != "" {
-		pathDiagnostics = append(pathDiagnostics, visibleNav.ArtifactDiagnostic())
+	pathsClosed := visibleNav.NavigationClosure().Closed() || visibleNav.ArtifactClosure().Closed()
+	var paths []pages.HomePath
+	if !pathsClosed {
+		paths = homePaths(visibleNav.Paths())
 	}
 	view := pages.HomeView{
-		Recent:              recent,
-		RecentDiagnostic:    recentDiagnostic,
-		Lifecycle:           lifecycle,
-		LifecycleDiagnostic: lifecycleDiagnostic,
-		Paths:               homePaths(visibleNav.Paths()),
-		PathDiagnostics:     pathDiagnostics,
-		ReadmeHTML:          readmeHTML,
-		ReadmeMissing:       !ok,
-		Sidebar:             pages.NewSidebar(visibleNav, ""),
+		Governed: pageShell.Governed,
+		// The reason a block is missing, stated where the reader is looking. One
+		// cause reaches several blocks — a contract that cannot be read closes
+		// the lifecycle, the recent list, and the study paths alike — and
+		// repeating its sentence per block is what buried the reader's own
+		// content under a column of apologies. Each closed block renders
+		// nothing; the cause is stated once, here.
+		//
+		// The navigation rail states it too, on every page rather than only this
+		// one. That is not a duplicate to remove: the rail collapses behind a
+		// toggle at narrow widths, and a fault only the wide layout can show is
+		// a fault the reader does not get — which is also why every cause that
+		// closed a block here has to reach this column, not only the one the
+		// write authority happens to know about.
+		Fault: statedOnce(
+			statusView.Diagnostic(),
+			visibleNav.NavigationDiagnostic(),
+			visibleNav.ArtifactDiagnostic(),
+		),
+		Recent:          recent,
+		RecentClosed:    recentClosed,
+		Lifecycle:       lifecycle,
+		LifecycleClosed: lifecycleClosed,
+		Paths:           paths,
+		PathsClosed:     pathsClosed,
+		ReadmeHTML:      readmeHTML,
+		ReadmeMissing:   !ok,
+		Sidebar:         pages.NewSidebar(visibleNav, ""),
 	}
 	if err := pages.Home(view, pageShell.Chrome(r, "首頁")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
@@ -226,6 +249,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
 		Sidebar:           pages.NewSidebar(governance.shell.Nav, n.RelPath),
+		Governed:          governance.shell.Governed,
 		NonInstance:       governance.nonInstance,
 		WriteDiagnostic:   governance.writeDiagnostic,
 		Concepts:          concepts,
@@ -258,7 +282,10 @@ func (h *Handler) governance(
 	policy schema.ArtifactPolicy,
 ) governanceState {
 	pageShell := shell.Project(statusView, policy, snap)
-	authorityAvailable := statusView.Diagnostic() == "" && policy.Available()
+	// Two authority samples taken at different instants: the request's captured
+	// write view, and the snapshot's own artifact capture. A note counts as a
+	// governed instance only while both still answer, whichever was taken first.
+	authorityAvailable := !statusView.Closed() && policy.Available()
 	state := governanceState{
 		shell:       pageShell,
 		instance:    authorityAvailable && !policy.IsNonInstance(n.RelPath),
@@ -386,27 +413,24 @@ func (h *Handler) loadConcepts(
 
 // lifecycle assembles Home's Lifecycle block: the note group's statuses in the
 // contract's toml order, each with its live snapshot count and whether it is
-// current. The diagnostic distinguishes an unavailable write contract from an
-// unavailable artifact-metadata capability, so Home never presents either as a
-// successful empty projection.
+// current. A closed result means the block was withheld — the vault declared a
+// vocabulary yomihon could not read — never that the vault has no statuses.
+// A vault that declares none legitimately yields an open, empty block.
 func (h *Handler) lifecycle(
 	statusView status.View,
 	snap *snapshot.View,
 	current string,
-) (items []pages.LifecycleItem, diagnostic string) {
-	if diagnostic := statusView.Diagnostic(); diagnostic != "" {
-		return nil, diagnostic
+) (items []pages.LifecycleItem, closed bool) {
+	if !statusView.Governed() {
+		return nil, false
+	}
+	if statusView.Closed() {
+		return nil, true
 	}
 	order := statusView.Order()
-	if order == nil {
-		return nil, "Lifecycle is unavailable while the contract is closed."
-	}
-	if len(order) == 0 {
-		return nil, "Lifecycle is unavailable because the contract declares no note statuses."
-	}
 	counts, err := snap.Search().CountByStatus()
 	if err != nil {
-		return nil, err.Error()
+		return nil, true
 	}
 	items = make([]pages.LifecycleItem, 0, len(order))
 	for _, s := range order {
@@ -417,14 +441,34 @@ func (h *Handler) lifecycle(
 			Sealed: s == schema.SealStatus,
 		})
 	}
-	return items, ""
+	return items, false
+}
+
+// statedOnce joins the distinct reasons a page withheld something, in the order
+// they were given, dropping the empty ones.
+//
+// A single cause usually closes several projections — a contract that cannot be
+// read closes the lifecycle, the recent list and the study paths alike — and
+// printing its sentence once per closed block is what buried the reader's own
+// content. A rejected navigation declaration closes only the study paths, and
+// its sentence is a different one, so a page that carries only the write
+// authority's reason drops a block without ever saying why.
+func statedOnce(causes ...string) string {
+	distinct := make([]string, 0, len(causes))
+	for _, cause := range causes {
+		if cause == "" || slices.Contains(distinct, cause) {
+			continue
+		}
+		distinct = append(distinct, cause)
+	}
+	return strings.Join(distinct, "; ")
 }
 
 // recentHomeNotes selects the newest knowledge notes from the snapshot's
 // scanner-captured timestamps. It sorts a clone, leaving the published model
 // immutable for concurrent readers. Equal mtimes fall back to path order so a
 // rebuild produces stable output.
-func recentHomeNotes(notes []nav.NoteSummary) []pages.HomeNote {
+func recentHomeNotes(notes []nav.NoteSummary, governed bool) []pages.HomeNote {
 	notes = slices.Clone(notes)
 	slices.SortStableFunc(notes, func(a, b nav.NoteSummary) int {
 		switch {
@@ -442,7 +486,13 @@ func recentHomeNotes(notes []nav.NoteSummary) []pages.HomeNote {
 
 	out := make([]pages.HomeNote, 0, len(notes))
 	for _, n := range notes {
-		item := pages.HomeNote{Title: n.Title, RelPath: n.RelPath, Type: n.Type, Status: n.Status}
+		item := pages.HomeNote{Title: n.Title, RelPath: n.RelPath, Type: n.Type}
+		// A status chip names a value from a declared vocabulary. Without a
+		// contract there is no vocabulary, so raw frontmatter text is not
+		// dressed up as a lifecycle state.
+		if governed {
+			item.Status = n.Status
+		}
 		if !n.Modified.IsZero() {
 			item.Modified = n.Modified.Format("2006-01-02")
 			item.ModifiedAt = n.Modified.Format(time.RFC3339)

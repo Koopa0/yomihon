@@ -9,7 +9,11 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-const missingPrivacyDiagnostic = "contract declares no privacy policy; agent-facing output disabled until it does"
+// undeclaredPrivacyDiagnostic is said only about a contract that exists and
+// left the section out. A folder carrying no contract asserted nothing, so it
+// reports nothing — egress stays closed either way, because permission is
+// positive authority and silence is not permission.
+const undeclaredPrivacyDiagnostic = "contract declares no privacy policy; agent-facing output disabled until it does"
 
 const stalePrivacyDiagnostic = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
 
@@ -20,6 +24,11 @@ type privacySection struct {
 // PrivacyPolicy is the vault contract's fail-closed egress capability. Its
 // zero value is unavailable. Callers ask the positive EgressAllowed question
 // so a missing or invalid policy cannot be mistaken for permission.
+//
+// Egress is the one place where an unclaimed declaration and a rejected one
+// behave identically: sending bytes off the machine is an act, and without a
+// held declaration yomihon cannot know what must never leave. Only the
+// reporting differs — a rejected declaration is news, an absent one is not.
 type PrivacyPolicy struct {
 	state *privacyPolicyState
 }
@@ -27,28 +36,35 @@ type PrivacyPolicy struct {
 type privacyPolicyState struct {
 	neverEgressDirs []string
 	source          policySource
-	available       bool
-	diagnostic      string
+	claim           Claim
 	stale           atomic.Bool
+}
+
+// Claim reports how far the privacy declaration got.
+func (p PrivacyPolicy) Claim() Claim {
+	if p.state == nil {
+		return Claim{}
+	}
+	if p.state.stale.Load() {
+		return Rejected(stalePrivacyDiagnostic)
+	}
+	return p.state.claim
 }
 
 // Available reports whether the contract declared a valid privacy policy.
 func (p PrivacyPolicy) Available() bool {
-	return p.state != nil && p.state.available && !p.state.stale.Load()
+	return p.Claim().Held()
 }
 
-// Diagnostic explains why agent-facing output is unavailable.
+// Trustworthy reports whether the never-egress set may be reasoned over.
+func (p PrivacyPolicy) Trustworthy() bool {
+	return p.Claim().Trustworthy()
+}
+
+// Diagnostic explains why the privacy policy could not be honoured. It is empty
+// when the policy was read cleanly and empty when nothing declared one.
 func (p PrivacyPolicy) Diagnostic() string {
-	if p.Available() {
-		return ""
-	}
-	if p.state != nil && p.state.stale.Load() {
-		return stalePrivacyDiagnostic
-	}
-	if p.state != nil && p.state.diagnostic != "" {
-		return p.state.diagnostic
-	}
-	return missingPrivacyDiagnostic
+	return p.Claim().Diagnostic()
 }
 
 // EgressAllowed reports whether rel is a valid vault-relative path outside
@@ -91,7 +107,7 @@ func pathHasFoldedPrefix(rel, dir string) bool {
 // agent-facing output remains unavailable until a freshly loaded Contract
 // replaces it.
 func (p PrivacyPolicy) ValidateSource() PrivacyPolicy {
-	if p.state == nil || !p.state.available || p.state.stale.Load() {
+	if p.state == nil || !p.state.claim.Held() || p.state.stale.Load() {
 		return p
 	}
 	if !p.state.source.unchanged() {
@@ -101,11 +117,13 @@ func (p PrivacyPolicy) ValidateSource() PrivacyPolicy {
 }
 
 func derivePrivacyPolicy(section *privacySection, dirsDefined bool, source policySource) PrivacyPolicy {
+	// An existing contract that omits the section left an input out; a folder
+	// with no contract yields the silent zero value.
 	if section == nil {
-		return PrivacyPolicy{}
+		return PrivacyPolicy{state: &privacyPolicyState{claim: Rejected(undeclaredPrivacyDiagnostic)}}
 	}
 	if !dirsDefined {
-		return PrivacyPolicy{state: &privacyPolicyState{diagnostic: `invalid privacy policy: missing required key "never_egress_dirs"`}}
+		return PrivacyPolicy{state: &privacyPolicyState{claim: Rejected(`invalid privacy policy: missing required key "never_egress_dirs"`)}}
 	}
 	dirs := make([]string, 0, len(section.NeverEgressDirs))
 	for _, original := range section.NeverEgressDirs {
@@ -121,12 +139,12 @@ func derivePrivacyPolicy(section *privacySection, dirsDefined bool, source polic
 	return PrivacyPolicy{state: &privacyPolicyState{
 		neverEgressDirs: dirs,
 		source:          source,
-		available:       true,
+		claim:           heldClaim(),
 	}}
 }
 
 func invalidPrivacyPolicy(value string) PrivacyPolicy {
 	return PrivacyPolicy{state: &privacyPolicyState{
-		diagnostic: fmt.Sprintf("invalid privacy policy: never_egress_dirs contains %q", value),
+		claim: Rejected(fmt.Sprintf("invalid privacy policy: never_egress_dirs contains %q", value)),
 	}}
 }

@@ -134,17 +134,21 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		topics[i] = vault.NormalizeNFC(t)
 	}
 	return entry{
-		RelPath:         d.RelPath,
-		Title:           title,
-		TitleFold:       fold(title),
-		NoteType:        vault.NormalizeNFC(d.NoteType),
-		Domain:          vault.NormalizeNFC(d.Domain),
-		Status:          vault.NormalizeNFC(d.Status),
-		Slug:            vault.NormalizeNFC(d.Slug),
-		Topics:          topics,
-		PlainText:       plain,
-		PlainFold:       fold(plain),
-		metadataCapable: policy.Available() && !policy.IsNonInstance(d.RelPath),
+		RelPath:   d.RelPath,
+		Title:     title,
+		TitleFold: fold(title),
+		NoteType:  vault.NormalizeNFC(d.NoteType),
+		Domain:    vault.NormalizeNFC(d.Domain),
+		Status:    vault.NormalizeNFC(d.Status),
+		Slug:      vault.NormalizeNFC(d.Slug),
+		Topics:    topics,
+		PlainText: plain,
+		PlainFold: fold(plain),
+		// An unclaimed policy excludes nothing, so every readable note answers
+		// metadata queries over its own raw frontmatter. Whether that raw value
+		// may be *presented* as a lifecycle state is a separate question, asked
+		// by the surface that renders it.
+		metadataCapable: policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
 	}
 }
 
@@ -176,10 +180,11 @@ func (idx *Index) Len() int {
 // status, instead of running a full Search per status value. The status
 // vocabulary the caller displays still comes from the schema contract;
 // this only counts metadata-capable entries the index already holds. An
-// unavailable artifact policy returns ErrMetadataUnavailable with its contract
-// diagnostic instead of a misleading empty map.
+// artifact policy that was declared and could not be honoured returns
+// ErrMetadataUnavailable with its contract diagnostic instead of a misleading
+// empty map; one that was never declared excludes nothing and counts normally.
 func (idx *Index) CountByStatus() (map[string]int, error) {
-	if !idx.policy.Available() {
+	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()
 	}
 	counts := make(map[string]int, len(idx.entries))
@@ -206,10 +211,10 @@ type TypeStatus struct {
 // onward transitions against the schema contract without re-reading the vault:
 // the transition rules key on type as well as status, so the flatter
 // CountByStatus does not carry enough. A note missing either field lands in that
-// field's "" bucket. An unavailable artifact policy returns
-// ErrMetadataUnavailable with its contract diagnostic.
+// field's "" bucket. An artifact policy that was declared and could not be
+// honoured returns ErrMetadataUnavailable with its contract diagnostic.
 func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
-	if !idx.policy.Available() {
+	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()
 	}
 	counts := make(map[TypeStatus]int, len(idx.entries))

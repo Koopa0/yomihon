@@ -75,7 +75,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 	}{
 		{
 			name:     "no aids, open contract: the seal bar carries the seal form",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
@@ -86,7 +86,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "no aids, closed contract: the seal bar carries the fail-closed notice",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus, "archived"}, WriteDiagnostic: "contract unavailable"},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus, "archived"}, WriteDiagnostic: "contract unavailable"},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
@@ -103,6 +103,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		{
 			name: "malformed non-instance suppresses every status form even if transitions leak into the view",
 			view: NoteView{
+				Governed:    true,
 				Title:       "Template",
 				RelPath:     "System/templates/T.md",
 				Status:      "draft",
@@ -125,7 +126,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "no aids, no frontmatter: the seal bar says so",
-			view:     NoteView{Title: "T", RelPath: "a.md", NoFrontmatter: true},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", NoFrontmatter: true},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
@@ -135,7 +136,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "headings keep the rail and add the inline disclosure",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
 			wantAids: true,
 			wantPresent: []string{
 				"y-statuspanel",
@@ -147,7 +148,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "broken frontmatter: the diagnostics face owns the page, no seal bar",
-			view:     NoteView{Title: "T", RelPath: "a.md", Diagnostic: "unterminated string"},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Diagnostic: "unterminated string"},
 			wantAids: true,
 			wantPresent: []string{
 				"診斷",
@@ -156,8 +157,28 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAbsent: []string{"y-shell--rail-empty", "y-sealbar", "y-statuspanel"},
 		},
 		{
+			// The gate proving it can close. A folder nothing governs has no
+			// lifecycle at all, so neither status face belongs on the page —
+			// not even to apologise for a contract that was never promised.
+			name:     "ungoverned folder: neither status face appears",
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus},
+			wantAids: false,
+			wantPresent: []string{
+				"y-shell--rail-empty",
+				"y-title",
+			},
+			wantAbsent: []string{
+				"y-statuspanel",
+				"y-sealbar",
+				"操作者 · koopa",
+				"目前沒有合法的狀態轉換",
+				"生命週期寫入目前無法使用",
+				`action="/status"`,
+			},
+		},
+		{
 			name:     "render diagnostics alone keep the rail",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
 			wantAids: true,
 			wantPresent: []string{
 				"診斷",
@@ -203,6 +224,7 @@ func TestSealFormUsesViewTarget(t *testing.T) {
 	t.Parallel()
 
 	v := NoteView{
+		Governed:    true,
 		Title:       "T",
 		RelPath:     "a.md",
 		Status:      "draft",
@@ -239,7 +261,7 @@ func TestSealToastRidesTheRedirectSignal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := NoteView{Title: "T", RelPath: "a.md", Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true, JustSealed: tt.justSealed}
+			v := NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true, JustSealed: tt.justSealed}
 			var buf bytes.Buffer
 			if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render: %v", err)
@@ -264,12 +286,17 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 		view        NoteView
 		wantSealBar bool
 	}{
-		{name: "open contract", view: NoteView{Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: true},
-		{name: "closed contract", view: NoteView{Status: "draft", WriteDiagnostic: "contract unavailable"}, wantSealBar: true},
-		{name: "no frontmatter", view: NoteView{NoFrontmatter: true}, wantSealBar: true},
-		{name: "sealed note", view: NoteView{Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true}, wantSealBar: true},
-		{name: "frontmatter diagnostic", view: NoteView{Diagnostic: "bad yaml"}, wantSealBar: false},
-		{name: "non-instance remains named beside frontmatter diagnostic", view: NoteView{Diagnostic: "bad yaml", NonInstance: true}, wantSealBar: true},
+		{name: "open contract", view: NoteView{Governed: true, Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: true},
+		{name: "closed contract", view: NoteView{Governed: true, Status: "draft", WriteDiagnostic: "contract unavailable"}, wantSealBar: true},
+		{name: "no frontmatter", view: NoteView{Governed: true, NoFrontmatter: true}, wantSealBar: true},
+		{name: "sealed note", view: NoteView{Governed: true, Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true}, wantSealBar: true},
+		{name: "frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml"}, wantSealBar: false},
+		{name: "non-instance remains named beside frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml", NonInstance: true}, wantSealBar: true},
+		// The same views on a folder nothing governs: the bar has no lifecycle
+		// to mirror, so it is absent in every one of them.
+		{name: "ungoverned open-looking view", view: NoteView{Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: false},
+		{name: "ungoverned no frontmatter", view: NoteView{NoFrontmatter: true}, wantSealBar: false},
+		{name: "ungoverned non-instance", view: NoteView{Diagnostic: "bad yaml", NonInstance: true}, wantSealBar: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -289,6 +316,7 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 		t.Parallel()
 
 		v := NoteView{
+			Governed:    true,
 			RelPath:     "a.md",
 			Status:      "draft",
 			SealTarget:  schema.SealStatus,
@@ -316,6 +344,7 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 		t.Parallel()
 
 		v := NoteView{
+			Governed:    true,
 			RelPath:     "a.md",
 			Status:      schema.SealStatus,
 			SealTarget:  schema.SealStatus,

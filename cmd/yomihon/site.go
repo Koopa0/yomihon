@@ -52,6 +52,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	}()
 
 	contract, err := schema.LoadReader(ctx, source)
+	var governance schema.Governance
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		// A folder that carries no contract is not a folder in trouble. It has
@@ -61,15 +62,22 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		log.Info("no vault contract; reading and search only, no write face",
 			"path", schema.ContractRelPath)
 		contract = nil
+		governance = schema.Ungoverned()
 	case err != nil:
+		// A contract that exists and cannot be read is the opposite case: this
+		// folder claimed governance and then failed to deliver it. Carrying that
+		// distinction past startup is what keeps the two folders from rendering
+		// the same page.
 		log.Warn("vault contract unavailable; write face is closed (fail-closed)", "error", err)
 		contract = nil
+		governance = schema.Unreadable(err)
 	default:
 		log.Info("vault contract loaded",
 			"version", contract.Version(), "lifecycle_stages", contract.StageCount())
+		governance = contract.Governance()
 	}
 
-	lifecycle, err := status.Open(source, contract)
+	lifecycle, err := status.Open(source, contract, governance)
 	if err != nil {
 		return nil, fmt.Errorf("open status lifecycle: %w", err)
 	}
@@ -78,7 +86,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 			resultErr = errors.Join(resultErr, lifecycle.Close())
 		}
 	}()
-	store, err := snapshot.New(ctx, source, log, contract)
+	store, err := snapshot.New(ctx, source, log, contract, governance)
 	if err != nil {
 		return nil, err
 	}

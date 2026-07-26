@@ -3,6 +3,7 @@ package note_test
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -46,19 +47,25 @@ func newSnapshotStore(
 	root string,
 	log *slog.Logger,
 	contract *schema.Contract,
+	governance schema.Governance,
 ) (*snapshot.Store, *vault.Reader) {
 	t.Helper()
 	source := openReadingVault(t, root)
-	store, err := snapshot.New(t.Context(), source, log, contract)
+	store, err := snapshot.New(t.Context(), source, log, contract, governance)
 	if err != nil {
 		t.Fatalf("snapshot.New: %v", err)
 	}
 	return store, source
 }
 
-func openStatusLifecycle(t *testing.T, source *vault.Reader, contract *schema.Contract) *status.Lifecycle {
+func openStatusLifecycle(
+	t *testing.T,
+	source *vault.Reader,
+	contract *schema.Contract,
+	governance schema.Governance,
+) *status.Lifecycle {
 	t.Helper()
-	lifecycle, err := status.Open(source, contract)
+	lifecycle, err := status.Open(source, contract, governance)
 	if err != nil {
 		t.Fatalf("status.Open() error = %v", err)
 	}
@@ -95,6 +102,22 @@ func newServerWithContract(t *testing.T, root string, contract *schema.Contract)
 	})
 }
 
+// newServerWithGovernance is newServerWithContract for the cases where the
+// contract is absent and which absence it is matters: a folder that never
+// carried one, or one whose contract exists and could not be read.
+func newServerWithGovernance(
+	t *testing.T,
+	root string,
+	contract *schema.Contract,
+	governance schema.Governance,
+) *httptest.Server {
+	t.Helper()
+	return newServerWithProvenanceAndGovernance(
+		t, root, contract, governance,
+		func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+	)
+}
+
 func newServerWithProvenance(
 	t *testing.T,
 	root string,
@@ -102,10 +125,21 @@ func newServerWithProvenance(
 	provenance func(context.Context, string, [sha256.Size]byte) (string, error),
 ) *httptest.Server {
 	t.Helper()
+	return newServerWithProvenanceAndGovernance(t, root, contract, contract.Governance(), provenance)
+}
+
+func newServerWithProvenanceAndGovernance(
+	t *testing.T,
+	root string,
+	contract *schema.Contract,
+	governance schema.Governance,
+	provenance func(context.Context, string, [sha256.Size]byte) (string, error),
+) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, contract)
-	lifecycle := openStatusLifecycle(t, source, contract)
+	store, source := newSnapshotStore(t, root, log, contract, governance)
+	lifecycle := openStatusLifecycle(t, source, contract, governance)
 	h := note.New(&note.Dependencies{
 		Source:     source,
 		Status:     lifecycle.View,
@@ -231,8 +265,8 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 		t.Fatalf("LoadFile() error = %v", err)
 	}
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, contract)
-	lifecycle := openStatusLifecycle(t, source, contract)
+	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
+	lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
 	statusCaptures := 0
 	statusProvider := func() status.View {
 		statusCaptures++
@@ -314,8 +348,8 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 				t.Fatalf("LoadFile() error = %v", err)
 			}
 			log := slog.New(slog.DiscardHandler)
-			store, source := newSnapshotStore(t, root, log, contract)
-			lifecycle := openStatusLifecycle(t, source, contract)
+			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
+			lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
 
 			var statusView status.View
 			var captured *snapshot.View
@@ -371,6 +405,169 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 	}
 }
 
+// TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder is the landing
+// page's twin of the reading page's reconciliation. Home derives its lifecycle
+// block from the captured write authority and its counts from the snapshot's
+// own artifact capture; the two are sampled at different instants, so whichever
+// was taken first, a block that one authority still allows must close when the
+// other has already stopped answering. Without the second check the page
+// renders a status list counted against exclusions it can no longer read.
+func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T) {
+	t.Parallel()
+
+	for _, snapshotFirst := range []bool{true, false} {
+		name := "status-first"
+		if snapshotFirst {
+			name = "snapshot-first"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+				t.Fatalf("write README: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+				t.Fatalf("write note: %v", err)
+			}
+			contractBytes, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+			if err != nil {
+				t.Fatalf("read contract fixture: %v", err)
+			}
+			contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+			if writeErr := os.WriteFile(contractPath, contractBytes, 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+				t.Fatalf("write mutable contract: %v", writeErr)
+			}
+			contract, err := schema.LoadFile(contractPath)
+			if err != nil {
+				t.Fatalf("LoadFile() error = %v", err)
+			}
+			log := slog.New(slog.DiscardHandler)
+			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
+			lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
+
+			var statusView status.View
+			var captured *snapshot.View
+			if snapshotFirst {
+				captured = store.Current().Capture()
+			} else {
+				statusView = lifecycle.View()
+			}
+			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+				t.Fatalf("change contract between captures: %v", writeErr)
+			}
+			if snapshotFirst {
+				statusView = lifecycle.View()
+			} else {
+				captured = store.Current().Capture()
+			}
+
+			mux := http.NewServeMux()
+			note.New(&note.Dependencies{
+				Source:     source,
+				Status:     func() status.View { return statusView },
+				Snapshot:   func() *snapshot.View { return captured },
+				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+				Log:        log,
+			}).Register(mux)
+			srv := httptest.NewServer(mux)
+			t.Cleanup(srv.Close)
+
+			code, body := get(t, srv.URL+"/")
+			if code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want 200", code)
+			}
+			page := html.UnescapeString(body)
+			if strings.Contains(page, `data-home-block="lifecycle"`) {
+				t.Errorf("Home rendered a lifecycle block across torn authority captures; page = %q", page)
+			}
+			const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
+			assertCauseStatedAtMostOncePerRegion(t, page, diagnostic)
+			if strings.Contains(page, "data-advanceable-chip") {
+				t.Error("Home kept the advanceable chip across torn authority captures")
+			}
+		})
+	}
+}
+
+// TestShowKeepsTheWriteFaceClosedOnAGovernedFolderThatIsNoRepository pins the
+// second producer of a closed write face. The contract here is complete and
+// valid, so the vault is governed and the status face belongs on the page — but
+// every transition is recorded as a commit, and this folder has no git working
+// tree to record one in. The page must say so and offer nothing, rather than
+// naming the operator beside a control that can only fail.
+func TestShowKeepsTheWriteFaceClosedOnAGovernedFolderThatIsNoRepository(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, page := get(t, srv.URL+"/notes/Note.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET note status = %d, want 200", code)
+	}
+	page = html.UnescapeString(page)
+
+	surfaces := statusSurfaces(t, page)
+	if len(surfaces) == 0 {
+		t.Fatalf("a governed vault rendered no status face at all; page = %q", page)
+	}
+	for _, surface := range surfaces {
+		if !strings.Contains(surface.body, `data-status-state="unavailable"`) {
+			t.Errorf("%s did not mark the write face unavailable", surface.name)
+		}
+		if !strings.Contains(surface.body, status.GitBlockReason) {
+			t.Errorf("%s does not say why the transition would be refused", surface.name)
+		}
+		for _, leaked := range []string{"操作者 · koopa", "目前沒有合法的狀態轉換", `action="/status"`} {
+			if strings.Contains(surface.body, leaked) {
+				t.Errorf("%s asserts write authority that was refused: %q", surface.name, leaked)
+			}
+		}
+	}
+}
+
+// TestShowCarriesTheNavigationFaultOnANotePage pins the path the reader
+// actually takes to a note: the command palette opens one directly and never
+// renders Home. A contract whose navigation declaration was rejected closes
+// paths and maps while leaving the write face and the recent list working, so
+// the rail is the only place that fault can appear — and if it appears nowhere
+// on this route, a reader who lives in the palette never learns their contract
+// is wrong.
+func TestShowCarriesTheNavigationFaultOnANotePage(t *testing.T) {
+	t.Parallel()
+
+	const rejectedNavigation = "[navigation]\npath_types = [\"missing-type\"]\nmap_types = []\n"
+	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	contract := loadHomeContractWithSections(t, rejectedNavigation, validArtifact)
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	srv := newServerWithContract(t, root, contract)
+	code, body := get(t, srv.URL+"/notes/Note.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET note status = %d, want 200", code)
+	}
+	page := html.UnescapeString(body)
+
+	if strings.Contains(page, "data-home-block") {
+		t.Fatal("the fixture rendered Home, not a note page")
+	}
+	rail := pageSection(page, `<section class="y-navdiag"`)
+	if rail == "" {
+		t.Fatalf("the note page carries no capability fault at all; page = %q", page)
+	}
+	if !strings.Contains(rail, "missing-type") {
+		t.Errorf("the rail does not name the rejected declaration: %q", rail)
+	}
+	if strings.Contains(rail, "artifact policy") {
+		t.Errorf("the rail reports an artifact failure that did not happen: %q", rail)
+	}
+}
+
 func TestShowFileCapturesStatusOnce(t *testing.T) {
 	t.Parallel()
 
@@ -379,8 +576,8 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 		t.Fatalf("write source fixture: %v", err)
 	}
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil)
-	lifecycle := openStatusLifecycle(t, source, nil)
+	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 	statusCaptures := 0
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
@@ -476,13 +673,21 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 	tests := []struct {
 		name       string
 		contract   func(*testing.T) *schema.Contract
+		governance schema.Governance
 		want       string
 		wantAbsent string
 	}{
 		{
-			name:       "core contract unavailable",
-			contract:   func(*testing.T) *schema.Contract { return nil },
-			want:       status.CoreUnavailableDiagnostic,
+			// A contract that exists and cannot be read. This row used to pass a
+			// nil contract, which is also what a folder carrying no contract
+			// produces — so the fault and the ordinary case were the same test.
+			name: "core contract unreadable",
+			contract: func(t *testing.T) *schema.Contract {
+				t.Helper()
+				return nil
+			},
+			governance: schema.Unreadable(errors.New("toml: line 42: expected a key separator")),
+			want:       "toml: line 42",
 			wantAbsent: "contract declares no artifact policy; instance projections disabled until it does",
 		},
 		{
@@ -511,7 +716,12 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
 				t.Fatalf("write note: %v", err)
 			}
-			srv := newServerWithContract(t, root, tt.contract(t))
+			contract := tt.contract(t)
+			governance := tt.governance
+			if contract != nil {
+				governance = contract.Governance()
+			}
+			srv := newServerWithGovernance(t, root, contract, governance)
 			code, page := get(t, srv.URL+"/notes/Note.md")
 			if code != http.StatusOK {
 				t.Fatalf("GET note status = %d, want 200", code)
@@ -834,16 +1044,26 @@ func TestShow(t *testing.T) {
 	}
 	for _, want := range []string{
 		"L00 テスト課",
-		"ui-status--draft", // the note's status, rendered as its badge
 		"<ruby>今日<rt>きょう</rt></ruby>",
-		// The status service is wired but fail-closed (nil contract):
-		// the page must still render, with the write face's own notice
-		// instead of any transition form (asymmetric fault tolerance —
-		// a missing contract never breaks reading).
-		"fail-closed",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page missing %q", want)
+		}
+	}
+	// Nothing governs this folder, so the page carries no write face at all —
+	// not the forms, and not an apology for a contract that was never promised.
+	// Reading is whole either way; that asymmetry is the point.
+	for _, absent := range []string{
+		"y-statuspanel",
+		"y-sealbar",
+		"操作者 · koopa",
+		"生命週期寫入目前無法使用",
+		"fail-closed",
+		`action="/status"`,
+		"ui-status--draft",
+	} {
+		if strings.Contains(body, absent) {
+			t.Errorf("ungoverned note page unexpectedly contains %q", absent)
 		}
 	}
 }
@@ -1153,7 +1373,6 @@ func TestHome(t *testing.T) {
 	pageHTML := string(body)
 	for name, marker := range map[string]string{
 		"recently changed": `data-home-block="recent"`,
-		"lifecycle":        `data-home-block="lifecycle"`,
 		"study paths":      `data-home-block="study-paths"`,
 		"search":           `data-home-block="search"`,
 		"vault README":     "README body sentinel.",
@@ -1162,6 +1381,166 @@ func TestHome(t *testing.T) {
 	} {
 		if !strings.Contains(pageHTML, marker) {
 			t.Errorf("GET / is missing the %s marker %q", name, marker)
+		}
+	}
+	// This folder carries no contract. It has no lifecycle vocabulary, so the
+	// block that would name one is absent rather than empty or apologetic, and
+	// nothing on the page reports a capability that was never claimed. Before
+	// the grant split this page opened with seven such notices and the reader's
+	// own README started below the fold.
+	for name, marker := range map[string]string{
+		"lifecycle block":   `data-home-block="lifecycle"`,
+		"capability faults": `data-home-block="faults"`,
+		"fault row":         "data-home-fault",
+		"advanceable chip":  "data-advanceable-chip",
+		"sidebar fault":     `data-sidebar-group="navigation-diagnostics"`,
+	} {
+		if strings.Contains(pageHTML, marker) {
+			t.Errorf("ungoverned Home renders the %s marker %q", name, marker)
+		}
+	}
+	if !strings.Contains(pageHTML, "README body sentinel.") {
+		t.Error("the reader's own content is missing")
+	}
+}
+
+// TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder pins the same
+// separation on Home that the search results page pins on a hit. An ungoverned
+// folder's notes may still carry a "status:" line — frontmatter is the author's,
+// not the contract's — and the recent list still shows them. What it must not do
+// is render that raw word as a lifecycle chip, which would name a value from a
+// vocabulary nothing here ever declared.
+func TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(root, "Note.md"),
+		[]byte("---\ntitle: Author's own note\ntype: writing\nstatus: draft\n---\n\nbody\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	srv := newServer(t, root)
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, body, `data-home-block="recent"`)
+
+	if !strings.Contains(recent, "Author&#39;s own note") && !strings.Contains(recent, "Author's own note") {
+		t.Fatalf("recent block does not list the note at all; section = %q", recent)
+	}
+	for _, leaked := range []string{"ui-status--draft", "ui-status"} {
+		if strings.Contains(recent, leaked) {
+			t.Errorf("ungoverned recent list renders %q; no vocabulary was ever declared here", leaked)
+		}
+	}
+}
+
+// TestHomeReportsAnUnreadableContractExactlyOnce is the other side of TestHome.
+// The same absence of a usable contract, but here the folder claimed one and
+// could not deliver it, so the page says so — once, in a node of its own,
+// rather than repeating the cause in each block it closed.
+
+// assertCauseStatedOncePerRegion pins how a capability fault reaches the reader:
+// once in the navigation rail, which every page carries, and once in Home's own
+// content column, which stays visible when the rail is collapsed behind its
+// toggle. Two regions, one sentence each — not the six-deep column of repeats
+// that used to push the reader's own content below the fold.
+func assertCauseStatedOncePerRegion(t *testing.T, page, cause string) {
+	t.Helper()
+	rail := pageSection(page, `<section class="y-navdiag"`)
+	content := pageSection(page, `data-home-block="faults"`)
+	if rail == "" {
+		t.Errorf("the navigation rail states nothing; a note opened from the palette never renders Home")
+	} else if got := strings.Count(rail, cause); got != 1 {
+		t.Errorf("the rail states the cause %d times, want once: %q", got, rail)
+	}
+	if content == "" {
+		t.Errorf("Home's content column states nothing; at narrow widths the rail is behind a toggle")
+	} else if got := strings.Count(content, cause); got != 1 {
+		t.Errorf("Home's content column states the cause %d times, want once: %q", got, content)
+	}
+	if got := strings.Count(page, cause); got != 2 {
+		t.Errorf("the cause appears %d times on the page, want exactly one per region", got)
+	}
+	if got := strings.Count(page, "data-home-fault"); got != 1 {
+		t.Errorf("Home fault rows = %d, want exactly 1", got)
+	}
+}
+
+// assertCauseStatedAtMostOncePerRegion is the weaker sibling, for pages where
+// which region knows the cause depends on which authority was sampled first:
+// with the write view captured before a drift and the snapshot after it, the
+// write face still believes it is open and only the rail has anything to say.
+// The cause must still reach the reader, and must not repeat inside a region.
+func assertCauseStatedAtMostOncePerRegion(t *testing.T, page, cause string) {
+	t.Helper()
+	rail := strings.Count(pageSection(page, `<section class="y-navdiag"`), cause)
+	content := strings.Count(pageSection(page, `data-home-block="faults"`), cause)
+	if rail > 1 || content > 1 {
+		t.Errorf("the cause repeats inside a region: rail=%d content=%d", rail, content)
+	}
+	if rail+content == 0 {
+		t.Errorf("no region states the cause; page = %q", page)
+	}
+	if got := strings.Count(page, cause); got != rail+content {
+		t.Errorf("the cause appears %d times but only %d are accounted for by the two regions", got, rail+content)
+	}
+}
+
+// pageSection returns the one <section> that starts with opener, so an
+// assertion can say which region of the page states a thing rather than only
+// that the page states it somewhere.
+func pageSection(page, opener string) string {
+	const closer = "</section>"
+	start := strings.Index(page, opener)
+	if start < 0 {
+		return ""
+	}
+	rest := page[start:]
+	end := strings.Index(rest, closer)
+	if end < 0 {
+		return rest
+	}
+	return rest[:end+len(closer)]
+}
+
+func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nREADME body sentinel.\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
+		errors.New("toml: line 42: expected a key separator"),
+	))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	page := html.UnescapeString(body)
+
+	assertCauseStatedOncePerRegion(t, page, "toml: line 42")
+	// The blocks whose projections closed say nothing rather than asserting an
+	// emptiness they cannot vouch for.
+	for name, marker := range map[string]string{
+		"recent":      `data-home-block="recent"`,
+		"lifecycle":   `data-home-block="lifecycle"`,
+		"study paths": `data-home-block="study-paths"`,
+	} {
+		if strings.Contains(page, marker) {
+			t.Errorf("Home still renders the %s block under an unreadable contract", name)
+		}
+	}
+	for _, want := range []string{`data-home-block="search"`, "README body sentinel."} {
+		if !strings.Contains(page, want) {
+			t.Errorf("Home lost %q to a contract failure; reading never depends on one", want)
 		}
 	}
 }
@@ -1226,9 +1605,9 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 		t.Fatalf("write second target: %v", err)
 	}
 
-	firstStore, firstSource := newSnapshotStore(t, firstRoot, log, nil)
-	secondStore, _ := newSnapshotStore(t, secondRoot, log, nil)
-	lifecycle := openStatusLifecycle(t, firstSource, nil)
+	firstStore, firstSource := newSnapshotStore(t, firstRoot, log, nil, schema.Ungoverned())
+	secondStore, _ := newSnapshotStore(t, secondRoot, log, nil, schema.Ungoverned())
+	lifecycle := openStatusLifecycle(t, firstSource, nil, schema.Ungoverned())
 
 	for _, tt := range []struct {
 		name string
@@ -1288,8 +1667,8 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	}
 
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil)
-	lifecycle := openStatusLifecycle(t, source, nil)
+	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 
 	for _, tt := range []struct {
 		name, path string
@@ -1429,7 +1808,11 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 }
 
-func TestHomeLifecycleDiagnostic(t *testing.T) {
+// TestHomeWithholdsTheLifecycleBlockAndNamesTheCause covers a vault something
+// governs whose artifact declaration yomihon could not honour. The lifecycle
+// block cannot be counted honestly, so it is withheld rather than shown empty,
+// and the reason is stated once in the page's own fault node.
+func TestHomeWithholdsTheLifecycleBlockAndNamesTheCause(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1438,12 +1821,7 @@ func TestHomeLifecycleDiagnostic(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "closed core contract",
-			contract: func(*testing.T) *schema.Contract { return nil },
-			want:     status.CoreUnavailableDiagnostic,
-		},
-		{
-			name: "missing artifact policy",
+			name: "artifact policy left out of an existing contract",
 			contract: func(t *testing.T) *schema.Contract {
 				t.Helper()
 				return loadHomeContractWithArtifactSection(t, "")
@@ -1451,7 +1829,7 @@ func TestHomeLifecycleDiagnostic(t *testing.T) {
 			want: "contract declares no artifact policy; instance projections disabled until it does",
 		},
 		{
-			name: "invalid artifact policy",
+			name: "artifact policy rejected",
 			contract: func(t *testing.T) *schema.Contract {
 				t.Helper()
 				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
@@ -1472,12 +1850,12 @@ func TestHomeLifecycleDiagnostic(t *testing.T) {
 			if code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
-			lifecycle := html.UnescapeString(homeSection(t, body, `data-home-block="lifecycle"`))
-			for _, want := range []string{"data-home-lifecycle-diagnostic", tt.want} {
-				if !strings.Contains(lifecycle, want) {
-					t.Errorf("Lifecycle diagnostic missing %q; section = %q", want, lifecycle)
-				}
+			page := html.UnescapeString(body)
+
+			if strings.Contains(page, `data-home-block="lifecycle"`) {
+				t.Error("Home rendered a lifecycle block it cannot count")
 			}
+			assertCauseStatedOncePerRegion(t, page, tt.want)
 		})
 	}
 }
@@ -1524,8 +1902,8 @@ body
 
 	log := slog.New(slog.DiscardHandler)
 	statusCaptures := 0
-	store, source := newSnapshotStore(t, root, log, contract)
-	lifecycle := openStatusLifecycle(t, source, contract)
+	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
+	lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
 	requestStatus := func() status.View {
 		statusCaptures++
 		return lifecycle.View()
@@ -1561,14 +1939,20 @@ body
 		t.Fatalf("second GET / status = %d, want 200", code)
 	}
 	const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
+	page := html.UnescapeString(body)
+	assertCauseStatedOncePerRegion(t, page, diagnostic)
 	for _, block := range []string{"recent", "lifecycle"} {
-		section := html.UnescapeString(homeSection(t, body, `data-home-block="`+block+`"`))
-		if !strings.Contains(section, diagnostic) {
-			t.Errorf("%s block missing latched authority diagnostic: %q", block, section)
+		if strings.Contains(page, `data-home-block="`+block+`"`) {
+			t.Errorf("%s block survived authority drift; a projection it cannot vouch for must be withheld", block)
 		}
-		if strings.Contains(section, ">A<") || strings.Contains(section, "seedling") {
-			t.Errorf("%s block retained instance projection after authority drift: %q", block, section)
-		}
+	}
+	// The folder tree still lists the note: ordinary browsing never depended on
+	// the artifact policy. What must be gone is the instance-derived status.
+	if !strings.Contains(page, "/notes/Concepts/golang/A.md") {
+		t.Error("ordinary folder browsing closed with the artifact authority")
+	}
+	if strings.Contains(page, "seedling") {
+		t.Errorf("Home retained an instance projection after authority drift: %q", page)
 	}
 	if statusCaptures != 2 {
 		t.Errorf("two home requests captured status %d times, want exactly once per request", statusCaptures)
@@ -1604,25 +1988,23 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 			if code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
-			diagnostic := tt.want
-			for _, block := range []struct {
-				marker, diagnosticMarker string
-			}{
-				{marker: `data-home-block="recent"`, diagnosticMarker: `data-home-recent-diagnostic`},
-				{marker: `data-home-block="lifecycle"`, diagnosticMarker: `data-home-lifecycle-diagnostic`},
-				{marker: `data-home-block="study-paths"`, diagnosticMarker: `data-home-paths-diagnostic`},
+			body := html.UnescapeString(page)
+			// Every instance-derived block closes on one cause, so the cause is
+			// stated once and each closed block renders nothing at all.
+			for _, marker := range []string{
+				`data-home-block="recent"`,
+				`data-home-block="lifecycle"`,
+				`data-home-block="study-paths"`,
 			} {
-				section := html.UnescapeString(homeSection(t, page, block.marker))
-				for _, want := range []string{block.diagnosticMarker, diagnostic} {
-					if !strings.Contains(section, want) {
-						t.Errorf("Home block %s is missing %q; section = %q", block.marker, want, section)
-					}
+				if strings.Contains(body, marker) {
+					t.Errorf("Home still renders %s without a usable artifact policy", marker)
 				}
 			}
-			if strings.Contains(page, `data-advanceable-chip`) {
+			assertCauseStatedOncePerRegion(t, body, tt.want)
+			if strings.Contains(body, `data-advanceable-chip`) {
 				t.Error("Home advanceable chip remained available without artifact metadata")
 			}
-			if !strings.Contains(page, `data-home-block="search"`) {
+			if !strings.Contains(body, `data-home-block="search"`) {
 				t.Error("Home search block disappeared during artifact degradation")
 			}
 		})
@@ -1661,14 +2043,18 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 	if !strings.Contains(draftRow, `aria-label="1 篇筆記">1</span>`) {
 		t.Errorf("Lifecycle draft count degraded with navigation roles; row = %q", draftRow)
 	}
-	paths := html.UnescapeString(homeSection(t, page, `data-home-block="study-paths"`))
-	for _, want := range []string{`data-home-paths-diagnostic`, `missing-type`} {
-		if !strings.Contains(paths, want) {
-			t.Errorf("Study Paths is missing navigation diagnostic %q; section = %q", want, paths)
-		}
+	body := html.UnescapeString(page)
+	if strings.Contains(body, `data-home-block="study-paths"`) {
+		t.Error("Study Paths rendered without usable navigation roles")
 	}
-	if strings.Contains(paths, "contract declares no artifact policy; instance projections disabled until it does") {
-		t.Errorf("Study Paths falsely reports artifact failure: %q", paths)
+	// A rejected navigation declaration closes only the study paths, and the
+	// write authority knows nothing about it. Stating the cause in the rail
+	// alone would drop that block with no explanation for any reader whose
+	// window is narrow enough to fold the rail behind its toggle.
+	assertCauseStatedOncePerRegion(t, body,
+		`invalid navigation roles: path type "missing-type" is not declared in enums.type`)
+	if strings.Contains(body, "contract declares no artifact policy; instance projections disabled until it does") {
+		t.Errorf("Home falsely reports an artifact failure: %q", body)
 	}
 	if !strings.Contains(page, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
 		t.Error("advanceable chip was suppressed by navigation-only failure")
@@ -1689,18 +2075,27 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	paths := html.UnescapeString(homeSection(t, page, `data-home-block="study-paths"`))
-	for _, want := range []string{
-		`data-home-paths-diagnostic`,
-		`missing-type`,
-		`invalid artifact policy: non_instance_dirs contains "."`,
-	} {
-		if !strings.Contains(paths, want) {
-			t.Errorf("Study Paths is missing concurrent capability diagnostic %q; section = %q", want, paths)
+	body := html.UnescapeString(page)
+	// Two declarations were rejected independently. The artifact one closed the
+	// write authority, so it reaches Home's content column; the navigation one
+	// closed only paths and maps, so the rail is its home. Each is stated once
+	// where it belongs, and neither is repeated.
+	rail := pageSection(body, `<section class="y-navdiag"`)
+	content := pageSection(body, `data-home-block="faults"`)
+	if got := strings.Count(rail, "missing-type"); got != 1 {
+		t.Errorf("the rail states the navigation cause %d times, want once: %q", got, rail)
+	}
+	const artifactCause = `invalid artifact policy: non_instance_dirs contains "."`
+	if got := strings.Count(content, artifactCause); got != 1 {
+		t.Errorf("Home's content column states the artifact cause %d times, want once: %q", got, content)
+	}
+	for _, cause := range []string{"missing-type", artifactCause} {
+		if got := strings.Count(body, cause); got > 2 {
+			t.Errorf("capability cause %q appears %d times, want at most one per region", cause, got)
 		}
 	}
-	if got := strings.Count(paths, `data-home-paths-diagnostic`); got != 2 {
-		t.Errorf("Study Paths diagnostic rows = %d, want 2", got)
+	if strings.Contains(body, `data-home-block="study-paths"`) {
+		t.Error("Study Paths rendered under two rejected declarations")
 	}
 }
 
@@ -1879,7 +2274,7 @@ func TestShowTransitions(t *testing.T) {
 	// testdata/contract.toml's lifecycle table (cross-checked by hand,
 	// mirroring internal/status/status_test.go's TestTransitions).
 	transitionSource := openReadingVault(t, root)
-	transitions := openStatusLifecycle(t, transitionSource, contract).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
+	transitions := openStatusLifecycle(t, transitionSource, contract, contract.Governance()).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
@@ -1969,8 +2364,8 @@ func TestNewCopiesDependencies(t *testing.T) {
 		t.Fatalf("write raw fixture: %v", err)
 	}
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil)
-	lifecycle := openStatusLifecycle(t, source, nil)
+	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 	deps := note.Dependencies{
 		Source:     source,
 		Status:     lifecycle.View,
@@ -2002,8 +2397,8 @@ func TestNewPanicsOnNilSource(t *testing.T) {
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil)
-	lifecycle := openStatusLifecycle(t, source, nil)
+	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
 		Source:     nil,
 		Status:     lifecycle.View,
@@ -2028,7 +2423,7 @@ func TestNewPanicsOnNilStatusProvider(t *testing.T) {
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil)
+	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
 		Source:     source,
 		Status:     nil, // the nil under test
@@ -2050,8 +2445,8 @@ func TestNewPanicsOnNilSnapshot(t *testing.T) {
 	}()
 	root := t.TempDir()
 	log := slog.New(slog.DiscardHandler)
-	_, source := newSnapshotStore(t, root, log, nil)
-	lifecycle := openStatusLifecycle(t, source, nil)
+	_, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
 		Source:     source,
 		Status:     lifecycle.View,

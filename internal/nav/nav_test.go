@@ -1,6 +1,7 @@
 package nav
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,12 +72,18 @@ func capturedModel(
 	return New(scan.Files(), notes, resolver, roles, policy)
 }
 
-func testCapabilities(t *testing.T) (schema.NavigationRoles, schema.ArtifactPolicy) {
+func testContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		t.Fatalf("schema.LoadFile: %v", err)
 	}
+	return contract
+}
+
+func testCapabilities(t *testing.T) (schema.NavigationRoles, schema.ArtifactPolicy) {
+	t.Helper()
+	contract := testContract(t)
 	return contract.NavigationRoles(), contract.ArtifactPolicy()
 }
 
@@ -459,6 +466,19 @@ map_types = ["moc"]
 `, `
 [artifacts]
 `)
+	// A contract that exists and omits the section entirely. Before the grant
+	// split this was the zero-value capability, which a folder carrying no
+	// contract also produced — the two folders rendered the same page, and the
+	// operator's actual mistake was indistinguishable from having made none.
+	undeclaredNavigation := loadCapabilityContract(t, ``, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	undeclaredArtifact := loadCapabilityContract(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+`, ``)
 
 	tests := []struct {
 		name               string
@@ -469,8 +489,8 @@ map_types = ["moc"]
 		wantKnowledgeNotes int
 	}{
 		{
-			name:               "missing navigation",
-			roles:              schema.NavigationRoles{},
+			name:               "undeclared navigation",
+			roles:              undeclaredNavigation.NavigationRoles(),
 			policy:             validPolicy,
 			wantNavigation:     "contract declares no navigation roles",
 			wantKnowledgeNotes: 2,
@@ -490,9 +510,9 @@ map_types = ["moc"]
 			wantKnowledgeNotes: 2,
 		},
 		{
-			name:         "missing artifact policy",
+			name:         "undeclared artifact policy",
 			roles:        validRoles,
-			policy:       schema.ArtifactPolicy{},
+			policy:       undeclaredArtifact.ArtifactPolicy(),
 			wantArtifact: "contract declares no artifact policy",
 		},
 		{
@@ -532,6 +552,86 @@ map_types = ["moc"]
 				t.Error("degraded Folders is empty, want browsing preserved")
 			}
 		})
+	}
+}
+
+// TestUngovernedFolderProjectsOverTheEmptyDeclaredSet pins the difference the
+// grant split exists for. A folder that carries no contract declared no path
+// types, no map types, and no excluded directories. The declared sets are
+// empty, so the projections over them are empty — but they are open, and
+// nothing is reported, because nothing went wrong.
+func TestUngovernedFolderProjectsOverTheEmptyDeclaredSet(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNavFixture(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: draft\n---\nbody\n")
+
+	roles, policy, _ := schema.Ungoverned().Capabilities(nil)
+	model := capturedModel(t, root, roles, policy, nil)
+
+	if model.NavigationDiagnostic() != "" || model.ArtifactDiagnostic() != "" {
+		t.Errorf("ungoverned diagnostics = navigation %q artifact %q, want both silent",
+			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+	}
+	if model.NavigationClosure().Closed() || model.ArtifactClosure().Closed() {
+		t.Error("ungoverned projections are closed; an undeclared set is empty, not unanswerable")
+	}
+	if model.InstanceProjectionsClosed() {
+		t.Error("InstanceProjectionsClosed() = true for a folder that never claimed governance")
+	}
+	// Nothing declared an exclusion, so the template is an ordinary readable
+	// note rather than a governed artifact carved out of the corpus.
+	if got := len(model.KnowledgeNotes()); got != 2 {
+		t.Errorf("ungoverned KnowledgeNotes = %d, want 2 (nothing was excluded)", got)
+	}
+	if len(model.Paths()) != 0 || len(model.Maps()) != 0 {
+		t.Errorf("ungoverned navigation = %d paths, %d maps; no type was ever named as either",
+			len(model.Paths()), len(model.Maps()))
+	}
+	if len(model.Folders()) == 0 {
+		t.Error("ungoverned Folders is empty, want ordinary browsing")
+	}
+}
+
+// TestUnreadableContractClosesEveryProjectionWithOneSentence pins the other
+// half: a folder whose contract exists and cannot be parsed did claim
+// governance, so every projection under it closes. Each closure carries the
+// same sentence rather than none, so a surface that can report through only one
+// of them still has something true to say — and because the sentences are
+// identical, a surface showing both collapses them to one line instead of
+// reading as two separate faults.
+func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
+
+	// The capabilities a folder gets when its contract claimed authority and
+	// could not be read: unresolved, not zero. Deriving them here rather than
+	// hand-building them is the point — a consumer that reached for the zero
+	// value instead would conclude that nothing was ever excluded.
+	roles, policy, _ := schema.Unreadable(errors.New("toml: line 42: expected a key separator")).Capabilities(nil)
+	model := capturedModel(t, root, roles, policy, nil)
+
+	if !model.NavigationClosure().Closed() || !model.ArtifactClosure().Closed() {
+		t.Error("an unreadable contract left a projection open; its declared sets are unknown, not empty")
+	}
+	if model.NavigationDiagnostic() == "" {
+		t.Error("a closed projection says nothing; a surface that can only report through this one would have to invent an answer")
+	}
+	if model.NavigationDiagnostic() != model.ArtifactDiagnostic() {
+		t.Errorf("one cause produced two sentences: navigation %q artifact %q",
+			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+	}
+	if !strings.Contains(model.NavigationDiagnostic(), "line 42") {
+		t.Errorf("the closure does not carry the parse error: %q", model.NavigationDiagnostic())
+	}
+	if len(model.KnowledgeNotes()) != 0 {
+		t.Error("instance projections survived an unreadable contract")
+	}
+	if len(model.Folders()) == 0 {
+		t.Error("ordinary folder browsing closed with the contract")
 	}
 }
 
@@ -1116,18 +1216,18 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 	t.Parallel()
 
 	original := &Model{
-		navigationDiagnostic: "navigation diagnostic",
-		folders:              []Folder{{Name: "Concepts", RelPath: "Concepts"}},
-		rootNotes:            []NoteRef{{Name: "README", RelPath: "README.md"}},
-		paths:                []Map{{Title: "Path"}},
-		maps:                 []Map{{Title: "Map"}},
-		journal:              []JournalEntry{{Title: "Today"}},
-		reports:              []Report{{Name: "report.md"}},
-		knowledgeNotes:       []NoteSummary{{Title: "A"}},
-		placementIndex:       map[string][]Placement{"A.md": {{MapRelPath: "Maps/A.md"}}},
-		dirNotes:             map[string][]NoteRef{"Concepts": {{Name: "A", RelPath: "Concepts/A.md"}}},
+		navigation:     Close(schema.Rejected("navigation diagnostic")),
+		folders:        []Folder{{Name: "Concepts", RelPath: "Concepts"}},
+		rootNotes:      []NoteRef{{Name: "README", RelPath: "README.md"}},
+		paths:          []Map{{Title: "Path"}},
+		maps:           []Map{{Title: "Map"}},
+		journal:        []JournalEntry{{Title: "Today"}},
+		reports:        []Report{{Name: "report.md"}},
+		knowledgeNotes: []NoteSummary{{Title: "A"}},
+		placementIndex: map[string][]Placement{"A.md": {{MapRelPath: "Maps/A.md"}}},
+		dirNotes:       map[string][]NoteRef{"Concepts": {{Name: "A", RelPath: "Concepts/A.md"}}},
 	}
-	degraded := original.WithoutInstanceProjections("artifact unavailable")
+	degraded := original.WithoutInstanceProjections(Close(schema.Rejected("artifact unavailable")))
 
 	if degraded == original {
 		t.Fatal("WithoutInstanceProjections() returned the mutable source model")
@@ -1138,6 +1238,12 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 	}
 	if degraded.ArtifactDiagnostic() != "artifact unavailable" {
 		t.Errorf("ArtifactDiagnostic = %q, want %q", degraded.ArtifactDiagnostic(), "artifact unavailable")
+	}
+	if !degraded.InstanceProjectionsClosed() {
+		t.Error("InstanceProjectionsClosed() = false after WithoutInstanceProjections; a withheld projection must stay distinguishable from an empty one")
+	}
+	if original.InstanceProjectionsClosed() {
+		t.Error("WithoutInstanceProjections() closed the source model")
 	}
 	if diff := cmp.Diff(original.Folders(), degraded.Folders()); diff != "" {
 		t.Errorf("Folders changed (-want +got):\n%s", diff)

@@ -46,6 +46,12 @@ type NoteView struct {
 	// map and folder branches to open, and the entry to mark.
 	Sidebar Sidebar
 
+	// Governed says whether anything claimed authority over this vault. Both
+	// status faces are absent when it is false: a folder with no contract has no
+	// lifecycle, and a panel announcing that is an apology for a fault that does
+	// not exist. Every other field below is meaningful only under it.
+	Governed bool
+
 	Transitions     []string
 	NonInstance     bool
 	WriteDiagnostic string
@@ -219,18 +225,19 @@ templ sidebar(sb Sidebar, nonce string) {
 					}
 				</nav>
 			}
-			if sb.Model.NavigationDiagnostic() != "" || sb.Model.ArtifactDiagnostic() != "" {
+			// The rail carries a capability fault on every page, including the
+			// ones reached straight from the command palette that never render
+			// Home. It appears only for a declaration the vault made and yomihon
+			// could not read: a folder that declared nothing has no paths and no
+			// maps, and saying so on every page would be an apology for the
+			// ordinary shape of a directory.
+			if faults := sb.CapabilityFaults(); len(faults) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
 					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">路徑與地圖</h2>
-					if sb.Model.NavigationDiagnostic() != "" {
+					for _, fault := range faults {
 						<p>
-							@browserDiagnostic("路徑與地圖目前無法使用。", sb.Model.NavigationDiagnostic())
-						</p>
-					}
-					if sb.Model.ArtifactDiagnostic() != "" {
-						<p>
-							@browserDiagnostic("治理項目投影目前無法使用。", sb.Model.ArtifactDiagnostic())
+							@browserDiagnostic(fault.Summary, fault.Detail)
 						</p>
 					}
 				</section>
@@ -466,7 +473,7 @@ templ entryLink(sb Sidebar, entry nav.Entry) {
 // every note, whatever the outline's length.
 templ rightRail(v NoteView) {
 	<aside class="y-rail-right" aria-label="閱讀輔助">
-		if v.Diagnostic == "" || v.NonInstance {
+		if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
 			@statusPanel(v)
 		}
 		if len(v.TOC) > 0 {
@@ -671,7 +678,7 @@ templ diagnostics(v NoteView) {
 // non-instance remains named because that classification comes from its path,
 // independent of frontmatter.
 templ sealBar(v NoteView) {
-	if v.Diagnostic == "" || v.NonInstance {
+	if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
 		<div class={ "y-sealbar", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel data-status-state={ statusState(v) }>
 			switch  {
 				case v.NonInstance:

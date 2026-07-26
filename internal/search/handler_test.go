@@ -29,7 +29,7 @@ func TestSearchHandler(t *testing.T) {
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -81,16 +81,17 @@ func TestSearchHandler(t *testing.T) {
 func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	missingPolicy := schema.ArtifactPolicy{}
+	undeclaredPolicy := undeclaredArtifactPolicy(t)
 	invalidPolicy := invalidArtifactPolicy(t)
+	incompletePolicy := incompleteArtifactPolicy(t)
 	tests := []struct {
 		name       string
 		idx        *Index
 		diagnostic string
 	}{
-		{name: "missing", idx: NewIndex([]Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, missingPolicy), diagnostic: missingPolicy.Diagnostic()},
+		{name: "undeclared", idx: NewIndex([]Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, undeclaredPolicy), diagnostic: undeclaredPolicy.Diagnostic()},
 		{name: "invalid", idx: NewIndex([]Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, invalidPolicy), diagnostic: invalidPolicy.Diagnostic()},
-		{name: "zero value index", idx: &Index{}, diagnostic: missingPolicy.Diagnostic()},
+		{name: "incomplete", idx: NewIndex([]Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, incompletePolicy), diagnostic: incompletePolicy.Diagnostic()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -180,10 +181,53 @@ func TestSearchResultsFragment(t *testing.T) {
 	}
 }
 
+// TestSearchHitStatusChipFollowsGovernance pins C7's separation. The index
+// happily matches and returns a note's raw frontmatter status for a folder no
+// contract governs — that is a text field like any other. Rendering it as a
+// lifecycle chip is a different claim, and it is withheld until something has
+// declared the vocabulary the chip would be naming.
+func TestSearchHitStatusChipFollowsGovernance(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft", PlainText: "kafka log"},
+	}, schema.ArtifactPolicy{})
+
+	tests := []struct {
+		name     string
+		governed bool
+		wantChip bool
+	}{
+		{name: "governed vault names the status", governed: true, wantChip: true},
+		{name: "ungoverned folder does not", governed: false, wantChip: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := NewHandler(func() RequestSnapshot {
+				return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: tt.governed}}
+			}, slog.New(slog.DiscardHandler))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=kafka", http.NoBody)
+			rr := httptest.NewRecorder()
+			h.results(rr, req)
+
+			body := rr.Body.String()
+			if !strings.Contains(body, "Kafka Basics") {
+				t.Fatalf("the hit itself is missing; body = %q", body)
+			}
+			// y-result__sep is the separator the results fragment writes only
+			// when it has a status to place after the path.
+			if got := strings.Contains(body, `y-result__sep`) && strings.Contains(body, "draft"); got != tt.wantChip {
+				t.Errorf("status chip present = %t, want %t; body = %q", got, tt.wantChip, body)
+			}
+		})
+	}
+}
+
 func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	policy := schema.ArtifactPolicy{}
+	policy := undeclaredArtifactPolicy(t)
 	idx := NewIndex([]Document{
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"},
 	}, policy)

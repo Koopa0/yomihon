@@ -380,14 +380,14 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.LoadReader: %v", err)
 	}
-	store, err := snapshot.New(t.Context(), reader, log, contract)
+	store, err := snapshot.New(t.Context(), reader, log, contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("snapshot.New: %v", err)
 	}
 
 	// The lifecycle shares the fixture's contract authority with the snapshot,
 	// but its writing endpoint is deliberately not registered below.
-	lifecycle, err := status.Open(reader, contract)
+	lifecycle, err := status.Open(reader, contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("status.Open: %v", err)
 	}

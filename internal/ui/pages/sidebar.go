@@ -174,3 +174,39 @@ func ancestorDirs(relPath string) []string {
 	}
 	return dirs
 }
+
+// CapabilityFault is one closed navigation projection stated in the rail: the
+// Traditional Chinese summary of what is unavailable, and the contract's own
+// English detail.
+type CapabilityFault struct {
+	Summary string
+	Detail  string
+}
+
+// CapabilityFaults lists what the rail has to say about closed navigation
+// projections, one entry per distinct cause. One cause commonly closes both
+// paths and instance projections — a contract that could not be read closes
+// everything under it — and printing the same sentence twice under two headings
+// reads as two faults rather than one.
+func (s *Sidebar) CapabilityFaults() []CapabilityFault {
+	if s.Model == nil {
+		return nil
+	}
+	navigation := s.Model.NavigationDiagnostic()
+	artifact := s.Model.ArtifactDiagnostic()
+	switch {
+	case navigation != "" && navigation == artifact:
+		return []CapabilityFault{{Summary: "路徑、地圖與治理項目投影目前無法使用。", Detail: navigation}}
+	case navigation != "" && artifact != "":
+		return []CapabilityFault{
+			{Summary: "路徑與地圖目前無法使用。", Detail: navigation},
+			{Summary: "治理項目投影目前無法使用。", Detail: artifact},
+		}
+	case navigation != "":
+		return []CapabilityFault{{Summary: "路徑與地圖目前無法使用。", Detail: navigation}}
+	case artifact != "":
+		return []CapabilityFault{{Summary: "治理項目投影目前無法使用。", Detail: artifact}}
+	default:
+		return nil
+	}
+}

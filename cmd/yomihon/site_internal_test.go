@@ -87,7 +87,7 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	if err != nil {
 		t.Fatalf("schema.LoadReader() error = %v", err)
 	}
-	lifecycle, err := status.Open(source, contract)
+	lifecycle, err := status.Open(source, contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("status.Open() error = %v", err)
 	}
@@ -141,7 +141,7 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	if err != nil {
 		t.Fatalf("schema.LoadReader() error = %v", err)
 	}
-	lifecycle, err := status.Open(source, contract)
+	lifecycle, err := status.Open(source, contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("status.Open() error = %v", err)
 	}
@@ -253,9 +253,17 @@ func TestContractAbsenceIsNotReportedAsAFault(t *testing.T) {
 		name      string
 		contract  string // empty means write no contract at all
 		wantLevel string
+		wantFault bool   // the page carries a contract-fault block
+		wantCause string // decoder text the page must reproduce
 	}{
 		{name: "no contract", contract: "", wantLevel: "INFO"},
-		{name: "unparseable contract", contract: "this is not toml [[[\n", wantLevel: "WARN"},
+		{
+			name:      "unparseable contract",
+			contract:  "this is not toml [[[\n",
+			wantLevel: "WARN",
+			wantFault: true,
+			wantCause: "toml:",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -295,6 +303,24 @@ func TestContractAbsenceIsNotReportedAsAFault(t *testing.T) {
 			}
 			if got != tt.wantLevel {
 				t.Errorf("contract log level = %s, want %s (log = %v)", got, tt.wantLevel, lines)
+			}
+
+			// The log is the half nobody reads. Which of the two folders this
+			// is has to survive into the page, and only this wiring decides
+			// it: everything downstream is handed the answer. Driving the
+			// production composition is the point — a handler assembled by a
+			// test would carry whatever the test chose to say.
+			rec := httptest.NewRecorder()
+			site.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want %d", rec.Code, http.StatusOK)
+			}
+			page := rec.Body.String()
+			if gotFault := strings.Contains(page, `data-home-block="faults"`); gotFault != tt.wantFault {
+				t.Errorf("Home states a contract fault = %t, want %t", gotFault, tt.wantFault)
+			}
+			if tt.wantCause != "" && !strings.Contains(page, tt.wantCause) {
+				t.Errorf("the page never reproduces the decoder's own words %q; the operator is left with the log", tt.wantCause)
 			}
 		})
 	}
