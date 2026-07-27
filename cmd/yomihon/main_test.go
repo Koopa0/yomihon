@@ -414,11 +414,12 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
-		Source:     reader,
-		Status:     lifecycle.View,
-		Snapshot:   store.Current,
-		Provenance: lifecycle.LastCommitHash,
-		Log:        log,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Source:         reader,
+		Status:         lifecycle.View,
+		Snapshot:       store.Current,
+		Provenance:     lifecycle.LastCommitHash,
+		Log:            log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(shellProvider, log).Register(mux)

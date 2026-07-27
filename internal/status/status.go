@@ -354,6 +354,12 @@ const (
 	// GitBlockReason explains a refusal caused by the working tree being
 	// unreadable — most often a folder that is not a git repository at all.
 	GitBlockReason = "無法讀取這個資料夾的 git 狀態。狀態寫入需要可用的 git 版本庫，這個轉換會被拒絕。"
+
+	// ReadBlockReason is shown when the note's own status line could not be
+	// read for this request. The page will not offer a transition from a value
+	// it could not confirm: whatever blocked the read blocks the write too, so
+	// every control derived from it would be refused on arrival.
+	ReadBlockReason = "無法讀取這個筆記目前的狀態。狀態操作暫時關閉，重新載入頁面可以再試一次。"
 )
 
 // WriteBlockReason reports why a transition on rel would be refused right now,
@@ -380,6 +386,33 @@ func (lc *Lifecycle) WriteBlockReason(ctx context.Context, rel string) (string, 
 		return DirtyBlockReason, nil
 	}
 	return "", nil
+}
+
+// ObservedStatus reports the status the note carries on disk right now.
+//
+// The reading page takes everything else from a scan that is up to a couple of
+// seconds old, which is right for a body, a title and a link graph: those are
+// projections over the whole folder and they have to agree with each other. A
+// status is not one of those. It is a statement about one file, the write path
+// re-reads that same file under its own lock before allowing anything, and a
+// page that shows an older value offers a transition from a state the note has
+// already left — most visibly right after a write, when the reader is looking
+// straight at the thing they just did.
+func (lc *Lifecycle) ObservedStatus(_ context.Context, rel string) (string, error) {
+	relSlash, osPath, err := normalizeRelPath(rel)
+	if err != nil {
+		return "", err
+	}
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	if lc.root == nil {
+		return "", ErrClosed
+	}
+	source, err := readRegularFile(lc.root, osPath, relSlash)
+	if err != nil {
+		return "", err
+	}
+	return vault.Parse(relSlash, source.data).Status(), nil
 }
 
 type provenanceHooks struct {

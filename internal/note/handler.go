@@ -62,7 +62,13 @@ type Dependencies struct {
 	// query. It answers why a transition on this note would be refused, so the
 	// reading page states it beside the controls rather than after a press.
 	WriteBlock func(ctx context.Context, rel string) (string, error)
-	Log        *slog.Logger
+	// ObservedStatus is a closure over the write package's read of the note's
+	// own status line. The rest of the page comes from a scan that lags the
+	// folder by a couple of seconds, which a body and a link graph can afford
+	// and an adjudication state cannot: the reader arrives here straight from a
+	// write, and a status that lags is one they have already changed.
+	ObservedStatus func(ctx context.Context, rel string) (string, error)
+	Log            *slog.Logger
 }
 
 // Handler serves reading pages from one rooted vault capability and its
@@ -91,6 +97,9 @@ func New(d *Dependencies) *Handler {
 	}
 	if d.Provenance == nil {
 		panic("note: New requires a non-nil Provenance provider")
+	}
+	if d.ObservedStatus == nil {
+		panic("note: New requires a non-nil ObservedStatus provider")
 	}
 	if d.Log == nil {
 		panic("note: New requires a non-nil Log")
@@ -210,7 +219,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	artifactPolicy := snap.ArtifactPolicy()
-	governance := h.governance(&n, snap, statusView, artifactPolicy)
+	governance := h.governance(r.Context(), &n, snap, statusView, artifactPolicy)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body)
@@ -236,14 +245,17 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		h.deps.Log.Warn("invalid article language; using und", "path", rel, "error", n.LanguageDiagnostic)
 	}
 
+	// The status face and the status shown beside the title are the same
+	// claim, so they come from the same read.
+	noteStatus := cmp.Or(governance.status, n.Status)
 	view := pages.NoteView{
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,
 		Type:              n.Type,
-		Status:            n.Status,
+		Status:            noteStatus,
 		SealTarget:        schema.SealStatus,
-		Sealed:            governance.instance && n.Status == schema.SealStatus,
+		Sealed:            governance.instance && noteStatus == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
@@ -267,7 +279,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 }
 
 type governanceState struct {
-	shell           pages.Shell
+	shell pages.Shell
+	// status is what the note's own file says, read for this request. It is
+	// empty unless the write face applies to this note; the page falls back to
+	// the scan's value, which is the only answer available when nothing may be
+	// written and is then never contradicted by anything.
+	status          string
 	transitions     []string
 	writeDiagnostic string
 	instance        bool
@@ -276,6 +293,7 @@ type governanceState struct {
 }
 
 func (h *Handler) governance(
+	ctx context.Context,
 	n *snapshot.Note,
 	snap *snapshot.View,
 	statusView status.View,
@@ -304,10 +322,29 @@ func (h *Handler) governance(
 			// Legally no frontmatter (e.g. drills): no keys either.
 			state.noFrontmatter = true
 		default:
-			state.transitions = statusView.Transitions(n.RelPath, n.Type, n.Status)
+			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath)
+			if state.writeDiagnostic == "" {
+				state.transitions = statusView.Transitions(n.RelPath, n.Type, state.status)
+			}
 		}
 	}
 	return state
+}
+
+// observedStatus asks the write package what the note's status line says right
+// now, and turns a failure into a closed write face rather than a guess.
+//
+// Falling back to the scan's value would be the wrong repair: the value it
+// holds may be exactly the one the reader has already moved away from, and a
+// transition offered from it is refused on arrival. Whatever prevented this
+// read is the same thing that would prevent the write.
+func (h *Handler) observedStatus(ctx context.Context, rel string) (current, blocked string) {
+	current, err := h.deps.ObservedStatus(ctx, rel)
+	if err != nil {
+		h.deps.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
+		return "", status.ReadBlockReason
+	}
+	return current, ""
 }
 
 // addWriteBlock asks the write package whether a transition on this note would

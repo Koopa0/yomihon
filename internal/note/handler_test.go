@@ -141,12 +141,13 @@ func newServerWithProvenanceAndGovernance(
 	store, source := newSnapshotStore(t, root, log, contract, governance)
 	lifecycle := openStatusLifecycle(t, source, contract, governance)
 	h := note.New(&note.Dependencies{
-		Source:     source,
-		Status:     lifecycle.View,
-		Snapshot:   store.Current,
-		Provenance: provenance,
-		WriteBlock: lifecycle.WriteBlockReason,
-		Log:        log,
+		Source:         source,
+		Status:         lifecycle.View,
+		Snapshot:       store.Current,
+		Provenance:     provenance,
+		WriteBlock:     lifecycle.WriteBlockReason,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Log:            log,
 	})
 	h.Register(mux)
 	status.NewHandler(lifecycle, func() pages.Shell { return pages.Shell{} }, log).Register(mux)
@@ -275,11 +276,12 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 
 	mux := http.NewServeMux()
 	handler := note.New(&note.Dependencies{
-		Source:     source,
-		Status:     statusProvider,
-		Snapshot:   store.Current,
-		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		Log:        log,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Source:         source,
+		Status:         statusProvider,
+		Snapshot:       store.Current,
+		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:            log,
 	})
 	handler.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -369,11 +371,12 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				Source:     source,
-				Status:     func() status.View { return statusView },
-				Snapshot:   func() *snapshot.View { return captured },
-				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-				Log:        log,
+				ObservedStatus: lifecycle.ObservedStatus,
+				Source:         source,
+				Status:         func() status.View { return statusView },
+				Snapshot:       func() *snapshot.View { return captured },
+				Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
@@ -463,11 +466,12 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				Source:     source,
-				Status:     func() status.View { return statusView },
-				Snapshot:   func() *snapshot.View { return captured },
-				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-				Log:        log,
+				ObservedStatus: lifecycle.ObservedStatus,
+				Source:         source,
+				Status:         func() status.View { return statusView },
+				Snapshot:       func() *snapshot.View { return captured },
+				Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
@@ -581,7 +585,8 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	statusCaptures := 0
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
-		Source: source,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Source:         source,
 		Status: func() status.View {
 			statusCaptures++
 			return lifecycle.View()
@@ -1623,8 +1628,9 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				Source: firstSource,
-				Status: lifecycle.View,
+				ObservedStatus: lifecycle.ObservedStatus,
+				Source:         firstSource,
+				Status:         lifecycle.View,
 				Snapshot: func() *snapshot.View {
 					calls++
 					return current.Swap(secondStore.Current())
@@ -1682,8 +1688,9 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				Source: source,
-				Status: lifecycle.View,
+				ObservedStatus: lifecycle.ObservedStatus,
+				Source:         source,
+				Status:         lifecycle.View,
 				Snapshot: func() *snapshot.View {
 					calls++
 					return store.Current()
@@ -1910,11 +1917,12 @@ body
 	}
 	mux := http.NewServeMux()
 	handler := note.New(&note.Dependencies{
-		Source:     source,
-		Status:     requestStatus,
-		Snapshot:   store.Current,
-		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		Log:        log,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Source:         source,
+		Status:         requestStatus,
+		Snapshot:       store.Current,
+		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:            log,
 	})
 	handler.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -2367,11 +2375,12 @@ func TestNewCopiesDependencies(t *testing.T) {
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 	deps := note.Dependencies{
-		Source:     source,
-		Status:     lifecycle.View,
-		Snapshot:   store.Current,
-		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		Log:        log,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Source:         source,
+		Status:         lifecycle.View,
+		Snapshot:       store.Current,
+		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:            log,
 	}
 	handler := note.New(&deps)
 	deps.Source = openReadingVault(t, t.TempDir())
@@ -2400,11 +2409,12 @@ func TestNewPanicsOnNilSource(t *testing.T) {
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
-		Source:     nil,
-		Status:     lifecycle.View,
-		Snapshot:   store.Current,
-		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		Log:        log,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Source:         nil,
+		Status:         lifecycle.View,
+		Snapshot:       store.Current,
+		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:            log,
 	})
 }
 
@@ -2425,11 +2435,12 @@ func TestNewPanicsOnNilStatusProvider(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
-		Source:     source,
-		Status:     nil, // the nil under test
-		Snapshot:   store.Current,
-		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		Log:        log,
+		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
+		Source:         source,
+		Status:         nil, // the nil under test
+		Snapshot:       store.Current,
+		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:            log,
 	})
 }
 
@@ -2448,11 +2459,12 @@ func TestNewPanicsOnNilSnapshot(t *testing.T) {
 	_, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
-		Source:     source,
-		Status:     lifecycle.View,
-		Snapshot:   nil, // the nil under test
-		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		Log:        log,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Source:         source,
+		Status:         lifecycle.View,
+		Snapshot:       nil, // the nil under test
+		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		Log:            log,
 	})
 }
 
@@ -2685,5 +2697,66 @@ func TestFolderWithoutGitOffersNoTransition(t *testing.T) {
 	}
 	if !strings.Contains(page, status.GitBlockReason) {
 		t.Errorf("page does not say why the write face is closed; body = %q", page)
+	}
+}
+
+// TestReadingPageShowsTheStatusTheFileCarriesNow covers the moment the write
+// face exists for: the reader presses a transition and lands on the note. The
+// scan behind every other part of the page is up to a couple of seconds old, so
+// a status taken from it is the value the reader has just moved away from — and
+// the control offered beside it transitions from a state the note has left,
+// which the write path then refuses. The file is written directly here rather
+// than through a POST because what is under test is the read.
+func TestReadingPageShowsTheStatusTheFileCarriesNow(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	runGit(t, root, "init", "--quiet")
+	runGit(t, root, "config", "user.name", "Test")
+	runGit(t, root, "config", "user.email", "test@example.invalid")
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	notePath := filepath.Join(dir, "L01.md")
+	const header = "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: "
+	const footer = "\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	if err := os.WriteFile(notePath, []byte(header+"draft"+footer), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "--quiet", "-m", "fixture")
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	if code, page := get(t, srv.URL+"/notes/"+rel); code != http.StatusOK {
+		t.Fatalf("first read status = %d, want 200", code)
+	} else if !strings.Contains(page, `value="draft"`) {
+		t.Fatalf("the note starts at draft but the page does not say so; body = %q", page)
+	}
+
+	// Change the file behind the scan's back, exactly as a completed write does,
+	// and read again well inside the scan interval.
+	if err := os.WriteFile(notePath, []byte(header+"ready"+footer), 0o600); err != nil {
+		t.Fatalf("rewrite status: %v", err)
+	}
+	code, page := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("second read status = %d, want 200", code)
+	}
+	if strings.Contains(page, `value="draft"`) {
+		t.Errorf("the page still offers a transition from draft, which the note has left; the write path would refuse it")
+	}
+	if !strings.Contains(page, `value="ready"`) {
+		t.Errorf("the page does not carry the status the file now holds; body = %q", page)
+	}
+	// Which transitions are offered is the other half of the same read. The
+	// contract lets draft reach ready and archived, and ready reach archived
+	// alone, so a page still offering ready is one computing the menu from the
+	// state the note left.
+	if strings.Contains(page, `name="to" value="ready"`) {
+		t.Errorf("the page still offers a transition into ready, which the note is already in")
+	}
+	if !strings.Contains(page, `name="to" value="archived"`) {
+		t.Errorf("the page offers no transition at all from ready; body = %q", page)
 	}
 }

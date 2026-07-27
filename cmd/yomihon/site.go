@@ -108,12 +108,13 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
-		Source:     source,
-		Status:     lifecycle.View,
-		Snapshot:   store.Current,
-		Provenance: lifecycle.LastCommitHash,
-		WriteBlock: lifecycle.WriteBlockReason,
-		Log:        log,
+		Source:         source,
+		Status:         lifecycle.View,
+		Snapshot:       store.Current,
+		Provenance:     lifecycle.LastCommitHash,
+		WriteBlock:     lifecycle.WriteBlockReason,
+		ObservedStatus: lifecycle.ObservedStatus,
+		Log:            log,
 	}).Register(mux)
 	status.NewHandler(lifecycle, shellProvider, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
