@@ -21,7 +21,9 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -1334,10 +1336,16 @@ func TestShowNotFound(t *testing.T) {
 }
 
 // TestHome pins the landing page's observable contract: a direct 200 in the
-// shared shell, one site marker for each dashboard block, and the vault README
-// rendered beneath them. The site markers are asserted by name rather than by
-// their position in the document, so rearranging the dashboard cannot blame a
-// correct page for violating a declaration-order accident.
+// shared shell, the blocks this folder can fill, and the vault README rendered
+// beneath them. The site markers are asserted by name rather than by their
+// position in the document, so rearranging the dashboard cannot blame a correct
+// page for violating a declaration-order accident.
+//
+// This folder holds one README and declares nothing, so no block on the page
+// has anything to put in it and none of them ever will. They used to render as
+// bordered boxes holding one sentence of apology each, which cost the top of
+// every screen and pushed the reader's own writing most of the way down the
+// first one. One line takes their place, and it says what the folder has.
 func TestHome(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -1377,16 +1385,21 @@ func TestHome(t *testing.T) {
 	}
 	pageHTML := string(body)
 	for name, marker := range map[string]string{
-		"recently changed": `data-home-block="recent"`,
-		"study paths":      `data-home-block="study-paths"`,
-		"search":           `data-home-block="search"`,
-		"vault README":     "README body sentinel.",
-		"topbar":           `class="y-header"`,
-		"command palette":  `data-search`,
+		"search":          `data-home-block="search"`,
+		"stand-in line":   "data-home-standin",
+		"vault README":    "README body sentinel.",
+		"topbar":          `class="y-header"`,
+		"command palette": `data-search`,
 	} {
 		if !strings.Contains(pageHTML, marker) {
 			t.Errorf("GET / is missing the %s marker %q", name, marker)
 		}
+	}
+	// The stand-in states what is here. It must not read as an instruction to
+	// go and configure something: this folder is a whole folder, not a
+	// half-configured vault.
+	if !strings.Contains(pageHTML, "這個資料夾有 1 個檔案") {
+		t.Errorf("the stand-in line does not say what this folder holds; body = %q", pageHTML)
 	}
 	// This folder carries no contract. It has no lifecycle vocabulary, so the
 	// block that would name one is absent rather than empty or apologetic, and
@@ -1395,6 +1408,9 @@ func TestHome(t *testing.T) {
 	// own README started below the fold.
 	for name, marker := range map[string]string{
 		"lifecycle block":   `data-home-block="lifecycle"`,
+		"recent block":      `data-home-block="recent"`,
+		"study-path block":  `data-home-block="study-paths"`,
+		"empty-box notice":  "y-homeempty",
 		"capability faults": `data-home-block="faults"`,
 		"fault row":         "data-home-fault",
 		"advanceable chip":  "data-advanceable-chip",
@@ -1547,6 +1563,15 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Errorf("Home lost %q to a contract failure; reading never depends on one", want)
 		}
+	}
+	// Withheld is not the same as empty. The stand-in line states a cheerful
+	// fact about the folder, and beside a sentence explaining that projections
+	// closed it would read as a second, contradictory account of the same hole.
+	if strings.Contains(page, "data-home-standin") {
+		t.Error("Home states what the folder holds beside the reason it cannot say what is in it")
+	}
+	if got := homeSubtitle(t, page); got != "" {
+		t.Errorf("subtitle = %q over closed projections; it would name blocks that are not on the page", got)
 	}
 }
 
@@ -1812,6 +1837,9 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 	if !strings.Contains(body, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
 		t.Error("Home topbar is missing the snapshot-derived advanceable chip")
+	}
+	if got := homeSubtitle(t, body); got != "查看最近變更、待判讀內容，以及接下來的學習路徑。" {
+		t.Errorf("a vault filling every block has the subtitle %q, want the sentence naming all three", got)
 	}
 }
 
@@ -2149,8 +2177,10 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
 }
 
 // TestHomeWithoutReadmeKeepsDashboardReadOnly pins first-use recovery: Home is
-// still the complete snapshot dashboard, only the absent README body is
-// replaced, and neither route creates the missing vault file.
+// still the dashboard, only the absent README body is replaced, and neither
+// route creates the missing vault file. This vault declares a lifecycle and
+// holds no notes yet, so the block naming that vocabulary is on the page while
+// the two that would have nothing in them are not.
 func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2161,9 +2191,7 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 		t.Fatalf("GET / without README status = %d, want %d", code, http.StatusOK)
 	}
 	for _, marker := range []string{
-		`data-home-block="recent"`,
 		`data-home-block="lifecycle"`,
-		`data-home-block="study-paths"`,
 		`data-home-block="search"`,
 		`data-home-readme-recovery`,
 		`請使用外部編輯器或檔案工具，在 vault 根目錄建立 README.md，然後重新載入此頁。`,
@@ -2172,6 +2200,19 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 			t.Errorf("GET / without README is missing %q", marker)
 		}
 	}
+	for _, absent := range []string{
+		`data-home-block="recent"`,
+		`data-home-block="study-paths"`,
+		"y-homeempty",
+	} {
+		if strings.Contains(body, absent) {
+			t.Errorf("GET / without README still renders %q over a vault that has nothing to put in it", absent)
+		}
+	}
+
+	if got := homeSubtitle(t, body); got != "查看待判讀內容。" {
+		t.Errorf("subtitle = %q; it must name the one block below it and no other", got)
+	}
 
 	noteCode, _ := get(t, srv.URL+"/notes/README.md")
 	if noteCode != http.StatusNotFound {
@@ -2179,6 +2220,104 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "README.md")); !os.IsNotExist(err) {
 		t.Errorf("README.md after recovery requests: os.Stat error = %v, want not-exist", err)
+	}
+}
+
+// homeSubtitle returns the line under Home's title, or "" when the page carries
+// none. It reads the header rather than the whole document so a sentence
+// elsewhere on the page cannot answer for it.
+func homeSubtitle(t *testing.T, body string) string {
+	t.Helper()
+	const opener = `<header class="y-home__head">`
+	start := strings.Index(body, opener)
+	if start < 0 {
+		t.Fatalf("Home body has no header; body = %q", body)
+	}
+	header := body[start:]
+	end := strings.Index(header, "</header>")
+	if end < 0 {
+		t.Fatalf("Home header is never closed; body = %q", body)
+	}
+	header = header[:end]
+	open := strings.Index(header, "<p>")
+	if open < 0 {
+		return ""
+	}
+	end = strings.Index(header[open:], "</p>")
+	if end < 0 {
+		t.Fatalf("Home subtitle is never closed; header = %q", header)
+	}
+	return header[open+len("<p>") : open+end]
+}
+
+// homeStandInLine returns the stand-in line's markup. It is a paragraph rather
+// than a block, which is the whole point of it, so the section reader cannot
+// find it.
+func homeStandInLine(t *testing.T, body string) string {
+	t.Helper()
+	const opener = `<p class="y-homestandin"`
+	start := strings.Index(body, opener)
+	if start < 0 {
+		t.Fatalf("Home body carries no stand-in line; body = %q", body)
+	}
+	line := body[start:]
+	end := strings.Index(line, "</p>")
+	if end < 0 {
+		t.Fatalf("the stand-in line is never closed; body = %q", body)
+	}
+	return line[:end+len("</p>")]
+}
+
+// TestHomeStandInNamesTheNewestFileNotTheNewestNote is the stand-in line's own
+// lock. The line exists because a folder with no contract fills none of the
+// dashboard blocks and never will, and it earns its place by doing in one row
+// what the recently-changed block was built to do. It therefore has to answer
+// over everything the folder holds: a plain folder's newest thing is often not
+// a note, and a line that quietly skipped to the newest note would point past
+// the file the reader just saved.
+func TestHomeStandInNamesTheNewestFileNotTheNewestNote(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	for name, content := range map[string]string{
+		"README.md": "# Folder\n\nREADME body sentinel.\n",
+		"older.md":  "# Older\n\nbody\n",
+	} {
+		full := filepath.Join(root, name)
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		if err := os.Chtimes(full, base, base); err != nil {
+			t.Fatalf("set %s mtime: %v", name, err)
+		}
+	}
+	newest := filepath.Join(root, "todo.txt")
+	if err := os.WriteFile(newest, []byte("buy coffee\n"), 0o600); err != nil {
+		t.Fatalf("write todo.txt: %v", err)
+	}
+	changed := base.Add(48 * time.Hour)
+	if err := os.Chtimes(newest, changed, changed); err != nil {
+		t.Fatalf("set todo.txt mtime: %v", err)
+	}
+
+	srv := newServer(t, root)
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	standIn := homeStandInLine(t, body)
+	for _, want := range []string{
+		"這個資料夾有 3 個檔案",
+		`href="/notes/todo.txt"`,
+		">todo.txt</a>",
+		"2026-07-03",
+	} {
+		if !strings.Contains(standIn, want) {
+			t.Errorf("the stand-in line is missing %q; line = %q", want, standIn)
+		}
+	}
+	if strings.Contains(standIn, "older.md") || strings.Contains(standIn, "README.md") {
+		t.Errorf("the stand-in line names something other than the newest file; line = %q", standIn)
 	}
 }
 
@@ -2612,6 +2751,129 @@ func TestWriteBlockShownBeforeThePress(t *testing.T) {
 	}
 }
 
+// statusFormButtons returns the opening tag of every button inside a form that
+// posts to the write endpoint, across every status face in the document. The
+// count is part of what callers assert: a face that quietly stops rendering its
+// controls would otherwise satisfy any claim made about "every" button.
+func statusFormButtons(t *testing.T, body string) []string {
+	t.Helper()
+	var buttons []string
+	rest := body
+	for {
+		start := strings.Index(rest, `<form class="y-statusform"`)
+		if start < 0 {
+			return buttons
+		}
+		rest = rest[start:]
+		end := strings.Index(rest, "</form>")
+		if end < 0 {
+			t.Fatalf("a status form is never closed; body = %q", body)
+		}
+		form := rest[:end]
+		rest = rest[end+len("</form>"):]
+		if !strings.Contains(form, `action="/status"`) {
+			continue
+		}
+		open := strings.Index(form, "<button")
+		if open < 0 {
+			t.Fatalf("a status form carries no button; form = %q", form)
+		}
+		tagEnd := strings.Index(form[open:], ">")
+		if tagEnd < 0 {
+			t.Fatalf("a status form's button tag is never closed; form = %q", form)
+		}
+		buttons = append(buttons, form[open:open+tagEnd+1])
+	}
+}
+
+// TestRefusedTransitionsRenderInert is the second half of the notice that says
+// a transition would be refused. The page knows at render time, and used to
+// print the reason and then offer live controls under it: pressing one cost a
+// full-page navigation to a conflict page and a click back, on a note whose
+// only fault was an edit the reader had not committed yet.
+//
+// Both status faces are asserted together and by count, because the controls
+// are rendered by shared templates at two call sites and a fix applied to one
+// of them is the mistake this test exists to catch. The reason travels in each
+// refused control's accessible name: the paragraph above it is one element and
+// the faces are two, so there is no identifier a reference could share.
+func TestRefusedTransitionsRenderInert(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	runGit(t, root, "init", "--initial-branch=main")
+	runGit(t, root, "config", "user.name", "Test Vault")
+	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
+	runGit(t, root, "config", "commit.gpgsign", "false")
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	notePath := filepath.Join(dir, "L01.md")
+	if err := os.WriteFile(notePath, []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	runGit(t, root, "add", rel)
+	runGit(t, root, "commit", "-m", "seed lesson")
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	// A draft lesson may be sealed or archived, and the note carries a status
+	// panel and a seal bar, so the page offers exactly four controls. The number
+	// is asserted rather than assumed: it is what makes "every one of them" a
+	// claim about both faces.
+	const wantButtons = 4
+
+	code, clean := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	cleanButtons := statusFormButtons(t, clean)
+	if len(cleanButtons) != wantButtons {
+		t.Fatalf("committed note offers %d transition controls, want %d; body = %q", len(cleanButtons), wantButtons, clean)
+	}
+	for _, button := range cleanButtons {
+		if strings.Contains(button, "disabled") {
+			t.Errorf("committed note renders a refused control %q; nothing refuses it", button)
+		}
+	}
+	if !strings.Contains(clean, "y-sealbtn__hint") {
+		t.Error("committed note drops the hold hint; the ceremony it names is available")
+	}
+	if !strings.Contains(clean, "y-sealpoem") {
+		t.Error("committed note drops the line about the seal; the act it describes is available")
+	}
+
+	if err := os.WriteFile(notePath, []byte(lessonMD+"an edit nobody committed\n"), 0o600); err != nil {
+		t.Fatalf("dirty the note: %v", err)
+	}
+
+	code, dirty := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status after the edit = %d, want 200", code)
+	}
+	dirtyButtons := statusFormButtons(t, dirty)
+	if len(dirtyButtons) != wantButtons {
+		t.Fatalf("note with an uncommitted edit offers %d transition controls, want %d; body = %q",
+			len(dirtyButtons), wantButtons, dirty)
+	}
+	escapedReason := html.EscapeString(status.DirtyBlockReason)
+	for _, button := range dirtyButtons {
+		if !strings.Contains(button, " disabled") {
+			t.Errorf("a transition the write path would refuse is still pressable: %q", button)
+		}
+		if !strings.Contains(button, escapedReason) {
+			t.Errorf("a refused control does not name its reason: %q", button)
+		}
+	}
+	if strings.Contains(dirty, "y-sealbtn__hint") {
+		t.Error("a refused seal still advertises the R shortcut, which would do nothing")
+	}
+	if strings.Contains(dirty, "y-sealpoem") {
+		t.Error("a refused seal still describes an act that cannot happen right now")
+	}
+}
+
 // TestStatusPanelPrecedesOutline locks the right rail's order. The rail is its
 // own scroll container, so whatever renders first decides what the reader sees
 // without scrolling — and an outline of any length used to push the transition
@@ -2758,5 +3020,77 @@ func TestReadingPageShowsTheStatusTheFileCarriesNow(t *testing.T) {
 	}
 	if !strings.Contains(page, `name="to" value="archived"`) {
 		t.Errorf("the page offers no transition at all from ready; body = %q", page)
+	}
+}
+
+// TestFilePageAndSearchAgreeOnWhatIsText is the drift lock between two faces
+// that answer the same question. A file's page decides whether to show its
+// characters; the text index decides whether to read them. One rule holds
+// across both — if yomihon shows it to you as text, you can find it — and a
+// reader who is shown a file and then cannot search it learns that the tool is
+// unreliable rather than that the file is unusual.
+//
+// Both sides run for real here: the page comes from an HTTP request and the
+// answer comes from the generation's own index, so an agreement asserted over
+// two re-implementations of the rule is not what this proves.
+func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	files := []struct {
+		rel      string
+		body     string
+		term     string
+		wantText bool
+	}{
+		{rel: "todo.txt", body: "renew the flamingoterm passport", term: "flamingoterm", wantText: true},
+		{rel: "page.html", body: "<p>kingfisherterm</p>", term: "kingfisherterm", wantText: true},
+		{rel: "Makefile", body: "build:\n\tgo build # heronterm\n", term: "heronterm", wantText: true},
+		{rel: "drawing.svg", body: `<svg xmlns="http://www.w3.org/2000/svg"><text>pelicanterm</text></svg>`, term: "pelicanterm"},
+		{rel: "blob.bin", body: "storkterm\x00opaque", term: "storkterm"},
+		{
+			rel:  "huge.txt",
+			body: strings.Repeat("egretterm ", (render.MaxSourceBytes/10)+1),
+			term: "egretterm",
+		},
+	}
+	for _, f := range files {
+		if err := os.WriteFile(filepath.Join(root, f.rel), []byte(f.body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", f.rel, err)
+		}
+	}
+	store, source := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
+	mux := http.NewServeMux()
+	note.New(&note.Dependencies{
+		Source:         source,
+		Status:         func() status.View { return status.View{} },
+		Snapshot:       store.Current,
+		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
+		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
+		Log:            slog.New(slog.DiscardHandler),
+	}).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	for _, f := range files {
+		t.Run(f.rel, func(t *testing.T) {
+			t.Parallel()
+			code, page := get(t, srv.URL+"/notes/"+f.rel)
+			if code != http.StatusOK {
+				t.Fatalf("GET /notes/%s status = %d, want 200", f.rel, code)
+			}
+			shown := strings.Contains(page, `class="y-prose y-source"`)
+			if shown != f.wantText {
+				t.Errorf("GET /notes/%s renders its characters = %v, want %v", f.rel, shown, f.wantText)
+			}
+			results, err := store.Current().Search().Search(search.Parse(f.term))
+			if err != nil {
+				t.Fatalf("Search(%q) error = %v", f.term, err)
+			}
+			found := len(results) == 1 && results[0].RelPath == f.rel
+			if found != shown {
+				t.Errorf("/notes/%s shows its characters = %v but search finds it = %v; one face contradicts the other",
+					f.rel, shown, found)
+			}
+		})
 	}
 }

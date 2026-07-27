@@ -14,6 +14,11 @@ type Result struct {
 	Title   string
 	Status  string
 	Snippet string
+
+	// File marks a hit that is not a note but a vault file read as characters.
+	// It carries no lifecycle state and never will, so a surface that dresses a
+	// hit in note furniture can tell the two apart.
+	File bool
 }
 
 const (
@@ -24,10 +29,15 @@ const (
 )
 
 // Search runs a parsed query against the index and returns results in the final
-// deterministic order: title hits (every token in
-// TitleFold) first, then body hits (every token in PlainFold, not already a
-// title hit). Because entries are kept sorted by RelPath, each bucket is
-// already rel_path-ordered, so concatenation is the whole order — no sort call.
+// deterministic order: a note's title hits (every token in TitleFold) first,
+// then a note's body hits (every token in PlainFold, not already a title hit),
+// then the same two buckets over vault files that are not notes. Because entries
+// are kept sorted by RelPath, each bucket is already rel_path-ordered, so
+// concatenation is the whole order — no sort call.
+//
+// Notes come before files in both buckets, so the list a vault of notes alone
+// produces is the opening of the list this returns and files are appended to it.
+// Widening what can be found must never move what could already be found.
 //
 // An empty query (no tokens and no filters) returns nothing. A pure-filter
 // query is legal: with no tokens the title-bucket token test is vacuously true,
@@ -46,7 +56,7 @@ func (idx *Index) Search(q Query) ([]Result, error) {
 	if requiresMetadata && !metadataAvailable {
 		return nil, idx.metadataUnavailableError()
 	}
-	var titleHits, bodyHits []Result
+	var answers resultBuckets
 	for _, e := range idx.entries {
 		if requiresMetadata && !e.metadataCapable {
 			continue
@@ -57,12 +67,46 @@ func (idx *Index) Search(q Query) ([]Result, error) {
 		switch {
 		case allContain(e.TitleFold, q.tokens):
 			bodyEvidence := len(q.tokens) != 0 && allContain(e.PlainFold, q.tokens)
-			titleHits = append(titleHits, e.result(q.tokens, bodyEvidence, metadataAvailable))
+			answers.add(e.result(q.tokens, bodyEvidence, metadataAvailable), true)
 		case allContain(e.PlainFold, q.tokens):
-			bodyHits = append(bodyHits, e.result(q.tokens, true, metadataAvailable))
+			answers.add(e.result(q.tokens, true, metadataAvailable), false)
 		}
 	}
-	return append(titleHits, bodyHits...), nil
+	return answers.ordered(), nil
+}
+
+// resultBuckets keeps the four answer groups apart while one pass over the
+// entries fills them, so the final order is a concatenation rather than a sort:
+// entries are already kept in rel-path order, and each group inherits it.
+type resultBuckets struct {
+	titleNotes []Result
+	bodyNotes  []Result
+	titleFiles []Result
+	bodyFiles  []Result
+}
+
+func (b *resultBuckets) add(hit Result, titleMatch bool) {
+	switch {
+	case titleMatch && !hit.File:
+		b.titleNotes = append(b.titleNotes, hit)
+	case titleMatch:
+		b.titleFiles = append(b.titleFiles, hit)
+	case !hit.File:
+		b.bodyNotes = append(b.bodyNotes, hit)
+	default:
+		b.bodyFiles = append(b.bodyFiles, hit)
+	}
+}
+
+// ordered flattens the groups into the answer: a note's title hits, a note's
+// body hits, then the same two over files.
+func (b *resultBuckets) ordered() []Result {
+	out := make([]Result, 0, len(b.titleNotes)+len(b.bodyNotes)+len(b.titleFiles)+len(b.bodyFiles))
+	out = append(out, b.titleNotes...)
+	out = append(out, b.bodyNotes...)
+	out = append(out, b.titleFiles...)
+	out = append(out, b.bodyFiles...)
+	return out
 }
 
 // AllowedPaths returns the paths that satisfy q's structured filters. Bare
@@ -154,6 +198,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Re
 		Title:   e.Title,
 		Status:  status,
 		Snippet: bodySnippet,
+		File:    e.isFile,
 	}
 }
 

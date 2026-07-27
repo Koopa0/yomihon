@@ -403,3 +403,48 @@ func searchPageHTML(t *testing.T, pageHTML string) string {
 	}
 	return pageHTML[start : start+end]
 }
+
+// TestEmptyResultsNameTheCorpusAndFilesAreLabelled covers the two places the
+// widened corpus has to be visible to a reader. A query that finds nothing has
+// to say what was searched, because the alternative is what a trial reader
+// actually did: conclude a file they had just read was gone and type it again.
+// A hit that is a file has to say so, because a file has no lifecycle and never
+// will, and a bare row beside notes reads as a note whose status went missing.
+//
+// The hint is asserted absent when there are hits, or it becomes permanent
+// furniture that says nothing at the moment it would mean something.
+func TestEmptyResultsNameTheCorpusAndFilesAreLabelled(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"},
+		DocumentFromFile("Notes/todo.txt", []byte("needle in a file")),
+	}, validArtifactPolicy(t))
+	h := NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler))
+
+	const corpusHint = "圖片、PDF 與其他二進位檔案只在導覽中列出"
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=haystack", http.NoBody)
+	rr := httptest.NewRecorder()
+	h.search(rr, req)
+	if !strings.Contains(rr.Body.String(), corpusHint) {
+		t.Errorf("a query that found nothing does not say what was searched; body = %q", rr.Body.String())
+	}
+
+	req = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
+	rr = httptest.NewRecorder()
+	h.search(rr, req)
+	body := rr.Body.String()
+	if strings.Contains(body, corpusHint) {
+		t.Error("the corpus hint appears beside results, where it says nothing")
+	}
+	if got := strings.Count(body, `<span class="y-result__kind">檔案</span>`); got != 1 {
+		t.Errorf("file rows labelled = %d, want exactly the one file hit; body = %q", got, body)
+	}
+	note := strings.Index(body, "Concepts/One.md")
+	file := strings.Index(body, "Notes/todo.txt")
+	if note < 0 || file < 0 || note > file {
+		t.Errorf("the note hit is not answered before the file hit; note at %d, file at %d", note, file)
+	}
+}

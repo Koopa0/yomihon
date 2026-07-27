@@ -8,7 +8,15 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-var errPrivacyAuthorityUnavailable = errors.New("privacy authority unavailable; agent-facing output disabled")
+var (
+	errPrivacyAuthorityUnavailable = errors.New("privacy authority unavailable; agent-facing output disabled")
+
+	// errNoVaultContract is the other half of the same silence. A folder that
+	// carries no contract asserted nothing: it is not broken, it simply has no
+	// vocabulary for these commands to judge in, and saying so is a different
+	// sentence from saying a declaration could not be honoured.
+	errNoVaultContract = errors.New("this folder has no vault contract, so there is nothing to judge notes against")
+)
 
 // scanAuthority is the contract state that permits one agent-facing judge
 // action. Every command loads it before reading vault notes and validates the
@@ -21,6 +29,9 @@ type scanAuthority struct {
 func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
 	contract, err := schema.LoadReader(ctx, reader)
 	if err != nil {
+		if schema.ContractAbsent(err) {
+			return scanAuthority{}, errNoVaultContract
+		}
 		// The decoder's own words are deliberately dropped. A parse failure
 		// names keys from the contract, and this face exists to hand its output
 		// to an agent, so explaining the fault here would send vault content

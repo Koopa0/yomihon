@@ -11,7 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -221,7 +224,12 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if _, err := requestA.Search().CountByStatus(); err != nil {
 		t.Errorf("request-captured Search.CountByStatus() error = %v, want stable authority", err)
 	}
-	if results := snapshotSearch(t, requestA.Search(), "Concept"); len(results) != 1 || results[0].Status != "draft" {
+	// Notes are answered before files, and the contract is a vault file whose
+	// characters a reader can open, so it joins the text corpus and can share a
+	// query with this note. The claim under test is the note's badge, so the
+	// note is named rather than assumed to be alone.
+	if results := snapshotSearch(t, requestA.Search(), "Concept"); len(results) == 0 ||
+		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Status != "draft" {
 		t.Errorf("request-captured Search(Concept) = %+v, want stable metadata badge", results)
 	}
 	if requestB.ArtifactPolicy().Available() {
@@ -230,7 +238,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if _, err := requestB.Search().CountByStatus(); !errors.Is(err, search.ErrMetadataUnavailable) {
 		t.Errorf("next Search.CountByStatus() error = %v, want ErrMetadataUnavailable", err)
 	}
-	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) != 1 || results[0].Status != "" {
+	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
+		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Status != "" {
 		t.Errorf("next Search(Concept) = %+v, want lexical result without metadata badge", results)
 	}
 	// A page combines two samples of the same authority: the policy it asks for
@@ -315,15 +324,25 @@ patterns:
 	if source.scans != 1 {
 		t.Errorf("initial scans = %d, want 1", source.scans)
 	}
-	for _, path := range []string{"Concepts/Alpha.md", "README.md", "System/slots/L01.yaml"} {
+	// The contract is on this list because a generation now reads it twice over
+	// in two different roles — the schema loader takes it as authority, and the
+	// text index takes it as one more vault file a reader can open — and each
+	// of those roles gets its own read of its own. What this asserts is that the
+	// generation reads it once, like everything else it reads.
+	for _, path := range []string{
+		"Concepts/Alpha.md",
+		"README.md",
+		"System/slots/L01.yaml",
+		schema.ContractRelPath,
+	} {
 		if source.reads[path] != 1 {
 			t.Errorf("reads[%q] = %d, want 1", path, source.reads[path])
 		}
 	}
-	for _, path := range []string{"Diagrams/example.png", schema.ContractRelPath} {
-		if source.reads[path] != 0 {
-			t.Errorf("non-generation reads[%q] = %d, want 0", path, source.reads[path])
-		}
+	// A picture is settled by its name before any byte is touched: nothing on
+	// the page will show its characters, so reading them would buy nothing.
+	if got := source.reads["Diagrams/example.png"]; got != 0 {
+		t.Errorf("non-generation reads[%q] = %d, want 0", "Diagrams/example.png", got)
 	}
 	if _, ok := store.Current().Note("Concepts/Alpha.md"); !ok {
 		t.Error("captured Alpha note is unavailable")
@@ -690,4 +709,183 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 
 	cancel()
 	readers.Wait()
+}
+
+// TestBuildViewIndexesTextFilesAndSkipsTheRest pins which vault files reach the
+// text corpus and, just as much, which do not. The rule is the file page's own:
+// if yomihon shows it to you as characters, you can find it. Each exclusion is
+// decided by a different thing — a picture by its name, a blob by its bytes, an
+// oversized file by its size — so each is listed separately, and a fix that
+// widens one must not quietly widen the others.
+func TestBuildViewIndexesTextFilesAndSkipsTheRest(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nfindable body\n")
+	writeNote(t, root, "Notes/todo.txt", "findable body\n")
+	writeNote(t, root, "Notes/page.html", "<p>findable body</p>\n")
+	// Its bytes are characters and its page is a picture: a hit inside one would
+	// open a page where the matched word is nowhere on the screen.
+	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"><text>findable body</text></svg>`)
+	writeNote(t, root, "Notes/blob.bin", "findable\x00body")
+	writeNote(t, root, "Notes/huge.txt", strings.Repeat("findable body ", (render.MaxSourceBytes/14)+1))
+
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make([]string, 0, 3)
+	for _, result := range snapshotSearch(t, store.Current().Search(), "findable body") {
+		got = append(got, result.RelPath)
+	}
+	want := []string{"Concepts/Note.md", "Notes/page.html", "Notes/todo.txt"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("indexed entries mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestBuildViewStillResolvesWikilinksToFiles guards the hole the widening most
+// plausibly opens. Every vault file has to reach the link resolver whether or
+// not its bytes are read, so a note pointing at a picture keeps resolving.
+func TestBuildViewStillResolvesWikilinksToFiles(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
+	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	note, ok := store.Current().Note("Concepts/Note.md")
+	if !ok {
+		t.Fatal("the linking note is absent from the generation")
+	}
+	result := store.Current().Render("Concepts/Note.md", note.Body)
+	if !strings.Contains(result.HTML, "/notes/Diagrams/drawing.svg") {
+		t.Errorf("a wikilink to a file no longer resolves; html = %q", result.HTML)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Errorf("resolving a link to a file produced diagnostics: %+v", result.Diagnostics)
+	}
+}
+
+// TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder covers the difference
+// between a file the reading surface is made of and a file that only lends the
+// index its words.
+//
+// A note that cannot be read leaves the surface incomplete, so the generation is
+// held back until it can be. Retry also means "ignore that nothing changed", so
+// a file that is permanently unreadable — a mode-000 export, a socket, something
+// another process holds — would hold the whole folder at the generation before
+// it, rebuilding every couple of seconds and never publishing again. Every note
+// written after it would be a 404 in a folder that is otherwise fine.
+func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "notes.txt", "plain text\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	// A read that never succeeds, on a file that is not a note.
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   map[string]int{"notes.txt": 1 << 30},
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.retry {
+		t.Fatal("an unreadable ordinary file held the generation back; every later change would stop being published")
+	}
+
+	const added = "Concepts/Beta.md"
+	writeNote(t, root, added, "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
+	store.rescan(t.Context())
+	if _, ok := store.Current().Note(added); !ok {
+		t.Error("a note written after the unreadable file never reached a published generation")
+	}
+}
+
+// TestASidecarTooLargeToShowIsNotSearchable keeps one rule across both faces. A
+// lesson sidecar is read whatever its size, because the practice panel is built
+// from it — but its own page says its contents are not searched, and deciding
+// again from the bytes alone made that sentence false.
+func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	oversize := "sentences:\n" + strings.Repeat("  - text: rarespelunker\n", (render.MaxSourceBytes/24)+64)
+	writeNote(t, root, "System/slots/L01.yaml", oversize)
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := store.Current().Search().Search(search.Parse("rarespelunker"))
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	for _, r := range results {
+		if strings.HasSuffix(r.RelPath, ".yaml") {
+			t.Errorf("a sidecar past the size its page will show is in the index: %s", r.RelPath)
+		}
+	}
+}
+
+// TestAReadablePDFIsNotSearchable holds the index to the same branch set the
+// file page uses. A PDF gets its own viewer rather than a source listing, so its
+// bytes are never shown as characters — and a small enough PDF is often valid
+// UTF-8 with no NUL, which is all a bytes-only test looks at. Indexing it hands
+// back a hit whose page contains none of the words that matched.
+func TestAReadablePDFIsNotSearchable(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (rarespelunker) >>\nendobj\n%%EOF\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := store.Current().Search().Search(search.Parse("rarespelunker"))
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	for _, r := range results {
+		if strings.HasSuffix(r.RelPath, ".pdf") {
+			t.Errorf("a PDF is in the text index: %s — its page shows a viewer, not these words", r.RelPath)
+		}
+	}
 }

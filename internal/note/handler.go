@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"log/slog"
 	"net/http"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -152,8 +153,16 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	if !pathsClosed {
 		paths = homePaths(visibleNav.Paths())
 	}
+	content := homeContent{
+		recent:    !recentClosed && len(recent) > 0,
+		lifecycle: pageShell.Governed && !lifecycleClosed,
+		paths:     !pathsClosed && len(paths) > 0,
+		withheld:  recentClosed || lifecycleClosed || pathsClosed,
+	}
 	view := pages.HomeView{
 		Governed: pageShell.Governed,
+		Subtitle: content.subtitle(),
+		StandIn:  homeStandIn(snap, content),
 		// The reason a block is missing, stated where the reader is looking. One
 		// cause reaches several blocks — a contract that cannot be read closes
 		// the lifecycle, the recent list, and the study paths alike — and
@@ -481,6 +490,77 @@ func (h *Handler) lifecycle(
 	return items, false
 }
 
+// homeContent records which of Home's content blocks this folder actually
+// fills, and whether any of them was withheld rather than empty. Both the line
+// under the title and the line that stands in for the blocks are derived from
+// it: a bordered box with one sentence of apology in it costs a quarter of the
+// first screen and gives back nothing, and on a folder that declares no
+// contract there will never be a typed note or a study path to put in it.
+type homeContent struct {
+	recent    bool
+	lifecycle bool
+	paths     bool
+	withheld  bool
+}
+
+// subtitle names the blocks that are on the page, and nothing else. The three
+// together produce the sentence this page has always carried; fewer of them
+// produce a shorter true one, and none produces silence.
+func (c homeContent) subtitle() string {
+	parts := make([]string, 0, 3)
+	if c.recent {
+		parts = append(parts, "最近變更")
+	}
+	if c.lifecycle {
+		parts = append(parts, "待判讀內容")
+	}
+	if c.paths {
+		parts = append(parts, "接下來的學習路徑")
+	}
+	switch len(parts) {
+	case 0:
+		return ""
+	case 1:
+		return "查看" + parts[0] + "。"
+	case 2:
+		return "查看" + parts[0] + "與" + parts[1] + "。"
+	default:
+		return "查看" + parts[0] + "、" + parts[1] + "，以及" + parts[2] + "。"
+	}
+}
+
+// homeStandIn builds the line that opens Home when none of its content blocks
+// has anything to show. It answers the two questions someone opening a folder
+// actually has — how much is in here, and what changed last — and links the
+// newest file, which is the shortest path to the thing most likely wanted. It
+// never names what the folder did not declare: a reader who will not write a
+// contract is not missing a feature.
+//
+// A withheld block counts as content. Its absence already has a reason stated
+// once for the whole page, and a cheerful fact beside that reason would be a
+// second, contradictory account of the same hole.
+func homeStandIn(snap *snapshot.View, content homeContent) pages.HomeStandIn {
+	if content.recent || content.lifecycle || content.paths || content.withheld {
+		return pages.HomeStandIn{}
+	}
+	files := snap.Files()
+	standIn := pages.HomeStandIn{Shown: true, Files: len(files)}
+	var newest vault.Entry
+	for _, entry := range files {
+		if newest.Path() == "" || entry.ModTime().After(newest.ModTime()) {
+			newest = entry
+		}
+	}
+	if newest.Path() == "" {
+		return standIn
+	}
+	standIn.NewestPath = newest.Path()
+	standIn.NewestName = path.Base(newest.Path())
+	standIn.NewestDate = newest.ModTime().Format("2006-01-02")
+	standIn.NewestAt = newest.ModTime().Format(time.RFC3339)
+	return standIn
+}
+
 // statedOnce joins the distinct reasons a page withheld something, in the order
 // they were given, dropping the empty ones.
 //
@@ -545,11 +625,11 @@ func recentHomeNotes(notes []nav.NoteSummary, governed bool) []pages.HomeNote {
 func homePaths(paths []nav.Map) []pages.HomePath {
 	out := make([]pages.HomePath, 0, len(paths))
 	for i := range paths {
-		path := &paths[i]
-		ready, total := path.EntryCounts(schema.SealStatus)
+		studyPath := &paths[i]
+		ready, total := studyPath.EntryCounts(schema.SealStatus)
 		out = append(out, pages.HomePath{
-			Title:   path.Title,
-			RelPath: path.RelPath,
+			Title:   studyPath.Title,
+			RelPath: studyPath.RelPath,
 			Ready:   ready,
 			Total:   total,
 		})

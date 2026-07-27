@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -54,7 +53,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	contract, err := schema.LoadReader(ctx, source)
 	var governance schema.Governance
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	case schema.ContractAbsent(err):
 		// A folder that carries no contract is not a folder in trouble. It has
 		// no lifecycle to govern, which is the ordinary shape of any directory
 		// yomihon is pointed at, so it is reported as the fact it is: reading

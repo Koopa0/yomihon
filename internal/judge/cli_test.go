@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -125,6 +126,110 @@ func TestRunCommandRejectsFlagsAndPositionalsOwnedByAnotherCommand(t *testing.T)
 	}
 }
 
+// unresolvedContractGuidance and absentContractGuidance are the paragraphs a
+// person gets after a refusal a program only needs the first line of. They are
+// written out here rather than imported from the command so an edit to either
+// side has to be made on both, which is the only way this assertion can fail.
+const unresolvedContractGuidance = "  The contract is at System/schemas/vault-schema.toml and yomihon could not use it.\n" +
+	"  The reason is not printed here: this command's output is written for a program to\n" +
+	"  read, and stating the reason would quote the contract back out under exactly the\n" +
+	"  policy that is missing. Read it where reading is the point: yomihon serve\n" +
+	"  --root <dir> states the cause on the page, and the server logs it at startup.\n"
+
+const absentContractGuidance = "  yomihon reads System/schemas/vault-schema.toml for the note types, fields and\n" +
+	"  lifecycle that check, coverage and exists judge against, and for the directories\n" +
+	"  whose contents must never leave this machine. A folder carrying no such file has\n" +
+	"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
+	"  Reading and search need none of it: yomihon serve --root <dir>\n"
+
+// TestRunCommandSeparatesAnAbsentContractFromAnUnusableOne is the difference
+// between a folder that declared nothing and a folder whose declaration could
+// not be honoured. Both refusals stand — these three commands judge notes
+// against a vocabulary, and there is none here — but the first is the ordinary
+// shape of any directory yomihon is pointed at, and telling its owner that an
+// authority is "unavailable" names a fault that does not exist and a role that
+// is not theirs.
+//
+// The refusal for a contract that exists still refuses to say why. That is the
+// redaction the sibling test pins, and this test's fixtures run either side of
+// it: the branch added here must not turn a contract yomihon could not decode
+// into a claim that the folder carries none.
+func TestRunCommandSeparatesAnAbsentContractFromAnUnusableOne(t *testing.T) {
+	t.Parallel()
+
+	base, err := os.ReadFile("testdata/vault-supersession/System/schemas/vault-schema.toml")
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	folders := []struct {
+		name  string
+		build func(*testing.T) string
+		want  string
+	}{
+		{
+			name:  "no contract at all",
+			build: func(t *testing.T) string { t.Helper(); return t.TempDir() },
+			want: "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
+				absentContractGuidance,
+		},
+		{
+			name: "contract without a privacy policy",
+			build: func(t *testing.T) string {
+				t.Helper()
+				root := t.TempDir()
+				contract := bytes.Replace(bytes.Clone(base), []byte("[privacy]\nnever_egress_dirs = []\n\n"), nil, 1)
+				write(t, root, schema.ContractRelPath, string(contract))
+				return root
+			},
+			want: "yomihon: privacy authority unavailable; agent-facing output disabled\n" +
+				unresolvedContractGuidance,
+		},
+		{
+			name: "contract that cannot be decoded",
+			build: func(t *testing.T) string {
+				t.Helper()
+				root := t.TempDir()
+				write(t, root, schema.ContractRelPath, string(append(bytes.Clone(base), []byte("\n[malformed")...)))
+				return root
+			},
+			want: "yomihon: privacy authority unavailable; agent-facing output disabled\n" +
+				unresolvedContractGuidance,
+		},
+	}
+	commands := []struct {
+		name    string
+		command string
+		args    func(string) []string
+	}{
+		{name: "check", command: "check", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
+		{name: "coverage", command: "coverage", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
+		{name: "exists", command: "exists", args: func(root string) []string { return []string{"--root=" + root, "--format=json", "candidate"} }},
+	}
+	for _, folder := range folders {
+		t.Run(folder.name, func(t *testing.T) {
+			t.Parallel()
+			for _, command := range commands {
+				t.Run(command.name, func(t *testing.T) {
+					t.Parallel()
+
+					root := folder.build(t)
+					var stdout, stderr bytes.Buffer
+					exit := RunCommand(command.command, command.args(root), &stdout, &stderr, false)
+					if exit != 2 {
+						t.Errorf("RunCommand(%q) exit = %d, want 2", command.command, exit)
+					}
+					if stdout.Len() != 0 {
+						t.Errorf("RunCommand(%q) stdout = %q, want empty", command.command, stdout.String())
+					}
+					if diff := cmp.Diff(folder.want, stderr.String()); diff != "" {
+						t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", command.command, diff)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestRunCommandRejectsUnavailablePrivacyWithoutPayload(t *testing.T) {
 	t.Parallel()
 
@@ -157,7 +262,7 @@ func TestRunCommandRejectsUnavailablePrivacyWithoutPayload(t *testing.T) {
 			if stdout.Len() != 0 {
 				t.Errorf("RunCommand(%q) stdout = %q, want empty", tt.command, stdout.String())
 			}
-			want := "yomihon: privacy authority unavailable; agent-facing output disabled\n"
+			want := "yomihon: privacy authority unavailable; agent-facing output disabled\n" + unresolvedContractGuidance
 			if diff := cmp.Diff(want, stderr.String()); diff != "" {
 				t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", tt.command, diff)
 			}
@@ -261,9 +366,18 @@ func TestRunCommandRedactsInvalidPrivacyAuthority(t *testing.T) {
 					if stdout.Len() != 0 {
 						t.Errorf("RunCommand(%q) stdout = %q, want empty", command.command, stdout.String())
 					}
-					want := "yomihon: privacy authority unavailable; agent-facing output disabled\n"
+					want := "yomihon: privacy authority unavailable; agent-facing output disabled\n" + unresolvedContractGuidance
 					if diff := cmp.Diff(want, stderr.String()); diff != "" {
 						t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", command.command, diff)
+					}
+					// The literal above pins today's words. This pins the property
+					// those words exist for, so a later edit cannot satisfy the
+					// comparison by moving contract material into both sides of it.
+					for _, leak := range []string{"never_egress_dirs", "[malformed", "expected", root} {
+						if strings.Contains(stderr.String(), leak) {
+							t.Errorf("RunCommand(%q) stderr leaked contract material %q: %q",
+								command.command, leak, stderr.String())
+						}
 					}
 				})
 			}
@@ -326,7 +440,7 @@ func TestRunCommandRechecksPrivacyImmediatelyBeforeEmission(t *testing.T) {
 			if stdout.Len() != 0 {
 				t.Errorf("runCommand(%q) stdout = %q, want empty", tt.command, stdout.String())
 			}
-			want := "yomihon: privacy authority unavailable; agent-facing output disabled\n"
+			want := "yomihon: privacy authority unavailable; agent-facing output disabled\n" + unresolvedContractGuidance
 			if diff := cmp.Diff(want, stderr.String()); diff != "" {
 				t.Errorf("runCommand(%q) stderr mismatch (-want +got):\n%s", tt.command, diff)
 			}

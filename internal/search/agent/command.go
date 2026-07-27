@@ -30,6 +30,10 @@ type vaultCapabilities struct {
 	artifact schema.ArtifactPolicy
 	privacy  schema.PrivacyPolicy
 	reader   *vault.Reader
+	// governed says whether this folder claimed authority at all. The refusal is
+	// the same either way — permission is positive authority and silence is not
+	// permission — but what a person is told about it is not.
+	governed bool
 }
 
 type commandFailureKind uint8
@@ -151,8 +155,10 @@ func loadVaultCapabilities(ctx context.Context, root string) (vaultCapabilities,
 	if err != nil {
 		// A missing or invalid contract makes the privacy/artifact capability
 		// unavailable; it is an answerability state, not a local tool crash.
-		return capabilities, nil //nolint:nilerr // preserve the capability-unavailable contract
+		capabilities.governed = !schema.ContractAbsent(err)
+		return capabilities, nil
 	}
+	capabilities.governed = true
 	capabilities.artifact = contract.ArtifactPolicy()
 	capabilities.privacy = contract.PrivacyPolicy()
 	return capabilities, nil

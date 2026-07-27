@@ -175,7 +175,12 @@ func prepareSearch(ctx context.Context, parsed searchArgs, config rootConfig, de
 	}()
 	privacy := capabilities.privacy.ValidateSource()
 	if !privacy.Available() {
-		return nil, writeSearchUnavailable(deps, parsed.json, searchReasonPrivacyUnavailable)
+		return nil, writeSearchRefusal(
+			deps,
+			parsed.json,
+			searchReasonPrivacyUnavailable,
+			privacyGateNotice("yomihon search", capabilities.governed),
+		)
 	}
 	query := search.Parse(parsed.query)
 	artifact := capabilities.artifact.ValidateSource()
@@ -443,16 +448,25 @@ func writeCurrentCapabilityFailure(
 }
 
 func writeSearchUnavailable(deps searchDeps, jsonOutput bool, reason searchReason) int {
+	line, err := searchStderrLine(reason)
+	if err != nil {
+		return writeSearchToolError(deps.stderr, errors.New("classify command failure"))
+	}
+	return writeSearchRefusal(deps, jsonOutput, reason, line)
+}
+
+// writeSearchRefusal emits one closed-capability answer: the frozen envelope a
+// program reads, then whatever a person is told about it. The notice is a
+// parameter because a refusal decided before any work began can say more than
+// the same refusal arriving mid-flight, where the capability was there when the
+// command started and went away under it.
+func writeSearchRefusal(deps searchDeps, jsonOutput bool, reason searchReason, notice string) int {
 	if jsonOutput {
 		if err := writeSearchJSON(deps.stdout, searchErrorEnvelope{Error: searchError{Reason: reason}}); err != nil {
 			return writeSearchToolError(deps.stderr, errors.New("write output"))
 		}
 	}
-	line, err := searchStderrLine(reason)
-	if err != nil {
-		return writeSearchToolError(deps.stderr, errors.New("classify command failure"))
-	}
-	if err := writeSearchText(deps.stderr, line); err != nil {
+	if err := writeSearchText(deps.stderr, notice); err != nil {
 		return 2
 	}
 	return 3

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -654,5 +655,122 @@ func TestFrontmatterExcludedFromPlainText(t *testing.T) {
 	}
 	if got := paths(searchResults(t, idx, Parse("domain:golang"))); len(got) != 1 {
 		t.Errorf("domain:golang = %v, want one match", got)
+	}
+}
+
+// fileCorpusFixture is one vault of notes plus the files that sit beside them.
+// The rel paths are chosen so a purely path-ordered index would interleave
+// them — "Notes/…" sorts between "Concepts/…" and "Writing/…" — which is what
+// makes the ordering assertions below able to fail.
+func fileCorpusFixture(tb testing.TB) (notesOnly, widened *Index) {
+	tb.Helper()
+	notes := []Document{
+		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", Status: "evergreen", PlainText: "a note about the flamingo"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Status: "draft", PlainText: "another flamingo mention"},
+	}
+	files := []Document{
+		DocumentFromFile("Notes/todo.txt", []byte("renew the passport before flamingo season")),
+		DocumentFromFile("Writing/article.html", []byte("<h1>flamingo</h1>")),
+	}
+	policy := validArtifactPolicy(tb)
+	return NewIndex(notes, policy), NewIndex(append(append([]Document{}, notes...), files...), policy)
+}
+
+// TestSearchFindsAFileByItsText is the whole point of indexing files. A reader
+// who opened todo.txt from the rail, read it, and then searched for a word in
+// it used to get nothing back and no reason — the shape that makes someone
+// conclude the file was deleted and type it again.
+func TestSearchFindsAFileByItsText(t *testing.T) {
+	t.Parallel()
+	_, widened := fileCorpusFixture(t)
+
+	results := searchResults(t, widened, Parse("passport"))
+	want := []Result{{
+		RelPath: "Notes/todo.txt",
+		Title:   "todo.txt",
+		Snippet: "renew the passport before flamingo season",
+		File:    true,
+	}}
+	if diff := cmp.Diff(want, results); diff != "" {
+		t.Errorf("Search(passport) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestNoteResultsOpenTheWidenedResults is the shape lock. Files are appended to
+// what a vault of notes alone answers, never interleaved with it: widening what
+// can be found must not move what could already be found, or every reader's
+// muscle memory for "it is the third one" breaks on a change that was supposed
+// to add.
+func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
+	t.Parallel()
+	notesOnly, widened := fileCorpusFixture(t)
+
+	for _, query := range []string{"flamingo", "a", "status:draft", "folder:Writing"} {
+		t.Run(query, func(t *testing.T) {
+			t.Parallel()
+			before := searchResults(t, notesOnly, Parse(query))
+			after := searchResults(t, widened, Parse(query))
+			if len(after) < len(before) {
+				t.Fatalf("Search(%q) returned %d results over the widened corpus, fewer than the %d notes alone answered",
+					query, len(after), len(before))
+			}
+			if diff := cmp.Diff(before, after[:len(before)]); diff != "" {
+				t.Errorf("Search(%q) moved a note result (-notes only +widened prefix):\n%s", query, diff)
+			}
+		})
+	}
+}
+
+// TestFileEntriesAnswerNoMetadataProjection keeps every lifecycle tally the
+// tally it was. A file carries no frontmatter, so it is not an instance of
+// anything, and letting one into a status count or a "type:" filter would make
+// Home's figures and the topbar's advanceable chip disagree with the contract
+// that defines them.
+func TestFileEntriesAnswerNoMetadataProjection(t *testing.T) {
+	t.Parallel()
+	notesOnly, widened := fileCorpusFixture(t)
+
+	before, err := notesOnly.CountByStatus()
+	if err != nil {
+		t.Fatalf("notes-only CountByStatus() error: %v", err)
+	}
+	after, err := widened.CountByStatus()
+	if err != nil {
+		t.Fatalf("widened CountByStatus() error: %v", err)
+	}
+	if diff := cmp.Diff(before, after); diff != "" {
+		t.Errorf("CountByStatus changed when files joined the corpus (-notes only +widened):\n%s", diff)
+	}
+
+	beforeTypes, err := notesOnly.CountByTypeStatus()
+	if err != nil {
+		t.Fatalf("notes-only CountByTypeStatus() error: %v", err)
+	}
+	afterTypes, err := widened.CountByTypeStatus()
+	if err != nil {
+		t.Fatalf("widened CountByTypeStatus() error: %v", err)
+	}
+	if diff := cmp.Diff(beforeTypes, afterTypes); diff != "" {
+		t.Errorf("CountByTypeStatus changed when files joined the corpus (-notes only +widened):\n%s", diff)
+	}
+
+	for _, query := range []string{"type:lesson", "status:draft", "flamingo status:draft"} {
+		if got := paths(searchResults(t, widened, Parse(query))); slices.Contains(got, "Notes/todo.txt") {
+			t.Errorf("Search(%q) answered with a file, which declares no metadata: %v", query, got)
+		}
+	}
+}
+
+// TestFileEntriesRemainReachableByFolder is the other side of that exclusion. A
+// folder is a fact about where a file sits, not a value it declared, so
+// narrowing by one must keep reaching files — otherwise "exclude files from
+// filters" would have been written one step too wide.
+func TestFileEntriesRemainReachableByFolder(t *testing.T) {
+	t.Parallel()
+	_, widened := fileCorpusFixture(t)
+
+	got := paths(searchResults(t, widened, Parse("folder:Notes")))
+	if diff := cmp.Diff([]string{"Notes/todo.txt"}, got); diff != "" {
+		t.Errorf("Search(folder:Notes) mismatch (-want +got):\n%s", diff)
 	}
 }

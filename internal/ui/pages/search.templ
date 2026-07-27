@@ -24,13 +24,19 @@ type SearchView struct {
 	Nav *nav.Model
 }
 
-// SearchResult is one rendered hit: the note's path (linked), display title,
+// SearchResult is one rendered hit: the entry's path (linked), display title,
 // status, and a context snippet.
 type SearchResult struct {
 	RelPath string
 	Title   string
 	Status  string
 	Snippet string
+
+	// File marks a hit that is a vault file rather than a note. It is named on
+	// the row because a file has no lifecycle and never will, so a reader
+	// scanning a list of results does not read its missing status as a note
+	// whose status went missing.
+	File bool
 }
 
 // Search is the results page: a GET form and a flat list of hits, rendered in
@@ -81,6 +87,10 @@ templ SearchResults(query string, results []SearchResult, diagnostic string) {
 								<span class="y-result__sep" aria-hidden="true">·</span>
 								{ r.Status }
 							}
+							if r.File {
+								<span class="y-result__sep" aria-hidden="true">·</span>
+								<span class="y-result__kind">檔案</span>
+							}
 						</span>
 						if r.Snippet != "" {
 							<span class="y-result__snippet">{ r.Snippet }</span>
@@ -91,7 +101,7 @@ templ SearchResults(query string, results []SearchResult, diagnostic string) {
 		} else if query != "" {
 			<div class="y-searchpage__empty">
 				<p>找不到「{ query }」的結果。</p>
-				<p class="y-searchpage__hint">請嘗試較少或不同的詞，或用 <code>status:draft</code> 依生命週期縮小範圍。</p>
+				<p class="y-searchpage__hint">搜尋涵蓋筆記，以及任何能以文字呈現的檔案；圖片、PDF 與其他二進位檔案只在導覽中列出，內容不會被讀取。請嘗試較少或不同的詞，或用 <code>status:draft</code> 依生命週期縮小範圍。</p>
 			</div>
 		}
 	</div>

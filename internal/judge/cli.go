@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // commandArgs holds the common flags parsed from a check, coverage, or exists
@@ -198,7 +200,39 @@ func (args *commandArgs) setFlag(name, value string) error {
 	return nil
 }
 
+// contractGuidance is the paragraph a person needs after a refusal a program
+// only needs the first line of. It is written for whoever typed the command:
+// what is missing, where it belongs, why this face needs it, and the face that
+// needs none of it.
+//
+// Naming the contract's path is not the redaction this face refuses. What it
+// refuses is the decoder's account of an existing file's keys, which would send
+// vault content out under the very policy that is missing. Where the file is
+// supposed to live is not vault content, and a refusal that will not say what
+// is missing leaves the reader with nothing to do.
+func contractGuidance(err error) string {
+	switch {
+	case errors.Is(err, errNoVaultContract):
+		return "  yomihon reads " + schema.ContractRelPath + " for the note types, fields and\n" +
+			"  lifecycle that check, coverage and exists judge against, and for the directories\n" +
+			"  whose contents must never leave this machine. A folder carrying no such file has\n" +
+			"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
+			"  Reading and search need none of it: yomihon serve --root <dir>\n"
+	case errors.Is(err, errPrivacyAuthorityUnavailable):
+		return "  The contract is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
+			"  The reason is not printed here: this command's output is written for a program to\n" +
+			"  read, and stating the reason would quote the contract back out under exactly the\n" +
+			"  policy that is missing. Read it where reading is the point: yomihon serve\n" +
+			"  --root <dir> states the cause on the page, and the server logs it at startup.\n"
+	default:
+		return ""
+	}
+}
+
 func commandError(stderr io.Writer, err error) int {
 	_, _ = fmt.Fprintf(stderr, "yomihon: %v\n", err) //nolint:errcheck // an already-failing CLI has no second channel for a stderr failure
+	if guidance := contractGuidance(err); guidance != "" {
+		_, _ = fmt.Fprint(stderr, guidance) //nolint:errcheck // the same already-failing channel
+	}
 	return 2
 }

@@ -450,6 +450,14 @@ html, body { margin: 0; background: var(--bg); }
 .y-xbtn { width: 100%; height: 34px; background: transparent; color: var(--fg-subtle); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--font-sans); font-size: var(--fs-13); cursor: pointer; }
 .y-xbtn:hover { background: var(--overlay); color: var(--fg); }
 
+/* a transition the working tree would refuse: legible, and visibly not pressable.
+   :hover still matches on a disabled control, so the lift has to be taken back
+   explicitly or the button keeps inviting the press it will not accept. */
+.y-sealbtn:disabled,
+.y-xbtn:disabled { cursor: not-allowed; opacity: 0.5; }
+.y-sealbtn:disabled { box-shadow: none; }
+.y-xbtn:disabled:hover { background: transparent; color: var(--fg-subtle); }
+
 /* sealed state (status == ready) */
 .y-sealed { display: inline-flex; align-items: center; gap: 9px; padding: 6px 13px 6px 8px; border: 1.5px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-muted); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, transparent); }
 .y-sealed__stamp { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 1.5px solid var(--accent); border-radius: 4px; color: var(--accent); font-family: var(--font-kai); font-size: 16px; line-height: 1; padding-top: 1px; }
@@ -539,6 +547,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-result__title { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); }
 .y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-result__sep { margin: 0 6px; }
+.y-result__kind { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; }
 
 /* ============================================================
@@ -771,13 +780,19 @@ html, body { margin: 0; background: var(--bg); }
 .y-homesearch svg { flex: none; color: var(--fg-subtle); }
 .y-homesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
 .y-homesearch input:focus-visible { outline: 0; }
+/* the line that stands in for the content blocks on a folder that fills none of
+   them. Borderless on purpose: a bordered one-liner is a smaller empty box,
+   which is the thing it replaces. */
+.y-homestandin { grid-column: span 7; align-self: center; margin: 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: 1.7; color: var(--fg-subtle); }
+.y-homestandin a { color: var(--link); }
+
 .y-homesearch .y-xbtn { width: auto; height: 30px; padding: 0 13px; flex: none; }
 .y-homereadme { max-width: var(--measure-article); margin: 58px auto 0; padding-top: 34px; border-top: 1px solid var(--border); }
 .y-homereadme__head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
 .y-homereadme__head h2 { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); font-weight: var(--fw-regular); color: var(--fg); }
 
 @media (max-width: 1180px) {
-  .y-homeblock--recent, .y-homeblock--paths, .y-homeblock--lifecycle, .y-homeblock--search { grid-column: 1 / -1; }
+  .y-homeblock--recent, .y-homeblock--paths, .y-homeblock--lifecycle, .y-homeblock--search, .y-homestandin { grid-column: 1 / -1; }
 }
 
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
@@ -798,6 +813,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-fileinfo__list { display: grid; grid-template-columns: auto 1fr; gap: 6px 20px; margin: 0; }
 .y-fileinfo__list dt { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); align-self: baseline; }
 .y-fileinfo__list dd { margin: 0; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg); overflow-wrap: anywhere; }
+.y-fileinfo__note { margin: 10px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-faint); }
 .y-fileinfo__raw { display: inline-block; margin: 18px 0 0; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
 /* Status-write recovery — an ordinary reading-shell page whose visual weight

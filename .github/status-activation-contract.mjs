@@ -12,11 +12,19 @@ const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
+  'refused-seal-ignores-pointer-hold',
+  'refused-seal-releases-shortcut-key',
   'programmatic-activation-submits',
   'programmatic-activation-during-hold-submits',
   'pointer-ceremony-suppresses-click',
   'keyboard-ceremony-suppresses-click',
 ];
+
+// How long the ceremony needs before it submits, plus room for the timer to
+// land. Shorter than this and a hold that did start would look like one that
+// was refused, which is the mistake that would make the first two sites pass
+// for the wrong reason.
+const HOLD_SETTLE_MS = 700;
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -76,7 +84,23 @@ const keyboardGuard = `    button.addEventListener('keydown', (event) => {
 
 const trustedOwnershipGuard = `    if (!activation || activation.button !== button || !event.isTrusted) return false;`;
 
+const holdRefusalGuard = `    if (sealing || holding || !form || sealRefused(form)) return;`;
+
+const shortcutRefusalGuard =
+  `    canStartShortcutHold: () => Boolean(shortcutForm && !sealing && !sealRefused(shortcutForm)),`;
+
 const MUTATIONS = {
+  'press-a-refused-seal': {
+    target: 'refused-seal-ignores-pointer-hold',
+    apply: rewriteStatusScript(holdRefusalGuard, `    if (sealing || holding || !form) return;`),
+  },
+  'shortcut-a-refused-seal': {
+    target: 'refused-seal-releases-shortcut-key',
+    apply: rewriteStatusScript(
+      shortcutRefusalGuard,
+      `    canStartShortcutHold: () => Boolean(shortcutForm && !sealing),`,
+    ),
+  },
   'cancel-programmatic-activation': {
     target: 'programmatic-activation-submits',
     apply: rewriteStatusScript(
@@ -164,8 +188,48 @@ try {
   });
   const submissionCount = () => form.evaluate((element) => Number(element.dataset.contractSubmissions));
 
-  await button.evaluate((element) => element.click());
+  // A transition the working tree would refuse is rendered inert, and the two
+  // ceremony routes have to honour that themselves: Chrome still dispatches
+  // pointerdown on a disabled button, and requestSubmit submits a form whose
+  // only submit button is disabled. Without these guards the press-and-hold
+  // would be the single way around a refusal the markup already closed.
+  //
+  // The refusal is set here rather than served, because what is under test is
+  // the runtime's reading of the control's own state; which notes get a refused
+  // control is the server's question and is locked where the page is rendered.
+  const setSealRefused = (refused) =>
+    button.evaluate((element, value) => {
+      element.disabled = value;
+    }, refused);
+
+  await setSealRefused(true);
+  const box = await button.boundingBox();
+  if (!box) broken('the refused seal button has no box to press');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(HOLD_SETTLE_MS);
+  await page.mouse.up();
   let count = await submissionCount();
+  if (count !== 0) {
+    fail('refused-seal-ignores-pointer-hold', `holding a refused seal raised ${count} submit events, want 0`);
+  }
+
+  const shortcut = await page.evaluate(() => {
+    const event = new KeyboardEvent('keydown', { key: 'r', bubbles: true, cancelable: true, repeat: false });
+    const accepted = window.dispatchEvent(event);
+    const prevented = event.defaultPrevented || !accepted;
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'r', bubbles: true, cancelable: true }));
+    return prevented;
+  });
+  if (shortcut) {
+    fail('refused-seal-releases-shortcut-key', 'R was taken from the page on a note whose seal is refused');
+  }
+
+  await setSealRefused(false);
+  await resetSubmissions();
+
+  await button.evaluate((element) => element.click());
+  count = await submissionCount();
   if (count !== 1) {
     fail('programmatic-activation-submits', `HTMLElement.click() raised ${count} submit events, want 1`);
   }

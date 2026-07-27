@@ -10,6 +10,7 @@ package search
 import (
 	"cmp"
 	"errors"
+	"path"
 	"slices"
 	"strings"
 
@@ -27,8 +28,9 @@ func fold(s string) string {
 }
 
 // Document is the pure, disk-free input to NewIndex: everything the index needs
-// about one note, with PlainText already extracted (render.PlainText). Keeping
-// the build pure makes it unit-testable without a vault on disk.
+// about one vault entry, with PlainText already extracted (render.PlainText for
+// a note, the file's own characters for anything else). Keeping the build pure
+// makes it unit-testable without a vault on disk.
 type Document struct {
 	RelPath   string
 	Title     string
@@ -38,6 +40,13 @@ type Document struct {
 	Slug      string
 	Topics    []string
 	PlainText string
+
+	// File marks an entry that is not a note: a vault file yomihon shows as
+	// characters. It carries no frontmatter, so it answers no metadata
+	// projection, and it sorts after every note in a result list — someone
+	// searching a reading tool is looking for what they wrote before they are
+	// looking at what sits beside it.
+	File bool
 }
 
 // entry is one indexed note. The *Fold copies double the note's text in memory
@@ -58,6 +67,7 @@ type entry struct {
 	Topics          []string
 	PlainText       string
 	PlainFold       string
+	isFile          bool
 	metadataCapable bool
 }
 
@@ -144,11 +154,16 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		Topics:    topics,
 		PlainText: plain,
 		PlainFold: fold(plain),
+		isFile:    d.File,
 		// An unclaimed policy excludes nothing, so every readable note answers
 		// metadata queries over its own raw frontmatter. Whether that raw value
 		// may be *presented* as a lifecycle state is a separate question, asked
 		// by the surface that renders it.
-		metadataCapable: policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
+		//
+		// A file has no frontmatter to be an instance of, so it answers no
+		// metadata projection under any policy. That is also what keeps a tally
+		// over a governed vault the same tally it was before files were indexed.
+		metadataCapable: !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
 	}
 }
 
@@ -169,7 +184,20 @@ func DocumentFromNote(n *vault.Note) Document {
 	}
 }
 
-// Len reports how many notes are indexed.
+// DocumentFromFile builds the index entry for a vault file that is not a note.
+// Its title is the file's own name, which is the only name it has, and its whole
+// text is its body — exactly the characters its page shows, so a term found here
+// is a term the reader can find again on the page this hit opens.
+func DocumentFromFile(relPath string, data []byte) Document {
+	return Document{
+		RelPath:   relPath,
+		Title:     path.Base(relPath),
+		PlainText: string(data),
+		File:      true,
+	}
+}
+
+// Len reports how many entries are indexed.
 func (idx *Index) Len() int {
 	return len(idx.entries)
 }

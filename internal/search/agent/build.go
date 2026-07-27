@@ -108,7 +108,13 @@ func runSearchIndex(ctx context.Context, args []string, config rootConfig, deps 
 	defer releaseVaultReader(capabilities.reader)
 	privacy := capabilities.privacy.ValidateSource()
 	if !privacy.Available() {
-		return writeSearchIndexUnavailable(deps, parsed.json, searchReasonPrivacyUnavailable, nil)
+		return writeSearchIndexRefusal(
+			deps,
+			parsed.json,
+			searchReasonPrivacyUnavailable,
+			buildGenerationObservationFromError(nil),
+			privacyGateNotice("yomihon search-index", capabilities.governed),
+		)
 	}
 	artifact := capabilities.artifact.ValidateSource()
 	if !artifact.Available() {
@@ -223,6 +229,24 @@ func writeSearchIndexUnavailableWithObservation(
 	reason searchReason,
 	observation buildGenerationObservation,
 ) int {
+	line, err := searchIndexStderrLine(reason)
+	if err != nil {
+		return writeSearchIndexToolError(deps.stderr, errors.New("classify command failure"))
+	}
+	return writeSearchIndexRefusal(deps, jsonOutput, reason, observation, line)
+}
+
+// writeSearchIndexRefusal emits one closed-capability answer for the index
+// command, with the notice a parameter for the same reason its search sibling
+// takes one: a refusal decided before any work began can say more than one that
+// arrived mid-build.
+func writeSearchIndexRefusal(
+	deps buildCommandDeps,
+	jsonOutput bool,
+	reason searchReason,
+	observation buildGenerationObservation,
+	notice string,
+) int {
 	if jsonOutput {
 		body, err := newBuildErrorEnvelopeFromObservation(reason, observation)
 		if err != nil {
@@ -232,11 +256,7 @@ func writeSearchIndexUnavailableWithObservation(
 			return writeSearchIndexToolError(deps.stderr, errors.New("write output"))
 		}
 	}
-	line, err := searchIndexStderrLine(reason)
-	if err != nil {
-		return writeSearchIndexToolError(deps.stderr, errors.New("classify command failure"))
-	}
-	if err := writeSearchText(deps.stderr, line); err != nil {
+	if err := writeSearchText(deps.stderr, notice); err != nil {
 		return 2
 	}
 	return 3

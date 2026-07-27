@@ -145,6 +145,7 @@ func viewResults(results []Result, governed bool) []pages.SearchResult {
 			RelPath: r.RelPath,
 			Title:   r.Title,
 			Snippet: r.Snippet,
+			File:    r.File,
 		}
 		if governed {
 			out[i].Status = r.Status

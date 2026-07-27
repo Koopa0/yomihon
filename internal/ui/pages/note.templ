@@ -589,30 +589,71 @@ templ sealedBadge(v NoteView) {
 // sealForm is the koopa-only seal: a plain POST form (no-JS: one press
 // submits) that JS upgrades into a press-and-hold. requestSubmit on completion,
 // never fetch — the server sees exactly the no-JS request.
+//
+// When the working tree would refuse this transition the control stays on the
+// page and stops working. The refusal is a fact about the tree, not about the
+// contract: the transition is legal and becomes pressable again the moment the
+// note's own edit is committed, so removing it would hide a target the reader
+// is about to be able to reach. The ceremony's hint and its line about the act
+// go with the ability to perform it — a page that keeps advertising a hold it
+// will not honour is the half-finished notice this replaces.
 templ sealForm(v NoteView) {
 	<form class="y-statusform" method="post" action="/status" data-seal>
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
 		<input type="hidden" name="to" value={ v.SealTarget }/>
-		<button class="y-sealbtn" type="submit" data-seal-btn aria-label={ "按住以認證 " + v.SealTarget }>
+		<button class="y-sealbtn" type="submit" data-seal-btn disabled?={ v.WriteBlock != "" } aria-label={ sealButtonLabel(v) }>
 			<span class="y-sealfill" aria-hidden="true"></span>
 			<span class="y-sealbtn__stamp" lang="ja" aria-hidden="true">印</span>
 			<span>認證 { v.SealTarget }</span>
-			<span class="y-sealbtn__hint" aria-hidden="true">按住 R</span>
+			if v.WriteBlock == "" {
+				<span class="y-sealbtn__hint" aria-hidden="true">按住 R</span>
+			}
 		</button>
 	</form>
-	<p class="y-sealpoem">最後一步只由 koopa 完成。按住一次，不撤回。</p>
+	if v.WriteBlock == "" {
+		<p class="y-sealpoem">最後一步只由 koopa 完成。按住一次，不撤回。</p>
+	}
 }
 
 // transitionForm is a quiet, one-click secondary transition (everything that is
-// not the seal): a plain POST form, no ceremony.
+// not the seal): a plain POST form, no ceremony. It carries the same refusal as
+// the seal, for the same reason.
 templ transitionForm(v NoteView, to string) {
 	<form class="y-statusform" method="post" action="/status">
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
 		<input type="hidden" name="to" value={ to }/>
-		<button class="y-xbtn" type="submit">{ to }</button>
+		<button class="y-xbtn" type="submit" { refusalAttrs(v.WriteBlock, to)... }>{ to }</button>
 	</form>
+}
+
+// sealButtonLabel names the seal control: the ceremony while it can be
+// performed, and the target plus the reason once the working tree would refuse
+// it.
+//
+// The reason travels in the accessible name rather than through a reference to
+// the paragraph that states it, because both status faces are in the document
+// at every width and a reference needs an identifier that occurs once. A name
+// also survives the disabled state on every engine, and a reader who reaches a
+// control without having read the paragraph above still gets the reason with
+// the control.
+func sealButtonLabel(v NoteView) string {
+	if v.WriteBlock != "" {
+		return "認證 " + v.SealTarget + "：" + v.WriteBlock
+	}
+	return "按住以認證 " + v.SealTarget
+}
+
+// refusalAttrs marks a quiet transition control the working tree would refuse.
+// It adds nothing while the transition can be taken, so a pressable control
+// carries no name of its own and keeps the one its visible text already gives
+// it.
+func refusalAttrs(reason, to string) templ.Attributes {
+	if reason == "" {
+		return nil
+	}
+	return templ.Attributes{"disabled": true, "aria-label": to + "：" + reason}
 }
 
 // legalTransitionForms renders the complete schema-provided set for either

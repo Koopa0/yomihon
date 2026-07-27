@@ -283,6 +283,111 @@ func TestSearchCommandUsageFailuresArePreCapabilityAndRedacted(t *testing.T) {
 	})
 }
 
+// searchAbsentContractGuidance and searchRejectedContractGuidance are the
+// paragraphs a person gets after a refusal a program only needs the reason
+// token for. They are written out here rather than imported from the command,
+// so an edit to either side has to be made on both and the assertion can fail.
+const searchAbsentContractGuidance = "  yomihon reads System/schemas/vault-schema.toml for, among other things, the\n" +
+	"  directories whose contents must never leave this machine. A folder carrying no\n" +
+	"  such file has declared nothing, so yomihon cannot tell what it may hand to a\n" +
+	"  program and hands over nothing. The same search runs in the browser, which sends\n" +
+	"  nothing anywhere: yomihon serve --root <dir>\n"
+
+const searchRejectedContractGuidance = "  The contract is at System/schemas/vault-schema.toml and its privacy policy could not\n" +
+	"  be honoured, so yomihon cannot tell which directories may leave this machine and\n" +
+	"  hands over nothing. The same search runs in the browser, which sends nothing\n" +
+	"  anywhere: yomihon serve --root <dir>\n"
+
+// TestRunSearchNamesTheFolderInFrontOfTheReader is the difference between a
+// folder that declared nothing and a contract that could not be honoured. Both
+// refuse, and both refuse with the same reason token, because for egress an
+// undeclared policy and a rejected one are the same refusal and a second token
+// would change a value downstream pipelines match on. What differs is the
+// sentence a person reads: telling the owner of an ordinary directory that
+// "the vault contract declares no valid privacy policy" names a file they do
+// not have and a fault that does not exist.
+func TestRunSearchNamesTheFolderInFrontOfTheReader(t *testing.T) {
+	const wantStdout = "{\"error\":{\"reason\":\"privacy-capability-unavailable\"}}\n"
+	const indexStdout = "{\"error\":{\"reason\":\"privacy-capability-unavailable\",\"active_generation\":\"not-inspected\"," +
+		"\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"repair-vault-contract\"}}\n"
+	tests := []struct {
+		name       string
+		build      func(*testing.T) string
+		wantSearch string
+		wantIndex  string
+	}{
+		{
+			name:  "no contract at all",
+			build: func(t *testing.T) string { t.Helper(); return t.TempDir() },
+			wantSearch: "yomihon search: privacy-capability-unavailable: this folder has no vault contract, " +
+				"so agent-facing search output is closed\n" + searchAbsentContractGuidance,
+			wantIndex: "yomihon search-index: privacy-capability-unavailable: this folder has no vault contract, " +
+				"so agent-facing search output is closed\n" + searchAbsentContractGuidance,
+		},
+		{
+			name: "contract that cannot be decoded",
+			build: func(t *testing.T) string {
+				t.Helper()
+				root := t.TempDir()
+				writeSearchTestFile(t, root, "System/schemas/vault-schema.toml", searchTestContractBase+"\n[malformed")
+				return root
+			},
+			wantSearch: "yomihon search: privacy-capability-unavailable: the vault contract declares no valid " +
+				"privacy policy, so agent-facing search output is closed\n" + searchRejectedContractGuidance,
+			wantIndex: "yomihon search-index: privacy-capability-unavailable: the vault contract declares no valid " +
+				"privacy policy, so agent-facing search output is closed\n" + searchRejectedContractGuidance,
+		},
+		{
+			name: "contract without a privacy policy",
+			build: func(t *testing.T) string {
+				t.Helper()
+				return writeSearchTestVault(t, "\n[artifacts]\nnon_instance_dirs = []\n", nil)
+			},
+			wantSearch: "yomihon search: privacy-capability-unavailable: the vault contract declares no valid " +
+				"privacy policy, so agent-facing search output is closed\n" + searchRejectedContractGuidance,
+			wantIndex: "yomihon search-index: privacy-capability-unavailable: the vault contract declares no valid " +
+				"privacy policy, so agent-facing search output is closed\n" + searchRejectedContractGuidance,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := tt.build(t)
+
+			var stdout, stderr bytes.Buffer
+			if exit := runSearch(t.Context(), []string{"--json", "token"}, rootConfig{rootEnv: root}, searchDeps{
+				stdout: &stdout,
+				stderr: &stderr,
+			}); exit != 3 {
+				t.Errorf("runSearch() exit = %d, want 3", exit)
+			}
+			if got := stdout.String(); got != wantStdout {
+				t.Errorf("runSearch() stdout = %q, want %q", got, wantStdout)
+			}
+			if got := stderr.String(); got != tt.wantSearch {
+				t.Errorf("runSearch() stderr = %q, want %q", got, tt.wantSearch)
+			}
+
+			var indexOut, indexErr bytes.Buffer
+			if exit := runSearchIndex(t.Context(), []string{"build", "--json"}, rootConfig{rootEnv: root}, buildCommandDeps{
+				stdout: &indexOut,
+				stderr: &indexErr,
+				openBuilder: func(semanticActionConfig) (generationBuilder, error) {
+					t.Error("runSearchIndex() opened the semantic builder past a closed privacy capability")
+					return nil, errors.New("must not open")
+				},
+			}); exit != 3 {
+				t.Errorf("runSearchIndex() exit = %d, want 3", exit)
+			}
+			if got := indexOut.String(); got != indexStdout {
+				t.Errorf("runSearchIndex() stdout = %q, want %q", got, indexStdout)
+			}
+			if got := indexErr.String(); got != tt.wantIndex {
+				t.Errorf("runSearchIndex() stderr = %q, want %q", got, tt.wantIndex)
+			}
+		})
+	}
+}
+
 func TestRunSearchPrivacyGate(t *testing.T) {
 	root := writeSearchTestVault(t, `
 [artifacts]
@@ -302,7 +407,8 @@ non_instance_dirs = []
 	if got := stdout.String(); got != wantStdout {
 		t.Errorf("runSearch() stdout = %q, want %q", got, wantStdout)
 	}
-	wantStderr := "yomihon search: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed\n"
+	wantStderr := "yomihon search: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed\n" +
+		searchRejectedContractGuidance
 	if got := stderr.String(); got != wantStderr {
 		t.Errorf("runSearch() stderr = %q, want %q", got, wantStderr)
 	}
@@ -1272,7 +1378,8 @@ func TestRunSearchIndexCapabilityGatesBeforeBuilder(t *testing.T) {
 non_instance_dirs = []
 `,
 			wantStdout: "{\"error\":{\"reason\":\"privacy-capability-unavailable\",\"active_generation\":\"not-inspected\",\"staging_generation\":\"not-inspected\",\"retry_safe\":false,\"next_action\":\"repair-vault-contract\"}}\n",
-			wantStderr: "yomihon search-index: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed\n",
+			wantStderr: "yomihon search-index: privacy-capability-unavailable: the vault contract declares no valid privacy policy, so agent-facing search output is closed\n" +
+				searchRejectedContractGuidance,
 		},
 		{
 			name: "artifact",

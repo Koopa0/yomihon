@@ -70,5 +70,6 @@ templ fileInfo(v FileView) {
 			<dd>{ v.ContentType }</dd>
 		</dl>
 		<a class="y-fileinfo__raw" href={ templ.URL(rawHref(v.RelPath)) }>開啟原始位元組</a>
+		<p class="y-fileinfo__note">這個檔案的內容不會被搜尋讀取。</p>
 	</div>
 }

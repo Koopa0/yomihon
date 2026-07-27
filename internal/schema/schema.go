@@ -12,6 +12,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -185,6 +186,18 @@ type Supersession struct {
 	SuccessorField   string
 	GeneralLinkField string
 	ArchivedStatus   string
+}
+
+// ContractAbsent reports whether err from Load, LoadFile, or LoadReader means
+// the folder carries no contract at all, as distinct from one that exists and
+// could not be read.
+//
+// The two are different facts about a folder and the surfaces that report them
+// must not merge: a folder that declared nothing is not a folder in trouble.
+// The question belongs here because contract loading does, rather than with
+// each caller matching an error shape of its own.
+func ContractAbsent(err error) bool {
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 // Load reads the contract from the vault rooted at root.

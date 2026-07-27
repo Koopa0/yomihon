@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/search/semantic"
 )
@@ -780,13 +781,50 @@ func searchCommandStderrLine(prefix string, reason searchReason) (string, error)
 	if !ok {
 		return "", errors.New("search output: reason has no stderr line")
 	}
-	return fmt.Sprintf("%s: %s: %s\n", prefix, reason, message), nil
+	return searchCapabilityLine(prefix, reason, message), nil
+}
+
+// searchCapabilityLine formats one refusal for stderr: the command, the reason
+// a program matches on, and the sentence a person reads.
+func searchCapabilityLine(prefix string, reason searchReason, message string) string {
+	return fmt.Sprintf("%s: %s: %s\n", prefix, reason, message)
+}
+
+const (
+	privacyRejectedMessage = "the vault contract declares no valid privacy policy, so agent-facing search output is closed"
+	privacyAbsentMessage   = "this folder has no vault contract, so agent-facing search output is closed"
+)
+
+// privacyGateNotice is everything a person is told when the privacy capability
+// closes before any work has begun: the machine's line, then the paragraph
+// whoever typed the command needs — what is missing, where it belongs, why this
+// face needs it, and the face that needs none of it.
+//
+// A folder carrying no contract and a contract that could not be honoured are
+// different facts and get different words. The reason token is the same for
+// both, because for egress an undeclared policy and a rejected one are the same
+// refusal, and a second token would change a value downstream pipelines match
+// on.
+func privacyGateNotice(prefix string, governed bool) string {
+	if governed {
+		return searchCapabilityLine(prefix, searchReasonPrivacyUnavailable, privacyRejectedMessage) +
+			"  The contract is at " + schema.ContractRelPath + " and its privacy policy could not\n" +
+			"  be honoured, so yomihon cannot tell which directories may leave this machine and\n" +
+			"  hands over nothing. The same search runs in the browser, which sends nothing\n" +
+			"  anywhere: yomihon serve --root <dir>\n"
+	}
+	return searchCapabilityLine(prefix, searchReasonPrivacyUnavailable, privacyAbsentMessage) +
+		"  yomihon reads " + schema.ContractRelPath + " for, among other things, the\n" +
+		"  directories whose contents must never leave this machine. A folder carrying no\n" +
+		"  such file has declared nothing, so yomihon cannot tell what it may hand to a\n" +
+		"  program and hands over nothing. The same search runs in the browser, which sends\n" +
+		"  nothing anywhere: yomihon serve --root <dir>\n"
 }
 
 func searchCapabilityMessage(reason searchReason) (string, bool) {
 	switch reason {
 	case searchReasonPrivacyUnavailable:
-		return "the vault contract declares no valid privacy policy, so agent-facing search output is closed", true
+		return privacyRejectedMessage, true
 	case searchReasonMetadataUnavailable:
 		return "the vault contract declares no valid artifact policy, so metadata filters cannot be evaluated", true
 	case searchReasonArtifactPolicyUnavailable:

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	pathpkg "path"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -323,6 +324,7 @@ func buildView(
 	publishedNotes := make(map[string]Note)
 	resources := make([]string, 0, len(entries))
 	slotFiles := make(map[string][]byte)
+	fileDocuments := make([]search.Document, 0, len(entries))
 	retry := len(scan.Problems()) != 0
 
 	for _, entry := range entries {
@@ -330,9 +332,13 @@ func buildView(
 			return nil, false, err
 		}
 		relPath := entry.Path()
-		if !strings.HasSuffix(relPath, ".md") {
+		note := strings.HasSuffix(relPath, ".md")
+		want := wantedBytes(entry, note)
+		if !note {
+			// A wikilink may point at any vault file, so the resolver is told
+			// about every one of them whether or not its bytes are read.
 			resources = append(resources, relPath)
-			if !lesson.IsSlotSidecar(relPath) {
+			if !want.read {
 				continue
 			}
 		}
@@ -342,11 +348,11 @@ func buildView(
 				return nil, false, contextErr
 			}
 			log.Warn("vault source unavailable in snapshot generation", "path", relPath, "error", err)
-			retry = true
+			retry = retry || want.holdsBackGeneration
 			continue
 		}
-		if lesson.IsSlotSidecar(relPath) {
-			slotFiles[relPath] = data
+		if !note {
+			fileDocuments = captureFile(relPath, data, want.indexable, slotFiles, fileDocuments)
 			continue
 		}
 		parsed := vault.Parse(relPath, data)
@@ -357,10 +363,11 @@ func buildView(
 
 	graphIndex := graph.New(parsedNotes, resources)
 	navigation := nav.New(entries, parsedByPath, graphIndex, roles, projectionPolicy)
-	documents := make([]search.Document, 0, len(parsedNotes))
+	documents := make([]search.Document, 0, len(parsedNotes)+len(fileDocuments))
 	for _, note := range parsedNotes {
 		documents = append(documents, search.DocumentFromNote(note))
 	}
+	documents = append(documents, fileDocuments...)
 	searchIndex := search.NewIndex(documents, projectionPolicy)
 
 	slots, err := lesson.NewSlotIndex(slotFiles)
@@ -388,11 +395,79 @@ func buildView(
 	return view, retry, nil
 }
 
+// captureFile files one vault entry that is not a note into the projections
+// that can use it: its own parser, if it is a lesson sidecar, and the text
+// corpus, if its bytes are characters.
+//
+// The bytes decide that last question, as they do on the file's own page: a
+// name is not evidence about what is inside a file, and a term found in
+// something the reader will only ever be shown as opaque bytes would point at a
+// page that cannot show it.
+func captureFile(
+	relPath string,
+	data []byte,
+	indexable bool,
+	slotFiles map[string][]byte,
+	fileDocuments []search.Document,
+) []search.Document {
+	if lesson.IsSlotSidecar(relPath) {
+		slotFiles[relPath] = data
+	}
+	// indexable carries the decision the entry itself was judged by. A sidecar
+	// is read whatever its size, because a lesson is built from it, and deciding
+	// again from the bytes alone would put a file in the index whose own page
+	// says its contents are not searched.
+	if !indexable || !render.IsText(data) {
+		return fileDocuments
+	}
+	return append(fileDocuments, search.DocumentFromFile(relPath, data))
+}
+
+// bytesWanted is why a generation reads one vault file, and what follows if it
+// cannot.
+type bytesWanted struct {
+	read      bool
+	indexable bool
+	// holdsBackGeneration means an unread file leaves the reading surface
+	// incomplete, so the generation is retried rather than published. A note and
+	// a sidecar a lesson is built from qualify. Any other file lends the index
+	// its words and nothing else: losing it costs a search hit, while holding the
+	// folder hostage to one permanently unreadable file would stop every later
+	// change from ever being published, silently, at the generation before it.
+	holdsBackGeneration bool
+}
+
+// wantedBytes decides what this generation needs from one scanned entry.
+func wantedBytes(entry vault.Entry, note bool) bytesWanted {
+	if note {
+		return bytesWanted{read: true, holdsBackGeneration: true}
+	}
+	sidecar := lesson.IsSlotSidecar(entry.Path())
+	indexable := readableAsText(entry)
+	return bytesWanted{
+		read:                sidecar || indexable,
+		indexable:           indexable,
+		holdsBackGeneration: sidecar,
+	}
+}
+
+// readableAsText reports whether a vault file that is not a note is a candidate
+// for the text index: not shown as a picture, and small enough that its own page
+// shows its characters rather than an information card. The predicate is the
+// page's, so one rule holds across both faces — if yomihon shows it to you as
+// text, you can find it.
+func readableAsText(entry vault.Entry) bool {
+	relPath := entry.Path()
+	return !render.IsPicture(relPath) &&
+		!strings.EqualFold(pathpkg.Ext(relPath), ".pdf") &&
+		entry.Size() <= render.MaxSourceBytes
+}
+
 func (s *Store) logBuild(message string, view *View, scan vault.Scan) {
 	s.log.Info(message,
 		"files", len(scan.Files()),
 		"scan_problems", len(scan.Problems()),
-		"notes_indexed", view.search.Len(),
+		"indexed", view.search.Len(),
 		"paths", len(view.navigation.Paths()),
 		"maps", len(view.navigation.Maps()),
 		"journal", len(view.navigation.Journal()),

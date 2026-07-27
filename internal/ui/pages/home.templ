@@ -19,8 +19,18 @@ import (
 // that claimed none has no lifecycle vocabulary to show, so that block is
 // absent rather than empty or apologetic.
 type HomeView struct {
-	Governed        bool
-	Fault           string
+	Governed bool
+	Fault    string
+	// Subtitle names the content blocks this page actually carries. It is empty
+	// when it would name none of them, because a line under the title promising
+	// sections that are not below it is the same defect as a bordered box with
+	// nothing in it.
+	Subtitle string
+	// StandIn is the line that takes the place of the content blocks when this
+	// folder fills none of them. It states what the folder has rather than what
+	// it lacks: a reader who will never write a contract is not missing
+	// anything, and a page implying otherwise is an advertisement.
+	StandIn         HomeStandIn
 	Recent          []HomeNote
 	RecentClosed    bool
 	Lifecycle       []LifecycleItem
@@ -30,6 +40,18 @@ type HomeView struct {
 	ReadmeHTML      string
 	ReadmeMissing   bool
 	Sidebar         Sidebar
+}
+
+// HomeStandIn carries the stand-in line's facts: how much is in this folder and
+// which of it changed last. NewestPath is empty for a folder holding no files,
+// the one case with nothing to point at.
+type HomeStandIn struct {
+	Shown      bool
+	Files      int
+	NewestName string
+	NewestPath string
+	NewestDate string
+	NewestAt   string
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -64,7 +86,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 					<header class="y-home__head">
 						<div class="y-home__kicker">閱讀桌</div>
 						<h1 class="y-title">首頁</h1>
-						<p>查看最近變更、待判讀內容，以及接下來的學習路徑。</p>
+						if v.Subtitle != "" {
+							<p>{ v.Subtitle }</p>
+						}
 					</header>
 					<div class="y-homegrid">
 						if v.Fault != "" {
@@ -75,31 +99,36 @@ templ Home(v HomeView, c layouts.Chrome) {
 								</p>
 							</section>
 						}
-						if !v.RecentClosed {
+						if v.StandIn.Shown {
+							<p class="y-homestandin" data-home-standin>
+								if v.StandIn.NewestPath == "" {
+									這個資料夾目前沒有檔案。
+								} else {
+									{ "這個資料夾有 " + strconv.Itoa(v.StandIn.Files) + " 個檔案，最近一次變更是" }<a href={ templ.URL(notesHref(v.StandIn.NewestPath)) }>{ v.StandIn.NewestName }</a>（<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>）。
+								}
+							</p>
+						}
+						if !v.RecentClosed && len(v.Recent) > 0 {
 							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
 								@homeBlockHead("home-recent-title", "最近變更", "磁碟上的最新異動")
-								if len(v.Recent) > 0 {
-									<div class="y-homerecent">
-										for _, n := range v.Recent {
-											<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
-												<span class="y-homenote__main">
-													<span class="y-homenote__title">{ n.Title }</span>
-													<span class="y-homenote__path">{ n.RelPath }</span>
-												</span>
-												<span class="y-homenote__meta">
-													if n.Status != "" {
-														<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
-													}
-													if n.Modified != "" {
-														<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
-													}
-												</span>
-											</a>
-										}
-									</div>
-								} else {
-									<p class="y-homeempty">目前快照中沒有具類型的筆記。</p>
-								}
+								<div class="y-homerecent">
+									for _, n := range v.Recent {
+										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
+											<span class="y-homenote__main">
+												<span class="y-homenote__title">{ n.Title }</span>
+												<span class="y-homenote__path">{ n.RelPath }</span>
+											</span>
+											<span class="y-homenote__meta">
+												if n.Status != "" {
+													<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
+												}
+												if n.Modified != "" {
+													<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
+												}
+											</span>
+										</a>
+									}
+								</div>
 							</section>
 						}
 						if v.Governed && !v.LifecycleClosed {
@@ -118,21 +147,17 @@ templ Home(v HomeView, c layouts.Chrome) {
 								}
 							</section>
 						}
-						if !v.PathsClosed {
+						if !v.PathsClosed && len(v.Paths) > 0 {
 							<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
 								@homeBlockHead("home-paths-title", "學習路徑", "沿著 vault 中的課程繼續學習")
-								if len(v.Paths) > 0 {
-									<div class="y-homepaths">
-										for _, p := range v.Paths {
-											<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
-												<span class="y-homepath__title">{ p.Title }</span>
-												<span class="y-homepath__progress">{ strconv.Itoa(p.Ready) } / { strconv.Itoa(p.Total) } 已完成</span>
-											</a>
-										}
-									</div>
-								} else {
-									<p class="y-homeempty">目前快照中沒有學習路徑。</p>
-								}
+								<div class="y-homepaths">
+									for _, p := range v.Paths {
+										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
+											<span class="y-homepath__title">{ p.Title }</span>
+											<span class="y-homepath__progress">{ strconv.Itoa(p.Ready) } / { strconv.Itoa(p.Total) } 已完成</span>
+										</a>
+									}
+								</div>
 							</section>
 						}
 						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">

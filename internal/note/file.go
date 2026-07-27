@@ -1,7 +1,6 @@
 package note
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -21,12 +19,6 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-// maxSourceBytes is the comfort cap on a file rendered as highlighted source.
-// Past it the page would cost more to build and scroll than it is worth, so the
-// file gets an information page pointing at its bytes instead. A note is not
-// subject to this: markdown keeps the reading page at any size.
-const maxSourceBytes = 1 << 20 // 1 MiB
 
 // sniffBytes is how much of a file's opening the raw endpoint reads to decide
 // between plain text and opaque bytes when the name carries no extension to go
@@ -54,13 +46,6 @@ var mediaTypes = map[string]string{
 	".webp": "image/webp",
 	".svg":  "image/svg+xml",
 	".pdf":  "application/pdf",
-}
-
-// imageExts are the kinds an <img> element can display. A file's extension —
-// not its bytes — chooses the viewer, because that is the only thing that says
-// how the reader wants to see it; the bytes only decide text from binary.
-var imageExts = map[string]bool{
-	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".svg": true,
 }
 
 // servable restates the vault scanner's own rule at the route boundary: the
@@ -91,47 +76,6 @@ func servable(rel string) bool {
 		}
 	}
 	return true
-}
-
-// looksText reports whether b is plausibly text: no NUL byte, and valid UTF-8.
-// The extension is deliberately not consulted — a .txt holding a compiled
-// object must never be poured into a source page, and a build file with no
-// extension at all must still read as what it is.
-//
-// b must not end mid-character; callers that pass a truncated window trim it
-// with trimPartialRune first.
-func looksText(b []byte) bool {
-	return bytes.IndexByte(b, 0) < 0 && utf8.Valid(b)
-}
-
-// trimPartialRune drops a multi-byte character that a fixed-size sniff window
-// cut in half, so a text file does not read as binary merely because its
-// opening bytes ended in the middle of a character.
-func trimPartialRune(b []byte) []byte {
-	for i := len(b) - 1; i >= 0 && i >= len(b)-3; i-- {
-		if b[i]&0xC0 == 0x80 {
-			continue // a continuation byte: the lead is further back
-		}
-		if b[i]&0x80 == 0 {
-			return b // plain ASCII: nothing was cut
-		}
-		var size int
-		switch {
-		case b[i]&0xE0 == 0xC0:
-			size = 2
-		case b[i]&0xF0 == 0xE0:
-			size = 3
-		case b[i]&0xF8 == 0xF0:
-			size = 4
-		default:
-			return b // not a lead byte at all; let the UTF-8 check reject it
-		}
-		if i+size > len(b) {
-			return b[:i]
-		}
-		return b
-	}
-	return b
 }
 
 // showFile serves a vault file that is not a note. The extension chooses a
@@ -169,13 +113,13 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 
 	ext := strings.ToLower(path.Ext(rel))
 	switch {
-	case imageExts[ext]:
+	case render.IsPicture(rel):
 		view.Kind = pages.FileImage
 		view.ContentType = fileContentType(rel, nil)
 	case ext == ".pdf":
 		view.Kind = pages.FilePDF
 		view.ContentType = fileContentType(rel, nil)
-	case entry.Size() > maxSourceBytes:
+	case entry.Size() > render.MaxSourceBytes:
 		view.Kind = pages.FileInfo
 		head, readErr := h.deps.Source.ReadPrefix(r.Context(), entry, sniffBytes)
 		if readErr != nil {
@@ -192,7 +136,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 			return
 		}
 		view.ContentType = fileContentType(rel, data)
-		if !looksText(data) {
+		if !render.IsText(data) {
 			view.Kind = pages.FileInfo
 			break
 		}
@@ -319,7 +263,7 @@ func fileContentType(rel string, data []byte) string {
 	if len(data) > sniffBytes {
 		data = data[:sniffBytes]
 	}
-	if looksText(trimPartialRune(data)) {
+	if render.IsTextPrefix(data) {
 		return textContentType
 	}
 	return octetContentType

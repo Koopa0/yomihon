@@ -46,8 +46,19 @@ export function initStatus() {
     return true;
   }
 
+  // A control the working tree would refuse is rendered inert, and the hold has
+  // to ask the same question the markup answered. Two ways past it otherwise:
+  // Chrome still dispatches pointerdown on a disabled button, and requestSubmit
+  // submits a form whose only submit button is disabled — so the ceremony would
+  // become the one route around a refusal every other route already respects.
+  // Read live, because the page is the only thing that knows the answer.
+  function sealRefused(form) {
+    const button = form && form.querySelector('[data-seal-btn]');
+    return !button || button.disabled;
+  }
+
   function startHold(form) {
-    if (sealing || holding || !form) return;
+    if (sealing || holding || !form || sealRefused(form)) return;
     holding = true;
     sealFills().forEach((fill) => {
       fill.style.transition = `width ${holdDuration}ms linear`;
@@ -121,7 +132,9 @@ export function initStatus() {
 
   const shortcutForm = document.querySelector('[data-seal]');
   return {
-    canStartShortcutHold: () => Boolean(shortcutForm && !sealing),
+    // Answering false leaves R with its native meaning on a note whose seal is
+    // refused, instead of swallowing the key for an act that cannot happen.
+    canStartShortcutHold: () => Boolean(shortcutForm && !sealing && !sealRefused(shortcutForm)),
     startShortcutHold: () => startHold(shortcutForm),
     cancelHold,
   };
