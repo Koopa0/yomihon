@@ -236,7 +236,15 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 // convertWikilinks scans one source line for [[...]] and ![[...]] and replaces
 // each with its rendered form.
 func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *[]Diagnostic, blocks *[]string) string {
-	return wikilinkToken.ReplaceAllStringFunc(text, func(m string) string {
+	// A code span is quoted text: the author is showing the reader what a
+	// wikilink looks like, not making one. Converting it substituted a
+	// renderer-owned placeholder that goldmark then escaped as the span's
+	// literal content, so the sentence explaining the syntax printed an
+	// internal comment instead — and the link the author never made was
+	// resolved, so a note that names a target it does not link to collected a
+	// broken-link diagnostic for it.
+	spans := codeSpanRanges(text)
+	return replaceOutside(text, spans, wikilinkToken, func(m string) string {
 		embed := strings.HasPrefix(m, "!")
 		raw := m
 		if embed {
@@ -259,6 +267,80 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *
 		*blocks = append(*blocks, linkHTML)
 		return blockPlaceholder(len(*blocks) - 1)
 	})
+}
+
+// backtickRun reports how many backticks start at i, zero when none do.
+func backtickRun(text string, i int) int {
+	n := 0
+	for i+n < len(text) && text[i+n] == '`' {
+		n++
+	}
+	return n
+}
+
+// closingRun reports the end offset of the next backtick run of exactly width
+// at or after i, or -1 when the text has none. A run of a different width is
+// ordinary content inside the span and is stepped over.
+func closingRun(text string, i, width int) int {
+	for j := i; j < len(text); {
+		n := backtickRun(text, j)
+		switch n {
+		case 0:
+			j++
+		case width:
+			return j + n
+		default:
+			j += n
+		}
+	}
+	return -1
+}
+
+// codeSpanRanges reports the byte ranges of CommonMark code spans in text: a
+// run of backticks opens one and the next run of the same length closes it. A
+// run with no such closer is not a span, and neither is anything after it —
+// which is how the same text renders, so the two agree.
+func codeSpanRanges(text string) [][2]int {
+	var spans [][2]int
+	for i := 0; i < len(text); {
+		width := backtickRun(text, i)
+		if width == 0 {
+			i++
+			continue
+		}
+		end := closingRun(text, i+width, width)
+		if end < 0 {
+			return spans
+		}
+		spans = append(spans, [2]int{i, end})
+		i = end
+	}
+	return spans
+}
+
+// replaceOutside applies fn to every match of re that lies wholly outside the
+// given ranges, leaving everything else byte-identical.
+func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(string) string) string {
+	inSkip := func(start, end int) bool {
+		for _, s := range skip {
+			if start >= s[0] && end <= s[1] {
+				return true
+			}
+		}
+		return false
+	}
+	var out strings.Builder
+	last := 0
+	for _, loc := range re.FindAllStringIndex(text, -1) {
+		if inSkip(loc[0], loc[1]) {
+			continue
+		}
+		out.WriteString(text[last:loc[0]])
+		out.WriteString(fn(text[loc[0]:loc[1]]))
+		last = loc[1]
+	}
+	out.WriteString(text[last:])
+	return out.String()
 }
 
 // notesHref builds the reading page's URL for a vault-relative path,

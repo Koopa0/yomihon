@@ -166,7 +166,9 @@ func (v *View) Render(relPath, body string) render.Result {
 	if v == nil || v.markdown == nil {
 		return render.Result{}
 	}
-	return v.markdown.HTML(relPath, body)
+	// The title the page will show, so the renderer can tell a heading that
+	// repeats it from one that is the only thing naming the document.
+	return v.markdown.HTML(relPath, v.notes[relPath].Title, body)
 }
 
 // Transclusion returns the immutable body captured for canonicalPath. It is

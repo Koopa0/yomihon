@@ -43,8 +43,8 @@ func FuzzHTML(f *testing.F) {
 			return
 		}
 
-		first := renderer.HTML("note.md", body)
-		second := renderer.HTML("note.md", body)
+		first := renderer.HTML("note.md", "", body)
+		second := renderer.HTML("note.md", "", body)
 		if diff := cmp.Diff(first, second); diff != "" {
 			t.Fatalf("Pipeline.HTML() is not deterministic (-first +second):\n%s", diff)
 		}

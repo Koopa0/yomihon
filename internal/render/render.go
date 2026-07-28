@@ -164,9 +164,9 @@ func New(idx Resolver, transclusions Transclusions) *Pipeline {
 // transcluded body is resolved against its own note before it is spliced
 // in, so what arrives here is already routed and passes through
 // untouched.
-func (r *Pipeline) HTML(relPath, body string) Result {
+func (r *Pipeline) HTML(relPath, title, body string) Result {
 	body = stripObsidianComments(body)
-	body = removeBodyFirstH1(body)
+	body = removeBodyFirstH1(title, body)
 	res := r.renderBody(body, embedsAllowed)
 	htmlOut, toc := assignHeadingSlugs(res.HTML)
 	res.HTML = resolveAssetHrefs(htmlOut, relPath)
@@ -211,19 +211,29 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy) Result {
 	return Result{HTML: substituteBlocks(buf.String(), blocks), Diagnostics: diags}
 }
 
-// removeBodyFirstH1 drops a leading level-1 ATX heading: the page's title
-// comes from frontmatter (rendered separately by the caller), so a body
-// that opens with its own "# Heading" would show the title twice. Only
-// the very first non-blank line qualifies — any other H1 later in the
-// document (or inside a callout/embed, which never reach this function —
-// see HTML's doc comment) is left untouched.
-func removeBodyFirstH1(body string) string {
+// removeBodyFirstH1 drops a leading level-1 ATX heading when the page is
+// already showing that same text as its title, which is the only reason to
+// drop it: the reader would otherwise see the title twice. Only the very first
+// non-blank line qualifies — any other H1 later in the document (or inside a
+// callout or embed, which never reach this function — see HTML's doc comment)
+// is left untouched.
+//
+// A note whose frontmatter declares no title is displayed under its filename,
+// and its opening heading is then the only place the document says what it is.
+// Removing that heading destroyed the sentence and put a filename in its
+// place — on an ordinary folder, where nothing carries frontmatter, that was
+// every file.
+func removeBodyFirstH1(title, body string) string {
 	lines := strings.Split(body, "\n")
 	i := 0
 	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
 		i++
 	}
 	if i >= len(lines) || !strings.HasPrefix(lines[i], "# ") {
+		return body
+	}
+	heading := strings.TrimSpace(strings.TrimPrefix(lines[i], "# "))
+	if heading != strings.TrimSpace(title) {
 		return body
 	}
 	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n")
