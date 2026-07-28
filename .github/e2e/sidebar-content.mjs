@@ -119,7 +119,7 @@ const MUTATIONS = {
   },
   'rename-advanceable': {
     target: 'advanceable-chip',
-    apply: replaceEvery('aria-label="1 篇筆記可進入下一個合法狀態"', 'aria-label="advanceable"'),
+    apply: replaceEvery('aria-label="1 篇筆記的狀態還有下一步"', 'aria-label="advanceable"'),
   },
   'autofocus-home-search': {
     target: 'home-start-top',
@@ -199,7 +199,7 @@ try {
     fail('lifecycle-retired', 'Lifecycle still appears in the sidebar');
   }
   const chip = page.locator('a[data-advanceable-chip]');
-  if (await chip.count() !== 1 || await chip.getAttribute('aria-label') !== '1 篇筆記可進入下一個合法狀態' || await chip.getAttribute('href') !== '/') {
+  if (await chip.count() !== 1 || await chip.getAttribute('aria-label') !== '1 篇筆記的狀態還有下一步' || await chip.getAttribute('href') !== '/') {
     fail('advanceable-chip', 'the shared advanceable-note chip is absent, mislabeled, or does not link Home');
   }
 

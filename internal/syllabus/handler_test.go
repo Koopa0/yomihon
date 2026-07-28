@@ -227,7 +227,7 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("shell snapshot reads = %d, want 1", calls)
 	}
-	if !strings.Contains(rr.Body.String(), `aria-label="3 篇筆記可進入下一個合法狀態"`) {
+	if !strings.Contains(rr.Body.String(), `aria-label="3 篇筆記的狀態還有下一步"`) {
 		t.Errorf("response missing pending chip; body = %q", rr.Body.String())
 	}
 }

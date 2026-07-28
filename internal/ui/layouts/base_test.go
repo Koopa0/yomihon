@@ -173,7 +173,7 @@ func TestHeaderAdvanceableChip(t *testing.T) {
 		wantLabel   string
 		wantVisible string
 	}{
-		{name: "known count", chrome: Chrome{Advanceable: 7, AdvanceableKnown: true}, wantChip: true, wantLabel: `aria-label="7 篇筆記可進入下一個合法狀態"`, wantVisible: ">7</a>"},
+		{name: "known count", chrome: Chrome{Advanceable: 7, AdvanceableKnown: true}, wantChip: true, wantLabel: `aria-label="7 篇筆記的狀態還有下一步"`, wantVisible: ">7</a>"},
 		{name: "closed policy", chrome: Chrome{}, wantChip: false},
 	}
 	for _, tt := range tests {

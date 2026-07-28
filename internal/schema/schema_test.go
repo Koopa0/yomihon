@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -1546,5 +1548,95 @@ owner = ["editor", "bot"]
 					tt.noteType, tt.status, tt.actor, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestTouchingTheContractLeavesThePolicyAvailable separates two questions the
+// pinned identity check had collapsed into one.
+//
+// The pinned entry records which file the contract was at startup, and that
+// record includes the modification time — so a git checkout, a pull, a restored
+// backup or an editor that saves by rename moves it without changing a byte.
+// The vault this serves is a git repository and yomihon runs git against it, so
+// this is an ordinary event, and treating it as a contract change closed the
+// write face until restart while reporting a change that had not happened.
+func TestTouchingTheContractLeavesThePolicyAvailable(t *testing.T) {
+	t.Parallel()
+	root, _ := loadSemanticRootContract(t, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`, `
+[privacy]
+never_egress_dirs = ["Private"]
+`)
+	_, contract := loadPinnedSemanticContract(t, root)
+	if !contract.ArtifactPolicy().ValidateSource().Available() {
+		t.Fatal("the policy was unavailable before anything touched the contract")
+	}
+
+	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat contract: %v", err)
+	}
+	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
+	if err != nil {
+		t.Fatalf("read contract: %v", err)
+	}
+	moved := before.ModTime().Add(2 * time.Second)
+	if err = os.Chtimes(path, moved, moved); err != nil {
+		t.Fatalf("move the contract's modification time: %v", err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat contract after: %v", err)
+	}
+	if after.ModTime().Equal(before.ModTime()) {
+		t.Fatal("the modification time did not move, so this test proves nothing")
+	}
+	current, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
+	if err != nil {
+		t.Fatalf("re-read contract: %v", err)
+	}
+	if !bytes.Equal(original, current) {
+		t.Fatal("the contract's bytes changed, so this is a different test")
+	}
+
+	if !contract.ArtifactPolicy().ValidateSource().Available() {
+		t.Error("the artifact policy closed after a touch; no byte of the contract moved")
+	}
+	if !contract.PrivacyPolicy().ValidateSource().Available() {
+		t.Error("the privacy policy closed after a touch; no byte of the contract moved")
+	}
+}
+
+// TestRewritingTheContractClosesThePolicy is the reverse direction, and it is
+// the one that must never soften: a contract whose bytes changed under a running
+// process is a contract this process cannot vouch for.
+func TestRewritingTheContractClosesThePolicy(t *testing.T) {
+	t.Parallel()
+	root, _ := loadSemanticRootContract(t, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`, `
+[privacy]
+never_egress_dirs = ["Private"]
+`)
+	_, contract := loadPinnedSemanticContract(t, root)
+
+	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
+	if err != nil {
+		t.Fatalf("read contract: %v", err)
+	}
+	if err = os.WriteFile(path, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
+		t.Fatalf("rewrite contract: %v", err)
+	}
+
+	if contract.ArtifactPolicy().ValidateSource().Available() {
+		t.Error("the artifact policy stayed open after the contract's bytes changed")
+	}
+	if contract.PrivacyPolicy().ValidateSource().Available() {
+		t.Error("the privacy policy stayed open after the contract's bytes changed")
 	}
 }

@@ -1835,7 +1835,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if !strings.Contains(body, "Dashboard README sentinel.") {
 		t.Error("Home is missing the rendered vault README body")
 	}
-	if !strings.Contains(body, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
+	if !strings.Contains(body, `aria-label="1 篇筆記的狀態還有下一步"`) {
 		t.Error("Home topbar is missing the snapshot-derived advanceable chip")
 	}
 	if got := homeSubtitle(t, body); got != "查看最近變更、待判讀內容，以及接下來的學習路徑。" {
@@ -2092,7 +2092,7 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 	if strings.Contains(body, "contract declares no artifact policy; instance projections disabled until it does") {
 		t.Errorf("Home falsely reports an artifact failure: %q", body)
 	}
-	if !strings.Contains(page, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
+	if !strings.Contains(page, `aria-label="1 篇筆記的狀態還有下一步"`) {
 		t.Error("advanceable chip was suppressed by navigation-only failure")
 	}
 }
@@ -2171,7 +2171,7 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
 	if !strings.Contains(draftRow, `aria-label="1 篇筆記">1</span>`) {
 		t.Errorf("draft lifecycle count includes the template or misses the instance; row = %q", draftRow)
 	}
-	if !strings.Contains(page, `aria-label="1 篇筆記可進入下一個合法狀態"`) {
+	if !strings.Contains(page, `aria-label="1 篇筆記的狀態還有下一步"`) {
 		t.Error("advanceable count includes the template or misses the instance")
 	}
 }

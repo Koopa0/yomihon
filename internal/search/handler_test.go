@@ -136,7 +136,7 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("request snapshot reads = %d, want 1", calls)
 	}
-	for _, want := range []string{"One", `aria-label="4 篇筆記可進入下一個合法狀態"`} {
+	for _, want := range []string{"One", `aria-label="4 篇筆記的狀態還有下一步"`} {
 		if !strings.Contains(rr.Body.String(), want) {
 			t.Errorf("search response missing %q; body = %q", want, rr.Body.String())
 		}
