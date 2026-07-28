@@ -376,10 +376,12 @@ func buildView(
 	documents = append(documents, fileDocuments...)
 	searchIndex := search.NewIndex(documents, projectionPolicy)
 
-	slots, err := lesson.NewSlotIndex(slotFiles)
-	if err != nil {
-		log.Warn("slot sidecars unavailable in snapshot generation", "error", err)
-		slots = lesson.SlotIndex{}
+	slots, slotProblems := lesson.NewSlotIndex(slotFiles)
+	for _, problem := range slotProblems {
+		// One unusable sidecar is one lesson without its practice panel, not
+		// the whole feature, so the generation keeps the ones that read.
+		log.Warn("slot sidecar unusable in snapshot generation",
+			"path", problem.Source, "problem", problem.Message)
 	}
 	concepts, err := lesson.NewConceptIndex(parsedNotes)
 	if err != nil {

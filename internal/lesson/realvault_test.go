@@ -47,9 +47,16 @@ func TestRealVaultSlotsLoadAndValidate(t *testing.T) {
 	if len(files) == 0 {
 		t.Skip("configured real-vault lesson data is unavailable")
 	}
-	idx, err := NewSlotIndex(files)
-	if err != nil {
-		t.Fatal("NewSlotIndex() failed for configured real-vault lesson data")
+	idx, problems := NewSlotIndex(files)
+	// Every sidecar in the operator's own vault must be usable. One that is not
+	// now costs only its own lesson, which is the point — but on this vault
+	// nothing should be paying that cost, and a run that reports one is telling
+	// the operator which file to open.
+	for _, problem := range problems {
+		t.Errorf("real-vault sidecar %s is unusable: %s", problem.Source, problem.Message)
+	}
+	if idx.Len() != len(files) {
+		t.Errorf("indexed %d of %d real-vault sidecars", idx.Len(), len(files))
 	}
 
 	keys := slices.Sorted(maps.Keys(idx.bySlug))

@@ -66,9 +66,16 @@ type Pattern struct {
 // matches it, and the two filenames (the note's Japanese title, the sidecar's
 // Lxx.yaml) deliberately do not.
 type Sidecar struct {
-	Lesson   string    `yaml:"lesson"`
-	Slug     string    `yaml:"slug"`
-	Title    string    `yaml:"title"`
+	Lesson string `yaml:"lesson"`
+	Slug   string `yaml:"slug"`
+	Title  string `yaml:"title"`
+	// Note is what this drill does not cover, in the lesson author's own words.
+	// A pattern is something whose parts swap; a rule that holds across the
+	// whole lesson has nowhere to go among them, and without somewhere to say
+	// so the panel silently presents itself as the lesson's patterns when its
+	// author knows it is a subset. It reads as plain text, like the labels and
+	// glosses beside it.
+	Note     string    `yaml:"note"`
 	Patterns []Pattern `yaml:"patterns"`
 }
 

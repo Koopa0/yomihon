@@ -1,7 +1,6 @@
 package lesson
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -25,40 +24,72 @@ type SlotIndex struct {
 // its byte slices. A malformed sidecar is a build fault to surface, not
 // reader-facing content to tolerate. Two files claiming the same slug are
 // likewise an error because the join would be ambiguous.
-func NewSlotIndex(files map[string][]byte) (SlotIndex, error) {
+func NewSlotIndex(files map[string][]byte) (SlotIndex, Problems) {
 	sidecars := make(map[string]*Sidecar, len(files))
+	var problems Problems
 	for _, relPath := range slices.Sorted(maps.Keys(files)) {
 		if !IsSlotSidecar(relPath) {
 			continue
 		}
 		s, err := parseSidecar(relPath, files[relPath])
 		if err != nil {
-			return SlotIndex{}, err
+			// One file yomihon cannot read is one lesson without a practice
+			// panel. It used to be all of them: the first failure returned an
+			// empty index, so a single unknown key in one sidecar withheld the
+			// feature from every lesson in the vault, and the only trace was a
+			// line in the startup log. What a file's own fault costs is that
+			// file.
+			problems = append(problems, Problem{Source: relPath, Message: err.Error()})
+			continue
 		}
 		sidecars[relPath] = s
 	}
-	return indexSidecars(sidecars)
+	idx, indexed := indexSidecars(sidecars)
+	return idx, append(problems, indexed...)
 }
 
-func indexSidecars(sidecars map[string]*Sidecar) (SlotIndex, error) {
+// Problem is one sidecar yomihon could not use, and why. yomihon reports and a
+// human edits the file; nothing here repairs anything.
+type Problem struct {
+	Source  string
+	Message string
+}
+
+// Problems is every sidecar that could not be used in one generation.
+type Problems []Problem
+
+func indexSidecars(sidecars map[string]*Sidecar) (SlotIndex, Problems) {
 	idx := SlotIndex{bySlug: make(map[string]*Sidecar, len(sidecars))}
 	sources := make(map[string]string, len(sidecars))
+	var problems Problems
 	for _, relPath := range slices.Sorted(maps.Keys(sidecars)) {
 		name, _ := slotSidecarName(relPath)
 		s := sidecars[relPath]
+		// Validate already reports one message per problem and repairs
+		// nothing, which is what this package is for. Joining that list into a
+		// single error and returning it was what turned a report into a kill
+		// switch.
 		if s.Slug == "" {
-			return SlotIndex{}, fmt.Errorf("slot sidecar %s declares no slug", name)
+			problems = append(problems, Problem{Source: relPath, Message: "slot sidecar " + name + " declares no slug"})
+			continue
 		}
-		if problems := s.Validate(); len(problems) != 0 {
-			return SlotIndex{}, fmt.Errorf("validate slot sidecar %s: %s", name, strings.Join(problems, "; "))
+		if found := s.Validate(); len(found) != 0 {
+			for _, message := range found {
+				problems = append(problems, Problem{Source: relPath, Message: message})
+			}
+			continue
 		}
 		if _, dup := idx.bySlug[s.Slug]; dup {
-			return SlotIndex{}, fmt.Errorf("slot slug %q declared by two sidecars (%s and %s)", s.Slug, sources[s.Slug], relPath)
+			problems = append(problems, Problem{
+				Source:  relPath,
+				Message: "slot slug " + s.Slug + " is already declared by " + sources[s.Slug],
+			})
+			continue
 		}
 		idx.bySlug[s.Slug] = s
 		sources[s.Slug] = relPath
 	}
-	return idx, nil
+	return idx, problems
 }
 
 // IsSlotSidecar reports whether relPath names a direct YAML child of the

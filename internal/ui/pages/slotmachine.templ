@@ -15,7 +15,11 @@ templ SlotMachine(s *lesson.Sidecar, nonce string) {
 	<section class="y-slotmachine" lang="zh-Hant" aria-label="句型練習">
 		<div class="y-slotmachine__intro">
 			<h2 class="y-slotmachine__title">句型練習</h2>
-			<p class="y-slotmachine__sub">替換詞語後，句子會重新組合、著色並朗讀；直接練習本課句型。</p>
+			if s.Note != "" {
+				<p class="y-slotmachine__sub">{ s.Note }</p>
+			} else {
+				<p class="y-slotmachine__sub">替換詞語後，句子會重新組合、著色並朗讀；直接練習本課句型。</p>
+			}
 		</div>
 		for _, p := range s.Patterns {
 			@slotCard(p, nonce)

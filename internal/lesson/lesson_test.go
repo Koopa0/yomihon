@@ -204,9 +204,9 @@ func TestNewSlotIndexJoinsBySlug(t *testing.T) {
 		"System/other/L04.yaml":        slotSidecar("L04.yaml", "jp-minna-l04"),
 	}
 
-	idx, err := lesson.NewSlotIndex(files)
-	if err != nil {
-		t.Fatalf("NewSlotIndex() error = %v", err)
+	idx, problems := lesson.NewSlotIndex(files)
+	if len(problems) != 0 {
+		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
 	if idx.Len() != 2 {
 		t.Errorf("NewSlotIndex indexed %d sidecars, want 2 direct YAML children", idx.Len())
@@ -243,9 +243,9 @@ patterns:
             reading: わたし
             zh: 我
 `
-	idx, err := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
-	if err != nil {
-		t.Fatalf("NewSlotIndex() error = %v", err)
+	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
+	if len(problems) != 0 {
+		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
 
 	first, ok := idx.Lookup("jp-minna-l01")
@@ -285,9 +285,9 @@ patterns:
             reading: わたし
             zh: 我
 `
-	idx, err := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
-	if err != nil {
-		t.Fatalf("NewSlotIndex() error = %v", err)
+	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
+	if len(problems) != 0 {
+		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
 
 	var callers sync.WaitGroup
@@ -322,13 +322,18 @@ func TestNewSlotIndexRejectsDuplicateSlugDeterministically(t *testing.T) {
 		"System/slots/L01.yaml":      slotSidecar("L01.yaml", "jp-minna-l01"),
 		"System/slots/L01-copy.yaml": slotSidecar("L01-copy.yaml", "jp-minna-l01"),
 	}
-	_, err := lesson.NewSlotIndex(files)
-	if err == nil {
-		t.Fatal("NewSlotIndex accepted two sidecars with the same slug")
+	idx, problems := lesson.NewSlotIndex(files)
+	if len(problems) != 1 {
+		t.Fatalf("NewSlotIndex(duplicate slug) problems = %v, want exactly one", problems)
 	}
-	const want = `slot slug "jp-minna-l01" declared by two sidecars (System/slots/L01-copy.yaml and System/slots/L01.yaml)`
-	if err.Error() != want {
-		t.Errorf("NewSlotIndex(duplicate slug) error = %q, want %q", err, want)
+	// The first sidecar in path order keeps the slug and the second is
+	// reported: a name collision costs the file that arrived second, not both.
+	if idx.Len() != 1 {
+		t.Errorf("a duplicate slug cost both sidecars; Len() = %d, want 1", idx.Len())
+	}
+	const want = `slot slug jp-minna-l01 is already declared by System/slots/L01-copy.yaml`
+	if problems[0].Message != want {
+		t.Errorf("NewSlotIndex(duplicate slug) problem = %q, want %q", problems[0].Message, want)
 	}
 }
 
@@ -355,17 +360,27 @@ patterns:
         color: unknown
         fills: []
 `
-	_, err := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(invalid)})
-	if err == nil {
+	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(invalid)})
+	if len(problems) == 0 {
 		t.Fatal("NewSlotIndex accepted structurally invalid slot data")
 	}
+	if idx.Len() != 0 {
+		t.Errorf("an unusable sidecar reached the index; Len() = %d, want 0", idx.Len())
+	}
+	// One message per problem, so a reader is told every fault in the file
+	// rather than the first one.
+	joined := strings.Join(problemMessages(problems), " | ")
 	for _, want := range []string{
-		"validate slot sidecar L01.yaml",
 		"slot A has no fills",
 		`slot A has unknown color "unknown"`,
 	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("NewSlotIndex error = %q, want %q", err, want)
+		if !strings.Contains(joined, want) {
+			t.Errorf("NewSlotIndex problems = %q, want %q", joined, want)
+		}
+	}
+	for _, p := range problems {
+		if p.Source != "System/slots/L01.yaml" {
+			t.Errorf("a problem names %q, want the file it came from", p.Source)
 		}
 	}
 }
@@ -375,9 +390,9 @@ func TestNewSlotIndexOwnsCapturedBytes(t *testing.T) {
 	source := []byte("lesson: L01\nslug: jp-minna-l01\ntitle: Original\npatterns: []\n")
 	files := map[string][]byte{"System/slots/L01.yaml": source}
 
-	idx, err := lesson.NewSlotIndex(files)
-	if err != nil {
-		t.Fatalf("NewSlotIndex() error = %v", err)
+	idx, problems := lesson.NewSlotIndex(files)
+	if len(problems) != 0 {
+		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
 
 	copy(source, "lesson: XX")
@@ -403,5 +418,67 @@ func TestSlotIndexZeroValue(t *testing.T) {
 	}
 	if got, ok := idx.Lookup("jp-minna-l01"); ok || got != nil {
 		t.Errorf("zero SlotIndex.Lookup() = (%+v, %t), want (nil, false)", got, ok)
+	}
+}
+
+// problemMessages flattens a generation's sidecar problems for assertion.
+func problemMessages(problems lesson.Problems) []string {
+	out := make([]string, 0, len(problems))
+	for _, p := range problems {
+		out = append(out, p.Message)
+	}
+	return out
+}
+
+// TestOneUnusableSidecarCostsOnlyItsOwnLesson pins what a file's own fault is
+// allowed to cost. A single unknown key in one sidecar used to withhold the
+// practice panel from every lesson in the vault — measured on the real one,
+// twenty sidecars and none loaded — and the only trace was a line in the
+// startup log that named one file and never said what had been lost.
+func TestOneUnusableSidecarCostsOnlyItsOwnLesson(t *testing.T) {
+	t.Parallel()
+
+	idx, problems := lesson.NewSlotIndex(map[string][]byte{
+		"System/slots/L01.yaml": slotSidecar("L01.yaml", "jp-minna-l01"),
+		"System/slots/L02.yaml": []byte("lesson: L02\nslug: jp-minna-l02\ntitle: \"broken\"\nunknown_key: x\n"),
+		"System/slots/L03.yaml": slotSidecar("L03.yaml", "jp-minna-l03"),
+	})
+
+	if idx.Len() != 2 {
+		t.Errorf("one unreadable sidecar cost the others; Len() = %d, want 2", idx.Len())
+	}
+	for _, slug := range []string{"jp-minna-l01", "jp-minna-l03"} {
+		if _, ok := idx.Lookup(slug); !ok {
+			t.Errorf("a readable sidecar %q is missing from the index", slug)
+		}
+	}
+	if len(problems) != 1 {
+		t.Fatalf("problems = %v, want exactly the one unreadable file", problems)
+	}
+	if problems[0].Source != "System/slots/L02.yaml" {
+		t.Errorf("the problem names %q, want the file that could not be read", problems[0].Source)
+	}
+}
+
+// TestSidecarNoteReachesThePanel covers the sentence a drill cannot express as
+// a pattern. A pattern is something whose parts swap; a rule that holds across
+// the whole lesson has nowhere to go among them, so a panel with no way to say
+// what it leaves out presents itself as the lesson's patterns while its author
+// knows it is a subset.
+func TestSidecarNoteReachesThePanel(t *testing.T) {
+	t.Parallel()
+
+	withNote := append([]byte("note: >\n  もう Vました ↔ まだです 是狀態副詞,不換槽,故不入 pattern。\n"),
+		slotSidecar("L07.yaml", "jp-minna-l07")...)
+	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L07.yaml": withNote})
+	if len(problems) != 0 {
+		t.Fatalf("a sidecar carrying a note was rejected: %v", problems)
+	}
+	s, ok := idx.Lookup("jp-minna-l07")
+	if !ok {
+		t.Fatal("the sidecar did not reach the index")
+	}
+	if !strings.Contains(s.Note, "不入 pattern") {
+		t.Errorf("Sidecar.Note = %q, want the author's own coverage statement", s.Note)
 	}
 }
