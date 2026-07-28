@@ -1,6 +1,7 @@
 package report
 
 import (
+	"bytes"
 	"net/http"
 
 	"github.com/koopa0/yomihon/internal/origin"
@@ -34,7 +35,18 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 	shell := h.shell(snap)
 
-	view := pages.ReportView{Name: rep.Name, Nav: shell.Nav}
+	// The frame refuses scripts, which is right — a briefing that fetches from a
+	// CDN would be reaching off this machine. Reading the bytes here is what
+	// lets the page say so instead of showing a hole.
+	body, err := readReport(r.Context(), h.source, snap, rep.RelPath)
+	if err != nil {
+		h.log.Warn("read report for the shell", "name", rep.Name, "error", err)
+	}
+	view := pages.ReportView{
+		Name:        rep.Name,
+		Nav:         shell.Nav,
+		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
+	}
 	if err := pages.Report(view, shell.Chrome(r, rep.Name)).Render(r.Context(), w); err != nil {
 		h.log.Error("write report page", "name", rep.Name, "error", err)
 	}

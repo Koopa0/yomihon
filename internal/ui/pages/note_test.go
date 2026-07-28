@@ -371,3 +371,41 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 		}
 	})
 }
+
+// TestInlineDiagnosticsFoldAboveTheProse pins the placement, not the contents.
+// At widths where the right rail is gone this block sits between the title and
+// the first sentence, so an open list of findings was the last thing the page
+// said before the prose it was about — worst on the notes that have the most of
+// them. It folds like the contents above it, so the count is still stated and
+// nothing is hidden from a reader who wants it.
+func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
+	t.Parallel()
+
+	view := NoteView{
+		Title:   "DDIA",
+		RelPath: "Sources/DDIA.md",
+		RenderDiagnostics: []render.Diagnostic{
+			{Kind: render.DiagWikilinkBroken, Target: "Relational Model", Message: "does not resolve"},
+			{Kind: render.DiagWikilinkBroken, Target: "Leader Election", Message: "does not resolve"},
+		},
+	}
+	var buf bytes.Buffer
+	if err := inlineAids(view).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render inlineAids: %v", err)
+	}
+	got := buf.String()
+
+	if !strings.Contains(got, "y-diaglist") {
+		t.Fatalf("the diagnostics did not render at all:\n%s", got)
+	}
+	before, _, _ := strings.Cut(got, "y-diaglist")
+	if !strings.Contains(before, "<summary") {
+		t.Errorf("the diagnostics are not inside a disclosure; they open above the prose:\n%s", got)
+	}
+	if !strings.Contains(got, "診斷") {
+		t.Errorf("the disclosure does not name what it holds:\n%s", got)
+	}
+	if !strings.Contains(got, ">2<") {
+		t.Errorf("the count is not stated on the closed disclosure:\n%s", got)
+	}
+}

@@ -525,3 +525,46 @@ func TestRawReturnsNotFoundWhenFileVanishes(t *testing.T) {
 		t.Errorf("vanished report Content-Type = %q, want no success content type", got)
 	}
 }
+
+// TestReportSaysWhenPartOfItCannotDraw covers a hole with nothing beside it.
+// The frame refuses scripts, which is right: a briefing that pulls a charting
+// library from a CDN would be reaching off this machine, and that is the one
+// thing this program does not do. But a reader who wrote a briefing with three
+// charts and opens it here sees three blank spaces and no reason for them, and
+// reads that as a broken report rather than as the boundary holding.
+func TestReportSaysWhenPartOfItCannotDraw(t *testing.T) {
+	t.Parallel()
+
+	const notice = "程式不會在這裡執行"
+
+	t.Run("a briefing that draws with a script says so", func(t *testing.T) {
+		t.Parallel()
+		rr := get(t, newHandler(t, vaultWithBriefing(t)), "/reports/"+briefingName)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rr.Code)
+		}
+		if !strings.Contains(rr.Body.String(), notice) {
+			t.Errorf("the page shows a frame that cannot draw the document and says nothing; body = %q", rr.Body.String())
+		}
+	})
+
+	t.Run("a briefing that draws nothing stays quiet", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		dir := filepath.Join(root, "System", "reports", "daily-briefing")
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		plain := "<!doctype html>\n<html lang=\"zh-Hant\"><body><h1>週報</h1><p>只有文字。</p></body></html>\n"
+		if err := os.WriteFile(filepath.Join(dir, briefingName), []byte(plain), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		rr := get(t, newHandler(t, root), "/reports/"+briefingName)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rr.Code)
+		}
+		if strings.Contains(rr.Body.String(), notice) {
+			t.Errorf("a document with nothing to draw was told its drawing would not run; body = %q", rr.Body.String())
+		}
+	})
+}

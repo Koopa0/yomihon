@@ -512,7 +512,21 @@ templ inlineAids(v NoteView) {
 					@tocList(v)
 				</details>
 			}
-			@diagnostics(v)
+			// At these widths the rail is gone and this block sits between the
+			// title and the first sentence, so an open list of findings is the
+			// last thing the page says before the prose it is about. It folds
+			// like the contents above it: the count is still stated, and what
+			// the note is remains the first thing read.
+			if v.diagCount() > 0 {
+				<details class="y-toc-inline">
+					<summary class="y-toc-inline__summary">
+						@chevron()
+						診斷
+						<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
+					</summary>
+					@diagnostics(v)
+				</details>
+			}
 		</div>
 	}
 }

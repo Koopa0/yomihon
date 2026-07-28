@@ -13,6 +13,11 @@ import (
 type ReportView struct {
 	Name string
 	Nav  *nav.Model
+	// NeedsScript records that this document draws part of itself with a
+	// script. Scripts never run here, so that part of the page is absent — and
+	// a chart-shaped hole with nothing explaining it reads as a broken report
+	// rather than as the boundary working.
+	NeedsScript bool
 }
 
 // Report is the report shell page: the shared header and content navigation
@@ -30,6 +35,11 @@ templ Report(v ReportView, c layouts.Chrome) {
 			@sidebar(NewSidebar(v.Nav, ""), c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main y-reportmain">
 				<h1 class="y-reporttitle">{ v.Name }</h1>
+				if v.NeedsScript {
+					<p class="y-homeempty" data-report-inert>
+						這份文件以原樣顯示。它有一部分要靠程式繪製，而程式不會在這裡執行——那些部分不會出現。
+					</p>
+				}
 				<iframe
 					class="y-reportframe"
 					src={ templ.URL(reportRawHref(v.Name)) }
