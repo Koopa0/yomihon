@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1801,10 +1802,18 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 
 	lifecycle := homeSection(t, body, `data-home-block="lifecycle"`)
-	for _, marker := range []string{"status%3Adraft", "status%3Aready", "draft", schema.SealStatus} {
+	// The block is the header count broken down, so a status appears when notes
+	// sit at it and the operator has somewhere to take them. In this contract a
+	// lesson at draft can be sealed, so draft appears; the sealed status itself
+	// has nowhere left to go but retirement, which every note can reach from
+	// everywhere and which therefore says nothing about what is waiting.
+	for _, marker := range []string{"status%3Adraft", "draft"} {
 		if !strings.Contains(lifecycle, marker) {
 			t.Errorf("Lifecycle block is missing %q", marker)
 		}
+	}
+	if strings.Contains(lifecycle, "status%3A"+schema.SealStatus) {
+		t.Errorf("the block offers a status whose only onward move is retirement; section = %q", lifecycle)
 	}
 	paths := homeSection(t, body, `data-home-block="study-paths"`)
 	// The block says how big a course is, not how much of it is done. The
@@ -1947,11 +1956,13 @@ body
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	for _, block := range []string{"recent", "lifecycle"} {
-		section := html.UnescapeString(homeSection(t, body, `data-home-block="`+block+`"`))
-		if !strings.Contains(section, ">A<") && !strings.Contains(section, "seedling") {
-			t.Errorf("captured-open %s block lost its instance projection: %q", block, section)
-		}
+	// The lifecycle block is the header count broken down, and this fixture's
+	// concept has nowhere to go but retirement, so it is legitimately empty
+	// here. Recent carries the same captured generation and is what this test
+	// is about.
+	section := html.UnescapeString(homeSection(t, body, `data-home-block="recent"`))
+	if !strings.Contains(section, ">A<") {
+		t.Errorf("captured-open recent block lost its instance projection: %q", section)
 	}
 	if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 		t.Fatalf("change contract between requests: %v", writeErr)
@@ -3209,5 +3220,102 @@ func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
 				t.Error("the introduction is reprinted on Home instead of linked")
 			}
 		})
+	}
+}
+
+// TestHomeLifecycleBlockDecomposesTheHeaderCount pins the relationship rather
+// than the contents. The header states how many notes still have somewhere to
+// go; the block underneath is meant to be that number broken down, and a
+// dashboard whose total disagrees with its own rows is worse than either alone.
+// It used to be a list of the whole status vocabulary with counts beside it,
+// derived separately, so nothing kept the two in step.
+func TestHomeLifecycleBlockDecomposesTheHeaderCount(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// One of these has nowhere to go but retirement, so it must not be counted
+	// by either the header or the block — which is what makes the two agree
+	// meaningful rather than arithmetic that holds for any fixture.
+	for i, status := range []string{"draft", "draft", "imported", schema.SealStatus} {
+		body := "---\ntitle: L0" + strconv.Itoa(i) + "\ntype: lesson\ndomain: japanese\nstatus: " + status +
+			"\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+		if err := os.WriteFile(filepath.Join(dir, "L0"+strconv.Itoa(i)+".md"), []byte(body), 0o600); err != nil {
+			t.Fatalf("write lesson: %v", err)
+		}
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+
+	header := headerAdvanceableCount(t, body)
+	block := homeSection(t, body, `data-home-block="lifecycle"`)
+	counts := chipCounts(t, block)
+	sum := 0
+	for _, n := range counts {
+		if n == 0 {
+			t.Errorf("the block lists a status nothing is waiting at; counts = %v", counts)
+		}
+		sum += n
+	}
+	if sum != header {
+		t.Errorf("the block sums to %d and the header says %d; one of them is describing a different set", sum, header)
+	}
+	if header == 0 {
+		t.Fatal("the fixture produced nothing to count, so this proves nothing")
+	}
+}
+
+// headerAdvanceableCount reads the number the header states.
+func headerAdvanceableCount(t *testing.T, body string) int {
+	t.Helper()
+	const marker = `aria-label="`
+	before, _, found := strings.Cut(body, "data-advanceable-chip")
+	if !found {
+		t.Fatal("the header states no advanceable count")
+	}
+	open := strings.LastIndex(before, marker)
+	if open < 0 {
+		t.Fatal("the advanceable chip carries no label")
+	}
+	label, _, _ := strings.Cut(before[open+len(marker):], `"`)
+	digits, _, _ := strings.Cut(label, " ")
+	n, err := strconv.Atoi(digits)
+	if err != nil {
+		t.Fatalf("the header count %q is not a number: %v", digits, err)
+	}
+	return n
+}
+
+// chipCounts reads every per-status figure the block states.
+func chipCounts(t *testing.T, block string) []int {
+	t.Helper()
+	var out []int
+	const marker = `class="y-homechip__count"`
+	for rest := block; ; {
+		at := strings.Index(rest, marker)
+		if at < 0 {
+			return out
+		}
+		rest = rest[at:]
+		open := strings.IndexByte(rest, '>')
+		end := strings.Index(rest, "</span>")
+		if open < 0 || end < 0 || end < open {
+			t.Fatalf("a chip count is malformed: %q", rest[:80])
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(rest[open+1 : end]))
+		if err != nil {
+			t.Fatalf("a chip count is not a number: %v", err)
+		}
+		out = append(out, n)
+		rest = rest[end:]
 	}
 }

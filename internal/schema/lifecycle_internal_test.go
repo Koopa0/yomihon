@@ -695,3 +695,70 @@ func replaceLifecycleRowText(t *testing.T, contract string, row int, from, to st
 	parts[row] = strings.Replace(parts[row], from, to, 1)
 	return strings.Join(parts, header)
 }
+
+// TestAdvancesFrom pins the rule the header count and a note's own page must
+// share. They disagreed: the page offered two enabled buttons on a lesson the
+// header had classified as having nowhere to go, because a stage whose
+// predecessor list is the wildcard admits every status and an exact comparison
+// never matched it.
+func TestAdvancesFrom(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		stage  Stage
+		status string
+		want   bool
+	}{
+		{
+			name:   "a named predecessor is somewhere to go",
+			stage:  Stage{Status: "ready", AppliesTo: []string{"lesson"}, From: []string{"draft"}},
+			status: "draft",
+			want:   true,
+		},
+		{
+			// The case the header used to miss: the contract says a lesson at
+			// any status may be rewritten as a draft, and that is a step
+			// forward the note page has always offered.
+			name:   "a wildcard predecessor on a typed stage is somewhere to go",
+			stage:  Stage{Status: "draft", AppliesTo: []string{"lesson"}, From: []string{"*"}},
+			status: "imported",
+			want:   true,
+		},
+		{
+			// Reachable from everything by everything is retirement. Counting
+			// it would make every note in the vault advanceable and the figure
+			// would stop distinguishing anything.
+			name:   "the stage every type reaches from every status is not",
+			stage:  Stage{Status: "archived", AppliesTo: []string{"*"}, From: []string{"*"}},
+			status: "seedling",
+			want:   false,
+		},
+		{
+			name:   "a stage cannot follow itself",
+			stage:  Stage{Status: "active", AppliesTo: []string{"note"}, From: []string{"*"}},
+			status: "active",
+			want:   false,
+		},
+		{
+			name:   "an unrelated predecessor is not",
+			stage:  Stage{Status: "ready", AppliesTo: []string{"lesson"}, From: []string{"draft"}},
+			status: "imported",
+			want:   false,
+		},
+		{
+			name:   "an initial stage is not reachable from a status",
+			stage:  Stage{Status: "captured", AppliesTo: []string{"inbox"}, From: nil},
+			status: "cleaned",
+			want:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := advancesFrom(&tt.stage, tt.status); got != tt.want {
+				t.Errorf("advancesFrom(%+v, %q) = %t, want %t", tt.stage, tt.status, got, tt.want)
+			}
+		})
+	}
+}

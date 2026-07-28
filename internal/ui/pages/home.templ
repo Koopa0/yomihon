@@ -139,7 +139,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if v.Governed && !v.LifecycleClosed {
 							<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
-								@homeBlockHead("home-lifecycle-title", "生命週期", "開啟狀態清單")
+								@homeBlockHead("home-lifecycle-title", "等你處理", "依狀態分組")
 								if len(v.Lifecycle) > 0 {
 									<div class="y-homechips">
 										for _, it := range v.Lifecycle {

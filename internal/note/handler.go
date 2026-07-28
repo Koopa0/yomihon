@@ -479,16 +479,29 @@ func (h *Handler) lifecycle(
 	if statusView.Closed() {
 		return nil, true
 	}
-	order := statusView.Order()
-	counts, err := snap.Search().CountByStatus()
+	counts, err := snap.Search().CountByTypeStatus()
 	if err != nil {
 		return nil, true
 	}
-	items = make([]pages.LifecycleItem, 0, len(order))
-	for _, s := range order {
+	// One entry per status that has notes the operator can actually move on
+	// from, counted the same way the header counts them — so this block is that
+	// number broken down rather than a second, differently-derived list. The
+	// vocabulary is not the subject: a status nothing sits at, and a status
+	// whose only onward edge is retirement, say nothing about what is waiting.
+	waiting := make(map[string]int, len(counts))
+	for ts, n := range counts {
+		if statusView.Advanceable(ts.Type, ts.Status) {
+			waiting[ts.Status] += n
+		}
+	}
+	items = make([]pages.LifecycleItem, 0, len(waiting))
+	for _, s := range statusView.Order() {
+		if waiting[s] == 0 {
+			continue
+		}
 		items = append(items, pages.LifecycleItem{
 			Name:   s,
-			Count:  counts[s],
+			Count:  waiting[s],
 			Active: s == current,
 			Sealed: s == schema.SealStatus,
 		})

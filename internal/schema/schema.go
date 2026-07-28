@@ -1229,7 +1229,7 @@ func (c *Contract) Transition(noteType, from, to, actor string) error {
 // such owned edge exists, not whether a specific target is reachable.
 func (c *Contract) AdvanceableBy(noteType, status, actor string) bool {
 	for _, st := range c.lifecycleByType[noteType] {
-		if !slices.Contains(st.From, status) {
+		if !advancesFrom(&st, status) {
 			continue
 		}
 		if slices.Contains(st.Owner, actor) {
@@ -1237,4 +1237,25 @@ func (c *Contract) AdvanceableBy(noteType, status, actor string) bool {
 		}
 	}
 	return false
+}
+
+// advancesFrom reports whether one stage is somewhere a note at status can
+// move next, under the same predecessor rule a real transition is checked
+// against — a wildcard predecessor list admits every status, which an exact
+// comparison used to miss, so a note the page offered two buttons for was
+// counted as having nowhere to go.
+//
+// Two edges are not somewhere to go. A stage cannot follow itself. And the one
+// stage every type can reach from every status is retirement, which is
+// identifiable from the contract alone as the entry whose applicability and
+// predecessors are both unrestricted: counting it would make every note in the
+// vault advanceable and the figure would stop distinguishing anything.
+func advancesFrom(st *Stage, status string) bool {
+	if st.Status == status {
+		return false
+	}
+	if slices.Contains(st.AppliesTo, "*") && slices.Contains(st.From, "*") {
+		return false
+	}
+	return slices.Contains(st.From, status) || slices.Contains(st.From, "*")
 }
