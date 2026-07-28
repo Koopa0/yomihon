@@ -18,6 +18,14 @@ import (
 // Governed says whether anything claimed authority over this vault. A folder
 // that claimed none has no lifecycle vocabulary to show, so that block is
 // absent rather than empty or apologetic.
+// homeReadmeRelPath and homeReadmeTitle name the folder's own introduction.
+// Home links to it rather than reprinting it: it is a note, it has a page, and
+// a reader who wants it is one click away.
+const (
+	homeReadmeRelPath = "README.md"
+	homeReadmeTitle   = "這個 vault 的說明"
+)
+
 type HomeView struct {
 	Governed bool
 	Fault    string
@@ -37,7 +45,6 @@ type HomeView struct {
 	LifecycleClosed bool
 	Paths           []HomePath
 	PathsClosed     bool
-	ReadmeHTML      string
 	ReadmeMissing   bool
 	Sidebar         Sidebar
 }
@@ -69,7 +76,6 @@ type HomeNote struct {
 type HomePath struct {
 	Title   string
 	RelPath string
-	Ready   int
 	Total   int
 }
 
@@ -154,7 +160,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 									for _, p := range v.Paths {
 										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
 											<span class="y-homepath__title">{ p.Title }</span>
-											<span class="y-homepath__progress">{ strconv.Itoa(p.Ready) } / { strconv.Itoa(p.Total) } 已完成</span>
+											<span class="y-homepath__progress">{ strconv.Itoa(p.Total) } 課</span>
 										</a>
 									}
 								</div>
@@ -169,23 +175,20 @@ templ Home(v HomeView, c layouts.Chrome) {
 							</form>
 						</section>
 					</div>
-					<section class="y-homereadme" data-home-readme aria-labelledby="home-readme-title">
-						<div class="y-homereadme__head">
-							<span class="y-homereadme__kicker">來自 VAULT</span>
-							<h2 id="home-readme-title">README</h2>
-						</div>
-						<div class="y-prose">
-							if v.ReadmeMissing {
-								<div data-home-readme-recovery>
-									<p><strong>找不到 vault 根目錄的 README.md。</strong></p>
-									<p>請使用外部編輯器或檔案工具，在 vault 根目錄建立 README.md，然後重新載入此頁。</p>
-									<p>yomihon 不會建立或修改這個檔案。</p>
-								</div>
-							} else {
-								@templ.Raw(v.ReadmeHTML)
-							}
-						</div>
-					</section>
+					// The folder's own introduction is a note like any other, and
+					// it has a page. Printing the whole of it here made it most of
+					// the first screen — on one governed vault, seven tenths of
+					// everything the page said — and it is the piece a returning
+					// reader has read most often. A folder without one is not
+					// missing anything: most folders in the world have no README,
+					// and a reading tool whose opening move is an instruction to
+					// go author a file in another program has told the reader to
+					// leave.
+					if !v.ReadmeMissing {
+						<p class="y-homereadme" data-home-readme>
+							<a href={ templ.URL(notesHref(homeReadmeRelPath)) }>{ homeReadmeTitle }</a>
+						</p>
+					}
 				</div>
 			</main>
 		</div>

@@ -1385,11 +1385,11 @@ func TestHome(t *testing.T) {
 	}
 	pageHTML := string(body)
 	for name, marker := range map[string]string{
-		"search":          `data-home-block="search"`,
-		"recent block":    `data-home-block="recent"`,
-		"vault README":    "README body sentinel.",
-		"topbar":          `class="y-header"`,
-		"command palette": `data-search`,
+		"search":                            `data-home-block="search"`,
+		"recent block":                      `data-home-block="recent"`,
+		"link to the folder's introduction": `data-home-readme`,
+		"topbar":                            `class="y-header"`,
+		"command palette":                   `data-search`,
 	} {
 		if !strings.Contains(pageHTML, marker) {
 			t.Errorf("GET / is missing the %s marker %q", name, marker)
@@ -1420,8 +1420,10 @@ func TestHome(t *testing.T) {
 			t.Errorf("ungoverned Home renders the %s marker %q", name, marker)
 		}
 	}
-	if !strings.Contains(pageHTML, "README body sentinel.") {
-		t.Error("the reader's own content is missing")
+	// The introduction is a note with a page of its own. Home names it; it
+	// does not reprint it, which used to be most of this screen.
+	if strings.Contains(pageHTML, "README body sentinel.") {
+		t.Error("Home reprints the folder's introduction instead of linking to it")
 	}
 }
 
@@ -1559,7 +1561,7 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 			t.Errorf("Home still renders the %s block under an unreadable contract", name)
 		}
 	}
-	for _, want := range []string{`data-home-block="search"`, "README body sentinel."} {
+	for _, want := range []string{`data-home-block="search"`, "data-home-readme"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("Home lost %q to a contract failure; reading never depends on one", want)
 		}
@@ -1575,35 +1577,10 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestHomeReadmeImagesAddressTheBytes covers the landing page separately from
-// the reading page, because Home renders a body through its own call and a fix
-// applied at the reading page alone leaves the first screen anyone sees showing
-// a broken image.
-func TestHomeReadmeImagesAddressTheBytes(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "Assets"), 0o750); err != nil {
-		t.Fatalf("make Assets: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "Assets", "cover.png"), []byte("png"), 0o600); err != nil {
-		t.Fatalf("write cover: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "README.md"),
-		[]byte("# Vault\n\n![cover](./Assets/cover.png)\n"), 0o600); err != nil {
-		t.Fatalf("write README: %v", err)
-	}
-	srv := newServer(t, root)
-
-	code, pageHTML := get(t, srv.URL+"/")
-	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want %d", code, http.StatusOK)
-	}
-	const want = `src="/raw/Assets/cover.png"`
-	if !strings.Contains(pageHTML, want) {
-		t.Errorf("GET / README image is not routed to the bytes; want %q in:\n%s", want, pageHTML)
-	}
-}
-
+// The image-routing property this used to cover now lives where the body is
+// rendered: Home links to the folder's introduction instead of reprinting it,
+// so there is no image on Home to route. A note's own images are locked by
+// TestHTMLResolvesImagesAgainstTheNotesOwnDirectory and by the note page.
 // TestReadingRoutesKeepCapturedViewWhenCurrentSwaps is the coherence guard for
 // publication during a request. The provider atomically installs a different
 // current View while returning the previously current one; every projection in
@@ -1642,9 +1619,13 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		path string
+		want string
 	}{
-		{name: "home", path: "/"},
-		{name: "note", path: "/notes/README.md"},
+		// Home no longer reprints the introduction, so its needle is the link
+		// the captured generation put in the navigation rather than a wikilink
+		// resolved inside a body.
+		{name: "home", path: "/", want: `href="/notes/Concepts/Target.md"`},
+		{name: "note", path: "/notes/README.md", want: `<a href="/notes/Concepts/Target.md" class="wikilink">Target</a>`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1670,9 +1651,8 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			if rr.Code != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want %d", tt.path, rr.Code, http.StatusOK)
 			}
-			const firstLink = `<a href="/notes/Concepts/Target.md" class="wikilink">Target</a>`
-			if !strings.Contains(rr.Body.String(), firstLink) {
-				t.Errorf("GET %s did not resolve against the captured View; want %q in body", tt.path, firstLink)
+			if !strings.Contains(rr.Body.String(), tt.want) {
+				t.Errorf("GET %s did not resolve against the captured View; want %q in body", tt.path, tt.want)
 			}
 			if strings.Contains(rr.Body.String(), `/notes/Writing/Target.md`) {
 				t.Errorf("GET %s mixed in the newly current View", tt.path)
@@ -1827,13 +1807,20 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 		}
 	}
 	paths := homeSection(t, body, `data-home-block="study-paths"`)
-	for _, marker := range []string{"Test path", "1 / 2 已完成", "/syllabus/Maps/path.md"} {
+	// The block says how big a course is, not how much of it is done. The
+	// figure that used to sit here counted lessons awaiting a human's final
+	// review, and publishing one moved it out of that status — so the number
+	// fell as the work finished.
+	if strings.Contains(paths, "已完成") {
+		t.Errorf("the study-path block reports completion again; section = %q", paths)
+	}
+	for _, marker := range []string{"Test path", "2 課", "/syllabus/Maps/path.md"} {
 		if !strings.Contains(paths, marker) {
 			t.Errorf("Study paths block is missing %q", marker)
 		}
 	}
-	if !strings.Contains(body, "Dashboard README sentinel.") {
-		t.Error("Home is missing the rendered vault README body")
+	if !strings.Contains(body, "data-home-readme") {
+		t.Error("Home is missing the link to the folder's introduction")
 	}
 	if !strings.Contains(body, `aria-label="1 篇筆記的狀態還有下一步"`) {
 		t.Error("Home topbar is missing the snapshot-derived advanceable chip")
@@ -2193,8 +2180,6 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	for _, marker := range []string{
 		`data-home-block="lifecycle"`,
 		`data-home-block="search"`,
-		`data-home-readme-recovery`,
-		`請使用外部編輯器或檔案工具，在 vault 根目錄建立 README.md，然後重新載入此頁。`,
 	} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("GET / without README is missing %q", marker)
@@ -3165,5 +3150,64 @@ func TestTheSealReceiptIsOnThePageTheWriteLandsOn(t *testing.T) {
 	}
 	if !strings.Contains(landed, head) {
 		t.Errorf("the page the write landed on carries no commit for the write it just made; want %q", head)
+	}
+}
+
+// TestHomeDoesNotSpendItsScreenTalkingAboutItself locks the reason rather than
+// the layout. A test asserting "this block is absent" pins an arrangement and
+// has to be rewritten the next time something moves; what matters is the share
+// of the first screen the tool spends on itself.
+//
+// Measured before this changed: on a governed vault, the inlined introduction
+// was 72% of everything Home said, and its content is doctrine addressed to
+// agents. On a folder without one, 46% of a 191-character screen was an
+// instruction to go author a file in another program — a reading tool opening
+// with homework.
+func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name  string
+		setup func(t *testing.T, root string)
+	}{
+		{
+			name: "a folder with an introduction",
+			setup: func(t *testing.T, root string) {
+				t.Helper()
+				long := "# Vault\n\n" + strings.Repeat("這是寫給代理程式看的 vault 條文。", 120) + "\n"
+				if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(long), 0o600); err != nil {
+					t.Fatalf("write README: %v", err)
+				}
+			},
+		},
+		{
+			name:  "a folder without one",
+			setup: func(t *testing.T, _ string) { t.Helper() },
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "note.md"), []byte("# Note\n\nreader body\n"), 0o600); err != nil {
+				t.Fatalf("write note: %v", err)
+			}
+			tt.setup(t, root)
+			srv := newServer(t, root)
+			code, body := get(t, srv.URL+"/")
+			if code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want 200", code)
+			}
+			for _, forbidden := range []string{
+				"請使用外部編輯器",
+				"yomihon 不會建立或修改這個檔案",
+			} {
+				if strings.Contains(body, forbidden) {
+					t.Errorf("the first screen instructs the reader to go and author a file: %q", forbidden)
+				}
+			}
+			if strings.Contains(body, "這是寫給代理程式看的 vault 條文") {
+				t.Error("the introduction is reprinted on Home instead of linked")
+			}
+		})
 	}
 }

@@ -36,7 +36,7 @@ home_markers=(
   'lifecycle|data-home-block="lifecycle"'
   'study-paths|data-home-block="study-paths"'
   'search|data-home-block="search"'
-  'vault-readme|Home, linking to'
+  'vault-readme|data-home-readme'
   'sidebar-paths|data-sidebar-group="paths"'
   'sidebar-maps|data-sidebar-group="maps"'
   'sidebar-map-fixture|data-map-tree="Maps/reading.md"'

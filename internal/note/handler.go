@@ -121,13 +121,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	statusView := h.deps.Status()
 	snap := h.deps.Snapshot().Capture()
-	readme, ok := snap.Note(homeReadmePath)
-	readmeHTML := ""
-	if !ok {
-		h.deps.Log.Warn("home README is absent from the request snapshot")
-	} else {
-		readmeHTML = snap.Render(homeReadmePath, readme.Body).HTML
-	}
+	// Home links to the folder's own introduction rather than reprinting it,
+	// so nothing here renders it and its absence is not news.
+	_, hasReadme := snap.Note(homeReadmePath)
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, artifactPolicy, snap)
 	lifecycle, lifecycleClosed := h.lifecycle(statusView, snap, "")
@@ -187,8 +183,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		LifecycleClosed: lifecycleClosed,
 		Paths:           paths,
 		PathsClosed:     pathsClosed,
-		ReadmeHTML:      readmeHTML,
-		ReadmeMissing:   !ok,
+		ReadmeMissing:   !hasReadme,
 		Sidebar:         pages.NewSidebar(visibleNav, ""),
 	}
 	if err := pages.Home(view, pageShell.Chrome(r, "首頁")).Render(r.Context(), w); err != nil {
@@ -630,18 +625,23 @@ func recentHomeNotes(notes []nav.NoteSummary, governed bool) []pages.HomeNote {
 	return out
 }
 
-// homePaths maps the snapshot's parsed study paths onto the small progress
-// figures Home displays. nav owns the ready/total derivation shared with the
-// full study-path page, so the two reading surfaces cannot drift.
+// homePaths maps the snapshot's parsed study paths onto what Home says about
+// them: how many lessons a course holds.
+//
+// It used to carry a second figure beside that, presented as how much of the
+// course was finished. The figure counted lessons at the status the contract
+// reserves for a human's final review, so it described a queue rather than any
+// reading — and because publishing a lesson moves it out of that status, the
+// number went down as the work was completed. A count that runs backwards
+// cannot be repaired by renaming it.
 func homePaths(paths []nav.Map) []pages.HomePath {
 	out := make([]pages.HomePath, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
-		ready, total := studyPath.EntryCounts(schema.SealStatus)
+		_, total := studyPath.EntryCounts(schema.SealStatus)
 		out = append(out, pages.HomePath{
 			Title:   studyPath.Title,
 			RelPath: studyPath.RelPath,
-			Ready:   ready,
 			Total:   total,
 		})
 	}
