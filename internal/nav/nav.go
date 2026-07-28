@@ -312,6 +312,7 @@ func New(
 	notes map[string]*vault.Note,
 	resolver Resolver,
 	roles schema.NavigationRoles,
+	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 ) *Model {
 	if resolver == nil {
@@ -337,7 +338,7 @@ func New(
 			note:     note,
 		})
 	}
-	return newModel(files, resolver, roles, policy)
+	return newModel(files, resolver, roles, scope, policy)
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -352,6 +353,7 @@ func newModel(
 	files []capturedFile,
 	resolver Resolver,
 	roles schema.NavigationRoles,
+	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 ) *Model {
 	paths := make([]string, 0, len(files))
@@ -372,7 +374,7 @@ func newModel(
 		return m
 	}
 
-	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, policy)
+	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
 	m.knowledgeNotes = knowledgeNotes
 	if m.navigation.Closed() {
 		return m
@@ -406,6 +408,7 @@ func newModel(
 func collectNavigationNotes(
 	files []capturedFile,
 	roles schema.NavigationRoles,
+	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 ) (map[string]string, []*vault.Note, []NoteSummary) {
 	statusByPath := make(map[string]string)
@@ -423,11 +426,16 @@ func collectNavigationNotes(
 		if status := n.Status(); status != "" {
 			statusByPath[p] = status
 		}
-		if noteType := n.Type(); noteType != "" {
+		// What belongs to the knowledge layer is the vault's own declaration,
+		// not whether a note happens to carry a type. A note without
+		// frontmatter is still something its author wrote and still the newest
+		// thing they changed; filtering on the type field hid exactly those,
+		// and on a folder that declares nothing it hid everything.
+		if scope.Includes(p) {
 			knowledgeNotes = append(knowledgeNotes, NoteSummary{
 				Title:    n.Title(),
 				RelPath:  p,
-				Type:     noteType,
+				Type:     n.Type(),
 				Status:   n.Status(),
 				Modified: file.modified,
 			})

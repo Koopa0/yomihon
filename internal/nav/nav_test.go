@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -32,6 +33,7 @@ func capturedModel(
 	t *testing.T,
 	root string,
 	roles schema.NavigationRoles,
+	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 	resolver Resolver,
 ) *Model {
@@ -69,7 +71,7 @@ func capturedModel(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, policy)
+	return New(scan.Files(), notes, resolver, roles, scope, policy)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -207,6 +209,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		},
 		resolver(t, targetPath, mapPath),
 		roles,
+		schema.KnowledgeScope{},
 		policy,
 	)
 
@@ -286,6 +289,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		map[string]*vault.Note{relPath: vault.Parse(relPath, noteBytes)},
 		resolver(t, relPath),
 		roles,
+		schema.KnowledgeScope{},
 		policy,
 	)
 	want := []NoteSummary{{
@@ -316,7 +320,7 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 	}
 
 	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, policy, nil)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 
 	resolvedBranches := []Branch{{
 		Heading: "Shelf",
@@ -374,7 +378,7 @@ func TestNewRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	writeNavFixture(t, root, "Maps/Course.md", "---\ntitle: Course\ntype: study-path\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
 
 	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, policy, nil)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 
 	if len(model.Maps()) != 0 {
 		t.Errorf("New Maps = %+v, want non-instance map document absent", model.Maps())
@@ -415,7 +419,7 @@ func TestNewOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	writeNavFixture(t, root, "Maps/General.md", "---\ntitle: General\ntype: moc\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
 
 	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, policy, nil)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 
 	if len(model.Maps()) != 1 || len(model.Maps()[0].Branches) != 1 {
 		t.Fatalf("New Maps = %+v, want one general-map branch", model.Maps())
@@ -531,7 +535,7 @@ map_types = ["moc"]
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			model := capturedModel(t, root, tt.roles, tt.policy, nil)
+			model := capturedModel(t, root, tt.roles, schema.KnowledgeScope{}, tt.policy, nil)
 			if tt.wantNavigation == "" && model.NavigationDiagnostic() != "" {
 				t.Errorf("NavigationDiagnostic = %q, want exactly empty while artifact policy is unavailable", model.NavigationDiagnostic())
 			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationDiagnostic(), tt.wantNavigation) {
@@ -567,8 +571,8 @@ func TestUngovernedFolderProjectsOverTheEmptyDeclaredSet(t *testing.T) {
 	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
 	writeNavFixture(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: draft\n---\nbody\n")
 
-	roles, policy, _ := schema.Ungoverned().Capabilities(nil)
-	model := capturedModel(t, root, roles, policy, nil)
+	roles, _, policy, _ := schema.Ungoverned().Capabilities(nil)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 
 	if model.NavigationDiagnostic() != "" || model.ArtifactDiagnostic() != "" {
 		t.Errorf("ungoverned diagnostics = navigation %q artifact %q, want both silent",
@@ -611,8 +615,8 @@ func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
 	// could not be read: unresolved, not zero. Deriving them here rather than
 	// hand-building them is the point — a consumer that reached for the zero
 	// value instead would conclude that nothing was ever excluded.
-	roles, policy, _ := schema.Unreadable(errors.New("toml: line 42: expected a key separator")).Capabilities(nil)
-	model := capturedModel(t, root, roles, policy, nil)
+	roles, _, policy, _ := schema.Unreadable(errors.New("toml: line 42: expected a key separator")).Capabilities(nil)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 
 	if !model.NavigationClosure().Closed() || !model.ArtifactClosure().Closed() {
 		t.Error("an unreadable contract left a projection open; its declared sets are unknown, not empty")
@@ -641,7 +645,7 @@ func TestNewKeepsZeroEntryMap(t *testing.T) {
 	root := t.TempDir()
 	writeNavFixture(t, root, "Maps/Empty.md", "---\ntitle: Empty map\ntype: moc\n---\n## Shelf\n- [[Unwritten]]\n")
 	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, policy, nil)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 	want := []Map{{Title: "Empty map", RelPath: "Maps/Empty.md", Type: "moc"}}
 	if diff := cmp.Diff(want, model.Maps()); diff != "" {
 		t.Errorf("New zero-entry Maps mismatch (-want +got):\n%s", diff)
@@ -665,7 +669,7 @@ func TestNewBuildsJournalFromCapturedMtimes(t *testing.T) {
 			}
 		}
 		roles, policy := testCapabilities(t)
-		model := capturedModel(t, root, roles, policy, nil)
+		model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 		want := []JournalEntry{
 			{Title: "2026-07-07", RelPath: "Diary/2026-07-07.md", Modified: mtimes["Diary/2026-07-07.md"]},
 			{Title: "2026-07-06", RelPath: "Diary/2026-07-06.md", Modified: mtimes["Diary/2026-07-06.md"]},
@@ -689,7 +693,7 @@ func TestNewBuildsJournalFromCapturedMtimes(t *testing.T) {
 				}
 			}
 			roles, policy := testCapabilities(t)
-			model := capturedModel(t, root, roles, policy, nil)
+			model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 			if len(model.Journal()) != 0 {
 				t.Errorf("New Journal = %v, want empty", model.Journal())
 			}
@@ -718,7 +722,7 @@ func TestNewCarriesScannerMtimes(t *testing.T) {
 		t.Fatalf("Chtimes() error = %v", err)
 	}
 	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, policy, resolver(t, rel))
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, resolver(t, rel))
 	want := []NoteSummary{{
 		Title:    "Channels",
 		RelPath:  rel,
@@ -1427,4 +1431,59 @@ func TestBuildReports(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("buildReports mismatch (-want +got):\n%s", diff)
 	}
+}
+
+// TestRecentNotesFollowTheVaultsOwnScopeNotTheTypeField pins what belongs on a
+// reader's own first screen. The block claims to show what changed recently;
+// filtering it on the type field meant a note without frontmatter never
+// appeared, and on a folder that declares nothing — where no note carries a
+// type — it meant nothing appeared at all. What is inside the knowledge layer
+// is the vault's own declaration, and a folder that declares none has not
+// declared an empty one.
+func TestRecentNotesFollowTheVaultsOwnScopeNotTheTypeField(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/typed.md", "---\ntitle: Typed\ntype: concept\n---\nbody\n")
+	writeNavFixture(t, root, "Concepts/untyped.md", "# Untyped\n\nbody\n")
+	writeNavFixture(t, root, "System/reports/machine.md", "---\ntitle: Machine\ntype: report\n---\nbody\n")
+
+	t.Run("a folder that declares nothing keeps every note", func(t *testing.T) {
+		t.Parallel()
+		model := capturedModel(t, root, schema.NavigationRoles{}, schema.KnowledgeScope{}, schema.ArtifactPolicy{}, nil)
+		got := relPaths(model.KnowledgeNotes())
+		for _, want := range []string{"Concepts/typed.md", "Concepts/untyped.md", "System/reports/machine.md"} {
+			if !slices.Contains(got, want) {
+				t.Errorf("a folder with no contract dropped %q; got %v", want, got)
+			}
+		}
+	})
+
+	t.Run("a declared knowledge layer scopes it and still keeps untyped notes", func(t *testing.T) {
+		t.Parallel()
+		model := capturedModel(t, root, schema.NavigationRoles{}, knowledgeScopeFor(t), schema.ArtifactPolicy{}, nil)
+		got := relPaths(model.KnowledgeNotes())
+		if slices.Contains(got, "System/reports/machine.md") {
+			t.Errorf("a file outside the declared knowledge layer reached the reader's first screen; got %v", got)
+		}
+		if !slices.Contains(got, "Concepts/untyped.md") {
+			t.Errorf("a note inside the knowledge layer was dropped for carrying no type; got %v", got)
+		}
+	})
+}
+
+// knowledgeScopeFor builds a scope declaring Concepts as the knowledge layer,
+// through the contract loader so the test exercises the same derivation the
+// server does rather than a hand-made value.
+func knowledgeScopeFor(t *testing.T) schema.KnowledgeScope {
+	t.Helper()
+	return testContract(t).KnowledgeScope()
+}
+
+func relPaths(notes []NoteSummary) []string {
+	out := make([]string, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, n.RelPath)
+	}
+	return out
 }

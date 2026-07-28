@@ -52,6 +52,7 @@ type Contract struct {
 	stages     []Stage
 
 	navigationRoles NavigationRoles
+	knowledgeScope  KnowledgeScope
 	artifactPolicy  ArtifactPolicy
 	privacyPolicy   PrivacyPolicy
 	metadata        contractMetadata
@@ -295,6 +296,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		contract.definition.Enums.Type,
 		&tomlMeta,
 	)
+	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
 	contract.artifactPolicy = resolveArtifactPolicy(
 		artifacts,
 		artifactTypeErrorKey,
@@ -1117,6 +1119,16 @@ func (c *Contract) NavigationRoles() NavigationRoles {
 		return NavigationRoles{}
 	}
 	return c.navigationRoles
+}
+
+// KnowledgeScope returns the top-level directories this vault calls its
+// knowledge layer, so every face that answers "what is in this vault" answers
+// it the same way.
+func (c *Contract) KnowledgeScope() KnowledgeScope {
+	if c == nil {
+		return KnowledgeScope{}
+	}
+	return c.knowledgeScope
 }
 
 // ArtifactPolicy returns the contract-derived artifact policy capability.

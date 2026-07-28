@@ -261,7 +261,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = homeBlockHead("home-recent-title", "最近變更", "磁碟上的最新異動").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

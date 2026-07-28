@@ -32,7 +32,7 @@ concept_requires_provenance = ["based_on", "source_locator"]
 slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
 forbid_tag_with_slash = true
 [scan]
-knowledge_dirs = ["Concepts", "Sources"]
+knowledge_dirs = ["Concepts", "Sources", "Notes", "Maps", "Writing"]
 skip_basenames = ["README.md"]
 
 [navigation]

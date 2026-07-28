@@ -124,11 +124,12 @@ func (g Governance) Claim() Claim { return g.claim }
 // metadata filter, say — would otherwise have to choose between claiming zero
 // results and saying nothing at all, and zero results is a lie. Surfaces that
 // can show two of them collapse the repetition themselves.
-func (g Governance) Capabilities(c *Contract) (NavigationRoles, ArtifactPolicy, ArticleLanguage) {
+func (g Governance) Capabilities(c *Contract) (NavigationRoles, KnowledgeScope, ArtifactPolicy, ArticleLanguage) {
 	if !g.Trustworthy() {
 		return NavigationRoles{claim: g.claim},
+			KnowledgeScope{claim: g.claim},
 			ArtifactPolicy{state: &artifactPolicyState{claim: g.claim}},
 			ArticleLanguage{}
 	}
-	return c.NavigationRoles(), c.ArtifactPolicy(), c.ArticleLanguage()
+	return c.NavigationRoles(), c.KnowledgeScope(), c.ArtifactPolicy(), c.ArticleLanguage()
 }

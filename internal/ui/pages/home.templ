@@ -110,7 +110,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if !v.RecentClosed && len(v.Recent) > 0 {
 							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
-								@homeBlockHead("home-recent-title", "最近變更", "磁碟上的最新異動")
+								@homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記")
 								<div class="y-homerecent">
 									for _, n := range v.Recent {
 										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>

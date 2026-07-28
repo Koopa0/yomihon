@@ -150,6 +150,7 @@ func buildModel(t *testing.T) *nav.Model {
 		notes,
 		graph.New(noteList, resources),
 		contract.NavigationRoles(),
+		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 	)
 	return model
@@ -402,6 +403,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	model := nav.New(
 		nil, nil, graph.BuildFromNotes(nil, nil),
 		contract.NavigationRoles(),
+		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 	)
 	if model.NavigationDiagnostic() == "" || model.ArtifactDiagnostic() == "" {
@@ -439,6 +441,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 	model := nav.New(
 		nil, nil, graph.BuildFromNotes(nil, nil),
 		schema.NavigationRoles{},
+		schema.KnowledgeScope{},
 		schema.ArtifactPolicy{},
 	)
 	var buf bytes.Buffer

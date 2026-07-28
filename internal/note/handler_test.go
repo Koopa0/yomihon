@@ -1386,7 +1386,7 @@ func TestHome(t *testing.T) {
 	pageHTML := string(body)
 	for name, marker := range map[string]string{
 		"search":          `data-home-block="search"`,
-		"stand-in line":   "data-home-standin",
+		"recent block":    `data-home-block="recent"`,
 		"vault README":    "README body sentinel.",
 		"topbar":          `class="y-header"`,
 		"command palette": `data-search`,
@@ -1395,11 +1395,12 @@ func TestHome(t *testing.T) {
 			t.Errorf("GET / is missing the %s marker %q", name, marker)
 		}
 	}
-	// The stand-in states what is here. It must not read as an instruction to
-	// go and configure something: this folder is a whole folder, not a
-	// half-configured vault.
-	if !strings.Contains(pageHTML, "這個資料夾有 1 個檔案") {
-		t.Errorf("the stand-in line does not say what this folder holds; body = %q", pageHTML)
+	// The reader's own file is on the first screen of a folder that declares
+	// nothing. It used to be filtered out for carrying no type — a field this
+	// folder has never heard of — which left the block empty and the page
+	// standing in for it.
+	if !strings.Contains(pageHTML, `href="/notes/README.md" data-home-recent-note`) {
+		t.Errorf("the recent block does not carry this folder's own file; body = %q", pageHTML)
 	}
 	// This folder carries no contract. It has no lifecycle vocabulary, so the
 	// block that would name one is absent rather than empty or apologetic, and
@@ -1408,7 +1409,6 @@ func TestHome(t *testing.T) {
 	// own README started below the fold.
 	for name, marker := range map[string]string{
 		"lifecycle block":   `data-home-block="lifecycle"`,
-		"recent block":      `data-home-block="recent"`,
 		"study-path block":  `data-home-block="study-paths"`,
 		"empty-box notice":  "y-homeempty",
 		"capability faults": `data-home-block="faults"`,
@@ -2275,13 +2275,18 @@ func homeStandInLine(t *testing.T, body string) string {
 // over everything the folder holds: a plain folder's newest thing is often not
 // a note, and a line that quietly skipped to the newest note would point past
 // the file the reader just saved.
-func TestHomeStandInNamesTheNewestFileNotTheNewestNote(t *testing.T) {
+// TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes covers the one folder
+// shape that has nothing for any block to show: files, but no markdown. The
+// stand-in used to cover a much commoner case — a folder whose notes carried no
+// type field — and that case now fills the recent block with the notes
+// themselves, which is what the reader came for.
+func TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
 	for name, content := range map[string]string{
-		"README.md": "# Folder\n\nREADME body sentinel.\n",
-		"older.md":  "# Older\n\nbody\n",
+		"reading.html": "<h1>Saved</h1>\n",
+		"older.txt":    "older body\n",
 	} {
 		full := filepath.Join(root, name)
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
@@ -2316,7 +2321,7 @@ func TestHomeStandInNamesTheNewestFileNotTheNewestNote(t *testing.T) {
 			t.Errorf("the stand-in line is missing %q; line = %q", want, standIn)
 		}
 	}
-	if strings.Contains(standIn, "older.md") || strings.Contains(standIn, "README.md") {
+	if strings.Contains(standIn, "older.txt") || strings.Contains(standIn, "reading.html") {
 		t.Errorf("the stand-in line names something other than the newest file; line = %q", standIn)
 	}
 }

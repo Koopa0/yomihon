@@ -188,6 +188,7 @@ type Store struct {
 	source          Source
 	log             *slog.Logger
 	roles           schema.NavigationRoles
+	scope           schema.KnowledgeScope
 	artifactPolicy  schema.ArtifactPolicy
 	articleLanguage schema.ArticleLanguage
 	prev            vault.Scan
@@ -216,13 +217,13 @@ func New(
 		panic("snapshot: New requires a non-nil Logger")
 	}
 
-	roles, policy, language := governance.Capabilities(contract)
+	roles, scope, policy, language := governance.Capabilities(contract)
 	policy = policy.ValidateSource()
 	scan, err := source.ScanAvailable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	view, retry, err := buildView(ctx, source, scan, log, roles, policy, language)
+	view, retry, err := buildView(ctx, source, scan, log, roles, scope, policy, language)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
@@ -230,6 +231,7 @@ func New(
 		source:          source,
 		log:             log,
 		roles:           roles,
+		scope:           scope,
 		artifactPolicy:  policy,
 		articleLanguage: language,
 		prev:            scan,
@@ -281,6 +283,7 @@ func (s *Store) rescan(ctx context.Context) {
 		scan,
 		s.log,
 		s.roles,
+		s.scope,
 		s.artifactPolicy,
 		s.articleLanguage,
 	)
@@ -313,6 +316,7 @@ func buildView(
 	scan vault.Scan,
 	log *slog.Logger,
 	roles schema.NavigationRoles,
+	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 	languages schema.ArticleLanguage,
 ) (*View, bool, error) {
@@ -364,7 +368,7 @@ func buildView(
 	}
 
 	graphIndex := graph.New(parsedNotes, resources)
-	navigation := nav.New(entries, parsedByPath, graphIndex, roles, projectionPolicy)
+	navigation := nav.New(entries, parsedByPath, graphIndex, roles, scope, projectionPolicy)
 	documents := make([]search.Document, 0, len(parsedNotes)+len(fileDocuments))
 	for _, note := range parsedNotes {
 		documents = append(documents, search.DocumentFromNote(note))

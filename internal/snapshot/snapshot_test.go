@@ -695,6 +695,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				scan,
 				discardLogger(),
 				contract.NavigationRoles(),
+				contract.KnowledgeScope(),
 				contract.ArtifactPolicy(),
 				contract.ArticleLanguage(),
 			)
