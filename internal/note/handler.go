@@ -68,7 +68,7 @@ type Dependencies struct {
 	// folder by a couple of seconds, which a body and a link graph can afford
 	// and an adjudication state cannot: the reader arrives here straight from a
 	// write, and a status that lags is one they have already changed.
-	ObservedStatus func(ctx context.Context, rel string) (string, error)
+	ObservedStatus func(ctx context.Context, rel string) (status.Observed, error)
 	Log            *slog.Logger
 }
 
@@ -279,7 +279,13 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.addWriteBlock(r.Context(), rel, &view)
-	h.addSealProvenance(r.Context(), rel, n.ContentHash, r.URL.Query().Get("sealed") == "1", &view)
+	// The receipt is checked against the bytes the status face just read, not
+	// against the scan's capture. A write lands and redirects here inside the
+	// scan interval, so the captured bytes are the ones from before it — and a
+	// note whose seal is the only thing anyone will look at showed no commit at
+	// all on the one page load that mattered.
+	sealedAgainst := cmp.Or(governance.contentHash, n.ContentHash)
+	h.addSealProvenance(r.Context(), rel, sealedAgainst, r.URL.Query().Get("sealed") == "1", &view)
 
 	pageChrome := governance.shell.Chrome(r, n.Title)
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
@@ -293,7 +299,11 @@ type governanceState struct {
 	// empty unless the write face applies to this note; the page falls back to
 	// the scan's value, which is the only answer available when nothing may be
 	// written and is then never contradicted by anything.
-	status          string
+	status string
+	// contentHash is of the same bytes status came from. The seal receipt is
+	// checked against it, so the commit shown belongs to the file the page is
+	// describing rather than to whatever the scan last captured.
+	contentHash     [sha256.Size]byte
 	transitions     []string
 	writeDiagnostic string
 	instance        bool
@@ -331,7 +341,8 @@ func (h *Handler) governance(
 			// Legally no frontmatter (e.g. drills): no keys either.
 			state.noFrontmatter = true
 		default:
-			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath)
+			observed, blocked := h.observedStatus(ctx, n.RelPath)
+			state.status, state.contentHash, state.writeDiagnostic = observed.Status, observed.ContentHash, blocked
 			if state.writeDiagnostic == "" {
 				state.transitions = statusView.Transitions(n.RelPath, n.Type, state.status)
 			}
@@ -347,13 +358,13 @@ func (h *Handler) governance(
 // holds may be exactly the one the reader has already moved away from, and a
 // transition offered from it is refused on arrival. Whatever prevented this
 // read is the same thing that would prevent the write.
-func (h *Handler) observedStatus(ctx context.Context, rel string) (current, blocked string) {
-	current, err := h.deps.ObservedStatus(ctx, rel)
+func (h *Handler) observedStatus(ctx context.Context, rel string) (observed status.Observed, blocked string) {
+	observed, err := h.deps.ObservedStatus(ctx, rel)
 	if err != nil {
 		h.deps.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
-		return "", status.ReadBlockReason
+		return status.Observed{}, status.ReadBlockReason
 	}
-	return current, ""
+	return observed, ""
 }
 
 // addWriteBlock asks the write package whether a transition on this note would

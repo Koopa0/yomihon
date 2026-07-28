@@ -2574,7 +2574,7 @@ func TestNewPanicsOnNilStatusProvider(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
-		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
+		ObservedStatus: func(context.Context, string) (status.Observed, error) { return status.Observed{}, nil },
 		Source:         source,
 		Status:         nil, // the nil under test
 		Snapshot:       store.Current,
@@ -3065,7 +3065,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 		Status:         func() status.View { return status.View{} },
 		Snapshot:       store.Current,
 		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
+		ObservedStatus: func(context.Context, string) (status.Observed, error) { return status.Observed{}, nil },
 		Log:            slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
@@ -3092,5 +3092,73 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 					f.rel, shown, found)
 			}
 		})
+	}
+}
+
+// TestTheSealReceiptIsOnThePageTheWriteLandsOn covers the only page load anyone
+// will look at. A write lands and redirects inside the scan interval, so the
+// captured bytes are the ones from before it; the receipt is checked against
+// the file and declined when they disagree, which is correct and which meant
+// the check never once passed on arrival. The reader saw a stamp saying the
+// note was sealed by koopa with nothing to check it against, and nobody reloads
+// a page that already looks finished.
+func TestTheSealReceiptIsOnThePageTheWriteLandsOn(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	runGit(t, root, "init", "--quiet", "--initial-branch=main")
+	runGit(t, root, "config", "user.name", "Test Vault")
+	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
+	runGit(t, root, "config", "commit.gpgsign", "false")
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "--quiet", "-m", "fixture")
+
+	contract := loadContract(t)
+	source := openReadingVault(t, root)
+	lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
+	srv := newServerWithProvenance(t, root, contract, lifecycle.LastCommitHash)
+
+	const rel = "Writing/lessons/japanese/L01.md"
+	form := url.Values{"path": {rel}, "from": {"draft"}, "to": {schema.SealStatus}}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatalf("new status request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /status: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	if resp.StatusCode != http.StatusSeeOther {
+		b, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			t.Fatalf("read failed status response: %v", readErr)
+		}
+		t.Fatalf("POST /status = %d, want %d; body = %q", resp.StatusCode, http.StatusSeeOther, b)
+	}
+
+	head := strings.TrimSpace(runGit(t, root, "rev-parse", "--short", "HEAD"))
+	if head == "" {
+		t.Fatal("the fixture repository has no HEAD after the write")
+	}
+	code, landed := get(t, srv.URL+resp.Header.Get("Location"))
+	if code != http.StatusOK {
+		t.Fatalf("GET the redirect target = %d, want 200", code)
+	}
+	if !strings.Contains(landed, head) {
+		t.Errorf("the page the write landed on carries no commit for the write it just made; want %q", head)
 	}
 }

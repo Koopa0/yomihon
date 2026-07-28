@@ -388,6 +388,15 @@ func (lc *Lifecycle) WriteBlockReason(ctx context.Context, rel string) (string, 
 	return "", nil
 }
 
+// Observed is what one read of a note's own file found. Status and ContentHash
+// come from the same bytes deliberately: the page shows the one and the audit
+// query is bound to the other, and a receipt paired with bytes the reader is not
+// looking at is worse than no receipt.
+type Observed struct {
+	Status      string
+	ContentHash [sha256.Size]byte
+}
+
 // ObservedStatus reports the status the note carries on disk right now.
 //
 // The reading page takes everything else from a scan that is up to a couple of
@@ -398,21 +407,24 @@ func (lc *Lifecycle) WriteBlockReason(ctx context.Context, rel string) (string, 
 // page that shows an older value offers a transition from a state the note has
 // already left — most visibly right after a write, when the reader is looking
 // straight at the thing they just did.
-func (lc *Lifecycle) ObservedStatus(_ context.Context, rel string) (string, error) {
+func (lc *Lifecycle) ObservedStatus(_ context.Context, rel string) (Observed, error) {
 	relSlash, osPath, err := normalizeRelPath(rel)
 	if err != nil {
-		return "", err
+		return Observed{}, err
 	}
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	if lc.root == nil {
-		return "", ErrClosed
+		return Observed{}, ErrClosed
 	}
 	source, err := readRegularFile(lc.root, osPath, relSlash)
 	if err != nil {
-		return "", err
+		return Observed{}, err
 	}
-	return vault.Parse(relSlash, source.data).Status(), nil
+	return Observed{
+		Status:      vault.Parse(relSlash, source.data).Status(),
+		ContentHash: sha256.Sum256(source.data),
+	}, nil
 }
 
 type provenanceHooks struct {
