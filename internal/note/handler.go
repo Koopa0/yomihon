@@ -283,6 +283,10 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	h.addSealProvenance(r.Context(), rel, sealedAgainst, r.URL.Query().Get("sealed") == "1", &view)
 
 	pageChrome := governance.shell.Chrome(r, n.Title)
+	// The furigana control switches readings off. A page with none has nothing
+	// to switch, so it does not carry the button — which is most pages in a
+	// folder that holds no Japanese at all.
+	pageChrome.HasRuby = strings.Contains(result.HTML, "<ruby")
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}

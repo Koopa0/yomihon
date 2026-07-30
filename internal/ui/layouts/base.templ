@@ -11,13 +11,18 @@ import "strconv"
 // The client runtime flips these attributes and their cookies; CSS reacts (see
 // assets/css/*). The server-rendered page remains usable without enhancement.
 type Chrome struct {
-	Title                     string // page title (before " — yomihon")
-	Nonce                     string // per-response nonce for application-owned scripts
-	Theme                     string // "light" | "dark"
-	Ruby                      string // "on" | "off"
-	SingleKeyShortcutsEnabled bool   // plain /, [, and held R are enabled
-	Advanceable               int    // notes for which Koopa has at least one legal next status
-	AdvanceableKnown          bool   // false when the write contract or metadata capability is unavailable
+	Title string // page title (before " — yomihon")
+	Nonce string // per-response nonce for application-owned scripts
+	Theme string // "light" | "dark"
+	Ruby  string // "on" | "off"
+	// HasRuby says this page actually carries furigana. The control switches
+	// them off; a folder with no Japanese in it has none to switch, and a
+	// button for a capability the page does not have is the tool's provenance
+	// showing through its chrome.
+	HasRuby                   bool
+	SingleKeyShortcutsEnabled bool // plain /, [, and held R are enabled
+	Advanceable               int  // notes for which Koopa has at least one legal next status
+	AdvanceableKnown          bool // false when the write contract or metadata capability is unavailable
 }
 
 func singleKeyShortcutsState(enabled bool) string {
@@ -87,11 +92,13 @@ templ header(c Chrome) {
 			<span class="y-shortcutpref__on" aria-hidden="true">開</span>
 			<span class="y-shortcutpref__off" aria-hidden="true">關</span>
 		</label>
-		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label="切換振假名" aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
-			<span class="y-rubybtn__glyph" aria-hidden="true">振</span>
-			<span class="y-rubybtn__on">開</span>
-			<span class="y-rubybtn__off">關</span>
-		</button>
+		if c.HasRuby {
+			<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label="切換振假名" aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
+				<span class="y-rubybtn__glyph" aria-hidden="true">振</span>
+				<span class="y-rubybtn__on">開</span>
+				<span class="y-rubybtn__off">關</span>
+			</button>
+		}
 		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label="切換主題" aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
 			<svg class="y-ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
 			<svg class="y-ico-moon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>

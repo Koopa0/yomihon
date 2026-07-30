@@ -96,18 +96,22 @@ const MUTATIONS = {
   'scroll-home-main': {
     target: 'home-starts-at-top',
     after: async (page) => {
-      const state = await page.locator('.y-main').evaluate((element) => {
+      // The document is the scroller, so this moves the document. Mutating
+      // .y-main would leave the probe green whatever happened, which is what
+      // it did the first time this layout changed underneath it.
+      const state = await page.evaluate(() => {
         const overflow = document.createElement('div');
         overflow.style.blockSize = '2000px';
         overflow.dataset.e2eScrollMutation = '';
-        element.append(overflow);
-        element.style.blockSize = '100px';
-        element.style.overflowY = 'auto';
-        element.style.scrollBehavior = 'auto';
-        element.scrollTop = 80;
-        return { scrollTop: element.scrollTop, marked: overflow.hasAttribute('data-e2e-scroll-mutation') };
+        document.body.append(overflow);
+        document.documentElement.style.scrollBehavior = 'auto';
+        document.scrollingElement.scrollTop = 80;
+        return {
+          scrollTop: document.scrollingElement.scrollTop,
+          marked: overflow.hasAttribute('data-e2e-scroll-mutation'),
+        };
       });
-      return () => state.marked && state.scrollTop > 0 ? '' : `Home main stayed at ${state.scrollTop} after the scroll mutation`;
+      return () => state.marked && state.scrollTop > 0 ? '' : `the document stayed at ${state.scrollTop} after the scroll mutation`;
     },
   },
   'focus-home-without-scroll': {
@@ -462,8 +466,11 @@ try {
     const { context, page } = await start(browser, site);
     try {
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      const scrollTop = await page.locator('.y-main').evaluate((element) => element.scrollTop);
-      if (scrollTop !== 0) fail(site, `.y-main.scrollTop = ${scrollTop}, want 0 at 1270x720`);
+      // The document is the scroller for prose, so arriving at the top is a
+      // fact about the document. Asking .y-main would answer zero whatever
+      // happened, because it no longer scrolls at all.
+      const scrollTop = await page.evaluate(() => document.scrollingElement.scrollTop);
+      if (scrollTop !== 0) fail(site, `document.scrollTop = ${scrollTop}, want 0 at 1270x720`);
     } finally {
       await context.close();
     }

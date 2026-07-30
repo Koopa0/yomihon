@@ -3319,3 +3319,49 @@ func chipCounts(t *testing.T, block string) []int {
 		rest = rest[end:]
 	}
 }
+
+// TestFuriganaControlAppearsOnlyWhereThereIsFurigana covers a control for a
+// capability the page does not have. The button switches readings off; a folder
+// that holds no Japanese has none to switch, and shipping it anyway is where
+// the tool's own history shows through its chrome to a reader who has no idea
+// what 振 means.
+func TestFuriganaControlAppearsOnlyWhereThereIsFurigana(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "plain.md"),
+		[]byte("# Plain\n\nordinary prose, no readings.\n"), 0o600); err != nil {
+		t.Fatalf("write plain note: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "japanese.md"),
+		[]byte("# Japanese\n\n<ruby>今日<rt>きょう</rt></ruby>は晴れ。\n"), 0o600); err != nil {
+		t.Fatalf("write japanese note: %v", err)
+	}
+	srv := newServer(t, root)
+
+	for _, tt := range []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "a note carrying readings", path: "/notes/japanese.md", want: true},
+		{name: "a note carrying none", path: "/notes/plain.md", want: false},
+		{name: "home", path: "/", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			code, body := get(t, srv.URL+tt.path)
+			if code != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want 200", tt.path, code)
+			}
+			if got := strings.Contains(body, "data-ruby-toggle"); got != tt.want {
+				t.Errorf("GET %s carries the furigana control = %t, want %t", tt.path, got, tt.want)
+			}
+			if strings.Contains(body, "<ruby") != tt.want {
+				t.Errorf("GET %s: the fixture does not match what the test assumes", tt.path)
+			}
+		})
+	}
+}
