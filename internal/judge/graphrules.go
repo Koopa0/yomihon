@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The graph rules turn the resolved link graph into findings: a wikilink that
@@ -16,11 +15,14 @@ import (
 // that disagrees with the lessons on disk. They read the notes and the resolver
 // the same way the vault's linker does; the diagnostic strings are frozen.
 
-// normalizeKey folds a name to the key its resolution is stored under: trim,
-// Unicode NFC, lowercase — the same normalization the resolver applies, so a
-// title, alias, or slug index agrees with the resolver on what a name matches.
+// normalizeKey folds a name to the key its resolution is stored under, so the
+// title, alias, and slug indexes built here agree with the resolver about what
+// a written name matches. It is the resolver's own function rather than a
+// local reproduction of its steps: the two were identical by maintenance, and
+// any drift between them would show up as this judge and the reading page
+// disagreeing about a name neither of them could see was ambiguous.
 func normalizeKey(name string) string {
-	return strings.ToLower(vault.NormalizeNFC(strings.TrimSpace(name)))
+	return graph.NormalizeKey(name)
 }
 
 // runGraphRules runs the graph rules over the notes and the resolver, in the
@@ -75,23 +77,19 @@ func slugIndex(notes []note, authority scanAuthority) map[string]string {
 	return idx
 }
 
-// plannedNamesSet is the normalized set of every concept name listed as planned
-// anywhere in the public corpus. A broken link to one of these is a tracked
-// forward-reference even when the citing link is not itself under a gap
-// heading. A contract-private note is not a source: a name planned only there
+// plannedNamesSet is the set of every concept name listed as planned anywhere
+// in the public corpus, harvested from the names this scan already collected
+// per note. A contract-private note is not a source: a name planned only there
 // must not soften a public broken link, or a reader of the finding could infer
-// that private content names that target.
-func plannedNamesSet(notes []note, authority scanAuthority) map[string]bool {
-	set := make(map[string]bool)
+// that private content names that target. That narrowing is this face's alone —
+// see NewPlanned for why the reading page draws from the whole vault instead.
+func plannedNamesSet(notes []note, authority scanAuthority) Planned {
+	set := make(Planned)
 	for i := range notes {
 		if !authority.egressAllowed(notes[i].path) {
 			continue
 		}
-		for _, name := range notes[i].plannedNames {
-			if key := normalizeKey(name); key != "" {
-				set[key] = true
-			}
-		}
+		set.add(notes[i].plannedNames)
 	}
 	return set
 }
@@ -104,7 +102,7 @@ func linkHealth(
 	notes []note,
 	idx *graph.Index,
 	titles map[string][]string,
-	planned map[string]bool,
+	planned Planned,
 ) []Finding {
 	var out []Finding
 	for i := range notes {
@@ -150,8 +148,8 @@ func titleNotAlias(n *note, link wikiLink, targetNotes []string) Finding {
 // brokenLink is a link that resolves to nothing. It is informational when it is
 // a tracked forward-reference — under a gap heading, or naming a planned
 // concept — and a warning otherwise.
-func brokenLink(n *note, link wikiLink, planned map[string]bool) Finding {
-	tracked := link.underGapHeading || planned[normalizeKey(link.target)]
+func brokenLink(n *note, link wikiLink, planned Planned) Finding {
+	tracked := link.underGapHeading || planned.Has(link.target)
 	severity := SeverityWarn
 	evidence := "no filename or alias matches the target"
 	action := "create the target note, or change the link to an existing filename/alias"

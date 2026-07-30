@@ -21,14 +21,21 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// normalize is the single normalization every resolution key passes
+// NormalizeKey is the single normalization every resolution key passes
 // through, applied identically at index-build time and lookup time: trim,
 // Unicode NFC, lowercase. It calls vault.NormalizeNFC for the NFC step so there
 // is exactly one NFC definition in the repo. NFC matters because
 // this vault's CJK filenames can arrive NFC or NFD (macOS itself stores
 // filenames NFD on disk, independent of how a note's frontmatter aliases were
 // typed).
-func normalize(name string) string {
+//
+// It is exported because a caller that builds its own name index — a title
+// index, an alias index, a set of planned concept names — has to fold names
+// the same way this resolver does, or the two disagree about what a written
+// name matches. Callers share this function rather than reproducing its three
+// steps, since a second copy agreeing today is agreement by maintenance
+// accident rather than by construction.
+func NormalizeKey(name string) string {
 	return strings.ToLower(vault.NormalizeNFC(strings.TrimSpace(name)))
 }
 
@@ -113,7 +120,7 @@ func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 // SplitWikilink) against the index. Anchors are never verified by this
 // package or its caller: [[X#heading]] resolves as long as X exists.
 func (idx *Index) Resolve(name string) Resolution {
-	members := idx.names[normalize(name)]
+	members := idx.names[NormalizeKey(name)]
 	switch len(members) {
 	case 0:
 		return Resolution{Kind: Unresolved}
@@ -130,7 +137,7 @@ func (idx *Index) Resolve(name string) Resolution {
 // negatives (better to flag a resolvable-but-uncertain link than to
 // silently miss a real one).
 func (idx *Index) add(key, path string) {
-	normKey := normalize(key)
+	normKey := NormalizeKey(key)
 	if normKey == "" {
 		return
 	}

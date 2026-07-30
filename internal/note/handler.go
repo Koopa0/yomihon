@@ -262,7 +262,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Sealed:            governance.instance && noteStatus == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
-		RenderDiagnostics: result.Diagnostics,
+		RenderDiagnostics: faults(result.Diagnostics, snap),
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
 		Sidebar:           pages.NewSidebar(governance.shell.Nav, n.RelPath),
@@ -291,6 +291,26 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}
+}
+
+// faults keeps the rendering diagnostics that describe something wrong with the
+// note, dropping the unresolved links the vault is deliberately writing toward.
+//
+// Nearly every unresolved link in a vault written this way is one of those, so
+// listing them all makes the count beside the page a number the reader learns
+// to ignore, and the two genuine faults hide behind fifty-six deliberate ones.
+// The links themselves are still marked where they sit in the prose, which is
+// where a forward reference is worth seeing: the target is not written yet, and
+// the reader is looking straight at the sentence that wants it.
+func faults(diags []render.Diagnostic, snap *snapshot.View) []render.Diagnostic {
+	kept := make([]render.Diagnostic, 0, len(diags))
+	for _, d := range diags {
+		if d.Kind == render.DiagWikilinkBroken && snap.TrackedForwardReference(d.Target) {
+			continue
+		}
+		kept = append(kept, d)
+	}
+	return kept
 }
 
 type governanceState struct {

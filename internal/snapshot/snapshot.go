@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	pathpkg "path"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
@@ -50,6 +52,7 @@ type View struct {
 	search         *search.Index
 	slots          lesson.SlotIndex
 	concepts       lesson.ConceptIndex
+	planned        judge.Planned
 	artifactPolicy schema.ArtifactPolicy
 
 	scan     vault.Scan
@@ -77,6 +80,25 @@ func (v *View) Graph() *graph.Index {
 		return nil
 	}
 	return v.graph
+}
+
+// TrackedForwardReference reports whether target is a name the vault is
+// deliberately writing toward: it resolves to no file, and some note has
+// declared it as a concept still owed. The vault is written forward — a note
+// lists what it has yet to write and then links those names from wherever they
+// belong — so such a link records intent rather than a fault, and the reading
+// page must not count it as one.
+//
+// Both halves are required, and they are the same two the adjudicator applies
+// in that order. Resolution is asked first because a target that does resolve
+// can still fail to render for reasons that have nothing to do with planning —
+// an embed whose body this generation did not capture, say — and a name-only
+// test would quietly swallow that.
+func (v *View) TrackedForwardReference(target string) bool {
+	if v == nil || v.graph == nil {
+		return false
+	}
+	return v.graph.Resolve(target).Kind == graph.Unresolved && v.planned.Has(target)
 }
 
 // Navigation returns the immutable navigation model for this generation.
@@ -392,12 +414,30 @@ func buildView(
 		search:         searchIndex,
 		slots:          slots,
 		concepts:       concepts,
+		planned:        judge.NewPlanned(noteBodies(parsedNotes)),
 		artifactPolicy: policy,
 		scan:           scan,
 		notes:          publishedNotes,
 	}
 	view.markdown = render.New(graphIndex, view)
 	return view, retry, nil
+}
+
+// noteBodies iterates the parsed bodies of one generation's notes. The planned
+// index is built from every note the server read, not the narrower corpus the
+// adjudicator harvests: nothing derived here leaves the machine, and the only
+// reader of this page can already open each of those notes directly.
+func noteBodies(notes []*vault.Note) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for _, n := range notes {
+			if n == nil {
+				continue
+			}
+			if !yield(n.Body) {
+				return
+			}
+		}
+	}
 }
 
 // captureFile files one vault entry that is not a note into the projections
