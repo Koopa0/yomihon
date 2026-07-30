@@ -64,6 +64,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		Query:      q,
 		Results:    viewResults(results, snap.Shell.Governed),
 		Diagnostic: diagnostic,
+		Governed:   snap.Shell.Governed,
 		Nav:        snap.Shell.Nav,
 	}
 	if err := pages.Search(view, snap.Shell.Chrome(r, "搜尋")).Render(r.Context(), w); err != nil {
@@ -84,7 +85,7 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed), diagnostic).Render(r.Context(), w); err != nil {
+	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed), diagnostic, snap.Shell.Governed).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }

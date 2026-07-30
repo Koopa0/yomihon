@@ -18,6 +18,13 @@ type SearchView struct {
 	Results    []SearchResult
 	Diagnostic string
 
+	// Governed says this generation has a lifecycle contract behind it. It
+	// gates the advice offered when nothing matched: a status filter is only
+	// worth suggesting where statuses exist, and a reader whose folder has none
+	// followed that suggestion, got nothing again, and was handed the same
+	// sentence a second time.
+	Governed bool
+
 	// Nav is the whole-vault navigation model for the shared sidebar: the
 	// search page renders inside the same shell as every other page, so a
 	// topbar chip or a search never strands the reader in a chromeless view.
@@ -57,7 +64,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 						<button type="submit" class="y-xbtn">搜尋</button>
 					</form>
 					<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
-					@SearchResults(v.Query, v.Results, v.Diagnostic)
+					@SearchResults(v.Query, v.Results, v.Diagnostic, v.Governed)
 				</div>
 			</main>
 		</div>
@@ -67,7 +74,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 // SearchResults is the server-rendered lexical-results fragment shared by the
 // full results page and the progressive search fields. The outer data marker is
 // the HTML-to-JavaScript contract; the result links remain ordinary navigation.
-templ SearchResults(query string, results []SearchResult, diagnostic string) {
+templ SearchResults(query string, results []SearchResult, diagnostic string, governed bool) {
 	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(len(results)) } aria-busy="false">
 		if diagnostic != "" {
 			<div class="y-searchpage__empty" data-search-diagnostic>
@@ -101,7 +108,11 @@ templ SearchResults(query string, results []SearchResult, diagnostic string) {
 		} else if query != "" {
 			<div class="y-searchpage__empty">
 				<p>找不到「{ query }」的結果。</p>
-				<p class="y-searchpage__hint">搜尋涵蓋筆記，以及任何能以文字呈現的檔案；圖片、PDF 與其他二進位檔案只在導覽中列出，內容不會被讀取。請嘗試較少或不同的詞，或用 <code>status:draft</code> 依生命週期縮小範圍。</p>
+				if governed {
+					<p class="y-searchpage__hint">搜尋涵蓋筆記，以及任何能以文字呈現的檔案；圖片、PDF 與其他二進位檔案只在導覽中列出，內容不會被讀取。請嘗試較少或不同的詞，或用 <code>status:draft</code> 依生命週期縮小範圍。</p>
+				} else {
+					<p class="y-searchpage__hint">搜尋涵蓋筆記，以及任何能以文字呈現的檔案；圖片、PDF 與其他二進位檔案只在導覽中列出，內容不會被讀取。請嘗試較少或不同的詞。</p>
+				}
 			</div>
 		}
 	</div>

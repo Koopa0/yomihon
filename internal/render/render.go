@@ -192,7 +192,13 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy) Result {
 	// authored copy before placeholders exist prevents source from selecting or
 	// relocating renderer-owned HTML during substituteBlocks.
 	body = strings.ReplaceAll(body, "<!--yomihon-block:", "&lt;!--yomihon-block:")
-	source, blocks := r.preprocess(body, allowEmbed, &diags)
+	body = strings.Map(func(r rune) rune {
+		if strings.ContainsRune(inlinePlaceholderRunes, r) {
+			return -1
+		}
+		return r
+	}, body)
+	source, blocks, inline := r.preprocess(body, allowEmbed, &diags)
 
 	var buf bytes.Buffer
 	if err := r.md.Convert([]byte(source), &buf); err != nil {
@@ -208,7 +214,7 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy) Result {
 		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: diags}
 	}
 
-	return Result{HTML: substituteBlocks(buf.String(), blocks), Diagnostics: diags}
+	return Result{HTML: substituteBlocks(buf.String(), blocks, inline), Diagnostics: diags}
 }
 
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page is

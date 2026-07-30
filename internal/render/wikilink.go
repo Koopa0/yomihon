@@ -11,19 +11,54 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-// blockPlaceholder is the reserved marker substituted into markdown source
-// for first-party markup and replaced after goldmark converts. An HTML comment
-// is one indivisible raw node both inline and at block position, so it neither
-// acquires a paragraph wrapper nor asks the authored-HTML allowlist to admit a
-// general-purpose element. renderBody neutralizes authored copies of this
-// prefix before preprocess can create real placeholders.
+// unwrittenTarget renders a link whose target does not exist yet. The styling
+// gives it a help cursor, which is a promise that pausing on it explains
+// something, so the explanation has to be attached here — without it the reader
+// hovers, then clicks, then reads nothing, and concludes the page is broken
+// rather than that the note is unwritten. It says which name failed, because
+// the words on the page are often not that name, and it says it the way a
+// person would rather than in the vocabulary of the link syntax.
+func unwrittenTarget(target, display string) string {
+	return fmt.Sprintf(`<span class="wikilink-broken" title="還沒有「%s」這篇筆記">%s</span>`,
+		html.EscapeString(target), html.EscapeString(display))
+}
+
+// blockPlaceholder is the reserved marker substituted into markdown source for
+// first-party markup that stands on its own line — a transclusion, a callout.
+// An HTML comment is one indivisible raw node, so it reaches the reader as the
+// standalone block its caller surrounded with blank lines, without asking the
+// authored-HTML allowlist to admit a general-purpose element. renderBody
+// neutralizes authored copies of this prefix before preprocess can create real
+// placeholders.
 func blockPlaceholder(i int) string {
 	return fmt.Sprintf(`<!--yomihon-block:%d-->`, i)
 }
 
-func substituteBlocks(htmlOut string, blocks []string) string {
+// inlinePlaceholder is the marker for first-party markup that belongs inside a
+// line — a rendered wikilink. It cannot be the comment above: a comment opening
+// a line is a markdown HTML block, which swallows the rest of the paragraph
+// with it, so prose that began with a link arrived unwrapped and ran into the
+// paragraph below it on the page. These are private-use code points instead,
+// which the markdown pass carries through as ordinary text and therefore wraps
+// exactly as it wraps the words beside them. The index is delimited at both
+// ends so one marker can never be found inside another.
+func inlinePlaceholder(i int) string {
+	return fmt.Sprintf("\ue000%d\ue001", i)
+}
+
+// inlinePlaceholderRunes are stripped from authored text before any real marker
+// exists, for the same reason the comment prefix is neutralized: a vault note
+// containing them could otherwise select or relocate renderer-owned markup.
+// They are unassigned to any character, so nothing a reader meant to see is
+// lost with them.
+const inlinePlaceholderRunes = "\ue000\ue001"
+
+func substituteBlocks(htmlOut string, blocks, inline []string) string {
 	for i, b := range blocks {
 		htmlOut = strings.Replace(htmlOut, blockPlaceholder(i), b, 1)
+	}
+	for i, b := range inline {
+		htmlOut = strings.Replace(htmlOut, inlinePlaceholder(i), b, 1)
 	}
 	return htmlOut
 }
@@ -89,7 +124,7 @@ func looksRisky(line string) bool {
 // each region gets its own accurate warning, at the cost of occasional
 // (harmless) redundancy across regions, rather than plumbing a shared
 // counter through every recursive render call for a rare case.
-func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, diags *[]Diagnostic) (out string, blocks []string) {
+func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, diags *[]Diagnostic) (out string, blocks, inline []string) {
 	st := &preprocessState{lines: strings.Split(body, "\n")}
 	st.kept = make([]string, 0, len(st.lines))
 
@@ -103,11 +138,11 @@ func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, diags *[]Diag
 		case r.tryConsumeCallout(st, allowEmbed, diags):
 			// handled: a known-type callout block was consumed.
 		default:
-			st.kept = append(st.kept, r.convertWikilinks(st.lines[st.i], allowEmbed, diags, &st.blocks))
+			st.kept = append(st.kept, r.convertWikilinks(st.lines[st.i], allowEmbed, diags, &st.inline))
 			st.i++
 		}
 	}
-	return strings.Join(st.kept, "\n"), st.blocks
+	return strings.Join(st.kept, "\n"), st.blocks, st.inline
 }
 
 // preprocessState carries preprocess's running scan state so the
@@ -119,6 +154,7 @@ type preprocessState struct {
 
 	kept   []string
 	blocks []string
+	inline []string
 
 	inFence            bool
 	fenceByte          byte
@@ -235,7 +271,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 
 // convertWikilinks scans one source line for [[...]] and ![[...]] and replaces
 // each with its rendered form.
-func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *[]Diagnostic, blocks *[]string) string {
+func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *[]Diagnostic, inline *[]string) string {
 	// A code span is quoted text: the author is showing the reader what a
 	// wikilink looks like, not making one. Converting it substituted a
 	// renderer-owned placeholder that goldmark then escaped as the span's
@@ -259,13 +295,13 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *
 			return html.EscapeString(display)
 		}
 		if embed {
-			blockHTML := r.renderEmbed(target, allowEmbed, diags)
-			*blocks = append(*blocks, blockHTML)
-			return blockPlaceholder(len(*blocks) - 1)
+			embedHTML := r.renderEmbed(target, allowEmbed, diags)
+			*inline = append(*inline, embedHTML)
+			return inlinePlaceholder(len(*inline) - 1)
 		}
 		linkHTML := r.renderWikilink(target, display, diags)
-		*blocks = append(*blocks, linkHTML)
-		return blockPlaceholder(len(*blocks) - 1)
+		*inline = append(*inline, linkHTML)
+		return inlinePlaceholder(len(*inline) - 1)
 	})
 }
 
@@ -379,7 +415,7 @@ func (r *Pipeline) renderWikilink(target, display string, diags *[]Diagnostic) s
 			Kind: DiagWikilinkBroken, Target: target,
 			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", target),
 		})
-		return fmt.Sprintf(`<span class="wikilink-broken">%s</span>`, html.EscapeString(display))
+		return unwrittenTarget(target, display)
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -410,7 +446,7 @@ func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, diags *[]D
 			Kind: DiagWikilinkBroken, Target: target,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
-		return fmt.Sprintf(`<span class="wikilink-broken">![[%s]]</span>`, html.EscapeString(target))
+		return unwrittenTarget(target, "![["+target+"]]")
 	case graph.Ambiguous:
 		*diags = append(*diags, Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: target,
@@ -430,7 +466,8 @@ func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, diags *[]D
 				Kind: DiagWikilinkBroken, Target: target,
 				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.Path),
 			})
-			return fmt.Sprintf(`<span class="wikilink-broken">![[%s]]</span>`, html.EscapeString(target))
+			return fmt.Sprintf(`<span class="wikilink-broken" title="這篇筆記存在，但這次讀取時拿不到它的內容">![[%s]]</span>`,
+				html.EscapeString(target))
 		}
 		inner := r.render(body, embedsDenied)
 		*diags = append(*diags, inner.Diagnostics...)
