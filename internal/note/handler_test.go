@@ -3365,3 +3365,50 @@ func TestFuriganaControlAppearsOnlyWhereThereIsFurigana(t *testing.T) {
 		})
 	}
 }
+
+// TestAFileTooLargeToSearchSaysSoOnItsOwnPage covers the only thing that makes
+// a bound honest. A note past the cap still renders — every file in the folder
+// stays readable — but nothing reaches it by search, and a search that answers
+// "no results" for a phrase sitting in a note the reader is looking at is a
+// false statement about the folder. The cap already existed for every file kind
+// except the one held three times over.
+func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	const needle = "rarespelunker"
+	small := "# Small\n\n" + needle + " sits here.\n"
+	if err := os.WriteFile(filepath.Join(root, "small.md"), []byte(small), 0o600); err != nil {
+		t.Fatalf("write small note: %v", err)
+	}
+	huge := "# Huge\n\n" + needle + " sits here too.\n" + strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, which is under the cap; this would prove nothing", len(huge))
+	}
+	if err := os.WriteFile(filepath.Join(root, "huge.md"), []byte(huge), 0o600); err != nil {
+		t.Fatalf("write huge note: %v", err)
+	}
+	srv := newServer(t, root)
+
+	// It renders, and it says why a search will not find it.
+	code, page := get(t, srv.URL+"/notes/huge.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET the oversize note = %d, want 200 — reading is never withheld", code)
+	}
+	if !strings.Contains(page, "sits here too") {
+		t.Error("the oversize note did not render its own body")
+	}
+	if !strings.Contains(page, "data-note-unsearchable") {
+		t.Error("the oversize note is absent from the index and its page does not say so")
+	}
+
+	// The note that is indexed says nothing of the kind.
+	if _, small := get(t, srv.URL+"/notes/small.md"); strings.Contains(small, "data-note-unsearchable") {
+		t.Error("a note that is searchable was told it is not")
+	}
+
+	// That the index really leaves it out is asserted where the index lives:
+	// TestAnOversizeNoteRendersAndStaysOutOfTheIndex in internal/snapshot.
+}

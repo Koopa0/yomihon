@@ -22,9 +22,14 @@ type Note struct {
 	LanguageDiagnostic string
 	HasFrontmatter     bool
 	ContentHash        [sha256.Size]byte
+	// Searchable is false for a note too large to hold in the index. It still
+	// renders — every file in the folder stays readable — but a search that
+	// cannot reach it must say so, or the answer "no results" is a false
+	// statement about the folder.
+	Searchable bool
 }
 
-func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage) Note {
+func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, searchable bool) Note {
 	if parsed == nil {
 		return Note{}
 	}
@@ -45,5 +50,6 @@ func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLangua
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.Frontmatter != nil,
 		ContentHash:        sha256.Sum256(data),
+		Searchable:         searchable,
 	}
 }

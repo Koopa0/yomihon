@@ -17,7 +17,7 @@ templ browserDiagnostic(summary, detail string) {
 func renderDiagnosticSummary(kind render.DiagnosticKind) string {
 	switch kind {
 	case render.DiagWikilinkBroken:
-		return "找不到 wikilink 或嵌入目標。"
+		return "這個 wikilink 或嵌入的目標尚未建立。"
 	case render.DiagWikilinkAmbiguous:
 		return "wikilink 或嵌入目標有歧義。"
 	case render.DiagUnknownCallout:

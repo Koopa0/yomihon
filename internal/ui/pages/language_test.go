@@ -63,7 +63,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 				}
 				return diagnostics(view).Render(t.Context(), buf)
 			},
-			want:      []string{"生命週期寫入目前無法使用", "frontmatter 不是有效的 YAML", "找不到 wikilink 或嵌入目標", `lang="en"`},
+			want:      []string{"生命週期寫入目前無法使用", "frontmatter 不是有效的 YAML", "這個 wikilink 或嵌入的目標尚未建立", `lang="en"`},
 			forbidden: []string{"Diagnostics", "Contract unavailable", "not a governable artifact"},
 		},
 	}

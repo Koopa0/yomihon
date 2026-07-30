@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -888,5 +889,66 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 		if strings.HasSuffix(r.RelPath, ".pdf") {
 			t.Errorf("a PDF is in the text index: %s — its page shows a viewer, not these words", r.RelPath)
 		}
+	}
+}
+
+// TestAnOversizeNoteRendersAndStaysOutOfTheIndex is the half of the bound that
+// makes it honest. Every file in the folder stays readable whatever its size —
+// so the note is captured and its body is there — but the index is where a note
+// costs three copies of itself, and that is where the ceiling belongs. The
+// reader is told on the note's own page; this is the fact that sentence is
+// about.
+func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const needle = "rarespelunker"
+	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\n"+needle+" sits here.\n")
+	huge := "---\ntitle: Huge\ntype: concept\n---\n" + needle + " sits here too.\n" +
+		strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
+	}
+	writeNote(t, root, "huge.md", huge)
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := store.Current()
+
+	// It is captured and readable.
+	note, ok := view.Note("huge.md")
+	if !ok {
+		t.Fatal("the oversize note is absent from the generation; reading is never withheld")
+	}
+	if !strings.Contains(note.Body, "sits here too") {
+		t.Error("the oversize note lost its body")
+	}
+	if note.Searchable {
+		t.Error("the oversize note reports itself searchable, so its page would say nothing")
+	}
+	if small, _ := view.Note("small.md"); !small.Searchable {
+		t.Error("a note under the cap reports itself unsearchable")
+	}
+
+	results, err := view.Search().Search(search.Parse(needle))
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	var paths []string
+	for _, r := range results {
+		paths = append(paths, r.RelPath)
+	}
+	if !slices.Contains(paths, "small.md") {
+		t.Errorf("search lost the note under the cap; got %v", paths)
+	}
+	if slices.Contains(paths, "huge.md") {
+		t.Errorf("the oversize note reached the index, so its page's sentence is untrue; got %v", paths)
 	}
 }

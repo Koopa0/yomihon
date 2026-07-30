@@ -261,6 +261,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		SealTarget:        schema.SealStatus,
 		Sealed:            governance.instance && noteStatus == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
+		Unsearchable:      !n.Searchable,
 		RenderDiagnostics: result.Diagnostics,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,

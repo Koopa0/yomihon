@@ -328,6 +328,7 @@ func buildView(
 	parsedByPath := make(map[string]*vault.Note)
 	parsedNotes := make([]*vault.Note, 0, len(entries))
 	publishedNotes := make(map[string]Note)
+	indexableNotes := make(map[string]bool)
 	resources := make([]string, 0, len(entries))
 	slotFiles := make(map[string][]byte)
 	fileDocuments := make([]search.Document, 0, len(entries))
@@ -364,17 +365,13 @@ func buildView(
 		parsed := vault.Parse(relPath, data)
 		parsedByPath[relPath] = parsed
 		parsedNotes = append(parsedNotes, parsed)
-		publishedNotes[relPath] = captureNote(parsed, data, languages)
+		indexableNotes[relPath] = want.indexable
+		publishedNotes[relPath] = captureNote(parsed, data, languages, want.indexable)
 	}
 
 	graphIndex := graph.New(parsedNotes, resources)
 	navigation := nav.New(entries, parsedByPath, graphIndex, roles, scope, projectionPolicy)
-	documents := make([]search.Document, 0, len(parsedNotes)+len(fileDocuments))
-	for _, note := range parsedNotes {
-		documents = append(documents, search.DocumentFromNote(note))
-	}
-	documents = append(documents, fileDocuments...)
-	searchIndex := search.NewIndex(documents, projectionPolicy)
+	searchIndex := search.NewIndex(indexDocuments(parsedNotes, indexableNotes, fileDocuments), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(slotFiles)
 	for _, problem := range slotProblems {
@@ -448,7 +445,12 @@ type bytesWanted struct {
 // wantedBytes decides what this generation needs from one scanned entry.
 func wantedBytes(entry vault.Entry, note bool) bytesWanted {
 	if note {
-		return bytesWanted{read: true, holdsBackGeneration: true}
+		// A note is always read: every file in the folder stays readable, and
+		// its page renders whatever its size. Only the index has a bound, and
+		// it is the one the file page already applies — a note is held three
+		// times over there (its body, and two folded copies for matching), so
+		// it was the one file kind with no ceiling at all.
+		return bytesWanted{read: true, indexable: withinSourceCap(entry), holdsBackGeneration: true}
 	}
 	sidecar := lesson.IsSlotSidecar(entry.Path())
 	indexable := readableAsText(entry)
@@ -457,6 +459,24 @@ func wantedBytes(entry vault.Entry, note bool) bytesWanted {
 		indexable:           indexable,
 		holdsBackGeneration: sidecar,
 	}
+}
+
+// indexDocuments gathers what this generation will answer searches from. A note
+// the generation captured but could not hold in the index is skipped here
+// rather than filtered later, so one place decides what is searchable and the
+// note's own page can state the same fact.
+func indexDocuments(
+	notes []*vault.Note,
+	indexable map[string]bool,
+	files []search.Document,
+) []search.Document {
+	documents := make([]search.Document, 0, len(notes)+len(files))
+	for _, note := range notes {
+		if indexable[note.RelPath] {
+			documents = append(documents, search.DocumentFromNote(note))
+		}
+	}
+	return append(documents, files...)
 }
 
 // readableAsText reports whether a vault file that is not a note is a candidate
@@ -468,7 +488,14 @@ func readableAsText(entry vault.Entry) bool {
 	relPath := entry.Path()
 	return !render.IsPicture(relPath) &&
 		!strings.EqualFold(pathpkg.Ext(relPath), ".pdf") &&
-		entry.Size() <= render.MaxSourceBytes
+		withinSourceCap(entry)
+}
+
+// withinSourceCap reports whether a file is small enough for its characters to
+// be held. It is the same ceiling the file page shows its own readers, so what
+// yomihon will search and what it will display as text answer to one rule.
+func withinSourceCap(entry vault.Entry) bool {
+	return entry.Size() <= render.MaxSourceBytes
 }
 
 func (s *Store) logBuild(message string, view *View, scan vault.Scan) {

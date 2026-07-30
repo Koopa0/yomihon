@@ -36,7 +36,11 @@ type NoteView struct {
 	SealTarget string
 	Sealed     bool
 	Diagnostic string
-	BodyHTML   string
+	// Unsearchable is set for a note too large to hold in the index. It renders
+	// like any other; a reader who later searches for a phrase in it would be
+	// told there are no results, which would be untrue of the folder.
+	Unsearchable bool
+	BodyHTML     string
 
 	RenderDiagnostics []render.Diagnostic
 	TOC               []render.TOCEntry
@@ -185,6 +189,9 @@ templ articleHead(v NoteView) {
 				<span>{ v.RelPath }</span>
 			}
 		</div>
+	}
+	if v.Unsearchable {
+		<p class="y-fileinfo__note" data-note-unsearchable>這個筆記太大,內容不會被搜尋讀取;閱讀不受影響。</p>
 	}
 	<div class="y-seam" aria-hidden="true"></div>
 }
