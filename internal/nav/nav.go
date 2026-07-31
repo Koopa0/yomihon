@@ -321,7 +321,7 @@ func New(
 
 	observed := slices.Clone(entries)
 	slices.SortFunc(observed, func(a, b vault.Entry) int {
-		return cmp.Compare(a.Path(), b.Path())
+		return comparePathsForReading(a.Path(), b.Path())
 	})
 	files := make([]capturedFile, 0, len(observed))
 	for _, entry := range observed {

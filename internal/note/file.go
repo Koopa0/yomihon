@@ -89,7 +89,7 @@ func servable(rel string) bool {
 func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
 	entry, ok := snap.Entry(rel)
 	if !ok {
-		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
 	entry, err := h.deps.Source.Refresh(entry)
@@ -98,7 +98,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		// between the scan and this request, a directory, and a symlink the
 		// vault root turned away are all simply not here.
 		h.deps.Log.Warn("refresh vault file", "path", rel, "error", err)
-		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
 

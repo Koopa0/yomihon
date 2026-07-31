@@ -316,6 +316,11 @@ html, body { margin: 0; background: var(--bg); }
 /* a long unbroken title or path breaks mid-string instead of overflowing the
    column; min-width:0 lets the flex item shrink so the break can take effect */
 .y-metarow > span { min-width: 0; overflow-wrap: anywhere; }
+/* The link to the file's own bytes sits with the path it belongs to, quiet
+   enough not to compete with the title above it and underlined so it reads as
+   a link rather than another piece of metadata. */
+.y-metarow__raw { color: var(--fg-muted); text-decoration: underline; text-underline-offset: 2px; }
+.y-metarow__raw:hover { color: var(--accent); }
 
 /* kintsugi seam — the one signature: a parted hairline mended with a vermilion thread */
 .y-seam { position: relative; height: 1px; width: 100%; margin: 4px 0 8px;
@@ -1071,7 +1076,13 @@ html {
   .y-shortcutpref__label { display: none; }
   .y-shortcutpref__label-compact { display: inline; }
   .y-rubybtn { width: 32px; gap: 0; padding: 0; }
+  /* The words do not fit at this width, so the glyph carries the state
+     instead of losing it. A control whose whole purpose is switching furigana
+     off has to say which way it is set, and the passage under it cannot answer
+     for it — a paragraph with no kanji looks identical either way. */
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
+  [data-ruby="on"] .y-rubybtn__glyph { color: var(--accent); }
+  [data-ruby="off"] .y-rubybtn__glyph { color: var(--fg-faint); text-decoration: line-through; }
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }
   .y-ttsbar__stop { order: 3; }
 }

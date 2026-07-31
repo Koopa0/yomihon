@@ -58,11 +58,11 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, diagnostic := h.query(snap.Index, q)
+	results, diagnostic, tokens := h.query(snap.Index, q)
 
 	view := pages.SearchView{
 		Query:      q,
-		Results:    viewResults(results, snap.Shell.Governed),
+		Results:    viewResults(results, snap.Shell.Governed, tokens),
 		Diagnostic: diagnostic,
 		Governed:   snap.Shell.Governed,
 		Nav:        snap.Shell.Nav,
@@ -80,26 +80,29 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, diagnostic := h.query(snap.Index, q)
+	results, diagnostic, tokens := h.query(snap.Index, q)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed), diagnostic, snap.Shell.Governed).Render(r.Context(), w); err != nil {
+	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, tokens), diagnostic, snap.Shell.Governed).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }
 
-func (h *Handler) query(idx *Index, q string) (results []Result, diagnostic string) {
-	results, err := idx.Search(Parse(q))
+// query parses once and hands back both the hits and the terms that produced
+// them, so the page can mark those terms in a snippet without parsing again.
+func (h *Handler) query(idx *Index, q string) (results []Result, diagnostic string, tokens []string) {
+	parsed := Parse(q)
+	results, err := idx.Search(parsed)
 	if errors.Is(err, ErrMetadataUnavailable) {
-		return nil, err.Error()
+		return nil, err.Error(), nil
 	}
 	if err != nil {
 		h.logQueryError("search query", q, err)
-		return nil, "搜尋目前暫時無法使用。"
+		return nil, "搜尋目前暫時無法使用。", nil
 	}
-	return results, ""
+	return results, "", parsed.Tokens()
 }
 
 func (h *Handler) logQueryError(message, rawQuery string, err error) {
@@ -139,18 +142,65 @@ func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 // happily match and return raw frontmatter for an ungoverned folder — that is a
 // text field like any other — but a status chip presents it as a value drawn
 // from a declared vocabulary, which is a claim no contract backs there.
-func viewResults(results []Result, governed bool) []pages.SearchResult {
+func viewResults(results []Result, governed bool, tokens []string) []pages.SearchResult {
 	out := make([]pages.SearchResult, len(results))
 	for i, r := range results {
 		out[i] = pages.SearchResult{
-			RelPath: r.RelPath,
-			Title:   r.Title,
-			Snippet: r.Snippet,
-			File:    r.File,
+			RelPath:     r.RelPath,
+			Title:       r.Title,
+			Snippet:     r.Snippet,
+			SnippetRuns: markHits(r.Snippet, tokens),
+			File:        r.File,
 		}
 		if governed {
 			out[i].Status = r.Status
 		}
 	}
 	return out
+}
+
+// markHits cuts a snippet into the stretches that matched and the stretches
+// that did not, so the page can show the reader why this result is here.
+//
+// Matching is done on the same folded form the index matched on, and the runs
+// carry slices of the original text, so what the reader sees is their own note
+// and not a re-cased copy of it. Overlapping matches are merged: two tokens
+// that cover the same words produce one mark rather than nested ones.
+func markHits(snippet string, tokens []string) []pages.SnippetRun {
+	if snippet == "" || len(tokens) == 0 {
+		return nil
+	}
+	fold := strings.ToLower(snippet)
+	covered := make([]bool, len(snippet))
+	found := false
+	for _, t := range tokens {
+		if t == "" {
+			continue
+		}
+		for at := 0; ; {
+			i := strings.Index(fold[at:], t)
+			if i < 0 {
+				break
+			}
+			i += at
+			for j := i; j < i+len(t); j++ {
+				covered[j] = true
+			}
+			found = true
+			at = i + len(t)
+		}
+	}
+	if !found {
+		return nil
+	}
+	var runs []pages.SnippetRun
+	start := 0
+	for i := 1; i <= len(snippet); i++ {
+		if i < len(snippet) && covered[i] == covered[start] {
+			continue
+		}
+		runs = append(runs, pages.SnippetRun{Text: snippet[start:i], Hit: covered[start]})
+		start = i
+	}
+	return runs
 }

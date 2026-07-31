@@ -180,13 +180,18 @@ templ articleHead(v NoteView) {
 		</div>
 	}
 	<h1 class="y-title">{ v.Title }</h1>
-	if v.Type != "" || v.Status != "" {
+	if v.Type != "" || v.Status != "" || v.RelPath != "" {
 		<div class="y-metarow">
 			if v.Type != "" {
 				<span class="ui-type">{ v.Type }</span>
 			}
 			if v.RelPath != "" {
 				<span>{ v.RelPath }</span>
+				// The file view has always offered this and the note view never
+				// did, so the one surface where a reader is most likely to ask
+				// "what does the file actually say" was the one with no way to
+				// look. The endpoint was there; only the door was missing.
+				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>原始檔</a>
 			}
 		</div>
 	}

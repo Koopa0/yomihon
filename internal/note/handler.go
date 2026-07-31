@@ -108,11 +108,38 @@ func New(d *Dependencies) *Handler {
 	return &Handler{deps: *d}
 }
 
-// Register mounts the feature's routes.
+// Register mounts the feature's routes. The bare "GET /" is the last pattern
+// any request can match, and it exists so that none of them reaches the
+// router's own fallback, which answers in English and offers nowhere to go.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /{$}", h.home)
+	mux.HandleFunc("GET /", h.notFound)
+}
+
+// notFound answers a path the vault has nothing at. It is a page rather than a
+// line of text because the reader is mid-navigation and needs the way onward
+// they were already using: the folder tree, the search, and home.
+func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
+	h.showNotFound(w, r, r.URL.Path)
+}
+
+// showNotFound renders the not-found page with the status code that belongs to
+// it. The path is echoed so the reader can see their own typo; it reaches the
+// page as text and is escaped there like any other note content.
+func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, asked string) {
+	snap := h.deps.Snapshot().Capture()
+	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
+	view := pages.NotFoundView{
+		Asked:   asked,
+		Sidebar: pages.NewSidebar(pageShell.Nav, ""),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	if err := pages.NotFound(view, pageShell.Chrome(r, "找不到")).Render(r.Context(), w); err != nil {
+		h.deps.Log.Error("write not-found page", "path", asked, "error", err)
+	}
 }
 
 // home renders the four landing blocks from one coherent snapshot, followed by
@@ -205,7 +232,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
-		http.Error(w, "找不到指定的 vault 項目", http.StatusNotFound)
+		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
 	statusView := h.deps.Status()
@@ -218,7 +245,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	n, ok := snap.Note(rel)
 	if !ok {
 		h.deps.Log.Warn("note is absent from the request snapshot", "path", rel)
-		http.Error(w, "找不到指定的筆記", http.StatusNotFound)
+		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
 

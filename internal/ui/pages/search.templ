@@ -39,11 +39,30 @@ type SearchResult struct {
 	Status  string
 	Snippet string
 
+	// SnippetRuns is the same snippet cut into the stretches that matched the
+	// query and the stretches that did not, so the page can mark the words the
+	// reader typed. Readers were handed a grey block and left to find their own
+	// term inside it; a doctor scanning mid-clinic and a musician with a bow in
+	// one hand both said the same thing about it. Every run's text is rendered
+	// as text, so a note can no more become markup here than it could before.
+	SnippetRuns []SnippetRun
+
 	// File marks a hit that is a vault file rather than a note. It is named on
 	// the row because a file has no lifecycle and never will, so a reader
 	// scanning a list of results does not read its missing status as a note
 	// whose status went missing.
 	File bool
+}
+
+// resultCount names how many hits a search returned, in the reader's language.
+func resultCount(n int) string {
+	return "共 " + strconv.Itoa(n) + " 筆"
+}
+
+// SnippetRun is one stretch of a result's snippet, marked or not.
+type SnippetRun struct {
+	Text string
+	Hit  bool
 }
 
 // Search is the results page: a GET form and a flat list of hits, rendered in
@@ -84,6 +103,10 @@ templ SearchResults(query string, results []SearchResult, diagnostic string, gov
 				</p>
 			</div>
 		} else if len(results) > 0 {
+			// The count lived only in the live region the client script writes,
+			// so a reader looking at the page saw no number and a reader without
+			// scripting got none at all. Four of them asked how many.
+			<p class="y-results__count">{ resultCount(len(results)) }</p>
 			<div class="y-results">
 				for _, r := range results {
 					<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
@@ -99,7 +122,17 @@ templ SearchResults(query string, results []SearchResult, diagnostic string, gov
 								<span class="y-result__kind">檔案</span>
 							}
 						</span>
-						if r.Snippet != "" {
+						if len(r.SnippetRuns) > 0 {
+							<span class="y-result__snippet">
+								for _, run := range r.SnippetRuns {
+									if run.Hit {
+										<mark>{ run.Text }</mark>
+									} else {
+										{ run.Text }
+									}
+								}
+							</span>
+						} else if r.Snippet != "" {
 							<span class="y-result__snippet">{ r.Snippet }</span>
 						}
 					</a>

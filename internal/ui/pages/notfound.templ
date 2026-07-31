@@ -1,0 +1,50 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/ui/layouts"
+
+// NotFoundView is what a reader who asked for something that is not here needs
+// to see. Asked is the path they typed, echoed back so they can spot their own
+// typo; it is escaped like any other note text and never treated as markup.
+type NotFoundView struct {
+	Asked   string
+	Sidebar Sidebar
+}
+
+// NotFound answers a request for something the vault does not hold, inside the
+// ordinary reading shell rather than as a bare line of text.
+//
+// A tool for walking between notes will be walked off the end of, and every
+// reader who tried this one arrived at a white page carrying eight characters
+// and no way onward — one of them in English, from the router's own default.
+// Several read it as having broken the thing themselves. The shell costs
+// nothing here and carries what they need: the folder tree they were browsing,
+// the search they would have reached for, and a way home.
+templ NotFound(v NotFoundView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c.Nonce)
+			<main id="main-content" tabindex="-1" class="y-main">
+				<article class="y-recovery" lang="zh-Hant" aria-labelledby="notfound-title">
+					<p class="y-recovery__kicker">找不到</p>
+					<h1 id="notfound-title" class="y-title">這裡沒有東西</h1>
+					<p class="y-recovery__summary">這個位置沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。</p>
+					if v.Asked != "" {
+						<section class="y-recovery__detail" aria-labelledby="notfound-asked-title">
+							<h2 id="notfound-asked-title">你要找的位置</h2>
+							<pre><code>{ v.Asked }</code></pre>
+						</section>
+					}
+					<section class="y-recovery__next" aria-labelledby="notfound-next-title">
+						<h2 id="notfound-next-title">下一步</h2>
+						<p>從左邊的資料夾往下找，或用上方的搜尋找筆記裡的字。</p>
+					</section>
+					<nav class="y-recovery__actions" aria-label="離開這一頁">
+						<a class="y-recovery__action" href="/search">搜尋筆記</a>
+						<a class="y-recovery__action y-recovery__action--quiet" href="/">返回首頁</a>
+					</nav>
+				</article>
+			</main>
+		</div>
+	}
+}

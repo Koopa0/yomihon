@@ -70,6 +70,12 @@ func (idx *Index) Search(q Query) ([]Result, error) {
 			answers.add(e.result(q.tokens, bodyEvidence, metadataAvailable), true)
 		case allContain(e.PlainFold, q.tokens):
 			answers.add(e.result(q.tokens, true, metadataAvailable), false)
+		case allContain(e.PathFold, q.tokens):
+			// Last, and appended after every other group, so widening what can
+			// be found still moves nothing that could be found already. A note
+			// whose words match is always the better answer than one that
+			// merely lives in a folder of that name.
+			answers.addPathHit(e.result(q.tokens, false, metadataAvailable))
 		}
 	}
 	return answers.ordered(), nil
@@ -83,6 +89,17 @@ type resultBuckets struct {
 	bodyNotes  []Result
 	titleFiles []Result
 	bodyFiles  []Result
+	pathNotes  []Result
+	pathFiles  []Result
+}
+
+// addPathHit files a result matched only by where the note lives.
+func (b *resultBuckets) addPathHit(hit Result) {
+	if hit.File {
+		b.pathFiles = append(b.pathFiles, hit)
+		return
+	}
+	b.pathNotes = append(b.pathNotes, hit)
 }
 
 func (b *resultBuckets) add(hit Result, titleMatch bool) {
@@ -101,11 +118,14 @@ func (b *resultBuckets) add(hit Result, titleMatch bool) {
 // ordered flattens the groups into the answer: a note's title hits, a note's
 // body hits, then the same two over files.
 func (b *resultBuckets) ordered() []Result {
-	out := make([]Result, 0, len(b.titleNotes)+len(b.bodyNotes)+len(b.titleFiles)+len(b.bodyFiles))
+	out := make([]Result, 0,
+		len(b.titleNotes)+len(b.bodyNotes)+len(b.titleFiles)+len(b.bodyFiles)+len(b.pathNotes)+len(b.pathFiles))
 	out = append(out, b.titleNotes...)
 	out = append(out, b.bodyNotes...)
 	out = append(out, b.titleFiles...)
 	out = append(out, b.bodyFiles...)
+	out = append(out, b.pathNotes...)
+	out = append(out, b.pathFiles...)
 	return out
 }
 
@@ -210,8 +230,8 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Re
 // rune boundary rather than trusted.
 func snippet(plain, plainFold string, tokens []string) string {
 	off := min(earliestOffset(plainFold, tokens), len(plain))
-	start := clampRuneStart(plain, off-snippetBefore)
-	end := clampRuneEnd(plain, off+snippetAfter)
+	start := wholeWordStart(plain, clampRuneStart(plain, off-snippetBefore))
+	end := wholeWordEnd(plain, clampRuneEnd(plain, off+snippetAfter))
 
 	s := strings.Join(strings.Fields(plain[start:end]), " ")
 	if start > 0 {
@@ -251,6 +271,72 @@ func clampRuneStart(s string, i int) int {
 		i++
 	}
 	return i
+}
+
+// wordEdgeBudget bounds how far a boundary may move to keep a word whole. A
+// date or an identifier fits inside it; a run longer than this is not a word
+// anyone is reading as one, and the window matters more than it does.
+const wordEdgeBudget = 24
+
+// wholeWordStart moves a snippet's opening boundary back to the start of a word
+// the window cut into, so a date arrives as 2026-07-30 rather than 026-07-30
+// and a term arrives as B-tree rather than ee. Only runs of ASCII letters and
+// digits are treated this way: those are where a severed run reads as a typo or
+// a wrong number, while CJK prose has no word boundary to respect and cutting
+// between its characters is what a window is expected to do.
+//
+// Moving outward rather than inward is the point. Stepping forward past the
+// fragment leaves the reader "…-07-30", which is honest but still a fragment;
+// stepping back gives them the thing itself.
+func wholeWordStart(s string, i int) int {
+	if i <= 0 || i >= len(s) {
+		return i
+	}
+	if !isWordByte(s[i-1]) || !isWordByte(s[i]) {
+		return i
+	}
+	j := i
+	for j > 0 && isWordByte(s[j-1]) && i-j < wordEdgeBudget {
+		j--
+	}
+	if j > 0 && isWordByte(s[j-1]) {
+		// The run outran the budget, so it is not a word worth keeping whole;
+		// step off its tail instead of dragging it in.
+		for i < len(s) && isWordByte(s[i]) {
+			i++
+		}
+		return i
+	}
+	return j
+}
+
+// wholeWordEnd is the same adjustment at the closing boundary.
+func wholeWordEnd(s string, i int) int {
+	if i <= 0 || i >= len(s) {
+		return i
+	}
+	if !isWordByte(s[i-1]) || !isWordByte(s[i]) {
+		return i
+	}
+	j := i
+	for j < len(s) && isWordByte(s[j]) && j-i < wordEdgeBudget {
+		j++
+	}
+	if j < len(s) && isWordByte(s[j]) {
+		for i > 0 && isWordByte(s[i-1]) {
+			i--
+		}
+		return i
+	}
+	return j
+}
+
+// isWordByte reports whether b belongs to a run the reader reads as one thing.
+// Hyphen and underscore are in it because the runs that arrive mangled are
+// dates and identifiers — 2026-07-30, B-tree, query-planner — and splitting
+// them at the punctuation would keep only the tail.
+func isWordByte(b byte) bool {
+	return b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b == '-' || b == '_'
 }
 
 // clampRuneEnd clamps i into [0,len(s)] and retreats it to a rune boundary so

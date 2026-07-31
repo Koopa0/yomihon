@@ -57,7 +57,13 @@ type Document struct {
 // canonical value. There is no content hash: change detection is the
 // scanner's job by mtime.
 type entry struct {
-	RelPath         string
+	RelPath string
+	// PathFold is the note's own location, folded the way the text is. A reader
+	// who types the name of a folder standing in their own sidebar and is told
+	// there is nothing there reads that as the search being broken, and three
+	// of them did. Their location is something they wrote; it belongs in what
+	// they can find their notes by.
+	PathFold        string
 	Title           string
 	TitleFold       string
 	NoteType        string
@@ -145,6 +151,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	}
 	return entry{
 		RelPath:   d.RelPath,
+		PathFold:  fold(vault.NormalizeNFC(d.RelPath)),
 		Title:     title,
 		TitleFold: fold(title),
 		NoteType:  vault.NormalizeNFC(d.NoteType),
