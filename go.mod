@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/a-h/templ v0.3.1020
 	github.com/google/go-cmp v0.7.0
-	github.com/yuin/goldmark v1.8.4
+	github.com/yuin/goldmark v1.8.5
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -15,7 +15,7 @@ require (
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.40.0
 	golang.org/x/tools v0.48.0
-	modernc.org/sqlite v1.54.0
+	modernc.org/sqlite v1.55.0
 )
 
 require (
