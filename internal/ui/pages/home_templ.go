@@ -31,7 +31,7 @@ import (
 // a reader who wants it is one click away.
 const (
 	homeReadmeRelPath = "README.md"
-	homeReadmeTitle   = "這個 vault 的說明"
+	homeReadmeTitle   = "這個書庫的說明"
 )
 
 type HomeView struct {
@@ -163,7 +163,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = homeBlockHead("home-faults-title", "契約能力", "vault 宣告了無法履行的事").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = homeBlockHead("home-faults-title", "契約能力", "書庫宣告了無法履行的事").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -507,7 +507,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = homeBlockHead("home-paths-title", "學習路徑", "沿著 vault 中的課程繼續學習").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = homeBlockHead("home-paths-title", "學習路徑", "沿著書庫中的課程繼續學習").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -569,7 +569,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = homeBlockHead("home-search-title", "搜尋", "尋找筆記或篩選 vault").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = homeBlockHead("home-search-title", "搜尋", "尋找筆記或篩選書庫").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

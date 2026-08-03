@@ -12,6 +12,25 @@ import (
 
 const nonInstanceReason = "不屬於生命週期治理範圍"
 
+// diagKindLabel names a rendering diagnostic in the reader's language. A kind
+// without a name here arrives as its raw slug rather than a dead page: the
+// diagnostics exist to report trouble, and the panel failing on an unnamed
+// kind would be the reporter breaking on the news.
+func diagKindLabel(kind render.DiagnosticKind) string {
+	switch kind {
+	case render.DiagWikilinkBroken:
+		return "連結沒有目標"
+	case render.DiagWikilinkAmbiguous:
+		return "連結有多個目標"
+	case render.DiagUnknownCallout:
+		return "沒見過的提示框類型"
+	case render.DiagRiskyFence:
+		return "程式碼區塊裡的筆記語法"
+	default:
+		return string(kind)
+	}
+}
+
 func articleLanguage(tag string) string {
 	if tag == "" {
 		return "und"
@@ -212,7 +231,7 @@ templ articleHead(v NoteView) {
 // the same navigation; a report builds it with no current note, so every branch
 // renders closed and unmarked. A nil model renders nothing.
 templ sidebar(sb Sidebar, nonce string) {
-	<aside class="y-rail-left" id="nav-rail" aria-label="Vault 導覽">
+	<aside class="y-rail-left" id="nav-rail" aria-label="書庫導覽">
 		<input
 			class="y-filter"
 			type="text"
@@ -549,7 +568,7 @@ templ inlineAids(v NoteView) {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						診斷
+						筆記狀況
 						<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 					</summary>
 					@diagnostics(v)
@@ -717,7 +736,7 @@ templ diagnostics(v NoteView) {
 	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {
 		<section>
 			<div class="ui-side__label y-diaghead">
-				診斷
+				筆記狀況
 				<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 			</div>
 			<div class="y-diaglist">
@@ -731,7 +750,7 @@ templ diagnostics(v NoteView) {
 				}
 				for _, d := range v.RenderDiagnostics {
 					<div class="y-diag">
-						<div class="y-diag__label">{ string(d.Kind) }</div>
+						<div class="y-diag__label">{ diagKindLabel(d.Kind) }</div>
 						<p class="y-diag__body">
 							{ renderDiagnosticSummary(d.Kind) }
 							if d.Target != "" {

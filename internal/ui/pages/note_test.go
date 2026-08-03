@@ -116,7 +116,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantPresent: []string{
 				"y-statuspanel",
 				"y-sealbar",
-				"診斷",
+				"筆記狀況",
 			},
 			wantAbsent: []string{`action="/status"`, "操作者 · koopa", "ui-status--draft"},
 			wantCounts: map[string]int{
@@ -151,7 +151,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Diagnostic: "unterminated string"},
 			wantAids: true,
 			wantPresent: []string{
-				"診斷",
+				"筆記狀況",
 				"y-inlineaids",
 			},
 			wantAbsent: []string{"y-shell--rail-empty", "y-sealbar", "y-statuspanel"},
@@ -181,7 +181,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
 			wantAids: true,
 			wantPresent: []string{
-				"診斷",
+				"筆記狀況",
 				"y-inlineaids",
 				"y-statuspanel",
 			},
@@ -402,7 +402,7 @@ func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
 	if !strings.Contains(before, "<summary") {
 		t.Errorf("the diagnostics are not inside a disclosure; they open above the prose:\n%s", got)
 	}
-	if !strings.Contains(got, "診斷") {
+	if !strings.Contains(got, "筆記狀況") {
 		t.Errorf("the disclosure does not name what it holds:\n%s", got)
 	}
 	if !strings.Contains(got, ">2<") {

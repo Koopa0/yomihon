@@ -168,7 +168,7 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 // innermost folder, or the vault root for a file that lives at the top.
 func hereLabel(dir string) string {
 	if dir == "" {
-		return "Vault root"
+		return "書庫根目錄"
 	}
 	if i := strings.LastIndexByte(dir, '/'); i >= 0 {
 		return dir[i+1:]

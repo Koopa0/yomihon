@@ -1102,3 +1102,42 @@ html {
   .y-rail-left details::details-content { transition: none; }
   .y-main { scroll-behavior: auto; }
 }
+
+/* Print: the page becomes the paper. The chrome exists to move between notes,
+   which paper cannot do, so it goes; ink is black on white whatever theme the
+   screen was showing, because a teacher printing after an evening in dark mode
+   must not get a dark page; and the reading aids that fold in at narrow
+   widths stay hidden — a lesson handed out in class must not open with a
+   panel of note problems. */
+@media print {
+  :root, :root[data-theme="dark"], :root[data-theme="light"] {
+    --bg: #fff; --panel: #fff; --overlay: #fff;
+    --fg: #000; --fg-muted: #000; --fg-subtle: #333; --fg-faint: #555;
+  }
+  .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
+  .y-nav-scrim, .y-skiplink, .y-sealbar {
+    display: none !important;
+  }
+  .y-shell, .y-shell2 { display: block; }
+  .y-main { min-width: 0; }
+}
+
+/* Keyboard help: a native popover the header's ? opens. It exists because the
+   single-key shortcuts had no written trace anywhere on screen — a switch for
+   keys nobody can list is pressure, not a preference. Hidden at phone widths,
+   where there is no physical keyboard to explain. */
+.y-kbdhelp {
+  inset: auto; position: fixed; top: 64px; right: 16px; margin: 0;
+  max-width: 340px; padding: 16px 18px; background: var(--panel);
+  color: var(--fg); border: 1px solid var(--border); border-radius: var(--r-md);
+}
+.y-kbdhelp__title {
+  margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-12);
+  letter-spacing: 0.09em; color: var(--fg-subtle); text-transform: uppercase; font-weight: inherit;
+}
+.y-kbdhelp__list { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; }
+.y-kbdhelp__list dt { white-space: nowrap; }
+.y-kbdhelp__list dd { margin: 0; font-size: var(--fs-13); color: var(--fg-muted); line-height: 1.6; }
+@media (max-width: 520px) {
+  .y-helpbtn, .y-textsizebtn { display: none; }
+}

@@ -14,6 +14,10 @@ export function initPreferences({ onSingleKeyShortcutsDisabled = () => {} } = {}
     document.cookie = `yomihon_shortcuts=${value};path=/;max-age=31536000;samesite=lax`;
   }
 
+  document.querySelector('[data-textsize-toggle]')?.addEventListener('click', () => {
+    const next = { m: 'l', l: 'xl', xl: 'm' }[root.dataset.textsize] || 'l';
+    setPreference('textsize', next);
+  });
   document.querySelector('[data-theme-toggle]')?.addEventListener('click', (event) => {
     setPreference('theme', root.dataset.theme === 'dark' ? 'light' : 'dark');
     event.currentTarget.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));

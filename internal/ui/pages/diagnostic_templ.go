@@ -84,7 +84,7 @@ func renderDiagnosticSummary(kind render.DiagnosticKind) string {
 	case render.DiagUnknownCallout:
 		return "未知的 callout 類型；已改以一般引用區塊顯示。"
 	case render.DiagRiskyFence:
-		return "程式碼區塊含類似 vault 語法的文字；已保持原樣。"
+		return "程式碼區塊含類似筆記語法的文字；已保持原樣。"
 	case render.DiagRenderFailed:
 		return "Markdown 轉譯失敗；已顯示原始內容。"
 	default:

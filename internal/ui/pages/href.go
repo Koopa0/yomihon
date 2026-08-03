@@ -149,6 +149,10 @@ func chromeFromRequest(r *http.Request, title string, advanceable int, advanceab
 	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
 		ruby = "off"
 	}
+	textSize := "m"
+	if c, err := r.Cookie("yomihon_textsize"); err == nil && (c.Value == "l" || c.Value == "xl") {
+		textSize = c.Value
+	}
 	singleKeyShortcutsEnabled := true
 	if c, err := r.Cookie("yomihon_shortcuts"); err == nil && c.Value == "off" {
 		singleKeyShortcutsEnabled = false
@@ -158,6 +162,7 @@ func chromeFromRequest(r *http.Request, title string, advanceable int, advanceab
 		Nonce:                     origin.Nonce(r.Context()),
 		Theme:                     theme,
 		Ruby:                      ruby,
+		TextSize:                  textSize,
 		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
 		Advanceable:               advanceable,
 		AdvanceableKnown:          advanceableKnown,

@@ -115,7 +115,7 @@ const MUTATIONS = {
   },
   'inject-lifecycle': {
     target: 'lifecycle-retired',
-    apply: replaceEvery('id="nav-rail" aria-label="Vault 導覽">', 'id="nav-rail" aria-label="Vault 導覽"><span>Lifecycle</span>'),
+    apply: replaceEvery('id="nav-rail" aria-label="書庫導覽">', 'id="nav-rail" aria-label="書庫導覽"><span>Lifecycle</span>'),
   },
   'rename-advanceable': {
     target: 'advanceable-chip',

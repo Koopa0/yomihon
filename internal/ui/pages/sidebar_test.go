@@ -46,7 +46,7 @@ func TestHereLabel(t *testing.T) {
 		{"Concepts/golang", "golang"},
 		{"Inbox", "Inbox"},
 		{"a/b/c", "c"},
-		{"", "Vault root"},
+		{"", "書庫根目錄"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.dir, func(t *testing.T) {

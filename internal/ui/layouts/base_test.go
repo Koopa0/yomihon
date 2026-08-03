@@ -111,8 +111,8 @@ func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
 			for _, want := range []string{
 				`data-single-key-shortcuts="` + tt.wantState + `"`,
 				`data-single-key-shortcuts-toggle`,
-				`aria-label="單字鍵快捷鍵"`,
-				`>單字鍵<`,
+				`aria-label="單鍵快捷鍵"`,
+				`>單鍵<`,
 				`>開<`,
 				`>關<`,
 			} {
@@ -237,5 +237,19 @@ func TestSearchDialogKeepsGETFallbackAroundLiveResults(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("searchDialog() is missing %q; html = %q", want, html)
 		}
+	}
+}
+
+// The size preference must be on the root before the first paint — a page that
+// paints at the default and then jumps to the reader's size would make the
+// preference feel broken every time.
+func TestBaseStampsTextSizeOnTheRoot(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Base(Chrome{TextSize: "xl"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("Base().Render() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `data-textsize="xl"`) {
+		t.Error(`Base() root is missing data-textsize="xl"`)
 	}
 }

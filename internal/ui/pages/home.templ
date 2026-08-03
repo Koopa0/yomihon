@@ -23,7 +23,7 @@ import (
 // a reader who wants it is one click away.
 const (
 	homeReadmeRelPath = "README.md"
-	homeReadmeTitle   = "這個 vault 的說明"
+	homeReadmeTitle   = "這個書庫的說明"
 )
 
 type HomeView struct {
@@ -99,7 +99,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 					<div class="y-homegrid">
 						if v.Fault != "" {
 							<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
-								@homeBlockHead("home-faults-title", "契約能力", "vault 宣告了無法履行的事")
+								@homeBlockHead("home-faults-title", "契約能力", "書庫宣告了無法履行的事")
 								<p class="y-homeempty" data-home-fault>
 									@browserDiagnostic("部分投影已關閉。", v.Fault)
 								</p>
@@ -155,7 +155,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if !v.PathsClosed && len(v.Paths) > 0 {
 							<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
-								@homeBlockHead("home-paths-title", "學習路徑", "沿著 vault 中的課程繼續學習")
+								@homeBlockHead("home-paths-title", "學習路徑", "沿著書庫中的課程繼續學習")
 								<div class="y-homepaths">
 									for _, p := range v.Paths {
 										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
@@ -167,7 +167,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 							</section>
 						}
 						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
-							@homeBlockHead("home-search-title", "搜尋", "尋找筆記或篩選 vault")
+							@homeBlockHead("home-search-title", "搜尋", "尋找筆記或篩選書庫")
 							<form class="y-homesearch" method="get" action="/search" role="search">
 								<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 								<input type="search" name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記"/>
