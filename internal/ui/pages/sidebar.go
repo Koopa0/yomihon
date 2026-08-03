@@ -28,9 +28,21 @@ type Sidebar struct {
 	// lists that directory's files (the current one included, to be marked).
 	HereDir string
 	Here    []nav.NoteRef
+	// HereTrimmed is how many of the folder's files the block leaves out. A
+	// folder of three years of entries put seven hundred rows in the rail of
+	// every page — twice, since the folder tree carries them too — and the
+	// reader's own entry sat hundreds of rows below the fold. The block shows
+	// the neighbourhood and says what it left, because a list that quietly
+	// stopped being the folder would be worse than a long one.
+	HereTrimmed int
 	// Steps holds, per study path teaching the current note, the readable
 	// lessons on either side of it — the course order the paths drawer walks.
 	Steps []nav.Neighbors
+	// Prev and Next are the files on either side of this one inside its own
+	// folder. A folder of dated entries is a line, and the reader walking it
+	// wants the next one — not a scroll through everything the folder holds.
+	Prev nav.NoteRef
+	Next nav.NoteRef
 
 	openMaps     map[string]bool
 	openBranches map[string]bool
@@ -55,7 +67,9 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	}
 
 	sb.HereDir, sb.Here = model.Siblings(currentPath)
+	sb.Here, sb.HereTrimmed = windowAround(sb.Here, currentPath)
 	sb.Steps = model.Neighbors(currentPath)
+	sb.Prev, sb.Next = model.Adjacent(currentPath)
 
 	// Open every map branch that lists the current note, down to the
 	// branch it sits in (each heading prefix, so the ancestors open too).
@@ -162,6 +176,30 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 		attrs["data-chain"] = true
 	}
 	return attrs
+}
+
+// hereWindow is how many of a folder's files the siblings block shows around
+// the one being read. It is a reading aid, not the folder: the folder page
+// lists everything, the filter narrows to anything, and the step links under
+// the article walk the sequence. What this block owes the reader is where they
+// are and what is immediately either side of it.
+const hereWindow = 24
+
+// windowAround trims a folder's file list to the neighbourhood of the current
+// file, and reports how many it left out. A folder within the window is
+// returned whole, so the common case carries no elision at all.
+func windowAround(files []nav.NoteRef, currentPath string) (window []nav.NoteRef, trimmed int) {
+	if len(files) <= hereWindow {
+		return files, 0
+	}
+	at := slices.IndexFunc(files, func(n nav.NoteRef) bool { return n.RelPath == currentPath })
+	if at < 0 {
+		return files[:hereWindow], len(files) - hereWindow
+	}
+	start := max(0, at-hereWindow/2)
+	end := min(len(files), start+hereWindow)
+	start = max(0, end-hereWindow)
+	return files[start:end], len(files) - (end - start)
 }
 
 // Breadcrumb names each folder above a file, with the path that reaches it, so

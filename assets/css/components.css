@@ -1189,3 +1189,18 @@ html {
 .y-islandgroup__head { display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); }
 .y-islandgroup__head:hover { color: var(--fg); }
 .y-islandgroup .y-healthlist { margin: 8px 0 0 14px; }
+
+/* The way onward through the folder, closing the article. Two links, no
+   furniture: the reader has just finished reading and is deciding whether to
+   keep going, which is a question with two answers. */
+.y-steps { display: flex; justify-content: space-between; gap: 16px; margin: 48px 0 0; padding-top: 20px; border-top: 1px solid var(--border); }
+.y-steps__link { display: flex; align-items: baseline; gap: 8px; text-decoration: none; color: var(--fg-subtle); font-family: var(--font-serif); font-size: var(--fs-ed-17); min-width: 0; }
+.y-steps__link:hover { color: var(--accent); }
+.y-steps__link--next { margin-left: auto; text-align: right; }
+.y-steps__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.y-steps__dir { font-family: var(--font-mono); color: var(--fg-faint); flex: none; }
+
+/* The siblings block is a neighbourhood, not the folder — it says what it left
+   out and where the whole of it lives. */
+.y-here__more { display: block; padding: 6px 10px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none; }
+.y-here__more:hover { color: var(--accent); }

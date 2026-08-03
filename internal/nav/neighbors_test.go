@@ -115,3 +115,58 @@ func TestNeighbors(t *testing.T) {
 		})
 	}
 }
+
+// A folder of dated entries is a line, and the reader walking it wants the
+// next one. Until this existed the only way to take that step was back into
+// the rail: a diarist reading a week retyped the same seven-character filter
+// once per entry, because opening a day cleared it.
+func TestAdjacent(t *testing.T) {
+	t.Parallel()
+
+	m := &Model{dirNotes: map[string][]NoteRef{
+		"Diary": {
+			{Name: "2025-08-04", RelPath: "Diary/2025-08-04.md"},
+			{Name: "2025-08-05", RelPath: "Diary/2025-08-05.md"},
+			{Name: "2025-08-06", RelPath: "Diary/2025-08-06.md"},
+		},
+		"Solo": {{Name: "only", RelPath: "Solo/only.md"}},
+	}}
+
+	tests := []struct {
+		name     string
+		relPath  string
+		wantPrev NoteRef
+		wantNext NoteRef
+	}{
+		{
+			name:     "the middle entry has both",
+			relPath:  "Diary/2025-08-05.md",
+			wantPrev: NoteRef{Name: "2025-08-04", RelPath: "Diary/2025-08-04.md"},
+			wantNext: NoteRef{Name: "2025-08-06", RelPath: "Diary/2025-08-06.md"},
+		},
+		{
+			name:     "the first entry has no step back",
+			relPath:  "Diary/2025-08-04.md",
+			wantNext: NoteRef{Name: "2025-08-05", RelPath: "Diary/2025-08-05.md"},
+		},
+		{
+			name:     "the last entry has no step forward",
+			relPath:  "Diary/2025-08-06.md",
+			wantPrev: NoteRef{Name: "2025-08-05", RelPath: "Diary/2025-08-05.md"},
+		},
+		{name: "an only child has neither", relPath: "Solo/only.md"},
+		{name: "a file no folder holds has neither", relPath: "Nowhere/gone.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			prev, next := m.Adjacent(tt.relPath)
+			if diff := cmp.Diff(tt.wantPrev, prev); diff != "" {
+				t.Errorf("Adjacent(%q) prev mismatch (-want +got):\n%s", tt.relPath, diff)
+			}
+			if diff := cmp.Diff(tt.wantNext, next); diff != "" {
+				t.Errorf("Adjacent(%q) next mismatch (-want +got):\n%s", tt.relPath, diff)
+			}
+		})
+	}
+}

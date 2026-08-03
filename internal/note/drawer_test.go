@@ -1,6 +1,7 @@
 package note_test
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -330,4 +331,76 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 			t.Errorf("the note's breadcrumb does not link to %s; body = %q", want, body)
 		}
 	}
+}
+
+// A diarist with three years of entries met every wall this closes at once:
+// no way onward from the entry she had just read, seven hundred rows of rail
+// on every page with her own day far below the fold, and a cited-by block that
+// said "nothing cites this" seven hundred times and was right every time.
+func TestASequenceOfEntriesReadsAsALine(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	for day := 1; day <= 40; day++ {
+		rel := filepath.Join(root, "Diary", fmt.Sprintf("2025-08-%02d.md", day))
+		if err := os.MkdirAll(filepath.Dir(rel), 0o750); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(rel, []byte("普通的一天。\n"), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	// Read near the end of the folder on purpose: an entry in the first
+	// twenty-four would sit inside a window that never moved, and the
+	// assertion below could not tell a neighbourhood from a truncated list.
+	code, body := get(t, srv.URL+"/notes/Diary/2025-08-38.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	// The way onward is under the prose, naming where it leads.
+	for _, want := range []string{
+		`href="/notes/Diary/2025-08-37.md" rel="prev"`,
+		`href="/notes/Diary/2025-08-39.md" rel="next"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the entry offers no step: missing %q", want)
+		}
+	}
+
+	// The rail carries a neighbourhood, not the folder, and says what it left.
+	here := hereBlock(t, body)
+	rows := strings.Count(here, `href="/notes/Diary/`)
+	if rows > 30 {
+		t.Errorf("the siblings block carries %d rows of a 40-entry folder; it is the folder again, not a neighbourhood", rows)
+	}
+	if !strings.Contains(here, "另外") || !strings.Contains(here, `href="/folders/Diary"`) {
+		t.Errorf("the siblings block does not say what it left out or where the rest is; block = %q", here)
+	}
+	// The entry being read must be inside the window, or the block is a
+	// neighbourhood of somewhere else.
+	if !strings.Contains(here, `href="/notes/Diary/2025-08-38.md"`) {
+		t.Errorf("the siblings block does not contain the entry being read; block = %q", here)
+	}
+
+	// Nothing in this folder cites anything, so the cited-by block is absent
+	// rather than answering the same way on every one of forty pages.
+	if strings.Contains(body, "y-citedby") {
+		t.Error("a folder that uses no links still carries a cited-by block")
+	}
+}
+
+func hereBlock(t *testing.T, body string) string {
+	t.Helper()
+	start := strings.Index(body, `<nav class="y-here"`)
+	if start < 0 {
+		t.Fatal("the page has no siblings block")
+	}
+	block, _, closed := strings.Cut(body[start:], "</nav>")
+	if !closed {
+		t.Fatal("the siblings block is not closed")
+	}
+	return block
 }

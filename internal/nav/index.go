@@ -124,3 +124,30 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 	slices.SortFunc(subfolders, func(a, b NoteRef) int { return cmp.Compare(a.Name, b.Name) })
 	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
 }
+
+// Adjacent returns the files on either side of relPath inside its own folder,
+// in the folder's captured order. A folder of dated entries is a line, and a
+// reader walking it wants the next one — which the rail can only offer as a
+// scroll through everything the folder holds.
+//
+// It answers for any folder, because "the file after this one" is a question
+// about a directory rather than about a kind of note: a course's lessons, a
+// month of entries, and a book's chapters are all the same shape on disk.
+func (m *Model) Adjacent(relPath string) (prev, next NoteRef) {
+	if m == nil || relPath == "" {
+		return NoteRef{}, NoteRef{}
+	}
+	dir, _ := splitDir(relPath)
+	siblings := m.dirNotes[dir]
+	at := slices.IndexFunc(siblings, func(n NoteRef) bool { return n.RelPath == relPath })
+	if at < 0 {
+		return NoteRef{}, NoteRef{}
+	}
+	if at > 0 {
+		prev = siblings[at-1]
+	}
+	if at+1 < len(siblings) {
+		next = siblings[at+1]
+	}
+	return prev, next
+}

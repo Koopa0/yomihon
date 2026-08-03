@@ -1,5 +1,8 @@
-// Sidebar disclosure state and filtering. Manual disclosure choices persist
-// for the session; wayfinding and filter-open state remain transient.
+// Sidebar disclosure state and filtering. Manual disclosure choices persist for
+// the session, and so does the filter: a reader narrowing a folder of dated
+// entries to one month and then opening a day found the box emptied and the
+// whole folder back, and retyped the same seven characters once per entry they
+// read. The narrowing is where they are, not what they just did.
 export function initSidebar() {
   const rail = document.querySelector('.y-rail-left');
   const input = rail?.querySelector('[data-nav-filter]');
@@ -8,6 +11,7 @@ export function initSidebar() {
   }
 
   const storageKey = 'yomihon.nav';
+  const filterKey = 'yomihon.nav.filter';
   let filtering = false;
   const serverOpen = new Map();
 
@@ -61,7 +65,31 @@ export function initSidebar() {
     if (empty) empty.hidden = rows.some((row) => !row.hidden);
   }
 
-  input.addEventListener('input', applyFilter);
+  function rememberFilter() {
+    try {
+      if (input.value) sessionStorage.setItem(filterKey, input.value);
+      else sessionStorage.removeItem(filterKey);
+    } catch {
+      // A refused write costs the narrowing on the next page, not this one.
+    }
+  }
+
+  // Restore before the first paint of this rail so the reader never sees the
+  // unfiltered list flash past on the way to where they were.
+  try {
+    const remembered = sessionStorage.getItem(filterKey);
+    if (remembered) {
+      input.value = remembered;
+      applyFilter();
+    }
+  } catch {
+    // No stored narrowing is the same as never having narrowed.
+  }
+
+  input.addEventListener('input', () => {
+    applyFilter();
+    rememberFilter();
+  });
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -71,6 +99,7 @@ export function initSidebar() {
       event.stopPropagation();
       input.value = '';
       applyFilter();
+      rememberFilter();
       input.blur();
     }
   });

@@ -379,6 +379,10 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// The status face and the status shown beside the title are the same
 	// claim, so they come from the same read.
 	noteStatus := cmp.Or(governance.status, n.Status)
+	// One resolved rail answers both the navigation and the article's own way
+	// onward, so the step under the prose and the folder list beside it can
+	// never disagree about what follows this note.
+	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath)
 	view := pages.NoteView{
 		Title:             n.Title,
 		RelPath:           n.RelPath,
@@ -391,9 +395,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Unsearchable:      !n.Searchable,
 		RenderDiagnostics: faults(result.Diagnostics, snap),
 		CitedBy:           snap.CitedBy(rel),
+		VaultHasLinks:     snap.AnyCitations(),
+		Prev:              sidebar.Prev,
+		Next:              sidebar.Next,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
-		Sidebar:           pages.NewSidebar(governance.shell.Nav, n.RelPath),
+		Sidebar:           sidebar,
 		Governed:          governance.shell.Governed,
 		NonInstance:       governance.nonInstance,
 		WriteDiagnostic:   governance.writeDiagnostic,

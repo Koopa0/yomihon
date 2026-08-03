@@ -61,6 +61,18 @@ type NoteView struct {
 	BodyHTML     string
 
 	RenderDiagnostics []render.Diagnostic
+	// Prev and Next are the files either side of this one in its folder, so a
+	// reader walking a sequence — a month of entries, a term of lessons — can
+	// take the next step from where they are reading rather than from the rail.
+	Prev nav.NoteRef
+	Next nav.NoteRef
+	// VaultHasLinks says some note in this folder cites another. Where nothing
+	// does — a folder of dated entries, a shelf of transcripts — an empty
+	// cited-by block on every page is furniture: a reader of three years of
+	// diary entries met the same "nothing cites this" seven hundred times, and
+	// it was true every time and told her nothing. Where the folder does use
+	// links, an empty block is a finding and stays.
+	VaultHasLinks bool
 	// CitedBy are the notes whose text links here. It is the resolver's own
 	// knowledge read backwards, and the reading face's answer to the question a
 	// reader standing on a note actually has: who depends on this. An empty
@@ -136,6 +148,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 					<div class="y-prose">
 						@templ.Raw(v.BodyHTML)
 					</div>
+					@sequenceSteps(v)
 				</article>
 			</main>
 			@rightRail(v)
@@ -243,13 +256,16 @@ templ sidebar(sb Sidebar, nonce string) {
 		if sb.Model != nil {
 			if len(sb.Here) > 0 {
 				<nav class="y-here" aria-label="目前資料夾">
-					<div class="y-here__label">{ hereLabel(sb.HereDir) }</div>
+					<a class="y-here__label" href={ templ.URL(folderHref(sb.HereDir)) }>{ hereLabel(sb.HereDir) }</a>
 					for _, n := range sb.Here {
 						<a
 							class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
 							href={ templ.URL(notesHref(n.RelPath)) }
 							{ currentAttr(sb.current(n.RelPath))... }
 						>{ n.Name }</a>
+					}
+					if sb.HereTrimmed > 0 {
+						<a class="y-here__more" href={ templ.URL(folderHref(sb.HereDir)) }>另外 { strconv.Itoa(sb.HereTrimmed) } 篇 →</a>
 					}
 				</nav>
 			}
@@ -536,6 +552,14 @@ templ rightRail(v NoteView) {
 // block that vanished when the count reached zero would leave the reader
 // unable to tell "no one cites this" from "this interface does not know".
 templ citedBy(v NoteView) {
+	if len(v.CitedBy) > 0 || v.VaultHasLinks {
+		@citedByBlock(v)
+	}
+}
+
+// citedByBlock is the block itself, rendered only where the answer means
+// something.
+templ citedByBlock(v NoteView) {
 	<nav class="y-citedby" aria-label="連到這篇的筆記">
 		<div class="ui-side__label">
 			連到這篇
@@ -551,6 +575,32 @@ templ citedBy(v NoteView) {
 			<p class="y-citedby__none">目前沒有其他筆記連到這篇。</p>
 		}
 	</nav>
+}
+
+// sequenceSteps closes the article with the way onward through the folder this
+// note lives in. A folder of dated entries is a line and a term of lessons is a
+// line; a reader who has finished one wants the next, and until this existed
+// the only way to take that step was back into the rail — a diarist reading a
+// week found herself retyping the same filter seven times to do it.
+//
+// The names are the folder's own labels, so the step says where it leads.
+templ sequenceSteps(v NoteView) {
+	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
+		<nav class="y-steps" aria-label="同資料夾的前後檔案">
+			if v.Prev.RelPath != "" {
+				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
+					<span class="y-steps__dir" aria-hidden="true">←</span>
+					<span class="y-steps__name">{ v.Prev.Name }</span>
+				</a>
+			}
+			if v.Next.RelPath != "" {
+				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
+					<span class="y-steps__name">{ v.Next.Name }</span>
+					<span class="y-steps__dir" aria-hidden="true">→</span>
+				</a>
+			}
+		</nav>
+	}
 }
 
 // tocList is the table-of-contents link list, shared by the right rail and

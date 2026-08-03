@@ -66,6 +66,14 @@ func (b *Backlinks) To(relPath string) []nav.NoteRef {
 	return slices.Clone(b.byTarget[relPath])
 }
 
+// Any reports whether anything in this generation cites anything at all. A
+// folder whose notes never reference one another is not a folder with a link
+// problem; it is a folder written in a form that does not use links, and a
+// reading page must not keep answering a question nobody in it is asking.
+func (b *Backlinks) Any() bool {
+	return b != nil && len(b.byTarget) > 0
+}
+
 // Citing reports how many notes cite relPath.
 func (b *Backlinks) Citing(relPath string) int {
 	if b == nil {

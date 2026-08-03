@@ -103,6 +103,11 @@ func (v *View) Health() Health {
 	return v.health
 }
 
+// AnyCitations reports whether any note in this generation cites another.
+func (v *View) AnyCitations() bool {
+	return v != nil && v.backlinks.Any()
+}
+
 // TrackedForwardReference reports whether target is a name the vault is
 // deliberately writing toward: it resolves to no file, and some note has
 // declared it as a concept still owed. The vault is written forward — a note

@@ -40,13 +40,17 @@ const occurrences = (body, needle) => body.split(needle).length - 1;
 // runtime executes. The returned proof is checked per page: one case cannot
 // inherit the other case's successful injection.
 const injectDiagram = async (page) => {
-  const needle = '</div></article></main>';
+  // Anchored on the prose container's own opening tag rather than on the
+  // article's closing run: what follows the prose is page furniture that
+  // changes when the reading page gains a way onward, and an anchor that
+  // moves with the furniture is an anchor that breaks with it.
+  const needle = '<div class="y-prose">';
   let matches = -1;
   await page.route(BASE + PAGE, async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches = occurrences(original, needle);
-    const body = matches === 1 ? original.replaceAll(needle, `${DIAGRAM_HTML}${needle}`) : original;
+    const body = matches === 1 ? original.replaceAll(needle, `${needle}${DIAGRAM_HTML}`) : original;
     return route.fulfill({ response, body });
   });
   return () => matches;

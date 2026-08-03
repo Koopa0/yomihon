@@ -386,7 +386,7 @@ func Health(v HealthView, c layouts.Chrome) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = healthSection("沒有人連過來的筆記", v.IslandCount, "寫過一次就沒再被引用的筆記。有些本來就不會有人連過來——逐字稿、模板、產生出來的報告——所以按資料夾分開，先看形狀再決定要看哪一堆。").Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = healthSection("沒有人連過來的筆記", v.IslandCount, "沒有其他筆記連到它們。很多寫作方式本來就不互相引用——日記、逐字稿、模板、產生出來的報告——所以這裡按資料夾分開，先看形狀，再決定哪一堆值得你看。").Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
