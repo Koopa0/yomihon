@@ -112,6 +112,21 @@ func (s *Sidebar) pathsChainOpen() bool {
 	return slices.ContainsFunc(s.Model.Paths(), func(path nav.Map) bool { return s.openMaps[path.RelPath] })
 }
 
+// The type drawers open to meet the page the reader is on: the journal drawer
+// on a journal page, the report drawer on a report, the study-path drawer on a
+// note some path has placed. Everywhere else they render closed and the rail
+// keeps one shape — the drawer for the thing in the reader's hand is the one
+// standing open, and nothing reorders. These feed only the server-rendered
+// default; a disclosure the reader toggled by hand is remembered for the
+// session and still wins (the settle script replays it), and the wayfinding
+// chain still wins over both.
+
+// journalOpen reports whether the page being read lives in the journal.
+func (s *Sidebar) journalOpen() bool { return nav.InJournal(s.CurrentPath) }
+
+// reportsOpen reports whether the page being read is one of the reports.
+func (s *Sidebar) reportsOpen() bool { return nav.InReports(s.CurrentPath) }
+
 // disclosureAttrs marks one sidebar disclosure for the single state owner
 // that coordinates <details open>: key names the section stably across pages
 // (the reader's manual toggles persist against it for the session), and

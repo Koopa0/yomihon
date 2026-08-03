@@ -447,6 +447,24 @@ func collectNavigationNotes(
 	return statusByPath, mapNotes, knowledgeNotes
 }
 
+// The journal and report projections select by location alone. The same two
+// prefixes also answer "is the reader in the journal / among the reports right
+// now" for the sidebar's drawers, so they are named once here and exposed as
+// predicates — a second copy of either string would let the drawer that opens
+// for a place and the projection that lists it drift apart.
+const (
+	journalPrefix = "Diary/"
+	reportsPrefix = "System/reports/"
+)
+
+// InJournal reports whether relPath lives in the journal — the same location
+// signal the journal projection selects its entries by.
+func InJournal(relPath string) bool { return strings.HasPrefix(relPath, journalPrefix) }
+
+// InReports reports whether relPath lives among the reports — the same
+// location signal the report projection selects its entries by.
+func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsPrefix) }
+
 // buildJournal selects markdown files below Diary from the scanner's path and
 // mtime captures. It does not parse frontmatter, so an untyped entry remains
 // eligible. Equal timestamps fall back to path order for stable rebuilds.
@@ -454,7 +472,7 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 	const limit = 5
 	entries := make([]JournalEntry, 0, limit)
 	for _, p := range paths {
-		if !strings.HasPrefix(p, "Diary/") || !strings.HasSuffix(p, ".md") {
+		if !InJournal(p) || !strings.HasSuffix(p, ".md") {
 			continue
 		}
 		_, base := splitDir(p)
@@ -481,12 +499,11 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 // latest.html). It reads only the path list — report contents are never
 // opened. README.md files and any non-.md/.html files fall out naturally.
 func buildReports(paths []string) []Report {
-	const prefix = "System/reports/"
 	const briefingDir = "daily-briefing"
 
 	var reports, briefings []Report
 	for _, p := range paths {
-		rest, ok := strings.CutPrefix(p, prefix)
+		rest, ok := strings.CutPrefix(p, reportsPrefix)
 		if !ok {
 			continue
 		}

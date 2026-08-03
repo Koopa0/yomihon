@@ -163,8 +163,8 @@ try {
   if (await sidebar.count() !== 1) broken('the page has no single sidebar');
 
   const groups = await sidebar.locator('[data-sidebar-group]').evaluateAll((elements) => elements.map((el) => el.dataset.sidebarGroup));
-  if (groups.join(',') !== 'paths,maps,journal') {
-    fail('group-order', `groups are ${groups.join(',') || 'absent'}, want paths,maps,journal`);
+  if (groups.join(',') !== 'paths,maps,journal,reports') {
+    fail('group-order', `groups are ${groups.join(',') || 'absent'}, want paths,maps,journal,reports`);
   }
 
   const map = sidebar.locator('details[data-map-tree="Maps/reading.md"]');
@@ -230,7 +230,7 @@ try {
   }
   if (proof && !proof()) notApplied(`the ${MUTATE} mutation changed nothing in the document`);
 
-  console.log('PASS sidebar-content: Paths then Maps then collapsed Journal; general maps resolve only, study paths retain warnings, map pages retain source rows, and Home starts at the top');
+  console.log('PASS sidebar-content: Paths then Maps then collapsed Journal then Reports; general maps resolve only, study paths retain warnings, map pages retain source rows, and Home starts at the top');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

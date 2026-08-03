@@ -256,7 +256,7 @@ templ sidebar(sb Sidebar, nonce string) {
 			}
 			if len(sb.Model.Paths()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
-				<details open data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
+				<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 					<summary class="y-railsummary">
 						@chevron()
 						路徑
@@ -281,7 +281,7 @@ templ sidebar(sb Sidebar, nonce string) {
 			}
 			if len(sb.Model.Journal()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
-				<details data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
+				<details open?={ sb.journalOpen() } data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
 					<summary class="y-railsummary">
 						@chevron()
 						日誌
@@ -295,7 +295,7 @@ templ sidebar(sb Sidebar, nonce string) {
 			}
 			if len(sb.Model.Reports()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
-				<details { disclosureAttrs("reports", false)... }>
+				<details open?={ sb.reportsOpen() } data-sidebar-group="reports" { disclosureAttrs("reports", false)... }>
 					<summary class="y-railsummary">
 						@chevron()
 						報告
