@@ -22,6 +22,13 @@ type Health struct {
 	// A name the vault has planned is not here: it is on the page because it is
 	// owed, not because it is wrong.
 	Unwritten []HealthLink
+	// TitleOnly are citations naming a note's title. The note exists; the link
+	// fails because a title is never a name this vault resolves by, which is
+	// the resolver's single most consequential rule and the one that fails
+	// silently. Separating it from the unwritten is not a nicety: the two need
+	// opposite repairs, and calling a written note unwritten sends the reader
+	// to write it again.
+	TitleOnly []HealthTitleLink
 	// Islands are notes nothing cites. It is the weakest signal here and the
 	// most useful to a person: a note written once and never reached again is
 	// usually one that was read and not digested.
@@ -37,6 +44,14 @@ type HealthLink struct {
 	Target string
 }
 
+// HealthTitleLink is one citation that names a note's title, with the note it
+// was reaching for.
+type HealthTitleLink struct {
+	From   nav.NoteRef
+	Target string
+	Note   nav.NoteRef
+}
+
 // HealthCollision is one name several files claim, with every claimant listed —
 // the vault never picks one, so neither does this.
 type HealthCollision struct {
@@ -45,8 +60,8 @@ type HealthCollision struct {
 }
 
 // Empty reports whether the folder has nothing to answer for.
-func (h Health) Empty() bool {
-	return len(h.Unwritten) == 0 && len(h.Islands) == 0 && len(h.Collisions) == 0
+func (h *Health) Empty() bool {
+	return len(h.Unwritten) == 0 && len(h.TitleOnly) == 0 && len(h.Islands) == 0 && len(h.Collisions) == 0
 }
 
 // newHealth gathers the whole-folder view from projections this generation
@@ -58,6 +73,7 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 	if idx == nil {
 		return h
 	}
+	titles := titleIndex(notes)
 	for _, n := range notes {
 		if n == nil {
 			continue
@@ -72,7 +88,14 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 					Name:       target,
 					Candidates: slices.Clone(res.Candidates),
 				})
-			case res.Kind == graph.Unresolved && !planned.Has(target) && !seen[target]:
+			case res.Kind != graph.Unresolved || planned.Has(target) || seen[target]:
+				// Resolved, owed, or already reported for this note.
+			case titles[graph.NormalizeKey(target)].RelPath != "":
+				seen[target] = true
+				h.TitleOnly = append(h.TitleOnly, HealthTitleLink{
+					From: from, Target: target, Note: titles[graph.NormalizeKey(target)],
+				})
+			default:
 				seen[target] = true
 				h.Unwritten = append(h.Unwritten, HealthLink{From: from, Target: target})
 			}
@@ -92,6 +115,9 @@ func sortHealth(h *Health) {
 	slices.SortFunc(h.Unwritten, func(a, b HealthLink) int {
 		return cmp.Or(cmp.Compare(a.From.RelPath, b.From.RelPath), cmp.Compare(a.Target, b.Target))
 	})
+	slices.SortFunc(h.TitleOnly, func(a, b HealthTitleLink) int {
+		return cmp.Or(cmp.Compare(a.From.RelPath, b.From.RelPath), cmp.Compare(a.Target, b.Target))
+	})
 	slices.SortFunc(h.Islands, func(a, b nav.NoteRef) int {
 		return cmp.Compare(a.RelPath, b.RelPath)
 	})
@@ -101,4 +127,31 @@ func sortHealth(h *Health) {
 	h.Collisions = slices.CompactFunc(h.Collisions, func(a, b HealthCollision) bool {
 		return a.Name == b.Name
 	})
+}
+
+// titleIndex maps a note's declared title to the note, for the one question the
+// resolver deliberately cannot answer: which note was a citation reaching for
+// when it named a title. A title two notes both declare is left out — naming
+// one of them would be a guess, and this page does not make those.
+func titleIndex(notes []*vault.Note) map[string]nav.NoteRef {
+	byTitle := make(map[string]nav.NoteRef)
+	ambiguous := make(map[string]bool)
+	for _, n := range notes {
+		if n == nil {
+			continue
+		}
+		key := graph.NormalizeKey(n.Title())
+		if key == "" {
+			continue
+		}
+		if _, taken := byTitle[key]; taken {
+			ambiguous[key] = true
+			continue
+		}
+		byTitle[key] = nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath}
+	}
+	for key := range ambiguous {
+		delete(byTitle, key)
+	}
+	return byTitle
 }

@@ -152,6 +152,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	health := snap.Health()
 	view := pages.HealthView{
 		Unwritten:  healthLinks(health.Unwritten),
+		TitleOnly:  healthTitleLinks(health.TitleOnly),
 		Islands:    health.Islands,
 		Collisions: healthCollisions(health.Collisions),
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
@@ -168,6 +169,14 @@ func healthLinks(links []snapshot.HealthLink) []pages.HealthLink {
 	out := make([]pages.HealthLink, 0, len(links))
 	for _, link := range links {
 		out = append(out, pages.HealthLink{From: link.From, Target: link.Target})
+	}
+	return out
+}
+
+func healthTitleLinks(links []snapshot.HealthTitleLink) []pages.HealthTitleLink {
+	out := make([]pages.HealthTitleLink, 0, len(links))
+	for _, link := range links {
+		out = append(out, pages.HealthTitleLink{From: link.From, Target: link.Target, Note: link.Note})
 	}
 	return out
 }

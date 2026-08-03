@@ -209,7 +209,8 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Concepts/broken.md", "---\ntitle: Broken\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[nothing at all]]\n")
+	write("Concepts/broken.md", "---\ntitle: Broken\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[nothing at all]] and [[A Written Note]]\n")
+	write("Concepts/written.md", "---\ntitle: A Written Note\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nI exist\n")
 	write("Maps/ledger.md", "---\ntitle: Ledger\ntype: topic-map\ndomain: golang\n---\n\n## 缺口帳\n\n- Planned concept\n")
 	write("Concepts/tracked.md", "---\ntitle: Tracked\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[Planned concept]]\n")
 
@@ -222,9 +223,35 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 	if !strings.Contains(body, "nothing at all") {
 		t.Errorf("the health page omits a citation with nowhere to land; body = %q", body)
 	}
+	// A citation naming a written note's title is a different finding with the
+	// opposite repair — an alias on that note, not a new note — and calling it
+	// unwritten sends the reader to write a note that already exists.
+	if !strings.Contains(body, "連結寫的是筆記的標題") || !strings.Contains(body, `href="/notes/Concepts/written.md"`) {
+		t.Errorf("the health page does not separate a title-named citation from an unwritten one; body = %q", body)
+	}
+	unwritten := healthSectionBody(t, body, "連到還沒寫的筆記")
+	if strings.Contains(unwritten, "A Written Note") {
+		t.Errorf("a written note is listed as unwritten; section = %q", unwritten)
+	}
 	// A name the ledger declared is owed, not wrong — the same classifier the
 	// note page uses, so the two faces cannot disagree about this citation.
 	if strings.Contains(body, "Planned concept") {
 		t.Errorf("the health page reports a planned name as a fault; body = %q", body)
 	}
+}
+
+// healthSectionBody returns one section of the health page, failing when the
+// section is absent — a page that stopped rendering a section must not read as
+// a page whose section is correctly empty.
+func healthSectionBody(t *testing.T, body, title string) string {
+	t.Helper()
+	start := strings.Index(body, title)
+	if start < 0 {
+		t.Fatalf("the health page has no %q section", title)
+	}
+	section, _, closed := strings.Cut(body[start:], "</section>")
+	if !closed {
+		t.Fatalf("the %q section is not closed", title)
+	}
+	return section
 }

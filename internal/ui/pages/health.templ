@@ -14,6 +14,9 @@ import (
 type HealthView struct {
 	// Unwritten are citations to names no file carries and no ledger declared.
 	Unwritten []HealthLink
+	// TitleOnly are citations naming a note's title — the note exists, and the
+	// repair is an alias rather than a new note.
+	TitleOnly []HealthTitleLink
 	// Islands are notes nothing cites.
 	Islands []nav.NoteRef
 	// Collisions are names more than one file answers to.
@@ -27,6 +30,14 @@ type HealthLink struct {
 	Target string
 }
 
+// HealthTitleLink is one citation naming a note's title, with the note it was
+// reaching for.
+type HealthTitleLink struct {
+	From   nav.NoteRef
+	Target string
+	Note   nav.NoteRef
+}
+
 // HealthCollision is one name several files claim, with every claimant — the
 // vault never picks one, so neither does this page.
 type HealthCollision struct {
@@ -36,7 +47,7 @@ type HealthCollision struct {
 
 // clean reports whether the folder has nothing to answer for.
 func (v HealthView) clean() bool {
-	return len(v.Unwritten) == 0 && len(v.Islands) == 0 && len(v.Collisions) == 0
+	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && len(v.Islands) == 0 && len(v.Collisions) == 0
 }
 
 // Health is the page listing what the folder owes: citations with nowhere to
@@ -62,6 +73,19 @@ templ Health(v HealthView, c layouts.Chrome) {
 									<li>
 										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }>{ link.From.Name }</a>
 										<span class="y-healthlist__detail">連到「{ link.Target }」</span>
+									</li>
+								}
+							</ul>
+						}
+						@healthSection("連結寫的是筆記的標題", len(v.TitleOnly), "這些筆記都存在。連結指不到它們，是因為寫的是標題，而標題不是這個書庫解析連結用的名字——檔名和 aliases 才是。要修的是那篇筆記的 aliases，不是再寫一篇。") {
+							<ul class="y-healthlist">
+								for _, link := range v.TitleOnly {
+									<li>
+										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }>{ link.From.Name }</a>
+										<span class="y-healthlist__detail">
+											寫的是「{ link.Target }」，指的是
+											<a class="y-healthlink" href={ templ.URL(notesHref(link.Note.RelPath)) }>{ link.Note.Name }</a>
+										</span>
 									</li>
 								}
 							</ul>
