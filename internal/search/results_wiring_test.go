@@ -61,3 +61,42 @@ func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 		}
 	}
 }
+
+// The loosened offers appear exactly where the reader hits the wall — the
+// empty answer — and nowhere else. A page with results carrying "step back"
+// advice would be the page second-guessing an answer it just gave.
+func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "臨床/利尿劑調整.md", Title: "利尿劑", PlainText: "Furosemide 起始 20-40mg"},
+	}, validArtifactPolicy(t))
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	code, body := getBody(t, srv.URL+"/search?q=20mg")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if !strings.Contains(body, "退一步找") || !strings.Contains(body, "20+mg") {
+		t.Errorf("empty answer does not offer the loosened search; body = %q", body)
+	}
+
+	// This query has results AND would generate a loosened candidate — the
+	// only shape that can tell "the gate held" apart from "there was nothing
+	// to offer anyway".
+	code, body = getBody(t, srv.URL+"/search?q=20-40mg")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if !strings.Contains(body, "共 1 筆") {
+		t.Fatalf("the with-results probe found nothing, so it can prove nothing; body = %q", body)
+	}
+	if strings.Contains(body, "退一步找") {
+		t.Errorf("an answer with results still carries step-back advice; body = %q", body)
+	}
+}

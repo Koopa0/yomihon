@@ -18,6 +18,11 @@ type SearchView struct {
 	Results    []SearchResult
 	Diagnostic string
 
+	// StepBacks are the loosened searches offered when nothing matched — each
+	// one already run and known to find something, with its count, so the page
+	// never again advises a search it has made useless.
+	StepBacks []SearchStepBack
+
 	// Governed says this generation has a lifecycle contract behind it. It
 	// gates the advice offered when nothing matched: a status filter is only
 	// worth suggesting where statuses exist, and a reader whose folder has none
@@ -70,6 +75,13 @@ type SnippetRun struct {
 // current note so every branch renders closed, the same wiring the report
 // shell uses. The form remains the no-JavaScript path; the live-search data
 // hooks let the shared script refresh only the result region while typing.
+// SearchStepBack is one loosened search the empty page offers: a query the
+// index has already answered, with how many notes it found.
+type SearchStepBack struct {
+	Query string
+	Count int
+}
+
 templ Search(v SearchView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
@@ -83,7 +95,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 						<button type="submit" class="y-xbtn">搜尋</button>
 					</form>
 					<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
-					@SearchResults(v.Query, v.Results, v.Diagnostic, v.Governed)
+					@SearchResults(v.Query, v.Results, v.Diagnostic, v.Governed, v.StepBacks)
 				</div>
 			</main>
 		</div>
@@ -93,7 +105,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 // SearchResults is the server-rendered lexical-results fragment shared by the
 // full results page and the progressive search fields. The outer data marker is
 // the HTML-to-JavaScript contract; the result links remain ordinary navigation.
-templ SearchResults(query string, results []SearchResult, diagnostic string, governed bool) {
+templ SearchResults(query string, results []SearchResult, diagnostic string, governed bool, stepBacks []SearchStepBack) {
 	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(len(results)) } aria-busy="false">
 		if diagnostic != "" {
 			<div class="y-searchpage__empty" data-search-diagnostic>
@@ -141,6 +153,18 @@ templ SearchResults(query string, results []SearchResult, diagnostic string, gov
 		} else if query != "" {
 			<div class="y-searchpage__empty">
 				<p>找不到「{ query }」的結果。</p>
+				if len(stepBacks) > 0 {
+					<p class="y-searchpage__hint">
+						退一步找：
+						for i, step := range stepBacks {
+							if i > 0 {
+								<span aria-hidden="true">・</span>
+							}
+							<a href={ templ.URL(searchHref(step.Query)) }>「{ step.Query }」</a>
+							（{ strconv.Itoa(step.Count) } 筆）
+						}
+					</p>
+				}
 				if governed {
 					<p class="y-searchpage__hint">搜尋涵蓋筆記，以及任何能以文字呈現的檔案；圖片、PDF 與其他二進位檔案只在導覽中列出，內容不會被讀取。請嘗試較少或不同的詞，或用 <code>status:draft</code> 依生命週期縮小範圍。</p>
 				} else {

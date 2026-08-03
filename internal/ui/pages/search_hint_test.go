@@ -26,7 +26,7 @@ func TestEmptySearchOffersLifecycleFilterOnlyWhereLifecycleExists(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := SearchResults("沒有這個詞", nil, "", tt.governed).Render(t.Context(), &buf); err != nil {
+			if err := SearchResults("沒有這個詞", nil, "", tt.governed, nil).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("SearchResults(...).Render() error = %v", err)
 			}
 			got := buf.String()
@@ -37,5 +37,31 @@ func TestEmptySearchOffersLifecycleFilterOnlyWhereLifecycleExists(t *testing.T) 
 				t.Errorf("SearchResults(governed=%v) offered the status filter = %v, want %v", tt.governed, offered, tt.wantOffer)
 			}
 		})
+	}
+}
+
+// When the empty page has loosened searches to offer, each arrives as a real
+// link with its count — and when it has none, the section is absent rather
+// than an empty promise.
+func TestEmptySearchOffersStepBacks(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	steps := []SearchStepBack{{Query: "20 mg", Count: 1}}
+	if err := SearchResults("20mg", nil, "", false, steps).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("SearchResults(...).Render() error = %v", err)
+	}
+	got := buf.String()
+	for _, want := range []string{"退一步找", `href="/search?q=20+mg"`, "1 筆"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("SearchResults() with step-backs missing %q in:\n%s", want, got)
+		}
+	}
+
+	buf.Reset()
+	if err := SearchResults("20mg", nil, "", false, nil).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("SearchResults(...).Render() error = %v", err)
+	}
+	if strings.Contains(buf.String(), "退一步找") {
+		t.Error("SearchResults() with no step-backs still renders the offer heading")
 	}
 }

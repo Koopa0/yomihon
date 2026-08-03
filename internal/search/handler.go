@@ -65,6 +65,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		Results:    viewResults(results, snap.Shell.Governed, tokens),
 		Diagnostic: diagnostic,
 		Governed:   snap.Shell.Governed,
+		StepBacks:  stepBackViews(snap.Index, q, results, diagnostic),
 		Nav:        snap.Shell.Nav,
 	}
 	if err := pages.Search(view, snap.Shell.Chrome(r, "搜尋")).Render(r.Context(), w); err != nil {
@@ -85,7 +86,8 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, tokens), diagnostic, snap.Shell.Governed).Render(r.Context(), w); err != nil {
+	stepBacks := stepBackViews(snap.Index, q, results, diagnostic)
+	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, tokens), diagnostic, snap.Shell.Governed, stepBacks).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }
@@ -103,6 +105,21 @@ func (h *Handler) query(idx *Index, q string) (results []Result, diagnostic stri
 		return nil, "搜尋目前暫時無法使用。", nil
 	}
 	return results, "", parsed.Tokens()
+}
+
+// stepBackViews computes the loosened offers for an empty answer, and nothing
+// for any other page state: a capability diagnostic already explains itself,
+// and a page with results needs no loosening.
+func stepBackViews(idx *Index, q string, results []Result, diagnostic string) []pages.SearchStepBack {
+	if len(results) > 0 || diagnostic != "" || strings.TrimSpace(q) == "" {
+		return nil
+	}
+	steps := idx.StepBacks(q)
+	out := make([]pages.SearchStepBack, 0, len(steps))
+	for _, s := range steps {
+		out = append(out, pages.SearchStepBack{Query: s.Query, Count: s.Count})
+	}
+	return out
 }
 
 func (h *Handler) logQueryError(message, rawQuery string, err error) {

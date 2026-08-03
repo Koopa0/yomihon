@@ -99,6 +99,13 @@ func statusHref(status string) string {
 	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
 }
 
+// searchHref builds the URL for one search query, escaping it the same way
+// the form submission would, so an offered search and a typed one land on the
+// same page.
+func searchHref(q string) string {
+	return "/search?" + url.Values{"q": {q}}.Encode()
+}
+
 // reportHref builds the report shell URL for a briefing's filename. Unlike a
 // note, a report is addressed by its bare filename (unique within
 // System/reports/daily-briefing/), never a vault path: the handler resolves the
