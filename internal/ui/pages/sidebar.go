@@ -28,6 +28,9 @@ type Sidebar struct {
 	// lists that directory's files (the current one included, to be marked).
 	HereDir string
 	Here    []nav.NoteRef
+	// Steps holds, per study path teaching the current note, the readable
+	// lessons on either side of it — the course order the paths drawer walks.
+	Steps []nav.Neighbors
 
 	openMaps     map[string]bool
 	openBranches map[string]bool
@@ -52,6 +55,7 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	}
 
 	sb.HereDir, sb.Here = model.Siblings(currentPath)
+	sb.Steps = model.Neighbors(currentPath)
 
 	// Open every map branch that lists the current note, down to the
 	// branch it sits in (each heading prefix, so the ancestors open too).

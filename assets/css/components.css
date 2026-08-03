@@ -300,6 +300,12 @@ html, body { margin: 0; background: var(--bg); }
 .y-railitem { color: var(--fg); font-weight: var(--fw-medium); }
 .y-railitem:hover, .y-treeitem:hover { background: var(--overlay); color: var(--fg); }
 .y-railitem__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.y-lessonsteps { padding: 2px 0 4px; }
+.y-lessonsteps__path {
+  padding: 4px 8px 2px; font-family: var(--font-mono); font-size: var(--fs-12);
+  color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.06em;
+}
+
 .y-railitem__full {
   display: block; padding: 4px 8px 6px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle);
 }

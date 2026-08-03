@@ -30,7 +30,8 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 		}
 	}
 	write("Writing/lessons/golang/Slices.md", "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("Maps/Go path.md", "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n## data | Data | 資料\n\n- [[Slices]]\n")
+	write("Writing/lessons/golang/Maps lesson.md", "---\ntitle: Maps lesson\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
+	write("Maps/Go path.md", "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n## data | Data | 資料\n\n- [[Slices]]\n- [[Planned lesson]]\n- [[Maps lesson]]\n")
 	write("Diary/2026-07-31.md", "today\n")
 	write("Concepts/plain.md", "---\ntitle: Plain\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
 	write("System/reports/weekly.md", "---\ntitle: Weekly\ntype: system\ndomain: meta\n---\n\nreport\n")
@@ -53,11 +54,23 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 		name string
 		url  string
 		want []string
+		ban  []string
 	}{
 		{
 			name: "a placed lesson opens the study-path drawer alone",
 			url:  "/notes/Writing/lessons/golang/Slices.md",
-			want: []string{pathsOpen, journalShut, reportsClosed, mapsClosed},
+			// The planned lesson between the two written ones is a warning
+			// row, not a stop: the step forward from the first lesson lands
+			// on the third, and the first lesson has no step back.
+			want: []string{
+				pathsOpen, journalShut, reportsClosed, mapsClosed,
+				`下一課：Maps lesson →`,
+			},
+		},
+		{
+			name: "the closing lesson steps back across the planned row",
+			url:  "/notes/Writing/lessons/golang/Maps%20lesson.md",
+			want: []string{pathsOpen, `← 上一課：Slices`},
 		},
 		{
 			name: "a journal entry opens the journal drawer alone",
@@ -73,6 +86,7 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 			name: "an unplaced note opens none of them",
 			url:  "/notes/Concepts/plain.md",
 			want: []string{pathsClosed, journalShut, reportsClosed, mapsClosed},
+			ban:  []string{"上一課", "下一課"},
 		},
 		{
 			name: "a note some map places opens the map drawer alone",
@@ -100,6 +114,11 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 			for _, want := range tt.want {
 				if !strings.Contains(body, want) {
 					t.Errorf("GET %s sidebar missing %q", tt.url, want)
+				}
+			}
+			for _, ban := range tt.ban {
+				if strings.Contains(body, ban) {
+					t.Errorf("GET %s sidebar carries %q, want absent", tt.url, ban)
 				}
 			}
 		})

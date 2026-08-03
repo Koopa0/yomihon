@@ -262,6 +262,19 @@ templ sidebar(sb Sidebar, nonce string) {
 						路徑
 					</summary>
 					<div class="y-railgroup">
+						for _, step := range sb.Steps {
+							<nav class="y-lessonsteps" aria-label={ step.PathTitle + " 課程順序" }>
+								if len(sb.Steps) > 1 {
+									<div class="y-lessonsteps__path">{ step.PathTitle }</div>
+								}
+								if step.Prev.RelPath != "" {
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← 上一課：{ step.Prev.Name }</a>
+								}
+								if step.Next.RelPath != "" {
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>下一課：{ step.Next.Name } →</a>
+								}
+							</nav>
+						}
 						for _, m := range sb.Model.Paths() {
 							@mapTree(sb, m, syllabusHref(m.RelPath))
 						}
