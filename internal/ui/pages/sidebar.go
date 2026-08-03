@@ -164,6 +164,22 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 	return attrs
 }
 
+// Breadcrumb names each folder above a file, with the path that reaches it, so
+// a reader can climb out of where they are. The trail was plain text for as
+// long as there was nowhere for it to lead; three trial readers clicked it
+// anyway, which is what a trail of folder names says it does.
+func Breadcrumb(relPath string) []nav.NoteRef {
+	segs := strings.Split(relPath, "/")
+	if len(segs) <= 1 {
+		return nil
+	}
+	crumbs := make([]nav.NoteRef, 0, len(segs)-1)
+	for i, seg := range segs[:len(segs)-1] {
+		crumbs = append(crumbs, nav.NoteRef{Name: seg, RelPath: strings.Join(segs[:i+1], "/")})
+	}
+	return crumbs
+}
+
 // hereLabel names the siblings block after the current note's directory: its
 // innermost folder, or the vault root for a file that lives at the top.
 func hereLabel(dir string) string {

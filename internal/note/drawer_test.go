@@ -255,3 +255,79 @@ func healthSectionBody(t *testing.T, body, title string) string {
 	}
 	return section
 }
+
+// Three trial readers clicked the breadcrumb before anything else — a teacher
+// wanting a term's lessons in order, a cellist wanting her practice log in one
+// list, a student wanting to read a course straight through. It read as a
+// trail out of where they were, which is what a trail of folder names says it
+// is, and it led nowhere.
+func TestFolderPageShowsAFolderWhole(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	write("教案/國一上/第二課 空氣.md", "---\ntitle: 空氣\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
+	write("教案/國一上/第三課 水.md", "---\ntitle: 水\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
+	write("教案/研習/心得.md", "---\ntitle: 心得\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+
+	// The folder holding only subfolders lists them, and says how many.
+	code, body := get(t, srv.URL+"/folders/%E6%95%99%E6%A1%88")
+	if code != http.StatusOK {
+		t.Fatalf("GET the parent folder status = %d, want 200", code)
+	}
+	for _, want := range []string{"國一上", "研習", "2 個資料夾"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the parent folder page is missing %q", want)
+		}
+	}
+
+	// The folder holding files lists them in the captured order, which is the
+	// lesson order the naming fix established.
+	code, body = get(t, srv.URL+"/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A")
+	if code != http.StatusOK {
+		t.Fatalf("GET the leaf folder status = %d, want 200", code)
+	}
+	second := strings.Index(body, "第二課 空氣")
+	third := strings.Index(body, "第三課 水")
+	if second < 0 || third < 0 {
+		t.Fatalf("the leaf folder page does not list both lessons; body = %q", body)
+	}
+	if second > third {
+		t.Error("the leaf folder page lists the third lesson before the second")
+	}
+
+	// A folder nothing is under is not a folder, and answers like any other
+	// path the vault has nothing at.
+	code, _ = get(t, srv.URL+"/folders/no-such-folder")
+	if code != http.StatusNotFound {
+		t.Errorf("GET a folder that does not exist status = %d, want 404", code)
+	}
+
+	// The breadcrumb on a note now leads somewhere.
+	code, body = get(t, srv.URL+"/notes/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A/%E7%AC%AC%E4%BA%8C%E8%AA%B2%20%E7%A9%BA%E6%B0%A3.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET the note status = %d, want 200", code)
+	}
+	// The href must be the folder the crumb names, not merely folder-shaped:
+	// a crumb carrying no path still renders "/folders/" and would pass a
+	// prefix check while leading the reader nowhere.
+	for _, want := range []string{
+		`href="/folders/%E6%95%99%E6%A1%88"`,
+		`href="/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the note's breadcrumb does not link to %s; body = %q", want, body)
+		}
+	}
+}

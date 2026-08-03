@@ -38,13 +38,13 @@ templ File(v FileView, c layouts.Chrome) {
 // fileHead is the file's breadcrumb, name, and byte-level meta — the same shape
 // a note's head takes, without the status chip a file cannot have.
 templ fileHead(v FileView) {
-	if crumbs := breadcrumb(v.RelPath); len(crumbs) > 0 {
+	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
 		<div class="y-crumbs">
 			for i, seg := range crumbs {
 				if i > 0 {
 					<span class="y-crumbs__sep" aria-hidden="true">·</span>
 				}
-				<span>{ seg }</span>
+				<a class="y-crumbs__link" href={ templ.URL(folderHref(seg.RelPath)) }>{ seg.Name }</a>
 			}
 		</div>
 	}

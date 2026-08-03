@@ -17,8 +17,12 @@ type HealthView struct {
 	// TitleOnly are citations naming a note's title — the note exists, and the
 	// repair is an alias rather than a new note.
 	TitleOnly []HealthTitleLink
-	// Islands are notes nothing cites.
-	Islands []nav.NoteRef
+	// Islands are notes nothing cites, grouped by folder — the flat list was a
+	// true answer nobody could read.
+	Islands []HealthIslandGroup
+	// IslandCount is every uncited note across the groups, so the heading can
+	// say the whole number the groups add up to.
+	IslandCount int
 	// Collisions are names more than one file answers to.
 	Collisions []HealthCollision
 	Sidebar    Sidebar
@@ -28,6 +32,13 @@ type HealthView struct {
 type HealthLink struct {
 	From   nav.NoteRef
 	Target string
+}
+
+// HealthIslandGroup is one folder's uncited notes.
+type HealthIslandGroup struct {
+	Dir   string
+	Name  string
+	Notes []nav.NoteRef
 }
 
 // HealthTitleLink is one citation naming a note's title, with the note it was
@@ -47,7 +58,7 @@ type HealthCollision struct {
 
 // clean reports whether the folder has nothing to answer for.
 func (v HealthView) clean() bool {
-	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && len(v.Islands) == 0 && len(v.Collisions) == 0
+	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 && len(v.Collisions) == 0
 }
 
 // Health is the page listing what the folder owes: citations with nowhere to
@@ -90,12 +101,20 @@ templ Health(v HealthView, c layouts.Chrome) {
 								}
 							</ul>
 						}
-						@healthSection("沒有人連過來的筆記", len(v.Islands), "寫過一次就沒再被引用的筆記，通常是讀完沒有消化的那些。") {
-							<ul class="y-healthlist">
-								for _, ref := range v.Islands {
-									<li><a class="y-healthlink" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a></li>
-								}
-							</ul>
+						@healthSection("沒有人連過來的筆記", v.IslandCount, "寫過一次就沒再被引用的筆記。有些本來就不會有人連過來——逐字稿、模板、產生出來的報告——所以按資料夾分開，先看形狀再決定要看哪一堆。") {
+							for _, group := range v.Islands {
+								<details class="y-islandgroup">
+									<summary class="y-islandgroup__head">
+										{ group.Name }
+										<span class="ui-navitem__count">{ strconv.Itoa(len(group.Notes)) }</span>
+									</summary>
+									<ul class="y-healthlist">
+										for _, ref := range group.Notes {
+											<li><a class="y-healthlink" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a></li>
+										}
+									</ul>
+								</details>
+							}
 						}
 						@healthSection("兩個檔案共用的名字", len(v.Collisions), "連到這些名字的連結不會生效，因為無法判斷指的是哪一個，而這裡不猜。") {
 							<ul class="y-healthlist">

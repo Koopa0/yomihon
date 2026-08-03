@@ -1,7 +1,9 @@
 package nav
 
 import (
+	"cmp"
 	"slices"
+	"strings"
 )
 
 // Placement records one appearance of a note as a map entry: the map that lists
@@ -88,4 +90,37 @@ func buildPlacementIndex(maps []Map) map[string][]Placement {
 		walk(maps[i].Branches, nil)
 	}
 	return index
+}
+
+// Directory returns what a folder holds directly: its files in the captured
+// generation's order, and the folders immediately inside it. Both are what the
+// browse tree already shows at that level, answered here for a page rather
+// than a rail — a reader looking at one folder wants the whole of it at once,
+// which a tree that fits in a sidebar cannot give them.
+//
+// ok is false for a path no folder in this generation answers to, so a caller
+// can tell an empty folder from one that is not there.
+func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
+	if m == nil {
+		return nil, nil, false
+	}
+	notes, listed := m.dirNotes[dir]
+	prefix := dir + "/"
+	seen := make(map[string]bool)
+	for path := range m.dirNotes {
+		if path == dir || !strings.HasPrefix(path, prefix) {
+			continue
+		}
+		child := path[len(prefix):]
+		if i := strings.IndexByte(child, '/'); i >= 0 {
+			child = child[:i]
+		}
+		if child == "" || seen[child] {
+			continue
+		}
+		seen[child] = true
+		subfolders = append(subfolders, NoteRef{Name: child, RelPath: prefix + child})
+	}
+	slices.SortFunc(subfolders, func(a, b NoteRef) int { return cmp.Compare(a.Name, b.Name) })
+	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
 }

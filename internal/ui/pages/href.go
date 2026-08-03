@@ -99,6 +99,17 @@ func statusHref(status string) string {
 	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
 }
 
+// folderHref builds the browse URL for a folder, escaping each segment the
+// way notesHref does so a folder and a note under it agree byte for byte about
+// how their shared path is written.
+func folderHref(dir string) string {
+	segments := strings.Split(dir, "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	return "/folders/" + strings.Join(segments, "/")
+}
+
 // searchHref builds the URL for one search query, escaping it the same way
 // the form submission would, so an offered search and a typed one land on the
 // same page.

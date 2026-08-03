@@ -2,7 +2,6 @@ package pages
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -125,14 +124,6 @@ func (v NoteView) hasAids() bool {
 
 // breadcrumb is the reading crumb: the note's directory segments (the filename
 // dropped), e.g. "Writing/lessons/japanese/L20.md" → [Writing lessons japanese].
-func breadcrumb(relPath string) []string {
-	segs := strings.Split(relPath, "/")
-	if len(segs) <= 1 {
-		return nil
-	}
-	return segs[:len(segs)-1]
-}
-
 templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
@@ -194,13 +185,13 @@ templ conceptSheet(concepts []lesson.ConceptDoc) {
 // articleHead is the breadcrumb + title + type meta + the kintsugi seam above
 // the rendered body.
 templ articleHead(v NoteView) {
-	if crumbs := breadcrumb(v.RelPath); len(crumbs) > 0 {
+	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
 		<div class="y-crumbs">
 			for i, seg := range crumbs {
 				if i > 0 {
 					<span class="y-crumbs__sep" aria-hidden="true">·</span>
 				}
-				<span>{ seg }</span>
+				<a class="y-crumbs__link" href={ templ.URL(folderHref(seg.RelPath)) }>{ seg.Name }</a>
 			}
 		</div>
 	}

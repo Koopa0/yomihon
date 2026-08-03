@@ -1,0 +1,77 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+)
+
+// FolderView is one folder seen whole. The rail has always been able to reach
+// any note, one disclosure at a time; what it cannot do is show a reader
+// everything in one place — a term's lessons in order, a month of entries, a
+// year of them. Three trial readers asked for exactly that, each in the words
+// of their own work, and each of them first tried clicking the breadcrumb.
+type FolderView struct {
+	// Dir is the folder's vault-relative path; Crumbs are its parents.
+	Dir    string
+	Name   string
+	Crumbs []nav.NoteRef
+	// Subfolders come first on the page, because a reader descending a tree is
+	// choosing a branch before they are choosing a leaf.
+	Subfolders []nav.NoteRef
+	Notes      []nav.NoteRef
+	Sidebar    Sidebar
+}
+
+// Folder lists one folder's contents. It is a reading page, not a file
+// manager: no sizes, no dates, no sorting controls — the captured order, which
+// is the order the folder itself is in.
+templ Folder(v FolderView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c.Nonce)
+			<main id="main-content" tabindex="-1" class="y-main">
+				<article class="y-article">
+					if len(v.Crumbs) > 0 {
+						<div class="y-crumbs">
+							for i, crumb := range v.Crumbs {
+								if i > 0 {
+									<span class="y-crumbs__sep" aria-hidden="true">·</span>
+								}
+								<a class="y-crumbs__link" href={ templ.URL(folderHref(crumb.RelPath)) }>{ crumb.Name }</a>
+							}
+						</div>
+					}
+					<h1 class="y-title">{ v.Name }</h1>
+					<div class="y-seam" aria-hidden="true"></div>
+					<p class="y-foldercount">
+						if len(v.Subfolders) > 0 {
+							{ strconv.Itoa(len(v.Subfolders)) } 個資料夾、
+						}
+						{ strconv.Itoa(len(v.Notes)) } 篇
+					</p>
+					if len(v.Subfolders) > 0 {
+						<nav class="y-folderlist" aria-label="子資料夾">
+							for _, sub := range v.Subfolders {
+								<a class="ui-navitem" href={ templ.URL(folderHref(sub.RelPath)) }>{ sub.Name }</a>
+							}
+						</nav>
+					}
+					if len(v.Notes) > 0 {
+						<nav class="y-folderlist" aria-label="這個資料夾裡的檔案">
+							for _, note := range v.Notes {
+								<a class="ui-navitem" href={ templ.URL(notesHref(note.RelPath)) }>{ note.Name }</a>
+							}
+						</nav>
+					}
+					if len(v.Notes) == 0 && len(v.Subfolders) == 0 {
+						<p class="y-homeempty">這個資料夾是空的。</p>
+					}
+				</article>
+			</main>
+			<aside class="y-rail-right" aria-label="閱讀輔助"></aside>
+		</div>
+	}
+}

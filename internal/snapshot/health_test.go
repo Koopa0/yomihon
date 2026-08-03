@@ -53,3 +53,42 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 		t.Errorf("Unwritten mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// A hundred and thirty-seven uncited notes is a true answer nobody reads, and
+// sixty of them being one course's transcripts is the fact that makes the rest
+// legible. Grouping drops nothing — every note that had a row still has one —
+// and puts the largest group first, so the shape is visible before the rows.
+func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
+	t.Parallel()
+
+	notes := []*vault.Note{
+		parse(t, "Sources/course/one.md", "a\n"),
+		parse(t, "Sources/course/two.md", "b\n"),
+		parse(t, "Sources/course/three.md", "c\n"),
+		parse(t, "Writing/essay.md", "d\n"),
+		parse(t, "root.md", "e\n"),
+	}
+	idx := graph.New(notes, nil)
+	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx))
+
+	want := []HealthIslandGroup{
+		{Dir: "Sources/course", Name: "Sources/course", Notes: []nav.NoteRef{
+			{Name: "one", RelPath: "Sources/course/one.md"},
+			{Name: "three", RelPath: "Sources/course/three.md"},
+			{Name: "two", RelPath: "Sources/course/two.md"},
+		}},
+		{Dir: "", Name: "書庫根目錄", Notes: []nav.NoteRef{{Name: "root", RelPath: "root.md"}}},
+		{Dir: "Writing", Name: "Writing", Notes: []nav.NoteRef{{Name: "essay", RelPath: "Writing/essay.md"}}},
+	}
+	if diff := cmp.Diff(want, h.Islands); diff != "" {
+		t.Errorf("Islands mismatch (-want +got):\n%s", diff)
+	}
+
+	total := 0
+	for _, g := range h.Islands {
+		total += len(g.Notes)
+	}
+	if total != len(notes) {
+		t.Errorf("grouping lost rows: %d notes in, %d out", len(notes), total)
+	}
+}

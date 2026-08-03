@@ -1175,3 +1175,17 @@ html {
 @media (max-width: 900px) {
   .y-healthlinkbtn { display: none; }
 }
+
+/* One folder seen whole. A reading page, not a file manager: no sizes, no
+   dates, no sort controls — the captured order, which is the folder's own. */
+.y-crumbs__link { color: inherit; text-decoration: none; }
+.y-crumbs__link:hover { color: var(--fg); text-decoration: underline; }
+.y-foldercount { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); margin: 18px 0 0; }
+.y-folderlist { display: grid; gap: 2px; margin: 14px 0 0; }
+
+/* Islands by folder: the count is visible before the rows are, so a hundred
+   transcripts read as one line rather than a hundred. */
+.y-islandgroup { margin: 10px 0 0; }
+.y-islandgroup__head { display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); }
+.y-islandgroup__head:hover { color: var(--fg); }
+.y-islandgroup .y-healthlist { margin: 8px 0 0 14px; }

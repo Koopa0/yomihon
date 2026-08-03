@@ -2,13 +2,19 @@ package snapshot
 
 import (
 	"cmp"
+	pathpkg "path"
 	"slices"
+	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/vault"
 )
+
+// vaultRootLabel names the folder a root-level file lives in, which has no
+// name of its own.
+const vaultRootLabel = "書庫根目錄"
 
 // Health is what the whole folder looks like at once, rather than one note at a
 // time. Every fact in it was already being computed to render single pages —
@@ -29,10 +35,13 @@ type Health struct {
 	// opposite repairs, and calling a written note unwritten sends the reader
 	// to write it again.
 	TitleOnly []HealthTitleLink
-	// Islands are notes nothing cites. It is the weakest signal here and the
-	// most useful to a person: a note written once and never reached again is
-	// usually one that was read and not digested.
-	Islands []nav.NoteRef
+	// Islands are notes nothing cites, grouped by the folder they live in. The
+	// flat list was a true answer nobody could use — a real vault produced a
+	// hundred and thirty-seven rows, and sixty of them were one course's
+	// transcripts, which nothing cites because nothing ever would. Grouping
+	// drops no row: it lets the shape of the number be seen before the rows
+	// are read, which is the difference between a finding and a wall of text.
+	Islands []HealthIslandGroup
 	// Collisions are names more than one file answers to, where a citation
 	// resolves to none of them because the vault refuses to guess.
 	Collisions []HealthCollision
@@ -42,6 +51,13 @@ type Health struct {
 type HealthLink struct {
 	From   nav.NoteRef
 	Target string
+}
+
+// HealthIslandGroup is one folder's uncited notes.
+type HealthIslandGroup struct {
+	Dir   string
+	Name  string
+	Notes []nav.NoteRef
 }
 
 // HealthTitleLink is one citation that names a note's title, with the note it
@@ -70,6 +86,7 @@ func (h *Health) Empty() bool {
 // on the note's own page too.
 func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks) Health {
 	var h Health
+	var islands []nav.NoteRef
 	if idx == nil {
 		return h
 	}
@@ -101,11 +118,37 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 			}
 		}
 		if back.Citing(n.RelPath) == 0 {
-			h.Islands = append(h.Islands, from)
+			islands = append(islands, from)
 		}
 	}
+	h.Islands = groupByFolder(islands)
 	sortHealth(&h)
 	return h
+}
+
+// groupByFolder collects uncited notes under the folder each lives in, largest
+// group first — the shape a reader needs to see before deciding which of them
+// is worth their attention. Nothing is dropped or capped: every note that had
+// a row still has one, inside its folder.
+func groupByFolder(notes []nav.NoteRef) []HealthIslandGroup {
+	byDir := make(map[string][]nav.NoteRef)
+	for _, n := range notes {
+		dir, _ := pathpkg.Split(n.RelPath)
+		byDir[strings.TrimSuffix(dir, "/")] = append(byDir[strings.TrimSuffix(dir, "/")], n)
+	}
+	groups := make([]HealthIslandGroup, 0, len(byDir))
+	for dir, members := range byDir {
+		slices.SortFunc(members, func(a, b nav.NoteRef) int { return cmp.Compare(a.RelPath, b.RelPath) })
+		name := dir
+		if name == "" {
+			name = vaultRootLabel
+		}
+		groups = append(groups, HealthIslandGroup{Dir: dir, Name: name, Notes: members})
+	}
+	slices.SortFunc(groups, func(a, b HealthIslandGroup) int {
+		return cmp.Or(cmp.Compare(len(b.Notes), len(a.Notes)), cmp.Compare(a.Dir, b.Dir))
+	})
+	return groups
 }
 
 // sortHealth puts every list in one stable order so two runs over an unchanged
@@ -117,9 +160,6 @@ func sortHealth(h *Health) {
 	})
 	slices.SortFunc(h.TitleOnly, func(a, b HealthTitleLink) int {
 		return cmp.Or(cmp.Compare(a.From.RelPath, b.From.RelPath), cmp.Compare(a.Target, b.Target))
-	})
-	slices.SortFunc(h.Islands, func(a, b nav.NoteRef) int {
-		return cmp.Compare(a.RelPath, b.RelPath)
 	})
 	slices.SortFunc(h.Collisions, func(a, b HealthCollision) int {
 		return cmp.Compare(a.Name, b.Name)

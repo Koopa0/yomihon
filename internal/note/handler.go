@@ -116,6 +116,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /{$}", h.home)
 	mux.HandleFunc("GET /health", h.health)
+	mux.HandleFunc("GET /folders/{path...}", h.folder)
 	mux.HandleFunc("GET /", h.notFound)
 }
 
@@ -143,6 +144,37 @@ func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, asked str
 	}
 }
 
+// folder shows one folder whole. The rail reaches any note one disclosure at a
+// time, which is not the same as seeing a term's lessons in order or a month of
+// entries at once — and the breadcrumb, which reads as a trail out of where you
+// are, had nowhere to lead until now.
+func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
+	dir := path.Clean(strings.Trim(r.PathValue("path"), "/"))
+	if dir == "." || dir == ".." || strings.HasPrefix(dir, "../") {
+		h.showNotFound(w, r, r.URL.Path)
+		return
+	}
+	dir = vault.NormalizeNFC(dir)
+	snap := h.deps.Snapshot().Capture()
+	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
+	notes, subfolders, ok := pageShell.Nav.Directory(dir)
+	if !ok {
+		h.showNotFound(w, r, r.URL.Path)
+		return
+	}
+	view := pages.FolderView{
+		Dir:        dir,
+		Name:       nav.Label(dir),
+		Crumbs:     pages.Breadcrumb(dir),
+		Subfolders: subfolders,
+		Notes:      notes,
+		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+	}
+	if err := pages.Folder(view, pageShell.Chrome(r, view.Name)).Render(r.Context(), w); err != nil {
+		h.deps.Log.Error("write folder page", "dir", dir, "error", err)
+	}
+}
+
 // health renders the whole-folder view of what needs attention. Every fact on
 // it is already computed for the single-note pages; nobody opens every note, so
 // gathering them is the only way they are ever seen.
@@ -151,11 +183,12 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
 	health := snap.Health()
 	view := pages.HealthView{
-		Unwritten:  healthLinks(health.Unwritten),
-		TitleOnly:  healthTitleLinks(health.TitleOnly),
-		Islands:    health.Islands,
-		Collisions: healthCollisions(health.Collisions),
-		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+		Unwritten:   healthLinks(health.Unwritten),
+		TitleOnly:   healthTitleLinks(health.TitleOnly),
+		Islands:     healthIslands(health.Islands),
+		IslandCount: healthIslandCount(health.Islands),
+		Collisions:  healthCollisions(health.Collisions),
+		Sidebar:     pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, pageShell.Chrome(r, "整體狀況")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
@@ -171,6 +204,22 @@ func healthLinks(links []snapshot.HealthLink) []pages.HealthLink {
 		out = append(out, pages.HealthLink{From: link.From, Target: link.Target})
 	}
 	return out
+}
+
+func healthIslands(groups []snapshot.HealthIslandGroup) []pages.HealthIslandGroup {
+	out := make([]pages.HealthIslandGroup, 0, len(groups))
+	for _, g := range groups {
+		out = append(out, pages.HealthIslandGroup{Dir: g.Dir, Name: g.Name, Notes: g.Notes})
+	}
+	return out
+}
+
+func healthIslandCount(groups []snapshot.HealthIslandGroup) int {
+	total := 0
+	for _, g := range groups {
+		total += len(g.Notes)
+	}
+	return total
 }
 
 func healthTitleLinks(links []snapshot.HealthTitleLink) []pages.HealthTitleLink {
