@@ -253,6 +253,7 @@ templ sidebar(sb Sidebar, nonce string) {
 			hidden
 		/>
 		<p class="y-filter-empty" data-filter-empty hidden>沒有相符項目；按 Esc 清除篩選。</p>
+		<p class="y-filter-partial" data-filter-partial hidden></p>
 		if sb.Model != nil {
 			if len(sb.Here) > 0 {
 				<nav class="y-here" aria-label="目前資料夾">
@@ -265,7 +266,7 @@ templ sidebar(sb Sidebar, nonce string) {
 						>{ n.Name }</a>
 					}
 					if sb.HereTrimmed > 0 {
-						<a class="y-here__more" href={ templ.URL(folderHref(sb.HereDir)) }>另外 { strconv.Itoa(sb.HereTrimmed) } 篇 →</a>
+						<a class="y-here__more" href={ templ.URL(folderHref(sb.HereDir)) } data-rail-trimmed={ strconv.Itoa(sb.HereTrimmed) } data-rail-dir={ sb.HereDir }>另外 { strconv.Itoa(sb.HereTrimmed) } 篇 →</a>
 					}
 				</nav>
 			}
@@ -436,6 +437,7 @@ templ folderList(sb Sidebar) {
 // The branch holding the current note opens by default, revealing it in place.
 templ folderNode(sb Sidebar, f nav.Folder) {
 	if len(f.Subfolders) > 0 || len(f.Notes) > 0 {
+		{{ shown, trimmed := sb.TreeFiles(&f) }}
 		<details open?={ sb.folderOpen(f.RelPath) } { disclosureAttrs("dir:"+f.RelPath, sb.folderOpen(f.RelPath))... }>
 			<summary class="ui-navitem">
 				@chevron()
@@ -445,12 +447,15 @@ templ folderNode(sb Sidebar, f nav.Folder) {
 				for _, sub := range f.Subfolders {
 					@folderNode(sb, sub)
 				}
-				for _, n := range f.Notes {
+				for _, n := range shown {
 					<a
 						class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
 						href={ templ.URL(notesHref(n.RelPath)) }
 						{ currentAttr(sb.current(n.RelPath))... }
 					>{ n.Name }</a>
+				}
+				if trimmed > 0 {
+					<a class="y-here__more" href={ templ.URL(folderHref(f.RelPath)) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ f.RelPath }>另外 { strconv.Itoa(trimmed) } 篇 →</a>
 				}
 			</div>
 		</details>

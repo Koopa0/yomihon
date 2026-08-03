@@ -1204,3 +1204,10 @@ html {
    out and where the whole of it lives. */
 .y-here__more { display: block; padding: 6px 10px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none; }
 .y-here__more:hover { color: var(--accent); }
+
+/* What the filter could not reach. It sits with the empty-result line because
+   they answer the same question — why is this list shorter than I expected —
+   and one of them is always the more honest answer. */
+.y-filter-partial { margin: 8px 8px 4px; font-family: var(--font-serif); font-size: var(--fs-12); line-height: 1.6; color: var(--fg-subtle); }
+.y-filter-partial a { color: var(--accent); text-decoration: none; }
+.y-filter-partial a:hover { text-decoration: underline; }

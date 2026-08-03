@@ -3,6 +3,7 @@ package search
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -122,5 +123,81 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 				t.Errorf("markHits() runs rebuild to %q, want %q", rebuilt.String(), tt.snippet)
 			}
 		})
+	}
+}
+
+// The snippet window was a byte budget, and a byte budget pays out by script:
+// a Han character costs three bytes, so the same numbers bought a reader of
+// Chinese about a third of the context they bought a reader of English. A
+// diarist searching three years of her own writing hit it exactly where it
+// hurts — the long entries, which are the ones a year-end reread is for.
+func TestSnippetGivesEveryScriptTheSameWindow(t *testing.T) {
+	t.Parallel()
+
+	const needle = "母親"
+	chinese := strings.Repeat("今天天氣很好我出門散步", 30) + needle + strings.Repeat("後來下雨了我就回家了", 30)
+	english := strings.Repeat("the weather was fine so I went for a walk ", 8) + "mother" + strings.Repeat(" and then it rained and I went home", 8)
+
+	idx := NewIndex([]Document{
+		{RelPath: "a.md", Title: "中文", PlainText: chinese},
+		{RelPath: "b.md", Title: "English", PlainText: english},
+	}, validArtifactPolicy(t))
+
+	zh := snippetFor(t, idx, needle)
+	en := snippetFor(t, idx, "mother")
+
+	// Both windows are measured in what the reader sees. Whole-word expansion
+	// and the ellipses move the exact count a little, so the lock is on the
+	// ratio: one script must not get a fraction of the other's context.
+	zhRunes := len([]rune(zh))
+	enRunes := len([]rune(en))
+	if zhRunes*2 < enRunes {
+		t.Errorf("the Chinese snippet is %d characters against English's %d — the budget still pays out by script\nzh: %q\nen: %q", zhRunes, enRunes, zh, en)
+	}
+	// And it must still be a window, not the whole note.
+	if zhRunes > 260 {
+		t.Errorf("the Chinese snippet is %d characters; the window stopped bounding anything", zhRunes)
+	}
+}
+
+func snippetFor(t *testing.T, idx *Index, query string) string {
+	t.Helper()
+	results, err := idx.Search(Parse(query))
+	if err != nil {
+		t.Fatalf("Search(%q) error = %v", query, err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search(%q) returned %d results, want exactly 1 to measure", query, len(results))
+	}
+	return results[0].Snippet
+}
+
+// The matched offset is found on a folded copy and used against the original.
+// A fold that is not length-preserving can land it inside a character, and
+// counting characters outward from a broken start would carry the break into
+// what the reader sees. Turkish İ folds to two bytes' worth of nothing like
+// itself, which is the shape of that failure.
+func TestSnippetSurvivesAFoldThatMovesABoundary(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		// The İ folds one byte shorter, so every offset found after it points
+		// one byte early in the original. The character before the match is
+		// multi-byte on purpose: with an ASCII space there, landing a byte
+		// early still lands on a boundary and the failure hides.
+		// The İ folds one byte shorter, so every offset found after it points a
+		// byte early in the original — inside a character, since what follows
+		// is Han. The match sits far enough in that subtracting a byte budget
+		// from that offset lands mid-character too; nearer the start the
+		// subtraction clamps to zero and the break has nowhere to show.
+		{RelPath: "a.md", Title: "t", PlainText: "İ" + strings.Repeat("今天出門散步看見一隻貓在牆上睡覺，", 6) + "天氣很好，回家以後泡了一壺茶。"},
+	}, validArtifactPolicy(t))
+
+	got := snippetFor(t, idx, "天氣")
+	if !utf8.ValidString(got) {
+		t.Errorf("Snippet = %q, which is not valid UTF-8", got)
+	}
+	if strings.ContainsRune(got, utf8.RuneError) {
+		t.Errorf("Snippet = %q, which carries a replacement character — a boundary broke", got)
 	}
 }

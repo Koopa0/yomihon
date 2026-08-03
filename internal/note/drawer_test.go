@@ -390,6 +390,30 @@ func TestASequenceOfEntriesReadsAsALine(t *testing.T) {
 	if strings.Contains(body, "y-citedby") {
 		t.Error("a folder that uses no links still carries a cited-by block")
 	}
+
+	// The rail's tree carries the same folder, and windowing only the siblings
+	// block left the tree reciting all of it — the fix was half a fix, and the
+	// whole-page count is what showed that. The count covers every list on the
+	// page at once, so no single one of them can quietly go back to reciting.
+	if rows := strings.Count(body, `href="/notes/Diary/`); rows > 60 {
+		t.Errorf("the page carries %d links into a 40-entry folder; some list is reciting the folder rather than showing a neighbourhood", rows)
+	}
+	// And the entry being read must survive every window on the page.
+	if !strings.Contains(body, `href="/notes/Diary/2025-08-38.md"`) {
+		t.Error("the page lost the entry being read from its own navigation")
+	}
+
+	// Trimming the rail took the filter's reach with it: the box passes over
+	// what was rendered, so in this folder it searches a couple of dozen rows
+	// while looking like it searched the folder. The server owes the runtime
+	// the two facts it needs to say so — how many rows are missing, and which
+	// folder they belong to — and a place to say it.
+	if !strings.Contains(body, "data-rail-trimmed=") || !strings.Contains(body, "data-rail-dir=") {
+		t.Error("a trimmed rail does not carry how much it left or which folder it belongs to, so the filter cannot say what it could not reach")
+	}
+	if !strings.Contains(body, "data-filter-partial") {
+		t.Error("the rail has nowhere to say the filter's reach fell short")
+	}
 }
 
 func hereBlock(t *testing.T, body string) string {

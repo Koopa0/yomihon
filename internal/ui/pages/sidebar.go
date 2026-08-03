@@ -178,28 +178,37 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 	return attrs
 }
 
-// hereWindow is how many of a folder's files the siblings block shows around
-// the one being read. It is a reading aid, not the folder: the folder page
-// lists everything, the filter narrows to anything, and the step links under
-// the article walk the sequence. What this block owes the reader is where they
-// are and what is immediately either side of it.
-const hereWindow = 24
+// railWindow is how many of a folder's files the rail lists around the one
+// being read — in the siblings block and in the tree alike, which are two
+// lists of the same folder and were both reciting all of it. The rail is a reading
+// aid, not the folder: the folder page lists everything, the filter narrows to
+// anything, and the step links under the article walk the sequence. What the
+// rail owes the reader is where they are and what is immediately either side.
+const railWindow = 24
 
 // windowAround trims a folder's file list to the neighbourhood of the current
 // file, and reports how many it left out. A folder within the window is
 // returned whole, so the common case carries no elision at all.
 func windowAround(files []nav.NoteRef, currentPath string) (window []nav.NoteRef, trimmed int) {
-	if len(files) <= hereWindow {
+	if len(files) <= railWindow {
 		return files, 0
 	}
 	at := slices.IndexFunc(files, func(n nav.NoteRef) bool { return n.RelPath == currentPath })
 	if at < 0 {
-		return files[:hereWindow], len(files) - hereWindow
+		return files[:railWindow], len(files) - railWindow
 	}
-	start := max(0, at-hereWindow/2)
-	end := min(len(files), start+hereWindow)
-	start = max(0, end-hereWindow)
+	start := max(0, at-railWindow/2)
+	end := min(len(files), start+railWindow)
+	start = max(0, end-railWindow)
 	return files[start:end], len(files) - (end - start)
+}
+
+// TreeFiles returns the files a folder's branch lists inline, and how many it
+// left for the folder's own page. The branch holding the note being read keeps
+// that note in view: a tree that hid the reader's own location would be worse
+// than a long one.
+func (s *Sidebar) TreeFiles(f *nav.Folder) (shown []nav.NoteRef, trimmed int) {
+	return windowAround(f.Notes, s.CurrentPath)
 }
 
 // Breadcrumb names each folder above a file, with the path that reaches it, so

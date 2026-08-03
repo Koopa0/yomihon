@@ -22,8 +22,13 @@ type Result struct {
 }
 
 const (
-	// snippetBefore/snippetAfter bound the snippet window (in bytes) around the
-	// earliest matched-token offset; both ends are clamped to rune boundaries.
+	// snippetBefore/snippetAfter bound the snippet window around the earliest
+	// matched-token offset, counted in characters the reader sees rather than
+	// in bytes. As a byte budget it paid out by script: a Han character costs
+	// three bytes, so the same numbers bought a reader of Chinese roughly a
+	// third of the context they bought a reader of English — and the notes hurt
+	// most were the long ones, which is where a reader searching their own
+	// writing most needs to see the sentence around the hit.
 	snippetBefore = 40
 	snippetAfter  = 160
 )
@@ -222,6 +227,39 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Re
 	}
 }
 
+// runesBefore returns the byte offset n characters back from off, and the start
+// of the text when there are fewer than n. It walks characters rather than
+// subtracting bytes so the window is the same size to every reader.
+func runesBefore(s string, off, n int) int {
+	if off > len(s) {
+		off = len(s)
+	}
+	for range n {
+		if off <= 0 {
+			return 0
+		}
+		_, size := utf8.DecodeLastRuneInString(s[:off])
+		off -= size
+	}
+	return off
+}
+
+// runesAfter returns the byte offset n characters forward from off, and the end
+// of the text when there are fewer than n.
+func runesAfter(s string, off, n int) int {
+	if off < 0 {
+		off = 0
+	}
+	for range n {
+		if off >= len(s) {
+			return len(s)
+		}
+		_, size := utf8.DecodeRuneInString(s[off:])
+		off += size
+	}
+	return off
+}
+
 // snippet returns a one-line window of plain around the earliest matched-token
 // offset. The offset is located on plainFold (the folded copy) and reused as a
 // byte index into plain: fold (NFC then lowercase) is length-preserving for
@@ -229,9 +267,14 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Re
 // İ, etc.) could shift a boundary, so every bound below is clamped to a valid
 // rune boundary rather than trusted.
 func snippet(plain, plainFold string, tokens []string) string {
-	off := min(earliestOffset(plainFold, tokens), len(plain))
-	start := wholeWordStart(plain, clampRuneStart(plain, off-snippetBefore))
-	end := wholeWordEnd(plain, clampRuneEnd(plain, off+snippetAfter))
+	// The offset was located on the folded copy and is reused as an index into
+	// the original. Folding is length-preserving for this vault's scripts, but
+	// a rare fold that is not (Turkish İ, say) could land it inside a
+	// character — so it is pulled back to a boundary before anything counts
+	// characters outward from it.
+	off := clampRuneEnd(plain, min(earliestOffset(plainFold, tokens), len(plain)))
+	start := wholeWordStart(plain, runesBefore(plain, off, snippetBefore))
+	end := wholeWordEnd(plain, runesAfter(plain, off, snippetAfter))
 
 	s := strings.Join(strings.Fields(plain[start:end]), " ")
 	if start > 0 {
@@ -256,21 +299,6 @@ func earliestOffset(hay string, tokens []string) int {
 		return 0
 	}
 	return off
-}
-
-// clampRuneStart clamps i into [0,len(s)] and advances it to the next rune
-// start so the snippet never begins mid-rune.
-func clampRuneStart(s string, i int) int {
-	if i <= 0 {
-		return 0
-	}
-	if i >= len(s) {
-		return len(s)
-	}
-	for i < len(s) && !utf8.RuneStart(s[i]) {
-		i++
-	}
-	return i
 }
 
 // wordEdgeBudget bounds how far a boundary may move to keep a word whole. A

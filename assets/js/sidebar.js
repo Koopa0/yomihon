@@ -41,6 +41,15 @@ export function initSidebar() {
   }
 
   const empty = rail.querySelector('[data-filter-empty]');
+  // The rail carries a neighbourhood of each folder, not the folder. Filtering
+  // is a pass over what was rendered, so in a folder whose rows were trimmed
+  // the box searches less than the reader believes — a diarist narrowing three
+  // years to one month would be shown thirteen of that month's twenty-one
+  // days, with nothing on screen saying so. A quiet wrong answer is worse than
+  // the long list this trimming replaced, so the box says what it could not
+  // reach and hands over the search that can.
+  const partial = rail.querySelector('[data-filter-partial]');
+  const trimmedFolders = [...rail.querySelectorAll('[data-rail-trimmed]')];
   const groups = [...rail.querySelectorAll('details, .y-here')];
   const rows = [...rail.querySelectorAll('a, span.ui-navitem')];
 
@@ -48,6 +57,7 @@ export function initSidebar() {
     const query = input.value.trim().toLowerCase();
     filtering = query !== '';
     if (empty) empty.hidden = true;
+    if (partial) partial.hidden = true;
     if (!query) {
       rows.forEach((row) => { row.hidden = false; });
       groups.forEach((group) => {
@@ -63,6 +73,28 @@ export function initSidebar() {
       if (group.tagName === 'DETAILS') group.open = hit;
     });
     if (empty) empty.hidden = rows.some((row) => !row.hidden);
+    announceReach(query);
+  }
+
+  // announceReach names what the filter could not see, and links the search
+  // that covers the whole folder. `folder:` is an existing search filter, so
+  // this is an exit that already worked and nothing had pointed at.
+  function announceReach(query) {
+    if (!partial) return;
+    const unreached = trimmedFolders.reduce((sum, more) => sum + (Number(more.dataset.railTrimmed) || 0), 0);
+    if (!query || unreached === 0) {
+      partial.hidden = true;
+      return;
+    }
+    const dir = trimmedFolders.length === 1 ? trimmedFolders[0].dataset.railDir : '';
+    const search = `/search?q=${encodeURIComponent(dir ? `folder:${dir} ${query}` : query)}`;
+    partial.replaceChildren();
+    partial.append(`只篩了側欄現在列出的項目，另外 ${unreached} 項沒有被搜到。`);
+    const link = document.createElement('a');
+    link.href = search;
+    link.textContent = '搜尋全部 →';
+    partial.append(' ', link);
+    partial.hidden = false;
   }
 
   function rememberFilter() {
