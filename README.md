@@ -54,12 +54,15 @@ a missing or invalid contract but never creates or edits one.
 Install the command:
 
 ```sh
-go install github.com/koopa0/yomihon/cmd/yomihon@latest
+git clone https://github.com/Koopa0/yomihon.git && cd yomihon
+go install ./cmd/yomihon
 ```
 
-Every asset the reader serves — stylesheet, client modules, fonts, the Mermaid
-runtime — is compiled into that binary, so it runs anywhere without the
-repository beside it.
+This repository is private, so Go's module proxy cannot fetch it and
+`go install <module>@<version>` will not resolve; the clone is what supplies
+the source. Once it is built, every asset the reader serves — stylesheet,
+client modules, fonts, the Mermaid runtime — is compiled into the binary, and
+it runs anywhere without the repository beside it.
 
 Read a vault:
 
