@@ -63,8 +63,8 @@ const MUTATIONS = {
   'inject-template-map-projection': {
     target: 'map-projection-omitted',
     apply: rewriteDocument((body) => body.replaceAll(
-      'id="sidebar-maps-title">地圖</h2>',
-      'id="sidebar-maps-title">地圖</h2><details data-map-tree="System/templates/Template map.md"></details>',
+      '地圖</summary>',
+      '地圖</summary><details data-map-tree="System/templates/Template map.md"></details>',
     )),
   },
   'inject-template-home-recent': {

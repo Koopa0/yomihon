@@ -63,6 +63,15 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 		}
 	}
 
+	// A map or study path being read is its own wayfinding: the drawer
+	// holding it opens with its tree, the same as for a note the map places.
+	// Placements cannot say this — a map does not place itself.
+	for _, m := range slices.Concat(model.Maps(), model.Paths()) {
+		if m.RelPath == currentPath {
+			sb.openMaps[currentPath] = true
+		}
+	}
+
 	// Expand the folder branches on the path down to the current note.
 	for _, dir := range ancestorDirs(currentPath) {
 		sb.openFolders[dir] = true
@@ -120,6 +129,15 @@ func (s *Sidebar) pathsChainOpen() bool {
 // default; a disclosure the reader toggled by hand is remembered for the
 // session and still wins (the settle script replays it), and the wayfinding
 // chain still wins over both.
+
+// mapsChainOpen reports whether a general map holds — or is — the current
+// note, which makes the surrounding group part of the wayfinding chain.
+func (s *Sidebar) mapsChainOpen() bool {
+	if s.Model == nil {
+		return false
+	}
+	return slices.ContainsFunc(s.Model.Maps(), func(m nav.Map) bool { return s.openMaps[m.RelPath] })
+}
 
 // journalOpen reports whether the page being read lives in the journal.
 func (s *Sidebar) journalOpen() bool { return nav.InJournal(s.CurrentPath) }

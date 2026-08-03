@@ -270,14 +270,17 @@ templ sidebar(sb Sidebar, nonce string) {
 			}
 			if len(sb.Model.Maps()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
-				<section data-sidebar-group="maps" aria-labelledby="sidebar-maps-title">
-					<h2 class="y-railsummary y-railsummary--label" id="sidebar-maps-title">地圖</h2>
+				<details open?={ sb.mapsChainOpen() } data-sidebar-group="maps" { disclosureAttrs("maps", sb.mapsChainOpen())... }>
+					<summary class="y-railsummary">
+						@chevron()
+						地圖
+					</summary>
 					<div class="y-railgroup">
 						for _, m := range sb.Model.Maps() {
 							@mapTree(sb, m, notesHref(m.RelPath))
 						}
 					</div>
-				</section>
+				</details>
 			}
 			if len(sb.Model.Journal()) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>

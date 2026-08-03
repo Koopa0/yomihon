@@ -235,8 +235,8 @@ html, body { margin: 0; background: var(--bg); }
 /* left-rail disclosure groups */
 .y-railsummary {
   display: flex; align-items: center; gap: 7px; padding: 12px 8px 6px;
-  font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em;
-  color: var(--fg-faint); text-transform: uppercase;
+  font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.09em;
+  color: var(--fg-subtle); text-transform: uppercase;
 }
 .y-railsummary--label { margin: 0; font-weight: inherit; }
 .y-railgroup { padding: 0 0 10px; }
@@ -278,8 +278,8 @@ html, body { margin: 0; background: var(--bg); }
 /* "here" — the current note's same-directory siblings */
 .y-here { display: flex; flex-direction: column; padding: 2px 0 4px; }
 .y-here__label {
-  padding: 10px 8px 5px; font-family: var(--font-mono); font-size: var(--fs-11);
-  color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 10px 8px 5px; font-family: var(--font-mono); font-size: var(--fs-12);
+  color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.06em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
@@ -301,7 +301,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-railitem:hover, .y-treeitem:hover { background: var(--overlay); color: var(--fg); }
 .y-railitem__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .y-railitem__full {
-  display: block; padding: 4px 8px 6px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint);
+  display: block; padding: 4px 8px 6px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle);
 }
 .y-railitem__full:hover { color: var(--accent); }
 

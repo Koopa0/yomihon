@@ -34,6 +34,8 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 	write("Diary/2026-07-31.md", "today\n")
 	write("Concepts/plain.md", "---\ntitle: Plain\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
 	write("System/reports/weekly.md", "---\ntitle: Weekly\ntype: system\ndomain: meta\n---\n\nreport\n")
+	write("Concepts/linked.md", "---\ntitle: Linked\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
+	write("Maps/atlas.md", "---\ntitle: Atlas\ntype: topic-map\ndomain: golang\n---\n\n## Themes\n\n- [[linked]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -44,6 +46,8 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 		journalShut   = `<details data-sidebar-group="journal"`
 		reportsOpen   = `<details open data-sidebar-group="reports"`
 		reportsClosed = `<details data-sidebar-group="reports"`
+		mapsOpen      = `<details open data-sidebar-group="maps"`
+		mapsClosed    = `<details data-sidebar-group="maps"`
 	)
 	tests := []struct {
 		name string
@@ -53,22 +57,37 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 		{
 			name: "a placed lesson opens the study-path drawer alone",
 			url:  "/notes/Writing/lessons/golang/Slices.md",
-			want: []string{pathsOpen, journalShut, reportsClosed},
+			want: []string{pathsOpen, journalShut, reportsClosed, mapsClosed},
 		},
 		{
 			name: "a journal entry opens the journal drawer alone",
 			url:  "/notes/Diary/2026-07-31.md",
-			want: []string{journalOpen, pathsClosed, reportsClosed},
+			want: []string{journalOpen, pathsClosed, reportsClosed, mapsClosed},
 		},
 		{
 			name: "a report opens the report drawer alone",
 			url:  "/notes/System/reports/weekly.md",
-			want: []string{reportsOpen, pathsClosed, journalShut},
+			want: []string{reportsOpen, pathsClosed, journalShut, mapsClosed},
 		},
 		{
 			name: "an unplaced note opens none of them",
 			url:  "/notes/Concepts/plain.md",
-			want: []string{pathsClosed, journalShut, reportsClosed},
+			want: []string{pathsClosed, journalShut, reportsClosed, mapsClosed},
+		},
+		{
+			name: "a note some map places opens the map drawer alone",
+			url:  "/notes/Concepts/linked.md",
+			want: []string{mapsOpen, pathsClosed, journalShut, reportsClosed},
+		},
+		{
+			name: "the map itself opens its own drawer",
+			url:  "/notes/Maps/atlas.md",
+			want: []string{mapsOpen, `<details open data-map-tree="Maps/atlas.md"`, pathsClosed},
+		},
+		{
+			name: "the study path itself opens its own drawer",
+			url:  "/notes/Maps/Go path.md",
+			want: []string{pathsOpen, `<details open data-map-tree="Maps/Go path.md"`, mapsClosed},
 		},
 	}
 	for _, tt := range tests {
