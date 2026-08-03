@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The rail's type drawers open to meet the page the reader is on — the journal
@@ -427,4 +428,64 @@ func hereBlock(t *testing.T, body string) string {
 		t.Fatal("the siblings block is not closed")
 	}
 	return block
+}
+
+// A fresh clone stamps every file with the checkout moment, so the times that
+// order the landing block separate nothing and its tie-break — path order —
+// decides. The heading then promises recency and leads with whatever name
+// sorts first. A doctor met this on his own vault and read it correctly: four
+// notes, one timestamp, no ordering.
+func TestHomeSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
+	t.Parallel()
+
+	stamp := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
+	write := func(t *testing.T, root, rel string, at time.Time) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		body := "---\ntitle: " + filepath.Base(rel) + "\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		if err := os.Chtimes(full, at, at); err != nil {
+			t.Fatalf("chtimes: %v", err)
+		}
+	}
+
+	t.Run("one shared timestamp is not recency", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for _, name := range []string{"a.md", "b.md", "c.md"} {
+			write(t, root, "Concepts/"+name, stamp)
+		}
+		srv := newServerWithContract(t, root, loadHomeContract(t))
+		code, body := get(t, srv.URL+"/")
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		if strings.Contains(body, "最近改動過的筆記") {
+			t.Error("Home promises recency over notes its timestamps cannot order")
+		}
+		if !strings.Contains(body, "排不出先後") {
+			t.Errorf("Home does not say its timestamps separate nothing; body = %q", body)
+		}
+	})
+
+	t.Run("timestamps that differ are recency", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for i, name := range []string{"a.md", "b.md", "c.md"} {
+			write(t, root, "Concepts/"+name, stamp.AddDate(0, 0, i))
+		}
+		srv := newServerWithContract(t, root, loadHomeContract(t))
+		code, body := get(t, srv.URL+"/")
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		if !strings.Contains(body, "最近改動過的筆記") {
+			t.Errorf("Home hedges on notes its timestamps do order; body = %q", body)
+		}
+	})
 }

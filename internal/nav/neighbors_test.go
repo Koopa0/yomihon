@@ -2,6 +2,7 @@ package nav
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -168,5 +169,39 @@ func TestAdjacent(t *testing.T) {
 				t.Errorf("Adjacent(%q) next mismatch (-want +got):\n%s", tt.relPath, diff)
 			}
 		})
+	}
+}
+
+// The journal drawer is the one projection that had not moved off file times,
+// and it is the one where they mean least: a clone stamps every entry with one
+// moment, and an entry edited today is not today's entry. It orders by the
+// entries' own names now — newest first — which is the same reading order the
+// folder tree beside it uses.
+func TestJournalOrdersByTheEntriesOwnNames(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{
+		"Diary/2025-08-04.md",
+		"Diary/2025-08-05.md",
+		"Diary/2025-08-06.md",
+		"Concepts/not a journal.md",
+	}
+	// Times that would order them backwards if times still decided: the oldest
+	// entry touched most recently is exactly what a checkout or a typo fix does.
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	mtimes := map[string]time.Time{
+		"Diary/2025-08-04.md": base.AddDate(0, 0, 3),
+		"Diary/2025-08-05.md": base.AddDate(0, 0, 2),
+		"Diary/2025-08-06.md": base,
+	}
+
+	got := buildJournal(paths, mtimes)
+	want := []string{"Diary/2025-08-06.md", "Diary/2025-08-05.md", "Diary/2025-08-04.md"}
+	gotPaths := make([]string, 0, len(got))
+	for _, e := range got {
+		gotPaths = append(gotPaths, e.RelPath)
+	}
+	if diff := cmp.Diff(want, gotPaths); diff != "" {
+		t.Errorf("buildJournal ordering mismatch (-want +got):\n%s", diff)
 	}
 }

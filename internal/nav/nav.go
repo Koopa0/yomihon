@@ -478,15 +478,14 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 		_, base := splitDir(p)
 		entries = append(entries, JournalEntry{Title: displayName(base), RelPath: p, Modified: mtimes[p]})
 	}
+	// Newest last by the entries' own names, then reversed — the same reading
+	// order every other projection here uses, so a journal drawer and the
+	// folder tree beside it cannot disagree about which entry follows which.
+	// It was the file times, which is a different question from the one a
+	// journal answers: a clone stamps every entry with one moment, and an
+	// entry edited today is not today's entry.
 	slices.SortStableFunc(entries, func(a, b JournalEntry) int {
-		switch {
-		case a.Modified.Equal(b.Modified):
-			return cmp.Compare(a.RelPath, b.RelPath)
-		case a.Modified.After(b.Modified):
-			return -1
-		default:
-			return 1
-		}
+		return comparePathsForReading(b.RelPath, a.RelPath)
 	})
 	if len(entries) > limit {
 		entries = entries[:limit]

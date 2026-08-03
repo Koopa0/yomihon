@@ -46,8 +46,13 @@ type HomeView struct {
 	// folder fills none of them. It states what the folder has rather than what
 	// it lacks: a reader who will never write a contract is not missing
 	// anything, and a page implying otherwise is an advertisement.
-	StandIn         HomeStandIn
-	Recent          []HomeNote
+	StandIn HomeStandIn
+	Recent  []HomeNote
+	// RecentOrdered says the recorded times actually put these in order. A
+	// fresh clone stamps every file with one moment, and the block then leads
+	// with whatever name sorts first under a heading promising recency — so
+	// when the times separate nothing, the block says so instead.
+	RecentOrdered   bool
 	RecentClosed    bool
 	Lifecycle       []LifecycleItem
 	LifecycleClosed bool
@@ -143,7 +148,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Subtitle)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 96, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 101, Col: 22}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -194,7 +199,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("這個資料夾有 " + strconv.Itoa(v.StandIn.Files) + " 個檔案，最近一次變更是")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 113, Col: 103}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 118, Col: 103}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -207,7 +212,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var5 templ.SafeURL
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(v.StandIn.NewestPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 113, Col: 157}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 118, Col: 157}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -220,7 +225,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(v.StandIn.NewestName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 113, Col: 182}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 118, Col: 182}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -233,7 +238,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.StandIn.NewestAt)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 113, Col: 226}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 118, Col: 226}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 					if templ_7745c5c3_Err != nil {
@@ -246,7 +251,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(v.StandIn.NewestDate)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 113, Col: 251}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 118, Col: 251}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -267,9 +272,16 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記").Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
+				if v.RecentOrdered {
+					templ_7745c5c3_Err = homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記").Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				} else {
+					templ_7745c5c3_Err = homeBlockHead("home-recent-title", "筆記", "這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」").Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
 				}
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"y-homerecent\">")
 				if templ_7745c5c3_Err != nil {
@@ -283,7 +295,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var9 templ.SafeURL
 					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(n.RelPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 122, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 131, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -296,7 +308,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(n.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 124, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 133, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -309,7 +321,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(n.RelPath)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 125, Col: 54}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 134, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -345,7 +357,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 						var templ_7745c5c3_Var14 string
 						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(n.Status)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 129, Col: 77}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 138, Col: 77}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
@@ -364,7 +376,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(n.ModifiedAt)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 132, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 141, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 						if templ_7745c5c3_Err != nil {
@@ -377,7 +389,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 						var templ_7745c5c3_Var16 string
 						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(n.Modified)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 132, Col: 57}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 141, Col: 57}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 						if templ_7745c5c3_Err != nil {
@@ -420,7 +432,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 						var templ_7745c5c3_Var17 templ.SafeURL
 						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(statusHref(it.Name)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 146, Col: 70}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 155, Col: 70}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 						if templ_7745c5c3_Err != nil {
@@ -455,7 +467,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(it.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 148, Col: 27}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 157, Col: 27}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -468,7 +480,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 						var templ_7745c5c3_Var21 string
 						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.Itoa(it.Count) + " 篇筆記")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 149, Col: 94}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 158, Col: 94}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 						if templ_7745c5c3_Err != nil {
@@ -481,7 +493,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 						var templ_7745c5c3_Var22 string
 						templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(it.Count))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 149, Col: 121}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 158, Col: 121}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 						if templ_7745c5c3_Err != nil {
@@ -523,7 +535,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var23 templ.SafeURL
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(syllabusHref(p.RelPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 161, Col: 73}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 170, Col: 73}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -536,7 +548,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 162, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 171, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -549,7 +561,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(p.Total))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 163, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 172, Col: 69}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -585,7 +597,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var26 templ.SafeURL
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(homeReadmeRelPath)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 189, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 198, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -598,7 +610,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(homeReadmeTitle)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 189, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 198, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -651,7 +663,7 @@ func homeBlockHead(id, title, note string) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 200, Col: 13}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 209, Col: 13}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 		if templ_7745c5c3_Err != nil {
@@ -664,7 +676,7 @@ func homeBlockHead(id, title, note string) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 200, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 209, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -677,7 +689,7 @@ func homeBlockHead(id, title, note string) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(note)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 201, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/home.templ`, Line: 210, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {

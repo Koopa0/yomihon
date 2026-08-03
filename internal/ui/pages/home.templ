@@ -38,8 +38,13 @@ type HomeView struct {
 	// folder fills none of them. It states what the folder has rather than what
 	// it lacks: a reader who will never write a contract is not missing
 	// anything, and a page implying otherwise is an advertisement.
-	StandIn         HomeStandIn
-	Recent          []HomeNote
+	StandIn HomeStandIn
+	Recent  []HomeNote
+	// RecentOrdered says the recorded times actually put these in order. A
+	// fresh clone stamps every file with one moment, and the block then leads
+	// with whatever name sorts first under a heading promising recency — so
+	// when the times separate nothing, the block says so instead.
+	RecentOrdered   bool
 	RecentClosed    bool
 	Lifecycle       []LifecycleItem
 	LifecycleClosed bool
@@ -116,7 +121,11 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if !v.RecentClosed && len(v.Recent) > 0 {
 							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
-								@homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記")
+								if v.RecentOrdered {
+									@homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記")
+								} else {
+									@homeBlockHead("home-recent-title", "筆記", "這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」")
+								}
 								<div class="y-homerecent">
 									for _, n := range v.Recent {
 										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>

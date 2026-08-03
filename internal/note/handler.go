@@ -268,8 +268,9 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	visibleNav := pageShell.Nav
 	recentClosed := visibleNav.InstanceProjectionsClosed()
 	var recent []pages.HomeNote
+	recentOrdered := false
 	if !recentClosed {
-		recent = recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed)
+		recent, recentOrdered = recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed)
 	}
 	pathsClosed := visibleNav.NavigationClosure().Closed() || visibleNav.ArtifactClosure().Closed()
 	var paths []pages.HomePath
@@ -305,6 +306,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 			visibleNav.ArtifactDiagnostic(),
 		),
 		Recent:          recent,
+		RecentOrdered:   recentOrdered,
 		RecentClosed:    recentClosed,
 		Lifecycle:       lifecycle,
 		LifecycleClosed: lifecycleClosed,
@@ -764,7 +766,13 @@ func statedOnce(causes ...string) string {
 // scanner-captured timestamps. It sorts a clone, leaving the published model
 // immutable for concurrent readers. Equal mtimes fall back to path order so a
 // rebuild produces stable output.
-func recentHomeNotes(notes []nav.NoteSummary, governed bool) []pages.HomeNote {
+// recentHomeNotes picks the notes the landing page leads with, and reports
+// whether their recorded times actually order them. A fresh clone stamps every
+// file with the checkout moment, so the block's tie-break — path order — starts
+// deciding, and a heading that says "recently changed" leads with whatever name
+// sorts first. The reader has no way to see that from the page, which is the
+// kind of quiet wrong answer this interface is not allowed to give.
+func recentHomeNotes(notes []nav.NoteSummary, governed bool) (recent []pages.HomeNote, ordered bool) {
 	notes = slices.Clone(notes)
 	slices.SortStableFunc(notes, func(a, b nav.NoteSummary) int {
 		switch {
@@ -779,6 +787,9 @@ func recentHomeNotes(notes []nav.NoteSummary, governed bool) []pages.HomeNote {
 	if len(notes) > homeRecentLimit {
 		notes = notes[:homeRecentLimit]
 	}
+	// One shared timestamp across everything shown means the times separated
+	// nothing: what the reader is looking at is the tie-break, not recency.
+	ordered = len(notes) > 1 && !notes[0].Modified.Equal(notes[len(notes)-1].Modified)
 
 	out := make([]pages.HomeNote, 0, len(notes))
 	for _, n := range notes {
@@ -795,7 +806,7 @@ func recentHomeNotes(notes []nav.NoteSummary, governed bool) []pages.HomeNote {
 		}
 		out = append(out, item)
 	}
-	return out
+	return out, ordered
 }
 
 // homePaths maps the snapshot's parsed study paths onto what Home says about
