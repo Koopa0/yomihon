@@ -51,20 +51,33 @@ starting point at [`examples/vault-schema.toml`](examples/vault-schema.toml).
 Copy and deliberately adapt it before serving real content. Yomihon diagnoses
 a missing or invalid contract but never creates or edits one.
 
-Configuration is environment-only:
+Install the command:
+
+```sh
+go install github.com/koopa0/yomihon/cmd/yomihon@latest
+```
+
+Every asset the reader serves — stylesheet, client modules, fonts, the Mermaid
+runtime — is compiled into that binary, so it runs anywhere without the
+repository beside it.
+
+Read a vault:
+
+```sh
+yomihon serve --root /path/to/vault
+# http://127.0.0.1:9610
+```
+
+`yomihon help` lists every command, and `yomihon <command> --help` explains one.
+
+The vault path may also come from the environment, which is what a shell alias
+or a launch agent will usually set; `--root` wins when both are given.
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `YOMIHON_ROOT` | Vault path | `~/obsidian` |
 | `YOMIHON_PORT` | Listen port | `9610` |
 | `YOMIHON_EMBED_KEY` | User-owned Gemini credential for an explicit semantic CLI action | unset |
-
-Start the reader against that vault:
-
-```sh
-YOMIHON_ROOT=/path/to/vault go run ./cmd/yomihon serve
-# http://127.0.0.1:9610
-```
 
 A successful start logs `yomihon serving` and Home loads at that address. An
 invalid vault path exits non-zero with a `yomihon exited` error; a missing or
@@ -76,7 +89,11 @@ navigation, diagnostics, and lexical search support macOS, Linux, and Windows.
 Status writes and semantic generations currently support macOS and Linux.
 
 Yomihon is a personal application rather than a turnkey multi-user service.
-Run `go run ./cmd/yomihon help` for the current command surface. Use
+It is deliberately not distributed as a container image: the listener binds
+`127.0.0.1` in the process's own network namespace, which inside a container is
+a loopback the host cannot reach, and the status write runs `git` as the
+operator so the commit carries their identity. Both are the boundary working,
+and both would have to be loosened to make an image useful. Use
 [GitHub Issues](https://github.com/Koopa0/yomihon/issues) for questions and
 defects.
 
