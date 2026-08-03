@@ -1,6 +1,16 @@
 // Lesson-only enhancements: shared Japanese speech, sentence controls, slot
 // practice, and native concept sheets. The authored lesson remains readable
 // when this module is absent or speech is unavailable.
+// speechLanguage reads the voice off the passage the server already marked,
+// rather than naming a language here that the server names too. The search
+// starts above the button because the button carries its own lang — its label
+// is interface Chinese wrapped around Japanese text — so asking the button
+// would speak the passage in the language of its own label.
+function speechLanguage(trigger) {
+  const declared = trigger?.parentElement?.closest?.('[lang]')?.getAttribute('lang');
+  return declared && declared !== 'und' ? declared : 'ja-JP';
+}
+
 export function initLesson() {
   let speechRate = 0.8;
   let speechGeneration = 0;
@@ -31,7 +41,10 @@ export function initLesson() {
     stopSpeech();
     const generation = speechGeneration;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
+    // The note says what language it is in; reading it aloud in another one is
+  // not a smaller version of the feature, it is the wrong words. A note that
+  // declares nothing falls back to the passage's own marker.
+  utterance.lang = speechLanguage(trigger);
     utterance.rate = speechRate;
     if (trigger) {
       activeSpeakButton = trigger;

@@ -60,3 +60,21 @@ func (p Planned) add(names []string) {
 func (p Planned) Has(target string) bool {
 	return p[graph.NormalizeKey(target)]
 }
+
+// LinkTargets returns the wikilink targets body cites, in document order, with
+// the ones a reader never wrote left out: a link inside a code fence or a code
+// span is quoted syntax rather than a citation, one inside an Obsidian comment
+// is content the author took back, and a bare anchor names no note at all.
+//
+// It is exported so the reading face can build the reverse of the link graph
+// from the same reading of a body the adjudicator uses. The two derive their
+// edges from one extractor, so a page listing what cites a note and a finding
+// about a citation can never disagree about which citations exist.
+func LinkTargets(body string) []string {
+	links := extractWikilinks(body, 1)
+	targets := make([]string, 0, len(links))
+	for _, link := range links {
+		targets = append(targets, link.target)
+	}
+	return targets
+}

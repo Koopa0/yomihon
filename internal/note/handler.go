@@ -115,6 +115,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /{$}", h.home)
+	mux.HandleFunc("GET /health", h.health)
 	mux.HandleFunc("GET /", h.notFound)
 }
 
@@ -140,6 +141,47 @@ func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, asked str
 	if err := pages.NotFound(view, pageShell.Chrome(r, "找不到")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write not-found page", "path", asked, "error", err)
 	}
+}
+
+// health renders the whole-folder view of what needs attention. Every fact on
+// it is already computed for the single-note pages; nobody opens every note, so
+// gathering them is the only way they are ever seen.
+func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	snap := h.deps.Snapshot().Capture()
+	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
+	health := snap.Health()
+	view := pages.HealthView{
+		Unwritten:  healthLinks(health.Unwritten),
+		Islands:    health.Islands,
+		Collisions: healthCollisions(health.Collisions),
+		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+	}
+	if err := pages.Health(view, pageShell.Chrome(r, "整體狀況")).Render(r.Context(), w); err != nil {
+		h.deps.Log.Error("write health page", "error", err)
+	}
+}
+
+// healthLinks and healthCollisions carry the snapshot's findings across to the
+// page as plain values. The page package holds no feature types — it is what
+// keeps a view from importing the generation it renders.
+func healthLinks(links []snapshot.HealthLink) []pages.HealthLink {
+	out := make([]pages.HealthLink, 0, len(links))
+	for _, link := range links {
+		out = append(out, pages.HealthLink{From: link.From, Target: link.Target})
+	}
+	return out
+}
+
+func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthCollision {
+	out := make([]pages.HealthCollision, 0, len(collisions))
+	for _, collision := range collisions {
+		candidates := make([]nav.NoteRef, 0, len(collision.Candidates))
+		for _, candidate := range collision.Candidates {
+			candidates = append(candidates, nav.NoteRef{Name: nav.Label(candidate), RelPath: candidate})
+		}
+		out = append(out, pages.HealthCollision{Name: collision.Name, Candidates: candidates})
+	}
+	return out
 }
 
 // home renders the four landing blocks from one coherent snapshot, followed by
@@ -290,6 +332,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
 		RenderDiagnostics: faults(result.Diagnostics, snap),
+		CitedBy:           snap.CitedBy(rel),
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
 		Sidebar:           pages.NewSidebar(governance.shell.Nav, n.RelPath),

@@ -1,0 +1,115 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+)
+
+// HealthView is the whole-folder answer to "what needs attention". Every note
+// page can already say what is wrong with itself; nobody opens every note, so
+// the facts stay invisible exactly when they matter. This is the same facts,
+// gathered.
+type HealthView struct {
+	// Unwritten are citations to names no file carries and no ledger declared.
+	Unwritten []HealthLink
+	// Islands are notes nothing cites.
+	Islands []nav.NoteRef
+	// Collisions are names more than one file answers to.
+	Collisions []HealthCollision
+	Sidebar    Sidebar
+}
+
+// HealthLink is one citation with nowhere to land, and the note making it.
+type HealthLink struct {
+	From   nav.NoteRef
+	Target string
+}
+
+// HealthCollision is one name several files claim, with every claimant — the
+// vault never picks one, so neither does this page.
+type HealthCollision struct {
+	Name       string
+	Candidates []nav.NoteRef
+}
+
+// clean reports whether the folder has nothing to answer for.
+func (v HealthView) clean() bool {
+	return len(v.Unwritten) == 0 && len(v.Islands) == 0 && len(v.Collisions) == 0
+}
+
+// Health is the page listing what the folder owes: citations with nowhere to
+// land, notes nothing reaches, and names two files both answer to. It states
+// and never repairs — a person edits the file, the same rule the note panel
+// follows.
+templ Health(v HealthView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c.Nonce)
+			<main id="main-content" tabindex="-1" class="y-main">
+				<article class="y-article">
+					<h1 class="y-title">整體狀況</h1>
+					<div class="y-seam" aria-hidden="true"></div>
+					if v.clean() {
+						<p class="y-homeempty">這個書庫目前沒有需要處理的事：每個連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用。</p>
+					} else {
+						<p class="y-healthlede">這裡只陳述狀況，不會動你的檔案。要修改請在編輯器裡改那個檔案。</p>
+						@healthSection("連到還沒寫的筆記", len(v.Unwritten), "這些連結的目標不存在，而且沒有任何缺口帳列出它們。") {
+							<ul class="y-healthlist">
+								for _, link := range v.Unwritten {
+									<li>
+										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }>{ link.From.Name }</a>
+										<span class="y-healthlist__detail">連到「{ link.Target }」</span>
+									</li>
+								}
+							</ul>
+						}
+						@healthSection("沒有人連過來的筆記", len(v.Islands), "寫過一次就沒再被引用的筆記，通常是讀完沒有消化的那些。") {
+							<ul class="y-healthlist">
+								for _, ref := range v.Islands {
+									<li><a class="y-healthlink" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a></li>
+								}
+							</ul>
+						}
+						@healthSection("兩個檔案共用的名字", len(v.Collisions), "連到這些名字的連結不會生效，因為無法判斷指的是哪一個，而這裡不猜。") {
+							<ul class="y-healthlist">
+								for _, collision := range v.Collisions {
+									<li>
+										<span class="y-healthlist__name">{ collision.Name }</span>
+										<span class="y-healthlist__detail">
+											for i, candidate := range collision.Candidates {
+												if i > 0 {
+													<span aria-hidden="true">・</span>
+												}
+												<a class="y-healthlink" href={ templ.URL(notesHref(candidate.RelPath)) }>{ candidate.Name }</a>
+											}
+										</span>
+									</li>
+								}
+							</ul>
+						}
+					}
+				</article>
+			</main>
+			<aside class="y-rail-right" aria-label="閱讀輔助"></aside>
+		</div>
+	}
+}
+
+// healthSection renders one finding group, and nothing at all when the group is
+// empty: a heading over an empty list on a page about problems reads as a
+// problem the reader cannot see.
+templ healthSection(title string, count int, lede string) {
+	if count > 0 {
+		<section class="y-healthsection">
+			<h2 class="y-healthsection__title">
+				{ title }
+				<span class="ui-navitem__count">{ strconv.Itoa(count) }</span>
+			</h2>
+			<p class="y-healthsection__lede">{ lede }</p>
+			{ children... }
+		</section>
+	}
+}

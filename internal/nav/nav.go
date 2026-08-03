@@ -618,3 +618,12 @@ func splitDir(p string) (dir, base string) {
 func displayName(base string) string {
 	return strings.TrimSuffix(base, ".md")
 }
+
+// Label names a file the way every list in this navigation names it, taking
+// the vault-relative path rather than the bare filename. A projection built
+// outside this package labels its rows through here, so one note cannot appear
+// under two different names depending on which list the reader is looking at.
+func Label(relPath string) string {
+	_, base := splitDir(relPath)
+	return displayName(base)
+}

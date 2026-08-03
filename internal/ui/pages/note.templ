@@ -62,7 +62,13 @@ type NoteView struct {
 	BodyHTML     string
 
 	RenderDiagnostics []render.Diagnostic
-	TOC               []render.TOCEntry
+	// CitedBy are the notes whose text links here. It is the resolver's own
+	// knowledge read backwards, and the reading face's answer to the question a
+	// reader standing on a note actually has: who depends on this. An empty
+	// list is an answer — the note is an island — so the block states that
+	// rather than disappearing.
+	CitedBy []nav.NoteRef
+	TOC     []render.TOCEntry
 
 	// Sidebar is the resolved left navigation for this page: the whole-vault
 	// model plus this note's wayfinding context — its same-directory siblings,
@@ -529,8 +535,31 @@ templ rightRail(v NoteView) {
 				@tocList(v)
 			</nav>
 		}
+		@citedBy(v)
 		@diagnostics(v)
 	</aside>
+}
+
+// citedBy lists the notes whose text links to this one. Nothing is a real
+// answer here and gets said out loud: a note nothing cites is an island, and a
+// block that vanished when the count reached zero would leave the reader
+// unable to tell "no one cites this" from "this interface does not know".
+templ citedBy(v NoteView) {
+	<nav class="y-citedby" aria-label="連到這篇的筆記">
+		<div class="ui-side__label">
+			連到這篇
+			if len(v.CitedBy) > 0 {
+				<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
+			}
+		</div>
+		if len(v.CitedBy) > 0 {
+			for _, ref := range v.CitedBy {
+				<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a>
+			}
+		} else {
+			<p class="y-citedby__none">目前沒有其他筆記連到這篇。</p>
+		}
+	</nav>
 }
 
 // tocList is the table-of-contents link list, shared by the right rail and

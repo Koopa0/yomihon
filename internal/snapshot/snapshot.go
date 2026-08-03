@@ -53,6 +53,8 @@ type View struct {
 	slots          lesson.SlotIndex
 	concepts       lesson.ConceptIndex
 	planned        judge.Planned
+	backlinks      *Backlinks
+	health         Health
 	artifactPolicy schema.ArtifactPolicy
 
 	scan     vault.Scan
@@ -80,6 +82,25 @@ func (v *View) Graph() *graph.Index {
 		return nil
 	}
 	return v.graph
+}
+
+// CitedBy returns the notes citing relPath in this generation, sorted by the
+// name each shows. Nothing citing a note is an answer rather than a gap: it is
+// how a note nothing depends on becomes visible.
+func (v *View) CitedBy(relPath string) []nav.NoteRef {
+	if v == nil {
+		return nil
+	}
+	return v.backlinks.To(relPath)
+}
+
+// Health returns the whole-folder view of what needs attention in this
+// generation.
+func (v *View) Health() Health {
+	if v == nil {
+		return Health{}
+	}
+	return v.health
 }
 
 // TrackedForwardReference reports whether target is a name the vault is
@@ -408,13 +429,17 @@ func buildView(
 		concepts = lesson.ConceptIndex{}
 	}
 
+	planned := judge.NewPlanned(noteBodies(parsedNotes))
+	backlinks := newBacklinks(parsedNotes, graphIndex)
 	view := &View{
 		graph:          graphIndex,
 		navigation:     navigation,
 		search:         searchIndex,
 		slots:          slots,
 		concepts:       concepts,
-		planned:        judge.NewPlanned(noteBodies(parsedNotes)),
+		planned:        planned,
+		backlinks:      backlinks,
+		health:         newHealth(parsedNotes, graphIndex, planned, backlinks),
 		artifactPolicy: policy,
 		scan:           scan,
 		notes:          publishedNotes,

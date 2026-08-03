@@ -124,3 +124,107 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 		})
 	}
 }
+
+// Five trial readers asked the same question standing on a note — who cites
+// this — and two of them pointed out the resolver already knew, because it
+// could report the citations that were broken. The answer is on the page now,
+// and the empty answer is said out loud: a note nothing cites is an island,
+// which is a finding, not a blank.
+func TestCitedByAnswersOnThePage(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	write("Concepts/cited.md", "---\ntitle: Cited\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nthe target\n")
+	write("Concepts/citer.md", "---\ntitle: Citer\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nsee [[cited]]\n")
+	write("Concepts/island.md", "---\ntitle: Island\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nalone\n")
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+
+	code, body := get(t, srv.URL+"/notes/Concepts/cited.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	cited := citedByBlock(t, body)
+	if !strings.Contains(cited, `href="/notes/Concepts/citer.md"`) {
+		t.Errorf("the cited note does not list what cites it; block = %q", cited)
+	}
+
+	code, body = get(t, srv.URL+"/notes/Concepts/island.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	island := citedByBlock(t, body)
+	if !strings.Contains(island, "目前沒有其他筆記連到這篇") {
+		t.Errorf("the island does not say it is one; block = %q", island)
+	}
+	// Scoped to the block on purpose: the rail lists every note in the folder,
+	// so a whole-page search for the citer's href would pass whatever the
+	// cited-by block said.
+	if strings.Contains(island, `href="/notes/Concepts/citer.md"`) {
+		t.Errorf("the island lists a citation it does not have; block = %q", island)
+	}
+}
+
+// citedByBlock returns just the cited-by region of a reading page, and fails
+// when it is absent — a page that stopped rendering the block entirely must
+// not read as a page whose block is correctly empty.
+func citedByBlock(t *testing.T, body string) string {
+	t.Helper()
+	const open = `<nav class="y-citedby"`
+	start := strings.Index(body, open)
+	if start < 0 {
+		t.Fatal("the reading page has no cited-by block at all")
+	}
+	end := strings.Index(body[start:], "</nav>")
+	if end < 0 {
+		t.Fatal("the cited-by block is not closed")
+	}
+	return body[start : start+end]
+}
+
+// The whole-folder page gathers what the single-note pages each know. It is
+// the one thing this reader was told beats keeping the editor open, and it is
+// worthless if it reports a problem the note's own page would not.
+func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	write("Concepts/broken.md", "---\ntitle: Broken\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[nothing at all]]\n")
+	write("Maps/ledger.md", "---\ntitle: Ledger\ntype: topic-map\ndomain: golang\n---\n\n## 缺口帳\n\n- Planned concept\n")
+	write("Concepts/tracked.md", "---\ntitle: Tracked\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[Planned concept]]\n")
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+
+	code, body := get(t, srv.URL+"/health")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if !strings.Contains(body, "nothing at all") {
+		t.Errorf("the health page omits a citation with nowhere to land; body = %q", body)
+	}
+	// A name the ledger declared is owed, not wrong — the same classifier the
+	// note page uses, so the two faces cannot disagree about this citation.
+	if strings.Contains(body, "Planned concept") {
+		t.Errorf("the health page reports a planned name as a fault; body = %q", body)
+	}
+}

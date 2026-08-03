@@ -359,3 +359,24 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 		}
 	}
 }
+
+// The passage's language belongs to the server, which stamps it from the
+// author's read-aloud marker. The runtime reads it from there rather than
+// carrying a second copy — and it looks above the button, because the button
+// carries its own lang for its Chinese label and asking it would speak
+// Japanese in a Chinese voice.
+func TestSpeechLanguageComesFromTheMarkedPassage(t *testing.T) {
+	t.Parallel()
+
+	b, err := os.ReadFile("js/lesson.js")
+	if err != nil {
+		t.Fatalf("read lesson JavaScript: %v", err)
+	}
+	js := string(b)
+	if strings.Contains(js, "utterance.lang = 'ja-JP'") {
+		t.Error("speech language is hardcoded at the utterance rather than read from the passage")
+	}
+	if !strings.Contains(js, "trigger?.parentElement?.closest?.('[lang]')") {
+		t.Error("speech language does not start its search above the button, so the button's own label language can win")
+	}
+}

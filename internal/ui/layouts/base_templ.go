@@ -266,14 +266,14 @@ func header(c Chrome) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<button class=\"y-iconbtn y-textsizebtn\" type=\"button\" data-textsize-toggle aria-label=\"切換字級\" title=\"字級：中 → 大 → 特大\"><span aria-hidden=\"true\">字</span></button> <button class=\"y-iconbtn y-helpbtn\" type=\"button\" popovertarget=\"kbd-help\" aria-label=\"鍵盤快捷鍵說明\"><span aria-hidden=\"true\">?</span></button><div id=\"kbd-help\" popover class=\"y-kbdhelp\" aria-label=\"鍵盤快捷鍵\"><h2 class=\"y-kbdhelp__title\">鍵盤快捷鍵</h2><dl class=\"y-kbdhelp__list\"><dt><span class=\"ui-kbd\">⌘K</span> / <span class=\"ui-kbd\">Ctrl K</span></dt><dd>搜尋</dd><dt><span class=\"ui-kbd\">Esc</span></dt><dd>關閉搜尋或篩選</dd><dt><span class=\"ui-kbd\">/</span></dt><dd>跳到導覽篩選（單鍵開啟時）</dd><dt><span class=\"ui-kbd\">[</span></dt><dd>收合或展開側欄（單鍵開啟時）</dd><dt><span class=\"ui-kbd\">R</span>（按住）</dt><dd>認證目前筆記的狀態——只在可認證的筆記上有效，放開前不會寫入，寫入的只有 status 一個欄位</dd></dl></div><button class=\"y-iconbtn y-themebtn\" type=\"button\" data-theme-toggle aria-label=\"切換主題\" aria-pressed=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<a class=\"y-healthlinkbtn\" href=\"/health\" title=\"整體狀況：連結、孤島、名字衝突\">整體狀況</a> <button class=\"y-iconbtn y-textsizebtn\" type=\"button\" data-textsize-toggle aria-label=\"切換字級\" title=\"字級：中 → 大 → 特大\"><span aria-hidden=\"true\">字</span></button> <button class=\"y-iconbtn y-helpbtn\" type=\"button\" popovertarget=\"kbd-help\" aria-label=\"鍵盤快捷鍵說明\"><span aria-hidden=\"true\">?</span></button><div id=\"kbd-help\" popover class=\"y-kbdhelp\" aria-label=\"鍵盤快捷鍵\"><h2 class=\"y-kbdhelp__title\">鍵盤快捷鍵</h2><dl class=\"y-kbdhelp__list\"><dt><span class=\"ui-kbd\">⌘K</span> / <span class=\"ui-kbd\">Ctrl K</span></dt><dd>搜尋</dd><dt><span class=\"ui-kbd\">Esc</span></dt><dd>關閉搜尋或篩選</dd><dt><span class=\"ui-kbd\">/</span></dt><dd>跳到導覽篩選（單鍵開啟時）</dd><dt><span class=\"ui-kbd\">[</span></dt><dd>收合或展開側欄（單鍵開啟時）</dd><dt><span class=\"ui-kbd\">R</span>（按住）</dt><dd>認證目前筆記的狀態——只在可認證的筆記上有效，放開前不會寫入，寫入的只有 status 一個欄位</dd></dl></div><button class=\"y-iconbtn y-themebtn\" type=\"button\" data-theme-toggle aria-label=\"切換主題\" aria-pressed=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatBool(c.Theme == "dark"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 127, Col: 149}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 128, Col: 149}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {

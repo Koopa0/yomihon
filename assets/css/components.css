@@ -1141,3 +1141,37 @@ html {
 @media (max-width: 520px) {
   .y-helpbtn, .y-textsizebtn { display: none; }
 }
+
+/* Cited-by: the link graph read backwards. It keeps its heading when the list
+   is empty, because a note nothing cites is a finding rather than a blank —
+   the block disappearing would leave the reader unable to tell an island from
+   a feature this interface does not have. */
+.y-citedby { margin-top: 22px; }
+.y-citedby__none { margin: 4px 8px 0; font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }
+
+/* Whole-folder health: a reading page, not a dashboard. The lists are prose
+   lists at reading size, because a person works down them one at a time
+   deciding what to open. */
+.y-healthlede { font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-subtle); margin: 18px 0 0; }
+.y-healthsection { margin: 36px 0 0; }
+.y-healthsection__title { display: flex; align-items: center; gap: 10px; font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-24); color: var(--fg); margin: 0; }
+.y-healthsection__lede { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.7; margin: 6px 0 0; }
+.y-healthlist { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.y-healthlist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--fs-13); }
+.y-healthlist__name { font-family: var(--font-mono); color: var(--fg); }
+.y-healthlist__detail { color: var(--fg-subtle); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.y-healthlink { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--accent); text-decoration: none; }
+.y-healthlink:hover { text-decoration: underline; }
+
+/* The whole-folder view's entrance. It sits with the reading preferences
+   rather than beside the search, because it is somewhere to go when not
+   reading anything in particular. */
+.y-healthlinkbtn {
+  padding: 5px 9px; border-radius: var(--r-sm); font-family: var(--font-mono);
+  font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none;
+  white-space: nowrap;
+}
+.y-healthlinkbtn:hover { background: var(--overlay); color: var(--fg); }
+@media (max-width: 900px) {
+  .y-healthlinkbtn { display: none; }
+}

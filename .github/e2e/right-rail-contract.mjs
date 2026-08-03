@@ -145,7 +145,7 @@ try {
         flexShrink: getComputedStyle(child).flexShrink,
       })),
     }));
-    if (shape.children.length !== 3) broken(`the fixture has ${shape.children.length} rail children, want TOC, status, and diagnostics`);
+    if (shape.children.length !== 4) broken(`the fixture has ${shape.children.length} rail children, want status, TOC, cited-by, and diagnostics`);
     if (shape.overflowY !== 'auto' || shape.scrollHeight <= shape.clientHeight) {
       broken(`the fixture does not exercise one overflowing rail at 1600×${height}: ${JSON.stringify(shape)}`);
     }
@@ -163,6 +163,10 @@ try {
     const tocLinks = rail.locator('.y-toc__list a');
     const statusControls = rail.locator('.y-statuspanel button');
     const diagnostics = rail.locator('.y-diag');
+    // The cited-by block never leaves the rail: it says "nothing cites this"
+    // when nothing does, so a missing block is the answer going missing rather
+    // than the answer being empty.
+    if (await rail.locator('.y-citedby').count() !== 1) broken('the fixture has no cited-by block');
     if (await tocLinks.count() !== 24) broken(`the fixture has ${await tocLinks.count()} TOC links, want 24`);
     if (await statusControls.count() === 0) broken('the fixture has no status control');
     if (await diagnostics.count() === 0) broken('the fixture has no diagnostic card');
