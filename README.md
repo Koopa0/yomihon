@@ -64,21 +64,25 @@ the source. Once it is built, every asset the reader serves — stylesheet,
 client modules, fonts, the Mermaid runtime — is compiled into the binary, and
 it runs anywhere without the repository beside it.
 
-Read a vault:
+Read a vault — the folder you are standing in, or one you name:
 
 ```sh
-yomihon serve --root /path/to/vault
+cd /path/to/vault && yomihon
+yomihon /path/to/vault
 # http://127.0.0.1:9610
 ```
 
-`yomihon help` lists every command, and `yomihon <command> --help` explains one.
+Every command reads the current folder unless told otherwise, so `yomihon
+check` and `yomihon search <query>` answer about the same folder `yomihon`
+serves. `yomihon help` lists them; `yomihon <command> --help` explains one.
 
-The vault path may also come from the environment, which is what a shell alias
-or a launch agent will usually set; `--root` wins when both are given.
+The folder is fixed for the life of the process — the reader holds it as an
+operating-system capability rather than a path it can be talked out of — so
+reading another vault means another `yomihon`, on another port.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `YOMIHON_ROOT` | Vault path | `~/obsidian` |
+| `YOMIHON_ROOT` | Vault path, for a shell alias or a launch agent. A folder named on the command line wins. | current directory |
 | `YOMIHON_PORT` | Listen port | `9610` |
 | `YOMIHON_EMBED_KEY` | User-owned Gemini credential for an explicit semantic CLI action | unset |
 

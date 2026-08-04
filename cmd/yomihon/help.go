@@ -3,7 +3,8 @@ package main
 import "fmt"
 
 const topLevelHelp = `Usage:
-  yomihon serve [--root <dir>]
+  yomihon [<dir>]                       read a folder (default: this one)
+  yomihon serve [<dir>]
   yomihon search [options] <query...>
   yomihon search-index build [options]
   yomihon check [options] [path...]
@@ -14,10 +15,13 @@ Use "yomihon <command> --help" for command help.
 `
 
 var commandHelp = map[string]string{
-	"serve": "Usage: yomihon serve [--root <dir>]\n" +
+	"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
 		"\n" +
-		"Reads the folder at --root, or $YOMIHON_ROOT, or ~/obsidian.\n" +
-		"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n",
+		"Reads the folder named on the line, or $YOMIHON_ROOT, or the current\n" +
+		"directory. Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
+		"\n" +
+		"The folder is fixed for the life of the process: reading another one\n" +
+		"means another yomihon, on another port.\n",
 	"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
 	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
 	"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",

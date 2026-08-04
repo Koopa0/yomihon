@@ -56,7 +56,8 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 	)
 
 	top := "Usage:\n" +
-		"  yomihon serve [--root <dir>]\n" +
+		"  yomihon [<dir>]                       read a folder (default: this one)\n" +
+		"  yomihon serve [<dir>]\n" +
 		"  yomihon search [options] <query...>\n" +
 		"  yomihon search-index build [options]\n" +
 		"  yomihon check [options] [path...]\n" +
@@ -64,10 +65,13 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"  yomihon exists [options] <name>\n\n" +
 		"Use \"yomihon <command> --help\" for command help.\n"
 	command := map[string]string{
-		"serve": "Usage: yomihon serve [--root <dir>]\n" +
+		"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
 			"\n" +
-			"Reads the folder at --root, or $YOMIHON_ROOT, or ~/obsidian.\n" +
-			"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n",
+			"Reads the folder named on the line, or $YOMIHON_ROOT, or the current\n" +
+			"directory. Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
+			"\n" +
+			"The folder is fixed for the life of the process: reading another one\n" +
+			"means another yomihon, on another port.\n",
 		"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
 		"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
 		"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",
@@ -102,11 +106,14 @@ func TestServeRejectsArgumentsBeforeLoadingConfiguration(t *testing.T) {
 	t.Parallel()
 	binary := buildYomihonBinary(t)
 	home := t.TempDir()
-	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve", "unexpected"}, append(isolatedUserEnv(home),
+	// Two folders is the argument error now that one is the ordinary way to
+	// name a folder: the check has to be a shape the parser still refuses, or
+	// it stops proving that refusal comes before any configuration is read.
+	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve", "one", "two"}, append(isolatedUserEnv(home),
 		"YOMIHON_ROOT="+filepath.Join(t.TempDir(), "missing-vault"),
 		"YOMIHON_PORT=not-a-port",
 	))
-	const wantUsage = "yomihon: usage: yomihon serve [--root <dir>]\n"
+	const wantUsage = "yomihon: usage: yomihon [dir] — or yomihon serve [dir]\n"
 	if exit != 2 || stdout != "" || stderr != wantUsage {
 		t.Errorf("yomihon serve unexpected = exit %d, stdout %q, stderr %q; want 2, empty, %q", exit, stdout, stderr, wantUsage)
 	}
