@@ -38,7 +38,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	}
 
 	read := httptest.NewRecorder()
-	site.ServeHTTP(read, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/notes/Maps/study.md", nil))
+	site.ServeHTTP(read, siteRequest(t, http.MethodGet, "/notes/Maps/study.md", nil))
 	readResult := read.Result()
 	readBody := responseBody(t, readResult)
 	if readResult.StatusCode != http.StatusOK {
@@ -54,7 +54,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	}
 
 	search := httptest.NewRecorder()
-	site.ServeHTTP(search, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=Study", nil))
+	site.ServeHTTP(search, siteRequest(t, http.MethodGet, "/search?q=Study", nil))
 	searchResult := search.Result()
 	searchBody := responseBody(t, searchResult)
 	if searchResult.StatusCode != http.StatusOK {
@@ -70,7 +70,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 		"to":   {schema.SealStatus},
 	}
 	write := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/status", strings.NewReader(form.Encode()))
+	req := siteRequest(t, http.MethodPost, "/status", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	site.ServeHTTP(write, req)
 	writeResult := write.Result()

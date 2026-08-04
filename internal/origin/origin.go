@@ -6,7 +6,10 @@ import (
 	"context"
 	"crypto/rand"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
+	"strings"
 )
 
 // corpHeader names the refusal, in one place, so the two spots that must agree
@@ -95,6 +98,50 @@ func Protect(next http.Handler) http.Handler {
 			cw.applyHeaders()
 		}
 	})
+}
+
+// LoopbackOnly refuses any request addressed to a name that is not this
+// machine's own loopback.
+//
+// Binding the listener to 127.0.0.1 keeps other machines out, but it does not
+// keep other names out. A page the reader visits can publish a domain whose
+// address it controls, let the browser load the page, then re-answer the same
+// name with 127.0.0.1. Every later request goes to yomihon while the browser
+// still believes the page and the response share one origin — so it sends
+// same-origin fetch metadata, the cross-origin check passes, and the script
+// reads the response. The whole vault, and the one endpoint that writes, are
+// then reachable from a web page. The packet never left the machine; the
+// boundary did.
+//
+// What separates that request from a real one is the name the reader typed.
+// A browser copies it into Host verbatim, so a request that arrives claiming
+// any name but loopback was addressed somewhere else and is refused before a
+// handler sees it. Loopback covers the whole 127.0.0.0/8 range, the IPv6
+// loopback, and the reserved name localhost, which is every way a reader can
+// legitimately reach a listener on this machine. The name is compared without
+// case and with the root label removed, both of which the domain name system
+// treats as the same name.
+func LoopbackOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !loopbackHost(r.Host) {
+			http.Error(w, "yomihon serves this machine only", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func loopbackHost(host string) bool {
+	name := host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		name = h
+	}
+	name = strings.TrimSuffix(strings.ToLower(name), ".")
+	if name == "localhost" {
+		return true
+	}
+	addr, err := netip.ParseAddr(strings.Trim(name, "[]"))
+	return err == nil && addr.IsLoopback()
 }
 
 // writer reasserts the embed refusal at the last moment it can still be

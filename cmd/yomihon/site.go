@@ -124,7 +124,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	handler := http.NewCrossOriginProtection().Handler(mux)
 	watchCtx, cancel := context.WithCancel(ctx)
 	site := &readingSite{
-		handler:   origin.Protect(handler),
+		handler:   origin.LoopbackOnly(origin.Protect(handler)),
 		snapshots: store,
 		lifecycle: lifecycle,
 		source:    source,

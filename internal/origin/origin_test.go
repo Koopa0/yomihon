@@ -397,3 +397,60 @@ func TestWriterKeepsTheWriterUnderneathReachable(t *testing.T) {
 		}
 	})
 }
+
+// A loopback listener keeps other machines out; it does not keep other names
+// out. A page can publish a domain, let the browser load it, then re-answer
+// that name with 127.0.0.1 — after which the browser calls yomihon
+// same-origin, the cross-origin check passes, and a script on that page reads
+// the vault and reaches the endpoint that writes. The name the reader typed is
+// what tells the two apart, so a request claiming any other name is refused
+// before a handler runs. The allowed forms are every way a reader can reach a
+// listener on this machine, spelled the several ways the domain name system
+// treats as one name.
+func TestLoopbackOnly(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		host string
+		want int
+	}{
+		{name: "the address the listener binds", host: "127.0.0.1:9610", want: http.StatusOK},
+		{name: "the reserved name for it", host: "localhost:9610", want: http.StatusOK},
+		{name: "a default port leaves no colon", host: "127.0.0.1", want: http.StatusOK},
+		{name: "the rest of the loopback range", host: "127.0.0.2:9610", want: http.StatusOK},
+		{name: "loopback over the sixth version", host: "[::1]:9610", want: http.StatusOK},
+		{name: "names carry no case", host: "LocalHost:9610", want: http.StatusOK},
+		{name: "the root label is the same name", host: "localhost.:9610", want: http.StatusOK},
+
+		{name: "the rebound name itself", host: "evil.example:9610", want: http.StatusForbidden},
+		{name: "and without a port", host: "evil.example", want: http.StatusForbidden},
+		{name: "a name that merely opens with it", host: "localhost.evil.example:9610", want: http.StatusForbidden},
+		{name: "a name that merely ends with it", host: "notlocalhost:9610", want: http.StatusForbidden},
+		{name: "an address off this machine", host: "192.168.8.225:9610", want: http.StatusForbidden},
+		{name: "the wildcard is not an address to reach", host: "0.0.0.0:9610", want: http.StatusForbidden},
+		{name: "no name at all", host: "", want: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reached := false
+			handler := LoopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				reached = true
+				w.WriteHeader(http.StatusOK)
+			}))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/notes/a.md", http.NoBody)
+			req.Host = tt.host
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tt.want {
+				t.Errorf("Host %q status = %d, want %d", tt.host, rec.Code, tt.want)
+			}
+			if want := tt.want == http.StatusOK; reached != want {
+				t.Errorf("Host %q reached the handler = %v, want %v", tt.host, reached, want)
+			}
+		})
+	}
+}

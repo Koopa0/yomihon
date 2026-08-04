@@ -35,7 +35,7 @@ func TestProductionStatusFailureUsesTheReadingShell(t *testing.T) {
 		}
 	})
 	form := url.Values{"path": {"Maps/study.md"}, "from": {"draft"}}
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/status", strings.NewReader(form.Encode()))
+	req := siteRequest(t, http.MethodPost, "/status", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	recorder := httptest.NewRecorder()
 	site.ServeHTTP(recorder, req)
@@ -170,7 +170,7 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	go func() {
 		defer close(requestDone)
 		recorder := httptest.NewRecorder()
-		site.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+		site.ServeHTTP(recorder, siteRequest(t, http.MethodGet, "/", http.NoBody))
 	}()
 	<-requestStarted
 
@@ -190,7 +190,7 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 		runtime.Gosched()
 	}
 	rejected := httptest.NewRecorder()
-	site.ServeHTTP(rejected, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+	site.ServeHTTP(rejected, siteRequest(t, http.MethodGet, "/", http.NoBody))
 	if rejected.Code != http.StatusServiceUnavailable {
 		t.Fatalf("request after close began = %d, want %d", rejected.Code, http.StatusServiceUnavailable)
 	}
@@ -311,7 +311,7 @@ func TestContractAbsenceIsNotReportedAsAFault(t *testing.T) {
 			// production composition is the point — a handler assembled by a
 			// test would carry whatever the test chose to say.
 			rec := httptest.NewRecorder()
-			site.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+			site.ServeHTTP(rec, siteRequest(t, http.MethodGet, "/", http.NoBody))
 			if rec.Code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want %d", rec.Code, http.StatusOK)
 			}
@@ -358,4 +358,14 @@ func levelFor(lines []string, substring string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// siteRequest builds a request the way a browser on this machine builds one:
+// addressed to loopback by name. The site refuses any other name before a
+// handler runs, so a request that omits it is not the request a reader makes.
+func siteRequest(t *testing.T, method, target string, body io.Reader) *http.Request {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), method, target, body)
+	req.Host = "127.0.0.1:9610"
+	return req
 }
