@@ -73,7 +73,7 @@ templ partBlock(sec PathBranchView) {
 		<h2 class="y-part" id={ sec.Anchor }>
 			<span class="y-part__num">{ sec.Ordinal }</span>
 			<span class="y-part__name">{ sec.Heading }</span>
-			@branchCount(sec.Ready, sec.Total, "y-partcount")
+			<span class="y-partcount">{ countLabel(sec.Total, "課") }</span>
 		</h2>
 		for _, l := range sec.Entries {
 			@entryRow(l)
@@ -171,10 +171,9 @@ templ syllabusRail(v PathView) {
 				<a class="ui-navitem y-pathitem" href={ templ.URL("#" + sec.Anchor) }>
 					<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
 					<span class="y-pathitem__name">{ sec.Heading }</span>
-					@branchCount(sec.Ready, sec.Total, "y-pathcount")
+					<span class="y-pathcount">{ countLabel(sec.Total, "課") }</span>
 				</a>
 			}
-			@pathProgress(v)
 		}
 	</aside>
 }
@@ -194,27 +193,6 @@ templ pathSwitch(p PathLink) {
 			<span class="y-pathitem__name">{ p.Title }</span>
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
 		</a>
-	}
-}
-
-// pathProgress is the whole-path ready/total figure and its bar. The bar width
-// is a data-fill bucket (nearest 5%) resolved by CSS — no inline style, no JS.
-templ pathProgress(v PathView) {
-	<div class="y-progress">
-		<div class="y-progress__label">{ strconv.Itoa(v.Ready) } / { strconv.Itoa(v.Entries) } 已完成</div>
-		<div class="y-progress__track">
-			<div class="y-progress__fill" data-fill={ strconv.Itoa(fillBucket(v.Ready, v.Entries)) }></div>
-		</div>
-	</div>
-}
-
-// branchCount is a ready/total badge, sage when a branch is fully sealed. cls
-// picks the badge shape (a part badge vs the leaner rail count).
-templ branchCount(ready, total int, cls string) {
-	if total > 0 && ready == total {
-		<span class={ cls, "is-complete" }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) } 已完成</span>
-	} else {
-		<span class={ cls }>{ strconv.Itoa(ready) }/{ strconv.Itoa(total) }</span>
 	}
 }
 

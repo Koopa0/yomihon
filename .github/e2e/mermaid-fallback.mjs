@@ -16,7 +16,17 @@ const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const MUTATE = process.env.MUTATE || '';
 const DIAGRAM_SOURCE = 'graph TD\n  Alpha --> Beta';
 const DIAGRAM_HTML = `<div class="mermaid-diagram" data-mermaid-code="graph+TD%0A++Alpha+--%3E+Beta">${DIAGRAM_SOURCE}</div>`;
-const SITES = ['module-success-render', 'module-load-fallback'];
+const SITES = [
+  'module-success-render',
+  'module-load-fallback',
+  'label-linebreak-render',
+  'diagram-failure-is-visible',
+];
+// A label written across two lines. Drawn as HTML this becomes an unclosed
+// break inside a foreign object, which the strict parse the runtime performs
+// refuses — so this source is the shape that separates the two label modes.
+const WRAPPED_SOURCE = 'graph TD\n  A["first line\\nsecond line"] --> B["plain"]';
+const WRAPPED_HTML = `<div class="mermaid-diagram" data-mermaid-code="graph+TD%0A++A%5B%22first+line%5Cnsecond+line%22%5D+--%3E+B%5B%22plain%22%5D">${WRAPPED_SOURCE}</div>`;
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -39,7 +49,7 @@ const occurrences = (body, needle) => body.split(needle).length - 1;
 // Put one real source block inside the note's .y-prose before the deferred
 // runtime executes. The returned proof is checked per page: one case cannot
 // inherit the other case's successful injection.
-const injectDiagram = async (page) => {
+const injectDiagram = async (page, diagramHTML = DIAGRAM_HTML) => {
   // Anchored on the prose container's own opening tag rather than on the
   // article's closing run: what follows the prose is page furniture that
   // changes when the reading page gains a way onward, and an anchor that
@@ -50,7 +60,7 @@ const injectDiagram = async (page) => {
     const response = await route.fetch();
     const original = await response.text();
     matches = occurrences(original, needle);
-    const body = matches === 1 ? original.replaceAll(needle, `${needle}${DIAGRAM_HTML}`) : original;
+    const body = matches === 1 ? original.replaceAll(needle, `${needle}${diagramHTML}`) : original;
     return route.fulfill({ response, body });
   });
   return () => matches;
@@ -70,7 +80,39 @@ const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
   return () => matches;
 };
 
+// Two rewrites in one response, for a lock that only fails when both halves of
+// a defence are gone. Each needle must still match exactly once, so a mutation
+// whose second half silently found nothing reports itself rather than passing.
+const rewriteRuntimeTwice = (moduleName, first, second) => async (page) => {
+  let matches = -1;
+  await page.route(`**/${moduleName}`, async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    const [a, b] = [occurrences(original, first[0]), occurrences(original, second[0])];
+    matches = a === 1 && b === 1 ? 1 : Math.min(a, b);
+    const body = matches === 1
+      ? original.replaceAll(first[0], first[1]).replaceAll(second[0], second[1])
+      : original;
+    return route.fulfill({ response, body });
+  });
+  return () => matches;
+};
+
+const HTML_LABELS_ON = ['    htmlLabels: false,', '    htmlLabels: true,'];
+const SWALLOW_PARSE_FAILURE = [
+  "        throw new Error('the renderer produced markup that is not an SVG');",
+  '        continue;',
+];
+
 const MUTATIONS = {
+  'restore-html-labels': {
+    target: 'label-linebreak-render',
+    apply: rewriteRuntime('diagrams.js', HTML_LABELS_ON[0], HTML_LABELS_ON[1]),
+  },
+  'swallow-parse-failure': {
+    target: 'diagram-failure-is-visible',
+    apply: rewriteRuntimeTwice('diagrams.js', HTML_LABELS_ON, SWALLOW_PARSE_FAILURE),
+  },
   'drop-rendered-svg': {
     target: 'module-success-render',
     apply: rewriteRuntime(
@@ -226,7 +268,49 @@ try {
     await context.close();
   }
 
-  console.log('PASS mermaid-fallback: module load renders SVG; aborted module restores readable source with no shimmer');
+  // Case 3: a label written across two lines. Drawn as HTML it arrives as an
+  // unclosed break inside a foreign object, which the strict parse refuses;
+  // five such diagrams in the vault sat on their loading shimmer for as long
+  // as the page stayed open, because the refusal returned quietly instead of
+  // ending where every other failure ends. Both halves are checked here: the
+  // diagram arrives, and if it ever does not, it says so instead of pretending
+  // to still be coming.
+  {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    const injected = await injectDiagram(page, WRAPPED_HTML);
+    const mutated = (await arm(page, 'label-linebreak-render'))
+      ?? (await arm(page, 'diagram-failure-is-visible'));
+    await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    proveDiagramInjected(injected, 'case 3');
+    proveMutationApplied(mutated);
+    await page.waitForFunction(
+      () => document.querySelector('.mermaid-diagram > svg')
+        || document.querySelector('.mermaid-diagram[data-mermaid-error]'),
+      null,
+      { timeout: 5000 },
+    ).catch(() => {});
+
+    const block = page.locator('.mermaid-diagram');
+    if (await block.count() !== 1) broken('case 3 has no single injected Mermaid block');
+    const settled = await block.evaluate((element) => ({
+      svgCount: element.querySelectorAll(':scope > svg').length,
+      said: element.hasAttribute('data-mermaid-error'),
+      foreignObject: element.querySelectorAll('foreignObject').length,
+    }));
+    if (settled.svgCount === 0 && !settled.said) {
+      fail('diagram-failure-is-visible', 'case 3 (wrapped label): the block neither became an SVG nor said it failed');
+    }
+    if (settled.svgCount !== 1) {
+      fail('label-linebreak-render', `case 3 (wrapped label): became ${settled.svgCount} SVG, want 1`);
+    }
+    if (settled.foreignObject !== 0) {
+      fail('label-linebreak-render', 'case 3 (wrapped label): the label is still drawn as embedded HTML');
+    }
+    await context.close();
+  }
+
+  console.log('PASS mermaid-fallback: module load renders SVG; aborted module restores readable source with no shimmer; a wrapped label renders and a failure says so');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

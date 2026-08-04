@@ -9,9 +9,9 @@ import (
 )
 
 // PathView is everything the study-path page needs: the current path's
-// tree flattened into render-ready branches (with per-branch ready/total
-// tallies and anchors precomputed), the switcher across every study-path in
-// the vault, and the path-level figures the header and progress bar read.
+// tree flattened into render-ready branches (with per-branch entry totals
+// and anchors precomputed), the switcher across every study-path in
+// the vault, and the path-level figures the header metarow reads.
 //
 // The seal target comes from schema. nav has already classified every entry as
 // resolved, unresolved, or ambiguous, so the page never resolves a wikilink.
@@ -23,9 +23,10 @@ type PathView struct {
 	Paths      []PathLink
 	Branches   []PathBranchView
 
-	// Path-level figures, precomputed so the header metarow and progress bar
-	// are dumb reads. Entries is the whole-path entry total; Ready the subset
-	// that has reached the seal.
+	// Path-level figures, precomputed so the header metarow is a dumb read.
+	// Entries is the whole-path entry total; Ready the subset waiting at the
+	// seal for a human to rule on it — a queue, never a measure of progress:
+	// a lesson finished and published leaves it.
 	Parts   int
 	Modules int
 	Entries int
@@ -35,15 +36,14 @@ type PathView struct {
 // PathBranchView is one heading in the flattened tree. A top-level branch is a
 // part (Depth 0): it carries an Anchor the "On this path" rail jumps to and an
 // Ordinal (roman numeral). A nested branch is a module (Depth >= 1): it carries
-// a Num (its 1-based position among its siblings). Ready/Total are the entry
-// tallies for this branch and everything beneath it.
+// a Num (its 1-based position among its siblings). Total is how many entries
+// this branch and everything beneath it hold.
 type PathBranchView struct {
 	Anchor  string
 	Ordinal string
 	Num     int
 	Heading string
 	Depth   int
-	Ready   int
 	Total   int
 	Entries []PathEntryView
 	Sub     []PathBranchView
@@ -82,13 +82,13 @@ func BuildPathView(current *nav.Map, all []nav.Map) PathView {
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 	}
+	v.Ready, _ = current.EntryCounts(schema.SealStatus)
 	for i, sec := range current.Branches {
 		sv := buildPathBranch(sec, 0, i+1)
 		v.Branches = append(v.Branches, sv)
 		v.Parts++
 		v.Modules += len(sv.Sub)
 		v.Entries += sv.Total
-		v.Ready += sv.Ready
 	}
 	return v
 }
@@ -99,7 +99,7 @@ func BuildPathView(current *nav.Map, all []nav.Map) PathView {
 // this function only maps them into presentation values.
 func buildPathBranch(sec nav.Branch, depth, num int) PathBranchView {
 	sv := PathBranchView{Heading: sec.Heading, Depth: depth, Num: num}
-	sv.Ready, sv.Total = sec.EntryCounts(schema.SealStatus)
+	_, sv.Total = sec.EntryCounts(schema.SealStatus)
 	if depth == 0 {
 		sv.Anchor = "part-" + strconv.Itoa(num)
 		sv.Ordinal = roman(num)
@@ -191,17 +191,6 @@ func buildPaths(currentRel string, all []nav.Map) []PathLink {
 		})
 	}
 	return links
-}
-
-// fillBucket is the progress bar's width, in whole percent rounded to the
-// nearest 5, so a data-fill attribute selects one of a fixed set of CSS widths
-// (no inline style, no JS). An empty path is 0.
-func fillBucket(ready, total int) int {
-	if total <= 0 {
-		return 0
-	}
-	pct := ready * 100 / total
-	return (pct + 2) / 5 * 5
 }
 
 // countLabel formats a syllabus metarow figure with its supplied Chinese unit.

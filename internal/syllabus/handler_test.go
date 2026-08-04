@@ -263,3 +263,37 @@ func TestNewHandlerPanicsOnNilShell(t *testing.T) {
 	}()
 	syllabus.New(nil, slog.New(slog.DiscardHandler))
 }
+
+// The page says how big a course is, never how much of it is done. The figure
+// that used to sit here — a bar and a per-part badge — counted lessons parked
+// at the seal waiting for a human to rule on them, so publishing a lesson took
+// it out of the count and the number fell as the work finished. Home settled
+// this for its own block; the course page kept the broken reading, and two
+// readers arrived at it from opposite directions: one saw lessons still
+// awaiting judgement called finished, the other read it as their own progress
+// through the course. What a part carries now is its entry total.
+func TestShowReportsSizeNotCompletion(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeVault(t, root)
+	srv := newServer(t, root)
+
+	code, body := get(t, srv.URL+"/syllabus/Maps/Go path.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if strings.Contains(body, "已完成") {
+		t.Errorf("the course page reports completion again; body = %q", body)
+	}
+	for _, gone := range []string{"y-progress", "is-complete"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("the progress bar came back (%q); body = %q", gone, body)
+		}
+	}
+	// The control: the part still carries a figure, so an empty assertion above
+	// cannot pass by the counts having vanished along with the claim.
+	main := syllabusMain(t, body)
+	if !strings.Contains(main, `<span class="y-partcount">`) {
+		t.Errorf("the part lost its size; main = %q", main)
+	}
+}

@@ -314,7 +314,17 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    Center article
    ============================================================ */
-.y-article { max-width: calc(var(--measure-article) + 72px); margin: 0 auto; padding: 44px 56px 120px; }
+/* The line length is the constant and the gutter is what changes, so the box is
+   derived from both rather than fixed on its own. Held the other way round, a
+   narrower window spent its reclaimed gutter on longer lines: the measure grew
+   by a tenth exactly when the reader had less room, which is backwards. */
+.y-article {
+  --article-measure: 640px;
+  --article-gutter: 56px;
+  max-width: calc(var(--article-measure) + 2 * var(--article-gutter));
+  margin: 0 auto;
+  padding: 44px var(--article-gutter) 120px;
+}
 .y-crumbs { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--fg-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .y-crumbs__sep { opacity: .5; }
 .y-title { font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-38); line-height: 1.25; letter-spacing: 0.01em; color: var(--fg); margin: 14px 0 0; text-wrap: balance; overflow-wrap: anywhere; }
@@ -397,6 +407,15 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose .callout-icon { font-style: normal; }
 .y-prose .callout-body { font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-muted); margin: 0; }
 .y-prose .callout-body > :first-child { margin-top: 0; }
+
+/* Carried out of sight but not out of the page: text meant for a reader who
+   is listening rather than looking. Clipping to nothing keeps it off the
+   screen and out of the layout while leaving it in the accessibility tree,
+   which display:none would not. */
+.y-offscreen {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 
 /* mermaid placeholder / rendered svg */
 .y-prose .mermaid-diagram { margin: 18px 0 0; padding: 12px; overflow-x: auto; text-align: center; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg-subtle); white-space: pre-wrap; background: var(--panel); border: 1px dashed var(--border); border-radius: var(--r-md); }
@@ -866,7 +885,6 @@ html, body { margin: 0; background: var(--bg); }
 .y-part__num { flex: none; min-width: 24px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
 .y-part__name { flex: 1; min-width: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); color: var(--fg); }
 .y-partcount { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle); background: var(--elevated); border: 1px solid var(--border-faint); border-radius: var(--r-sm); padding: 3px 8px; white-space: nowrap; }
-.y-partcount.is-complete { color: var(--sage); background: var(--sage-bg); border-color: transparent; }
 
 .y-module { padding: 22px 0 0 38px; }
 .y-module__label { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
@@ -884,35 +902,10 @@ html, body { margin: 0; background: var(--bg); }
 .y-pathitem__num { flex: none; min-width: 16px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-pathitem__name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .y-pathcount { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); white-space: nowrap; }
-.y-pathcount.is-complete { color: var(--sage); }
 
 .y-syl-raillabel { padding: 0 8px 6px; }
 .y-syl-raillabel--gap { padding-top: 20px; }
 
-.y-progress { margin: 22px 8px 0; padding-top: 16px; border-top: 1px solid var(--border-faint); }
-.y-progress__label { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.04em; color: var(--fg-faint); }
-.y-progress__track { margin-top: 8px; height: 4px; border-radius: 2px; background: var(--elevated); overflow: hidden; }
-.y-progress__fill { width: 0; height: 100%; background: var(--accent); opacity: 0.8; }
-.y-progress__fill[data-fill="5"]   { width: 5%; }
-.y-progress__fill[data-fill="10"]  { width: 10%; }
-.y-progress__fill[data-fill="15"]  { width: 15%; }
-.y-progress__fill[data-fill="20"]  { width: 20%; }
-.y-progress__fill[data-fill="25"]  { width: 25%; }
-.y-progress__fill[data-fill="30"]  { width: 30%; }
-.y-progress__fill[data-fill="35"]  { width: 35%; }
-.y-progress__fill[data-fill="40"]  { width: 40%; }
-.y-progress__fill[data-fill="45"]  { width: 45%; }
-.y-progress__fill[data-fill="50"]  { width: 50%; }
-.y-progress__fill[data-fill="55"]  { width: 55%; }
-.y-progress__fill[data-fill="60"]  { width: 60%; }
-.y-progress__fill[data-fill="65"]  { width: 65%; }
-.y-progress__fill[data-fill="70"]  { width: 70%; }
-.y-progress__fill[data-fill="75"]  { width: 75%; }
-.y-progress__fill[data-fill="80"]  { width: 80%; }
-.y-progress__fill[data-fill="85"]  { width: 85%; }
-.y-progress__fill[data-fill="90"]  { width: 90%; }
-.y-progress__fill[data-fill="95"]  { width: 95%; }
-.y-progress__fill[data-fill="100"] { width: 100%; }
 
 .y-syl-guide {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
@@ -1071,7 +1064,7 @@ html {
   html[data-js][data-nav="open"] .y-main { overflow: hidden; }
   .y-searchbtn { min-width: 0; }
   .y-searchbtn__label, .y-searchbtn .ui-kbd { display: none; }
-  .y-article { padding: 32px 24px 120px; }
+  .y-article { --article-gutter: 24px; padding: 32px var(--article-gutter) 120px; }
   .y-syl-guide { align-items: flex-start; flex-direction: column; gap: 10px; }
 }
 @media (max-width: 520px) {
@@ -1100,7 +1093,11 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left { transition: none; }
   .y-rail-left details::details-content { transition: none; }
-  .y-main { scroll-behavior: auto; }
+  /* The document is the scroller for prose, so the smooth setting sits on the
+     root and only the root can take it back. Aimed at the main column instead,
+     this said nothing: every jump to a heading or a footnote kept gliding for a
+     reader who had asked the system for no motion at all. */
+  html { scroll-behavior: auto; }
 }
 
 /* Print: the page becomes the paper. The chrome exists to move between notes,
@@ -1110,12 +1107,30 @@ html {
    widths stay hidden — a lesson handed out in class must not open with a
    panel of note problems. */
 @media print {
+  /* Paper is one colour, so every surface goes white and every mark goes
+     black. Resetting only the inks left the dark theme's raised panels and
+     tinted callouts underneath them: code, table headings and status chips
+     printed as black on near-black, which is not a duller page but a blank
+     one. Naming the whole palette here also means a colour added later cannot
+     quietly reintroduce that, since anything unnamed inherits a white ground.
+     color-scheme goes with it, or the browser paints form controls dark. */
   :root, :root[data-theme="dark"], :root[data-theme="light"] {
-    --bg: #fff; --panel: #fff; --overlay: #fff;
+    color-scheme: light;
+    --bg: #fff; --panel: #fff; --elevated: #fff; --overlay: #fff;
     --fg: #000; --fg-muted: #000; --fg-subtle: #333; --fg-faint: #555;
+    --border: #bbb; --border-strong: #888; --border-faint: #ddd;
+    --accent: #000; --accent-strong: #000;
+    --accent-muted: transparent; --accent-faint: transparent;
+    --on-accent: #fff; --link: #000;
+    --warn: #000; --warn-bg: transparent;
+    --gold: #000; --gold-ink: #000;
+    --sage: #000; --sage-bg: transparent;
+    --success: #000; --success-bg: transparent;
   }
+  /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
-  .y-nav-scrim, .y-skiplink, .y-sealbar {
+  .y-nav-scrim, .y-skiplink, .y-sealbar,
+  .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions {
     display: none !important;
   }
   .y-shell, .y-shell2 { display: block; }

@@ -98,14 +98,14 @@ func TestBuildPathView(t *testing.T) {
 		Parts:   2,
 		Modules: 1, // only "Data" has a sub-branch; "Memory" holds an entry directly
 		Entries: 5,
-		Ready:   2, // Slices + GC; Arrays is draft
+		Ready:   2, // Slices + GC sit at the seal; Arrays is draft
 		Branches: []PathBranchView{
 			{
 				Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Data", Depth: 0,
-				Ready: 1, Total: 2,
+				Total: 2,
 				Sub: []PathBranchView{
 					{
-						Num: 1, Heading: "Text", Depth: 1, Ready: 1, Total: 2,
+						Num: 1, Heading: "Text", Depth: 1, Total: 2,
 						Entries: []PathEntryView{
 							{Text: "Slices", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true},
 							{Text: "Arrays", Href: "/notes/Writing/Arrays.md", Status: "draft"},
@@ -115,7 +115,7 @@ func TestBuildPathView(t *testing.T) {
 			},
 			{
 				Anchor: "part-2", Ordinal: "II", Num: 2, Heading: "Memory", Depth: 0,
-				Ready: 1, Total: 3,
+				Total: 3,
 				Entries: []PathEntryView{
 					{Text: "GC", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true},
 					{Text: "Template", Kind: nav.EntryNonInstance},
@@ -150,30 +150,6 @@ func TestRoman(t *testing.T) {
 			t.Parallel()
 			if got := roman(tt.in); got != tt.want {
 				t.Errorf("roman(%d) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFillBucket(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		ready, total int
-		want         int
-	}{
-		{name: "empty path is zero", ready: 0, total: 0, want: 0},
-		{name: "complete is one hundred", ready: 12, total: 12, want: 100},
-		{name: "rounds 68.75pct to 70", ready: 33, total: 48, want: 70},
-		{name: "rounds 53.8pct to 55", ready: 7, total: 13, want: 55},
-		{name: "rounds 33.3pct to 35", ready: 1, total: 3, want: 35},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := fillBucket(tt.ready, tt.total); got != tt.want {
-				t.Errorf("fillBucket(%d, %d) = %d, want %d", tt.ready, tt.total, got, tt.want)
 			}
 		})
 	}
