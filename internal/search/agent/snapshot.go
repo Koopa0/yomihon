@@ -228,10 +228,15 @@ func readSnapshotNotes(
 		}
 		data, readErr := reader.ReadFile(ctx, entry)
 		if readErr != nil {
-			return nil, fmt.Errorf("%w: read note", errSnapshotRead)
+			return nil, fmt.Errorf("%w: read note %s", errSnapshotRead, relPath)
 		}
+		// One file decides the whole search face, so its name travels with the
+		// refusal. An agent writing by byte offset can cut a character in half
+		// and leave bytes no decoder accepts — which is a one-line repair once
+		// you know which file, and unfindable across a thousand notes if the
+		// only thing said is that something could not be read.
 		if !utf8.Valid(data) {
-			return nil, fmt.Errorf("%w: note is not UTF-8", errSnapshotRead)
+			return nil, fmt.Errorf("%w: %s is not UTF-8", errSnapshotRead, relPath)
 		}
 		notes = append(notes, SnapshotNote{RelPath: relPath, Data: data, Source: entry})
 	}

@@ -190,7 +190,10 @@ func prepareSearch(ctx context.Context, parsed searchArgs, config rootConfig, de
 	withSemantic := parsed.semantic && query.BareText() != "" && artifact.Available()
 	captured, err := readSnapshot(ctx, capabilities.reader, artifact, privacy, withSemantic)
 	if err != nil {
-		return nil, writeSearchToolError(deps.stderr, errors.New("cannot read search snapshot"))
+		// Carry the reason rather than replacing it: the read names the file it
+		// choked on, and a generic sentence in its place leaves the operator a
+		// vault to search by hand.
+		return nil, writeSearchToolError(deps.stderr, fmt.Errorf("cannot read search snapshot: %w", err))
 	}
 	lexical, err := captured.snapshot.lexical.Search(query)
 	if err != nil {

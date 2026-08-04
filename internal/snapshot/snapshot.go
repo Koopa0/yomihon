@@ -444,7 +444,7 @@ func buildView(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
-		health:         newHealth(parsedNotes, graphIndex, planned, backlinks),
+		health:         newHealth(parsedNotes, graphIndex, planned, backlinks, policy),
 		artifactPolicy: policy,
 		scan:           scan,
 		notes:          publishedNotes,

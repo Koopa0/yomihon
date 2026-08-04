@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -8,6 +9,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -34,7 +36,7 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	}
 	idx := graph.New(notes, nil)
 	planned := judge.NewPlanned(noteBodies(notes))
-	h := newHealth(notes, idx, planned, newBacklinks(notes, idx))
+	h := newHealth(notes, idx, planned, newBacklinks(notes, idx), schema.ArtifactPolicy{})
 
 	wantTitleOnly := []HealthTitleLink{{
 		From:   nav.NoteRef{Name: "cites title", RelPath: "Concepts/cites title.md"},
@@ -69,7 +71,7 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 		parse(t, "root.md", "e\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx))
+	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{})
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Name: "Sources/course", Notes: []nav.NoteRef{
@@ -90,5 +92,35 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	}
 	if total != len(notes) {
 		t.Errorf("grouping lost rows: %d notes in, %d out", len(notes), total)
+	}
+}
+
+// A template's citations name its own slots. Reading every note the same way
+// put a placeholder like [[{{concept_a}}]] on the page as a note somebody owes
+// — a repair nobody can make, since filling that slot is what using the
+// template means. The contract already declares which folders hold artifacts
+// rather than instances, and this page reads it now.
+func TestHealthIgnoresCitationsFromArtifacts(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nsee [[No Such Note]]\n")
+	writeNote(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: ready\n---\nsee [[{{concept_a}}]]\n")
+	contract := testContract(t, root)
+	store, _ := newTestStore(t, root, contract)
+
+	h := store.Current().Health()
+	var targets []string
+	for _, l := range h.Unwritten {
+		targets = append(targets, l.Target)
+	}
+	// The control: a citation from a real note that lands nowhere must still be
+	// listed, so an empty answer above cannot pass by the page reporting
+	// nothing at all.
+	if !slices.Contains(targets, "No Such Note") {
+		t.Fatalf("a genuine unwritten citation is missing; targets = %v", targets)
+	}
+	if slices.Contains(targets, "{{concept_a}}") {
+		t.Errorf("a template's own slot is listed as a note somebody owes; targets = %v", targets)
 	}
 }

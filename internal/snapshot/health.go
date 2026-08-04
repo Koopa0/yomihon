@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -84,7 +85,7 @@ func (h *Health) Empty() bool {
 // already built. It walks the same bodies through the same extractor as every
 // other link answer here, so a citation counted broken on this page is broken
 // on the note's own page too.
-func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks) Health {
+func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy) Health {
 	var h Health
 	var islands []nav.NoteRef
 	if idx == nil {
@@ -93,6 +94,14 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 	titles := titleIndex(notes)
 	for _, n := range notes {
 		if n == nil {
+			continue
+		}
+		// A template's citations name its own slots, not notes anyone owes. The
+		// contract already says which folders hold artifacts rather than
+		// instances; reading every note the same way put a template's
+		// placeholders on this page as work to do, which is a repair nobody
+		// can make.
+		if policy.IsNonInstance(n.RelPath) {
 			continue
 		}
 		from := nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath}

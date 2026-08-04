@@ -24,9 +24,16 @@ var commandHelp = map[string]string{
 		"means another yomihon, on another port.\n",
 	"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
 	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
-	"check":        "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n",
-	"coverage":     "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n",
-	"exists":       "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n",
+	"check": "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
+		"\n" +
+		"Writes one JSON object per line when the output is not a terminal, and a\n" +
+		"human summary when it is. --format decides instead of the terminal.\n" +
+		"\n" +
+		"Exits 0 when nothing named by --deny was found, 1 when something was, and\n" +
+		"2 when the command itself could not run. Findings alone do not fail the\n" +
+		"command: without --deny it reports and exits 0.\n",
+	"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n",
+	"exists":   "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n",
 }
 
 func helpRequest(args []string) (text string, handled bool, err error) {

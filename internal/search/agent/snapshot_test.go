@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -229,5 +230,46 @@ never_egress_dirs = []
 				t.Errorf("NewSnapshot() error = %v, want %v", err, tt.want)
 			}
 		})
+	}
+}
+
+// One file no decoder accepts takes the whole search face down, so the refusal
+// carries the file's name. An agent that writes by byte offset can cut a
+// character in half — the likeliest way this vault acquires such bytes, since
+// its prose is mostly multi-byte — and the repair is one line once you know
+// where. Without the name the operator is handed a thousand notes and a
+// sentence that fits all of them.
+func TestReadSnapshotNamesTheFileItCannotDecode(t *testing.T) {
+	t.Parallel()
+
+	const contract = "\n[artifacts]\nnon_instance_dirs = []\n\n[privacy]\nnever_egress_dirs = []\n"
+	root := writeSearchTestVault(t, contract, map[string]string{
+		"Writing/readable.md": "plain token\n",
+		"Writing/broken.md":   "before \xff\xfe after\n",
+	})
+	reader := openSearchVaultReader(t, root)
+	policy, err := schema.LoadReader(t.Context(), reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The control: the same call over a vault whose every note decodes must
+	// succeed, so a failure below is the bytes and not the fixture.
+	clean := writeSearchTestVault(t, contract, map[string]string{"Writing/readable.md": "plain token\n"})
+	cleanReader := openSearchVaultReader(t, clean)
+	cleanPolicy, err := schema.LoadReader(t.Context(), cleanReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, cleanErr := readSnapshot(t.Context(), cleanReader, cleanPolicy.ArtifactPolicy(), cleanPolicy.PrivacyPolicy(), false); cleanErr != nil {
+		t.Fatalf("a vault of decodable notes was refused: %v", cleanErr)
+	}
+
+	_, err = readSnapshot(t.Context(), reader, policy.ArtifactPolicy(), policy.PrivacyPolicy(), false)
+	if err == nil {
+		t.Fatal("readSnapshot accepted a note that is not UTF-8")
+	}
+	if !strings.Contains(err.Error(), "Writing/broken.md") {
+		t.Errorf("refusal = %q, want it to name Writing/broken.md", err)
 	}
 }
