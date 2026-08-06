@@ -1,8 +1,9 @@
 // Browser lock for the selected Yomihon identity. One passive, multicolour SVG
-// is the geometry authority for the favicon and header. The most important
-// semantic boundary is rendered, not inferred from coordinates: the
-// publication obi may occupy the black cover but must never paint the warm
-// page fore-edge.
+// is the geometry authority for the favicon and header. What matters most is
+// checked by rendering it rather than by reading coordinates: the cover's
+// paper stays one unbroken face, four separate stitches run down the bound
+// edge — the binding the book is named for — and the title slip is pasted on
+// the paper, never off it.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -18,8 +19,9 @@ const SITES = [
   'cover-render',
   'pages-render',
   'obi-render',
-  'page-continuity',
-  'obi-page-separation',
+  'paper-is-one-face',
+  'four-stitches',
+  'slip-sits-on-the-paper',
   'theme-mark',
   'forced-colors-name',
   'header-fit',
@@ -90,8 +92,12 @@ const injectRule = async (page, selector, declarations) => {
 };
 
 const MUTATIONS = {
-  'obi-crosses-pages': rewriteSVGPart('obi', 'M5 17 28 8v20L5 22Z', 'obi-page-separation'),
-  'break-page-fore-edge': rewriteSVGPart('pages', 'M8.2 3.1 27.5 8.1 25.5 9.6 6.6 4.7Z', 'page-continuity'),
+  // The slip moved onto the bound edge, where no paper lies under it.
+  'slip-off-the-paper': rewriteSVGPart('obi', 'M22.4 8h2.4v8.2h-2.4Z', 'slip-sits-on-the-paper'),
+  // The four stitches run together into one bar down the binding.
+  'merge-the-stitches': rewriteSVGPart('pages', 'M7.9 5.6h13.5v20.8H7.9Zm15.1 2.2h1v16.4h-1Z', 'four-stitches'),
+  // A cut across the cover's paper, which must read as one unbroken face.
+  'split-the-paper': rewriteSVGPart('pages', 'M7.9 5.6h13.5v7H7.9Zm0 9h13.5v11.8H7.9Zm15.1-6.8h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Z', 'paper-is-one-face'),
   'collapse-cover': rewriteSVGPart('cover', 'M0 0Z', 'cover-render'),
   'collapse-pages': rewriteSVGPart('pages', 'M0 0Z', 'pages-render'),
   'collapse-obi': rewriteSVGPart('obi', 'M0 0Z', 'obi-render'),
@@ -254,13 +260,17 @@ const analyseSVG = async (source) => {
 
   const threshold = (pixels, index) => pixels[index * 4 + 3] >= 128;
   const pageMask = new Uint8Array(256 * 256);
-  let overlap = 0;
+  // The title slip is pasted onto the cover's paper, so every one of its
+  // pixels has paper under it. A slip that has wandered onto the bound edge,
+  // or off the book altogether, shows up here as pixels with nothing beneath.
+  let slipOutside = 0;
   for (let index = 0; index < pageMask.length; index += 1) {
     if (threshold(pageLayer.pixels, index)) pageMask[index] = 1;
-    if (threshold(pageLayer.pixels, index) && threshold(obiLayer.pixels, index)) overlap += 1;
+    if (threshold(obiLayer.pixels, index) && !threshold(pageLayer.pixels, index)) slipOutside += 1;
   }
 
   let components = 0;
+  const componentSizes = [];
   let pagePixels = 0;
   let minX = 256;
   let maxX = -1;
@@ -270,6 +280,7 @@ const analyseSVG = async (source) => {
   for (let start = 0; start < pageMask.length; start += 1) {
     if (pageMask[start] !== 1) continue;
     components += 1;
+    let componentPixels = 0;
     let head = 0;
     let tail = 0;
     queue[tail++] = start;
@@ -277,6 +288,7 @@ const analyseSVG = async (source) => {
     while (head < tail) {
       const index = queue[head++];
       pagePixels += 1;
+      componentPixels += 1;
       const x = index % 256;
       const y = Math.floor(index / 256);
       minX = Math.min(minX, x);
@@ -296,13 +308,16 @@ const analyseSVG = async (source) => {
         }
       }
     }
+    componentSizes.push(componentPixels);
   }
+  componentSizes.sort((a, b) => b - a);
 
   return {
     rendered,
-    overlap,
+    slipOutside,
     page: {
       components,
+      sizes: componentSizes,
       pixels: pagePixels,
       width: maxX >= minX ? maxX - minX + 1 : 0,
       height: maxY >= minY ? maxY - minY + 1 : 0,
@@ -379,11 +394,23 @@ try {
       }
     }
   }
-  if (analysis.page.components !== 1 || analysis.page.pixels < 100 || analysis.page.height < 150 || analysis.page.width < 140) {
-    fail('page-continuity', `page mask = ${JSON.stringify(analysis.page)}, want one continuous top-and-fore-edge region`);
+  // The warm ink draws two things: the cover's paper, which is one unbroken
+  // face, and the four stitches down the bound edge. So the mask holds one
+  // large region and four small ones — and the four are the whole point, since
+  // a book bound this way is named for them.
+  const [face, ...stitches] = analysis.page.sizes;
+  // Nearly all of the warm ink is the face; the stitches are a rounding error
+  // beside it. Measured as a share rather than a count, a face cut in two
+  // reports here — where the damage is — instead of surfacing downstream as a
+  // miscount of stitches.
+  if (analysis.page.pixels < 100 || analysis.page.height < 150 || analysis.page.width < 120 || !(face / analysis.page.pixels > 0.85)) {
+    fail('paper-is-one-face', `page mask = ${JSON.stringify(analysis.page)}, want one paper face spanning the cover`);
   }
-  if (analysis.overlap !== 0) {
-    fail('obi-page-separation', `page and obi have ${analysis.overlap} shared interior pixels at 256px`);
+  if (stitches.length !== 4 || !stitches.every((size) => size > 20 && size < face / 10)) {
+    fail('four-stitches', `page mask = ${JSON.stringify(analysis.page)}, want four separate stitches beside the face`);
+  }
+  if (analysis.slipOutside !== 0) {
+    fail('slip-sits-on-the-paper', `the slip has ${analysis.slipOutside} pixels with no paper under them at 256px`);
   }
 
   await page.emulateMedia({ forcedColors: 'none' });
@@ -439,7 +466,7 @@ try {
     fail('header-fit', `360px header geometry = ${JSON.stringify(fit)}`);
   }
 
-  console.log(`PASS brand-contract: one canonical mark preserves cover/pages/obi, zero page-band overlap, accessible projection, themes, and 360px fit`);
+  console.log(`PASS brand-contract: one canonical mark keeps its paper whole, its four stitches apart, and its slip on the paper, with an accessible projection, both themes, and a 360px fit`);
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

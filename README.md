@@ -10,6 +10,10 @@ non-hidden regular files as calm, navigable pages and keeps the human decision
 at the center: read a note, understand its context, then advance its lifecycle
 `status` without turning the reader into another editor.
 
+[![A note open in yomihon: the vault's notes down the left, the article in the
+middle in a serif face, and the note's status, contents, and relations down the
+right](.github/media/reading.png)](.github/media/reading.png)
+
 > [!WARNING]
 > yomihon is under active development. Expect significant feature and
 > interface changes before the first stable release.

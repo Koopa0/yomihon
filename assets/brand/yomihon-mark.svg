@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <path data-brand-part="cover" fill="#0F0F0F" d="M5 4 8 2 27.5 7 29 8v20l-3 2L5 25Z"/>
-  <path data-brand-part="pages" fill="#F5F1E6" d="M8.2 3.1 27.5 8.1v19.5l-2 1.4V9.6L6.6 4.7Z"/>
-  <path data-brand-part="obi" fill="#D62A0F" d="M5 17 24.9 22v5L5 22Z"/>
+  <path data-brand-part="cover" fill="#0F0F0F" d="M8.1 4h15.8A1.6 1.6 0 0 1 25.5 5.6v20.8a1.6 1.6 0 0 1-1.6 1.6H8.1A1.6 1.6 0 0 1 6.5 26.4V5.6A1.6 1.6 0 0 1 8.1 4Z"/>
+  <path data-brand-part="pages" fill="#F5F1E6" d="M7.9 5.6h13.5v20.8H7.9Zm15.1 2.2h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Z"/>
+  <path data-brand-part="obi" fill="#D62A0F" d="M9.6 7.6h4.2v8.2H9.6Z"/>
 </svg>
