@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -449,13 +450,20 @@ func TestRunOnEmptyVault(t *testing.T) {
 
 // TestCheckPathFilter asserts the positional path arguments filter the output to
 // the findings a path touches: a folder prefix keeps a whole subtree, an exact
-// file keeps only that file, and a partial segment matches nothing because a
-// prefix must end at a path boundary. The distinct citing paths of the kept
-// findings are compared against the exact expected set, so both over- and
-// under-filtering fail.
+// file keeps only that file, and the vault root keeps everything. The shell's
+// punctuation around a path — a trailing slash, a leading "./" — is not part of
+// the name. The distinct citing paths of the kept findings are compared against
+// the exact expected set, so both over- and under-filtering fail.
 func TestCheckPathFilter(t *testing.T) {
 	t.Parallel()
 	const root = "testdata/vault-report"
+	whole := []string{
+		"Concepts/golang/Bad.md",
+		"Concepts/golang/Map.md",
+		"Concepts/golang/Slice.md",
+		"Concepts/japanese/Kana.md",
+		"Writing/lessons/golang/L1.md",
+	}
 	tests := []struct {
 		name  string
 		paths []string
@@ -463,8 +471,9 @@ func TestCheckPathFilter(t *testing.T) {
 	}{
 		{name: "whole japanese folder", paths: []string{"Concepts/japanese"}, want: []string{"Concepts/japanese/Kana.md"}},
 		{name: "trailing slash is trimmed", paths: []string{"Concepts/japanese/"}, want: []string{"Concepts/japanese/Kana.md"}},
+		{name: "leading dot slash is trimmed", paths: []string{"./Concepts/japanese"}, want: []string{"Concepts/japanese/Kana.md"}},
 		{name: "exact file", paths: []string{"Concepts/golang/Bad.md"}, want: []string{"Concepts/golang/Bad.md"}},
-		{name: "partial segment matches nothing", paths: []string{"Concepts/gola"}, want: []string{}},
+		{name: "vault root keeps everything", paths: []string{"."}, want: whole},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -497,5 +506,63 @@ func TestCheckPathFilterRejectsEmpty(t *testing.T) {
 		if _, err := check("testdata/vault-report", []string{p}, false); err == nil {
 			t.Errorf("check with path filter %q = nil error, want a tool error", p)
 		}
+	}
+}
+
+// TestCheckPathFilterRefusesUnobservedScope asserts a path the scan never
+// observed is refused, for the same reason an empty one is: it can match
+// nothing, so filtering with it returns an empty report that reads exactly like
+// a clean one. A misspelled folder, a name that stops mid-segment, a path from
+// another machine — each would otherwise answer a question about ground this
+// command never covered. The refusal names the path back so the reader can see
+// which of their arguments was the typo.
+func TestCheckPathFilterRefusesUnobservedScope(t *testing.T) {
+	t.Parallel()
+	for _, p := range []string{
+		"Concepts/gola",                 // stops inside a segment of Concepts/golang
+		"Concepts/golang/Missing.md",    // a file that is not there
+		"concepts/golang",               // the vault spells it with a capital
+		"nope",                          // nothing like it anywhere
+		"/Users/someone/vault/Concepts", // an absolute path from somewhere else
+		"Concepts/japanese/../golang",   // unresolved traversal is not a canonical path
+	} {
+		findings, err := check("testdata/vault-report", []string{p}, false)
+		if err == nil {
+			t.Errorf("check with path filter %q = %d findings and nil error, want a tool error", p, len(findings))
+			continue
+		}
+		if !strings.Contains(err.Error(), p) {
+			t.Errorf("check with path filter %q: error %q does not name the path back", p, err)
+		}
+	}
+}
+
+// TestCheckPathFilterStopsAtPathBoundary asserts a prefix matches only whole
+// path segments, so a folder does not drag in a sibling whose name merely
+// starts the same way. This is asserted on the matcher rather than through
+// check, because a prefix that stops mid-segment names nothing the scan
+// observed and is now refused before any matching happens.
+func TestCheckPathFilterStopsAtPathBoundary(t *testing.T) {
+	t.Parallel()
+	const path = "Concepts/golang/Bad.md"
+	tests := []struct {
+		name   string
+		prefix string
+		want   bool
+	}{
+		{name: "exact file", prefix: path, want: true},
+		{name: "parent folder", prefix: "Concepts/golang", want: true},
+		{name: "grandparent folder", prefix: "Concepts", want: true},
+		{name: "vault root", prefix: ".", want: true},
+		{name: "sibling sharing a name start", prefix: "Concepts/go", want: false},
+		{name: "unrelated folder", prefix: "Writing", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := underAnyPrefix(path, []string{tt.prefix}); got != tt.want {
+				t.Errorf("underAnyPrefix(%q, %q) = %t, want %t", path, tt.prefix, got, tt.want)
+			}
+		})
 	}
 }
