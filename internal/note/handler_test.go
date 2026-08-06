@@ -2676,7 +2676,11 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	}
 	for _, want := range []string{
 		`data-map-tree="Maps/Reading map.md"`,
-		`class="wikilink-broken" title="還沒有「Ghost Essay」這篇筆記">Ghost Essay</span>`,
+		// The reason reaches a pointer through the title and everyone else
+		// through text carried out of sight, so both are named here: a
+		// state told by cursor alone is told to no one on a phone.
+		`class="wikilink-broken" title="還沒有「Ghost Essay」這篇筆記">Ghost Essay`,
+		`<span class="y-offscreen">（還沒有「Ghost Essay」這篇筆記）</span>`,
 		`wikilink &#34;Ghost Essay&#34; does not resolve to any note or file`,
 	} {
 		if !strings.Contains(body, want) {

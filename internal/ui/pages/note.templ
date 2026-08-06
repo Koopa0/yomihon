@@ -131,7 +131,17 @@ func (v NoteView) diagCount() int {
 // face appears in the fixed-bottom seal bar instead, so the reader never
 // sits beside a tall gutter holding a lone status card.
 func (v NoteView) hasAids() bool {
-	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0
+	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown()
+}
+
+// citedByShown reports whether the answer about what links here means anything
+// on this page — either there are citations, or the library has links at all
+// and their absence is itself the finding. Counting it among the aids matters
+// twice: a rail holding only this block is not an empty rail, and the narrow
+// projection has to carry it. Left out of both, a note whose sole aid was its
+// backlinks lost them at every width, not only the narrow ones.
+func (v NoteView) citedByShown() bool {
+	return len(v.CitedBy) > 0 || v.VaultHasLinks
 }
 
 // breadcrumb is the reading crumb: the note's directory segments (the filename
@@ -557,7 +567,7 @@ templ rightRail(v NoteView) {
 // block that vanished when the count reached zero would leave the reader
 // unable to tell "no one cites this" from "this interface does not know".
 templ citedBy(v NoteView) {
-	if len(v.CitedBy) > 0 || v.VaultHasLinks {
+	if v.citedByShown() {
 		@citedByBlock(v)
 	}
 }
@@ -647,6 +657,21 @@ templ inlineAids(v NoteView) {
 						<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 					</summary>
 					@diagnostics(v)
+				</details>
+			}
+			// What links here is a fact about the library, not a decoration the
+			// narrow layout can drop. It folds like the two above it so the
+			// prose still starts near the top.
+			if v.citedByShown() {
+				<details class="y-toc-inline">
+					<summary class="y-toc-inline__summary">
+						@chevron()
+						連到這篇
+						if len(v.CitedBy) > 0 {
+							<span class="y-diagcount">{ strconv.Itoa(len(v.CitedBy)) }</span>
+						}
+					</summary>
+					@citedByBlock(v)
 				</details>
 			}
 		</div>

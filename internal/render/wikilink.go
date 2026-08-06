@@ -18,9 +18,15 @@ import (
 // rather than that the note is unwritten. It says which name failed, because
 // the words on the page are often not that name, and it says it the way a
 // person would rather than in the vocabulary of the link syntax.
+// A pause is a mouse gesture, so the same sentence goes into the page as text
+// a reader who is listening receives, and one who is on a phone can reach. The
+// words are carried out of sight rather than dropped: read aloud, the passage
+// says the name is unwritten right where the name occurs, which is what the
+// cursor promises to anyone who can point at it.
 func unwrittenTarget(target, display string) string {
-	return fmt.Sprintf(`<span class="wikilink-broken" title="還沒有「%s」這篇筆記">%s</span>`,
-		html.EscapeString(target), html.EscapeString(display))
+	reason := html.EscapeString(fmt.Sprintf("還沒有「%s」這篇筆記", target))
+	return `<span class="wikilink-broken" title="` + reason + `">` +
+		html.EscapeString(display) + `<span class="y-offscreen">（` + reason + `）</span></span>`
 }
 
 // blockPlaceholder is the reserved marker substituted into markdown source for

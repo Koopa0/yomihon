@@ -489,3 +489,55 @@ func TestHomeSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 		}
 	})
 }
+
+// What links here has to survive the widths where the right rail is gone. It
+// did not: the narrow projection carried the contents and the diagnostics and
+// nothing else, and a note whose only aid was its backlinks lost the rail
+// entirely — so at every width, wide included, the answer disappeared for
+// exactly the notes where it was the whole of what the page had to add.
+func TestCitedBySurvivesWithoutTheRail(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	// No headings anywhere, so neither note has a table of contents and the
+	// backlink is the only reading aid the page can offer.
+	write("Concepts/target.md", "---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nplain prose\n")
+	write("Concepts/source.md", "---\ntitle: Source\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nsee [[target]]\n")
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/notes/Concepts/target.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	// The control: the block exists at all, and names the note that cites this
+	// one — otherwise the projection assertion below could pass over an empty
+	// page.
+	if !strings.Contains(citedByBlock(t, body), `href="/notes/Concepts/source.md"`) {
+		t.Fatalf("the cited-by block does not name the citing note; body = %q", body)
+	}
+	if strings.Contains(body, "y-shell--rail-empty") {
+		t.Error("the rail is called empty while it holds the only aid this note has")
+	}
+	aids := strings.Index(body, `class="y-inlineaids"`)
+	if aids < 0 {
+		t.Fatalf("the narrow projection is absent; body = %q", body)
+	}
+	end := strings.Index(body[aids:], "</main>")
+	if end < 0 {
+		t.Fatal("the narrow projection is not followed by the end of main")
+	}
+	if !strings.Contains(body[aids:aids+end], "連到這篇") {
+		t.Errorf("the narrow projection drops what links here; block = %q", body[aids:aids+end])
+	}
+}
