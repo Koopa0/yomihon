@@ -89,6 +89,11 @@ templ Search(v SearchView, c layouts.Chrome) {
 			@sidebar(NewSidebar(v.Nav, ""), c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results">
+					// The page opens by saying which page it is. Arriving here by
+					// ear there was nothing to land on: the first thing announced
+					// was a text field, with no word for where it sat. The count
+					// is already stated above the hits, so this says only that.
+					<h1 class="y-title">搜尋</h1>
 					<form class="y-searchpage__form" method="get" action="/search" role="search" data-live-search-form>
 						<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 						<input type="search" name="q" value={ v.Query } placeholder="搜尋筆記" aria-label="搜尋筆記" data-live-search-input autofocus/>
@@ -119,37 +124,44 @@ templ SearchResults(query string, results []SearchResult, diagnostic string, gov
 			// so a reader looking at the page saw no number and a reader without
 			// scripting got none at all. Four of them asked how many.
 			<p class="y-results__count">{ resultCount(len(results)) }</p>
-			<div class="y-results">
+			// The hits are one set, so they are marked as one: a listener is
+			// told where it starts, how many it holds, and where it ends. The
+			// role is written out because the style reset takes the markers
+			// off, and a list without markers loses its meaning outright in
+			// WebKit.
+			<ol class="y-results" role="list">
 				for _, r := range results {
-					<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
-						<span class="y-result__title">{ r.Title }</span>
-						<span class="y-result__meta">
-							{ r.RelPath }
-							if r.Status != "" {
-								<span class="y-result__sep" aria-hidden="true">·</span>
-								{ r.Status }
-							}
-							if r.File {
-								<span class="y-result__sep" aria-hidden="true">·</span>
-								<span class="y-result__kind">檔案</span>
-							}
-						</span>
-						if len(r.SnippetRuns) > 0 {
-							<span class="y-result__snippet">
-								for _, run := range r.SnippetRuns {
-									if run.Hit {
-										<mark>{ run.Text }</mark>
-									} else {
-										{ run.Text }
-									}
+					<li>
+						<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
+							<span class="y-result__title">{ r.Title }</span>
+							<span class="y-result__meta">
+								{ r.RelPath }
+								if r.Status != "" {
+									<span class="y-result__sep" aria-hidden="true">·</span>
+									{ r.Status }
+								}
+								if r.File {
+									<span class="y-result__sep" aria-hidden="true">·</span>
+									<span class="y-result__kind">檔案</span>
 								}
 							</span>
-						} else if r.Snippet != "" {
-							<span class="y-result__snippet">{ r.Snippet }</span>
-						}
-					</a>
+							if len(r.SnippetRuns) > 0 {
+								<span class="y-result__snippet">
+									for _, run := range r.SnippetRuns {
+										if run.Hit {
+											<mark>{ run.Text }</mark>
+										} else {
+											{ run.Text }
+										}
+									}
+								</span>
+							} else if r.Snippet != "" {
+								<span class="y-result__snippet">{ r.Snippet }</span>
+							}
+						</a>
+					</li>
 				}
-			</div>
+			</ol>
 		} else if query != "" {
 			<div class="y-searchpage__empty">
 				<p>找不到「{ query }」的結果。</p>
