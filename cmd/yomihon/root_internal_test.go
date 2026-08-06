@@ -17,19 +17,18 @@ func TestServeRootPrecedence(t *testing.T) {
 	// Not parallel: the precedence under test is partly environmental, and
 	// t.Setenv cannot run inside a parallel test.
 	tests := []struct {
-		name    string
-		args    []string
-		env     string
-		want    string
-		wantErr bool
+		name     string
+		args     []string
+		env      string
+		want     string
+		wantHere bool
+		wantErr  bool
 	}{
-		{name: "flag wins over environment", args: []string{"--root", "/tmp/flag"}, env: "/tmp/env", want: "/tmp/flag"},
-		{name: "environment when no flag", args: nil, env: "/tmp/env", want: "/tmp/env"},
-		{name: "flag alone", args: []string{"--root", "/tmp/flag"}, want: "/tmp/flag"},
+		{name: "flag names the folder", args: []string{"--root", "/tmp/flag"}, want: "/tmp/flag"},
 		{name: "empty flag value is refused", args: []string{"--root", ""}, wantErr: true},
 		{name: "a bare directory is the folder to read", args: []string{"/tmp/flag"}, want: "/tmp/flag"},
-		{name: "a bare directory wins over environment", args: []string{"/tmp/flag"}, env: "/tmp/env", want: "/tmp/flag"},
 		{name: "unknown flag is refused", args: []string{"--vault", "/tmp/flag"}, wantErr: true},
+		{name: "an environment that used to name the folder no longer does", args: nil, env: "/tmp/env", wantHere: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -44,8 +43,15 @@ func TestServeRootPrecedence(t *testing.T) {
 			if err != nil {
 				t.Fatalf("serveRoot(%q) error = %v", tt.args, err)
 			}
-			if got != tt.want {
-				t.Errorf("serveRoot(%q) = %q, want %q", tt.args, got, tt.want)
+			want := tt.want
+			if tt.wantHere {
+				want, err = os.Getwd()
+				if err != nil {
+					t.Fatalf("Getwd() error = %v", err)
+				}
+			}
+			if got != want {
+				t.Errorf("serveRoot(%q) = %q, want %q", tt.args, got, want)
 			}
 		})
 	}
@@ -61,7 +67,7 @@ func TestServeHelpNamesEveryWayToChooseTheFolder(t *testing.T) {
 	if err != nil || !handled {
 		t.Fatalf("helpRequest(serve --help) = handled %t, err %v", handled, err)
 	}
-	for _, want := range []string{"<dir>", "YOMIHON_ROOT", "current"} {
+	for _, want := range []string{"<dir>", "standing in"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("serve help does not name %q; text = %q", want, text)
 		}

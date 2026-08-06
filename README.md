@@ -90,9 +90,11 @@ a second `yomihon` on a second port.
 
 ## Configure
 
+Which folder to read is not configuration: it is the one you are standing in,
+or the one you name on the line.
+
 | Variable | Purpose | Default |
 |---|---|---|
-| `YOMIHON_ROOT` | Vault path, for a shell alias or a launch agent. A folder named on the command line wins. | current directory |
 | `YOMIHON_PORT` | Listen port. The address itself is always `127.0.0.1`. | `9610` |
 
 ### Semantic search

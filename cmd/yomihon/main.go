@@ -117,18 +117,17 @@ func serveRoot(args []string) (string, error) {
 }
 
 // configuredVaultRoot answers which folder to read when the arguments named
-// none: what the environment configured, and otherwise the folder the reader
-// is standing in.
+// none: the folder the reader is standing in.
 //
 // It used to end at a path compiled into the binary — one particular person's
 // vault — which is the author's own setup wearing the costume of a default.
 // Anyone else's first run read a directory they had never mentioned, and the
 // program's own check and search commands had meanwhile always read the
-// current folder, so serve was the one face disagreeing.
+// current folder, so serve was the one face disagreeing. An environment
+// variable naming the folder went the same way afterwards: where you are
+// standing and what you name on the line already answer the question between
+// them, and a third answer is only somewhere else for the two to disagree.
 func configuredVaultRoot() (string, error) {
-	if root := os.Getenv("YOMIHON_ROOT"); root != "" {
-		return root, nil
-	}
 	return os.Getwd()
 }
 

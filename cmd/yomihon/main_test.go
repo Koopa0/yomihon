@@ -50,7 +50,6 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 	binary := buildYomihonBinary(t)
 	home := t.TempDir()
 	env := append(isolatedUserEnv(home),
-		"YOMIHON_ROOT="+filepath.Join(t.TempDir(), "missing-vault"),
 		"YOMIHON_PORT=not-a-port",
 		"YOMIHON_EMBED_KEY=help-must-not-touch-this-key",
 	)
@@ -67,8 +66,8 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 	command := map[string]string{
 		"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
 			"\n" +
-			"Reads the folder named on the line, or $YOMIHON_ROOT, or the current\n" +
-			"directory. Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
+			"Reads the folder named on the line, or the one you are standing in.\n" +
+			"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
 			"\n" +
 			"The folder is fixed for the life of the process: reading another one\n" +
 			"means another yomihon, on another port.\n",
@@ -117,7 +116,6 @@ func TestServeRejectsArgumentsBeforeLoadingConfiguration(t *testing.T) {
 	// name a folder: the check has to be a shape the parser still refuses, or
 	// it stops proving that refusal comes before any configuration is read.
 	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve", "one", "two"}, append(isolatedUserEnv(home),
-		"YOMIHON_ROOT="+filepath.Join(t.TempDir(), "missing-vault"),
 		"YOMIHON_PORT=not-a-port",
 	))
 	const wantUsage = "yomihon: usage: yomihon [dir] — or yomihon serve [dir]\n"
@@ -148,8 +146,7 @@ func TestServeRejectsNonDirectoryVaultRoot(t *testing.T) {
 	if err := os.WriteFile(root, []byte("not a vault"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve"}, append(isolatedUserEnv(t.TempDir()),
-		"YOMIHON_ROOT="+root,
+	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve", root}, append(isolatedUserEnv(t.TempDir()),
 		"YOMIHON_PORT=not-a-port",
 	))
 	if exit != 1 || stdout != "" || !strings.Contains(stderr, root) ||
@@ -165,8 +162,7 @@ func TestAgentCommandsReachProductionComposition(t *testing.T) {
 
 	t.Run("lexical search ignores semantic state", func(t *testing.T) {
 		home := t.TempDir()
-		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "tortoise"}, append(isolatedUserEnv(home),
-			"YOMIHON_ROOT="+root,
+		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "--root", root, "tortoise"}, append(isolatedUserEnv(home),
 			"YOMIHON_EMBED_KEY=key-must-remain-dormant",
 		))
 		if exit != 0 {
@@ -186,8 +182,7 @@ func TestAgentCommandsReachProductionComposition(t *testing.T) {
 
 	t.Run("semantic search reports cold before provider", func(t *testing.T) {
 		home := t.TempDir()
-		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "--semantic", "tortoise"}, append(isolatedUserEnv(home),
-			"YOMIHON_ROOT="+root,
+		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "--semantic", "--root", root, "tortoise"}, append(isolatedUserEnv(home),
 			"YOMIHON_EMBED_KEY=key-must-not-reach-a-client",
 		))
 		if exit != 3 {
@@ -207,9 +202,7 @@ func TestAgentCommandsReachProductionComposition(t *testing.T) {
 
 	t.Run("explicit build without credential is unavailable", func(t *testing.T) {
 		home := t.TempDir()
-		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search-index", "build", "--json"}, append(isolatedUserEnv(home),
-			"YOMIHON_ROOT="+root,
-		))
+		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search-index", "build", "--json", "--root", root}, isolatedUserEnv(home))
 		if exit != 3 {
 			t.Fatalf("yomihon search-index build exit = %d, want 3; stderr = %q", exit, stderr)
 		}
@@ -307,9 +300,8 @@ func runYomihonServe(t *testing.T, binary, root, home, key string) string {
 	if openErr != nil {
 		t.Fatalf("open serve log: %v", openErr)
 	}
-	cmd := exec.CommandContext(t.Context(), binary, "serve")
+	cmd := exec.CommandContext(t.Context(), binary, "serve", root) // #nosec G204 -- binary and arguments are constructed entirely by this test
 	cmd.Env = append(isolatedUserEnv(home),
-		"YOMIHON_ROOT="+root,
 		"YOMIHON_PORT=0",
 		"YOMIHON_EMBED_KEY="+key,
 	)
@@ -569,14 +561,14 @@ func drive(t *testing.T, url string) {
 	}
 }
 
-// allowedEnvKeys are the three variables this command may interpret as
-// configuration: the vault root, the listening port, and the embedding
-// credential read lazily by an explicit semantic CLI action. The private git
+// allowedEnvKeys are the two variables this command may interpret as
+// configuration: the listening port, and the embedding credential read lazily
+// by an explicit semantic CLI action. Which folder to read is not among them —
+// it is where you are standing, or what you name on the line. The private git
 // child has one separately audited whole-environment read whose only purpose is
 // to remove every GIT_* repository redirection and YOMIHON_* application value
 // before the external git process and its hooks can observe them.
 var allowedEnvKeys = map[string]bool{
-	"YOMIHON_ROOT":      true,
 	"YOMIHON_PORT":      true,
 	"YOMIHON_EMBED_KEY": true,
 }
@@ -916,7 +908,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 		for _, o := range offenders {
 			lines = append(lines, fmt.Sprintf("%s: %s", o.Pos, o.Why))
 		}
-		t.Errorf("this command may configure only YOMIHON_ROOT, YOMIHON_PORT, and YOMIHON_EMBED_KEY, plus one exact git-environment sanitizer read, but found:\n%s",
+		t.Errorf("this command may configure only YOMIHON_PORT and YOMIHON_EMBED_KEY, plus one exact git-environment sanitizer read, but found:\n%s",
 			strings.Join(lines, "\n"))
 	}
 }
@@ -973,12 +965,19 @@ var envFixtures = []struct {
 		name: "allowed keys",
 		src: `package main
 import "os"
-func f() (string, string, bool) {
+func f() (string, bool) {
 	v, ok := os.LookupEnv("YOMIHON_PORT")
 	_ = os.Getenv("YOMIHON_EMBED_KEY")
-	return os.Getenv("YOMIHON_ROOT"), v, ok
+	return v, ok
 }`,
 		want: nil,
+	},
+	{
+		name: "the folder is no longer an environment question",
+		src: `package main
+import "os"
+func f() string { return os.Getenv("YOMIHON_ROOT") }`,
+		want: []string{`os.Getenv("YOMIHON_ROOT")`},
 	},
 	{
 		name: "aliased import",

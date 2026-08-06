@@ -17,8 +17,8 @@ Use "yomihon <command> --help" for command help.
 var commandHelp = map[string]string{
 	"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
 		"\n" +
-		"Reads the folder named on the line, or $YOMIHON_ROOT, or the current\n" +
-		"directory. Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
+		"Reads the folder named on the line, or the one you are standing in.\n" +
+		"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
 		"\n" +
 		"The folder is fixed for the life of the process: reading another one\n" +
 		"means another yomihon, on another port.\n",

@@ -231,7 +231,7 @@ copy_fixture "$here/vault" "$vault"
   exit 1
 }
 
-YOMIHON_ROOT="$vault" YOMIHON_PORT="$port" "$bin" serve >"$log" 2>&1 &
+YOMIHON_PORT="$port" "$bin" serve "$vault" >"$log" 2>&1 &
 server_pid=$!
 
 dump_log() {
