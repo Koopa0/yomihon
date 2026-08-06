@@ -273,8 +273,15 @@ func snippet(plain, plainFold string, tokens []string) string {
 	// character — so it is pulled back to a boundary before anything counts
 	// characters outward from it.
 	off := clampRuneEnd(plain, min(earliestOffset(plainFold, tokens), len(plain)))
-	start := wholeWordStart(plain, runesBefore(plain, off, snippetBefore))
-	end := wholeWordEnd(plain, runesAfter(plain, off, snippetAfter))
+	// Neither boundary may be moved past the match it was placed around. When a
+	// boundary lands in a run longer than the budget below, it steps clear of
+	// that run — the opening one forward off its tail, the closing one back off
+	// its head — and a match buried deep enough in one run is stepped over by
+	// both at once, which leaves the opening after the close and the slice
+	// below reversed. A few hundred letters with no break in them is all it
+	// takes: one long identifier, or a hash pasted into a note.
+	start := min(wholeWordStart(plain, runesBefore(plain, off, snippetBefore)), off)
+	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), off)
 
 	s := strings.Join(strings.Fields(plain[start:end]), " ")
 	if start > 0 {

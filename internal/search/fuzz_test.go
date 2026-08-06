@@ -82,13 +82,23 @@ func validFilters(filters []Filter) bool {
 
 // FuzzSnippet drives the real folded-text relationship used by the index. A
 // snippet must stay one line, preserve valid UTF-8 boundaries, and remain
-// within its fixed byte window plus at most two ellipses.
+// within its fixed window of characters plus at most two ellipses.
 func FuzzSnippet(f *testing.F) {
 	f.Add("prefix 日本語 suffix", "日本語")
 	f.Add(strings.Repeat("a", 40)+"界"+strings.Repeat("b", 160), "界")
 	f.Add("界"+strings.Repeat("a", 39)+"needle", "needle")
 	f.Add("line one\n\tline two\r\nline three", "two")
 	f.Add("", "")
+	// A full window of Japanese: 200 characters of it is 600 bytes, so this is
+	// the shape a byte-counted bound reports as too long while the window is
+	// exactly the size it is meant to be.
+	f.Add(strings.Repeat("あ", 200)+"鍵"+strings.Repeat("い", 200), "鍵")
+	// A match walled in by letters on both sides, far enough from either end of
+	// the run that both boundaries have to give up on keeping the word whole.
+	f.Add(strings.Repeat("a", 300)+"z"+strings.Repeat("a", 300), "z")
+	// The same length in ordinary spaced words, where nothing shortens the
+	// window and it fills to its limit.
+	f.Add(strings.Repeat("ab ", 300)+"needle"+strings.Repeat(" cd", 300), "needle")
 
 	f.Fuzz(func(t *testing.T, plain, token string) {
 		if len(plain) > 256<<10 || len(token) > 16<<10 {
@@ -109,9 +119,23 @@ func FuzzSnippet(f *testing.F) {
 		if got != strings.TrimSpace(got) {
 			t.Errorf("snippet(%q, %q) = %q, want no surrounding whitespace", plain, token, got)
 		}
-		const maxSnippetBytes = snippetBefore + snippetAfter + 2*len("…")
-		if len(got) > maxSnippetBytes {
-			t.Errorf("snippet(%q, %q) length = %d, want at most %d", plain, token, len(got), maxSnippetBytes)
+		// The window is counted in characters, not bytes. Its bounds walk
+		// characters outward from the match, so a full window of Japanese is
+		// three times as many bytes as a full window of English while being the
+		// same window — measuring it in bytes reports the wider script as a
+		// defect. Each bound may then move a further 24 outward to keep a word
+		// whole, and that movement only ever crosses the ASCII letters, digits,
+		// hyphens and underscores that count as word bytes, so its allowance
+		// carries over to characters one for one. Two ellipses are all that is
+		// added afterwards.
+		//
+		// The numbers are written out rather than read back from the package on
+		// purpose: a limit derived from the same constants that size the window
+		// would widen along with them, and could never report a window that
+		// grew.
+		const maxSnippetRunes = 40 + 160 + 2*24 + 2
+		if n := utf8.RuneCountInString(got); n > maxSnippetRunes {
+			t.Errorf("snippet(%q, %q) length = %d characters, want at most %d", plain, token, n, maxSnippetRunes)
 		}
 	})
 }

@@ -59,6 +59,62 @@ func TestSnippetDoesNotOpenOrCloseInsideAWord(t *testing.T) {
 	}
 }
 
+// Each boundary of the window steps clear of a run of letters it cannot keep
+// whole — the opening one forward off the run's tail, the closing one back off
+// its head. A match sitting deep inside one long run is stepped over by both at
+// once, and until each was held at the match that produced an opening after the
+// close: a reversed slice, and a search that took the page down instead of
+// answering it. A few hundred letters with no break in them is the whole
+// requirement.
+func TestSnippetHoldsItsWindowAtTheMatch(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		plain string
+		token string
+		want  string
+	}{
+		{
+			// Neither boundary can reach a word edge on its own side, so both
+			// come to rest on the match and the window closes to nothing. The
+			// run is what the note contains; there is no readable line inside
+			// it to show, and saying so beats crashing.
+			name:  "letters on both sides of the match",
+			plain: strings.Repeat("a", 300) + "z" + strings.Repeat("a", 300),
+			token: "z",
+			want:  "……",
+		},
+		{
+			// The opening gives up the unreadable run and comes to rest on the
+			// match rather than walking past it, so the match still opens the
+			// line. The close needs no adjustment: the text ends first.
+			name:  "readable words after the run",
+			plain: strings.Repeat("a", 300) + "z is the match, and readable words follow it",
+			token: "z",
+			want:  "…z is the match, and readable words follow it",
+		},
+		{
+			// The mirror image, and the case that holds the closing boundary to
+			// giving the run up rather than dragging it in: it comes back to
+			// where the run began, which here is the match itself, and the
+			// window keeps the readable words in front of it.
+			name:  "readable words before the run",
+			plain: "readable words come first and then z" + strings.Repeat("a", 300),
+			token: "z",
+			want:  "readable words come first and then…",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := snippet(tt.plain, fold(tt.plain), []string{fold(tt.token)})
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("snippet() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 // A result that does not say why it matched leaves the reader scanning a grey
 // block for the word they just typed. The runs carry slices of the reader's own
 // text, so nothing is re-cased and nothing becomes markup.
