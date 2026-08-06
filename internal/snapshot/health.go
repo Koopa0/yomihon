@@ -109,11 +109,6 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 		for _, target := range judge.LinkTargets(n.Body) {
 			res := idx.Resolve(target)
 			switch {
-			case res.Kind == graph.Ambiguous:
-				h.Collisions = append(h.Collisions, HealthCollision{
-					Name:       target,
-					Candidates: slices.Clone(res.Candidates),
-				})
 			case res.Kind != graph.Unresolved || planned.Has(target) || seen[target]:
 				// Resolved, owed, or already reported for this note.
 			case titles[graph.NormalizeKey(target)].RelPath != "":
@@ -130,9 +125,32 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 			islands = append(islands, from)
 		}
 	}
+	h.Collisions = collisions(idx)
 	h.Islands = groupByFolder(islands)
 	sortHealth(&h)
 	return h
+}
+
+// collisions lists every name several files claim, asked of the resolution
+// index rather than of the citations anyone happened to write. Two files can
+// share a name for years before the first link to it is typed, and that link
+// failing is the moment this page exists to prevent; reading the answer off
+// the links instead found the pair only after the damage.
+//
+// A filename drops out when its extension-less form claims the same files: two
+// files sharing "Foo.md" necessarily share "Foo", and listing both states one
+// repair twice. A name ending in the extension whose claimants differ from the
+// stem's is a separate collision and stays.
+func collisions(idx *graph.Index) []HealthCollision {
+	byName := idx.Collisions()
+	out := make([]HealthCollision, 0, len(byName))
+	for name, members := range byName {
+		if stem, ok := strings.CutSuffix(name, ".md"); ok && slices.Equal(byName[stem], members) {
+			continue
+		}
+		out = append(out, HealthCollision{Name: name, Candidates: members})
+	}
+	return out
 }
 
 // groupByFolder collects uncited notes under the folder each lives in, largest
@@ -172,9 +190,6 @@ func sortHealth(h *Health) {
 	})
 	slices.SortFunc(h.Collisions, func(a, b HealthCollision) int {
 		return cmp.Compare(a.Name, b.Name)
-	})
-	h.Collisions = slices.CompactFunc(h.Collisions, func(a, b HealthCollision) bool {
-		return a.Name == b.Name
 	})
 }
 

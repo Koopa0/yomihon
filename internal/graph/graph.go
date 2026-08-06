@@ -131,6 +131,23 @@ func (idx *Index) Resolve(name string) Resolution {
 	}
 }
 
+// Collisions reports every name more than one file answers to, each mapped to
+// the paths claiming it. A name in this answer resolves to nothing: the index
+// refuses to choose between the files holding it, so a citation written
+// against it fails whether or not anyone has written that citation yet. The
+// map and its slices belong to the caller, so reading this cannot disturb the
+// index.
+func (idx *Index) Collisions() map[string][]string {
+	out := make(map[string][]string)
+	for name, members := range idx.names {
+		if len(members) < 2 {
+			continue
+		}
+		out[name] = slices.Clone(members)
+	}
+	return out
+}
+
 // add inserts key (normalized) -> path, skipping an empty key and
 // deduplicating per path. Extra keys only ever add resolutions, never
 // remove one — the index deliberately prefers false positives over false

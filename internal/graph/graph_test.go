@@ -310,3 +310,43 @@ func TestWikilinkFragmentsResolveOnNameAloneRegardlessOfHeadingExistence(t *test
 		t.Errorf("Resolve(%q) = %+v, want Unique Go Slice.md", target, got)
 	}
 }
+
+// A name several files answer to resolves to nothing, and that is true from
+// the moment the second file lands — not from the moment somebody writes the
+// citation that will fail. Reporting the pair is therefore a question about
+// the index, which this answers, and every key a file is reachable by counts:
+// the stem, the filename, and a resource's own name.
+func TestCollisionsAreEveryNameMoreThanOneFileClaims(t *testing.T) {
+	t.Parallel()
+
+	idx := graph.BuildFromNotes([]graph.NoteInput{
+		{Path: "golang/Foo.md"},
+		{Path: "rust/Foo.md"},
+		{Path: "notes/Alone.md", Aliases: []string{"solo"}},
+	}, []string{"img/shot.png", "old/shot.png"})
+
+	// The absences carry as much as the entries: a name one file holds, an
+	// alias, and the full paths are all reachable and none of them collide.
+	want := map[string][]string{
+		"foo":      {"golang/Foo.md", "rust/Foo.md"},
+		"foo.md":   {"golang/Foo.md", "rust/Foo.md"},
+		"shot.png": {"img/shot.png", "old/shot.png"},
+	}
+	if diff := cmp.Diff(want, idx.Collisions()); diff != "" {
+		t.Errorf("Collisions() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// The answer belongs to whoever asked for it: a caller sorting or trimming the
+// paths it was handed must not reach back into the resolver everyone shares.
+func TestCollisionsReturnsIndependentCandidates(t *testing.T) {
+	t.Parallel()
+
+	idx := graph.BuildFromNotes([]graph.NoteInput{{Path: "A/Foo.md"}, {Path: "B/Foo.md"}}, nil)
+
+	idx.Collisions()["foo"][0] = "mutated"
+	want := []string{"A/Foo.md", "B/Foo.md"}
+	if diff := cmp.Diff(want, idx.Collisions()["foo"]); diff != "" {
+		t.Errorf("Collisions()[foo] after caller mutation mismatch (-want +got):\n%s", diff)
+	}
+}

@@ -124,3 +124,37 @@ func TestHealthIgnoresCitationsFromArtifacts(t *testing.T) {
 		t.Errorf("a template's own slot is listed as a note somebody owes; targets = %v", targets)
 	}
 }
+
+// Two files can share a name for years before the first link to it is typed,
+// and that link failing is the moment this page exists to prevent. Reading the
+// answer off the citations anyone happened to write found the pair only after
+// the damage: a name nobody had cited yet was invisible, while the page
+// promised to report names two files share.
+func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
+	t.Parallel()
+
+	notes := []*vault.Note{
+		// Nothing anywhere cites "quiet": the pair stays invisible until
+		// somebody writes the link that will not resolve.
+		parse(t, "A/quiet.md", "---\ntitle: Quiet A\n---\n\none\n"),
+		parse(t, "B/quiet.md", "---\ntitle: Quiet B\n---\n\ntwo\n"),
+		// The control: a shared name a real note does cite, which the old
+		// reading already found. An empty answer cannot pass this test.
+		parse(t, "A/cited.md", "---\ntitle: Cited A\n---\n\nthree\n"),
+		parse(t, "B/cited.md", "---\ntitle: Cited B\n---\n\nfour\n"),
+		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]]\n"),
+	}
+	idx := graph.New(notes, nil)
+	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{})
+
+	// The names carrying the extension are absent on purpose: two files sharing
+	// "cited.md" necessarily share "cited", and one repair stated twice reads
+	// as two.
+	want := []HealthCollision{
+		{Name: "cited", Candidates: []string{"A/cited.md", "B/cited.md"}},
+		{Name: "quiet", Candidates: []string{"A/quiet.md", "B/quiet.md"}},
+	}
+	if diff := cmp.Diff(want, h.Collisions); diff != "" {
+		t.Errorf("Collisions mismatch (-want +got):\n%s", diff)
+	}
+}
