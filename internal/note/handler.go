@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"log/slog"
+	"maps"
 	"net/http"
 	"path"
 	"slices"
@@ -657,16 +658,29 @@ func (h *Handler) lifecycle(
 		}
 	}
 	items = make([]pages.LifecycleItem, 0, len(waiting))
-	for _, s := range statusView.Order() {
-		if waiting[s] == 0 {
-			continue
-		}
+	add := func(s string) {
 		items = append(items, pages.LifecycleItem{
 			Name:   s,
 			Count:  waiting[s],
 			Active: s == current,
 			Sealed: s == schema.SealStatus,
 		})
+	}
+	for _, s := range statusView.Order() {
+		if waiting[s] == 0 {
+			continue
+		}
+		add(s)
+		delete(waiting, s)
+	}
+	// Whatever is still here sits at a value the default vocabulary does not
+	// list: the contract routes that kind of note to another group of statuses,
+	// or the note carries a value no group declares at all. The total above
+	// counted those notes, so leaving them out is exactly how a number stops
+	// agreeing with its own breakdown. Nothing declares an order across groups,
+	// so they follow in a stable one.
+	for _, s := range slices.Sorted(maps.Keys(waiting)) {
+		add(s)
 	}
 	return items, false
 }

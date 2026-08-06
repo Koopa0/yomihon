@@ -154,7 +154,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 										for _, it := range v.Lifecycle {
 											<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
 												<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
-												<span>{ it.Name }</span>
+												<span>{ statusChipLabel(it.Name) }</span>
 												<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " 篇筆記" }>{ strconv.Itoa(it.Count) }</span>
 											</a>
 										}

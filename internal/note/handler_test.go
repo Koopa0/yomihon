@@ -3235,46 +3235,113 @@ func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
 // derived separately, so nothing kept the two in step.
 func TestHomeLifecycleBlockDecomposesTheHeaderCount(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
-		t.Fatalf("write README: %v", err)
-	}
-	dir := filepath.Join(root, "Writing", "lessons", "japanese")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	// One of these has nowhere to go but retirement, so it must not be counted
-	// by either the header or the block — which is what makes the two agree
-	// meaningful rather than arithmetic that holds for any fixture.
-	for i, status := range []string{"draft", "draft", "imported", schema.SealStatus} {
-		body := "---\ntitle: L0" + strconv.Itoa(i) + "\ntype: lesson\ndomain: japanese\nstatus: " + status +
-			"\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
-		if err := os.WriteFile(filepath.Join(dir, "L0"+strconv.Itoa(i)+".md"), []byte(body), 0o600); err != nil {
-			t.Fatalf("write lesson: %v", err)
+
+	type note struct{ path, front string }
+	lesson := func(i int, status string) note {
+		return note{
+			path: "Writing/lessons/japanese/L0" + strconv.Itoa(i) + ".md",
+			front: "title: L0" + strconv.Itoa(i) + "\ntype: lesson\ndomain: japanese\nstatus: " + status +
+				"\ncreated: 2026-06-01\nupdated: 2026-06-01",
 		}
 	}
-	srv := newServerWithContract(t, root, loadContract(t))
+	tests := []struct {
+		name     string
+		contract func(*testing.T) *schema.Contract
+		notes    []note
+		wantRows map[string]int
+	}{
+		{
+			// The control. One of these has nowhere to go but retirement, so
+			// neither the header nor the block may count it — which is what
+			// makes their agreement meaningful rather than arithmetic that
+			// holds for any fixture. It passed before this block learned about
+			// other vocabularies and must keep passing, or the instrument
+			// below is measuring nothing.
+			name:     "one vocabulary",
+			contract: loadContract,
+			notes: []note{
+				lesson(0, "draft"), lesson(1, "draft"),
+				lesson(2, "imported"), lesson(3, schema.SealStatus),
+			},
+			wantRows: map[string]int{"draft": 2, "imported": 1},
+		},
+		{
+			// A guide moves through statuses the default list never mentions.
+			// The header counted it from the start; the breakdown walked the
+			// default vocabulary only, so the note was counted and never shown.
+			name:     "a status only another group declares",
+			contract: loadHomeContractWithSystemGroup,
+			notes: []note{
+				{path: "System/agent-guides/Privacy.md", front: "title: Privacy\ntype: guide\nstatus: proposed"},
+				lesson(0, "draft"),
+			},
+			wantRows: map[string]int{"proposed": 1, "draft": 1},
+		},
+		{
+			// The same hole in its other shape: a note carrying no status at
+			// all still has somewhere to go, so it is counted, and no
+			// vocabulary lists the empty value.
+			name:     "a note with no status at all",
+			contract: loadHomeContractWithSystemGroup,
+			notes: []note{
+				{path: "System/agent-guides/Unmarked.md", front: "title: Unmarked\ntype: guide"},
+				lesson(0, "draft"),
+			},
+			wantRows: map[string]int{"": 1, "draft": 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+				t.Fatalf("write README: %v", err)
+			}
+			for _, n := range tt.notes {
+				full := filepath.Join(root, filepath.FromSlash(n.path))
+				if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+					t.Fatalf("mkdir: %v", err)
+				}
+				body := "---\n" + n.front + "\n---\n\nbody\n"
+				if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+					t.Fatalf("write %s: %v", n.path, err)
+				}
+			}
+			srv := newServerWithContract(t, root, tt.contract(t))
 
-	code, body := get(t, srv.URL+"/")
-	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
-	}
+			code, body := get(t, srv.URL+"/")
+			if code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want 200", code)
+			}
 
-	header := headerAdvanceableCount(t, body)
-	block := homeSection(t, body, `data-home-block="lifecycle"`)
-	counts := chipCounts(t, block)
-	sum := 0
-	for _, n := range counts {
-		if n == 0 {
-			t.Errorf("the block lists a status nothing is waiting at; counts = %v", counts)
-		}
-		sum += n
-	}
-	if sum != header {
-		t.Errorf("the block sums to %d and the header says %d; one of them is describing a different set", sum, header)
-	}
-	if header == 0 {
-		t.Fatal("the fixture produced nothing to count, so this proves nothing")
+			header := headerAdvanceableCount(t, body)
+			if header == 0 {
+				t.Fatal("the fixture produced nothing to count, so this proves nothing")
+			}
+			block := homeSection(t, body, `data-home-block="lifecycle"`)
+			counts := chipCounts(t, block)
+			sum := 0
+			for _, n := range counts {
+				if n == 0 {
+					t.Errorf("the block lists a status nothing is waiting at; counts = %v", counts)
+				}
+				sum += n
+			}
+			if sum != header {
+				t.Errorf("the block sums to %d and the header says %d; one of them is describing a different set", sum, header)
+			}
+			// Naming each row as well as summing them: two numbers wrong in the
+			// same direction would leave the sum standing.
+			for status, want := range tt.wantRows {
+				row := homeLifecycleRow(t, block, status)
+				if marker := `>` + strconv.Itoa(want) + `<`; !strings.Contains(row, marker) {
+					t.Errorf("the %q row does not state %d; row = %q", status, want, row)
+				}
+			}
+			if _, ok := tt.wantRows[""]; ok && !strings.Contains(block, "未標示狀態") {
+				t.Errorf("the row for a note with no status is unnamed; block = %q", block)
+			}
+		})
 	}
 }
 
@@ -3415,4 +3482,44 @@ func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
 
 	// That the index really leaves it out is asserted where the index lives:
 	// TestAnOversizeNoteRendersAndStaysOutOfTheIndex in internal/snapshot.
+}
+
+// loadHomeContractWithSystemGroup routes a second family of notes to its own
+// vocabulary, the way a real contract does: guides move through statuses the
+// default list never mentions. Nothing in the shipped fixture does that, which
+// is why the block could disagree with its own header unnoticed.
+func loadHomeContractWithSystemGroup(t *testing.T) *schema.Contract {
+	t.Helper()
+	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema test contract: %v", err)
+	}
+	const systemStatuses = `system = ["active", "archived"]`
+	contractText := strings.Replace(string(base), systemStatuses, `system = ["proposed", "active", "archived"]`, 1)
+	if contractText == string(base) {
+		t.Fatal("schema test contract system status group was not replaced")
+	}
+	contractText += `
+[[lifecycle]]
+status = "proposed"
+applies_to = ["system", "template", "guide"]
+from = []
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "active"
+applies_to = ["system", "template", "guide"]
+from = ["*"]
+owner = ["koopa"]
+`
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err = os.WriteFile(path, []byte(contractText), 0o600) // #nosec G703 -- path is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	return contract
 }

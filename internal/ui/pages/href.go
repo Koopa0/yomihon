@@ -6,6 +6,7 @@
 package pages
 
 import (
+	"cmp"
 	"net/http"
 	"net/url"
 	"strings"
@@ -97,6 +98,14 @@ func syllabusHref(p string) string {
 // the colon, yielding e.g. /search?q=status%3Adraft.
 func statusHref(status string) string {
 	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
+}
+
+// statusChipLabel names one square of the lifecycle block. A note whose
+// frontmatter carries no status still has somewhere to go, so it is counted
+// and listed like any other; saying so in words leaves the reader with what
+// the file is missing rather than a link with nothing written on it.
+func statusChipLabel(status string) string {
+	return cmp.Or(status, "未標示狀態")
 }
 
 // folderHref builds the browse URL for a folder, escaping each segment the
