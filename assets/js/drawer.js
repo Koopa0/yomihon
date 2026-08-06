@@ -5,6 +5,16 @@ export function initDrawer() {
   const media = window.matchMedia('(max-width: 900px)');
   const rail = document.querySelector('#nav-rail');
   const toggleButton = document.querySelector('[data-nav-toggle]');
+  // What leaves the accessibility tree while the drawer acts as a modal. The
+  // header is deliberately absent: the button that opened the drawer sits above
+  // the scrim and is the visible way back out, so it has to stay reachable. The
+  // skip link is here for the opposite reason — it also paints above the scrim,
+  // but its destination is in this list, so an open drawer would leave it
+  // offering a jump to somewhere nobody can go.
+  const background = [
+    document.querySelector('#main-content'),
+    document.querySelector('.y-skiplink'),
+  ].filter(Boolean);
 
   function isOpen() {
     return media.matches && root.dataset.nav === 'open';
@@ -16,9 +26,21 @@ export function initDrawer() {
       .filter((element) => element.tabIndex >= 0 && !element.hidden && element.getClientRects().length > 0);
   }
 
+  // An open drawer is a modal, so the page behind the scrim is not merely
+  // dimmed: it leaves the accessibility tree, and a reading cursor can no
+  // longer walk into an article it can no longer see. Inertness was treated as
+  // the rail's own property — set on the rail while closed, never on anything
+  // else while open — so the whole article stayed reachable behind a curtain
+  // that only ever covered it visually.
+  //
+  // One expression decides it, and it is written before any early return: this
+  // function leaves by three doors, and a door that skips the line is a page
+  // left unusable after the drawer has closed.
   function setOpen(open) {
+    const modal = open && media.matches && Boolean(rail);
     root.dataset.nav = open ? 'open' : 'closed';
     toggleButton?.setAttribute('aria-expanded', String(open));
+    for (const region of background) region.inert = modal;
     if (!rail) return;
     if (!media.matches) {
       rail.inert = false;

@@ -22,12 +22,15 @@ const TOGGLE = '[data-nav-toggle]';
 const SCRIM = '[data-nav-close]';
 const FILTER = '[data-nav-filter]';
 const SKIP_LINK = '.y-skiplink';
+const MAIN = '#main-content';
 
 const SITES = [
   'server-nav-state-free',
   'no-js-sidebar-navigation',
   'no-js-hamburger-hidden',
   'closed-rail-inert',
+  'closed-background-live',
+  'open-background-inert',
   'focused-skip-link-clears-toggle',
   'open-focus-entry',
   'open-tab-contained',
@@ -100,6 +103,16 @@ const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
 };
 
 const MUTATIONS = {
+  // The background is never taken out of the tree.
+  'never-inert-background': {
+    target: 'open-background-inert',
+    apply: rewriteRuntime('drawer.js', 'for (const region of background) region.inert = modal;', 'for (const region of background) region.inert = false;'),
+  },
+  // It is taken out and never put back.
+  'never-restore-background': {
+    target: 'closed-background-live',
+    apply: rewriteRuntime('drawer.js', 'for (const region of background) region.inert = modal;', 'for (const region of background) region.inert = true;'),
+  },
   'stamp-server-nav-state': {
     target: 'server-nav-state-free',
     apply: rewriteDocument('<html ', '<html data-nav="closed" '),
@@ -278,6 +291,19 @@ try {
     if (!closed.inert || closed.ariaHidden !== 'true') {
       fail('closed-rail-inert', `closed rail state is inert=${closed.inert}, aria-hidden=${closed.ariaHidden}, want true/true`);
     }
+    // The page behind a closed drawer is the page. Leaving it inert after the
+    // drawer shuts would lock the reader out of everything with nothing on
+    // screen to say why, so the live case is asserted before the modal one.
+    const shell = await page.evaluate(({ main, skip }) => {
+      const found = { main: document.querySelectorAll(main).length, skip: document.querySelectorAll(skip).length };
+      return { ...found, inert: [...document.querySelectorAll(`${main}, ${skip}`)].map((element) => element.inert) };
+    }, { main: MAIN, skip: SKIP_LINK });
+    if (shell.main !== 1 || shell.skip !== 1) {
+      broken(`the page has ${shell.main} main landmarks and ${shell.skip} skip links, want 1 of each`);
+    }
+    if (shell.inert.some(Boolean)) {
+      fail('closed-background-live', `a closed drawer leaves the page inert: ${JSON.stringify(shell.inert)}`);
+    }
     for (let i = 0; i < 20; i += 1) {
       await page.keyboard.press('Tab');
       if (await activeInsideRail(page)) fail('closed-rail-inert', `Tab ${i + 1} entered the closed rail`);
@@ -301,6 +327,15 @@ try {
     }));
     if (opened.inert || opened.ariaHidden !== null || !opened.focusedInside) {
       fail('open-focus-entry', `open rail state is inert=${opened.inert}, aria-hidden=${opened.ariaHidden}, focusedInside=${opened.focusedInside}`);
+    }
+    // The scrim dims the article; only this takes it out of the tree. Without
+    // it a reading cursor walks straight into the page the curtain covers,
+    // which is the one thing the curtain is there to prevent.
+    const behind = await page.evaluate(({ main, skip }) => (
+      [...document.querySelectorAll(`${main}, ${skip}`)].map((element) => element.inert)
+    ), { main: MAIN, skip: SKIP_LINK });
+    if (behind.length !== 2 || !behind.every(Boolean)) {
+      fail('open-background-inert', `an open drawer leaves the page in the tree: ${JSON.stringify(behind)}`);
     }
 
     const boundaryCount = await page.$eval(RAIL, (rail) => {
