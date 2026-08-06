@@ -295,6 +295,19 @@ const state = (page) => page.evaluate(({ dialog, filter, fills, shortcutControl,
     const element = document.querySelector('.y-header');
     return element ? { clientWidth: element.clientWidth, scrollWidth: element.scrollWidth } : null;
   })(),
+  // At this width the control wears its short label; the words it carries at
+  // full width do not fit beside everything else in the row. Reading the
+  // labels directly asks that question of the thing itself, rather than of a
+  // width it happens to push some other element to — a machine whose fonts run
+  // wider answers the width question differently while wearing the same label.
+  wideLabelDisplay: (() => {
+    const element = document.querySelector('.y-shortcutpref__label');
+    return element ? getComputedStyle(element).display : null;
+  })(),
+  compactLabelDisplay: (() => {
+    const element = document.querySelector('.y-shortcutpref__label-compact');
+    return element ? getComputedStyle(element).display : null;
+  })(),
 }), {
   dialog: DIALOG,
   filter: FILTER,
@@ -507,8 +520,11 @@ try {
     || after.shortcutBox.right > 360
     || !after.header
     || after.header.scrollWidth > after.header.clientWidth
+    || after.wideLabelDisplay !== 'none'
+    || !after.compactLabelDisplay
+    || after.compactLabelDisplay === 'none'
   ) {
-    fail('narrow-shortcut-control', `360px header=${JSON.stringify(after.header)}, shortcut=${JSON.stringify(after.shortcutBox)}`);
+    fail('narrow-shortcut-control', `360px header=${JSON.stringify(after.header)}, labels={"wide":${JSON.stringify(after.wideLabelDisplay)},"compact":${JSON.stringify(after.compactLabelDisplay)}}, shortcut=${JSON.stringify(after.shortcutBox)}`);
   }
 
   console.log('PASS shortcut-contract: single-key preference is default-on, exact, persisted, reversible, visible, and narrow-safe; other keys remain available');
