@@ -108,11 +108,21 @@ type Frontmatter struct {
 // opening fence is body text, not a partial block. The split happens before
 // body preprocessing, so frontmatter values that resemble body syntax remain
 // untouched.
+//
+// A byte-order mark before the opening fence is stepped over, the same reading
+// charity already extended to a CRLF fence. Some editors write one; the note is
+// then indistinguishable to a reader from any other, and refusing to see its
+// fence cost it everything the fence carries — its title, its type, its place
+// in the lifecycle — while every face reported the note as legally having no
+// frontmatter at all. The mark is stepped over, never removed: the offsets
+// below stay measured against the original bytes, so the writer that replaces
+// one status line still leaves every other byte, this one included, as it was.
 func SplitFrontmatter(data []byte) (Frontmatter, bool) {
 	block := Frontmatter{Body: data, BodyStartLine: 1}
-	rest, found := bytes.CutPrefix(data, []byte("---\n"))
+	opening, _ := bytes.CutPrefix(data, []byte("\xef\xbb\xbf"))
+	rest, found := bytes.CutPrefix(opening, []byte("---\n"))
 	if !found {
-		if rest, found = bytes.CutPrefix(data, []byte("---\r\n")); !found {
+		if rest, found = bytes.CutPrefix(opening, []byte("---\r\n")); !found {
 			return block, false
 		}
 	}
