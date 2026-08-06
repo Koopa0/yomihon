@@ -25,7 +25,7 @@ func TestChromeFromRequestReadsSingleKeyShortcutPreference(t *testing.T) {
 			if tt.cookieValue != "" {
 				r.Header.Set("Cookie", "yomihon_shortcuts="+tt.cookieValue)
 			}
-			chrome := chromeFromRequest(r, "測試", 0, false)
+			chrome := chromeFromRequest(r, "測試", Shell{})
 			if chrome.SingleKeyShortcutsEnabled != tt.wantEnabled {
 				t.Errorf("SingleKeyShortcutsEnabled = %t, want %t", chrome.SingleKeyShortcutsEnabled, tt.wantEnabled)
 			}

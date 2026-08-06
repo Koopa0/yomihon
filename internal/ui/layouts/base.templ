@@ -27,6 +27,11 @@ type Chrome struct {
 	SingleKeyShortcutsEnabled bool // plain /, [, and held R are enabled
 	Advanceable               int  // notes for which Koopa has at least one legal next status
 	AdvanceableKnown          bool // false when the write contract or metadata capability is unavailable
+	// Governed says whether anything claimed authority over this vault. The
+	// keyboard help names the certification key only under it: a folder that
+	// carries no vault contract has no status to certify, so a panel offering
+	// that key would describe a tool this reader does not have.
+	Governed bool
 }
 
 func singleKeyShortcutsState(enabled bool) string {
@@ -34,6 +39,16 @@ func singleKeyShortcutsState(enabled bool) string {
 		return "on"
 	}
 	return "off"
+}
+
+// shortcutPrefTitle names the keys the single-key preference actually turns on.
+// Held R belongs to the status face, so it is named only where a status face
+// exists; the other two are reading affordances every folder has.
+func shortcutPrefTitle(governed bool) string {
+	if governed {
+		return "單鍵快捷鍵：/ 搜尋、[ 收合側欄、按住 R 認證"
+	}
+	return "單鍵快捷鍵：/ 搜尋、[ 收合側欄"
 }
 
 templ Base(c Chrome) {
@@ -89,7 +104,7 @@ templ header(c Chrome) {
 			<span class="y-searchbtn__label">搜尋筆記…</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
-		<label class="y-shortcutpref" title="單鍵快捷鍵：/ 搜尋、[ 收合側欄、按住 R 認證">
+		<label class="y-shortcutpref" title={ shortcutPrefTitle(c.Governed) }>
 			<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-label="單鍵快捷鍵" checked?={ c.SingleKeyShortcutsEnabled }/>
 			<span class="y-shortcutpref__label">單鍵</span>
 			<span class="y-shortcutpref__label-compact" aria-hidden="true">單鍵</span>
@@ -121,9 +136,21 @@ templ header(c Chrome) {
 				<dd>跳到導覽篩選（單鍵開啟時）</dd>
 				<dt><span class="ui-kbd">[</span></dt>
 				<dd>收合或展開側欄（單鍵開啟時）</dd>
-				<dt><span class="ui-kbd">R</span>（按住）</dt>
-				<dd>認證目前筆記的狀態——只在可認證的筆記上有效，放開前不會寫入，寫入的只有 status 一個欄位</dd>
+				if c.Governed {
+					<dt><span class="ui-kbd">R</span>（按住）</dt>
+					<dd>認證目前筆記的狀態——只在可認證的筆記上有效，放開前不會寫入，寫入的只有 status 一個欄位</dd>
+				}
 			</dl>
+			// The reader who opens this panel is asking what the keys do, and on
+			// a folder that carries no vault contract one of them is missing.
+			// Saying why belongs here rather than on a page the reader did not
+			// ask for: it answers a question that was actually put, it states
+			// what this folder can do before what it cannot, and it is not an
+			// errand — yomihon never writes a contract, so there is nothing here
+			// for the reader to go and do.
+			if !c.Governed {
+				<p class="y-kbdhelp__note">這個資料夾沒有 vault contract：閱讀與搜尋完整可用，狀態認證這一面則不存在。</p>
+			}
 		</div>
 		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label="切換主題" aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
 			<svg class="y-ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>

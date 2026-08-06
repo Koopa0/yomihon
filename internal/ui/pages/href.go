@@ -34,7 +34,7 @@ type Shell struct {
 
 // Chrome builds the request-cookie state around this snapshot-derived shell.
 func (s Shell) Chrome(r *http.Request, title string) layouts.Chrome {
-	return chromeFromRequest(r, title, s.Advanceable, s.AdvanceableKnown)
+	return chromeFromRequest(r, title, s)
 }
 
 // WithoutInstanceProjections returns a shell whose navigation and topbar carry
@@ -159,8 +159,10 @@ type LifecycleItem struct {
 // light / on / on), so the root element renders the correct state on the first
 // byte (no FOUC). Each
 // cookie honors only its known values; anything else falls to the default —
-// input hygiene, since a cookie is user-controllable.
-func chromeFromRequest(r *http.Request, title string, advanceable int, advanceableKnown bool) layouts.Chrome {
+// input hygiene, since a cookie is user-controllable. The shell travels whole
+// rather than field by field, so the advanceable count and whether anything
+// governs this vault reach the chrome from the same snapshot projection.
+func chromeFromRequest(r *http.Request, title string, s Shell) layouts.Chrome {
 	theme := "light"
 	if c, err := r.Cookie("yomihon_theme"); err == nil && c.Value == "dark" {
 		theme = "dark"
@@ -184,7 +186,8 @@ func chromeFromRequest(r *http.Request, title string, advanceable int, advanceab
 		Ruby:                      ruby,
 		TextSize:                  textSize,
 		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
-		Advanceable:               advanceable,
-		AdvanceableKnown:          advanceableKnown,
+		Advanceable:               s.Advanceable,
+		AdvanceableKnown:          s.AdvanceableKnown,
+		Governed:                  s.Governed,
 	}
 }

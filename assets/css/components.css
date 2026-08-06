@@ -1169,6 +1169,13 @@ html {
 .y-kbdhelp__list { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; }
 .y-kbdhelp__list dt { white-space: nowrap; }
 .y-kbdhelp__list dd { margin: 0; font-size: var(--fs-13); color: var(--fg-muted); line-height: 1.6; }
+/* The one line a folder carrying no vault contract gets: a fact about what this
+   folder is, set below the key list and quieter than it, because it explains an
+   absence rather than offering an action. */
+.y-kbdhelp__note {
+  margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border-faint);
+  font-size: var(--fs-12); color: var(--fg-subtle); line-height: 1.6;
+}
 @media (max-width: 520px) {
   .y-helpbtn, .y-textsizebtn { display: none; }
 }

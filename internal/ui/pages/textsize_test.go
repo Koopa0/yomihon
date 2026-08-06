@@ -29,7 +29,7 @@ func TestChromeFromRequestReadsTextSizePreference(t *testing.T) {
 			if tt.cookieValue != "" {
 				r.Header.Set("Cookie", "yomihon_textsize="+tt.cookieValue)
 			}
-			chrome := chromeFromRequest(r, "測試", 0, false)
+			chrome := chromeFromRequest(r, "測試", Shell{})
 			if chrome.TextSize != tt.want {
 				t.Errorf("TextSize = %q, want %q", chrome.TextSize, tt.want)
 			}
