@@ -541,3 +541,79 @@ func TestCitedBySurvivesWithoutTheRail(t *testing.T) {
 		t.Errorf("the narrow projection drops what links here; block = %q", body[aids:aids+end])
 	}
 }
+
+// TestTheArrowWalksTheCourseThatTeachesTheNote asserts the step at the foot of
+// a lesson follows the order its course declares, and says so.
+//
+// The foot of the article was built for a folder of dated entries, where the
+// folder's own order is the line the reader is walking. A course is not that:
+// it declares its order in a syllabus, printed in the rail of the very same
+// page, and the folder's alphabetical order agrees with it only by luck. One
+// course whose lessons happened to sort into teaching order taught the reader
+// to trust the arrow; the next course sent them somewhere else entirely.
+//
+// The fixture is built so the two orders disagree: alphabetically Basics comes
+// before Setup, while the syllabus teaches Setup first.
+func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	lesson := func(title string) string {
+		return "---\ntitle: " + title + "\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+	}
+	write("Writing/lessons/golang/Setup.md", lesson("Setup"))
+	write("Writing/lessons/golang/Basics.md", lesson("Basics"))
+	write("Writing/lessons/golang/Wrapping up.md", lesson("Wrapping up"))
+	write("Maps/Go course.md", "---\ntitle: Go course\ntype: study-path\ndomain: golang\n---\n\n## start | Start | 開始\n\n- [[Setup]]\n- [[Basics]]\n- [[Wrapping up]]\n")
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+
+	code, body := get(t, srv.URL+"/notes/Writing/lessons/golang/Setup.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	// Basics is what the course teaches next. It is also what the folder puts
+	// before Setup, so an arrow reading the folder would have offered it as the
+	// step back instead.
+	if want := `href="/notes/Writing/lessons/golang/Basics.md" rel="next"`; !strings.Contains(body, want) {
+		t.Errorf("the first lesson does not step forward through its course: missing %q", want)
+	}
+	if unwanted := `href="/notes/Writing/lessons/golang/Basics.md" rel="prev"`; strings.Contains(body, unwanted) {
+		t.Errorf("the first lesson steps back into the folder's order: found %q", unwanted)
+	}
+	// The course begins here, so there is nowhere behind — even though the
+	// folder holds a file that sorts earlier.
+	if strings.Contains(body, `rel="prev"`) {
+		t.Errorf("the first lesson of the course offers a step back")
+	}
+	if want := "Go course課程順序"; !strings.Contains(body, want) {
+		t.Errorf("the step does not name the order it walks: missing %q", want)
+	}
+
+	// A note no course teaches keeps the folder, and keeps saying so.
+	write("Diary/2026-08-01.md", "today\n")
+	write("Diary/2026-08-02.md", "tomorrow\n")
+	srv2 := newServerWithContract(t, root, loadHomeContract(t))
+	code, body = get(t, srv2.URL+"/notes/Diary/2026-08-01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for _, want := range []string{
+		`href="/notes/Diary/2026-08-02.md" rel="next"`,
+		"同資料夾的前後檔案",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("an entry no course teaches lost its folder line: missing %q", want)
+		}
+	}
+}
