@@ -369,3 +369,56 @@ func siteRequest(t *testing.T, method, target string, body io.Reader) *http.Requ
 	req.Host = "127.0.0.1:9610"
 	return req
 }
+
+// TestTheSiteRefusesARequestAddressedElsewhere asserts the assembled site — not
+// the middleware in isolation — turns away a request whose Host names anything
+// but this machine.
+//
+// Binding the socket to the loopback address is not the whole of that promise.
+// A name that resolves to 127.0.0.1 reaches a loopback socket from any browser
+// that can be made to ask for it, so the served handler has to read the name it
+// was addressed by and refuse the ones that are not this machine. The refusal
+// lives in one line of the assembly, and everything that watched it watched the
+// middleware rather than the assembly: removing that line left the middleware,
+// its own tests, and the socket-binding check all green while the vault
+// answered to any name at all.
+func TestTheSiteRefusesARequestAddressedElsewhere(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeRecoverySiteFixture(t, root)
+	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	tests := []struct {
+		name string
+		host string
+		want int
+	}{
+		{name: "this machine by address", host: "127.0.0.1:9610", want: http.StatusOK},
+		{name: "this machine by name", host: "localhost:9610", want: http.StatusOK},
+		{name: "this machine over the sixth version", host: "[::1]:9610", want: http.StatusOK},
+		{name: "a name that resolves back here", host: "127.0.0.1.nip.io:9610", want: http.StatusForbidden},
+		{name: "somewhere else entirely", host: "evil.example", want: http.StatusForbidden},
+		{name: "a name wearing this one as a prefix", host: "localhost.evil.example:9610", want: http.StatusForbidden},
+		{name: "an address on the machine's own network", host: "192.168.1.9:9610", want: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			req.Host = tt.host
+			recorder := httptest.NewRecorder()
+			site.ServeHTTP(recorder, req)
+			if recorder.Code != tt.want {
+				t.Errorf("GET / addressed to %q = %d, want %d", tt.host, recorder.Code, tt.want)
+			}
+		})
+	}
+}
