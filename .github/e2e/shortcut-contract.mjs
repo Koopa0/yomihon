@@ -482,7 +482,22 @@ try {
   await dispatch(page, 'keyup', '[');
   await press(page, '[');
 
+  // 360 has to reach the page as 360 pixels of room to lay out in. Where the
+  // scrollbar keeps a column of its own, a 360-wide window leaves the page 345,
+  // and the header was then asked to fit a width no phone ever hands it — so
+  // the narrowest screen this is written for was tested on one machine and a
+  // narrower one on the other. The column is measured the way the layout sees
+  // it, from an element fixed to the edges, and given back.
   await page.setViewportSize({ width: 360, height: 800 });
+  const gutter = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+    document.body.appendChild(probe);
+    const room = probe.getBoundingClientRect().width;
+    probe.remove();
+    return window.innerWidth - room;
+  });
+  if (gutter > 0) await page.setViewportSize({ width: 360 + gutter, height: 800 });
   after = await state(page);
   if (
     !after.shortcutBox

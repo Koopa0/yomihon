@@ -152,15 +152,30 @@ try {
 
   const box = await dialog.boundingBox();
   if (!box) broken('the palette dialog has no box, so nothing can be measured on it');
-  // A modal centres itself in the box the layout occupies, which is the window
-  // less whatever the scrollbar holds. Measuring against the window instead put
-  // the answer half a scrollbar off wherever scrollbars take room — true of the
-  // machine that runs this on every push, and not of the one it was written on,
-  // so a correctly centred dialog was reported as adrift.
-  const viewportCenter = await page.evaluate(() => document.documentElement.clientWidth / 2);
+  // A modal in the top layer is placed against the initial containing block:
+  // the viewport less whatever room a scrollbar takes. Neither window measure
+  // reports that box. Where scrollbars take room — true of the machine that
+  // runs this on every push, and not of the one this was written on — the
+  // window is 1280 while the box the dialog is centred in is 1265, and reading
+  // the window called a correctly centred dialog adrift by half a scrollbar.
+  //
+  // An element fixed and inset to zero resolves against that same block, so the
+  // box itself is what gets measured rather than something standing in for it.
+  // It is measured with the dialog open, because that is the layout the dialog
+  // was placed in.
+  const viewport = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+    document.body.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width;
+  });
+  const viewportCenter = viewport / 2;
   const dialogCenter = box.x + box.width / 2;
   if (Math.abs(dialogCenter - viewportCenter) > 2) {
-    fail('centered', `not centered: dialog center ${dialogCenter}px vs viewport center ${viewportCenter}px`);
+    fail('centered', `not centered: dialog center ${dialogCenter}px vs viewport center ${viewportCenter}px ` +
+      `(dialog left ${box.x}px, width ${box.width}px, in a ${viewport}px box)`);
   }
 
   // The panel fades in: opacity is what the open transition animates, and the
