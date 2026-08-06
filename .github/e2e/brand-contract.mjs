@@ -430,7 +430,12 @@ try {
       scrollWidth: document.documentElement.scrollWidth,
     };
   });
-  if (Math.abs(fit.height - 56) > 0.5 || fit.left < -0.5 || fit.right > fit.clientWidth + 0.5 || fit.scrollWidth !== fit.clientWidth) {
+  // What must not happen is the page reaching past the width it was given. It
+  // may fall short of it: where a scrollbar keeps its own column the header
+  // stops at that column's edge, which is the whole of what the reader can
+  // see. Demanding the two be equal called that correct behaviour a failure on
+  // every machine whose scrollbars take room.
+  if (Math.abs(fit.height - 56) > 0.5 || fit.left < -0.5 || fit.right > fit.clientWidth + 0.5 || fit.scrollWidth > fit.clientWidth + 0.5) {
     fail('header-fit', `360px header geometry = ${JSON.stringify(fit)}`);
   }
 

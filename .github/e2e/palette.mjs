@@ -152,7 +152,12 @@ try {
 
   const box = await dialog.boundingBox();
   if (!box) broken('the palette dialog has no box, so nothing can be measured on it');
-  const viewportCenter = 1280 / 2;
+  // A modal centres itself in the box the layout occupies, which is the window
+  // less whatever the scrollbar holds. Measuring against the window instead put
+  // the answer half a scrollbar off wherever scrollbars take room — true of the
+  // machine that runs this on every push, and not of the one it was written on,
+  // so a correctly centred dialog was reported as adrift.
+  const viewportCenter = await page.evaluate(() => document.documentElement.clientWidth / 2);
   const dialogCenter = box.x + box.width / 2;
   if (Math.abs(dialogCenter - viewportCenter) > 2) {
     fail('centered', `not centered: dialog center ${dialogCenter}px vs viewport center ${viewportCenter}px`);
