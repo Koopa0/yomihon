@@ -147,6 +147,25 @@ export function initLesson() {
         });
       }
     }
+    // Shuffle moves every slot at once and writes the new choice straight into
+    // each select, which is an assignment and so reports nothing: the sentence
+    // and the gloss both change with no sound at all. This says what the card
+    // now reads. It is built from the same data the sentence is built from, and
+    // takes the gloss off the card after it has been rewritten, so the two can
+    // never drift apart. The gloss is marked Traditional Chinese because the
+    // region around it is Japanese.
+    const live = card.querySelector('.y-slotlive');
+    function announce() {
+      if (!live) return;
+      const sentence = document.createElement('span');
+      sentence.textContent = data.template.replace(/\{([A-Za-z0-9]+)\}/g, (_, key) => fill(key)?.jp || '');
+      const gloss = document.createElement('span');
+      gloss.lang = 'zh-Hant';
+      gloss.textContent = card.querySelector('.y-slotgloss')?.textContent || '';
+      live.replaceChildren(sentence, ' ', gloss);
+    }
+    // Picking from a select is left alone: the select speaks the option itself,
+    // and repeating the whole sentence over it would talk across that.
     card.querySelectorAll('select[data-slot-key]').forEach((select) => {
       select.addEventListener('change', () => {
         selection[select.getAttribute('data-slot-key')] = Number(select.value) || 0;
@@ -165,6 +184,7 @@ export function initLesson() {
         if (select) select.value = String(selection[key]);
       });
       render();
+      announce();
     });
   }
 

@@ -21,8 +21,8 @@ templ SlotMachine(s *lesson.Sidecar, nonce string) {
 				<p class="y-slotmachine__sub">替換詞語後，句子會重新組合、著色並朗讀；直接練習本課句型。</p>
 			}
 		</div>
-		for _, p := range s.Patterns {
-			@slotCard(p, nonce)
+		for i, p := range s.Patterns {
+			@slotCard(i, p, nonce)
 		}
 	</section>
 }
@@ -30,11 +30,28 @@ templ SlotMachine(s *lesson.Sidecar, nonce string) {
 // slotCard is one pattern: its data blob (consumed by lesson.js), the abstract
 // frame + optional note, one select per distinct slot, the live sentence, the
 // Chinese gloss, and the speak / shuffle actions.
-templ slotCard(p lesson.Pattern, nonce string) {
-	<article class="y-slotcard">
+//
+// The card is an article, which a screen reader offers as a region to jump to,
+// and an unnamed one announces itself as nothing at all. Its abstract frame is
+// the heading that names it. The heading's id comes from the card's position in
+// the lesson rather than from the pattern's authored id, because nothing checks
+// that id for being present or distinct — a sidecar may leave every pattern's
+// id empty and still be accepted, and every card would then answer to the same
+// name.
+//
+// The card closes with the region lesson.js speaks through. Shuffling rewrites
+// the sentence and its gloss in place, which a reader watching the card sees
+// and a reader listening to it does not — the button reports nothing on its
+// own. The region ships empty so arriving at the page announces nothing, and it
+// declares Japanese because the sentence is Japanese: the nearest declared
+// language above it is the machine's Traditional Chinese chrome, which would
+// put the sentence in the wrong voice.
+templ slotCard(index int, p lesson.Pattern, nonce string) {
+	{{ headingID := "slot-pattern-" + strconv.Itoa(index+1) }}
+	<article class="y-slotcard" aria-labelledby={ headingID }>
 		@templ.Raw(`<script nonce="` + templ.EscapeString(nonce) + `" type="application/json" class="y-slotdata">` + lesson.PatternJSON(p) + `</script>`)
 		<header class="y-slotcard__head">
-			<span class="y-slotcard__abstract" lang="ja">{ lesson.AbstractTemplate(p.Template) }</span>
+			<h3 class="y-slotcard__abstract" id={ headingID } lang="ja">{ lesson.AbstractTemplate(p.Template) }</h3>
 			if p.Note != "" {
 				<span class="y-slotcard__note">{ p.Note }</span>
 			}
@@ -54,6 +71,7 @@ templ slotCard(p lesson.Pattern, nonce string) {
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="m15 15 6 6"></path><path d="M4 4l5 5"></path></svg>
 			</button>
 		</div>
+		<p class="y-slotlive y-offscreen" role="status" aria-live="polite" aria-atomic="true" lang="ja"></p>
 	</article>
 }
 

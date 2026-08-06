@@ -7,5 +7,8 @@ patterns:
     template: "{A}は {B}です"
     gloss_zh: "{A} 是 {B}"
     slots:
-      A: {label_zh: "主題", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}
-      B: {label_zh: "述語", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}]}
+      # Two fills per slot, because one makes shuffling a no-op and a probe
+      # driving it could not tell an announcement of the new sentence from an
+      # announcement of the sentence that was already there.
+      A: {label_zh: "主題", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}, {jp: 田中さん, reading: たなかさん, zh: 田中先生}]}
+      B: {label_zh: "述語", color: pred, fills: [{jp: 学生, reading: がくせい, zh: 學生}, {jp: 先生, reading: せんせい, zh: 老師}]}
