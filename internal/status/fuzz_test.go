@@ -21,6 +21,8 @@ func FuzzNormalizeRelPath(f *testing.F) {
 	f.Add("/absolute.md")
 	f.Add(`Writing\outside.md`)
 	f.Add("")
+	f.Add("Writing/lessons/japanese/L01.md\x00")
+	f.Add("Writing/lessons/japanese/L01.md\n\nnot the subject line")
 
 	f.Fuzz(func(t *testing.T, rel string) {
 		relSlash, osPath, err := normalizeRelPath(rel)

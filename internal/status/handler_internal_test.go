@@ -202,3 +202,61 @@ func TestRecoveryNotePathAcceptsOnlyNormalizedVaultLocalPaths(t *testing.T) {
 		}
 	}
 }
+
+// TestNormalizeRelPathRefusesControlBytes asserts a path carrying a byte below
+// a space, or the delete byte, is refused as a malformed request rather than
+// carried further.
+//
+// Two different harms sit behind the one check. A zero byte cannot name a file
+// on any platform this runs on, so the request used to travel all the way to
+// the filesystem and return an error nothing recognized, which reached the
+// reader as "yomihon could not complete this" — a fault report for what was
+// only a malformed path. The others are refused for what they would reach: the
+// path is written into the subject line of the commit that records the seal, so
+// a line ending inside the path would end that subject and continue in a body
+// of the sender's choosing, forging the shape of the receipt this face exists
+// to produce.
+func TestNormalizeRelPathRefusesControlBytes(t *testing.T) {
+	t.Parallel()
+	const note = "Writing/lessons/japanese/L01.md"
+	tests := []struct {
+		name string
+		rel  string
+	}{
+		{name: "trailing zero byte", rel: note + "\x00"},
+		{name: "leading zero byte", rel: "\x00" + note},
+		{name: "interior zero byte", rel: "Writing/les\x00sons/L01.md"},
+		{name: "line ending forges a commit body", rel: note + "\n\nnot the subject line"},
+		{name: "carriage return", rel: note + "\r"},
+		{name: "tab", rel: "Writing/les\tsons/L01.md"},
+		{name: "delete byte", rel: note + "\x7f"},
+		{name: "escape", rel: note + "\x1b[2K"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			relSlash, osPath, err := normalizeRelPath(tt.rel)
+			if !errors.Is(err, ErrInvalidPath) {
+				t.Errorf("normalizeRelPath(%q) = (%q, %q, %v), want ErrInvalidPath", tt.rel, relSlash, osPath, err)
+			}
+		})
+	}
+}
+
+// TestNormalizeRelPathKeepsOrdinaryNames asserts the refusal above reaches only
+// the bytes it names: a note whose name carries a space, a wide character or
+// punctuation is still a note this face can seal.
+func TestNormalizeRelPathKeepsOrdinaryNames(t *testing.T) {
+	t.Parallel()
+	for _, rel := range []string{
+		"Writing/lessons/japanese/L01.md",
+		"Concepts/humanities/矜持.md",
+		"Maps/topics/Go MOC.md",
+		"Writing/2026-07-30 週記.md",
+		"Notes/B-tree & friends (draft).md",
+	} {
+		if _, _, err := normalizeRelPath(rel); err != nil {
+			t.Errorf("normalizeRelPath(%q) error = %v, want nil", rel, err)
+		}
+	}
+}

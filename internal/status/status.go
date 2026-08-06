@@ -761,7 +761,7 @@ func closeRoot(root *os.Root) {
 // normalizeRelPath validates and normalizes the external slash path before any
 // contract, filesystem, or git decision. It returns both slash and OS forms.
 func normalizeRelPath(rel string) (relSlash, osPath string, err error) {
-	if rel == "" || strings.Contains(rel, `\`) || pathpkg.IsAbs(rel) {
+	if rel == "" || strings.Contains(rel, `\`) || pathpkg.IsAbs(rel) || hasControlByte(rel) {
 		return "", "", fmt.Errorf("%w: %q", ErrInvalidPath, rel)
 	}
 	normalized := pathpkg.Clean(rel)
@@ -770,6 +770,21 @@ func normalizeRelPath(rel string) (relSlash, osPath string, err error) {
 		return "", "", fmt.Errorf("%w: %q", ErrInvalidPath, rel)
 	}
 	return normalized, osPath, nil
+}
+
+// hasControlByte reports whether s carries a byte no note's name can carry.
+//
+// A zero byte ends a path as far as the operating system is concerned, so no
+// file has ever been named with one; asking to seal such a path reached the
+// filesystem and came back as an unrecognized failure, which the reader was
+// shown as "yomihon could not do this" rather than as the malformed request it
+// was. The rest of this range is refused for what it would do afterwards: this
+// path is quoted into the subject line of the commit that records the seal, and
+// a line ending inside it would split that one line into a subject and a body
+// of the sender's choosing. The receipt is the whole point of writing through
+// this face, so nothing that can forge its shape is allowed to reach it.
+func hasControlByte(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
 
 // rewriteStatusLine replaces the single "status:" line inside data's
