@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Check scans the vault rooted at root for corpus-level findings — broken and
@@ -64,7 +65,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 		findings = dropSystemScoped(findings)
 	}
 	if len(paths) > 0 {
-		filtered, ferr := filterByPaths(findings, paths)
+		filtered, ferr := filterByPaths(findings, paths, a.scan)
 		if ferr != nil {
 			return nil, ferr
 		}
@@ -133,17 +134,28 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 
 // filterByPaths keeps only findings that touch one of the given path prefixes.
 // A finding is kept when its citing path or any collision member equals a
-// prefix or lies beneath it. Each prefix is normalized to forward slashes with
-// trailing slashes trimmed, matching how a path argument is given on the
-// command line. A prefix that normalizes to nothing — an empty argument, or one
-// that is only slashes — is rejected rather than silently matching nothing,
-// so a caller cannot mistake an empty filter for a clean scan.
-func filterByPaths(findings []Finding, paths []string) ([]Finding, error) {
+// prefix or lies beneath it. Each prefix is normalized the way the scan
+// canonicalizes what it observed — forward slashes, no trailing slash, no
+// leading "./", composed form — so a path typed at a shell matches the vault's
+// own spelling of it, including one written in decomposed form by a Mac
+// keyboard.
+//
+// A prefix that cannot match anything is refused rather than filtered with. An
+// argument that is empty or only slashes names no path at all; one that names
+// something the scan never observed is a scope this command cannot see. Both
+// would otherwise return no findings and exit as though the scope were clean,
+// which is the one answer an adjudication face must never give about ground it
+// did not cover — a typo would read as a verdict. The vault root is the
+// exception it looks like: it names everything, so it filters nothing out.
+func filterByPaths(findings []Finding, paths []string, scan vault.Scan) ([]Finding, error) {
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
-		prefixes[i] = strings.TrimRight(strings.ReplaceAll(p, `\`, "/"), "/")
+		prefixes[i] = canonicalPathFilter(p)
 		if prefixes[i] == "" {
 			return nil, fmt.Errorf("path filter %q resolves to no path; give a vault-relative path", p)
+		}
+		if !scan.Contains(prefixes[i]) {
+			return nil, fmt.Errorf("path filter %q names nothing in this vault; give a vault-relative path such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)
 		}
 	}
 	out := findings[:0]
@@ -155,13 +167,41 @@ func filterByPaths(findings []Finding, paths []string) ([]Finding, error) {
 	return out, nil
 }
 
+// vaultRelativeExample stands in for a real path in the refusal above. It is a
+// shape rather than a name taken from any particular vault: the directories a
+// reader keeps notes in are theirs to name, and quoting one they do not have
+// would send them looking for it.
+const vaultRelativeExample = `"Notes" or "Notes/topic.md"`
+
+// vaultRoot is how a scan spells the folder it was opened on. A reader who
+// types it means the whole vault.
+const vaultRoot = "."
+
+// canonicalPathFilter rewrites a path typed on the command line into the form
+// the scan gives what it observed, so the two can be compared as strings.
+// Windows separators become slashes, a trailing slash and a leading "./" are
+// dropped as the shell's punctuation rather than part of the name, and the
+// result is composed: a Mac keyboard hands over CJK filenames in decomposed
+// form, which is a different string for the same folder.
+func canonicalPathFilter(p string) string {
+	p = strings.ReplaceAll(p, `\`, "/")
+	p = strings.TrimRight(p, "/")
+	for strings.HasPrefix(p, "./") {
+		p = strings.TrimPrefix(p, "./")
+		p = strings.TrimRight(p, "/")
+	}
+	return vault.NormalizeNFC(p)
+}
+
 // underAnyPrefix reports whether p equals one of the prefixes or lies directly
 // beneath it (the character after the prefix is a slash), so a prefix of
 // "Concepts/go" matches "Concepts/go" and "Concepts/go/x.md" but not
-// "Concepts/golang".
+// "Concepts/golang". The vault root is above every path and so matches all of
+// them; no finding's path is spelled with it, so comparing as a prefix would
+// match none.
 func underAnyPrefix(p string, prefixes []string) bool {
 	for _, w := range prefixes {
-		if p == w || (strings.HasPrefix(p, w) && p[len(w)] == '/') {
+		if w == vaultRoot || p == w || (strings.HasPrefix(p, w) && p[len(w)] == '/') {
 			return true
 		}
 	}

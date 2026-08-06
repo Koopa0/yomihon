@@ -124,3 +124,74 @@ func TestParseFrontmatterBoundary(t *testing.T) {
 		})
 	}
 }
+
+// TestSplitFrontmatterStepsOverAByteOrderMark asserts a note whose first bytes
+// are a byte-order mark is read as the note it is, and that stepping over the
+// mark does not move the offsets the status writer splices against.
+//
+// Some editors write the mark. A note carrying one looks ordinary to a reader
+// and to Obsidian, but its opening fence stopped being recognized here, so its
+// whole frontmatter block was read as body: the title, the type and the place
+// in the lifecycle all vanished at once, and every face agreed the note simply
+// had none — which is a legal state, so nothing anywhere reported a fault.
+func TestSplitFrontmatterStepsOverAByteOrderMark(t *testing.T) {
+	t.Parallel()
+	const mark = "\xef\xbb\xbf"
+	tests := []struct {
+		name             string
+		data             string
+		wantFound        bool
+		wantContent      string
+		wantBody         string
+		wantContentStart int
+		wantBodyLine     int
+	}{
+		{
+			name: "mark before an ordinary fence", data: mark + "---\ntitle: A\n---\nbody\n",
+			wantFound: true, wantContent: "title: A\n", wantBody: "body\n",
+			wantContentStart: 7, wantBodyLine: 4,
+		},
+		{
+			name: "mark before a carriage-return fence", data: mark + "---\r\ntitle: A\r\n---\r\nbody\r\n",
+			wantFound: true, wantContent: "title: A\r\n", wantBody: "body\r\n",
+			wantContentStart: 8, wantBodyLine: 4,
+		},
+		{
+			name: "mark with no fence after it stays body", data: mark + "just body\n",
+			wantFound: false, wantContent: "", wantBody: mark + "just body\n",
+			wantContentStart: 0, wantBodyLine: 1,
+		},
+		{
+			name: "a mark that is not first is not a mark", data: "x" + mark + "---\ntitle: A\n---\n",
+			wantFound: false, wantContent: "", wantBody: "x" + mark + "---\ntitle: A\n---\n",
+			wantContentStart: 0, wantBodyLine: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, found := vault.SplitFrontmatter([]byte(tt.data))
+			if found != tt.wantFound {
+				t.Fatalf("SplitFrontmatter(%q) found = %t, want %t", tt.data, found, tt.wantFound)
+			}
+			if string(got.Content) != tt.wantContent {
+				t.Errorf("SplitFrontmatter(%q) content = %q, want %q", tt.data, got.Content, tt.wantContent)
+			}
+			if string(got.Body) != tt.wantBody {
+				t.Errorf("SplitFrontmatter(%q) body = %q, want %q", tt.data, got.Body, tt.wantBody)
+			}
+			if got.ContentStart != tt.wantContentStart {
+				t.Errorf("SplitFrontmatter(%q) content start = %d, want %d", tt.data, got.ContentStart, tt.wantContentStart)
+			}
+			if got.BodyStartLine != tt.wantBodyLine {
+				t.Errorf("SplitFrontmatter(%q) body start line = %d, want %d", tt.data, got.BodyStartLine, tt.wantBodyLine)
+			}
+			// The offset has to name the frontmatter's place in the bytes that
+			// were handed in, not in a trimmed copy of them: the status writer
+			// slices the original file at it.
+			if found && string([]byte(tt.data)[got.ContentStart:got.ContentStart+len(got.Content)]) != tt.wantContent {
+				t.Errorf("SplitFrontmatter(%q) content start %d does not locate the content in the original bytes", tt.data, got.ContentStart)
+			}
+		})
+	}
+}

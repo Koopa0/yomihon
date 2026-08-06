@@ -43,6 +43,11 @@ type Sidebar struct {
 	// wants the next one — not a scroll through everything the folder holds.
 	Prev nav.NoteRef
 	Next nav.NoteRef
+	// FooterPrev, FooterNext and FooterLabel are the sequence the foot of the
+	// article offers, chosen from the two orders above by footerSequence.
+	FooterPrev  nav.NoteRef
+	FooterNext  nav.NoteRef
+	FooterLabel string
 
 	openMaps     map[string]bool
 	openBranches map[string]bool
@@ -70,6 +75,7 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	sb.Here, sb.HereTrimmed = windowAround(sb.Here, currentPath)
 	sb.Steps = model.Neighbors(currentPath)
 	sb.Prev, sb.Next = model.Adjacent(currentPath)
+	sb.FooterPrev, sb.FooterNext, sb.FooterLabel = footerSequence(&sb)
 
 	// Open every map branch that lists the current note, down to the
 	// branch it sits in (each heading prefix, so the ancestors open too).
@@ -309,4 +315,27 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 	default:
 		return nil
 	}
+}
+
+// footerSequence chooses which order the foot of the article offers, and what
+// to call it.
+//
+// The folder is a line for a folder of dated entries, and the arrow at the foot
+// was born for that reader. A lesson is different: the course it belongs to
+// declares its own order, printed in the rail on the same page, and the folder's
+// alphabetical order is not it. A reader whose first course happened to sort
+// into its teaching order learned to trust the arrow, then met a course where
+// the same arrow led sixty lessons away from the next thing to learn.
+//
+// So a note exactly one course teaches steps through that course. A note no
+// course teaches keeps the folder — nothing else is truer for it. A note two
+// courses teach also keeps the folder, and the rail still reports both courses
+// in full: which one the reader is walking is not something this can know, and
+// this vault does not guess.
+func footerSequence(sb *Sidebar) (prev, next nav.NoteRef, label string) {
+	if len(sb.Steps) == 1 {
+		step := sb.Steps[0]
+		return step.Prev, step.Next, step.PathTitle + "課程順序"
+	}
+	return sb.Prev, sb.Next, "同資料夾的前後檔案"
 }

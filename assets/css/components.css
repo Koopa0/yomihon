@@ -138,12 +138,21 @@ html, body { margin: 0; background: var(--bg); }
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
 }
 .y-header__spacer { flex: 1; }
-.y-brand { display: flex; align-items: center; gap: 11px; }
+/* The name is what gives when the row runs out of room, and only then. A flex
+   item refuses by default to become narrower than its own text, so on a window
+   too narrow for the whole row the last control was pushed past the edge
+   instead — a reading page at 360 with a scrollbar keeping its own column has
+   345 to lay out in and wants 354. Letting the name shorten costs a few of its
+   letters at widths no reader spends time at, and costs nothing at every width
+   where the row already fits, which is where the narrow lock now watches: the
+   name being shortened at all at 360 means something else grew. */
+.y-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .y-brand__name {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
   font-family: var(--font-display); font-weight: var(--fw-semibold);
   font-size: var(--fs-18); letter-spacing: var(--track-snug); color: var(--fg);
 }
+.y-brand__name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .y-brand__mark { display: block; width: 24px; height: 24px; flex: none; }
 .y-brand__tag { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); letter-spacing: 0.11em; }
 

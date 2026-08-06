@@ -295,6 +295,19 @@ const state = (page) => page.evaluate(({ dialog, filter, fills, shortcutControl,
     const element = document.querySelector('.y-header');
     return element ? { clientWidth: element.clientWidth, scrollWidth: element.scrollWidth } : null;
   })(),
+  // At this width the control wears its short label; the words it carries at
+  // full width do not fit beside everything else in the row. Reading the
+  // labels directly asks that question of the thing itself, rather than of a
+  // width it happens to push some other element to — a machine whose fonts run
+  // wider answers the width question differently while wearing the same label.
+  wideLabelDisplay: (() => {
+    const element = document.querySelector('.y-shortcutpref__label');
+    return element ? getComputedStyle(element).display : null;
+  })(),
+  compactLabelDisplay: (() => {
+    const element = document.querySelector('.y-shortcutpref__label-compact');
+    return element ? getComputedStyle(element).display : null;
+  })(),
 }), {
   dialog: DIALOG,
   filter: FILTER,
@@ -482,7 +495,22 @@ try {
   await dispatch(page, 'keyup', '[');
   await press(page, '[');
 
+  // 360 has to reach the page as 360 pixels of room to lay out in. Where the
+  // scrollbar keeps a column of its own, a 360-wide window leaves the page 345,
+  // and the header was then asked to fit a width no phone ever hands it — so
+  // the narrowest screen this is written for was tested on one machine and a
+  // narrower one on the other. The column is measured the way the layout sees
+  // it, from an element fixed to the edges, and given back.
   await page.setViewportSize({ width: 360, height: 800 });
+  const gutter = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+    document.body.appendChild(probe);
+    const room = probe.getBoundingClientRect().width;
+    probe.remove();
+    return window.innerWidth - room;
+  });
+  if (gutter > 0) await page.setViewportSize({ width: 360 + gutter, height: 800 });
   after = await state(page);
   if (
     !after.shortcutBox
@@ -492,8 +520,11 @@ try {
     || after.shortcutBox.right > 360
     || !after.header
     || after.header.scrollWidth > after.header.clientWidth
+    || after.wideLabelDisplay !== 'none'
+    || !after.compactLabelDisplay
+    || after.compactLabelDisplay === 'none'
   ) {
-    fail('narrow-shortcut-control', `360px header=${JSON.stringify(after.header)}, shortcut=${JSON.stringify(after.shortcutBox)}`);
+    fail('narrow-shortcut-control', `360px header=${JSON.stringify(after.header)}, labels={"wide":${JSON.stringify(after.wideLabelDisplay)},"compact":${JSON.stringify(after.compactLabelDisplay)}}, shortcut=${JSON.stringify(after.shortcutBox)}`);
   }
 
   console.log('PASS shortcut-contract: single-key preference is default-on, exact, persisted, reversible, visible, and narrow-safe; other keys remain available');

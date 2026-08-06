@@ -61,11 +61,13 @@ type NoteView struct {
 	BodyHTML     string
 
 	RenderDiagnostics []render.Diagnostic
-	// Prev and Next are the files either side of this one in its folder, so a
-	// reader walking a sequence — a month of entries, a term of lessons — can
-	// take the next step from where they are reading rather than from the rail.
-	Prev nav.NoteRef
-	Next nav.NoteRef
+	// Prev and Next are the notes either side of this one in the sequence the
+	// foot of the article offers, so a reader walking it — a month of entries,
+	// a course of lessons — can take the next step from where they are reading
+	// rather than from the rail. StepsLabel names that sequence.
+	Prev       nav.NoteRef
+	Next       nav.NoteRef
+	StepsLabel string
 	// VaultHasLinks says some note in this folder cites another. Where nothing
 	// does — a folder of dated entries, a shelf of transcripts — an empty
 	// cited-by block on every page is furniture: a reader of three years of
@@ -592,16 +594,18 @@ templ citedByBlock(v NoteView) {
 	</nav>
 }
 
-// sequenceSteps closes the article with the way onward through the folder this
-// note lives in. A folder of dated entries is a line and a term of lessons is a
-// line; a reader who has finished one wants the next, and until this existed
-// the only way to take that step was back into the rail — a diarist reading a
-// week found herself retyping the same filter seven times to do it.
+// sequenceSteps closes the article with the way onward. A folder of dated
+// entries is a line and a course of lessons is a line; a reader who has
+// finished one wants the next, and until this existed the only way to take that
+// step was back into the rail — a diarist reading a week found herself retyping
+// the same filter seven times to do it.
 //
-// The names are the folder's own labels, so the step says where it leads.
+// Which line it offers is decided beside the two orders that could answer, and
+// the label says which one arrived, so the arrow never claims an order it is
+// not walking.
 templ sequenceSteps(v NoteView) {
 	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
-		<nav class="y-steps" aria-label="同資料夾的前後檔案">
+		<nav class="y-steps" aria-label={ v.StepsLabel }>
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
 					<span class="y-steps__dir" aria-hidden="true">←</span>
