@@ -66,20 +66,36 @@ func TestShippedExampleContractLoadsAndOwnsEveryStatusAsTheWriteActor(t *testing
 		t.Fatal("no lifecycle owner was examined, so this test asserts nothing")
 	}
 
-	// Owning a status is not the same as being able to reach it: a ready row
-	// whose predecessor list is emptied still decodes, still exists, and still
-	// names the right owner, while every certification a new operator attempts
-	// is refused. Walking the canonical journey pins the topology, not just
-	// the rows.
+	// Owning a status is not the same as being able to reach it. A ready row
+	// whose predecessor list is emptied still decodes, still resolves, and
+	// still names the right owner, while every certification a new operator
+	// attempts is refused; a lifecycle bent into a cycle with no entry point
+	// passes those same checks and lets no note be created at all. Walking
+	// the journey pins the topology the rows cannot.
+	walk := []struct{ from, to string }{
+		{"", "draft"},
+		{"draft", "ready"},
+		{"ready", "archived"},
+	}
+	walked := make(map[string]bool, len(walk))
+	for _, step := range walk {
+		walked[step.to] = true
+	}
+
 	for _, noteType := range noteTypes {
-		for _, step := range []struct{ from, to string }{
-			{"", "draft"},
-			{"draft", "ready"},
-			{"ready", "archived"},
-		} {
+		for _, step := range walk {
 			if err := contract.Transition(noteType, step.from, step.to, actor); err != nil {
 				t.Errorf("Transition(%q, %q→%q, %q) = %v, want allowed: the starting point promises this walk",
 					noteType, step.from, step.to, actor, err)
+			}
+		}
+		// The walk is written out rather than derived, so it would stop
+		// covering a status the moment one is added. Saying so here turns
+		// that into a failure instead of a quiet gap.
+		for _, status := range contract.Statuses(noteType) {
+			if !walked[status] {
+				t.Errorf("the example declares status %q for type %q but the walk never reaches it: extend the walk or drop the status",
+					status, noteType)
 			}
 		}
 	}
