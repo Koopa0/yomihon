@@ -65,4 +65,22 @@ func TestShippedExampleContractLoadsAndOwnsEveryStatusAsTheWriteActor(t *testing
 	if owners == 0 {
 		t.Fatal("no lifecycle owner was examined, so this test asserts nothing")
 	}
+
+	// Owning a status is not the same as being able to reach it: a ready row
+	// whose predecessor list is emptied still decodes, still exists, and still
+	// names the right owner, while every certification a new operator attempts
+	// is refused. Walking the canonical journey pins the topology, not just
+	// the rows.
+	for _, noteType := range noteTypes {
+		for _, step := range []struct{ from, to string }{
+			{"", "draft"},
+			{"draft", "ready"},
+			{"ready", "archived"},
+		} {
+			if err := contract.Transition(noteType, step.from, step.to, actor); err != nil {
+				t.Errorf("Transition(%q, %q→%q, %q) = %v, want allowed: the starting point promises this walk",
+					noteType, step.from, step.to, actor, err)
+			}
+		}
+	}
 }
