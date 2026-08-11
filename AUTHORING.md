@@ -7,8 +7,8 @@ How Markdown becomes structure in yomihon.
 | | |
 |---|---|
 | The sequence contract below | **decided** by the vault owner |
+| Candidate rows, task checkboxes, undeclared nesting | **decided** by the vault owner |
 | The parser that reads it | **not implemented** |
-| Candidate rows, task checkboxes, undeclared nesting | **not decided** |
 | Map and report syntax | **out of scope here** |
 
 An agent writing into a vault must not present this syntax as something
@@ -98,9 +98,62 @@ A valid `{sequence=local}` nested group-container marks a structural edge:
 - the container is **not** itself an entry candidate;
 - the child rows belong to the child group **alone**.
 
-Nesting that carries no valid declaration keeps whatever the general nesting
-rule turns out to be. That question is open, and this boundary does not
-settle it.
+Nesting that carries no valid declaration is settled below, under
+"Undeclared nesting"; this boundary rule is about declared containers only.
+
+### The candidate grammar
+
+A candidate is a list row — ordered or unordered, either is the same row —
+holding at least one live wikilink in the item's own target scope. Row
+punctuation declares nothing; order is source order and nothing else.
+
+A **live** wikilink addresses another note. An embed (`![[…]]`) shows a
+note rather than listing it, a same-file anchor (`[[#…]]`, `[[^…]]`) names
+no note, and a link inside code or an Obsidian comment is quoted or
+switched off. None of those is live.
+
+An item's **target scope** is its own text: everything the item says from
+its list marker to its end, including continuation content that follows a
+nested list, and excluding every nested list subtree — a declared local
+container's subtree by the boundary rule above, an undeclared one by the
+nesting rule below. A second live wikilink anywhere in that scope makes
+the row `path.entry_multi_target`.
+
+A candidate is **canonical** when both hold:
+
+- the first visible inline after the list marker is a live, non-embed
+  wikilink — it may be wrapped in bold or italic, and nothing else may
+  come before it;
+- the item's whole target scope holds no second live wikilink.
+
+A canonical candidate is an entry. Text after the link is read as prose,
+never as a second declaration: a link-first action sentence is an entry
+and gains no further guessed meaning. A row whose single live link comes
+after anything else — a label, an embed, a same-file anchor, inline code —
+is still a candidate, but it is never accepted: it reports
+`path.entry_noncanonical` with its line, and the author either moves the
+link to the front or takes the row out of the course.
+
+### Task checkboxes
+
+A task checkbox row (`- [ ]`, `- [x]`) is never a candidate and never an
+entry: it tracks whether something was done, which is a different question
+from what the course lists. It also cannot anchor a side branch — a local
+container nested under a checkbox row has nothing to hang from and
+reports `path.local_orphan`.
+
+### Before the first branch
+
+There is no implicit root. A candidate before the first level-2 heading
+belongs to no part of the course and reports `path.entry_outside_branch`;
+the course starts where its first branch is declared.
+
+### Undeclared nesting
+
+A nested list whose row declares nothing keeps its source exactly as
+written, projects nothing, and is reported. Yomihon never flattens it into
+the enclosing branch and never guesses what it was meant to be: the author
+declares it, or it stays prose.
 
 ### Two words that must not be confused
 
@@ -201,20 +254,29 @@ absent from navigation and reads normally on the page.
 | `path.role_on_entry` | a container that is itself a candidate: it cannot be both a lesson and a branch heading |
 | `path.role_invalid` | a value outside the three, or no value at all |
 | `path.role_misplaced` | a well-formed marker somewhere it cannot be read |
+| `path.entry_noncanonical` | a candidate whose single live link is not the first visible inline — the row stays a row, and no entry is accepted from it |
+| `path.entry_outside_branch` | a candidate before the first level-2 heading — there is no implicit root for it to join |
+| `path.entry_multi_target` | a row whose target scope names more than one note |
+
+`path.entry_multi_target` has three honest rewrites, and which one is right
+is the author's call, not the parser's:
+
+- parallel members — give each lesson its own row;
+- a relation between notes — turn the row into an ordinary paragraph;
+- one entry with commentary — keep the link-first entry and move the
+  commentary to an ordinary paragraph after the item.
 
 Every one carries the source line and is addressed to the author: these reach
-the author through the judge and never enter a reader's page. A malformed or
-misplaced declaration never fails silently. Yomihon does not guess, does not
-flatten, and does not edit the file.
+the author through the judge and never enter a reader's page. Every `path.*`
+finding is a warning in its first version — reading always proceeds; what
+waits on the author is the structured projection. A malformed or misplaced
+declaration never fails silently. Yomihon does not guess, does not flatten,
+and does not edit the file.
 
 ## Not decided
 
 None of the following is settled by anything above, and none of it may be
 inferred from the rules on this page:
 
-- which rows the candidate grammar recognizes at all;
-- whether a task checkbox marks an unfinished lesson or a row that navigation
-  never reads;
-- the full meaning of nesting that carries no declaration;
 - the map grammar;
 - the report format.
