@@ -9,9 +9,14 @@ vault and deciding what to do about what you read. It renders your notes as
 calm, navigable pages, and it writes exactly one thing back: a note's lifecycle
 `status`, as one git commit under your own name.
 
-[![A note open in yomihon: the vault's notes down the left, the article in the
-middle in a serif face, and the note's status, contents, and relations down the
+[![Yomihon's Traditional Chinese browser interface, with a note open for
+reading: the vault's notes down the left, the article in the middle in a serif
+face, and the note's status, contents, and relations down the
 right](.github/media/reading.png)](.github/media/reading.png)
+
+*The browser chrome is intentionally in Traditional Chinese. Vault notes keep
+their own declared language; this screenshot was captured from a demonstration
+vault.*
 
 > [!WARNING]
 > yomihon is under active development. Expect significant feature and
@@ -36,10 +41,18 @@ right](.github/media/reading.png)](.github/media/reading.png)
 2. **Local by default.** The server has no authentication and listens only on
    `127.0.0.1`. Reading and lexical search stay on your machine; provider
    egress requires an explicit semantic action and your own credential.
-3. **The vault owns its contract.** Schema, privacy, navigation, and lifecycle
-   rules come from `System/schemas/vault-schema.toml`, never a copy compiled
-   into the binary.
-4. **Problems stay visible.** Invalid metadata and broken or ambiguous links
+3. **The vault owns its contract.** The legal types and fields, the lifecycle,
+   the privacy boundary, and which document types may take part in path and
+   map behaviour all come from `System/schemas/vault-schema.toml`, never a
+   copy compiled into the binary.
+4. **Ordinary Markdown needs no changes.** A folder of notes reads, links,
+   searches and renders as it is. Structured presentation — a course with an
+   order, a side branch, a block that stays out of navigation — is opt-in, and
+   the body syntax for it belongs to yomihon rather than to your vault:
+   see [`AUTHORING.md`](AUTHORING.md). That contract is settled; the parser
+   that reads it is **not implemented yet**, so writing to it today changes
+   nothing on screen.
+5. **Problems stay visible.** Invalid metadata and broken or ambiguous links
    become diagnostics. The renderer never guesses or repairs your notes.
 
 ## Requirements
