@@ -28,14 +28,16 @@ const (
 	declMisplaced
 )
 
-// parseMarker reads a role declaration off one source line.
+// readMarker reads a role declaration off one source line, considering only
+// the marker spans the caller passes in. The caller filters out spans that sit
+// inside code or an Obsidian comment: a marker there is quoted or switched
+// off, not written, so it neither declares a role nor draws a report.
 //
 // A recognized marker is removed from the name, because a declaration is not
 // part of what the branch is called; the file's own bytes are never touched.
 // Anything unrecognized leaves the text exactly as written, so a reader sees
 // what the author typed and can find it.
-func parseMarker(line string) (name string, role Role, decl declKind) {
-	spans := markerSpans(line)
+func readMarker(line string, spans []Span) (name string, role Role, decl declKind) {
 	switch len(spans) {
 	case 0:
 		return line, RoleStructural, declNone
@@ -44,16 +46,16 @@ func parseMarker(line string) (name string, role Role, decl declKind) {
 		return line, RoleStructural, declDuplicate
 	}
 	span := spans[0]
-	if strings.TrimSpace(line[span.stop:]) != "" {
+	if strings.TrimSpace(line[span.Stop:]) != "" {
 		// A marker mid-line is read by nobody: the contract places it at end of
 		// line so a branch's name is everything before it.
 		return line, RoleStructural, declMisplaced
 	}
-	role, ok := markerValue(line[span.start:span.stop])
+	role, ok := markerValue(line[span.Start:span.Stop])
 	if !ok {
 		return line, RoleStructural, declInvalid
 	}
-	return strings.TrimRight(line[:span.start], " \t"), role, declValid
+	return strings.TrimRight(line[:span.Start], " \t"), role, declValid
 }
 
 // markerValue reads the value out of one whole marker.
@@ -78,8 +80,8 @@ func markerValue(marker string) (Role, bool) {
 // markerSpans locates every "{sequence...}" on a line. A marker with no closing
 // brace is not a marker at all — it is text the author wrote — so an unclosed
 // opener ends the scan rather than swallowing the rest of the line.
-func markerSpans(line string) []byteRange {
-	var spans []byteRange
+func markerSpans(line string) []Span {
+	var spans []Span
 	for off := 0; ; {
 		rel := strings.Index(line[off:], markerOpen)
 		if rel < 0 {
@@ -91,7 +93,7 @@ func markerSpans(line string) []byteRange {
 			return spans
 		}
 		stop := start + relEnd + len(markerClose)
-		spans = append(spans, byteRange{start, stop})
+		spans = append(spans, Span{start, stop})
 		off = stop
 	}
 }
