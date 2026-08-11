@@ -520,7 +520,7 @@ func TestShowKeepsTheWriteFaceClosedOnAGovernedFolderThatIsNoRepository(t *testi
 		if !strings.Contains(surface.body, `data-status-state="unavailable"`) {
 			t.Errorf("%s did not mark the write face unavailable", surface.name)
 		}
-		if !strings.Contains(surface.body, status.GitBlockReason) {
+		if !strings.Contains(surface.body, status.GitBlock.Body) {
 			t.Errorf("%s does not say why the transition would be refused", surface.name)
 		}
 		for _, leaked := range []string{"操作者 · koopa", "目前沒有合法的狀態轉換", `action="/status"`} {
@@ -2725,7 +2725,7 @@ func TestWriteBlockShownBeforeThePress(t *testing.T) {
 	if !strings.Contains(clean, `name="to" value="`+schema.SealStatus+`"`) {
 		t.Fatalf("committed note is missing the seal control this test depends on; body = %q", clean)
 	}
-	if strings.Contains(clean, status.DirtyBlockReason) {
+	if strings.Contains(clean, status.DirtyBlock.Body) {
 		t.Errorf("committed note shows the uncommitted-changes notice; it would then never mean anything")
 	}
 
@@ -2737,7 +2737,7 @@ func TestWriteBlockShownBeforeThePress(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status after the edit = %d, want 200", code)
 	}
-	if !strings.Contains(dirty, status.DirtyBlockReason) {
+	if !strings.Contains(dirty, status.DirtyBlock.Body) {
 		t.Errorf("note with an uncommitted edit does not state why a transition would be refused; body = %q", dirty)
 	}
 	if !strings.Contains(dirty, `name="to" value="`+schema.SealStatus+`"`) {
@@ -2851,14 +2851,24 @@ func TestRefusedTransitionsRenderInert(t *testing.T) {
 		t.Fatalf("note with an uncommitted edit offers %d transition controls, want %d; body = %q",
 			len(dirtyButtons), wantButtons, dirty)
 	}
-	escapedReason := html.EscapeString(status.DirtyBlockReason)
+	// The control's accessible name carries the headline, not the paragraph: a
+	// reader arriving at the button hears which refusal this is before the
+	// button's own purpose, and the full text is in the notice beside it.
+	escapedHeadline := html.EscapeString(status.DirtyBlock.Headline)
+	escapedBody := html.EscapeString(status.DirtyBlock.Body)
 	for _, button := range dirtyButtons {
 		if !strings.Contains(button, " disabled") {
 			t.Errorf("a transition the write path would refuse is still pressable: %q", button)
 		}
-		if !strings.Contains(button, escapedReason) {
+		if !strings.Contains(button, escapedHeadline) {
 			t.Errorf("a refused control does not name its reason: %q", button)
 		}
+		if strings.Contains(button, escapedBody) {
+			t.Errorf("a refused control reads the whole explanation as its name: %q", button)
+		}
+	}
+	if !strings.Contains(dirty, escapedBody) || !strings.Contains(dirty, html.EscapeString(status.DirtyBlock.NextStep)) {
+		t.Errorf("the page states the refusal only in the control names; the notice beside them lost the reason or the step: %q", dirty)
 	}
 	if strings.Contains(dirty, "y-sealbtn__hint") {
 		t.Error("a refused seal still advertises the R shortcut, which would do nothing")
@@ -2951,7 +2961,7 @@ func TestFolderWithoutGitOffersNoTransition(t *testing.T) {
 	if n := strings.Count(page, `action="/status"`); n != 0 {
 		t.Errorf("page offers %d transition control(s) in a folder with no git repository; each one can only fail", n)
 	}
-	if !strings.Contains(page, status.GitBlockReason) {
+	if !strings.Contains(page, status.GitBlock.Body) {
 		t.Errorf("page does not say why the write face is closed; body = %q", page)
 	}
 }

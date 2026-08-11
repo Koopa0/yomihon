@@ -92,9 +92,14 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 }
 
 type recovery struct {
-	code            int
-	changed         bool
-	noteGone        bool
+	code     int
+	changed  bool
+	noteGone bool
+	// headline replaces the page's generic title when a refusal has a better
+	// one to offer — the thing the operator should do, rather than a restatement
+	// of what did not happen. It never applies once the note bytes changed: that
+	// page has to keep saying so.
+	headline        string
 	summary         string
 	nextAction      string
 	technicalDetail string
@@ -148,13 +153,14 @@ func recoveryFor(err error) *recovery {
 	case errors.Is(err, ErrDirty):
 		return &recovery{
 			code:       http.StatusConflict,
-			summary:    "檔案有尚未提交的變更；yomihon 沒有把狀態操作混入既有修改，以免污染稽核紀錄。",
-			nextAction: "先在 vault 中檢查並提交或處理既有修改，再回到筆記重新操作。",
+			headline:   DirtyBlock.Headline,
+			summary:    DirtyBlock.Body,
+			nextAction: DirtyBlock.NextStep,
 		}
 	case errors.Is(err, ErrWorkTreeUnreadable):
 		return &recovery{
 			code:       http.StatusServiceUnavailable,
-			summary:    GitBlockReason,
+			summary:    GitBlock.Body,
 			nextAction: "在這個資料夾建立 git 版本庫，或改用一個已是版本庫的 vault；閱讀與搜尋不受影響。",
 			// git's own message names the folder, so it stays in the log and
 			// out of the page.
@@ -252,13 +258,14 @@ func (h *Handler) respondRecovery(
 	shell := h.shell()
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,
+		Headline:        failure.headline,
 		Summary:         failure.summary,
 		NextAction:      failure.nextAction,
 		TechnicalDetail: failure.technicalDetail,
 		NotePath:        notePath,
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
-	component := pages.StatusRecovery(view, shell.Chrome(r, viewTitle(failure.changed)))
+	component := pages.StatusRecovery(view, shell.Chrome(r, view.Title()))
 	if err := writeRecovery(w, r.Context(), failure.code, failure.changed, component); err != nil {
 		h.log.Error("render status recovery", "path", path, "changed", failure.changed, "error", err)
 	}
@@ -270,13 +277,6 @@ func recoveryNotePath(path string) string {
 		return ""
 	}
 	return normalized
-}
-
-func viewTitle(changed bool) string {
-	if changed {
-		return "狀態已寫入，需要手動收尾"
-	}
-	return "狀態尚未變更"
 }
 
 func writeRecovery(

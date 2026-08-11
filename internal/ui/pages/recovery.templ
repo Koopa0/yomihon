@@ -6,7 +6,11 @@ import "github.com/koopa0/yomihon/internal/ui/layouts"
 // change. Changed distinguishes failures before publication from failures
 // after the note bytes were replaced; callers must never infer it from copy.
 type StatusRecoveryView struct {
-	Changed         bool
+	Changed bool
+	// Headline is the refusal's own title where it has a better one than the
+	// generic outcome — usually the operator's next action. It is ignored once
+	// the note bytes changed, because that page has one thing to say first.
+	Headline        string
 	Summary         string
 	NextAction      string
 	TechnicalDetail string
@@ -14,9 +18,15 @@ type StatusRecoveryView struct {
 	Sidebar         Sidebar
 }
 
-func (v StatusRecoveryView) title() string {
+// Title is the page's one title, used for both the document title and the
+// heading so a reader switching between the tab and the page reads the same
+// sentence.
+func (v StatusRecoveryView) Title() string {
 	if v.Changed {
 		return "狀態已寫入，需要手動收尾"
+	}
+	if v.Headline != "" {
+		return v.Headline
 	}
 	return "狀態尚未變更"
 }
@@ -39,7 +49,7 @@ templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
 			<main id="main-content" tabindex="-1" class="y-main y-recoverymain">
 				<article class="y-recovery" lang="zh-Hant" aria-labelledby="recovery-title">
 					<p class="y-recovery__kicker">生命週期寫入</p>
-					<h1 id="recovery-title" class="y-title">{ v.title() }</h1>
+					<h1 id="recovery-title" class="y-title">{ v.Title() }</h1>
 					<p class="y-recovery__state" data-status-changed={ v.Changed }>{ v.mutationState() }</p>
 					<p class="y-recovery__summary">{ v.Summary }</p>
 					if v.TechnicalDetail != "" {

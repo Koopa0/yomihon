@@ -103,7 +103,14 @@ type NoteView struct {
 	// uncommitted edit to this note, or an unreadable working tree. Empty means
 	// nothing is known to stand in the way. The controls stay visible either
 	// way: the reason is advisory, and the operator can clear it and reload.
-	WriteBlock string
+	//
+	// WriteBlockHeadline and WriteBlockNextStep are the same refusal's title and
+	// clearing step where it has them. The headline is what a control carries as
+	// its accessible name, so a reason long enough to explain itself in the
+	// paragraph does not have to be read out before the control's own purpose.
+	WriteBlock         string
+	WriteBlockHeadline string
+	WriteBlockNextStep string
 
 	// JustSealed is set from a one-shot ?sealed=1 PRG signal; SealedHash is the
 	// read-only git short hash of the sealing commit. Both apply only to a sealed
@@ -719,7 +726,9 @@ templ statusPanel(v NoteView) {
 					}
 				default:
 					if v.WriteBlock != "" {
-						<p class="y-statuspanel__notice y-writeblock">{ v.WriteBlock }</p>
+						<p class="y-statuspanel__notice y-writeblock">
+							@writeBlockNotice(v)
+						</p>
 					}
 					<div class="y-statuspanel__forms">
 						@legalTransitionForms(v)
@@ -789,7 +798,7 @@ templ transitionForm(v NoteView, to string) {
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
 		<input type="hidden" name="to" value={ to }/>
-		<button class="y-xbtn" type="submit" { refusalAttrs(v.WriteBlock, to)... }>{ to }</button>
+		<button class="y-xbtn" type="submit" { refusalAttrs(writeBlockLabel(v), to)... }>{ to }</button>
 	</form>
 }
 
@@ -805,9 +814,34 @@ templ transitionForm(v NoteView, to string) {
 // the control.
 func sealButtonLabel(v NoteView) string {
 	if v.WriteBlock != "" {
-		return "認證 " + v.SealTarget + "：" + v.WriteBlock
+		return "認證 " + v.SealTarget + "：" + writeBlockLabel(v)
 	}
 	return "按住以認證 " + v.SealTarget
+}
+
+// writeBlockLabel is the refusal in the length an accessible name can carry:
+// the headline where the refusal has one, and the reason itself otherwise. The
+// full text is in the notice beside the control either way, so the name says
+// which refusal this is rather than reading the whole paragraph aloud first.
+func writeBlockLabel(v NoteView) string {
+	if v.WriteBlockHeadline != "" {
+		return v.WriteBlockHeadline
+	}
+	return v.WriteBlock
+}
+
+// writeBlockNotice states a refusal in both status faces. The headline is the
+// operator's own next move, so it leads; the reason and the step that clears it
+// follow. Every part is inline-level markup, because one face is a paragraph
+// and the other a span inside the seal bar.
+templ writeBlockNotice(v NoteView) {
+	if v.WriteBlockHeadline != "" {
+		<strong class="y-writeblock__head">{ v.WriteBlockHeadline }</strong>
+	}
+	<span class="y-writeblock__body">{ v.WriteBlock }</span>
+	if v.WriteBlockNextStep != "" {
+		<span class="y-writeblock__step">{ v.WriteBlockNextStep }</span>
+	}
 }
 
 // refusalAttrs marks a quiet transition control the working tree would refuse.
@@ -903,7 +937,9 @@ templ sealBar(v NoteView) {
 					<span class="y-actor">鈐印 · 已認證</span>
 					if len(v.Transitions) > 0 {
 						if v.WriteBlock != "" {
-							<span class="y-sealbar__notice y-writeblock">{ v.WriteBlock }</span>
+							<span class="y-sealbar__notice y-writeblock">
+								@writeBlockNotice(v)
+							</span>
 						}
 						<span class="y-sealbar__spacer"></span>
 						@legalTransitionForms(v)
@@ -913,7 +949,9 @@ templ sealBar(v NoteView) {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					}
 					if v.WriteBlock != "" {
-						<span class="y-sealbar__notice y-writeblock">{ v.WriteBlock }</span>
+						<span class="y-sealbar__notice y-writeblock">
+							@writeBlockNotice(v)
+						</span>
 					}
 					<span class="y-sealbar__spacer"></span>
 					@legalTransitionForms(v)

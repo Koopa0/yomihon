@@ -547,6 +547,14 @@ html, body { margin: 0; background: var(--bg); }
    as a condition the reader can clear, distinct from the neutral notices. */
 .y-writeblock { color: var(--warn); border-inline-start: 2px solid currentColor; padding-inline-start: 10px; }
 .y-sealbar__notice.y-writeblock { border-inline-start: none; padding-inline-start: 0; flex: 1 1 auto; min-width: 0; }
+/* The refusal reads as three lines, not one paragraph: what to do, why the
+   transition stopped, and the step that clears it. Both faces carry all three,
+   and one of them is a span, so each part becomes its own block here rather
+   than relying on the element it happens to sit in. */
+.y-writeblock__head, .y-writeblock__body, .y-writeblock__step { display: block; }
+.y-writeblock__head { font-weight: 600; }
+.y-writeblock__body, .y-writeblock__step { font-weight: 400; }
+.y-writeblock__step { margin-top: 4px; color: var(--fg-subtle); }
 
 /* ============================================================
    ⌘K search dialog (native <dialog>)

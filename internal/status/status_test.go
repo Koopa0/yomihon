@@ -1299,8 +1299,8 @@ func TestWriteBlockReasonReportsUncommittedChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteBlockReason(%q) on a committed note = %v", testRel, err)
 	}
-	if clean != "" {
-		t.Fatalf("WriteBlockReason(%q) on a committed note = %q, want no reason", testRel, clean)
+	if clean.Blocked() {
+		t.Fatalf("WriteBlockReason(%q) on a committed note = %+v, want no refusal", testRel, clean)
 	}
 
 	writeNote(t, root, lessonContent("draft")+"\nan edit nobody committed\n")
@@ -1309,9 +1309,9 @@ func TestWriteBlockReasonReportsUncommittedChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteBlockReason(%q) after an uncommitted edit = %v", testRel, err)
 	}
-	if dirty != status.DirtyBlockReason {
-		t.Errorf("WriteBlockReason(%q) after an uncommitted edit = %q, want %q",
-			testRel, dirty, status.DirtyBlockReason)
+	if dirty != status.DirtyBlock {
+		t.Errorf("WriteBlockReason(%q) after an uncommitted edit = %+v, want %+v",
+			testRel, dirty, status.DirtyBlock)
 	}
 }
 
@@ -1332,7 +1332,7 @@ func TestWriteBlockReasonAgreesWithFlip(t *testing.T) {
 	if !errors.Is(flipErr, status.ErrDirty) {
 		t.Fatalf("Flip(%q) = %v, want ErrDirty so the two faces describe one rule", testRel, flipErr)
 	}
-	if reason == "" {
+	if !reason.Blocked() {
 		t.Error("WriteBlockReason gave no reason for a note Flip refuses; the page would offer a control that cannot work")
 	}
 }

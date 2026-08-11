@@ -14,7 +14,11 @@ import "github.com/koopa0/yomihon/internal/ui/layouts"
 // change. Changed distinguishes failures before publication from failures
 // after the note bytes were replaced; callers must never infer it from copy.
 type StatusRecoveryView struct {
-	Changed         bool
+	Changed bool
+	// Headline is the refusal's own title where it has a better one than the
+	// generic outcome — usually the operator's next action. It is ignored once
+	// the note bytes changed, because that page has one thing to say first.
+	Headline        string
 	Summary         string
 	NextAction      string
 	TechnicalDetail string
@@ -22,9 +26,15 @@ type StatusRecoveryView struct {
 	Sidebar         Sidebar
 }
 
-func (v StatusRecoveryView) title() string {
+// Title is the page's one title, used for both the document title and the
+// heading so a reader switching between the tab and the page reads the same
+// sentence.
+func (v StatusRecoveryView) Title() string {
 	if v.Changed {
 		return "狀態已寫入，需要手動收尾"
+	}
+	if v.Headline != "" {
+		return v.Headline
 	}
 	return "狀態尚未變更"
 }
@@ -85,9 +95,9 @@ func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.title())
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Title())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 42, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 52, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -100,7 +110,7 @@ func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Changed)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 43, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 53, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -113,7 +123,7 @@ func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(v.mutationState())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 43, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 53, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -126,7 +136,7 @@ func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(v.Summary)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 44, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 54, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -144,7 +154,7 @@ func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.TechnicalDetail)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 48, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 58, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -162,7 +172,7 @@ func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(v.NextAction)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 53, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 63, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -180,7 +190,7 @@ func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var9 templ.SafeURL
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(v.NotePath)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 57, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/recovery.templ`, Line: 67, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {

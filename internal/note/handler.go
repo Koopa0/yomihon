@@ -63,7 +63,7 @@ type Dependencies struct {
 	// WriteBlock is a closure over the write package's read-only working-tree
 	// query. It answers why a transition on this note would be refused, so the
 	// reading page states it beside the controls rather than after a press.
-	WriteBlock func(ctx context.Context, rel string) (string, error)
+	WriteBlock func(ctx context.Context, rel string) (status.Block, error)
 	// ObservedStatus is a closure over the write package's read of the note's
 	// own status line. The rest of the page comes from a scan that lags the
 	// folder by a couple of seconds, which a body and a link graph can afford
@@ -521,7 +521,7 @@ func (h *Handler) observedStatus(ctx context.Context, rel string) (observed stat
 	observed, err := h.deps.ObservedStatus(ctx, rel)
 	if err != nil {
 		h.deps.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
-		return status.Observed{}, status.ReadBlockReason
+		return status.Observed{}, status.ReadBlock.Body
 	}
 	return observed, ""
 }
@@ -542,17 +542,19 @@ func (h *Handler) addWriteBlock(ctx context.Context, rel string, view *pages.Not
 	if len(view.Transitions) == 0 || h.deps.WriteBlock == nil {
 		return
 	}
-	reason, err := h.deps.WriteBlock(ctx, rel)
+	block, err := h.deps.WriteBlock(ctx, rel)
 	if err != nil {
 		h.deps.Log.Warn("write block check", "path", rel, "error", err)
-		if reason == "" {
-			reason = status.GitBlockReason
+		if !block.Blocked() {
+			block = status.GitBlock
 		}
-		view.WriteDiagnostic = reason
+		view.WriteDiagnostic = block.Body
 		view.Transitions = nil
 		return
 	}
-	view.WriteBlock = reason
+	view.WriteBlock = block.Body
+	view.WriteBlockHeadline = block.Headline
+	view.WriteBlockNextStep = block.NextStep
 }
 
 // addSealProvenance performs the git read only for a governed sealed note and

@@ -343,49 +343,87 @@ func (lc *Lifecycle) LastCommitHash(
 	return lc.lastCommitHash(ctx, rel, expected, provenanceHooks{})
 }
 
+// Block is one operator-facing refusal, in the three parts a reader needs: the
+// thing to do, why the transition stopped, and the step that clears it.
+//
+// The parts stay separate because they are read in different places. A control
+// the working tree would refuse carries Headline as its accessible name, where
+// three sentences would bury the answer; the paragraph beside it can afford all
+// three.
+type Block struct {
+	Headline string
+	Body     string
+	NextStep string
+}
+
+// Blocked reports whether this value names a refusal at all.
+func (b Block) Blocked() bool { return b.Body != "" }
+
+// Label is the short form for an accessible name: the headline where one was
+// written, and the body otherwise.
+func (b Block) Label() string {
+	if b.Headline != "" {
+		return b.Headline
+	}
+	return b.Body
+}
+
 // Operator-facing reasons a transition would be refused, stated before the
 // press rather than after it.
-const (
-	// DirtyBlockReason explains the refusal a note with uncommitted changes
-	// would receive. Staging the file would carry the pre-existing edit into
-	// the commit that records the transition, so the write face declines
-	// instead of folding the two together.
-	DirtyBlockReason = "此筆記有尚未提交的變更。狀態操作會被拒絕，以免把既有修改一併寫進紀錄；請先在 vault 提交或還原那些變更。"
-	// GitBlockReason explains a refusal caused by the working tree being
-	// unreadable — most often a folder that is not a git repository at all.
-	GitBlockReason = "無法讀取這個資料夾的 git 狀態。狀態寫入需要可用的 git 版本庫，這個轉換會被拒絕。"
+var (
+	// DirtyBlock explains the refusal a note with uncommitted changes would
+	// receive. Staging the file would carry the pre-existing edit into the
+	// commit that records the transition, so the write face declines instead of
+	// folding the two together.
+	//
+	// It names the operator's own next action first because that is what the
+	// reader wants, and it puts committing before reverting deliberately:
+	// yomihon never removes anyone's work, and a message that offers discarding
+	// as the equal first option reads as an invitation to lose an edit.
+	DirtyBlock = Block{
+		Headline: "先處理這篇筆記的其他修改",
+		Body:     "Yomihon 只會單獨記錄狀態變更。為避免把內容修改一起提交，這次不會變更狀態。",
+		NextStep: "請先提交這篇筆記的修改；若確定不需要這些修改，才將它還原。完成後重新整理此頁。",
+	}
+	// GitBlock explains a refusal caused by the working tree being unreadable —
+	// most often a folder that is not a git repository at all.
+	GitBlock = Block{
+		Body: "無法讀取這個資料夾的 git 狀態。狀態寫入需要可用的 git 版本庫，這個轉換會被拒絕。",
+	}
 
-	// ReadBlockReason is shown when the note's own status line could not be
-	// read for this request. The page will not offer a transition from a value
-	// it could not confirm: whatever blocked the read blocks the write too, so
-	// every control derived from it would be refused on arrival.
-	ReadBlockReason = "無法讀取這個筆記目前的狀態。狀態操作暫時關閉，重新載入頁面可以再試一次。"
+	// ReadBlock is shown when the note's own status line could not be read for
+	// this request. The page will not offer a transition from a value it could
+	// not confirm: whatever blocked the read blocks the write too, so every
+	// control derived from it would be refused on arrival.
+	ReadBlock = Block{
+		Body: "無法讀取這個筆記目前的狀態。狀態操作暫時關閉，重新載入頁面可以再試一次。",
+	}
 )
 
 // WriteBlockReason reports why a transition on rel would be refused right now,
-// or "" when one could proceed. The transition controls are derived from the
-// contract alone, which cannot see the working tree, so without this the
-// reading page offers a control the write path then rejects. The answer is
+// or the zero Block when one could proceed. The transition controls are derived
+// from the contract alone, which cannot see the working tree, so without this
+// the reading page offers a control the write path then rejects. The answer is
 // advisory: it is computed for one request and the write path revalidates
-// under its own lock, so a stale "" costs a refusal, never a wrong write.
-func (lc *Lifecycle) WriteBlockReason(ctx context.Context, rel string) (string, error) {
+// under its own lock, so a stale zero costs a refusal, never a wrong write.
+func (lc *Lifecycle) WriteBlockReason(ctx context.Context, rel string) (Block, error) {
 	_, osPath, err := normalizeRelPath(rel)
 	if err != nil {
-		return "", err
+		return Block{}, err
 	}
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	if lc.root == nil {
-		return "", ErrClosed
+		return Block{}, ErrClosed
 	}
 	dirty, err := lc.dirty(ctx, osPath)
 	if err != nil {
-		return GitBlockReason, err
+		return GitBlock, err
 	}
 	if dirty {
-		return DirtyBlockReason, nil
+		return DirtyBlock, nil
 	}
-	return "", nil
+	return Block{}, nil
 }
 
 // Observed is what one read of a note's own file found. Status and ContentHash

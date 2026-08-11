@@ -312,8 +312,16 @@ func TestHandlerDirty(t *testing.T) {
 	if code != http.StatusConflict {
 		t.Errorf("status = %d, want %d", code, http.StatusConflict)
 	}
-	if !strings.Contains(body, "尚未提交") || !strings.Contains(body, "稽核紀錄") {
-		t.Errorf("body = %q, want the Traditional Chinese dirty-file audit warning", body)
+	// The page has to do three things here, and each is a separate way of
+	// getting it wrong: name the operator's own next move as the title, say
+	// plainly that nothing was written, and give the step that clears it.
+	for _, want := range []string{status.DirtyBlock.Headline, status.DirtyBlock.Body, status.DirtyBlock.NextStep} {
+		if !strings.Contains(body, want) {
+			t.Errorf("recovery page for an uncommitted edit is missing %q; body = %q", want, body)
+		}
+	}
+	if !strings.Contains(body, "這次操作沒有變更筆記檔案。") {
+		t.Errorf("recovery page stopped saying the note file is untouched; body = %q", body)
 	}
 }
 
@@ -370,7 +378,7 @@ func TestHandlerWorkTreeUnreadable(t *testing.T) {
 	if code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
 	}
-	if !strings.Contains(html.UnescapeString(body), status.GitBlockReason) {
+	if !strings.Contains(html.UnescapeString(body), status.GitBlock.Body) {
 		t.Errorf("body = %q, does not state why the write face is closed", body)
 	}
 	if strings.Contains(body, "fatal:") || strings.Contains(body, root) {
