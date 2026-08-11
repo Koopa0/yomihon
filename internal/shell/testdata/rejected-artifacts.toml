@@ -1,6 +1,6 @@
-# Loader fixture for the advanceable-note tally. The named transition after
-# ready makes the seal non-terminal and therefore advanceable like any other
-# contract-owned state.
+# Loader fixture for the shell projection. The named transition after ready
+# makes the seal non-terminal, so it still has a named onward step like any
+# other contract-owned state.
 schema_version = "1"
 
 [enums]

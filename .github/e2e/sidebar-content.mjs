@@ -1,7 +1,7 @@
 // Behavior lock: the sidebar grows from the fixture vault's map and Diary
 // content, opens the map that contains the current note, omits unresolved rows
 // from general maps while retaining study-path warnings, and leaves lifecycle
-// state in Home plus the shared advanceable-note topbar chip.
+// state in Home.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -24,7 +24,6 @@ const SITES = [
   'journal-present',
   'journal-collapsed',
   'lifecycle-retired',
-  'advanceable-chip',
   'home-start-top',
 ];
 
@@ -117,10 +116,6 @@ const MUTATIONS = {
     target: 'lifecycle-retired',
     apply: replaceEvery('id="nav-rail" aria-label="書庫導覽">', 'id="nav-rail" aria-label="書庫導覽"><span>Lifecycle</span>'),
   },
-  'rename-advanceable': {
-    target: 'advanceable-chip',
-    apply: replaceEvery('aria-label="1 篇筆記的狀態還有下一步"', 'aria-label="advanceable"'),
-  },
   'autofocus-home-search': {
     target: 'home-start-top',
     apply: rewritePath(HOME, (body) => body.replaceAll(
@@ -198,11 +193,6 @@ try {
   if (await sidebar.getByText('Lifecycle', { exact: true }).count() !== 0) {
     fail('lifecycle-retired', 'Lifecycle still appears in the sidebar');
   }
-  const chip = page.locator('a[data-advanceable-chip]');
-  if (await chip.count() !== 1 || await chip.getAttribute('aria-label') !== '1 篇筆記的狀態還有下一步' || await chip.getAttribute('href') !== '/') {
-    fail('advanceable-chip', 'the shared advanceable-note chip is absent, mislabeled, or does not link Home');
-  }
-
   await page.setViewportSize({ width: 1270, height: 720 });
   await page.goto(BASE + HOME, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));

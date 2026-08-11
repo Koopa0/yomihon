@@ -18,7 +18,7 @@ import (
 const (
 	noContractNote  = "這個資料夾沒有 vault contract：閱讀與搜尋完整可用，狀態認證這一面則不存在。"
 	holdRHelpEntry  = "（按住）"
-	holdRPrefTip    = "按住 R 認證"
+	holdRPrefTip    = "按住 R 都只會照瀏覽器原本的方式輸入"
 	kbdHelpNoteMark = `class="y-kbdhelp__note"`
 )
 

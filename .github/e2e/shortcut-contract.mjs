@@ -18,6 +18,8 @@ const SHORTCUT_CONTROL = '[data-single-key-shortcuts-toggle]';
 const SHORTCUT_LABEL = '.y-shortcutpref';
 const SHORTCUT_ON = '.y-shortcutpref__on';
 const SHORTCUT_OFF = '.y-shortcutpref__off';
+const HELP_BUTTON = '[popovertarget="kbd-help"]';
+const HELP_PANEL = '#kbd-help';
 
 const SITES = [
   'modified-printables-stay-native',
@@ -35,7 +37,7 @@ const SITES = [
   'reenable-restores',
   'visible-shortcut-state',
   'shortcut-focus-visible',
-  'narrow-shortcut-control',
+  'shortcut-control-reachable',
 ];
 
 class LockFired extends Error {
@@ -230,15 +232,17 @@ const MUTATIONS = {
     target: 'shortcut-focus-visible',
     apply: injectStyle('.y-shortcutpref__input:focus-visible{outline:none!important}'),
   },
-  'push-shortcut-control-out-of-header': {
-    target: 'narrow-shortcut-control',
-    apply: injectStyle('@media(max-width:520px){.y-shortcutpref{position:fixed!important;left:-10000px!important}}'),
+  'push-shortcut-control-off-the-panel': {
+    target: 'shortcut-control-reachable',
+    // Scoped to the narrow viewport the site measures. Pushed off at every
+    // width it would also stop the probe clicking the control earlier on,
+    // and the run would exit 1 from a timeout instead of from the assertion
+    // this aims at — an exit code that proves nothing.
+    apply: injectStyle('@media(max-width:520px){.y-kbdpref{position:fixed!important;left:-10000px!important}}'),
   },
-  'keep-wide-shortcut-label': {
-    target: 'narrow-shortcut-control',
-    // Keep the mutation at the observed desktop control width so its overflow
-    // does not depend on platform-specific CJK fallback-font metrics.
-    apply: injectStyle('@media(max-width:520px){.y-shortcutpref{gap:5px!important;padding-inline:8px!important;min-inline-size:86px!important}.y-shortcutpref__label{display:inline!important}.y-shortcutpref__label-compact{display:none!important}}'),
+  'hide-what-the-keys-cost': {
+    target: 'shortcut-control-reachable',
+    apply: injectStyle('.y-kbdpref__note{display:none!important}'),
   },
 };
 
@@ -276,7 +280,7 @@ const dispatch = (page, type, key, modifiers = {}) => page.evaluate(({ type, key
   return { defaultPrevented: event.defaultPrevented || !accepted };
 }, { type, key, modifiers });
 
-const state = (page) => page.evaluate(({ dialog, filter, fills, shortcutControl, shortcutLabel, shortcutOn, shortcutOff }) => ({
+const state = (page) => page.evaluate(({ dialog, filter, fills, shortcutControl, shortcutOn, shortcutOff }) => ({
   nav: document.documentElement.dataset.nav,
   shortcuts: document.documentElement.dataset.singleKeyShortcuts,
   dialogOpen: Boolean(document.querySelector(dialog)?.open),
@@ -285,35 +289,11 @@ const state = (page) => page.evaluate(({ dialog, filter, fills, shortcutControl,
   shortcutChecked: document.querySelector(shortcutControl)?.checked,
   shortcutOnDisplay: document.querySelector(shortcutOn) ? getComputedStyle(document.querySelector(shortcutOn)).display : null,
   shortcutOffDisplay: document.querySelector(shortcutOff) ? getComputedStyle(document.querySelector(shortcutOff)).display : null,
-  shortcutBox: (() => {
-    const element = document.querySelector(shortcutLabel);
-    if (!element) return null;
-    const rect = element.getBoundingClientRect();
-    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height };
-  })(),
-  header: (() => {
-    const element = document.querySelector('.y-header');
-    return element ? { clientWidth: element.clientWidth, scrollWidth: element.scrollWidth } : null;
-  })(),
-  // At this width the control wears its short label; the words it carries at
-  // full width do not fit beside everything else in the row. Reading the
-  // labels directly asks that question of the thing itself, rather than of a
-  // width it happens to push some other element to — a machine whose fonts run
-  // wider answers the width question differently while wearing the same label.
-  wideLabelDisplay: (() => {
-    const element = document.querySelector('.y-shortcutpref__label');
-    return element ? getComputedStyle(element).display : null;
-  })(),
-  compactLabelDisplay: (() => {
-    const element = document.querySelector('.y-shortcutpref__label-compact');
-    return element ? getComputedStyle(element).display : null;
-  })(),
 }), {
   dialog: DIALOG,
   filter: FILTER,
   fills: FILLS,
   shortcutControl: SHORTCUT_CONTROL,
-  shortcutLabel: SHORTCUT_LABEL,
   shortcutOn: SHORTCUT_ON,
   shortcutOff: SHORTCUT_OFF,
 });
@@ -342,6 +322,20 @@ try {
   if (await page.locator(FILTER).count() !== 1) broken('the fixture has no single drawer filter');
   if (await page.locator(DIALOG).count() !== 1) broken('the fixture has no single search dialog');
   if (await page.locator(SHORTCUT_CONTROL).count() !== 1) broken('the page has no single-key-shortcut preference control');
+  // The preference lives in the keyboard help layer, so every question about
+  // what a reader can see or reach is asked with that layer open. Reading it
+  // closed measures a subtree the reader is not looking at.
+  // Opened from the keyboard, because that is how the reader who cares about
+  // this panel arrives at it — and because a mouse click here would put the
+  // browser in pointer modality, so the focus ring asked about below would be
+  // absent for a reason that has nothing to do with the stylesheet.
+  const openHelp = async () => {
+    if (await page.locator(HELP_PANEL).evaluate((el) => el.matches(':popover-open')).catch(() => false)) return;
+    await page.locator(HELP_BUTTON).focus();
+    await page.keyboard.press('Enter');
+    await page.locator(HELP_PANEL).waitFor({ state: 'visible' });
+  };
+  await openHelp();
   if (initial.shortcuts !== 'on' || initial.shortcutChecked !== true) {
     fail('default-on', `default rendered shortcuts=${initial.shortcuts}, checked=${initial.shortcutChecked}`);
   }
@@ -427,6 +421,7 @@ try {
   if (!heldBeforeDisable.defaultPrevented || !after.fillWidths.every((width) => width === '100%')) {
     fail('plain-r-holds', 'plain R did not start the hold used by the disable transition');
   }
+  await openHelp();
   await page.locator(SHORTCUT_CONTROL).uncheck();
   after = await state(page);
   if (!after.fillWidths.every((width) => width === '0px')) {
@@ -482,6 +477,7 @@ try {
   }
   await secondPage.close();
 
+  await openHelp();
   await page.locator(SHORTCUT_CONTROL).check();
   after = await state(page);
   if (after.shortcuts !== 'on' || after.shortcutChecked !== true) {
@@ -497,10 +493,8 @@ try {
 
   // 360 has to reach the page as 360 pixels of room to lay out in. Where the
   // scrollbar keeps a column of its own, a 360-wide window leaves the page 345,
-  // and the header was then asked to fit a width no phone ever hands it — so
-  // the narrowest screen this is written for was tested on one machine and a
-  // narrower one on the other. The column is measured the way the layout sees
-  // it, from an element fixed to the edges, and given back.
+  // so the column is measured the way the layout sees it, from an element fixed
+  // to the edges, and given back.
   await page.setViewportSize({ width: 360, height: 800 });
   const gutter = await page.evaluate(() => {
     const probe = document.createElement('div');
@@ -511,23 +505,31 @@ try {
     return window.innerWidth - room;
   });
   if (gutter > 0) await page.setViewportSize({ width: 360 + gutter, height: 800 });
-  after = await state(page);
+  await openHelp();
+  const narrow = await page.evaluate(({ shortcutLabel, note }) => {
+    const control = document.querySelector(shortcutLabel);
+    const sentence = document.querySelector(note);
+    const box = control ? control.getBoundingClientRect() : null;
+    return {
+      box: box ? { left: box.left, right: box.right, width: box.width, height: box.height } : null,
+      noteText: sentence ? sentence.textContent.trim() : '',
+      noteVisible: sentence ? getComputedStyle(sentence).display !== 'none' : false,
+    };
+  }, { shortcutLabel: SHORTCUT_LABEL, note: '.y-kbdpref__note' });
   if (
-    !after.shortcutBox
-    || after.shortcutBox.width <= 0
-    || after.shortcutBox.height <= 0
-    || after.shortcutBox.left < 0
-    || after.shortcutBox.right > 360
-    || !after.header
-    || after.header.scrollWidth > after.header.clientWidth
-    || after.wideLabelDisplay !== 'none'
-    || !after.compactLabelDisplay
-    || after.compactLabelDisplay === 'none'
+    !narrow.box
+    || narrow.box.width <= 0
+    || narrow.box.height <= 0
+    || narrow.box.left < 0
+    || narrow.box.right > 360
+    || !narrow.noteVisible
+    || !narrow.noteText.includes('/')
+    || !narrow.noteText.includes('[')
   ) {
-    fail('narrow-shortcut-control', `360px header=${JSON.stringify(after.header)}, labels={"wide":${JSON.stringify(after.wideLabelDisplay)},"compact":${JSON.stringify(after.compactLabelDisplay)}}, shortcut=${JSON.stringify(after.shortcutBox)}`);
+    fail('shortcut-control-reachable', `360px help panel: control=${JSON.stringify(narrow.box)}, noteVisible=${narrow.noteVisible}, note=${JSON.stringify(narrow.noteText)}`);
   }
 
-  console.log('PASS shortcut-contract: single-key preference is default-on, exact, persisted, reversible, visible, and narrow-safe; other keys remain available');
+  console.log('PASS shortcut-contract: single-key preference is default-on, exact, persisted, reversible, and reachable in the keyboard help layer with the keys it governs named; other keys remain available');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

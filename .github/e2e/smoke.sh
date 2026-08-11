@@ -41,12 +41,12 @@ home_markers=(
   'sidebar-maps|data-sidebar-group="maps"'
   'sidebar-map-fixture|data-map-tree="Maps/reading.md"'
   'sidebar-journal|data-sidebar-group="journal"'
-  'topbar-advanceable|data-advanceable-chip'
+  'kbd-shortcut-pref|data-single-key-shortcuts-toggle'
 )
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(recent lifecycle study-paths search vault-readme sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal topbar-advanceable)
+required_home_sites=(recent lifecycle study-paths search vault-readme sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal kbd-shortcut-pref)
 
 check_home_marker_table() {
   local actual required

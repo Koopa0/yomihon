@@ -648,10 +648,9 @@ func (h *Handler) lifecycle(
 		return nil, true
 	}
 	// One entry per status that has notes the operator can actually move on
-	// from, counted the same way the header counts them — so this block is that
-	// number broken down rather than a second, differently-derived list. The
-	// vocabulary is not the subject: a status nothing sits at, and a status
-	// whose only onward edge is retirement, say nothing about what is waiting.
+	// from. The vocabulary is not the subject: a status nothing sits at, and a
+	// status whose only onward edge is retirement, say nothing about what is
+	// waiting.
 	waiting := make(map[string]int, len(counts))
 	for ts, n := range counts {
 		if statusView.Advanceable(ts.Type, ts.Status) {

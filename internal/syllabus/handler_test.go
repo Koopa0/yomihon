@@ -217,7 +217,7 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	mux := http.NewServeMux()
 	syllabus.New(func() pages.Shell {
 		calls++
-		return pages.Shell{Nav: model, Advanceable: 3, AdvanceableKnown: true}
+		return pages.Shell{Nav: model, Governed: true}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/Go%20path.md", http.NoBody))
@@ -227,8 +227,10 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("shell snapshot reads = %d, want 1", calls)
 	}
-	if !strings.Contains(rr.Body.String(), `aria-label="3 篇筆記的狀態還有下一步"`) {
-		t.Errorf("response missing pending chip; body = %q", rr.Body.String())
+	// The governed flag rides on the shell this route was handed, so the
+	// keyboard panel naming held R witnesses that shell.
+	if !strings.Contains(rr.Body.String(), "按住 R") {
+		t.Errorf("response did not render the shell it was handed; body = %q", rr.Body.String())
 	}
 }
 

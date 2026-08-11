@@ -18,18 +18,16 @@ import (
 )
 
 // Shell is the snapshot-derived state shared by the topbar and sidebar.
-// A handler receives it as one value so navigation and the advanceable count
+// A handler receives it as one value so navigation and the governed flag
 // cannot come from different atomic snapshot reads.
 //
 // Governed says whether anything claimed authority over this vault. It gates
 // every surface that would otherwise present a lifecycle vocabulary — a status
-// chip, an advanceable count, the write face — because naming a status the
-// vault never declared invents a vocabulary rather than reporting one.
+// chip, the write face — because naming a status the vault never declared
+// invents a vocabulary rather than reporting one.
 type Shell struct {
-	Nav              *nav.Model
-	Governed         bool
-	Advanceable      int
-	AdvanceableKnown bool
+	Nav      *nav.Model
+	Governed bool
 }
 
 // Chrome builds the request-cookie state around this snapshot-derived shell.
@@ -43,8 +41,6 @@ func (s Shell) Chrome(r *http.Request, title string) layouts.Chrome {
 // it carries one, the sentence to show.
 func (s Shell) WithoutInstanceProjections(claim schema.Claim) Shell {
 	s.Nav = s.Nav.WithoutInstanceProjections(nav.Close(claim))
-	s.Advanceable = 0
-	s.AdvanceableKnown = false
 	return s
 }
 
@@ -160,7 +156,7 @@ type LifecycleItem struct {
 // byte (no FOUC). Each
 // cookie honors only its known values; anything else falls to the default —
 // input hygiene, since a cookie is user-controllable. The shell travels whole
-// rather than field by field, so the advanceable count and whether anything
+// rather than field by field, so the navigation model and whether anything
 // governs this vault reach the chrome from the same snapshot projection.
 func chromeFromRequest(r *http.Request, title string, s Shell) layouts.Chrome {
 	theme := "light"
@@ -186,8 +182,6 @@ func chromeFromRequest(r *http.Request, title string, s Shell) layouts.Chrome {
 		Ruby:                      ruby,
 		TextSize:                  textSize,
 		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
-		Advanceable:               s.Advanceable,
-		AdvanceableKnown:          s.AdvanceableKnown,
 		Governed:                  s.Governed,
 	}
 }

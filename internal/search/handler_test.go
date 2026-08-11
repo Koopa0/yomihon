@@ -127,7 +127,7 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 		calls++
 		return RequestSnapshot{
 			Index: idx,
-			Shell: pages.Shell{Nav: &nav.Model{}, Advanceable: 4, AdvanceableKnown: true},
+			Shell: pages.Shell{Nav: &nav.Model{}, Governed: true},
 		}
 	}, slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
@@ -136,7 +136,10 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("request snapshot reads = %d, want 1", calls)
 	}
-	for _, want := range []string{"One", `aria-label="4 篇筆記的狀態還有下一步"`} {
+	// The governed flag rides on the shell this handler was handed, so the
+	// keyboard panel naming held R witnesses that shell rather than one the
+	// renderer derived for itself.
+	for _, want := range []string{"One", "按住 R"} {
 		if !strings.Contains(rr.Body.String(), want) {
 			t.Errorf("search response missing %q; body = %q", want, rr.Body.String())
 		}

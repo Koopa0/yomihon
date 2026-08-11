@@ -696,9 +696,9 @@ func replaceLifecycleRowText(t *testing.T, contract string, row int, from, to st
 	return strings.Join(parts, header)
 }
 
-// TestAdvancesFrom pins the rule the header count and a note's own page must
-// share. They disagreed: the page offered two enabled buttons on a lesson the
-// header had classified as having nowhere to go, because a stage whose
+// TestAdvancesFrom pins the rule Home's lifecycle block and a note's own page
+// must share. They disagreed: the page offered two enabled buttons on a lesson
+// the block had classified as having nowhere to go, because a transition whose
 // predecessor list is the wildcard admits every status and an exact comparison
 // never matched it.
 func TestAdvancesFrom(t *testing.T) {

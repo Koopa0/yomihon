@@ -724,8 +724,7 @@ func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
 // TestFileEntriesAnswerNoMetadataProjection keeps every lifecycle tally the
 // tally it was. A file carries no frontmatter, so it is not an instance of
 // anything, and letting one into a status count or a "type:" filter would make
-// Home's figures and the topbar's advanceable chip disagree with the contract
-// that defines them.
+// Home's figures disagree with the contract that defines them.
 func TestFileEntriesAnswerNoMetadataProjection(t *testing.T) {
 	t.Parallel()
 	notesOnly, widened := fileCorpusFixture(t)

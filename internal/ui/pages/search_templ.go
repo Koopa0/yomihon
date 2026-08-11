@@ -39,8 +39,8 @@ type SearchView struct {
 	Governed bool
 
 	// Nav is the whole-vault navigation model for the shared sidebar: the
-	// search page renders inside the same shell as every other page, so a
-	// topbar chip or a search never strands the reader in a chromeless view.
+	// search page renders inside the same shell as every other page, so
+	// arriving at a search never strands the reader in a chromeless view.
 	Nav *nav.Model
 }
 

@@ -15,7 +15,6 @@ import (
 type Lifecycle interface {
 	Governed() bool
 	Claim() schema.Claim
-	Advanceable(noteType, status string) bool
 }
 
 // Project derives one shell from one vault snapshot and the two immutable
@@ -40,27 +39,5 @@ func Project(
 	if !policy.Trustworthy() {
 		return projected.WithoutInstanceProjections(policy.Claim())
 	}
-	// A folder nothing governs has no notes waiting for a next status: the
-	// count is not unknown, it does not exist, so no chip is offered.
-	if !governed {
-		return projected
-	}
-
-	count, known := advanceableCount(lifecycle, snap)
-	projected.Advanceable = count
-	projected.AdvanceableKnown = known
 	return projected
-}
-
-func advanceableCount(lifecycle Lifecycle, snap *snapshot.View) (count int, known bool) {
-	counts, err := snap.Search().CountByTypeStatus()
-	if err != nil {
-		return 0, false
-	}
-	for ts, n := range counts {
-		if lifecycle.Advanceable(ts.Type, ts.Status) {
-			count += n
-		}
-	}
-	return count, true
 }

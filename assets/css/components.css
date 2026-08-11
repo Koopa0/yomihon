@@ -156,14 +156,6 @@ html, body { margin: 0; background: var(--bg); }
 .y-brand__mark { display: block; width: 24px; height: 24px; flex: none; }
 .y-brand__tag { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); letter-spacing: 0.11em; }
 
-.y-advancechip {
-  display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px;
-  padding: 0 7px; border: 1px solid var(--border-faint); border-radius: var(--r-sm);
-  background: var(--elevated); color: var(--fg-faint); font-family: var(--font-mono);
-  font-size: var(--fs-11); line-height: 1; flex: none;
-}
-.y-advancechip:hover { color: var(--accent); border-color: var(--border); }
-
 .y-searchbtn {
   display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px 0 11px;
   background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
@@ -179,18 +171,16 @@ html, body { margin: 0; background: var(--bg); }
 }
 .y-iconbtn:hover { color: var(--fg); background: var(--overlay); }
 .y-iconbtn svg { width: 16px; height: 16px; }
+.y-kbdpref { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-faint); }
 .y-shortcutpref {
-  display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 8px;
-  box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--r-sm);
-  color: var(--fg-muted); font-family: var(--font-sans); font-size: var(--fs-11);
-  cursor: pointer; flex: none;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 32px;
+  color: var(--fg); font-family: var(--font-sans); font-size: var(--fs-13); cursor: pointer;
 }
-.y-shortcutpref:hover { color: var(--fg); background: var(--overlay); }
-.y-shortcutpref__input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.y-shortcutpref__input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; flex: none; }
 .y-shortcutpref__label { white-space: nowrap; }
-.y-shortcutpref__label-compact { display: none; white-space: nowrap; }
+.y-kbdpref__note { margin: 4px 0 0; color: var(--fg-subtle); font-size: var(--fs-12); line-height: 1.55; }
 .y-shortcutpref__on, .y-shortcutpref__off {
-  display: none; font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em;
+  display: none; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: .05em;
 }
 [data-single-key-shortcuts="on"] .y-shortcutpref__on { display: inline; color: var(--accent); font-weight: 500; }
 [data-single-key-shortcuts="off"] .y-shortcutpref__off { display: inline; color: var(--fg-faint); }
@@ -1087,9 +1077,6 @@ html {
   .y-header { gap: 5px; padding-inline: 8px; }
   .y-brand { gap: 7px; }
   .y-brand__tag { display: none; }
-  .y-shortcutpref { gap: 4px; padding-inline: 4px; }
-  .y-shortcutpref__label { display: none; }
-  .y-shortcutpref__label-compact { display: inline; }
   .y-rubybtn { width: 32px; gap: 0; padding: 0; }
   /* The words do not fit at this width, so the glyph carries the state
      instead of losing it. A control whose whole purpose is switching furigana

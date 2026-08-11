@@ -111,10 +111,10 @@ func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
 			for _, want := range []string{
 				`data-single-key-shortcuts="` + tt.wantState + `"`,
 				`data-single-key-shortcuts-toggle`,
-				`aria-label="單鍵快捷鍵"`,
-				`>單鍵<`,
-				`>開<`,
-				`>關<`,
+				`aria-describedby="kbd-pref-note"`,
+				`>單鍵快捷鍵<`,
+				`>目前開啟<`,
+				`>目前關閉<`,
 			} {
 				if !strings.Contains(html, want) {
 					t.Errorf("Base() is missing %q; html = %q", want, html)
@@ -164,38 +164,97 @@ func TestBaseNeverEmitsAnUnnoncedExecutableScript(t *testing.T) {
 	}
 }
 
-func TestHeaderAdvanceableChip(t *testing.T) {
+// TestHeaderCarriesNoBareCount holds the header to what a reader can read.
+// A count with no word beside it told nobody what had been counted — the
+// vault's owner could not name it either — and Home already carries the same
+// figure broken down by status, where each part is named and clickable.
+func TestHeaderCarriesNoBareCount(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := header(Chrome{Governed: true}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render header: %v", err)
+	}
+	html := buf.String()
+	for _, gone := range []string{"data-advanceable-chip", "y-advancechip", "還有下一步"} {
+		if strings.Contains(html, gone) {
+			t.Errorf("header still carries the bare advanceable count (%q); html = %q", gone, html)
+		}
+	}
+}
+
+// elementSubtree returns the rendered div carrying the given attribute,
+// including everything nested inside it and nothing that follows it. Stopping
+// at the first "</div>" would instead stop at the first nested child's close,
+// so a control moved out of the element could still fall inside the slice.
+func elementSubtree(t *testing.T, html, attr string) string {
+	t.Helper()
+	start := strings.Index(html, attr)
+	if start < 0 {
+		t.Fatalf("no element carrying %s; html = %q", attr, html)
+	}
+	start = strings.LastIndex(html[:start], "<div")
+	if start < 0 {
+		t.Fatalf("%s is not on a div; html = %q", attr, html)
+	}
+	depth := 0
+	for i := start; i < len(html); {
+		switch {
+		case strings.HasPrefix(html[i:], "<div"):
+			depth++
+			i += len("<div")
+		case strings.HasPrefix(html[i:], "</div>"):
+			depth--
+			i += len("</div>")
+			if depth == 0 {
+				return html[start:i]
+			}
+		default:
+			i++
+		}
+	}
+	t.Fatalf("element carrying %s is not closed; html = %q", attr, html)
+	return ""
+}
+
+// TestShortcutPreferenceLivesWithTheKeysItGoverns checks the preference is
+// reachable where a reader asks what the keys do, and that the panel answers
+// the three questions a switch has to answer: which keys, which way it is set,
+// and where to change it. Held R is named only where a status face exists.
+func TestShortcutPreferenceLivesWithTheKeysItGoverns(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		chrome      Chrome
-		wantChip    bool
-		wantLabel   string
-		wantVisible string
+		name     string
+		governed bool
+		wantNote string
 	}{
-		{name: "known count", chrome: Chrome{Advanceable: 7, AdvanceableKnown: true}, wantChip: true, wantLabel: `aria-label="7 篇筆記的狀態還有下一步"`, wantVisible: ">7</a>"},
-		{name: "closed policy", chrome: Chrome{}, wantChip: false},
+		{name: "governed", governed: true, wantNote: "關掉之後，/、[ 和按住 R 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"},
+		{name: "ungoverned", wantNote: "關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := header(tt.chrome).Render(t.Context(), &buf); err != nil {
+			if err := header(Chrome{Governed: tt.governed}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render header: %v", err)
 			}
 			html := buf.String()
-			hasChip := strings.Contains(html, "data-advanceable-chip")
-			if hasChip != tt.wantChip {
-				t.Errorf("header advanceable chip present = %t, want %t; html = %q", hasChip, tt.wantChip, html)
+			panel := elementSubtree(t, html, `id="kbd-help"`)
+			if !strings.Contains(panel, "data-single-key-shortcuts-toggle") {
+				t.Errorf("the preference is not inside the keyboard help panel; panel = %q", panel)
 			}
-			if tt.wantLabel != "" && !strings.Contains(html, tt.wantLabel) {
-				t.Errorf("header missing %q; html = %q", tt.wantLabel, html)
+			if !strings.Contains(panel, tt.wantNote) {
+				t.Errorf("panel does not say what turning it off costs; want %q; panel = %q", tt.wantNote, panel)
 			}
-			if tt.wantVisible != "" && !strings.Contains(html, tt.wantVisible) {
-				t.Errorf("header missing visible count %q; html = %q", tt.wantVisible, html)
+			for _, want := range []string{">目前開啟<", ">目前關閉<"} {
+				if !strings.Contains(panel, want) {
+					t.Errorf("panel does not state which way the preference is set (%q); panel = %q", want, panel)
+				}
 			}
-			if hasChip && !strings.Contains(html, `href="/"`) {
-				t.Errorf("header advanceable chip does not link Home; html = %q", html)
+			if tt.governed && !strings.Contains(panel, "按住 R") {
+				t.Errorf("governed panel does not name held R; panel = %q", panel)
+			}
+			if !tt.governed && strings.Contains(panel, "按住 R") {
+				t.Errorf("ungoverned panel names a key this folder has no face for; panel = %q", panel)
 			}
 		})
 	}

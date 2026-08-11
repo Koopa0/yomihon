@@ -316,7 +316,6 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 		`data-tts=`,
 		`data-concept=`,
 		`data-concept-sheet`,
-		`data-advanceable-chip`,
 	} {
 		if strings.Contains(page, leaked) {
 			t.Errorf("next reading request retained %q after authority drift", leaked)
@@ -489,9 +488,6 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			}
 			const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 			assertCauseStatedAtMostOncePerRegion(t, page, diagnostic)
-			if strings.Contains(page, "data-advanceable-chip") {
-				t.Error("Home kept the advanceable chip across torn authority captures")
-			}
 		})
 	}
 }
@@ -1414,7 +1410,6 @@ func TestHome(t *testing.T) {
 		"empty-box notice":  "y-homeempty",
 		"capability faults": `data-home-block="faults"`,
 		"fault row":         "data-home-fault",
-		"advanceable chip":  "data-advanceable-chip",
 		"sidebar fault":     `data-sidebar-group="navigation-diagnostics"`,
 	} {
 		if strings.Contains(pageHTML, marker) {
@@ -1802,8 +1797,8 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 
 	lifecycle := homeSection(t, body, `data-home-block="lifecycle"`)
-	// The block is the header count broken down, so a status appears when notes
-	// sit at it and the operator has somewhere to take them. In this contract a
+	// A status appears when notes sit at it and the operator has somewhere to
+	// take them. In this contract a
 	// lesson at draft can be sealed, so draft appears; the sealed status itself
 	// has nowhere left to go but retirement, which every note can reach from
 	// everywhere and which therefore says nothing about what is waiting.
@@ -1831,8 +1826,8 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if !strings.Contains(body, "data-home-readme") {
 		t.Error("Home is missing the link to the folder's introduction")
 	}
-	if !strings.Contains(body, `aria-label="1 篇筆記的狀態還有下一步"`) {
-		t.Error("Home topbar is missing the snapshot-derived advanceable chip")
+	if lifecycle := homeSection(t, body, `data-home-block="lifecycle"`); !strings.Contains(lifecycle, `aria-label="1 篇筆記"`) {
+		t.Errorf("Home is missing the snapshot-derived lifecycle count; block = %q", lifecycle)
 	}
 	if got := homeSubtitle(t, body); got != "查看最近變更、待判讀內容，以及接下來的學習路徑。" {
 		t.Errorf("a vault filling every block has the subtitle %q, want the sentence naming all three", got)
@@ -1956,10 +1951,10 @@ body
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	// The lifecycle block is the header count broken down, and this fixture's
-	// concept has nowhere to go but retirement, so it is legitimately empty
-	// here. Recent carries the same captured generation and is what this test
-	// is about.
+	// The lifecycle block names only statuses with somewhere to go, and this
+	// fixture's concept has nowhere to go but retirement, so the block is
+	// legitimately empty here. Recent carries the same captured generation and
+	// is what this test is about.
 	section := html.UnescapeString(homeSection(t, body, `data-home-block="recent"`))
 	if !strings.Contains(section, ">A<") {
 		t.Errorf("captured-open recent block lost its instance projection: %q", section)
@@ -2035,9 +2030,6 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 				}
 			}
 			assertCauseStatedOncePerRegion(t, body, tt.want)
-			if strings.Contains(body, `data-advanceable-chip`) {
-				t.Error("Home advanceable chip remained available without artifact metadata")
-			}
 			if !strings.Contains(body, `data-home-block="search"`) {
 				t.Error("Home search block disappeared during artifact degradation")
 			}
@@ -2090,8 +2082,8 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 	if strings.Contains(body, "contract declares no artifact policy; instance projections disabled until it does") {
 		t.Errorf("Home falsely reports an artifact failure: %q", body)
 	}
-	if !strings.Contains(page, `aria-label="1 篇筆記的狀態還有下一步"`) {
-		t.Error("advanceable chip was suppressed by navigation-only failure")
+	if lifecycle := homeSection(t, page, `data-home-block="lifecycle"`); !strings.Contains(lifecycle, `aria-label="1 篇筆記"`) {
+		t.Errorf("the lifecycle count was suppressed by a navigation-only failure; block = %q", lifecycle)
 	}
 }
 
@@ -2168,9 +2160,6 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
 	draftRow := homeLifecycleRow(t, lifecycle, "draft")
 	if !strings.Contains(draftRow, `aria-label="1 篇筆記">1</span>`) {
 		t.Errorf("draft lifecycle count includes the template or misses the instance; row = %q", draftRow)
-	}
-	if !strings.Contains(page, `aria-label="1 篇筆記的狀態還有下一步"`) {
-		t.Error("advanceable count includes the template or misses the instance")
 	}
 }
 
@@ -3227,13 +3216,11 @@ func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
 	}
 }
 
-// TestHomeLifecycleBlockDecomposesTheHeaderCount pins the relationship rather
-// than the contents. The header states how many notes still have somewhere to
-// go; the block underneath is meant to be that number broken down, and a
-// dashboard whose total disagrees with its own rows is worse than either alone.
-// It used to be a list of the whole status vocabulary with counts beside it,
-// derived separately, so nothing kept the two in step.
-func TestHomeLifecycleBlockDecomposesTheHeaderCount(t *testing.T) {
+// TestHomeLifecycleBlockNamesEveryStatusWaiting pins which rows the block
+// carries: every status holding notes the operator can still move on from, and
+// no others. It used to list the whole status vocabulary with counts beside it,
+// which put a row in front of the reader for statuses nothing was waiting at.
+func TestHomeLifecycleBlockNamesEveryStatusWaiting(t *testing.T) {
 	t.Parallel()
 
 	type note struct{ path, front string }
@@ -3252,11 +3239,11 @@ func TestHomeLifecycleBlockDecomposesTheHeaderCount(t *testing.T) {
 	}{
 		{
 			// The control. One of these has nowhere to go but retirement, so
-			// neither the header nor the block may count it — which is what
-			// makes their agreement meaningful rather than arithmetic that
-			// holds for any fixture. It passed before this block learned about
-			// other vocabularies and must keep passing, or the instrument
-			// below is measuring nothing.
+			// the block may not carry a row for it — which is what makes the
+			// expected set meaningful rather than one that holds for any
+			// fixture. It passed before this block learned about other
+			// vocabularies and must keep passing, or the case below is
+			// measuring nothing.
 			name:     "one vocabulary",
 			contract: loadContract,
 			notes: []note{
@@ -3267,8 +3254,8 @@ func TestHomeLifecycleBlockDecomposesTheHeaderCount(t *testing.T) {
 		},
 		{
 			// A guide moves through statuses the default list never mentions.
-			// The header counted it from the start; the breakdown walked the
-			// default vocabulary only, so the note was counted and never shown.
+			// The block once walked the default vocabulary only, so a note
+			// waiting at one of those statuses never appeared in it.
 			name:     "a status only another group declares",
 			contract: loadHomeContractWithSystemGroup,
 			notes: []note{
@@ -3314,21 +3301,21 @@ func TestHomeLifecycleBlockDecomposesTheHeaderCount(t *testing.T) {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
 
-			header := headerAdvanceableCount(t, body)
-			if header == 0 {
-				t.Fatal("the fixture produced nothing to count, so this proves nothing")
-			}
 			block := homeSection(t, body, `data-home-block="lifecycle"`)
 			counts := chipCounts(t, block)
-			sum := 0
+			if len(counts) == 0 {
+				t.Fatal("the fixture produced nothing to count, so this proves nothing")
+			}
 			for _, n := range counts {
 				if n == 0 {
 					t.Errorf("the block lists a status nothing is waiting at; counts = %v", counts)
 				}
-				sum += n
 			}
-			if sum != header {
-				t.Errorf("the block sums to %d and the header says %d; one of them is describing a different set", sum, header)
+			// The block lists exactly the statuses something waits at: a row
+			// too many invents a queue, a row too few hides one. Naming each
+			// row below would leave both standing on their own.
+			if len(counts) != len(tt.wantRows) {
+				t.Errorf("the block lists %d statuses and %d are waiting; counts = %v, want %v", len(counts), len(tt.wantRows), counts, tt.wantRows)
 			}
 			// Naming each row as well as summing them: two numbers wrong in the
 			// same direction would leave the sum standing.
@@ -3343,27 +3330,6 @@ func TestHomeLifecycleBlockDecomposesTheHeaderCount(t *testing.T) {
 			}
 		})
 	}
-}
-
-// headerAdvanceableCount reads the number the header states.
-func headerAdvanceableCount(t *testing.T, body string) int {
-	t.Helper()
-	const marker = `aria-label="`
-	before, _, found := strings.Cut(body, "data-advanceable-chip")
-	if !found {
-		t.Fatal("the header states no advanceable count")
-	}
-	open := strings.LastIndex(before, marker)
-	if open < 0 {
-		t.Fatal("the advanceable chip carries no label")
-	}
-	label, _, _ := strings.Cut(before[open+len(marker):], `"`)
-	digits, _, _ := strings.Cut(label, " ")
-	n, err := strconv.Atoi(digits)
-	if err != nil {
-		t.Fatalf("the header count %q is not a number: %v", digits, err)
-	}
-	return n
 }
 
 // chipCounts reads every per-status figure the block states.

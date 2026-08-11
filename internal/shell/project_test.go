@@ -81,7 +81,12 @@ func governedSnapshotView(
 	return store.Current()
 }
 
-func TestProjectCountsOwnerHeldNamedTransitions(t *testing.T) {
+// TestProjectOpensInstanceStateOnAGovernedLifecycle is the positive case the
+// two closure tests below are measured against: a folder whose contract loads
+// and whose notes are ordinary instances keeps both its governed answer and
+// its instance projections. The notes are written across several statuses so
+// the projection is exercised on a populated vault rather than an empty one.
+func TestProjectOpensInstanceStateOnAGovernedLifecycle(t *testing.T) {
 	t.Parallel()
 
 	contract, err := schema.LoadFile(filepath.Join("testdata", "contract.toml"))
@@ -104,11 +109,11 @@ func TestProjectCountsOwnerHeldNamedTransitions(t *testing.T) {
 	snap := snapshotView(t, contract, notes)
 
 	got := Project(lifecycleView(t, contract), contract.ArtifactPolicy().Capture(), snap)
-	if !got.AdvanceableKnown {
-		t.Fatal("Project() advanceable count is unknown on an open lifecycle")
+	if got.Nav.InstanceProjectionsClosed() {
+		t.Error("Project() closed instance projections on an open lifecycle")
 	}
-	if got.Advanceable != 9 {
-		t.Errorf("Project() advanceable = %d, want 9", got.Advanceable)
+	if !got.Governed {
+		t.Error("Project() reports an open governed lifecycle as ungoverned")
 	}
 }
 
@@ -145,9 +150,6 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 			t.Parallel()
 
 			got := Project(tt.lifecycle, tt.snap.ArtifactPolicy(), tt.snap)
-			if got.Advanceable != 0 || got.AdvanceableKnown {
-				t.Errorf("Project() advanceable = (%d, %t), want (0, false)", got.Advanceable, got.AdvanceableKnown)
-			}
 			if len(got.Nav.KnowledgeNotes()) != 0 {
 				t.Errorf("Project() retained %d instance notes", len(got.Nav.KnowledgeNotes()))
 			}
@@ -166,7 +168,7 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 // TestProjectKeepsProjectionsOpenForAnUngovernedFolder is the case the old
 // closure conflated with a failure. Nothing declared an exclusion here, so the
 // instance projections are answerable and stay open; what is absent is the
-// lifecycle vocabulary, so no advanceable chip is offered and no fault is
+// lifecycle vocabulary, so nothing is offered from it and no fault is
 // reported.
 func TestProjectKeepsProjectionsOpenForAnUngovernedFolder(t *testing.T) {
 	t.Parallel()
@@ -178,9 +180,6 @@ func TestProjectKeepsProjectionsOpenForAnUngovernedFolder(t *testing.T) {
 	got := Project(view, snap.ArtifactPolicy(), snap)
 	if got.Governed {
 		t.Error("Project() reports an ungoverned folder as governed")
-	}
-	if got.AdvanceableKnown || got.Advanceable != 0 {
-		t.Errorf("Project() advanceable = (%d, %t), want no chip at all", got.Advanceable, got.AdvanceableKnown)
 	}
 	if got.Nav.InstanceProjectionsClosed() {
 		t.Error("Project() closed instance projections for a folder that declared no exclusions")

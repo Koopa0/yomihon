@@ -101,7 +101,7 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 					return view
 				},
 				func(snap *snapshot.View) pages.Shell {
-					return pages.Shell{Nav: snap.Navigation(), Advanceable: 2, AdvanceableKnown: true}
+					return pages.Shell{Nav: snap.Navigation(), Governed: true}
 				},
 				slog.New(slog.DiscardHandler),
 			).Register(mux)
@@ -112,8 +112,10 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 			if calls != 1 {
 				t.Errorf("shell snapshot reads = %d, want 1", calls)
 			}
-			if tt.wantChip && !strings.Contains(rr.Body.String(), `aria-label="2 篇筆記的狀態還有下一步"`) {
-				t.Errorf("response missing pending chip; body = %q", rr.Body.String())
+			// The governed flag rides on the shell this route was handed, so
+			// the keyboard panel naming held R witnesses that shell.
+			if tt.wantChip && !strings.Contains(rr.Body.String(), "按住 R") {
+				t.Errorf("response did not render the shell it was handed; body = %q", rr.Body.String())
 			}
 		})
 	}
