@@ -31,6 +31,9 @@ func TestCheckGolden(t *testing.T) {
 		{name: "disk references", fixture: "testdata/vault-diskref", golden: "testdata/golden/diskref.jsonl"},
 		{name: "system scope", fixture: "testdata/vault-scope", golden: "testdata/golden/scope.jsonl"},
 		{name: "map mismatch branches", fixture: "testdata/vault-mapmismatch", golden: "testdata/golden/mapmismatch.jsonl"},
+		// The authoring contract's own diagnostics: one course written every
+		// way the grammar refuses, so each rule has a line in the golden.
+		{name: "study-path structure", fixture: "testdata/vault-paths", golden: "testdata/golden/paths.jsonl"},
 		{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
 		{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
 		// This fixture covers the local vault contract's configured fields.

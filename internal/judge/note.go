@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -45,6 +46,12 @@ type note struct {
 	wikilinks    []wikiLink
 	pathRefs     []pathRef
 	plannedNames []string
+
+	// sequence is the note's declared course structure, read by the one
+	// grammar navigation reads. It is parsed for every note and consulted only
+	// for a path type: what a course lists must be one answer, not the judge's
+	// reading and the reader's reading agreeing by luck.
+	sequence sequence.Document
 }
 
 // fmValue is a raw frontmatter value: either a scalar kept as the exact text
@@ -104,6 +111,7 @@ func parseNote(rel string, data []byte) note {
 		wikilinks:    extractWikilinks(body, block.BodyStartLine),
 		pathRefs:     extractPathRefs(body, block.BodyStartLine),
 		plannedNames: extractPlannedNames(body),
+		sequence:     sequence.Parse(body, block.BodyStartLine),
 	}
 	if !found {
 		n.noFrontmatter = true

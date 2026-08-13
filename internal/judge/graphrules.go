@@ -33,10 +33,11 @@ func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Fi
 	slugs := slugIndex(notes, authority)
 	planned := plannedNamesSet(notes, authority)
 	return slices.Concat(
-		linkHealth(notes, idx, titles, planned),
+		linkHealth(notes, idx, titles, planned, authority.roles),
 		collisionAlias(notes, authority),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),
-		mapDiskMismatch(notes, idx),
+		mapDiskMismatch(notes, idx, authority.roles),
+		pathFindings(notes, authority.roles),
 		supersessionFindings(notes, idx, authority),
 	)
 }
@@ -103,14 +104,24 @@ func linkHealth(
 	idx *graph.Index,
 	titles map[string][]string,
 	planned Planned,
+	roles schema.NavigationRoles,
 ) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		if n.noteType == "study-path" {
-			continue
+		// A course's own lesson rows are reconciled against disk by the
+		// study-path rule, which knows what the course lists. Every other link
+		// in the file is ordinary prose and gets ordinary link health: a broken
+		// link in a course's introduction was invisible while the whole file
+		// was skipped.
+		rows := map[int]bool{}
+		if roles.IsPathType(n.noteType) {
+			rows = courseRowLines(n)
 		}
 		for _, link := range n.wikilinks {
+			if rows[link.line] {
+				continue
+			}
 			if idx.Resolve(link.target).Kind != graph.Unresolved {
 				continue
 			}
@@ -351,11 +362,11 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 // reports a lesson of the syllabus's domain that exists on disk but is not
 // listed. A draft or curriculum-gap lesson is expected work-in-progress and is
 // not reported at all.
-func mapDiskMismatch(notes []note, idx *graph.Index) []Finding {
+func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRoles) []Finding {
 	byDomain := lessonsByDomain(notes)
 	var out []Finding
 	for i := range notes {
-		if syllabus := &notes[i]; syllabus.noteType == "study-path" {
+		if syllabus := &notes[i]; roles.IsPathType(syllabus.noteType) {
 			out = append(out, reconcileSyllabus(syllabus, idx, byDomain)...)
 		}
 	}
@@ -380,7 +391,11 @@ func lessonsByDomain(notes []note) map[string][]*note {
 func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*note) []Finding {
 	var out []Finding
 	listed := make(map[string]bool)
+	rows := courseRowLines(syllabus)
 	for _, link := range syllabus.wikilinks {
+		if !rows[link.line] {
+			continue
+		}
 		res := idx.Resolve(link.target)
 		switch res.Kind {
 		case graph.Unique:

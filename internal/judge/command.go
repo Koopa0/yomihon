@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 // The three subcommands — check, coverage, exists — run as stateless actions:
@@ -41,6 +43,21 @@ var ruleIDs = []string{
 	"schema.frontmatter",
 	predecessorNotArchivedRule,
 	archivedNavigationRule,
+	// The authoring contract's own rules. schema.language is emitted but was
+	// never listed here, so this list is kept honest by a test that compares it
+	// against what the rules actually emit.
+	"schema.language",
+	sequence.RuleRoleMissing,
+	sequence.RuleRoleDuplicate,
+	sequence.RuleRoleConflict,
+	sequence.RuleLocalOrphan,
+	sequence.RuleNestingTooDeep,
+	sequence.RuleRoleOnEntry,
+	sequence.RuleRoleInvalid,
+	sequence.RuleRoleMisplaced,
+	sequence.RuleEntryOutsideBranch,
+	sequence.RuleEntryMultiTarget,
+	sequence.RuleEntryNoncanonical,
 }
 
 // Format is the output format of a subcommand.
