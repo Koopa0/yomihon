@@ -19,10 +19,17 @@ import (
 // first body line as line N+1.
 
 // wikiLink is one [[target]] occurrence: its resolution target (delimiters
-// stripped), its 1-based line in the file, and whether it sits under a heading
-// that marks the section as a planned gap.
+// stripped), the byte offset of its opening bracket in the body, its 1-based
+// line in the file, and whether it sits under a heading that marks the section
+// as a planned gap.
+//
+// offset is what makes it an occurrence rather than a name: one line can hold
+// several links, and one name can be written on several lines, so a rule that
+// has to say which of them it means says it with the offset. It addresses the
+// body a note was read from and never leaves the process.
 type wikiLink struct {
 	target          string
+	offset          int
 	line            int
 	underGapHeading bool
 }
@@ -91,6 +98,7 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 		}
 		links = append(links, wikiLink{
 			target:          target,
+			offset:          raw.offset,
 			line:            bodyStartLine + strings.Count(body[:raw.offset], "\n"),
 			underGapHeading: inGapSection(headings, raw.offset),
 		})

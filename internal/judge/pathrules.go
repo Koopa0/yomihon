@@ -70,22 +70,32 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 	}
 }
 
-// courseRowLines are the source lines a course's own lesson rows sit on. A
+// courseLessonLinks are the exact wikilinks a course lists as its lessons: the
+// body offset of each accepted row's own target, as the grammar read it. A
 // rule that reconciles a course against disk reads the note's extracted links
-// and keeps the ones on those lines, so the link's own context — whether it
-// sits under a heading marking the section as planned — travels with it. Two
-// rows naming the same note stay distinguishable, which a set of targets could
-// not do.
-func courseRowLines(n *note) map[int]bool {
-	lines := make(map[int]bool)
+// and keeps these, so the link's own context — whether it sits under a heading
+// marking the section as planned — travels with it.
+//
+// The identity is the occurrence, not the name and not the line. A name can be
+// written on two rows, and a row can hold more than the lesson it names: an
+// embed showing a retired note beside it, a same-file anchor, a mention in the
+// same sentence. Matching by name would let one row answer for another's, and
+// matching by line would hand the course everything the author wrote on that
+// line, so a picture of an archived note would be read as the course still
+// pointing at it.
+func courseLessonLinks(n *note) map[int]bool {
+	offsets := make(map[int]bool)
 	var walk func(g *sequence.Group)
 	walk = func(g *sequence.Group) {
 		projectable := g.Projectable()
 		for _, item := range g.Items {
 			switch {
 			case item.Entry != nil:
-				if projectable && item.Entry.State == sequence.EntryAccepted {
-					lines[item.Entry.Line] = true
+				// An accepted row always resolves to one written link, so its
+				// span is set; the guard keeps an unset span from claiming
+				// offset zero rather than trusting that it cannot happen.
+				if projectable && item.Entry.State == sequence.EntryAccepted && !item.Entry.TargetSpan.Zero() {
+					offsets[item.Entry.TargetSpan.Start] = true
 				}
 			case item.Branch != nil:
 				if projectable || (g.Role == sequence.RoleStructural && !g.Invalid) {
@@ -97,5 +107,5 @@ func courseRowLines(n *note) map[int]bool {
 	for _, g := range n.sequence.Groups {
 		walk(g)
 	}
-	return lines
+	return offsets
 }

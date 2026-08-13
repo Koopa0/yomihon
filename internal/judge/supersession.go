@@ -144,10 +144,10 @@ func navigationLinks(source *note, roles schema.NavigationRoles) []wikiLink {
 	if !roles.IsPathType(source.noteType) {
 		return source.wikilinks
 	}
-	rows := courseRowLines(source)
+	lessons := courseLessonLinks(source)
 	out := make([]wikiLink, 0, len(source.wikilinks))
 	for _, link := range source.wikilinks {
-		if rows[link.line] {
+		if lessons[link.offset] {
 			out = append(out, link)
 		}
 	}

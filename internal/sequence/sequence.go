@@ -144,13 +144,22 @@ type Candidate struct {
 	Target string
 	Line   int
 	Span   Span
-	State  EntryState
+	// TargetSpan is where Target is written: the bytes of that one wikilink,
+	// from its opening bracket through its closing one. Span says which row
+	// this is; TargetSpan says which link in the row the course resolves to,
+	// and a row can carry others — an embed, a same-file anchor, a mention in
+	// the sentence beside it. A consumer that has to match a link it read
+	// itself back to this entry joins on these bytes, because a line holds
+	// several links and a name can be written on several rows. It is zero
+	// exactly when Target is empty.
+	TargetSpan Span
+	State      EntryState
 }
 
 // Accepted reports whether this row passed canonical validation and is an
 // entry. Only accepted entries are counted, walked and placed; every other
 // state still makes the row a row for the purpose of its branch's state.
-func (c Candidate) Accepted() bool { return c.State == EntryAccepted }
+func (c *Candidate) Accepted() bool { return c.State == EntryAccepted }
 
 // Group is one branch of a study path: a heading, or a nested list container
 // the author marked with a role.
@@ -691,10 +700,12 @@ func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, o
 			strings.TrimSpace(own))
 		entry.Text = hits[0].display
 		entry.Target = hits[0].target
+		entry.TargetSpan = hits[0].span()
 		entry.State = EntryNoncanonical
 	default:
 		entry.Text = hits[0].display
 		entry.Target = hits[0].target
+		entry.TargetSpan = hits[0].span()
 		entry.State = EntryAccepted
 	}
 	p.rows[spans[0].Start] = entry
@@ -965,13 +976,19 @@ func (p *parser) ownSpans(item *ast.ListItem) []Span {
 	return spans
 }
 
-// linkHit is one live wikilink found in a row's target scope, with its
-// absolute start offset in the body — the fact canonical validation reads.
+// linkHit is one live wikilink found in a row's target scope, with the
+// absolute bounds of its own bytes in the body. start is the fact canonical
+// validation reads; the pair is the occurrence identity an accepted row keeps,
+// so a consumer can match its own reading of the same link back to this row.
 type linkHit struct {
 	target  string
 	display string
 	start   int
+	stop    int
 }
+
+// span is where this link is written, as the occurrence identity a row keeps.
+func (h linkHit) span() Span { return Span{Start: h.start, Stop: h.stop} }
 
 // liveWikilinks are the wikilinks in a row's target scope that actually
 // address another note: an embed shows a note rather than listing it, a
@@ -1019,7 +1036,7 @@ func (p *parser) linksIn(rng Span) []linkHit {
 		if !ok {
 			continue
 		}
-		out = append(out, linkHit{target: target, display: display, start: absolute})
+		out = append(out, linkHit{target: target, display: display, start: absolute, stop: rng.Start + next})
 	}
 	return out
 }

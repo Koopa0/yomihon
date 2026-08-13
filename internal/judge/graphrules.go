@@ -114,12 +114,12 @@ func linkHealth(
 		// in the file is ordinary prose and gets ordinary link health: a broken
 		// link in a course's introduction was invisible while the whole file
 		// was skipped.
-		rows := map[int]bool{}
+		lessons := map[int]bool{}
 		if roles.IsPathType(n.noteType) {
-			rows = courseRowLines(n)
+			lessons = courseLessonLinks(n)
 		}
 		for _, link := range n.wikilinks {
-			if rows[link.line] {
+			if lessons[link.offset] {
 				continue
 			}
 			if idx.Resolve(link.target).Kind != graph.Unresolved {
@@ -391,9 +391,9 @@ func lessonsByDomain(notes []note) map[string][]*note {
 func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*note) []Finding {
 	var out []Finding
 	listed := make(map[string]bool)
-	rows := courseRowLines(syllabus)
+	lessons := courseLessonLinks(syllabus)
 	for _, link := range syllabus.wikilinks {
-		if !rows[link.line] {
+		if !lessons[link.offset] {
 			continue
 		}
 		res := idx.Resolve(link.target)
