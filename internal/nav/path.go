@@ -34,6 +34,43 @@ type Path struct {
 	components [][]NoteRef
 }
 
+// clone is a Path a caller may hold: the whole branch tree copied, so nothing
+// it does can reach the model every other request is reading from at the same
+// time. The model is built once per snapshot and shared; handing out a pointer
+// into it would let one reader change what the next one sees.
+func (p *Path) clone() Path {
+	out := *p
+	out.Groups = cloneGroups(p.Groups)
+	out.components = make([][]NoteRef, len(p.components))
+	for i, comp := range p.components {
+		out.components[i] = slices.Clone(comp)
+	}
+	return out
+}
+
+func cloneGroups(groups []*PathGroup) []*PathGroup {
+	if groups == nil {
+		return nil
+	}
+	out := make([]*PathGroup, 0, len(groups))
+	for _, g := range groups {
+		copied := *g
+		copied.Items = make([]PathItem, 0, len(g.Items))
+		for _, item := range g.Items {
+			switch {
+			case item.Entry != nil:
+				entry := *item.Entry
+				entry.Candidates = slices.Clone(item.Entry.Candidates)
+				copied.Items = append(copied.Items, PathItem{Entry: &entry})
+			case item.Group != nil:
+				copied.Items = append(copied.Items, PathItem{Group: cloneGroups([]*PathGroup{item.Group})[0]})
+			}
+		}
+		out = append(out, &copied)
+	}
+	return out
+}
+
 // PathGroup is one branch of a study path as navigation sees it. Role,
 // Projectable and the anchor identity come straight from the sequence
 // interpretation; nothing here re-derives a verdict from diagnostics.
@@ -155,8 +192,24 @@ func buildPathGroup(
 			}
 			out.Items = append(out.Items, PathItem{Entry: entry})
 		case item.Branch != nil:
-			out.Items = append(out.Items, PathItem{Group: buildPathGroup(item.Branch, idx, statusByPath, policy)})
+			child := buildPathGroup(item.Branch, idx, statusByPath, policy)
+			// A branch counts what the main line beneath it carries. Both of
+			// this vault's courses put every lesson in a level-3 branch under a
+			// level-2 part, so a part that stopped at its own rows would read
+			// zero beside a Home card reading eight — and a reader comparing
+			// the two would learn only that one of them is wrong. A side branch
+			// keeps its own count, and a block declared out of the course, one
+			// nobody declared, and one still to repair carry none.
+			if child.Role == sequence.RolePrimary || child.Role == sequence.RoleStructural {
+				out.Planned += child.Planned
+			}
+			out.Items = append(out.Items, PathItem{Group: child})
 		}
+	}
+	if !out.Projectable && out.Role != sequence.RoleStructural {
+		// Only a branch the course includes, or one that merely carries such
+		// branches, has a course count at all.
+		out.Planned = 0
 	}
 	return out
 }

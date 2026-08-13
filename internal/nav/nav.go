@@ -167,14 +167,18 @@ func (m *Model) RootNotes() []NoteRef {
 	return slices.Clone(m.rootNotes)
 }
 
-// Paths returns the study paths in vault path order. The returned slice is the
-// caller's; the group trees it points into are immutable after construction
-// and shared, exactly like the rest of the model.
+// Paths returns the study paths in vault path order. Everything the caller
+// receives is its own: the model is read by every request at once, so a caller
+// that could reach into it would change what the next reader sees.
 func (m *Model) Paths() []Path {
 	if m == nil {
 		return nil
 	}
-	return slices.Clone(m.paths)
+	out := make([]Path, 0, len(m.paths))
+	for i := range m.paths {
+		out = append(out, m.paths[i].clone())
+	}
+	return out
 }
 
 // Maps returns every non-path map tree, ordered by domain and title.

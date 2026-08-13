@@ -1125,10 +1125,8 @@ func splitLines(s string) []sourceLine {
 
 // firstSourceLine is a block's own first physical line.
 func firstSourceLine(block string) string {
-	if i := strings.IndexByte(block, '\n'); i >= 0 {
-		return strings.TrimRight(block[:i], "\r")
-	}
-	return block
+	head, _, _ := strings.Cut(block, "\n")
+	return strings.TrimRight(head, "\r")
 }
 
 // rowLine is the file line a list row starts on.

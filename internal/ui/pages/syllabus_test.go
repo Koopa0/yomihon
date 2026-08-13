@@ -97,6 +97,9 @@ func TestBuildPathView(t *testing.T) {
 		Branches: []PathBranchView{
 			{
 				Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Data", Depth: 0,
+				// The part holds no rows of its own; its count is the module's,
+				// so the part heading and Home agree.
+				Total: 2,
 				Items: []PathItemView{{Branch: &PathBranchView{
 					Num: 1, Heading: "Text", Depth: 1, Total: 2,
 					Items: []PathItemView{
