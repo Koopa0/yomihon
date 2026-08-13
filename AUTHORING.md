@@ -233,6 +233,38 @@ whether or not the rows beneath it name any notes.
 - A recognized `{sequence=…}` is **stripped from the name yomihon displays**
   for a group. The source bytes are untouched.
 
+### Marking a branch as a planned gap
+
+A lesson that is listed but not yet written is reported: `map.disk_mismatch`
+says the course links a note that resolves to nothing, and suggests creating
+the note, fixing the entry, or marking it a planned gap. This is how the last
+one is written.
+
+Put the unwritten lessons under a heading whose own text contains one of
+
+    缺口   待補   待寫   待整理   待建
+
+and every unresolved link from that heading down to the next heading at the
+same or a higher level reports as information rather than a warning. The mark
+is part of the heading's text and sits alongside the declaration, which the
+branch still needs:
+
+```markdown
+## 缺口 {sequence=primary}
+
+- [[尚未寫的一課]]
+```
+
+The mark changes how loud the report is, and nothing else. The branch keeps
+its declared role, the entry still counts toward the planned course total, and
+the lesson stays unopenable until the note exists — an author who plans a
+lesson and writes it later has nothing to undo.
+
+The heading is the only thing that softens a course's own row. Naming a
+concept as planned elsewhere in the vault softens an ordinary broken link to
+it, but not a lesson a course lists: what a course promises is answered where
+the course says it.
+
 ### A complete example
 
 Eight lessons, a side branch hanging from the third, and a routine block that

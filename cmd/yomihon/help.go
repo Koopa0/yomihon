@@ -7,7 +7,7 @@ const topLevelHelp = `Usage:
   yomihon serve [<dir>]
   yomihon search [options] <query...>
   yomihon search-index build [options]
-  yomihon check [options] [path...]
+  yomihon check [options] [path...]      judge a vault (--root <vault>; path narrows)
   yomihon coverage [options]
   yomihon exists [options] <name>
 
@@ -24,7 +24,16 @@ var commandHelp = map[string]string{
 		"means another yomihon, on another port.\n",
 	"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
 	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
-	"check": "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
+	"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
+		"\n" +
+		"--root is the vault to judge; without it, the folder you are standing in is\n" +
+		"the vault. A [path...] is not a second way to say that: each one narrows the\n" +
+		"judging to part of that vault and is written the way the vault spells it,\n" +
+		"relative to its root — \"Notes\" or \"Notes/topic.md\". With none, the whole\n" +
+		"vault is judged.\n" +
+		"\n" +
+		"  yomihon check --root ~/vault              the whole vault\n" +
+		"  yomihon check --root ~/vault Notes        one folder of it\n" +
 		"\n" +
 		"Writes one JSON object per line when the output is not a terminal, and a\n" +
 		"human summary when it is. --format decides instead of the terminal.\n" +

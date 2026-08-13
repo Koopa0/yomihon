@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -100,7 +101,7 @@ func runCommand(
 func validateCommandArgs(command string, args *commandArgs) error {
 	switch command {
 	case "check":
-		return nil
+		return scopeIsWrittenFromTheVaultRoot(args.positionals)
 	case "coverage":
 		if args.all {
 			return errors.New("coverage does not accept --all")
@@ -196,6 +197,32 @@ func (args *commandArgs) setFlag(name, value string) error {
 			return fmt.Errorf("invalid --format %q; use json, human, or md", value)
 		}
 		args.format = &format
+	}
+	return nil
+}
+
+// scopeIsWrittenFromTheVaultRoot refuses a filter written as an absolute path.
+//
+// This command takes two directory-shaped words that read alike at a shell and
+// mean opposite things: the vault to judge, which goes after --root, and a
+// filter narrowing the judging to part of that vault, which is spelled the way
+// the vault spells it — from the vault's own root, with no leading slash. A
+// reader who types the vault where a filter goes has written something that
+// cannot name a filter at all, and the refusal that followed talked about
+// vault-relative paths without naming the word to move.
+//
+// The rule reads the shape of the argument, not what is on disk at it. That
+// keeps it truthful — an absolute path is already refused further in, whether
+// or not a vault happens to sit there — and it keeps this file out of the
+// filesystem, which this face reaches through one rooted path only.
+func scopeIsWrittenFromTheVaultRoot(positionals []string) error {
+	for _, p := range positionals {
+		if !filepath.IsAbs(p) && !strings.HasPrefix(p, "/") {
+			continue
+		}
+		return fmt.Errorf(
+			"path filter %q is an absolute path, and a filter names part of the vault from the vault's own root, such as %s; the vault itself goes after --root",
+			p, vaultRelativeExample)
 	}
 	return nil
 }
