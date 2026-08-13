@@ -8,12 +8,17 @@ How Markdown becomes structure in yomihon.
 |---|---|
 | The sequence contract below | **decided** by the vault owner |
 | Candidate rows, task checkboxes, undeclared nesting | **decided** by the vault owner |
-| The parser that reads it | **not implemented** |
+| The parser that reads it | **implemented** |
 | Map and report syntax | **out of scope here** |
 
-An agent writing into a vault must not present this syntax as something
-yomihon supports today. Until the parser ships and is accepted, a file
-written to this contract reads normally and gains nothing else.
+A study path is read through this grammar: it decides what the course lists,
+what Home counts, where a side branch hangs, what prev and next offer, and
+which notes a course places. Where a document does not meet the contract, the
+prose still reads and the projection stops; the diagnostics below reach the
+author through `yomihon check`.
+
+Maps and reports are unaffected — they do not read this syntax, and the same
+marker in one of them is plain text.
 
 ## Who owns what
 

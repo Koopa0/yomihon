@@ -49,9 +49,8 @@ vault.*
    searches and renders as it is. Structured presentation — a course with an
    order, a side branch, a block that stays out of navigation — is opt-in, and
    the body syntax for it belongs to yomihon rather than to your vault:
-   see [`AUTHORING.md`](AUTHORING.md). That contract is settled; the parser
-   that reads it is **not implemented yet**, so writing to it today changes
-   nothing on screen.
+   see [`AUTHORING.md`](AUTHORING.md). A note that declares nothing keeps
+   reading as prose; a course that declares its structure gets one.
 5. **Problems stay visible.** Invalid metadata and broken or ambiguous links
    become diagnostics. The renderer never guesses or repairs your notes.
 

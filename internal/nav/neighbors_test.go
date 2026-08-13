@@ -218,6 +218,13 @@ func (r stubResolver) Resolve(name string) graph.Resolution {
 	return graph.Resolution{Kind: graph.Unresolved}
 }
 
+// vaultNote parses a whole note the way the scanner does, so a fixture read
+// from disk reports the lines its own file shows.
+func vaultNote(tb testing.TB, content string) *vault.Note {
+	tb.Helper()
+	return vault.Parse("Maps/Course.md", []byte(content))
+}
+
 func pathNote(rel, title, body string) *vault.Note {
 	return &vault.Note{
 		RelPath:     rel,
