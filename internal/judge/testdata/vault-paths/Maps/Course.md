@@ -54,3 +54,8 @@ type: study-path
 		- [[L01]]
 			- 更深的旁支 {sequence=local}
 				- [[L01]]
+
+## 巢狀但沒有連結 {sequence=primary}
+
+- [[L01]]
+	- 還沒決定怎麼歸

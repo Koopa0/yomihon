@@ -82,7 +82,9 @@ other key and no room to grow into a general directive syntax.
 
 ### Where it may appear
 
-At end of line, trailing whitespace allowed, in exactly two places:
+At end of the row's or heading's **own first line**, trailing whitespace
+allowed, in exactly two places. A list row may run to several lines; a marker
+written further down is read by nobody and is reported rather than obeyed.
 
 - **a heading line, H2 through H6** — declaring the branch that heading opens;
 - **a nested group-container line** — a list item that carries the marker and
@@ -128,7 +130,9 @@ A candidate is **canonical** when both hold:
 
 - the first visible inline after the list marker is a live, non-embed
   wikilink — it may be wrapped in bold or italic, and nothing else may
-  come before it;
+  come before it. "Visible" is what renders: an Obsidian comment before the
+  link shows nothing and does not count, while a run of `*` or `_` that does
+  not open emphasis prints as itself and does;
 - the item's whole target scope holds no second live wikilink.
 
 A canonical candidate is an entry. Text after the link is read as prose,
@@ -146,6 +150,11 @@ entry: it tracks whether something was done, which is a different question
 from what the course lists. It also cannot anchor a side branch — a local
 container nested under a checkbox row has nothing to hang from and
 reports `path.local_orphan`.
+
+A side branch hangs from a **lesson**, so the same is true of every row the
+grammar refused: a non-canonical row, a row naming two notes, and a row naming
+none anchor nothing. A `{sequence=local}` container beneath one of them reports
+`path.local_orphan` and projects nothing.
 
 ### Before the first branch
 
@@ -173,12 +182,15 @@ second. The order is fixed:
    explicitly declared child role is checked for conflict beneath it;
 3. run the candidate grammar over the remaining groups;
 4. a candidate becomes an accepted entry only after canonical validation;
-5. no declaration and at least one direct candidate → `unclassified`;
-6. no declaration and no direct candidate → `structural`;
-7. course counts, reverse placement and prev/next read accepted entries only.
+5. an undeclared nested list is `unclassified`, whatever it holds — nesting is
+   itself a claim about structure, and one nobody explained is reported;
+6. otherwise, no declaration and at least one direct candidate →
+   `unclassified`;
+7. otherwise, no declaration and no direct candidate → `structural`;
+8. course counts, reverse placement and prev/next read accepted entries only.
 
 Fixing a malformed entry therefore never produces a second round of "this
-branch has no role": the branch state was settled at step 5 or 6.
+branch has no role": the branch state was settled at step 5, 6 or 7.
 
 ### Five branch states
 
@@ -186,13 +198,19 @@ Declaring `none` is a legitimate authored answer and draws no diagnostic.
 Forgetting to declare is not the same thing. A heading that merely groups
 other headings is a third case again.
 
+The quiet case is a **heading** only. A heading that lists nothing has said
+everything it needs to: it holds other headings, and that is visible from the
+document. A nested list is not that case — nesting one list under a row is
+itself a claim about structure, and a claim nobody explained is reported
+whether or not the rows beneath it name any notes.
+
 | state | condition | progression | diagnostic |
 |---|---|---|---|
 | `primary` | declared | main line; consecutive primary groups join end to end in declared order | none |
 | `local` | declared | within its own group only | none |
 | `none` | declared | none | none |
-| `unclassified` | has a direct candidate, no marker | none | yes |
-| `structural` | no direct candidate, no marker | not applicable | none |
+| `unclassified` | an undeclared nested list, or a heading with a direct candidate and no marker | none | yes |
+| `structural` | a **heading** with no direct candidate and no marker | not applicable | none |
 
 ### What the states produce
 

@@ -23,6 +23,7 @@
 package sequence
 
 import (
+	"cmp"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -398,17 +399,22 @@ func (p *parser) listItem(item *ast.ListItem, group *Group, localDepth int) {
 	child := childList(item)
 
 	own := ""
+	head := ""
 	line := p.bodyStartLine
 	abs := 0
 	if len(spans) > 0 {
 		abs = spans[0].Start
 		own = p.body[spans[0].Start:spans[0].Stop]
+		head = firstSourceLine(own)
 		line = p.line(abs)
 	} else if r, ok := linesRange(item); ok {
 		line = p.line(r.Start)
 	}
 
-	name, role, declared := p.declaration(own, abs, line)
+	// A declaration is read on the row's own line. A row may run to several
+	// lines, and a marker further down is read by nobody: it names a branch
+	// nothing opens, so it is reported rather than obeyed.
+	name, role, declared := p.declaration(head, abs, line)
 	p.reportContinuationMarkers(spans)
 	var hits []linkHit
 	if !isTaskRow(own) {
@@ -438,9 +444,15 @@ func (p *parser) listItem(item *ast.ListItem, group *Group, localDepth int) {
 // the prose that continues the item is read by nobody and must not fail
 // silently.
 func (p *parser) reportContinuationMarkers(spans []Span) {
-	for _, s := range spans[min(len(spans), 1):] {
+	for i, s := range spans {
 		segment := p.body[s.Start:s.Stop]
-		for _, raw := range splitLines(segment) {
+		lines := splitLines(segment)
+		if i == 0 {
+			// The row's own line is where a declaration belongs; everything
+			// after it in the same block is continuation like any other.
+			lines = lines[min(len(lines), 1):]
+		}
+		for _, raw := range lines {
 			trimmed := strings.TrimRight(raw.text, "\r\n")
 			if len(p.visibleMarkerSpans(trimmed, s.Start+raw.offset)) == 0 {
 				continue
@@ -553,6 +565,7 @@ func (p *parser) undeclaredChildList(
 	if target, span, ok := p.anchorOwnTarget(item); ok {
 		rest.AnchorTarget, rest.AnchorSpan = target, span
 	}
+	rows, firstRowLine := 0, 0
 	for sub := child.FirstChild(); sub != nil; sub = sub.NextSibling() {
 		li, ok := sub.(*ast.ListItem)
 		if !ok {
@@ -562,12 +575,21 @@ func (p *parser) undeclaredChildList(
 			p.listItem(li, group, localDepth)
 			continue
 		}
+		rows++
+		if firstRowLine == 0 {
+			firstRowLine = p.rowLine(li)
+		}
 		p.listItem(li, rest, localDepth)
 	}
-	if len(rest.Items) == 0 {
+	// A nested list whose every row declared its own branch leaves nothing
+	// behind, which is what the contract's worked example depends on. One that
+	// left any row behind is nesting nobody explained — and it stays, rows or
+	// no rows, because a list that quietly disappeared is the flattening the
+	// contract refuses.
+	if rows == 0 {
 		return
 	}
-	rest.Line = firstLine(rest)
+	rest.Line = cmp.Or(firstLine(rest), firstRowLine)
 	if group == nil {
 		p.report(RuleEntryOutsideBranch, rest.Line,
 			"rows nested before the first level-2 heading belong to no part of the course",
@@ -663,21 +685,64 @@ func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, o
 }
 
 // linkFirst reports whether a hit opens its row: it sits in the row's first
-// text block, and everything before it there is whitespace or an emphasis
-// mark, so the link is the first visible inline — possibly wrapped in bold or
-// italic, which the contract allows.
+// text block and is the first thing there a reader sees.
+//
+// "Sees" is the whole question, so it is answered from what renders rather than
+// from the bytes. An Obsidian comment renders as nothing and is stepped over; a
+// run of asterisks or underscores is stepped over only when it actually opens
+// emphasis, which is when a non-space follows it — "**[[A]]**" wraps the link,
+// while "__ [[A]]" prints two underscores in front of it.
 func (p *parser) linkFirst(hit linkHit, first Span) bool {
 	if !first.contains(hit.start) {
 		return false
 	}
-	for _, b := range []byte(p.body[first.Start:hit.start]) {
-		switch b {
-		case ' ', '\t', '*', '_':
+	at, ok := p.firstVisible(first)
+	return ok && at == hit.start
+}
+
+// firstVisible is the offset of the first thing in a span a reader actually
+// sees, or false when the span shows nothing at all.
+func (p *parser) firstVisible(span Span) (int, bool) {
+	for i := span.Start; i < span.Stop; {
+		if zone, inside := p.zoneAt(i); inside {
+			i = zone.Stop
+			continue
+		}
+		switch b := p.body[i]; b {
+		case ' ', '\t', '\r', '\n':
+			i++
+		case '*', '_':
+			run := i
+			for run < span.Stop && p.body[run] == b {
+				run++
+			}
+			if run < span.Stop && !isInlineSpace(p.body[run]) {
+				i = run // the run opens emphasis; what it wraps is what shows
+				continue
+			}
+			return i, true // a literal delimiter, printed as itself
 		default:
-			return false
+			return i, true
 		}
 	}
-	return true
+	return 0, false
+}
+
+// zoneAt is the invisible or quoted zone covering an offset. A comment shows
+// nothing; a code span shows its content but not as prose, and its opening
+// backtick is outside the zone, so a row beginning with code is seen to begin
+// with code.
+func (p *parser) zoneAt(off int) (Span, bool) {
+	for _, z := range p.zones {
+		if z.contains(off) {
+			return z, true
+		}
+	}
+	return Span{}, false
+}
+
+func isInlineSpace(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\r' || b == '\n'
 }
 
 // anchorTarget is the row a container hangs from: the enclosing list item's
@@ -695,9 +760,12 @@ func (p *parser) anchorTarget(item *ast.ListItem) (string, Span, bool) {
 	return p.anchorOwnTarget(parent)
 }
 
-// anchorOwnTarget is a row's own single resolution target and identity. A task
-// checkbox row is never an anchor: it is not a candidate, so a side branch
-// nested under one has nothing to hang from.
+// anchorOwnTarget is a row's own lesson and identity, and only when the row is
+// one. A side branch hangs from a lesson; a row the grammar refused is not a
+// lesson however it reads, so a task row, a row naming two notes and a row
+// whose link is not first all leave a branch beneath them with nothing to hang
+// from. Accepting one would give the reader a side branch attached to something
+// the course does not contain.
 func (p *parser) anchorOwnTarget(item *ast.ListItem) (string, Span, bool) {
 	spans := p.ownSpans(item)
 	if len(spans) == 0 {
@@ -707,7 +775,7 @@ func (p *parser) anchorOwnTarget(item *ast.ListItem) (string, Span, bool) {
 		return "", Span{}, false
 	}
 	hits := p.liveWikilinks(spans)
-	if len(hits) != 1 {
+	if len(hits) != 1 || !p.linkFirst(hits[0], spans[0]) {
 		return "", Span{}, false
 	}
 	return hits[0].target, spans[0], true
@@ -732,6 +800,14 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 		case g.Role.Declared():
 		case underNone:
 			// Body-only: nothing to declare and nothing to report.
+		case g.Container:
+			// Nesting the author never declared. Saying it "lists lessons"
+			// would send them looking for lessons that may not be there; what
+			// is true is that the list is nested and unexplained.
+			g.Role = RoleUnclassified
+			p.report(RuleRoleMissing, g.Line,
+				"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it",
+				"a nested list carrying no declaration")
 		case len(g.Entries()) > 0:
 			g.Role = RoleUnclassified
 			p.report(RuleRoleMissing, g.Line,
@@ -1045,4 +1121,23 @@ func splitLines(s string) []sourceLine {
 		off += i + 1
 	}
 	return out
+}
+
+// firstSourceLine is a block's own first physical line.
+func firstSourceLine(block string) string {
+	if i := strings.IndexByte(block, '\n'); i >= 0 {
+		return strings.TrimRight(block[:i], "\r")
+	}
+	return block
+}
+
+// rowLine is the file line a list row starts on.
+func (p *parser) rowLine(item *ast.ListItem) int {
+	if spans := p.ownSpans(item); len(spans) > 0 {
+		return p.line(spans[0].Start)
+	}
+	if r, ok := linesRange(item); ok {
+		return p.line(r.Start)
+	}
+	return p.bodyStartLine
 }
