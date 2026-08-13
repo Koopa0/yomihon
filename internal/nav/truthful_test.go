@@ -69,11 +69,18 @@ func TestAPartShowsTheLessonsItCarries(t *testing.T) {
 func TestPathsHandsOutNoWayBackIntoTheModel(t *testing.T) {
 	t.Parallel()
 
-	idx := resolver(t, "Writing/L01.md", "Writing/S01.md")
-	body := "## 主線 {sequence=primary}\n\n- [[L01]]\n\t- 支線 {sequence=local}\n\t\t- [[S01]]\n"
+	// Two notes answer to the same name, so one row resolves ambiguously and
+	// carries a candidate list. Without it the deepest slice the model hands
+	// out would never be exercised, and a test that cannot reach it cannot
+	// prove it was copied.
+	idx := resolver(t, "Writing/L01.md", "Writing/S01.md", "A/Dup.md", "B/Dup.md")
+	body := "## 主線 {sequence=primary}\n\n- [[L01]]\n- [[Dup]]\n\t- 支線 {sequence=local}\n\t\t- [[S01]]\n"
 	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
 	m := &Model{paths: []Path{p}}
 
+	if !holdsCandidates(m.Paths()) {
+		t.Fatal("the fixture produced no ambiguous row, so the candidate list is never reached")
+	}
 	before := describePaths(m.Paths())
 
 	handed := m.Paths()
@@ -140,4 +147,74 @@ func describeGroups(b *strings.Builder, groups []*PathGroup, indent string) {
 			}
 		}
 	}
+}
+
+// TestASideBranchCountsOnlyItsOwnLessons holds what the number beside a side
+// branch means: the lessons that branch walks. Only the main line joins counts
+// end to end — a branch declared out of it carries a count of its own steps,
+// and folding a nested part into it would show a number no walk matches.
+func TestASideBranchCountsOnlyItsOwnLessons(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Writing/S01.md", "Writing/L01.md")
+	body := "## 支線 {sequence=local}\n\n" +
+		"- [[S01]]\n" +
+		"\n### 子群 {sequence=primary}\n\n" +
+		"- [[L01]]\n"
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+
+	if len(p.Groups) != 1 {
+		t.Fatalf("top-level branches = %d, want 1", len(p.Groups))
+	}
+	side := p.Groups[0]
+	if side.Role != sequence.RoleLocal {
+		t.Fatalf("branch role = %v, want local", side.Role)
+	}
+	if side.Planned != 1 {
+		t.Errorf("the side branch shows %d 課 while it walks 1; only the main line joins counts end to end", side.Planned)
+	}
+	// Its walk is the same one lesson, so the number and the steps agree.
+	if len(p.components) != 1 || len(p.components[0]) != 1 {
+		t.Errorf("side-branch walk = %v, want its own single lesson", p.components)
+	}
+}
+
+// TestAnInvalidBranchCountsNothing holds the same rule for a branch the author
+// still has to repair. Its rows may read as perfectly good lessons; until the
+// branch itself is valid, none of them is part of the course.
+func TestAnInvalidBranchCountsNothing(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Writing/L01.md", "Writing/L02.md")
+	// A branch declared part of the course under one declared out of it: the
+	// contradiction is the author's to resolve, and its child reads as an
+	// ordinary primary group full of resolvable lessons.
+	body := "## 日常 {sequence=none}\n\n" +
+		"### 主線 {sequence=primary}\n\n" +
+		"- [[L01]]\n- [[L02]]\n"
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+
+	if p.Planned != 0 {
+		t.Errorf("Planned = %d, want 0; a branch the author has still to repair is not part of the course", p.Planned)
+	}
+	for _, g := range allPathGroups(p.Groups) {
+		if g.Invalid && g.Planned != 0 {
+			t.Errorf("invalid branch %q shows %d 課", g.Name, g.Planned)
+		}
+	}
+}
+
+// holdsCandidates reports whether any row resolved ambiguously and so carries
+// the candidate list the deep copy has to reach.
+func holdsCandidates(paths []Path) bool {
+	for i := range paths {
+		for _, g := range allPathGroups(paths[i].Groups) {
+			for _, item := range g.Items {
+				if item.Entry != nil && len(item.Entry.Candidates) > 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

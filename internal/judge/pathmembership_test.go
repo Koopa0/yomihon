@@ -55,6 +55,22 @@ func TestSupersessionFollowsCourseMembership(t *testing.T) {
 			body: "## 主線 {sequence=primary}\n\n- [[Retired]] 與 [[Live]]\n",
 			want: false,
 		},
+		{
+			// The branch declares a role nobody can read, so it is not a branch
+			// of the course until the author fixes it — and its rows read as
+			// perfectly ordinary lessons in the meantime.
+			name: "a branch whose declaration cannot be read",
+			body: "## 主線 {sequence=bogus}\n\n- [[Retired]]\n",
+			want: false,
+		},
+		{
+			// A branch declared part of the course under one declared out of
+			// it: the contradiction is the author's to resolve, and nothing
+			// projects from it while it stands.
+			name: "a branch contradicting the one above it",
+			body: "## 日常 {sequence=none}\n\n### 主線 {sequence=primary}\n\n- [[Retired]]\n",
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

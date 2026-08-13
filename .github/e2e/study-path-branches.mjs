@@ -14,6 +14,7 @@ const COURSE_PAGE = '/syllabus/Maps/branches.md';
 const SECOND_LESSON = '/notes/Course/C02.md';
 const SIDE_LESSON = '/notes/Course/S01.md';
 const MAP_PAGE = '/notes/Notes/alpha.md';
+const ROUTINE_LESSON = '/notes/Course/R01.md';
 
 const SITES = [
   'home-counts-the-main-line',
@@ -21,6 +22,7 @@ const SITES = [
   'main-line-steps-over-the-side-branch',
   'side-branch-does-not-rejoin',
   'declared-out-stays-out',
+  'declared-out-is-in-no-course',
   'general-maps-unchanged',
 ];
 
@@ -89,6 +91,15 @@ const MUTATIONS = {
       '<div class="y-syl">',
       '<div class="y-syl"><a class="y-lesson" href="/notes/Course/R01.md">R01</a>',
       'course page body',
+    ),
+  },
+  'place-the-routine-lesson-in-the-course': {
+    target: 'declared-out-is-in-no-course',
+    apply: rewriteDocument(
+      ROUTINE_LESSON,
+      '<div class="y-prose">',
+      '<nav class="y-steps" aria-label="Branch Course 課程順序"><a rel="next" href="/notes/Course/C01.md">下一課</a></nav><div class="y-prose">',
+      'routine lesson article foot',
     ),
   },
   'empty-the-general-map': {
@@ -191,6 +202,29 @@ try {
   if (await drawer.count() !== 1) broken(`the course drawer is present ${await drawer.count()} times, want 1`);
   if (await drawer.locator('a[href="/notes/Course/R01.md"]').count() !== 0) {
     fail('declared-out-stays-out', 'a lesson declared out of the course appears in the course drawer');
+  }
+
+  // A lesson the course declared itself out of is in no course. Opened on its
+  // own page, it is offered no course order and no course places it — the
+  // folder tree still lists the file, because a folder is not a course.
+  await page.goto(BASE + ROUTINE_LESSON, { waitUntil: 'domcontentloaded' });
+  // Folder order is not course order: the file sits beside others in a folder,
+  // and that is a fact about the folder. What must not appear is a step
+  // labelled with the course, which would say the course teaches it.
+  const stepLabels = await page.locator('nav.y-steps').evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('aria-label') || ''));
+  if (stepLabels.some((label) => label.includes('Branch Course'))) {
+    fail('declared-out-is-in-no-course',
+      `a lesson declared out of the course is offered its course order: ${JSON.stringify(stepLabels)}`);
+  }
+  const routineDrawer = page.locator('[data-map-tree="Maps/branches.md"]');
+  if (await routineDrawer.count() !== 1) broken(`the course drawer is present ${await routineDrawer.count()} times, want 1`);
+  if (await routineDrawer.locator(`a[href="${ROUTINE_LESSON}"]`).count() !== 0) {
+    fail('declared-out-is-in-no-course', 'the course drawer places a lesson the course declared itself out of');
+  }
+  const folderRow = page.locator(`.y-rail-left a[href="${ROUTINE_LESSON}"]`);
+  if (await folderRow.count() === 0) {
+    broken('the folder tree stopped listing the file, so this check no longer separates a folder from a course');
   }
 
   // A side branch's last lesson closes it: it does not rejoin the main line.

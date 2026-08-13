@@ -200,8 +200,15 @@ func buildPathGroup(
 			// the two would learn only that one of them is wrong. A side branch
 			// keeps its own count, and a block declared out of the course, one
 			// nobody declared, and one still to repair carry none.
-			if child.Role == sequence.RolePrimary || child.Role == sequence.RoleStructural {
-				out.Planned += child.Planned
+			// Only the main line joins counts end to end. A branch declared
+			// out of it walks its own steps and shows its own number, so
+			// folding a nested part into a side branch would print a figure no
+			// walk matches; and a branch nobody declared, or one the author has
+			// still to repair, is not part of the course to be counted into.
+			if out.Role == sequence.RolePrimary || out.Role == sequence.RoleStructural {
+				if child.Role == sequence.RolePrimary || child.Role == sequence.RoleStructural {
+					out.Planned += child.Planned
+				}
 			}
 			out.Items = append(out.Items, PathItem{Group: child})
 		}

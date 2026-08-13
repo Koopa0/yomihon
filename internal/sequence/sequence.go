@@ -285,6 +285,8 @@ func Parse(body string, bodyStartLine int) Document {
 		bodyStartLine: bodyStartLine,
 	}
 	p.zones = skipZones(body)
+	p.openers = emphasisOpeners(body)
+	p.rows = make(map[int]*Candidate)
 
 	// 1. Parse headings, containers and role declarations, collecting the rows
 	//    each branch lists on the way.
@@ -309,6 +311,16 @@ type parser struct {
 	body          string
 	bodyStartLine int
 	zones         []Span
+	// openers are the opening delimiter runs of the emphasis Markdown actually
+	// paired, so an unpaired run is known to be printed rather than assumed to
+	// be markup.
+	openers []Span
+	// rows is each source row's one decision, keyed by where the row's own text
+	// starts. Whether a row is a lesson is settled once, when the row is read;
+	// anything that needs the answer later asks here rather than re-deriving it
+	// from the text, which is how a row refused for one reason came to pass a
+	// second, looser test.
+	rows map[int]*Candidate
 
 	open        []*Group
 	roots       []*Group
@@ -498,6 +510,7 @@ func (p *parser) container(
 			if len(hits) == 1 {
 				entry.Target = hits[0].target
 			}
+			p.rows[spans[0].Start] = entry
 			group.Items = append(group.Items, Item{Entry: entry})
 		}
 	}
@@ -606,8 +619,11 @@ func (p *parser) declaresContainer(item *ast.ListItem) bool {
 	if len(spans) == 0 {
 		return false
 	}
-	own := p.body[spans[0].Start:spans[0].Stop]
-	if _, _, decl := readMarker(own, p.visibleMarkerSpans(own, spans[0].Start)); decl != declValid {
+	// The same boundary listItem reads. Two readers of one row that disagree
+	// about where its declaration lives route the nested list one way and name
+	// it the other.
+	head := firstSourceLine(p.body[spans[0].Start:spans[0].Stop])
+	if _, _, decl := readMarker(head, p.visibleMarkerSpans(head, spans[0].Start)); decl != declValid {
 		return false
 	}
 	return childList(item) != nil
@@ -681,6 +697,7 @@ func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, o
 		entry.Target = hits[0].target
 		entry.State = EntryAccepted
 	}
+	p.rows[spans[0].Start] = entry
 	group.Items = append(group.Items, Item{Entry: entry})
 }
 
@@ -712,15 +729,12 @@ func (p *parser) firstVisible(span Span) (int, bool) {
 		case ' ', '\t', '\r', '\n':
 			i++
 		case '*', '_':
-			run := i
-			for run < span.Stop && p.body[run] == b {
-				run++
-			}
-			if run < span.Stop && !isInlineSpace(p.body[run]) {
-				i = run // the run opens emphasis; what it wraps is what shows
+			opener, paired := p.openerAt(i)
+			if paired {
+				i = opener.Stop // Markdown paired this run; what it wraps is what shows
 				continue
 			}
-			return i, true // a literal delimiter, printed as itself
+			return i, true // an unpaired delimiter, printed as itself
 		default:
 			return i, true
 		}
@@ -741,8 +755,18 @@ func (p *parser) zoneAt(off int) (Span, bool) {
 	return Span{}, false
 }
 
-func isInlineSpace(b byte) bool {
-	return b == ' ' || b == '\t' || b == '\r' || b == '\n'
+// openerAt is the opening delimiter run of an emphasis that starts at this
+// offset. Whether a run of asterisks is emphasis or two printed characters is
+// Markdown's answer, not a shape this package can read off the run itself: the
+// same "**" opens emphasis when something closes it and prints as itself when
+// nothing does.
+func (p *parser) openerAt(off int) (Span, bool) {
+	for _, span := range p.openers {
+		if span.Start == off {
+			return span, true
+		}
+	}
+	return Span{}, false
 }
 
 // anchorTarget is the row a container hangs from: the enclosing list item's
@@ -771,14 +795,11 @@ func (p *parser) anchorOwnTarget(item *ast.ListItem) (string, Span, bool) {
 	if len(spans) == 0 {
 		return "", Span{}, false
 	}
-	if isTaskRow(p.body[spans[0].Start:spans[0].Stop]) {
+	entry, read := p.rows[spans[0].Start]
+	if !read || entry.State != EntryAccepted {
 		return "", Span{}, false
 	}
-	hits := p.liveWikilinks(spans)
-	if len(hits) != 1 || !p.linkFirst(hits[0], spans[0]) {
-		return "", Span{}, false
-	}
-	return hits[0].target, spans[0], true
+	return entry.Target, spans[0], true
 }
 
 // classify settles every branch the author did not declare, and reports a
@@ -1046,6 +1067,73 @@ func skipZones(body string) []Span {
 		return ast.WalkContinue, nil
 	})
 	return append(code, commentZones(body, code)...)
+}
+
+// emphasisOpeners are the opening delimiter runs of every emphasis in the body.
+// Markdown decides what an asterisk run is by finding a closer for it, so the
+// runs it paired are the ones that vanish into markup; every other run prints.
+func emphasisOpeners(body string) []Span {
+	src := []byte(body)
+	doc := mdParser.Parse(text.NewReader(src))
+	var out []Span
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		emphasis, ok := n.(*ast.Emphasis)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		if start, content, ok := emphasisOpener(emphasis); ok {
+			out = append(out, Span{start, content})
+		}
+		return ast.WalkContinue, nil
+	})
+	return out
+}
+
+// emphasisOpener is where one emphasis's own delimiter run begins and ends.
+// Emphasis carries no source segment of its own, so the run is measured back
+// from what it wraps — and what it wraps may be another emphasis, whose own run
+// has to be stepped over first. Bold and italic together is a shape the
+// contract allows, and measuring back from the innermost text would land in the
+// middle of the delimiters.
+func emphasisOpener(n *ast.Emphasis) (start, content int, ok bool) {
+	child := n.FirstChild()
+	if child == nil {
+		return 0, 0, false
+	}
+	if inner, isEmphasis := child.(*ast.Emphasis); isEmphasis {
+		innerStart, _, innerOK := emphasisOpener(inner)
+		if !innerOK {
+			return 0, 0, false
+		}
+		content = innerStart
+	} else {
+		at, found := firstTextStart(child)
+		if !found {
+			return 0, 0, false
+		}
+		content = at
+	}
+	start = content - n.Level
+	if start < 0 {
+		return 0, 0, false
+	}
+	return start, content, true
+}
+
+// firstTextStart is where an inline node's own text begins in the source.
+func firstTextStart(n ast.Node) (int, bool) {
+	if t, ok := n.(*ast.Text); ok {
+		return t.Segment.Start, true
+	}
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if off, ok := firstTextStart(c); ok {
+			return off, true
+		}
+	}
+	return 0, false
 }
 
 // commentZones are the Obsidian %%...%% spans. A %% inside code is ignored

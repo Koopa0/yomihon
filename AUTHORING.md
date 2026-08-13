@@ -269,7 +269,7 @@ absent from navigation and reads normally on the page.
 
 | rule | condition |
 |---|---|
-| `path.role_missing` | a branch has a direct candidate but no declaration |
+| `path.role_missing` | a heading has a direct candidate but no declaration, or a nested list carries no declaration at all — nesting is itself a claim about structure, so it is reported whether or not the rows beneath it name any notes |
 | `path.role_duplicate` | one branch declares two roles |
 | `path.role_conflict` | a `primary` or `local` branch sits under a declared `none` (a purely structural branch never triggers it) |
 | `path.local_orphan` | a `local` container has no entry to hang from |
