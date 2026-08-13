@@ -34,6 +34,10 @@ func TestCheckGolden(t *testing.T) {
 		// The authoring contract's own diagnostics: one course written every
 		// way the grammar refuses, so each rule has a line in the golden.
 		{name: "study-path structure", fixture: "testdata/vault-paths", golden: "testdata/golden/paths.jsonl"},
+		// The same grammar under a vault that calls its courses something else.
+		// This fixture is the evidence that the type comes from the contract:
+		// nothing in it is named "study-path".
+		{name: "a vault that renames its courses", fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
 		{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
 		{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
 		// This fixture covers the local vault contract's configured fields.
