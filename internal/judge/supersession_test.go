@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 func TestSupersessionRulesUseConfiguredVocabulary(t *testing.T) {
@@ -83,14 +84,7 @@ func TestSupersessionCapabilityCrossProduct(t *testing.T) {
 				"successors": {scalar: "new", scalarIsString: true},
 			},
 		},
-		{
-			path:     "Maps/Path.md",
-			noteType: "study-path",
-			status:   "ready",
-			wikilinks: []wikiLink{
-				{target: "Archived", line: 7},
-			},
-		},
+		courseNote("Maps/Path.md", "## 主線 {sequence=primary}\n\n- [[Archived]]\n"),
 		{
 			path:     "Writing/Archived.md",
 			noteType: "lesson",
@@ -239,12 +233,9 @@ func TestArchivedNavigationTargetResolutionDomain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			notes := append([]note{{
-				path:      "Maps/Path.md",
-				noteType:  "study-path",
-				status:    "ready",
-				wikilinks: []wikiLink{{target: tt.targetName, line: 7}},
-			}}, tt.targets...)
+			notes := append([]note{
+				courseNote("Maps/Path.md", "## 主線 {sequence=primary}\n\n- [["+tt.targetName+"]]\n"),
+			}, tt.targets...)
 			idx := buildIndex(notes, nil)
 			findings := supersessionFindings(notes, idx, authority)
 			count := 0
@@ -308,3 +299,16 @@ general_link_field = "lineage"
 archived_status = "archived"
 
 `
+
+// courseNote is a study path built the way the scanner builds one: its links
+// and its declared structure both come from the same body, so a test cannot
+// assert a course lists something the grammar never read.
+func courseNote(path, body string) note {
+	return note{
+		path:      path,
+		noteType:  "study-path",
+		status:    "ready",
+		wikilinks: extractWikilinks(body, 1),
+		sequence:  sequence.Parse(body, 1),
+	}
+}

@@ -91,7 +91,7 @@ func archivedNavigationTargets(
 			!liveStatus(authority.contract, source, vocabulary.ArchivedStatus) {
 			continue
 		}
-		for _, link := range source.wikilinks {
+		for _, link := range navigationLinks(source, roles) {
 			resolution := idx.Resolve(link.target)
 			if resolution.Kind != graph.Unique {
 				continue
@@ -132,4 +132,24 @@ func archivedNavigationFinding(
 		ResolvedTo:      new(target.path),
 		Fingerprint:     fingerprint(archivedNavigationRule, source.path, link.target),
 	}
+}
+
+// navigationLinks are the links through which a note points at another. A
+// course points by listing a lesson: a link in its prose, in a block declared
+// out of the course, in one nobody declared, or in a row the grammar refused is
+// not the course pointing anywhere, and telling the author to repair a course
+// that never listed the note sends them to the wrong file. A general map
+// declares no sequence, so it keeps answering for every link it carries.
+func navigationLinks(source *note, roles schema.NavigationRoles) []wikiLink {
+	if !roles.IsPathType(source.noteType) {
+		return source.wikilinks
+	}
+	rows := courseRowLines(source)
+	out := make([]wikiLink, 0, len(source.wikilinks))
+	for _, link := range source.wikilinks {
+		if rows[link.line] {
+			out = append(out, link)
+		}
+	}
+	return out
 }
