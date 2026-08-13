@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -64,7 +65,7 @@ func TestNewRealVault(t *testing.T) {
 		t.Error("real-vault artifact diagnostic disagrees with capability availability")
 	}
 
-	pathEntries := validateRealVaultMaps(t, "path", model.Paths())
+	pathEntries := validateRealVaultPaths(t, model.Paths())
 	mapEntries := validateRealVaultMaps(t, "map", model.Maps())
 	folderCount := validateRealVaultFolders(t, model.Folders())
 	validateRealVaultReports(t, model.Reports())
@@ -179,4 +180,58 @@ func requireRealVaultRoot(t *testing.T) string {
 		t.Fatal("configured real vault is unavailable")
 	}
 	return root
+}
+
+// validateRealVaultPaths holds the same invariant against the live vault's
+// study paths: a lesson that resolves has a path, and a lesson that does not
+// never fabricates one. A row the grammar refused is not a lesson at all, so it
+// carries no resolution outcome to check.
+func validateRealVaultPaths(t *testing.T, paths []Path) int {
+	t.Helper()
+
+	entryCount := 0
+	for pathOrdinal := range paths {
+		p := &paths[pathOrdinal]
+		if p.RelPath == "" {
+			t.Errorf("path[%d] has no source identity", pathOrdinal)
+		}
+		entries := flattenRealVaultPathEntries(p.Groups)
+		entryCount += len(entries)
+		for entryOrdinal, entry := range entries {
+			if entry.State != sequence.EntryAccepted {
+				if entry.RelPath != "" || entry.Status != "" {
+					t.Errorf("path[%d] entry[%d] was refused yet carries a resolution", pathOrdinal, entryOrdinal)
+				}
+				continue
+			}
+			switch entry.Kind {
+			case EntryResolved:
+				if entry.RelPath == "" {
+					t.Errorf("path[%d] entry[%d] resolved without a path", pathOrdinal, entryOrdinal)
+				}
+			case EntryUnresolved, EntryAmbiguous, EntryNonInstance:
+				if entry.RelPath != "" || entry.Status != "" {
+					t.Errorf("path[%d] entry[%d] warning fabricates resolved metadata", pathOrdinal, entryOrdinal)
+				}
+			default:
+				t.Errorf("path[%d] entry[%d] has an unknown kind", pathOrdinal, entryOrdinal)
+			}
+		}
+	}
+	return entryCount
+}
+
+func flattenRealVaultPathEntries(groups []*PathGroup) []*PathEntry {
+	var entries []*PathEntry
+	for _, g := range groups {
+		for _, item := range g.Items {
+			switch {
+			case item.Entry != nil:
+				entries = append(entries, item.Entry)
+			case item.Group != nil:
+				entries = append(entries, flattenRealVaultPathEntries([]*PathGroup{item.Group})...)
+			}
+		}
+	}
+	return entries
 }

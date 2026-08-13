@@ -33,7 +33,7 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 	}
 	write("Writing/lessons/golang/Slices.md", "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
 	write("Writing/lessons/golang/Maps lesson.md", "---\ntitle: Maps lesson\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("Maps/Go path.md", "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n## data | Data | 資料\n\n- [[Slices]]\n- [[Planned lesson]]\n- [[Maps lesson]]\n")
+	write("Maps/Go path.md", "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n## data | Data | 資料 {sequence=primary}\n\n- [[Slices]]\n- [[Planned lesson]]\n- [[Maps lesson]]\n")
 	write("Diary/2026-07-31.md", "today\n")
 	write("Concepts/plain.md", "---\ntitle: Plain\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
 	write("System/reports/weekly.md", "---\ntitle: Weekly\ntype: system\ndomain: meta\n---\n\nreport\n")
@@ -574,7 +574,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	write("Writing/lessons/golang/Setup.md", lesson("Setup"))
 	write("Writing/lessons/golang/Basics.md", lesson("Basics"))
 	write("Writing/lessons/golang/Wrapping up.md", lesson("Wrapping up"))
-	write("Maps/Go course.md", "---\ntitle: Go course\ntype: study-path\ndomain: golang\n---\n\n## start | Start | 開始\n\n- [[Setup]]\n- [[Basics]]\n- [[Wrapping up]]\n")
+	write("Maps/Go course.md", "---\ntitle: Go course\ntype: study-path\ndomain: golang\n---\n\n## start | Start | 開始 {sequence=primary}\n\n- [[Setup]]\n- [[Basics]]\n- [[Wrapping up]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 

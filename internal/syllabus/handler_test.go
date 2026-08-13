@@ -126,7 +126,7 @@ func writeVault(t *testing.T, root string) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	path := "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" +
-		"## data | Data | 資料\n\n### text | Text | 文字\n\n" +
+		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n" +
 		"- [[Slices]]\n- [[Ghost Lesson]]\n- [[Repeated|Ambiguous Lesson]]\n- [[After]]\n"
 	if err := os.WriteFile(filepath.Join(mapsDir, "Go path.md"), []byte(path), 0o600); err != nil {
 		t.Fatalf("write study-path: %v", err)

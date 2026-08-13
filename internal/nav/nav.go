@@ -84,8 +84,9 @@ type Model struct {
 	// rootNotes are files that live at the vault root itself (README.md,
 	// CLAUDE.md, ...), which belong to no top-level folder.
 	rootNotes []NoteRef
-	// paths are study-path map trees in vault path order.
-	paths []Map
+	// paths are study paths in vault path order, read once through the
+	// declared-sequence grammar (internal/sequence) at snapshot build.
+	paths []Path
 	// maps are every other map-note tree, ordered by domain and then title.
 	maps []Map
 	// journal is the most recent captured journal entries, newest first. It comes
@@ -166,12 +167,14 @@ func (m *Model) RootNotes() []NoteRef {
 	return slices.Clone(m.rootNotes)
 }
 
-// Paths returns the study-path map trees in vault path order.
-func (m *Model) Paths() []Map {
+// Paths returns the study paths in vault path order. The returned slice is the
+// caller's; the group trees it points into are immutable after construction
+// and shared, exactly like the rest of the model.
+func (m *Model) Paths() []Path {
 	if m == nil {
 		return nil
 	}
-	return cloneMaps(m.paths)
+	return slices.Clone(m.paths)
 }
 
 // Maps returns every non-path map tree, ordered by domain and title.
@@ -381,13 +384,13 @@ func newModel(
 	}
 
 	for _, n := range mapNotes {
-		isPath := roles.IsPathType(n.Type())
-		tree := parseMap(n, resolver, statusByPath, policy, isPath)
-		if isPath {
-			m.paths = append(m.paths, tree)
-		} else {
-			m.maps = append(m.maps, tree)
+		if roles.IsPathType(n.Type()) {
+			// A study path reads the declared-sequence grammar; the legacy
+			// map parser never sees it.
+			m.paths = append(m.paths, buildPath(n, resolver, statusByPath, policy))
+			continue
 		}
+		m.maps = append(m.maps, parseMap(n, resolver, statusByPath, policy))
 	}
 	slices.SortStableFunc(m.maps, func(a, b Map) int {
 		if byDomain := cmp.Compare(a.Domain, b.Domain); byDomain != 0 {
@@ -398,7 +401,14 @@ func newModel(
 		}
 		return cmp.Compare(a.RelPath, b.RelPath)
 	})
-	m.placementIndex = buildPlacementIndex(slices.Concat(m.paths, m.maps))
+	// Study paths are indexed before general maps, so a note both a course and
+	// a map place answers with its course first — the reader's own question is
+	// about the course they are walking.
+	m.placementIndex = make(map[string][]Placement)
+	for i := range m.paths {
+		pathPlacements(m.placementIndex, &m.paths[i])
+	}
+	buildPlacementIndex(m.placementIndex, m.maps)
 	return m
 }
 

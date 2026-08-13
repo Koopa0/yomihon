@@ -5,7 +5,7 @@ domain: golang
 ---
 # Study Path
 
-## Notes
+## Notes {sequence=primary}
 
 - [[Alpha]]
 - [[Template lesson|Template-only lesson]]

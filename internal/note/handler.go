@@ -834,11 +834,11 @@ func recentHomeNotes(notes []nav.NoteSummary, governed bool) (recent []pages.Hom
 // reading — and because publishing a lesson moves it out of that status, the
 // number went down as the work was completed. A count that runs backwards
 // cannot be repaired by renaming it.
-func homePaths(paths []nav.Map) []pages.HomePath {
+func homePaths(paths []nav.Path) []pages.HomePath {
 	out := make([]pages.HomePath, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
-		_, total := studyPath.EntryCounts(schema.SealStatus)
+		total := studyPath.Planned
 		out = append(out, pages.HomePath{
 			Title:   studyPath.Title,
 			RelPath: studyPath.RelPath,

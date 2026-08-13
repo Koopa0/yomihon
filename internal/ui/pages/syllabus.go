@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 // PathView is everything the study-path page needs: the current path's
@@ -24,7 +25,8 @@ type PathView struct {
 	Branches   []PathBranchView
 
 	// Path-level figures, precomputed so the header metarow is a dumb read.
-	// Entries is the whole-path entry total; Ready the subset waiting at the
+	// Entries is the course's planned lesson total — the main line only, a
+	// planned-but-unwritten lesson included. Ready is the subset waiting at the
 	// seal for a human to rule on it — a queue, never a measure of progress:
 	// a lesson finished and published leaves it.
 	Parts   int
@@ -33,20 +35,32 @@ type PathView struct {
 	Ready   int
 }
 
-// PathBranchView is one heading in the flattened tree. A top-level branch is a
-// part (Depth 0): it carries an Anchor the "On this path" rail jumps to and an
-// Ordinal (roman numeral). A nested branch is a module (Depth >= 1): it carries
-// a Num (its 1-based position among its siblings). Total is how many entries
-// this branch and everything beneath it hold.
+// PathBranchView is one branch of the course as the page draws it. A top-level
+// branch is a part (Depth 0): it carries an Anchor the "On this path" rail
+// jumps to and an Ordinal (roman numeral). A nested branch is a module
+// (Depth >= 1) numbered by sibling position, and a side branch is a module the
+// author declared local, drawn under the lesson it hangs from.
+//
+// Items hold what the branch lists in source order, entries and side branches
+// together, so the page places a side branch where the author put it instead of
+// matching it back to a lesson by name.
 type PathBranchView struct {
 	Anchor  string
 	Ordinal string
 	Num     int
 	Heading string
 	Depth   int
-	Total   int
-	Entries []PathEntryView
-	Sub     []PathBranchView
+	// Local marks a side branch: its own order and its own count, never part of
+	// the main line.
+	Local bool
+	Total int
+	Items []PathItemView
+}
+
+// PathItemView is one thing a branch lists. Exactly one field is set.
+type PathItemView struct {
+	Entry  *PathEntryView
+	Branch *PathBranchView
 }
 
 // PathEntryView is one linked or warning row. Only resolved rows have an href,
@@ -60,7 +74,7 @@ type PathEntryView struct {
 }
 
 // PathLink is one entry in the path switcher: a study-path's title, the
-// URL to its page, its whole-path entry count, and whether it is the path
+// URL to its page, its planned lesson count, and whether it is the path
 // currently shown.
 type PathLink struct {
 	Title   string
@@ -69,56 +83,127 @@ type PathLink struct {
 	Active  bool
 }
 
-// BuildPathView flattens one parsed study-path (current) into the page
-// view, and builds the switcher from every study-path in the vault (all). It is
-// pure: entry totals include linked and warning rows, Ready includes only
-// resolved rows at the seal status, and document order is preserved at every
-// level (nav already guarantees it).
-func BuildPathView(current *nav.Map, all []nav.Map) PathView {
+// BuildPathView draws one study path's declared structure into the page view,
+// and builds the switcher from every study path in the vault.
+//
+// It draws what the grammar lets navigation read and nothing else: a branch the
+// author declared out of the course, never declared at all, or wrote with a
+// structural error is not part of the course, so the course page does not show
+// one. Those branches keep their prose on the note's own page, and the judge
+// carries the reason to the author.
+func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 	v := PathView{
 		Title:      current.Title,
 		RelPath:    current.RelPath,
 		GuideHref:  notesHref(current.RelPath),
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
+		Entries:    current.Planned,
 	}
-	v.Ready, _ = current.EntryCounts(schema.SealStatus)
-	for i, sec := range current.Branches {
-		sv := buildPathBranch(sec, 0, i+1)
+	for _, g := range current.Groups {
+		sv, ok := buildPathBranch(g, 0, v.Parts+1)
+		if !ok {
+			continue
+		}
 		v.Branches = append(v.Branches, sv)
 		v.Parts++
-		v.Modules += len(sv.Sub)
-		v.Entries += sv.Total
+		v.Modules += countModules(&sv)
 	}
+	v.Ready = countReady(v.Branches)
 	return v
 }
 
-// buildPathBranch converts one nav.Branch and its subtree into a
-// PathBranchView. depth 0 is a part (anchored, roman-numbered); deeper branches
-// are modules (numbered by sibling position). nav owns the subtree counts;
-// this function only maps them into presentation values.
-func buildPathBranch(sec nav.Branch, depth, num int) PathBranchView {
-	sv := PathBranchView{Heading: sec.Heading, Depth: depth, Num: num}
-	_, sv.Total = sec.EntryCounts(schema.SealStatus)
+// buildPathBranch converts one projectable branch and its drawable subtree into
+// a view. ok is false for a branch the course does not include and that carries
+// no declared branch beneath it — a structural heading whose whole job is to
+// hold parts still draws, because dropping it would orphan them.
+func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
+	if !drawable(g) {
+		return PathBranchView{}, false
+	}
+	sv := PathBranchView{
+		Heading: g.Name,
+		Depth:   depth,
+		Num:     num,
+		Local:   g.Role == sequence.RoleLocal,
+		Total:   g.Planned,
+	}
 	if depth == 0 {
 		sv.Anchor = "part-" + strconv.Itoa(num)
 		sv.Ordinal = roman(num)
 	}
-	entries := sec.Entries
-	for i := range entries {
-		l := &entries[i]
-		entry := buildPathEntry(l)
-		sv.Entries = append(sv.Entries, entry)
+	children := 0
+	for _, item := range g.Items {
+		switch {
+		case item.Entry != nil:
+			if !g.Projectable || item.Entry.State != sequence.EntryAccepted {
+				continue
+			}
+			entry := buildPathEntry(item.Entry)
+			sv.Items = append(sv.Items, PathItemView{Entry: &entry})
+		case item.Group != nil:
+			children++
+			child, ok := buildPathBranch(item.Group, depth+1, children)
+			if !ok {
+				children--
+				continue
+			}
+			sv.Items = append(sv.Items, PathItemView{Branch: &child})
+		}
 	}
-	for i, sub := range sec.Subbranches {
-		child := buildPathBranch(sub, depth+1, i+1)
-		sv.Sub = append(sv.Sub, child)
+	return sv, true
+}
+
+// drawable reports whether the course page shows this branch: one the grammar
+// projects, or a structural heading that carries one.
+func drawable(g *nav.PathGroup) bool {
+	if g.Projectable {
+		return true
 	}
-	return sv
+	if g.Invalid || g.Role != sequence.RoleStructural {
+		return false
+	}
+	for _, item := range g.Items {
+		if item.Group != nil && drawable(item.Group) {
+			return true
+		}
+	}
+	return false
+}
+
+// countModules is how many branches sit beneath a part, at any depth. The
+// metarow says "modules", and a side branch is one of them.
+func countModules(sv *PathBranchView) int {
+	n := 0
+	for _, item := range sv.Items {
+		if item.Branch != nil {
+			n += 1 + countModules(item.Branch)
+		}
+	}
+	return n
+}
+
+// countReady is the queue waiting at the seal for a human to rule on it — never
+// a measure of progress, because a lesson finished and published leaves it.
+func countReady(branches []PathBranchView) int {
+	n := 0
+	for _, sv := range branches {
+		for _, item := range sv.Items {
+			switch {
+			case item.Entry != nil:
+				if item.Entry.Sealed {
+					n++
+				}
+			case item.Branch != nil:
+				n += countReady([]PathBranchView{*item.Branch})
+			}
+		}
+	}
+	return n
 }
 
 // buildPathEntry maps one nav entry onto a linked or warning study-path row.
-func buildPathEntry(entry *nav.Entry) PathEntryView {
+func buildPathEntry(entry *nav.PathEntry) PathEntryView {
 	v := PathEntryView{Text: entry.Text, Kind: entry.Kind}
 	if entry.Kind != nav.EntryResolved {
 		return v
@@ -179,14 +264,13 @@ func entryResolutionTitle(kind nav.EntryKind) string {
 
 // buildPaths builds the switcher: every study-path in vault order, each with
 // its whole-path entry count and whether it is the one currently shown.
-func buildPaths(currentRel string, all []nav.Map) []PathLink {
+func buildPaths(currentRel string, all []nav.Path) []PathLink {
 	links := make([]PathLink, 0, len(all))
 	for _, s := range all {
-		_, total := s.EntryCounts(schema.SealStatus)
 		links = append(links, PathLink{
 			Title:   s.Title,
 			RelPath: s.RelPath,
-			Entries: total,
+			Entries: s.Planned,
 			Active:  s.RelPath == currentRel,
 		})
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -327,8 +328,8 @@ templ sidebar(sb Sidebar, nonce string) {
 								}
 							</nav>
 						}
-						for _, m := range sb.Model.Paths() {
-							@mapTree(sb, m, syllabusHref(m.RelPath))
+						for _, p := range sb.Model.Paths() {
+							@pathTree(sb, p)
 						}
 					</div>
 				</details>
@@ -499,6 +500,84 @@ templ mapTree(sb Sidebar, m nav.Map, href string) {
 			}
 		</div>
 	</details>
+}
+
+// pathTree renders one study path as a closed disclosure that opens when it
+// holds the current note. It draws the declared structure navigation already
+// read: a branch the course does not include is not in the rail either, and a
+// side branch sits under the lesson it hangs from, in source order.
+templ pathTree(sb Sidebar, p nav.Path) {
+	<details open?={ sb.mapOpen(p.RelPath) } data-map-tree={ p.RelPath } { disclosureAttrs("map:"+p.RelPath, sb.mapOpen(p.RelPath))... }>
+		<summary class="y-railitem">
+			@chevron()
+			<span class="y-railitem__name">{ p.Title }</span>
+		</summary>
+		<div class="y-tree">
+			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>開啟課綱</a>
+			for _, g := range p.Groups {
+				@pathGroupNode(sb, p.RelPath, childChain(nil, g.Name), g)
+			}
+		</div>
+	</details>
+}
+
+// pathGroupNode renders one branch of a study path, opened when it lies on the
+// way to the current note. A branch the grammar does not project draws nothing:
+// it is not part of the course, so it is not a way to a lesson.
+templ pathGroupNode(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup) {
+	if pathGroupDrawn(g) {
+		<details open?={ sb.branchOpen(pathRel, chain) } { disclosureAttrs("mapbranch:"+branchKey(pathRel, chain), sb.branchOpen(pathRel, chain))... }>
+			<summary class="y-treeitem">
+				@chevron()
+				{ g.Name }
+			</summary>
+			<div class="y-tree">
+				@pathGroupItems(sb, pathRel, chain, g)
+			</div>
+		</details>
+	}
+}
+
+// pathGroupItems draws a branch's lessons and side branches in source order.
+templ pathGroupItems(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup) {
+	for _, item := range g.Items {
+		if item.Entry != nil {
+			if g.Projectable && item.Entry.State == sequence.EntryAccepted {
+				@pathEntryLink(sb, item.Entry)
+			}
+		} else if item.Group != nil {
+			@pathGroupNode(sb, pathRel, childChain(chain, item.Group.Name), item.Group)
+		}
+	}
+}
+
+// pathEntryLink renders one lesson row: a lesson that resolves links and may
+// mark the current note; a planned or ambiguous one stays non-interactive and
+// keeps its place in the course.
+templ pathEntryLink(sb Sidebar, entry *nav.PathEntry) {
+	if entry.Kind == nav.EntryResolved {
+		<a
+			class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
+			href={ templ.URL(notesHref(entry.RelPath)) }
+			{ currentAttr(sb.current(entry.RelPath))... }
+		>
+			<span class="y-navdot" aria-hidden="true"></span>
+			{ entry.Text }
+			if entry.Status != "" {
+				<span class="ui-navitem__count">{ entry.Status }</span>
+			}
+		</a>
+	} else {
+		<span
+			class="ui-navitem y-navitem--broken"
+			data-resolution={ entryResolutionCode(entry.Kind) }
+			title={ entryResolutionTitle(entry.Kind) }
+		>
+			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
+			{ entry.Text }
+			<span class="ui-navitem__count">{ entryResolutionLabel(entry.Kind) }</span>
+		</span>
+	}
 }
 
 // branchNode renders one map branch as a disclosure, opened when it lies on the

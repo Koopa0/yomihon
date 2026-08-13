@@ -23,6 +23,10 @@ type Note struct {
 	// valid YAML. Display-only: yomihon reports the fault; a human edits the file.
 	FMDiagnostic string
 	Body         string
+	// BodyLine is the 1-based file line Body begins on — 1 for a note with no
+	// frontmatter — so a parser reading the body can report the lines an
+	// editor shows rather than lines counted from the split.
+	BodyLine int
 }
 
 // Parse splits raw file bytes into frontmatter and body and decodes the
@@ -34,6 +38,7 @@ func Parse(rel string, data []byte) *Note {
 	n := &Note{RelPath: rel}
 	block, found := SplitFrontmatter(data)
 	n.Body = string(block.Body)
+	n.BodyLine = block.BodyStartLine
 	if !found {
 		return n
 	}

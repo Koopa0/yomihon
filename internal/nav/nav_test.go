@@ -179,7 +179,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 	targetPath := "Concepts/go/Target.md"
 	mapPath := "Maps/Course.md"
 	targetBytes := []byte("---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
-	mapBytes := []byte("---\ntitle: Course\ntype: study-path\ndomain: golang\n---\n## Shelf\n- [[Target]]\n")
+	mapBytes := []byte("---\ntitle: Course\ntype: study-path\ndomain: golang\n---\n## Shelf {sequence=primary}\n- [[Target]]\n")
 	writeNavFixture(t, root, targetPath, string(targetBytes))
 	writeNavFixture(t, root, "Concepts/go/Unreadable.md", "not captured\n")
 	writeNavFixture(t, root, mapPath, string(mapBytes))
@@ -230,17 +230,16 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 	if diff := cmp.Diff(wantNotes, model.KnowledgeNotes()); diff != "" {
 		t.Errorf("New KnowledgeNotes mismatch (-want +got):\n%s", diff)
 	}
-	wantPaths := []Map{{
-		Title: "Course", RelPath: mapPath, Domain: "golang", Type: "study-path",
-		Branches: []Branch{{
-			Heading: "Shelf",
-			Level:   2,
-			Entries: []Entry{{
+	wantPaths := []pathShape{{
+		Title: "Course", RelPath: mapPath, Domain: "golang", Type: "study-path", Planned: 1,
+		Groups: []groupShape{{
+			Name: "Shelf", Level: 2, Role: "primary", Projectable: true, Planned: 1,
+			Entries: []entryShape{{
 				Text: "Target", Target: "Target", RelPath: targetPath, Status: "growing", Kind: EntryResolved,
 			}},
 		}},
 	}}
-	if diff := cmp.Diff(wantPaths, model.Paths()); diff != "" {
+	if diff := cmp.Diff(wantPaths, pathShapes(model.Paths())); diff != "" {
 		t.Errorf("New Paths mismatch (-want +got):\n%s", diff)
 	}
 	if got := model.Reports(); len(got) != 1 || got[0].RelPath != "System/reports/audit.md" {
@@ -309,14 +308,18 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 
 	fixtures := []struct {
 		rel, title, noteType, domain string
+		// heading carries the sequence declaration only on the study path: a
+		// map does not read that syntax, and writing it there would assert the
+		// marker means something outside a course.
+		heading string
 	}{
-		{rel: "Maps/Course.md", title: "Course", noteType: "study-path", domain: "golang"},
-		{rel: "Maps/A-zeta.md", title: "Zeta", noteType: "moc", domain: "golang"},
-		{rel: "Maps/Beta.md", title: "Beta", noteType: "topic-map", domain: "japanese"},
-		{rel: "Maps/Z-alpha.md", title: "Alpha", noteType: "source-map", domain: "golang"},
+		{rel: "Maps/Course.md", title: "Course", noteType: "study-path", domain: "golang", heading: "## Shelf {sequence=primary}"},
+		{rel: "Maps/A-zeta.md", title: "Zeta", noteType: "moc", domain: "golang", heading: "## Shelf"},
+		{rel: "Maps/Beta.md", title: "Beta", noteType: "topic-map", domain: "japanese", heading: "## Shelf"},
+		{rel: "Maps/Z-alpha.md", title: "Alpha", noteType: "source-map", domain: "golang", heading: "## Shelf"},
 	}
 	for _, f := range fixtures {
-		writeNavFixture(t, root, f.rel, fmt.Sprintf("---\ntitle: %s\ntype: %s\ndomain: %s\n---\n## Shelf\n- [[Target]]\n- [[Ghost]]\n- [[Dup]]\n", f.title, f.noteType, f.domain))
+		writeNavFixture(t, root, f.rel, fmt.Sprintf("---\ntitle: %s\ntype: %s\ndomain: %s\n---\n%s\n- [[Target]]\n- [[Ghost]]\n- [[Dup]]\n", f.title, f.noteType, f.domain, f.heading))
 	}
 
 	roles, policy := testCapabilities(t)
@@ -327,19 +330,18 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 		Level:   2,
 		Entries: []Entry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
 	}}
-	wantPaths := []Map{{
-		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path",
-		Branches: []Branch{{
-			Heading: "Shelf",
-			Level:   2,
-			Entries: []Entry{
+	wantPaths := []pathShape{{
+		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path", Planned: 3,
+		Groups: []groupShape{{
+			Name: "Shelf", Level: 2, Role: "primary", Projectable: true, Planned: 3,
+			Entries: []entryShape{
 				{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved},
 				{Text: "Ghost", Target: "Ghost", Kind: EntryUnresolved},
 				{Text: "Dup", Target: "Dup", Kind: EntryAmbiguous, Candidates: []string{"A/Dup.md", "B/Dup.md"}},
 			},
 		}},
 	}}
-	if diff := cmp.Diff(wantPaths, model.Paths()); diff != "" {
+	if diff := cmp.Diff(wantPaths, pathShapes(model.Paths())); diff != "" {
 		t.Errorf("New Paths mismatch (-want +got):\n%s", diff)
 	}
 	wantMaps := []Map{
@@ -375,7 +377,7 @@ func TestNewRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	writeNavFixture(t, root, "Concepts/Instance.md", "---\ntitle: Instance\ntype: concept\nstatus: draft\n---\nbody\n")
 	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntitle: Template target\ntype: concept\nstatus: ready\n---\nbody\n")
 	writeNavFixture(t, root, "System/templates/Template map.md", "---\ntitle: Template map\ntype: moc\n---\n## Shelf\n- [[Instance]]\n")
-	writeNavFixture(t, root, "Maps/Course.md", "---\ntitle: Course\ntype: study-path\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
+	writeNavFixture(t, root, "Maps/Course.md", "---\ntitle: Course\ntype: study-path\n---\n## Shelf {sequence=primary}\n- [[Template target]]\n- [[Instance]]\n")
 
 	roles, policy := testCapabilities(t)
 	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
@@ -383,14 +385,15 @@ func TestNewRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	if len(model.Maps()) != 0 {
 		t.Errorf("New Maps = %+v, want non-instance map document absent", model.Maps())
 	}
-	if len(model.Paths()) != 1 || len(model.Paths()[0].Branches) != 1 {
-		t.Fatalf("New Paths = %+v, want one course branch", model.Paths())
+	got := pathShapes(model.Paths())
+	if len(got) != 1 || len(got[0].Groups) != 1 {
+		t.Fatalf("New Paths = %+v, want one course branch", got)
 	}
-	wantEntries := []Entry{
+	wantEntries := []entryShape{
 		{Text: "Template target", Target: "Template target", Kind: EntryNonInstance},
 		{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved},
 	}
-	if diff := cmp.Diff(wantEntries, model.Paths()[0].Branches[0].Entries); diff != "" {
+	if diff := cmp.Diff(wantEntries, got[0].Groups[0].Entries); diff != "" {
 		t.Errorf("New path entries mismatch (-want +got):\n%s", diff)
 	}
 	for _, note := range model.KnowledgeNotes() {
@@ -807,7 +810,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t), false)
+	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (Go shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -898,7 +901,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t), false)
+	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (大家 shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -941,41 +944,54 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t), false)
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fault tolerance) mismatch (-want +got):\n%s", diff)
 	}
 }
 
-func TestParseBranchesPathRetainsUnresolvedEntry(t *testing.T) {
+// TestPathKeepsAPlannedLessonInItsPlace holds the course's own way of being
+// written: a lesson is listed before it exists. The row stays where the author
+// put it and counts toward what the course plans, and it is not somewhere a
+// reader can be sent.
+func TestPathKeepsAPlannedLessonInItsPlace(t *testing.T) {
 	t.Parallel()
 
 	idx := resolver(t, "Writing/Existing.md")
-	body := "## Course\n- [[Existing]]\n- [[Unwritten Lesson]]\n"
-	want := []Branch{{
-		Heading: "Course",
-		Level:   2,
-		Entries: []Entry{
+	body := "## Course {sequence=primary}\n\n- [[Existing]]\n- [[Unwritten Lesson]]\n"
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, testArtifactPolicy(t))
+
+	want := []groupShape{{
+		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 2,
+		Entries: []entryShape{
 			{Text: "Existing", Target: "Existing", RelPath: "Writing/Existing.md"},
 			{Text: "Unwritten Lesson", Target: "Unwritten Lesson", Kind: EntryUnresolved},
 		},
 	}}
-
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t), true)
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("parseBranches(path) mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, groupShapes(p.Groups)); diff != "" {
+		t.Errorf("buildPath(planned lesson) mismatch (-want +got):\n%s", diff)
+	}
+	if p.Planned != 2 {
+		t.Errorf("Planned = %d, want 2; a lesson that is planned but unwritten is still one of the course's lessons", p.Planned)
+	}
+	if got := len(p.components); got != 1 || len(p.components[0]) != 1 {
+		t.Errorf("openable walk = %v, want the one written lesson; a planned lesson is not a stop", p.components)
 	}
 }
 
-func TestParseBranchesPathRetainsAmbiguousEntryInOrder(t *testing.T) {
+// TestPathKeepsAnAmbiguousLessonInOrder holds the same rule for a name two
+// notes answer to. yomihon never picks one, and the row keeps its position so
+// the course still reads in the order it was written.
+func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 	t.Parallel()
 
 	idx := resolver(t, "Writing/First.md", "A/Repeated.md", "B/Repeated.md", "Writing/Last.md")
-	body := "## Course\n- [[First]]\n- [[Repeated|Unresolved choice]]\n- [[Last]]\n"
-	want := []Branch{{
-		Heading: "Course",
-		Level:   2,
-		Entries: []Entry{
+	body := "## Course {sequence=primary}\n\n- [[First]]\n- [[Repeated|Unresolved choice]]\n- [[Last]]\n"
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, testArtifactPolicy(t))
+
+	want := []groupShape{{
+		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 3,
+		Entries: []entryShape{
 			{Text: "First", Target: "First", RelPath: "Writing/First.md", Kind: EntryResolved},
 			{
 				Text:       "Unresolved choice",
@@ -986,10 +1002,8 @@ func TestParseBranchesPathRetainsAmbiguousEntryInOrder(t *testing.T) {
 			{Text: "Last", Target: "Last", RelPath: "Writing/Last.md", Kind: EntryResolved},
 		},
 	}}
-
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t), true)
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("parseBranches(path ambiguity) mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, groupShapes(p.Groups)); diff != "" {
+		t.Errorf("buildPath(ambiguous lesson) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -1128,7 +1142,7 @@ func TestPlacements(t *testing.T) {
 			},
 		},
 	}
-	m := &Model{placementIndex: buildPlacementIndex(paths)}
+	m := &Model{placementIndex: buildPlacementIndex(make(map[string][]Placement), paths)}
 
 	tests := []struct {
 		name    string
@@ -1223,7 +1237,7 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 		navigation:     Close(schema.Rejected("navigation diagnostic")),
 		folders:        []Folder{{Name: "Concepts", RelPath: "Concepts"}},
 		rootNotes:      []NoteRef{{Name: "README", RelPath: "README.md"}},
-		paths:          []Map{{Title: "Path"}},
+		paths:          []Path{{Title: "Path"}},
 		maps:           []Map{{Title: "Map"}},
 		journal:        []JournalEntry{{Title: "Today"}},
 		reports:        []Report{{Name: "report.md"}},
@@ -1272,7 +1286,7 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 type modelProjections struct {
 	folders        []Folder
 	rootNotes      []NoteRef
-	paths          []Map
+	paths          []Path
 	maps           []Map
 	journal        []JournalEntry
 	reports        []Report
@@ -1295,18 +1309,10 @@ func immutableModelFixture() *Model {
 			}},
 		}},
 		rootNotes: []NoteRef{{Name: "README", RelPath: "README.md"}},
-		paths: []Map{{
+		paths: []Path{{
 			Title:   "Path",
 			RelPath: "Maps/Path.md",
-			Branches: []Branch{{
-				Heading: "Part",
-				Entries: []Entry{{
-					Text:       "Ambiguous",
-					Kind:       EntryAmbiguous,
-					Candidates: []string{"A/Target.md", "B/Target.md"},
-				}},
-				Subbranches: []Branch{{Heading: "Module", Entries: []Entry{{Text: "Lesson", RelPath: "Writing/Lessons/Lesson.md", Kind: EntryResolved}}}},
-			}},
+			Planned: 2,
 		}},
 		maps:           []Map{{Title: "Map", RelPath: "Maps/Map.md", Branches: []Branch{{Heading: "Shelf"}}}},
 		journal:        []JournalEntry{{Title: "Recent", RelPath: "Journal/Recent.md"}},
@@ -1349,10 +1355,7 @@ func mutateModelProjections(model *Model) {
 
 	paths := model.Paths()
 	paths[0].Title = "mutated"
-	paths[0].Branches[0].Heading = "mutated"
-	paths[0].Branches[0].Entries[0].Text = "mutated"
-	paths[0].Branches[0].Entries[0].Candidates[0] = "mutated"
-	paths[0].Branches[0].Subbranches[0].Heading = "mutated"
+	paths[0].Planned = -1
 
 	maps := model.Maps()
 	maps[0].Title = "mutated"
@@ -1379,7 +1382,7 @@ func TestModelReturnsIndependentProjections(t *testing.T) {
 
 	mutateModelProjections(model)
 
-	if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{})); diff != "" {
+	if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{}), cmp.AllowUnexported(Path{})); diff != "" {
 		t.Errorf("model changed through a returned projection (-want +got):\n%s", diff)
 	}
 }
@@ -1397,7 +1400,7 @@ func TestModelConcurrentProjectionMutationDoesNotChangePublishedData(t *testing.
 			}()
 		}
 		synctest.Wait()
-		if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{})); diff != "" {
+		if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{}), cmp.AllowUnexported(Path{})); diff != "" {
 			t.Errorf("concurrent callers changed model data (-want +got):\n%s", diff)
 		}
 	})
@@ -1484,6 +1487,88 @@ func relPaths(notes []NoteSummary) []string {
 	out := make([]string, 0, len(notes))
 	for _, n := range notes {
 		out = append(out, n.RelPath)
+	}
+	return out
+}
+
+// pathShape, groupShape and entryShape are what a study path is asserted on:
+// the declared structure and each row's resolution outcome. The nav model
+// carries pointers and a precomputed walk that cmp cannot read, and a literal
+// of the whole tree would pin the representation rather than the reading — so
+// the tests state the reading.
+type pathShape struct {
+	Title   string
+	RelPath string
+	Domain  string
+	Type    string
+	Planned int
+	Groups  []groupShape
+}
+
+type groupShape struct {
+	Name        string
+	Level       int
+	Role        string
+	Projectable bool
+	Container   bool
+	Planned     int
+	Entries     []entryShape
+	Groups      []groupShape
+}
+
+type entryShape struct {
+	Text       string
+	Target     string
+	RelPath    string
+	Status     string
+	Kind       EntryKind
+	Candidates []string
+}
+
+func pathShapes(paths []Path) []pathShape {
+	out := make([]pathShape, 0, len(paths))
+	for i := range paths {
+		p := &paths[i]
+		out = append(out, pathShape{
+			Title:   p.Title,
+			RelPath: p.RelPath,
+			Domain:  p.Domain,
+			Type:    p.Type,
+			Planned: p.Planned,
+			Groups:  groupShapes(p.Groups),
+		})
+	}
+	return out
+}
+
+func groupShapes(groups []*PathGroup) []groupShape {
+	var out []groupShape
+	for _, g := range groups {
+		shape := groupShape{
+			Name:        g.Name,
+			Level:       g.Level,
+			Role:        g.Role.String(),
+			Projectable: g.Projectable,
+			Container:   g.Container,
+			Planned:     g.Planned,
+		}
+		for _, item := range g.Items {
+			switch {
+			case item.Entry != nil:
+				e := item.Entry
+				shape.Entries = append(shape.Entries, entryShape{
+					Text:       e.Text,
+					Target:     e.Target,
+					RelPath:    e.RelPath,
+					Status:     e.Status,
+					Kind:       e.Kind,
+					Candidates: e.Candidates,
+				})
+			case item.Group != nil:
+				shape.Groups = append(shape.Groups, groupShapes([]*PathGroup{item.Group})...)
+			}
+		}
+		out = append(out, shape)
 	}
 	return out
 }

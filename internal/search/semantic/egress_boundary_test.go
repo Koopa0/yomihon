@@ -93,9 +93,14 @@ var approvedSearchPackages = map[string]struct{}{
 	"github.com/koopa0/yomihon/internal/search/semantic":          {},
 	"github.com/koopa0/yomihon/internal/search/semantic/catalog":  {},
 	"github.com/koopa0/yomihon/internal/search/semantic/observer": {},
-	"github.com/koopa0/yomihon/internal/ui/layouts":               {},
-	"github.com/koopa0/yomihon/internal/ui/pages":                 {},
-	"github.com/koopa0/yomihon/internal/vault":                    {},
+	// sequence reads a study path's declared structure out of a Markdown body
+	// already in memory. Reviewed for this closure: its whole import set is
+	// goldmark, the vault's own wikilink splitter, and strings — it opens no
+	// file and makes no network call.
+	"github.com/koopa0/yomihon/internal/sequence":   {},
+	"github.com/koopa0/yomihon/internal/ui/layouts": {},
+	"github.com/koopa0/yomihon/internal/ui/pages":   {},
+	"github.com/koopa0/yomihon/internal/vault":      {},
 }
 
 var approvedSearchModules = map[string]struct{}{

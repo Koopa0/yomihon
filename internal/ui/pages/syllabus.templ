@@ -75,12 +75,7 @@ templ partBlock(sec PathBranchView) {
 			<span class="y-part__name">{ sec.Heading }</span>
 			<span class="y-partcount">{ countLabel(sec.Total, "課") }</span>
 		</h2>
-		for _, l := range sec.Entries {
-			@entryRow(l)
-		}
-		for _, sub := range sec.Sub {
-			@moduleBlock(sub)
-		}
+		@branchItems(sec)
 	</section>
 }
 
@@ -89,15 +84,24 @@ templ partBlock(sec PathBranchView) {
 // deep (part → module → entry), and a deeper one keeps the module style rather
 // than being flattened (nav's tree is rendered as-is, never forced to a shape).
 templ moduleBlock(sec PathBranchView) {
-	<div class="y-module">
+	<div class={ "y-module", templ.KV("y-module--local", sec.Local) }>
 		@moduleHeading(sec)
-		for _, l := range sec.Entries {
-			@entryRow(l)
-		}
-		for _, sub := range sec.Sub {
-			@moduleBlock(sub)
-		}
+		@branchItems(sec)
 	</div>
+}
+
+// branchItems draws what a branch lists in the order the author wrote it. A
+// side branch is drawn where it sits — under the lesson it hangs from — because
+// the source order already says where it belongs; matching it back to a lesson
+// by name would guess, and two lessons can share a name.
+templ branchItems(sec PathBranchView) {
+	for _, item := range sec.Items {
+		if item.Entry != nil {
+			@entryRow(*item.Entry)
+		} else if item.Branch != nil {
+			@moduleBlock(*item.Branch)
+		}
+	}
 }
 
 // moduleHeading preserves the outline represented by nav's recursive branch
@@ -125,8 +129,13 @@ templ moduleHeading(sec PathBranchView) {
 }
 
 templ moduleHeadingContent(sec PathBranchView) {
-	<span class="y-module__tag">模組 { strconv.Itoa(sec.Num) }</span>
+	if sec.Local {
+		<span class="y-module__tag">支線</span>
+	} else {
+		<span class="y-module__tag">模組 { strconv.Itoa(sec.Num) }</span>
+	}
 	<span class="y-module__name">{ sec.Heading }</span>
+	<span class="y-partcount">{ countLabel(sec.Total, "課") }</span>
 	<span class="y-module__rule" aria-hidden="true"></span>
 }
 

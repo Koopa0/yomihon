@@ -117,20 +117,21 @@ func cloneBranches(source []Branch) []Branch {
 
 // parseMap parses one map-typed note into a Map. It reads the
 // already-frontmatter-stripped body (vault.Parse split it out), so a
-// frontmatter list value cannot look like an entry bullet.
+// frontmatter list value cannot look like an entry bullet. Study paths no
+// longer pass through here — they read the declared-sequence grammar — so this
+// parser keeps only the general-map behavior: uniquely resolved governed rows.
 func parseMap(
 	n *vault.Note,
 	idx Resolver,
 	statusByPath map[string]string,
 	policy schema.ArtifactPolicy,
-	preserveUnresolved bool,
 ) Map {
 	return Map{
 		Title:    n.Title(),
 		RelPath:  n.RelPath,
 		Domain:   n.Domain(),
 		Type:     n.Type(),
-		Branches: parseBranches(n.Body, idx, statusByPath, policy, preserveUnresolved),
+		Branches: parseBranches(n.Body, idx, statusByPath, policy),
 	}
 }
 
@@ -174,7 +175,6 @@ func parseBranches(
 	idx Resolver,
 	statusByPath map[string]string,
 	policy schema.ArtifactPolicy,
-	preserveUnresolved bool,
 ) []Branch {
 	var roots []*branchNode
 	var stack []*branchNode
@@ -202,7 +202,7 @@ func parseBranches(
 		if !ok || len(stack) == 0 {
 			continue
 		}
-		if entry.Kind != EntryResolved && !preserveUnresolved {
+		if entry.Kind != EntryResolved {
 			continue
 		}
 		top := stack[len(stack)-1]

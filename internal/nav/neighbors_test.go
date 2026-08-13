@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The syllabus is written forward: planned lessons sit in the list as warning
@@ -16,42 +19,40 @@ func TestNeighbors(t *testing.T) {
 	t.Parallel()
 
 	ref := func(name, rel string) NoteRef { return NoteRef{Name: name, RelPath: rel} }
-	entry := func(name, rel string) Entry {
-		return Entry{Text: name, RelPath: rel, Kind: EntryResolved}
+
+	// The courses are written as an author writes them and read through the
+	// declared-sequence grammar, so the walk under test is the one the product
+	// builds — not a hand-assembled component list that could agree with a
+	// broken projection.
+	goBody := "## Data {sequence=primary}\n\n" +
+		"- [[L01 Slices]]\n" +
+		"- [[L02 Planned]]\n" +
+		"- [[L03 Maps]]\n" +
+		"\t- 支線 {sequence=local}\n" +
+		"\t\t- [[S01 Side]]\n" +
+		"\t\t- [[S02 Side]]\n" +
+		"\n### Text {sequence=primary}\n\n" +
+		"- [[Template-only]]\n" +
+		"- [[L04 Strings]]\n"
+	jpBody := "## 初級 {sequence=primary}\n\n" +
+		"- [[L01 て形]]\n" +
+		"- [[L01 Slices]]\n"
+
+	idx := stubResolver{
+		"L01 Slices":  {Kind: graph.Unique, Path: "Writing/lessons/golang/Slices.md"},
+		"L03 Maps":    {Kind: graph.Unique, Path: "Writing/lessons/golang/Maps.md"},
+		"L04 Strings": {Kind: graph.Unique, Path: "Writing/lessons/golang/Strings.md"},
+		"S01 Side":    {Kind: graph.Unique, Path: "Writing/lessons/golang/Side1.md"},
+		"S02 Side":    {Kind: graph.Unique, Path: "Writing/lessons/golang/Side2.md"},
+		"L01 て形":      {Kind: graph.Unique, Path: "Writing/lessons/japanese/Te.md"},
+		// A planned lesson resolves to nothing, and a template resolves to a
+		// file the artifact policy keeps out of the lifecycle.
+		"Template-only": {Kind: graph.Unique, Path: "System/templates/Card.md"},
 	}
-	goPath := Map{
-		Title:   "Go 課綱",
-		RelPath: "Maps/go.md",
-		Type:    "study-path",
-		Branches: []Branch{{
-			Heading: "Data", Level: 2,
-			Entries: []Entry{
-				entry("L01 Slices", "Writing/lessons/golang/Slices.md"),
-				{Text: "L02 Planned", Kind: EntryUnresolved},
-				entry("L03 Maps", "Writing/lessons/golang/Maps.md"),
-			},
-			Subbranches: []Branch{{
-				Heading: "Text", Level: 3,
-				Entries: []Entry{
-					{Text: "Template-only", Kind: EntryNonInstance},
-					entry("L04 Strings", "Writing/lessons/golang/Strings.md"),
-				},
-			}},
-		}},
-	}
-	jpPath := Map{
-		Title:   "日本語 學習路徑",
-		RelPath: "Maps/jp.md",
-		Type:    "study-path",
-		Branches: []Branch{{
-			Heading: "初級", Level: 2,
-			Entries: []Entry{
-				entry("L01 て形", "Writing/lessons/japanese/Te.md"),
-				entry("L01 Slices", "Writing/lessons/golang/Slices.md"),
-			},
-		}},
-	}
-	m := &Model{paths: []Map{goPath, jpPath}}
+	policy := testArtifactPolicy(t)
+	goPath := buildPath(pathNote("Maps/go.md", "Go 課綱", goBody), idx, nil, policy)
+	jpPath := buildPath(pathNote("Maps/jp.md", "日本語 學習路徑", jpBody), idx, nil, policy)
+	m := &Model{paths: []Path{goPath, jpPath}}
 
 	tests := []struct {
 		name    string
@@ -203,5 +204,25 @@ func TestJournalOrdersByTheEntriesOwnNames(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, gotPaths); diff != "" {
 		t.Errorf("buildJournal ordering mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// stubResolver answers the wikilinks these courses name and reports every other
+// name as unresolved, which is what a planned lesson is.
+type stubResolver map[string]graph.Resolution
+
+func (r stubResolver) Resolve(name string) graph.Resolution {
+	if res, ok := r[name]; ok {
+		return res
+	}
+	return graph.Resolution{Kind: graph.Unresolved}
+}
+
+func pathNote(rel, title, body string) *vault.Note {
+	return &vault.Note{
+		RelPath:     rel,
+		Frontmatter: map[string]any{"title": title, "type": "study-path"},
+		Body:        body,
+		BodyLine:    1,
 	}
 }

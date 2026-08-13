@@ -546,7 +546,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	root := t.TempDir()
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
 	writeNote(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: ready\n---\nbody\n")
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course\n- [[Alpha]]\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
 
@@ -592,7 +592,7 @@ func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course\n- [[Ghost]]\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
 	store, _ := newTestStore(t, root, nil)
 	snap := store.Current()
 
@@ -625,7 +625,7 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course\n- [[Ghost]]\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatalf("vault.Open: %v", err)

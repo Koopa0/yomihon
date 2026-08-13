@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -90,8 +91,13 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	// A map or study path being read is its own wayfinding: the drawer
 	// holding it opens with its tree, the same as for a note the map places.
 	// Placements cannot say this — a map does not place itself.
-	for _, m := range slices.Concat(model.Maps(), model.Paths()) {
+	for _, m := range model.Maps() {
 		if m.RelPath == currentPath {
+			sb.openMaps[currentPath] = true
+		}
+	}
+	for _, p := range model.Paths() {
+		if p.RelPath == currentPath {
 			sb.openMaps[currentPath] = true
 		}
 	}
@@ -142,7 +148,7 @@ func (s *Sidebar) pathsChainOpen() bool {
 	if s.Model == nil {
 		return false
 	}
-	return slices.ContainsFunc(s.Model.Paths(), func(path nav.Map) bool { return s.openMaps[path.RelPath] })
+	return slices.ContainsFunc(s.Model.Paths(), func(path nav.Path) bool { return s.openMaps[path.RelPath] })
 }
 
 // The type drawers open to meet the page the reader is on: the journal drawer
@@ -338,4 +344,23 @@ func footerSequence(sb *Sidebar) (prev, next nav.NoteRef, label string) {
 		return step.Prev, step.Next, step.PathTitle + "課程順序"
 	}
 	return sb.Prev, sb.Next, "同資料夾的前後檔案"
+}
+
+// pathGroupDrawn reports whether the rail shows this branch of a study path:
+// one the course includes, or a structural heading that carries one. A branch
+// the grammar does not project is not a way to a lesson, so it is not a way
+// through the rail either.
+func pathGroupDrawn(g *nav.PathGroup) bool {
+	if g.Projectable {
+		return true
+	}
+	if g.Invalid || g.Role != sequence.RoleStructural {
+		return false
+	}
+	for _, item := range g.Items {
+		if item.Group != nil && pathGroupDrawn(item.Group) {
+			return true
+		}
+	}
+	return false
 }

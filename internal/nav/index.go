@@ -63,8 +63,7 @@ func buildDirNotes(paths []string) map[string][]NoteRef {
 // so a note page can find every containing branch in one lookup instead of
 // re-walking every map. Study paths may also contain warning rows, so only
 // explicitly resolved entries with non-empty paths enter the reverse index.
-func buildPlacementIndex(maps []Map) map[string][]Placement {
-	index := make(map[string][]Placement)
+func buildPlacementIndex(index map[string][]Placement, maps []Map) map[string][]Placement {
 	for i := range maps {
 		relPath := maps[i].RelPath
 		var walk func(branches []Branch, chain []string)

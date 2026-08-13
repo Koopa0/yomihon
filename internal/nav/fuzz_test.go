@@ -32,8 +32,8 @@ func FuzzParseBranches(f *testing.F) {
 			return
 		}
 
-		first := parseBranches(body, idx, nil, policy, true)
-		second := parseBranches(body, idx, nil, policy, true)
+		first := parseBranches(body, idx, nil, policy)
+		second := parseBranches(body, idx, nil, policy)
 		if diff := cmp.Diff(first, second); diff != "" {
 			t.Fatalf("parseBranches() is not deterministic (-first +second):\n%s", diff)
 		}

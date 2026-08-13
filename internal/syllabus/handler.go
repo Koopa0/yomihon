@@ -56,7 +56,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 
 // findPath returns the study-path with the given vault-relative path, or nil
 // when the model is nil or none matches.
-func findPath(model *nav.Model, rel string) *nav.Map {
+func findPath(model *nav.Model, rel string) *nav.Path {
 	if model == nil {
 		return nil
 	}

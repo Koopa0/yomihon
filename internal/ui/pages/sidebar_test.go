@@ -68,9 +68,9 @@ func buildModel(t *testing.T) *nav.Model {
 		// directly under Review — so the reverse index yields two placements.
 		"Maps/Go path.md": "---\ntype: study-path\n---\n" +
 			"## decode | Decode | 解碼\n\n" +
-			"### bytes | Bytes | 位元\n\n" +
+			"### bytes | Bytes | 位元 {sequence=primary}\n\n" +
 			"- [[L01]]\n- [[L02]]\n- [[Template target]]\n- [[Unwritten Lesson]]\n- [[Repeat|Ambiguous Lesson]]\n\n" +
-			"## review | Review | 複習\n\n" +
+			"## review | Review | 複習 {sequence=primary}\n\n" +
 			"- [[L01]]\n",
 		// A newly added topic map lists a concept. No application registration
 		// names this file; its type and content are enough to grow the sidebar.

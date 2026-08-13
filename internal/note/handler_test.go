@@ -1760,7 +1760,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if err := os.MkdirAll(mapDir, 0o750); err != nil {
 		t.Fatalf("mkdir maps: %v", err)
 	}
-	pathBody := "---\ntitle: Test path\ntype: study-path\n---\n\n## Part\n\n- [[Open]]\n- [[Sealed]]\n"
+	pathBody := "---\ntitle: Test path\ntype: study-path\n---\n\n## Part {sequence=primary}\n\n- [[Open]]\n- [[Sealed]]\n"
 	pathFile := filepath.Join(mapDir, "path.md")
 	if err := os.WriteFile(pathFile, []byte(pathBody), 0o600); err != nil {
 		t.Fatalf("write study path: %v", err)
@@ -2620,7 +2620,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	syllabus := "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" +
-		"## data | Data | 資料\n\n### text | Text | 文字\n\n- [[Slices]]\n"
+		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n- [[Slices]]\n"
 	if err := os.WriteFile(filepath.Join(mapsDir, "Go path.md"), []byte(syllabus), 0o600); err != nil {
 		t.Fatalf("write syllabus: %v", err)
 	}

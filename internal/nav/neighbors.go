@@ -1,8 +1,8 @@
 package nav
 
 // Neighbors is one study path's answer to "what comes before and after this
-// note". Prev or Next is the zero NoteRef when the note opens or closes the
-// path.
+// note". Prev or Next is the zero NoteRef when the note opens or closes its
+// sequence component.
 type Neighbors struct {
 	// PathTitle and PathRelPath name the syllabus the ordering came from, so a
 	// note two paths both teach can label each answer with its course.
@@ -12,19 +12,23 @@ type Neighbors struct {
 	Next        NoteRef
 }
 
-// Neighbors returns, for each study path that lists the note at relPath, the
+// Neighbors returns, for each study path that walks the note at relPath, the
 // readable lessons immediately before and after it in that path's own order.
 //
-// Two decisions define the answer, both taken from how a syllabus is written
-// and read rather than from the data shapes. A warning row — a lesson planned
-// but unwritten, an ambiguous name, a template — is not a stop: the syllabus
-// is written forward, and adding a planned lesson must not break the reader's
-// step to the next lesson they can actually open. And a note two paths both
-// list gets one answer per path, because the server cannot know which course
-// the reader is walking and this vault never guesses — it reports in full.
+// The order is the declared one: each path's components were built from the
+// sequence grammar — one main line joining the projectable primary groups, and
+// one component per projectable local branch. Primary and local never link to
+// each other: the lesson after the one a side branch hangs from is the next
+// main-line lesson, and a side branch's last lesson has no next. An accepted
+// entry that does not resolve is planned, not walkable — it drops out of the
+// openable component, and the resolved lessons on either side of it join up
+// within that component, never across a component boundary.
 //
-// A note listed twice in the same path takes its first occurrence; within one
-// syllabus that is a deterministic reading, not a guess.
+// A note listed twice in the same path takes its first occurrence, in the
+// first component that lists it; within one syllabus that is a deterministic
+// reading, not a guess. A note two paths both list gets one answer per path,
+// because the server cannot know which course the reader is walking and this
+// vault never guesses — it reports in full.
 func (m *Model) Neighbors(relPath string) []Neighbors {
 	if m == nil || relPath == "" {
 		return nil
@@ -32,9 +36,9 @@ func (m *Model) Neighbors(relPath string) []Neighbors {
 	var out []Neighbors
 	for i := range m.paths {
 		path := &m.paths[i]
-		stops := resolvedStops(path.Branches, nil)
-		for at, stop := range stops {
-			if stop.RelPath != relPath {
+		for _, stops := range path.components {
+			at := indexOfStop(stops, relPath)
+			if at < 0 {
 				continue
 			}
 			n := Neighbors{PathTitle: path.Title, PathRelPath: path.RelPath}
@@ -51,19 +55,12 @@ func (m *Model) Neighbors(relPath string) []Neighbors {
 	return out
 }
 
-// resolvedStops flattens a branch tree into its readable lessons in document
-// order: a branch's own entries, then its subbranches, exactly as the syllabus
-// lists them. Only resolved instance entries are stops; the warning kinds keep
-// their place in the syllabus display and contribute nothing here.
-func resolvedStops(branches []Branch, stops []NoteRef) []NoteRef {
-	for i := range branches {
-		b := &branches[i]
-		for j := range b.Entries {
-			if e := &b.Entries[j]; e.Kind == EntryResolved {
-				stops = append(stops, NoteRef{Name: e.Text, RelPath: e.RelPath})
-			}
+// indexOfStop is where a note first appears in one component's walk, or -1.
+func indexOfStop(stops []NoteRef, relPath string) int {
+	for i := range stops {
+		if stops[i].RelPath == relPath {
+			return i
 		}
-		stops = resolvedStops(b.Subbranches, stops)
 	}
-	return stops
+	return -1
 }
