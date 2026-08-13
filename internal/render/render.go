@@ -127,9 +127,17 @@ type Pipeline struct {
 
 // New builds a rendering pipeline from one generation's link resolver and
 // captured transclusion bodies. It enables GFM (tables, task lists, and
-// strikethrough), the inert authored-markup subset used by Japanese lessons,
-// and the ==highlight== inline extension. Both capabilities must describe the
-// same generation and must not be nil.
+// strikethrough), footnotes, the inert authored-markup subset used by Japanese
+// lessons, and the ==highlight== inline extension. Both capabilities must
+// describe the same generation and must not be nil.
+//
+// Footnotes are a parser concern rather than one of this package's own dialect
+// passes, and enabling them is what stops "[^name]" being read as an ordinary
+// reference link: that reading resolved the reference against the definition's
+// prose, so a note about the scope of a study became a link to a page that
+// does not exist, and the note's own text was swallowed as the link's
+// destination. With the extension, the reference and its definition are two
+// ends of one anchor pair inside the page, which needs no script to work.
 func New(idx Resolver, transclusions Transclusions) *Pipeline {
 	if idx == nil {
 		panic("render: New requires a non-nil Resolver")
@@ -141,7 +149,7 @@ func New(idx Resolver, transclusions Transclusions) *Pipeline {
 		idx:           idx,
 		transclusions: transclusions,
 		md: goldmark.New(
-			goldmark.WithExtensions(extension.GFM, highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}),
+			goldmark.WithExtensions(extension.GFM, extension.Footnote, highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}),
 		),
 	}
 }

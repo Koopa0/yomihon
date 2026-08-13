@@ -267,6 +267,158 @@ func TestWikilinkBareAnchorIsPlainText(t *testing.T) {
 	}
 }
 
+// headingID reads the id the renderer actually stamped on the heading whose
+// text is want, so a test can ask where a link has to land instead of writing
+// the answer down a second time.
+func headingID(t *testing.T, res render.Result, want string) string {
+	t.Helper()
+	for _, entry := range res.TOC {
+		if entry.Text == want {
+			if !strings.Contains(res.HTML, `id="`+entry.ID+`"`) {
+				t.Fatalf("TOC reports id %q for heading %q, but the HTML does not carry it:\n%s", entry.ID, want, res.HTML)
+			}
+			return entry.ID
+		}
+	}
+	t.Fatalf("no heading %q in the rendered destination:\n%+v", want, res.TOC)
+	return ""
+}
+
+// TestWikilinkKeepsCrossNoteHeadingFragment is the fragment assertion site. A
+// link written at a section means that section: dropping the "#heading" half
+// of it puts the reader at the top of a long note with no sign of what they
+// were promised.
+//
+// The expected fragment is read out of the destination page's own rendering
+// rather than written down twice, because the property under test is that the
+// two agree — a second slug rule that looked right in isolation would still
+// send every reader to the wrong place.
+func TestWikilinkKeepsCrossNoteHeadingFragment(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{
+		{Path: "Writing/玻璃潮初稿.md"},
+		{Path: "Sources/鹽霧碼頭.md"},
+	}, nil, nil)
+
+	draft := r.HTML("Writing/玻璃潮初稿.md", "玻璃潮初稿", "## 第三節：失約的燈\n\n內文。\n")
+	quay := r.HTML("Sources/鹽霧碼頭.md", "鹽霧碼頭", "## 可直接取用的感官素材\n\n內文。\n")
+
+	draftID := headingID(t, draft, "第三節：失約的燈")
+	quayID := headingID(t, quay, "可直接取用的感官素材")
+
+	// Both halves are pinned: the destination's id is this exact string, and
+	// the link names it. Reading the id alone would still pass if the slug
+	// rule itself changed under both.
+	if draftID != "第三節-失約的燈" {
+		t.Errorf("destination heading id = %q, want %q", draftID, "第三節-失約的燈")
+	}
+	if quayID != "可直接取用的感官素材" {
+		t.Errorf("destination heading id = %q, want %q", quayID, "可直接取用的感官素材")
+	}
+
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "heading fragment survives with the implicit display text",
+			body: "[[玻璃潮初稿#第三節：失約的燈]]\n",
+			want: `<a href="/notes/Writing/%E7%8E%BB%E7%92%83%E6%BD%AE%E5%88%9D%E7%A8%BF.md#` + draftID +
+				`" class="wikilink">玻璃潮初稿#第三節：失約的燈</a>`,
+		},
+		{
+			name: "explicit display text keeps its own words and still lands on the section",
+			body: "[[鹽霧碼頭#可直接取用的感官素材|回到素材段落]]\n",
+			want: `<a href="/notes/Sources/%E9%B9%BD%E9%9C%A7%E7%A2%BC%E9%A0%AD.md#` + quayID +
+				`" class="wikilink">回到素材段落</a>`,
+		},
+		{
+			name: "a link naming no section still addresses the note itself",
+			body: "[[玻璃潮初稿]]\n",
+			want: `<a href="/notes/Writing/%E7%8E%BB%E7%92%83%E6%BD%AE%E5%88%9D%E7%A8%BF.md" class="wikilink">玻璃潮初稿</a>`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Notes/來源.md", "", tt.body)
+			if !strings.Contains(got.HTML, tt.want) {
+				t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, tt.want, got.HTML)
+			}
+			if len(got.Diagnostics) != 0 {
+				t.Errorf("Diagnostics = %+v, want none for a resolvable wikilink", got.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestWikilinkFragmentOnlyWhenTheNoteIsCertain pins what a fragment must not
+// do. It is an addition to a link that already resolved: a name yomihon cannot
+// place, or places in more than one file, has no page for the fragment to be
+// an offset into, and a block reference is a different kind of address this
+// renderer does not yet resolve.
+func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("an unresolved target keeps the note name as the reported target", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, nil, nil)
+		got := r.HTML("note.md", "", "[[Ghost#Some Section]]\n")
+		if strings.Contains(got.HTML, "href=") {
+			t.Errorf("an unresolved target must not become a link at all:\n%s", got.HTML)
+		}
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Target != "Ghost" {
+			t.Errorf("Diagnostics = %+v, want one naming the note %q", got.Diagnostics, "Ghost")
+		}
+	})
+
+	t.Run("an ambiguous target gets no fragment", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "a/Foo.md"}, {Path: "b/Foo.md"}}, nil, nil)
+		got := r.HTML("note.md", "", "[[Foo#Some Section]]\n")
+		if strings.Contains(got.HTML, "href=") {
+			t.Errorf("an ambiguous target must not become a link at all:\n%s", got.HTML)
+		}
+	})
+
+	// A block names a paragraph, and this renderer stamps an id on headings
+	// only. Every way of writing one has to leave the address alone, or the
+	// reader is handed a place on the page that does not exist — and, if some
+	// heading's slug happens to match, one that does but is the wrong one.
+	blocks := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "a block address written the way Obsidian writes it",
+			body: "[[Target#^abc123]]\n",
+			want: `<a href="/notes/Target.md" class="wikilink">Target#^abc123</a>`,
+		},
+		{
+			name: "a bare block address",
+			body: "[[Target^abc123]]\n",
+			want: `<a href="/notes/Target.md" class="wikilink">Target^abc123</a>`,
+		},
+		{
+			name: "a block address beside a section name",
+			body: "[[Target^abc123#Internals]]\n",
+			want: `<a href="/notes/Target.md" class="wikilink">Target^abc123#Internals</a>`,
+		},
+	}
+	for _, tt := range blocks {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+			got := r.HTML("note.md", "", tt.body)
+			if !strings.Contains(got.HTML, tt.want) {
+				t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, tt.want, got.HTML)
+			}
+		})
+	}
+}
+
 func TestEmbedTranscludesNote(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{

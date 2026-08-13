@@ -294,6 +294,82 @@ func TestSplitWikilink(t *testing.T) {
 	}
 }
 
+// TestParseWikilink covers the fragments SplitWikilink drops. The table above
+// is what holds the unchanged-semantics promise for the callers that only want
+// a name and a label: it carries its own hand-written answers, so it still
+// fails if this parse ever starts reading those forms differently.
+func TestParseWikilink(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		inner string
+		want  graph.Wikilink
+		ok    bool
+	}{
+		{
+			name:  "a name alone addresses the whole note",
+			inner: "Go Slice", ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "Go Slice"},
+		},
+		{
+			name:  "a heading is kept apart from the name it follows",
+			inner: "Go Slice#Internals", ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "Go Slice#Internals", Heading: "Internals"},
+		},
+		{
+			name:  "display text replaces the label and leaves the heading intact",
+			inner: "玻璃潮初稿#第三節：失約的燈|回到那一段", ok: true,
+			want: graph.Wikilink{Target: "玻璃潮初稿", Display: "回到那一段", Heading: "第三節：失約的燈"},
+		},
+		{
+			name:  "a block address is its own kind of fragment",
+			inner: "Go Slice^abc123", ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "Go Slice^abc123", Block: "abc123"},
+		},
+		{
+			// The form Obsidian actually writes. Read as a heading, the
+			// caret would become part of a section name and a caller would
+			// build an anchor for a paragraph that has none.
+			name:  "a block address written after the fragment marker is still a block",
+			inner: "Go Slice#^abc123", ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "Go Slice#^abc123", Block: "abc123"},
+		},
+		{
+			name:  "a block address beside a section name stays a block address",
+			inner: "Go Slice^abc123#Internals", ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "Go Slice^abc123#Internals", Heading: "Internals", Block: "abc123"},
+		},
+		{
+			name:  "an escaped table-cell pipe still separates the display text",
+			inner: `Go Slice#Internals\|see`, ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "see", Heading: "Internals"},
+		},
+		{
+			name:  "surrounding space belongs to neither the name nor the heading",
+			inner: "  Go Slice #  Internals  ", ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "Go Slice #  Internals", Heading: "Internals"},
+		},
+		{
+			name:  "a bare heading names no other file",
+			inner: "#Heading", ok: false,
+			want: graph.Wikilink{Target: "", Display: "#Heading", Heading: "Heading"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := graph.ParseWikilink(tt.inner)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("ParseWikilink(%q) mismatch (-want +got):\n%s", tt.inner, diff)
+			}
+			if ok != tt.ok {
+				t.Errorf("ParseWikilink(%q) ok = %v, want %v", tt.inner, ok, tt.ok)
+			}
+		})
+	}
+}
+
 func TestWikilinkFragmentsResolveOnNameAloneRegardlessOfHeadingExistence(t *testing.T) {
 	t.Parallel()
 	// Anchors are never verified: [[Go Slice#NoSuchHeading]] must resolve

@@ -109,7 +109,7 @@ func SourceHTML(filename, source string) string {
 		return plainSource(source)
 	}
 	var buf strings.Builder
-	if err := chromaFormatter.Format(&buf, chromaStyle(), iterator); err != nil {
+	if err := chromaFormatter.Format(&buf, markupStyle(), iterator); err != nil {
 		return plainSource(source)
 	}
 	return buf.String()

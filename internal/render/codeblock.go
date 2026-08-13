@@ -33,11 +33,24 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// chromaStyleName is yomihon's single fixed highlighting theme: a
-// light-background style consistent with base.templ's current minimal
-// light UI. Dark-mode-aware highlighting is deliberately out of scope
-// while the UI itself has no dark mode.
-const chromaStyleName = "github"
+// The two highlighting palettes, one per reading theme. They are a matched
+// pair from the same family, so a reader who switches theme sees the same
+// language coloured the same way at a legible weight, not a second colour
+// scheme's opinion.
+const (
+	chromaLightStyleName = "github"
+	chromaDarkStyleName  = "github-dark"
+)
+
+// codeLayerName is the cascade layer the whole highlighting sheet lives in.
+// The reading surface owns the code block's ground and its plain ink — a code
+// block is a panel of the page, not a window onto someone else's editor — and
+// these rules only colour the syntax inside it. A layer states that ranking
+// once: every unlayered product rule outranks anything here, whatever selector
+// the theme scope needs. Without it the dark scope's extra specificity would
+// capture the block's background in dark mode and lose it in light, so one
+// page would be dressed two different ways depending on the time of day.
+const codeLayerName = "yomihon-code"
 
 // chromaFormatter emits class-based HTML (html.WithClasses(true)) rather
 // than inline styles, so one stylesheet (ChromaCSS, served at
@@ -45,29 +58,69 @@ const chromaStyleName = "github"
 // colors.
 var chromaFormatter = chromahtml.New(chromahtml.WithClasses(true))
 
-// chromaStyle resolves chromaStyleName once; styles.Get returns nil for an
+// chromaStyle resolves a palette by name; styles.Get returns nil for an
 // unknown name, in which case chroma's own plain fallback style is used
 // rather than passing a nil *chroma.Style into the formatter.
-func chromaStyle() *chroma.Style {
-	if s := styles.Get(chromaStyleName); s != nil {
+func chromaStyle(name string) *chroma.Style {
+	if s := styles.Get(name); s != nil {
 		return s
 	}
 	return styles.Fallback
 }
 
-// ChromaCSS is chroma's class-based stylesheet for chromaStyleName,
-// computed once and cached for the process's lifetime — simpler than a
-// dev-time go:generate step that could drift stale.
-var ChromaCSS = sync.OnceValue(func() string {
+// markupStyle is the palette handed to the formatter while it writes a code
+// block's markup. Which one it is cannot reach the page: with class-based
+// output every span is named from chroma's own token-type table, so the same
+// bytes serve both themes and the renderer never has to be told which one a
+// request wants. The lock for that property is in this package's tests.
+func markupStyle() *chroma.Style { return chromaStyle(chromaLightStyleName) }
+
+// paletteCSS is one palette's class-based rules, exactly as chroma writes
+// them. strings.Builder's Write never returns an error, so the failure branch
+// is unreachable in practice — but an empty stylesheet (colourless code) is
+// the correct degraded behaviour if that ever changes, not a panic over one
+// missing CSS file.
+func paletteCSS(styleName string) string {
 	var buf strings.Builder
-	if err := chromaFormatter.WriteCSS(&buf, chromaStyle()); err != nil {
-		// strings.Builder's Write never returns an error, so this is
-		// unreachable in practice — but an empty stylesheet (colorless
-		// code blocks) is the correct degraded behavior if it ever
-		// changes, not a panic over one missing CSS file.
+	if err := chromaFormatter.WriteCSS(&buf, chromaStyle(styleName)); err != nil {
 		return ""
 	}
 	return buf.String()
+}
+
+// ChromaCSS is the highlighting stylesheet, computed once and cached for the
+// process's lifetime — simpler than a dev-time go:generate step that could
+// drift stale.
+//
+// It carries both palettes, because the markup is theme-independent and the
+// page's root attribute is the only thing that knows which theme a reader
+// chose. The light rules are the base and the dark ones a scoped override, in
+// the same shape the design tokens use.
+//
+// Two details are load-bearing. The dark scope opens by returning every token
+// to the surrounding ink, because the two palettes do not name the same set of
+// tokens: the dark one leaves identifiers and punctuation to the body colour,
+// and without the reset those spans would keep the light palette's near-black
+// on a near-black panel — the exact unreadability this sheet exists to fix,
+// surviving in the tokens that make up most of a line. And the whole scope is
+// held behind a print guard, so a reader who prints after an evening in dark
+// mode gets the light rules on white paper rather than bright ink no printer
+// can render.
+var ChromaCSS = sync.OnceValue(func() string {
+	light, dark := paletteCSS(chromaLightStyleName), paletteCSS(chromaDarkStyleName)
+	if light == "" || dark == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("@layer " + codeLayerName + " {\n")
+	b.WriteString(light)
+	b.WriteString("@media not print {\n:root[data-theme=\"dark\"] {\n")
+	// Colour and background only: weight, slant and spacing say what kind of
+	// token this is, which does not change with the light in the room.
+	b.WriteString(".chroma span { color: inherit; background-color: transparent; }\n")
+	b.WriteString(dark)
+	b.WriteString("}\n}\n}\n")
+	return b.String()
 })
 
 // codeBlockRenderer renders a fenced code block via chroma in place of
@@ -118,7 +171,7 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 		_, werr := fmt.Fprintf(w, "<pre><code>%s</code></pre>\n", html.EscapeString(src.String()))
 		return ast.WalkContinue, werr
 	}
-	return ast.WalkContinue, chromaFormatter.Format(w, chromaStyle(), iterator)
+	return ast.WalkContinue, chromaFormatter.Format(w, markupStyle(), iterator)
 }
 
 // codeBlockExtension registers codeBlockRenderer into a goldmark.Markdown

@@ -293,19 +293,19 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *
 			raw = m[1:]
 		}
 		inner := raw[2 : len(raw)-2]
-		target, display, ok := graph.SplitWikilink(inner)
+		link, ok := graph.ParseWikilink(inner)
 		if !ok {
 			// [[#heading]] or [[^block]] stripped to empty: a same-file
 			// anchor jump, not a cross-file link — render the original
 			// display text as plain text, don't attempt to resolve it.
-			return html.EscapeString(display)
+			return html.EscapeString(link.Display)
 		}
 		if embed {
-			embedHTML := r.renderEmbed(target, allowEmbed, diags)
+			embedHTML := r.renderEmbed(link.Target, allowEmbed, diags)
 			*inline = append(*inline, embedHTML)
 			return inlinePlaceholder(len(*inline) - 1)
 		}
-		linkHTML := r.renderWikilink(target, display, diags)
+		linkHTML := r.renderWikilink(link, diags)
 		*inline = append(*inline, linkHTML)
 		return inlinePlaceholder(len(*inline) - 1)
 	})
@@ -398,30 +398,57 @@ func notesHref(p string) string {
 	return "/notes/" + strings.Join(segments, "/")
 }
 
+// sectionHref is notesHref plus the place inside the destination a link named.
+// A link written at a section means that section: without the fragment the
+// reader arrives at the top of a note that may run for pages, with nothing on
+// screen to say which part they were sent to.
+//
+// The fragment is built by slugify — the same function that stamps the
+// destination's heading ids — because a second rule for turning heading text
+// into an anchor would agree by maintenance accident and disagree by default.
+// It emits Unicode letters, digits, and hyphens only, so it needs no escaping
+// in either the URL or the attribute.
+//
+// A block address is left off: "^name" identifies a paragraph rather than a
+// heading, and this renderer stamps no anchor for one, so writing the fragment
+// would send the reader to a place that does not exist on the page.
+func sectionHref(relPath string, link graph.Wikilink) string {
+	href := notesHref(relPath)
+	if link.Heading == "" || link.Block != "" {
+		return href
+	}
+	return href + "#" + slugify(link.Heading)
+}
+
 // renderWikilink renders a plain (non-embed) [[target|display]]. The
 // output is always a single short open/close tag pair around escaped text.
 // Its caller still routes it through a reserved placeholder: authored raw
 // HTML and renderer-owned markup must never share the same trust decision.
-func (r *Pipeline) renderWikilink(target, display string, diags *[]Diagnostic) string {
-	res := r.idx.Resolve(target)
+//
+// Only a name that placed exactly one file gets a fragment. A name that placed
+// none has no page for the fragment to be an offset into, and a name that
+// placed several is not answered here at all — this renderer never picks one
+// of them.
+func (r *Pipeline) renderWikilink(link graph.Wikilink, diags *[]Diagnostic) string {
+	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
 	case graph.Unique:
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; notesHref already percent-escapes the path
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, notesHref(res.Path), html.EscapeString(display))
+		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref already percent-escapes the path
+		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, sectionHref(res.Path, link), html.EscapeString(link.Display))
 	case graph.Ambiguous:
 		*diags = append(*diags, Diagnostic{
-			Kind: DiagWikilinkAmbiguous, Target: target,
-			Message: fmt.Sprintf("wikilink %q is ambiguous: %s", target, strings.Join(res.Candidates, ", ")),
+			Kind: DiagWikilinkAmbiguous, Target: link.Target,
+			Message: fmt.Sprintf("wikilink %q is ambiguous: %s", link.Target, strings.Join(res.Candidates, ", ")),
 		})
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the value is already html.EscapeString'd
 		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">%s</span>`,
-			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(display))
+			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(link.Display))
 	case graph.Unresolved:
 		*diags = append(*diags, Diagnostic{
-			Kind: DiagWikilinkBroken, Target: target,
-			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", target),
+			Kind: DiagWikilinkBroken, Target: link.Target,
+			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", link.Target),
 		})
-		return unwrittenTarget(target, display)
+		return unwrittenTarget(link.Target, link.Display)
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -442,7 +469,7 @@ func (r *Pipeline) renderWikilink(target, display string, diags *[]Diagnostic) s
 // wikilink.
 func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, diags *[]Diagnostic) string {
 	if allowEmbed == embedsDenied {
-		return r.renderWikilink(target, target, diags)
+		return r.renderWikilink(graph.Wikilink{Target: target, Display: target}, diags)
 	}
 
 	res := r.idx.Resolve(target)
