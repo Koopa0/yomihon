@@ -516,8 +516,12 @@ func (p *parser) container(
 				Span:  spans[0],
 				State: EntryRoleOnEntry,
 			}
+			// A row that names one note resolves to it, and says where that
+			// name is written; a row that names several says neither, because
+			// picking one would be the guess the grammar refuses.
 			if len(hits) == 1 {
 				entry.Target = hits[0].target
+				entry.TargetSpan = hits[0].span()
 			}
 			p.rows[spans[0].Start] = entry
 			group.Items = append(group.Items, Item{Entry: entry})

@@ -240,6 +240,50 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 	})
 }
 
+// TestAnEmbedOnALessonRowIsOrdinaryPurpose holds both consumers of course
+// membership against one row, separately.
+//
+// The row lists a lesson and shows a picture beside it, and the picture names
+// nothing on disk. Two rules read membership from opposite sides: the one that
+// reconciles a course against disk keeps what the course lists, and ordinary
+// link health skips it. A line-based answer breaks each of them in its own
+// direction — link health would fall silent about the picture, and the course
+// rule would report the picture as a lesson it promised — so each direction is
+// asserted here rather than left to whichever rule happens to speak first.
+func TestAnEmbedOnALessonRowIsOrdinaryPurpose(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeSupersessionContract(t, root)
+	writeJudgeNote(t, root, "Maps/Course.md",
+		"---\ntitle: Course\ntype: study-path\nstatus: ready\ndomain: golang\n---\n\n"+
+			"## Main {sequence=primary}\n\n- [[Lesson]] ![[MissingPicture]]\n")
+	writeJudgeNote(t, root, "Writing/Lesson.md",
+		"---\ntitle: Lesson\ntype: lesson\nstatus: ready\ndomain: golang\n---\nbody\n")
+
+	out := string(runCheck(t, root))
+
+	// The lesson is what the course lists: the rule that reconciles the course
+	// against disk found it, so it is not also reported as a lesson nobody
+	// listed. This is the membership the other assertions are narrowing.
+	if strings.Contains(out, "map.disk_unlisted") {
+		t.Errorf("the course lists this lesson but membership did not find it:\n%s", out)
+	}
+	// The picture is not a lesson, so it is an ordinary link, and it is broken.
+	if n := strings.Count(out, `"rule_id":"link.broken"`); n != 1 {
+		t.Errorf("link.broken reported %d times, want 1 for the embed:\n%s", n, out)
+	}
+	// The course never promised the picture, so it is not a disagreement
+	// between the course and disk.
+	if strings.Contains(out, "map.disk_mismatch") {
+		t.Errorf("the embed was reconciled against disk as a lesson the course lists:\n%s", out)
+	}
+	// Nothing here is archived; this holds that no other rule is standing in
+	// for the two above.
+	if strings.Contains(out, archivedNavigationRule) {
+		t.Errorf("unexpected %s in a fixture with no archived note:\n%s", archivedNavigationRule, out)
+	}
+}
+
 // TestGeneralMapAnswersForEveryLink holds that narrowing a course to its
 // accepted rows did not narrow a general map. A map declares no sequence, so
 // every link it carries is still the map pointing somewhere — including one
