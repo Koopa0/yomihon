@@ -326,7 +326,10 @@ html, body { margin: 0; background: var(--bg); }
 }
 .y-crumbs { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--fg-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .y-crumbs__sep { opacity: .5; }
-.y-title { font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-38); line-height: 1.25; letter-spacing: 0.01em; color: var(--fg); margin: 14px 0 0; text-wrap: balance; overflow-wrap: anywhere; }
+/* The title can be a link's destination — a note opening with a heading that
+   repeats it hands its anchor here — so it keeps the same clearance from the
+   sticky header that every heading in the prose has. */
+.y-title { font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-38); line-height: 1.25; letter-spacing: 0.01em; color: var(--fg); margin: 14px 0 0; scroll-margin-top: 72px; text-wrap: balance; overflow-wrap: anywhere; }
 .y-metarow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 20px 0; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
 /* a long unbroken title or path breaks mid-string instead of overflowing the
    column; min-width:0 lets the flex item shrink so the break can take effect */
@@ -368,6 +371,21 @@ html, body { margin: 0; background: var(--bg); }
    the same weight so the two read as one family. */
 .y-prose a { color: var(--link); }
 .y-prose a:not(.wikilink) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* Footnotes — apparatus, not body. A reference is a small mark inside the
+   sentence and the notes themselves collect at the foot of the piece, set
+   quieter and tighter than the prose they annotate. Both ends are ordinary
+   anchors into the same page, so the jump down and every way back work with
+   no script; all they need from here is somewhere to land that the sticky
+   header is not sitting on top of, and a return arrow big enough to hit. */
+.y-prose .footnotes { margin: 44px 0 0; font-family: var(--font-sans); font-size: var(--fs-14); line-height: var(--lh-read); color: var(--fg-subtle); }
+.y-prose .footnotes hr { margin: 0 0 18px; }
+.y-prose .footnotes ol { margin: 0; padding-left: 1.4em; }
+.y-prose .footnotes li { margin: 8px 0; scroll-margin-top: 72px; }
+.y-prose .footnotes p { margin: 0; }
+.y-prose sup:has(.footnote-ref) { scroll-margin-top: 72px; }
+.y-prose .footnote-ref, .y-prose .footnote-backref { text-decoration: none; }
+.y-prose .footnote-backref { display: inline-block; min-width: 1.2em; text-align: center; }
 
 /* inline code + fenced code (chroma) */
 .y-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }
@@ -936,9 +954,20 @@ html, body { margin: 0; background: var(--bg); }
    ------------------------------------------------------------
    The document is the scroller for prose, so these land on the root.
    The rails keep their own overflow and scroll independently.
+
+   The root scrolls instantly, and has to. A link written at a section of
+   another note is a navigation that carries a fragment, and a navigation
+   animates the page across to the new document; an animated scroll started
+   underneath that animation is dropped, so the reader is left at the top of
+   the note with the address bar naming a section they cannot see. Measured
+   in Chrome, headed and headless alike, and with scripting off, which is why
+   no enhancement can stand in for this line. Instant arrival was already a
+   shipped mode of this reader — it is what a reduced-motion setting asked
+   for — and it costs a glide within the page to keep every link that names a
+   section actually landing on it.
    ============================================================ */
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   scrollbar-gutter: stable;
   scroll-timeline: --y-read block;
 }
@@ -957,13 +986,13 @@ html {
 /* phrase-aware Japanese line breaking, wherever content is language-tagged */
 .yomihon [lang="ja"] { word-break: auto-phrase; }
 
-/* Arrival echo — a brief wash on the heading a table-of-contents jump lands
-   on. While the viewport is still travelling the enhancement script holds it
-   back (the root carries data-traveling until the scroll settles), so the
-   echo plays when the eye arrives; with no script the jump is immediate and
-   the echo simply plays at once. */
+/* Arrival echo — a brief wash on the heading a jump lands on, whether the
+   reader came from the table of contents, a footnote, or a link in another
+   note. The eye arrives the moment the jump does, so the echo plays at once;
+   it used to be held back while the viewport was still travelling, which is a
+   wait that no longer describes anything and would now simply delay the one
+   signal saying where the reader ended up. */
 .y-prose :target { animation: y-arrive 1.1s var(--ease-standard); }
-[data-traveling] .y-prose :target { animation: none; }
 @keyframes y-arrive {
   from { background: var(--accent-muted); box-shadow: 0 0 0 6px var(--accent-muted); }
   to { background: transparent; box-shadow: 0 0 0 6px transparent; }
@@ -1104,11 +1133,6 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left { transition: none; }
   .y-rail-left details::details-content { transition: none; }
-  /* The document is the scroller for prose, so the smooth setting sits on the
-     root and only the root can take it back. Aimed at the main column instead,
-     this said nothing: every jump to a heading or a footnote kept gliding for a
-     reader who had asked the system for no motion at all. */
-  html { scroll-behavior: auto; }
 }
 
 /* Print: the page becomes the paper. The chrome exists to move between notes,

@@ -1,4 +1,5 @@
-// Table-of-contents tracking coordinated with smooth scrolling.
+// Table-of-contents tracking: which entry is marked as the one being read.
+// The jump itself is the browser's, and lands at once.
 export function initContents() {
   const root = document.documentElement;
   const main = document.querySelector('.y-main');

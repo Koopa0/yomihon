@@ -28,10 +28,13 @@ import (
 	"fmt"
 	"html"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
 )
@@ -69,7 +72,7 @@ const (
 	// convert; it was left untouched. At most one per render call (see
 	// the preprocessing pass doc).
 	DiagRiskyFence DiagnosticKind = "risky-fence"
-	// DiagRenderFailed means goldmark's own Convert returned an error —
+	// DiagRenderFailed means goldmark's own renderer returned an error —
 	// normally unreachable (see render's fallback), kept only so a
 	// future extension that breaks that assumption still produces a
 	// visible diagnostic instead of a panic or a blank page.
@@ -102,6 +105,14 @@ type Result struct {
 	HTML        string
 	Diagnostics []Diagnostic
 	TOC         []TOCEntry
+	// TitleAnchor is the id the page's visible title must carry, and is set
+	// only when this render removed an authored opening heading that said the
+	// same thing. That heading was a real place in the document and a link
+	// could name it; dropping it as a duplicate took the place away while
+	// leaving the words on screen, so the anchor moves to where those words
+	// now are. It is empty when no such heading was written, because there is
+	// then nothing for it to be evidence of.
+	TitleAnchor string
 }
 
 // embedPolicy caps embed transclusion at exactly one level deep: an
@@ -127,9 +138,17 @@ type Pipeline struct {
 
 // New builds a rendering pipeline from one generation's link resolver and
 // captured transclusion bodies. It enables GFM (tables, task lists, and
-// strikethrough), the inert authored-markup subset used by Japanese lessons,
-// and the ==highlight== inline extension. Both capabilities must describe the
-// same generation and must not be nil.
+// strikethrough), footnotes, the inert authored-markup subset used by Japanese
+// lessons, and the ==highlight== inline extension. Both capabilities must
+// describe the same generation and must not be nil.
+//
+// Footnotes are a parser concern rather than one of this package's own dialect
+// passes, and enabling them is what stops "[^name]" being read as an ordinary
+// reference link: that reading resolved the reference against the definition's
+// prose, so a note about the scope of a study became a link to a page that
+// does not exist, and the note's own text was swallowed as the link's
+// destination. With the extension, the reference and its definition are two
+// ends of one anchor pair inside the page, which needs no script to work.
 func New(idx Resolver, transclusions Transclusions) *Pipeline {
 	if idx == nil {
 		panic("render: New requires a non-nil Resolver")
@@ -141,7 +160,15 @@ func New(idx Resolver, transclusions Transclusions) *Pipeline {
 		idx:           idx,
 		transclusions: transclusions,
 		md: goldmark.New(
-			goldmark.WithExtensions(extension.GFM, highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}),
+			goldmark.WithExtensions(
+				extension.GFM,
+				// The footnote extension keeps owning what a footnote is and
+				// how it is numbered; it is only told what to prefix the ids
+				// with, per body, so the several bodies one page assembles do
+				// not all call their first note the same thing.
+				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
+				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{},
+			),
 		),
 	}
 }
@@ -165,13 +192,106 @@ func New(idx Resolver, transclusions Transclusions) *Pipeline {
 // in, so what arrives here is already routed and passes through
 // untouched.
 func (r *Pipeline) HTML(relPath, title, body string) Result {
+	return r.HTMLIn(hostRegion, relPath, title, body)
+}
+
+// HTMLIn is HTML for a body that will be placed on a page already carrying
+// another separately rendered one — a concept sheet opening over the lesson
+// that cites it, cloned into the same document the moment the reader asks for
+// it. Both bodies then live in one id space, so the caller names the region
+// this one occupies.
+//
+// What that buys is bounded, and worth stating exactly: the footnote ids this
+// render mints — the references, their definitions, and the same for any
+// callout or transclusion inside it — are named under region, and nested
+// regions carry it too. It is not a general id namespace. Heading ids are
+// unique within one render and are not qualified by region, so two bodies
+// composed onto one page can still stamp the same heading id, and neither
+// knows anything about the fixed ids the surrounding chrome uses.
+//
+// region must be distinct for each such body on a page and must be derived
+// from the page rather than from a running process, so two readers of one
+// lesson receive the same bytes.
+func (r *Pipeline) HTMLIn(region, relPath, title, body string) Result {
+	page := &composition{base: region}
 	body = stripObsidianComments(body)
-	body = removeBodyFirstH1(title, body)
-	res := r.renderBody(body, embedsAllowed)
-	htmlOut, toc := assignHeadingSlugs(res.HTML)
+	body, titleAnchor := removeBodyFirstH1(title, body)
+	res := r.renderBody(body, embedsAllowed, page, region)
+	// The anchor the page title inherits is claimed before any body heading is
+	// slugged, so a section further down that reduces to the same name is the
+	// one that has to move aside.
+	htmlOut, toc := assignHeadingSlugs(res.HTML, titleAnchor)
 	res.HTML = resolveAssetHrefs(htmlOut, relPath)
 	res.TOC = toc
+	res.TitleAnchor = titleAnchor
 	return res
+}
+
+// hostRegion is the note's own body: the first thing rendered on a page and
+// the only region whose footnote ids are left bare. A page with no callout and
+// no transclusion — nearly every page — therefore carries the plain ids the
+// syntax is normally written with.
+const hostRegion = ""
+
+// composition is the state shared by every body one render assembles. Each of
+// those bodies is parsed on its own and spliced in afterwards, so each numbers
+// its footnotes from one; without something to tell them apart the assembled
+// result carries "fn:1" several times and a browser resolving a fragment
+// reaches whichever came first.
+//
+// base is the region this whole assembly was given, and every region it hands
+// out is named under it: a callout inside a concept sheet gets the sheet's
+// prefix, not one that would sit alongside the lesson's own callouts. It
+// qualifies footnote ids and nothing else.
+//
+// The counter belongs to the render rather than the process: two requests for
+// one note must produce the same bytes, so nothing here may depend on how many
+// pages were rendered before. Regions are numbered in the order they are
+// assembled, which is document order, so the same input always yields the same
+// ids — including when one note is transcluded twice, since those are two
+// occurrences and take two numbers.
+type composition struct {
+	base    string
+	regions int
+}
+
+func (c *composition) nextRegion() string {
+	c.regions++
+	return c.base + "y" + strconv.Itoa(c.regions) + "-"
+}
+
+// collector gathers one region's diagnostics and carries the page that region
+// belongs to, so a nested render can claim its own footnote id space without
+// another parameter on every function between here and there.
+type collector struct {
+	diags []Diagnostic
+	page  *composition
+}
+
+func (c *collector) report(d Diagnostic) { c.diags = append(c.diags, d) }
+
+// footnoteRegionAttr names the document attribute carrying one region's
+// footnote id prefix. The renderer writes nothing for a document node's
+// attributes, so this reaches the footnote extension and nothing else.
+const footnoteRegionAttr = "yomihonFootnoteRegion"
+
+// footnoteRegionPrefix is the single owner of footnote id naming: goldmark's
+// own extension asks for the prefix and this answers from the document being
+// rendered. Nothing here re-implements footnote parsing or numbering.
+func footnoteRegionPrefix(n ast.Node) []byte {
+	doc := n.OwnerDocument()
+	if doc == nil {
+		return nil
+	}
+	value, ok := doc.AttributeString(footnoteRegionAttr)
+	if !ok {
+		return nil
+	}
+	prefix, ok := value.([]byte)
+	if !ok {
+		return nil
+	}
+	return prefix
 }
 
 // render is the shared markdown-to-HTML core: the dialect preprocessing
@@ -182,12 +302,18 @@ func (r *Pipeline) HTML(relPath, title, body string) Result {
 // callout dialect rule calls for, so nested formatting and nested
 // wikilinks work inside a callout or an embed exactly as they do at the
 // top level.
-func (r *Pipeline) render(body string, allowEmbed embedPolicy) Result {
-	return r.renderBody(stripObsidianComments(body), allowEmbed)
+//
+// Each such body is a region of its own: it is parsed separately, so it gets
+// its own footnote id space, named under whatever region this render was
+// itself given. One render therefore keeps its footnote ids distinct — and a
+// caller composing several renders onto one page says where each of them sits
+// (see HTMLIn), because this package cannot see the others.
+func (r *Pipeline) render(body string, allowEmbed embedPolicy, page *composition) Result {
+	return r.renderBody(stripObsidianComments(body), allowEmbed, page, page.nextRegion())
 }
 
-func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy) Result {
-	var diags []Diagnostic
+func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composition, region string) Result {
+	col := &collector{page: page}
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
 	// authored copy before placeholders exist prevents source from selecting or
 	// relocating renderer-owned HTML during substituteBlocks.
@@ -198,23 +324,30 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy) Result {
 		}
 		return r
 	}, body)
-	source, blocks, inline := r.preprocess(body, allowEmbed, &diags)
+	source, blocks, inline := r.preprocess(body, allowEmbed, col)
+
+	// Parse and render as two steps rather than one Convert call, which is
+	// exactly what Convert does, so this region's id prefix can be attached to
+	// the document the footnote extension will ask about.
+	src := []byte(source)
+	doc := r.md.Parser().Parse(text.NewReader(src))
+	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
 
 	var buf bytes.Buffer
-	if err := r.md.Convert([]byte(source), &buf); err != nil {
+	if err := r.md.Renderer().Render(&buf, src, doc); err != nil {
 		// Never fail the whole render. This is normally
-		// unreachable — goldmark's Convert only errors if a configured
+		// unreachable — rendering only errors if a configured
 		// renderer returns one, and the default HTML renderer writing to
 		// a bytes.Buffer never fails — but the fallback keeps the page
 		// non-blank even if a future extension breaks that assumption.
-		diags = append(diags, Diagnostic{
+		col.report(Diagnostic{
 			Kind:    DiagRenderFailed,
 			Message: fmt.Sprintf("markdown render failed: %v", err),
 		})
-		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: diags}
+		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
-	return Result{HTML: substituteBlocks(buf.String(), blocks, inline), Diagnostics: diags}
+	return Result{HTML: substituteBlocks(buf.String(), blocks, inline), Diagnostics: col.diags}
 }
 
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page is
@@ -229,18 +362,25 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy) Result {
 // Removing that heading destroyed the sentence and put a filename in its
 // place — on an ordinary folder, where nothing carries frontmatter, that was
 // every file.
-func removeBodyFirstH1(title, body string) string {
+//
+// The second return is the anchor that heading would have been given, and is
+// returned only when one was actually removed. A link may name that section,
+// and after the removal the only thing on the page still saying those words is
+// the title, so the title is where the anchor has to go. Where no such heading
+// was written there is nothing to inherit, and claiming an anchor anyway would
+// be inventing a section the author never wrote.
+func removeBodyFirstH1(title, body string) (stripped, anchor string) {
 	lines := strings.Split(body, "\n")
 	i := 0
 	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
 		i++
 	}
 	if i >= len(lines) || !strings.HasPrefix(lines[i], "# ") {
-		return body
+		return body, ""
 	}
 	heading := strings.TrimSpace(strings.TrimPrefix(lines[i], "# "))
 	if heading != strings.TrimSpace(title) {
-		return body
+		return body, ""
 	}
-	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n")
+	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), slugify(heading)
 }

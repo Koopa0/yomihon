@@ -27,7 +27,13 @@ import (
 // and NOT the HTML pipeline's own highlight/chroma renderers (PlainText walks
 // the parsed AST, it never renders HTML). Its Parser is safe for concurrent
 // use — each Parse call builds its own context.
-var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList)).Parser()
+//
+// Footnotes are enabled because the reading page shows them. Without this the
+// two passes read one line two different ways: a definition whose text has no
+// spaces in it — every CJK one — is a valid link reference definition, so the
+// plain pass swallowed it and a note could display a sentence that no search
+// for it would ever find.
+var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote)).Parser()
 
 // PlainBlock is one top-level markdown block's searchable text. Code reports
 // whether it came from a fenced or indented code block so a downstream bounded

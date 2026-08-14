@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -404,6 +405,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		StepsLabel:        sidebar.FooterLabel,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
+		TitleAnchor:       result.TitleAnchor,
 		Sidebar:           sidebar,
 		Governed:          governance.shell.Governed,
 		NonInstance:       governance.nonInstance,
@@ -619,9 +621,15 @@ func (h *Handler) loadConcepts(
 	if len(refs) == 0 {
 		return nil
 	}
-	renderBody := func(rel, body string) string { return snap.Render(rel, body).HTML }
 	docs := make([]lesson.ConceptDoc, 0, len(refs))
-	for _, rel := range refs {
+	for ordinal, rel := range refs {
+		// Each sheet is cloned into the lesson's own document when the reader
+		// opens it, so its ids share one space with the lesson body's. The
+		// region is the sheet's place in the order this page cites its
+		// concepts — the same for every reader of the page, and derived from
+		// the page rather than from anything the process is counting.
+		region := "c" + strconv.Itoa(ordinal+1) + "-"
+		renderBody := func(rel, body string) string { return snap.RenderIn(region, rel, body).HTML }
 		if d, ok := snap.Concepts().Document(renderBody, rel); ok {
 			docs = append(docs, d)
 		}

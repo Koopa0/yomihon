@@ -60,6 +60,13 @@ type NoteView struct {
 	// told there are no results, which would be untrue of the folder.
 	Unsearchable bool
 	BodyHTML     string
+	// TitleAnchor is the id the title carries, set when the note opened with a
+	// heading saying the same thing and the renderer dropped it as a
+	// duplicate. A link may be written at that section, and the title is where
+	// its words now live. Empty when the note wrote no such heading — the
+	// title is then a page's name rather than a place in the document, and
+	// giving it an anchor would answer for a section nobody wrote.
+	TitleAnchor string
 
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
@@ -228,7 +235,13 @@ templ articleHead(v NoteView) {
 			}
 		</div>
 	}
-	<h1 class="y-title">{ v.Title }</h1>
+	// The anchor goes on the heading the reader can actually see, not on a
+	// hidden marker beside it: a jump has to land on the words it named.
+	if v.TitleAnchor != "" {
+		<h1 id={ v.TitleAnchor } class="y-title">{ v.Title }</h1>
+	} else {
+		<h1 class="y-title">{ v.Title }</h1>
+	}
 	if v.Type != "" || v.Status != "" || v.RelPath != "" {
 		<div class="y-metarow">
 			if v.Type != "" {

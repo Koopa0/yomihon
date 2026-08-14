@@ -1,7 +1,7 @@
 <h1><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"> yomihon</h1>
 
 [![CI](https://github.com/koopa0/yomihon/actions/workflows/ci.yml/badge.svg)](https://github.com/koopa0/yomihon/actions/workflows/ci.yml)
-[![Go 1.26.5+](https://img.shields.io/badge/Go-1.26.5%2B-00ADD8?style=flat&logo=go&logoColor=white)](go.mod)
+[![Go 1.26.6+](https://img.shields.io/badge/Go-1.26.6%2B-00ADD8?style=flat&logo=go&logoColor=white)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
 yomihon is a local, single-user web interface for reading a personal Markdown
@@ -56,7 +56,7 @@ vault.*
 
 ## Requirements
 
-- Go 1.26.5 or newer.
+- Go 1.26.6 or newer.
 - A vault contract at `System/schemas/vault-schema.toml`. Start from
   [`examples/vault-schema.toml`](examples/vault-schema.toml) and adapt it to
   your own directories and note types. yomihon diagnoses a missing or invalid
