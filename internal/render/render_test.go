@@ -270,7 +270,7 @@ func TestWikilinkBareAnchorIsPlainText(t *testing.T) {
 // headingID reads the id the renderer actually stamped on the heading whose
 // text is want, so a test can ask where a link has to land instead of writing
 // the answer down a second time.
-func headingID(t *testing.T, res render.Result, want string) string {
+func headingID(t *testing.T, res *render.Result, want string) string {
 	t.Helper()
 	for _, entry := range res.TOC {
 		if entry.Text == want {
@@ -303,8 +303,8 @@ func TestWikilinkKeepsCrossNoteHeadingFragment(t *testing.T) {
 	draft := r.HTML("Writing/玻璃潮初稿.md", "玻璃潮初稿", "## 第三節：失約的燈\n\n內文。\n")
 	quay := r.HTML("Sources/鹽霧碼頭.md", "鹽霧碼頭", "## 可直接取用的感官素材\n\n內文。\n")
 
-	draftID := headingID(t, draft, "第三節：失約的燈")
-	quayID := headingID(t, quay, "可直接取用的感官素材")
+	draftID := headingID(t, &draft, "第三節：失約的燈")
+	quayID := headingID(t, &quay, "可直接取用的感官素材")
 
 	// Both halves are pinned: the destination's id is this exact string, and
 	// the link names it. Reading the id alone would still pass if the slug
@@ -411,6 +411,185 @@ func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+			got := r.HTML("note.md", "", tt.body)
+			if !strings.Contains(got.HTML, tt.want) {
+				t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, tt.want, got.HTML)
+			}
+		})
+	}
+}
+
+// TestRemovedOpeningHeadingPassesItsAnchorToTheTitle is the assertion site for
+// the one heading a reader can see and the document no longer contains. A note
+// opening with a heading that repeats its title has that heading dropped, so
+// the words appear once instead of twice — but a link written at that section
+// still names it, and after the removal nothing in the body answers to the
+// name. The anchor moves to where those words now are.
+func TestRemovedOpeningHeadingPassesItsAnchorToTheTitle(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "Notes/Glass Tide.md"}}, nil, nil)
+
+	page := r.HTML("Notes/Glass Tide.md", "Glass Tide", "# Glass Tide\n\nOpening paragraph.\n\n## Later\n\n本文。\n")
+
+	if page.TitleAnchor == "" {
+		t.Fatal("an authored opening heading was removed and left no anchor behind, so a link written at it reaches nothing")
+	}
+	if strings.Contains(page.HTML, "<h1") {
+		t.Errorf("the opening heading was kept as well as the title, so the reader sees the name twice:\n%s", page.HTML)
+	}
+
+	// The link and the title have to agree, and the agreement is checked
+	// against what the renderer produced rather than against a slug written
+	// down here a second time.
+	link := r.HTML("Notes/source.md", "", "[[Glass Tide#Glass Tide]]\n")
+	want := `<a href="/notes/Notes/Glass%20Tide.md#` + page.TitleAnchor + `"`
+	if !strings.Contains(link.HTML, want) {
+		t.Errorf("the link does not name the anchor the title carries; want %q in:\n%s", want, link.HTML)
+	}
+}
+
+// TestTitleAnchorIsClaimedBeforeTheBodyIsSlugged covers the collision the
+// transfer creates. The title's anchor is on the page but not in the body
+// HTML, so a section further down reducing to the same name cannot see it and
+// would issue the id a second time — the browser then resolves the title's own
+// address to the section instead.
+func TestTitleAnchorIsClaimedBeforeTheBodyIsSlugged(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	page := r.HTML("Notes/Glass Tide.md", "Glass Tide", "# Glass Tide\n\nOpening.\n\n## Glass Tide\n\n本文。\n")
+
+	if page.TitleAnchor != "glass-tide" {
+		t.Fatalf("TitleAnchor = %q, want %q", page.TitleAnchor, "glass-tide")
+	}
+	if strings.Contains(page.HTML, `id="glass-tide"`) {
+		t.Errorf("a body heading took the id the title already carries:\n%s", page.HTML)
+	}
+	if !strings.Contains(page.HTML, `id="glass-tide-2"`) {
+		t.Errorf("the body heading did not move aside for the title's anchor:\n%s", page.HTML)
+	}
+	if len(page.TOC) != 1 || page.TOC[0].ID != "glass-tide-2" {
+		t.Errorf("TOC = %+v, want the one body heading under its moved id", page.TOC)
+	}
+}
+
+// TestTitleAnchorIsOnlyClaimedForARemovedHeading keeps the anchor honest. A
+// note that never wrote an opening heading has no such section, and stamping
+// the title anyway would answer a link naming a place the author did not
+// write — the same invention this round removed from footnotes and fragments.
+func TestTitleAnchorIsOnlyClaimedForARemovedHeading(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	tests := []struct {
+		name  string
+		title string
+		body  string
+	}{
+		{name: "no opening heading at all", title: "Glass Tide", body: "Just prose.\n"},
+		{name: "an opening heading that says something else", title: "Glass Tide", body: "# Salt Quay\n\nProse.\n"},
+		{name: "a heading that is not the first thing in the body", title: "Glass Tide", body: "Prose.\n\n# Glass Tide\n"},
+		{name: "a lower-level opening heading", title: "Glass Tide", body: "## Glass Tide\n\nProse.\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := r.HTML("Notes/n.md", tt.title, tt.body).TitleAnchor; got != "" {
+				t.Errorf("TitleAnchor = %q, want empty — no authored opening heading was removed", got)
+			}
+		})
+	}
+}
+
+// TestHeadingFragmentFoldsUnicodeForm is the assertion site for a link and a
+// heading that read identically on screen and are different bytes underneath.
+// macOS stores filenames decomposed and editors type composed, so a link
+// written in one form and the heading it names written in the other is an
+// ordinary thing to find in this vault — and the reader has no way to see the
+// difference, so a link that silently misses looks like the renderer losing
+// the section.
+func TestHeadingFragmentFoldsUnicodeForm(t *testing.T) {
+	t.Parallel()
+
+	// Built from code points rather than typed, so the two forms stay legible
+	// in the source and cannot be mixed up by an editor normalizing the file.
+	const (
+		composed   = "\u304C\u3093"       // がん
+		decomposed = "\u304B\u3099\u3093" // か + combining dakuten, then ん
+	)
+	if composed == decomposed {
+		t.Fatal("the two Unicode forms are byte-equal, so this test compares nothing")
+	}
+
+	tests := []struct {
+		name        string
+		destination string
+		link        string
+	}{
+		{name: "composed link, decomposed heading", destination: decomposed, link: composed},
+		{name: "decomposed link, composed heading", destination: composed, link: decomposed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, []graph.NoteInput{{Path: "Dest.md"}}, nil, nil)
+
+			dest := r.HTML("Dest.md", "Dest", "## "+tt.destination+"\n\n本文。\n")
+			wanted := headingID(t, &dest, tt.destination)
+
+			got := r.HTML("Notes/source.md", "", "[[Dest#"+tt.link+"]]\n")
+			want := `<a href="/notes/Dest.md#` + wanted + `"`
+			if !strings.Contains(got.HTML, want) {
+				t.Errorf("the link names a different anchor than the destination stamps; want %q in:\n%s", want, got.HTML)
+			}
+		})
+	}
+}
+
+// TestNonMarkdownTargetTakesNoHeadingFragment keeps the fragment to the one
+// kind of destination that has headings. A PDF, a canvas, or a picture is
+// served whole; the reading page stamps nothing inside it, so a fragment
+// appended to one names a place that cannot exist and, on a route that ignores
+// it, quietly reads as though it worked.
+func TestNonMarkdownTargetTakesNoHeadingFragment(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "Notes/Real.md"}}, []string{
+		"Attachments/paper.pdf",
+		"Diagrams/canvas/board.canvas",
+		"Attachments/plate.png",
+	}, nil)
+
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "a pdf",
+			body: "[[paper.pdf#Section 2]]\n",
+			want: `<a href="/notes/Attachments/paper.pdf" class="wikilink">paper.pdf#Section 2</a>`,
+		},
+		{
+			name: "a canvas",
+			body: "[[board.canvas#Overview]]\n",
+			want: `<a href="/notes/Diagrams/canvas/board.canvas" class="wikilink">board.canvas#Overview</a>`,
+		},
+		{
+			name: "a picture",
+			body: "[[plate.png#Detail]]\n",
+			want: `<a href="/notes/Attachments/plate.png" class="wikilink">plate.png#Detail</a>`,
+		},
+		{
+			// The control: the same shape of link, at the one kind of
+			// destination that does carry anchors, still gets its fragment.
+			name: "a note, which does have headings",
+			body: "[[Real#Section 2]]\n",
+			want: `<a href="/notes/Notes/Real.md#section-2" class="wikilink">Real#Section 2</a>`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := r.HTML("note.md", "", tt.body)
 			if !strings.Contains(got.HTML, tt.want) {
 				t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, tt.want, got.HTML)

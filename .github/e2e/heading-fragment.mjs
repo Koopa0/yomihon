@@ -30,12 +30,22 @@ const MUTATE = process.env.MUTATE || '';
 // punctuation in it — the case a slug rule is most likely to reduce to
 // nothing. The other carries the reader's own words, which must survive
 // alongside the address they hide.
+// The third names the heading the destination removed as a duplicate of its
+// own title. Nothing in that note's body answers to it any more, so the only
+// thing that can is the title the reader is looking at.
 const LINKS = [
   { label: 'Glass Tide#第三節：失約的燈', heading: '第三節：失約的燈' },
   { label: 'back to the material', heading: 'Sensory material' },
+  { label: 'Glass Tide#Glass Tide', heading: 'Glass Tide' },
 ];
 
-const SITES = ['fragment-names-the-anchor', 'fragment-reaches-the-heading', 'back-returns-to-the-source'];
+const SITES = [
+  'composed-ids-unique',
+  'title-carries-its-anchor',
+  'fragment-names-the-anchor',
+  'fragment-reaches-the-heading',
+  'back-returns-to-the-source',
+];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -113,6 +123,21 @@ const MUTATIONS = {
     target: 'back-returns-to-the-source',
     apply: rewriteDocuments((body) => body.replaceAll('class="wikilink"', 'class="wikilink" target="_blank"')),
   },
+  // Every separately rendered body numbers its footnotes from one, so taking
+  // the region apart puts the same id on the page twice and a citation lands
+  // on whichever came first.
+  'collapse-footnote-regions': {
+    target: 'composed-ids-unique',
+    provePath: () => sourcePath,
+    apply: rewriteDocuments((body) => body.replaceAll('y1-', '')),
+  },
+  // The title stops answering to the section it inherited, which is what the
+  // page looked like before the anchor was carried across.
+  'strip-title-anchor': {
+    target: 'title-carries-its-anchor',
+    provePath: () => destinationPath,
+    apply: rewriteDocuments((body) => body.replaceAll('<h1 id="', '<h1 data-was-id="')),
+  },
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -139,22 +164,77 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 
 const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
 const sourcePath = new URL(BASE + PAGE).pathname;
+const destinationPath = new URL(BASE + DESTINATION).pathname;
+
+// Only the flow whose assertion a mode aims at proves it applied. Asking on
+// any other page would report not-applied for a mutation working perfectly on
+// the one it was written for.
+const proveApplied = (site, proof) => {
+  if (!mutation || mutation.target !== site) return;
+  const issue = proof(mutation.provePath ? mutation.provePath() : sourcePath);
+  if (issue) notApplied(`${MUTATE}: ${issue}`);
+};
+
+// Reads every id the page carries and every same-page address it offers, so
+// the two can be checked against each other rather than against a list of the
+// ids this file expects to find.
+const pageAddresses = (page) => page.evaluate(() => ({
+  ids: [...document.querySelectorAll('[id]')].map((el) => el.id),
+  fragments: [...document.querySelectorAll('a[href^="#"]')].map((a) => decodeURIComponent(a.getAttribute('href').slice(1))),
+  footnoteRefs: [...document.querySelectorAll('.footnote-ref')].length,
+  footnoteSections: [...document.querySelectorAll('.footnotes')].length,
+}));
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const proof = mutation ? await mutation.apply(context) : null;
 
+  // A page assembled out of several bodies has to name every place on it
+  // exactly once. The source note carries its own footnotes and a callout
+  // carrying another, and those are rendered separately and spliced together.
+  {
+    const page = await context.newPage();
+    const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    if (!response || response.status() !== 200) broken(`the source note returned ${response?.status() ?? 'no response'}, want 200`);
+    proveApplied('composed-ids-unique', proof);
+
+    const { ids, fragments, footnoteRefs, footnoteSections } = await pageAddresses(page);
+    // Without this the checks below would hold over a page that assembled
+    // nothing and therefore had nothing to collide.
+    if (footnoteSections < 2 || footnoteRefs < 3) {
+      broken(`the source note rendered ${footnoteSections} footnote sections and ${footnoteRefs} references, want at least 2 and 3 — the composed fixture is not on this page`);
+    }
+    const count = new Map();
+    for (const id of ids) count.set(id, (count.get(id) ?? 0) + 1);
+    for (const [id, n] of count) {
+      if (n > 1) fail('composed-ids-unique', `the id ${JSON.stringify(id)} is on this page ${n} times, so a fragment naming it reaches whichever came first`);
+    }
+    for (const fragment of fragments) {
+      const n = count.get(fragment) ?? 0;
+      if (n !== 1) fail('composed-ids-unique', `the address ${JSON.stringify(`#${fragment}`)} has ${n} destinations on this page, want exactly 1`);
+    }
+    await page.close();
+  }
+
   // What the destination itself calls each section. Everything below compares
-  // against these, never against a slug this file worked out on its own.
+  // against these, never against a slug this file worked out on its own. The
+  // title is read alongside the prose headings because a note that opened with
+  // its own name has no body heading left to answer for it.
   const reader = await context.newPage();
   const response = await reader.goto(BASE + DESTINATION, { waitUntil: 'networkidle' });
   if (!response || response.status() !== 200) broken(`the destination returned ${response?.status() ?? 'no response'}, want 200`);
+  proveApplied('title-carries-its-anchor', proof);
+
   const anchors = await reader.evaluate(() => Object.fromEntries(
-    [...document.querySelectorAll('.y-prose h2, .y-prose h3')].map((h) => [h.textContent.trim(), h.id]),
+    [...document.querySelectorAll('h1.y-title, .y-prose h2, .y-prose h3')].map((h) => [h.textContent.trim(), h.id]),
   ));
+  const titleText = await reader.evaluate(() => document.querySelector('h1.y-title').textContent.trim());
+  if (!anchors[titleText]) {
+    fail('title-carries-its-anchor', `the destination's visible title ${JSON.stringify(titleText)} carries no id, so the section it absorbed can be named by a link and reached by nobody`);
+  }
   for (const link of LINKS) {
-    if (!anchors[link.heading]) broken(`the destination page has no heading ${JSON.stringify(link.heading)}; it offers ${JSON.stringify(Object.keys(anchors))}`);
+    if (!anchors[link.heading]) broken(`the destination page has nothing named ${JSON.stringify(link.heading)}; it offers ${JSON.stringify(Object.keys(anchors))}`);
   }
   await reader.close();
 
@@ -168,10 +248,9 @@ try {
     const source = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
     if (!source || source.status() !== 200) broken(`the source note returned ${source?.status() ?? 'no response'}, want 200`);
 
-    if (proof) {
-      const issue = proof(sourcePath);
-      if (issue) notApplied(`${MUTATE}: ${issue}`);
-    }
+    proveApplied('fragment-names-the-anchor', proof);
+    proveApplied('fragment-reaches-the-heading', proof);
+    proveApplied('back-returns-to-the-source', proof);
 
     const anchor = page.locator(`main a.wikilink:text-is("${link.label}")`);
     const found = await anchor.count();

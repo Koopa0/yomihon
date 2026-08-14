@@ -1,6 +1,6 @@
 module github.com/koopa0/yomihon/tools/sqlite-driver-bakeoff
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/koopa0/yomihon v0.0.0

@@ -1,10 +1,16 @@
 package render_test
 
 import (
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 )
 
@@ -72,6 +78,205 @@ func TestFootnoteSemanticContract(t *testing.T) {
 
 	if len(got.Diagnostics) != 0 {
 		t.Errorf("Diagnostics = %+v, want none for a well-formed footnote", got.Diagnostics)
+	}
+}
+
+var (
+	elementID    = regexp.MustCompile(`id="([^"]*)"`)
+	fragmentHref = regexp.MustCompile(`href="#([^"]*)"`)
+	footnoteRef  = regexp.MustCompile(`<sup id="([^"]+)"><a href="#([^"]+)"`)
+)
+
+func allMatches(re *regexp.Regexp, htmlOut string) []string {
+	var out []string
+	for _, m := range re.FindAllStringSubmatch(htmlOut, -1) {
+		out = append(out, m[1])
+	}
+	return out
+}
+
+// TestComposedFootnoteIDsAreUnique is the assertion site for a page assembled
+// out of more than one body. A note's own text, each callout in it, and each
+// note transcluded into it are rendered separately and then spliced together,
+// and every one of those passes numbers its footnotes from one. Composed, the
+// page carries the same id several times: the browser resolves a fragment to
+// the first element bearing it, so a reader following the second note's
+// citation is handed the first note's — silently, with nothing on screen
+// saying the wrong text was reached.
+//
+// The same note is embedded twice on purpose. Two identical bodies cannot be
+// told apart by their content, so anything identifying a region has to include
+// which occurrence it is.
+func TestComposedFootnoteIDsAreUnique(t *testing.T) {
+	t.Parallel()
+	// The embedded note carries a callout of its own, so the composition goes
+	// two levels deep: a body inside a body inside the page. Testing only the
+	// flat cases would leave the one place a region has to be claimed by
+	// something other than the page's own top level.
+	r := newRenderer(t, []graph.NoteInput{{Path: "Embedded.md"}}, nil, transclusions{
+		"Embedded.md": strings.Join([]string{
+			"Embedded text[^e].",
+			"",
+			"> [!note] The embedded note's own aside",
+			"> Inner text[^i].",
+			">",
+			"> [^i]: The inner aside's note.",
+			"",
+			"[^e]: The embedded note's own note.",
+		}, "\n"),
+	})
+
+	body := strings.Join([]string{
+		"Host text[^h], cited again[^h].",
+		"",
+		"> [!note] Aside",
+		"> Callout text[^c].",
+		">",
+		"> [^c]: The callout's own note.",
+		"",
+		"![[Embedded]]",
+		"",
+		"![[Embedded]]",
+		"",
+		"[^h]: The host's own note.",
+	}, "\n")
+	got := r.HTML("Notes/host.md", "", body).HTML
+
+	// The page has to be the composed one this test claims to describe: six
+	// definitions from six separately rendered regions, seven citations of
+	// them. Without this the assertions below could hold over a page that
+	// never assembled anything.
+	if n := strings.Count(got, `class="footnote-ref"`); n != 7 {
+		t.Fatalf("page carries %d footnote references, want 7 — the composed fixture did not render:\n%s", n, got)
+	}
+	if n := strings.Count(got, `class="footnotes"`); n != 6 {
+		t.Fatalf("page carries %d footnote sections, want 6 (host, its callout, two embeds, and each embed's own callout):\n%s", n, got)
+	}
+
+	ids := allMatches(elementID, got)
+	seen := map[string]int{}
+	for _, id := range ids {
+		seen[id]++
+	}
+	for id, n := range seen {
+		if n > 1 {
+			t.Errorf("id %q appears %d times on one page; a fragment naming it reaches whichever came first:\n%s", id, n, got)
+		}
+	}
+
+	// Every address the page offers has to name exactly one place on it.
+	for _, fragment := range allMatches(fragmentHref, got) {
+		if n := seen[fragment]; n != 1 {
+			t.Errorf("href %q has %d destinations on this page, want exactly 1", "#"+fragment, n)
+		}
+	}
+
+	// And each citation's way back has to lead to that citation. A reference
+	// whose id is shared would send every reader of it to the first one.
+	for _, pair := range footnoteRef.FindAllStringSubmatch(got, -1) {
+		reference, definition := pair[1], pair[2]
+		if !strings.Contains(got, `<li id="`+definition+`">`) {
+			t.Errorf("the reference %q cites %q, which is on no list on this page", reference, "#"+definition)
+		}
+		if !strings.Contains(got, `href="#`+reference+`"`) {
+			t.Errorf("nothing on the page returns to the reference %q, so its footnote is a one-way trip", reference)
+		}
+	}
+}
+
+// TestSeparatelyRenderedBodiesKeepDistinctFootnoteIDs covers the bodies a page
+// assembles that this package never sees together. A lesson's concept sheets
+// are rendered by their own calls and shipped inside <template> elements; the
+// moment the reader opens one it is cloned into the lesson's own document, so
+// two renders that never met are suddenly in one id space. Each therefore has
+// to be told where it sits, and the regions it opens inside itself — for a
+// callout, for a transclusion — have to be named under that too.
+//
+// Footnote ids are what this asserts, because they are what the region
+// qualifies. Heading ids are unique within a body and are not qualified, so
+// two bodies composed onto one page can still stamp the same heading id; that
+// is a separate gap and is not what this test speaks for.
+func TestSeparatelyRenderedBodiesKeepDistinctFootnoteIDs(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, transclusions{})
+
+	// One body per render call, each with a footnote of its own and a callout
+	// carrying another, which is where a region that did not compose would
+	// collide: the sheet's first callout and the lesson's first callout.
+	body := strings.Join([]string{
+		"Body text[^b].",
+		"",
+		"> [!note] Aside",
+		"> Aside text[^a].",
+		">",
+		"> [^a]: The aside's note.",
+		"",
+		"[^b]: The body's own note.",
+	}, "\n")
+
+	page := r.HTML("Writing/lesson.md", "", body)
+	sheets := []string{
+		r.HTMLIn("c1-", "Concepts/one.md", "", body).HTML,
+		r.HTMLIn("c2-", "Concepts/two.md", "", body).HTML,
+	}
+
+	seen := map[string]string{}
+	for where, htmlOut := range map[string]string{
+		"the lesson body":  page.HTML,
+		"the first sheet":  sheets[0],
+		"the second sheet": sheets[1],
+	} {
+		for _, id := range allMatches(elementID, htmlOut) {
+			// A footnote id is the one this region names; anything else on
+			// these bodies is outside what the region qualifies, so counting
+			// it here would assert a guarantee that was not made.
+			if !strings.Contains(id, "fn:") && !strings.Contains(id, "fnref") {
+				continue
+			}
+			if owner, taken := seen[id]; taken {
+				t.Errorf("the footnote id %q is minted by both %s and %s; once the sheet is cloned into the page both are in one document", id, owner, where)
+			}
+			seen[id] = where
+		}
+	}
+
+	// The composition has to be real, or the loop above compared nothing.
+	for _, want := range []string{"fn:1", "y1-fn:1", "c1-fn:1", "c1-y1-fn:1", "c2-y1-fn:1"} {
+		if !slices.Contains(slices.Collect(maps.Keys(seen)), want) {
+			t.Errorf("no body minted the id %q, so this page did not assemble the regions the test describes: %v", want, slices.Sorted(maps.Keys(seen)))
+		}
+	}
+}
+
+// TestComposedFootnoteIDsAreDeterministic is what keeps the previous test's
+// answer from depending on when it was asked. Region identity has to come from
+// the page being assembled and nothing else: a counter living beside the
+// pipeline would number the same note differently on its second reading, so
+// two readers of one note would receive different ids, a cached page would
+// stop matching the page beside it, and the failure would appear only under
+// load — the condition least likely to be reproduced.
+func TestComposedFootnoteIDsAreDeterministic(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "Embedded.md"}}, nil, transclusions{
+		"Embedded.md": "Embedded text[^e].\n\n[^e]: The embedded note's own note.\n",
+	})
+	body := "Host[^h].\n\n![[Embedded]]\n\n![[Embedded]]\n\n[^h]: Host note.\n"
+
+	want := r.HTML("Notes/host.md", "", body).HTML
+	if !strings.Contains(want, "y1-fn:1") || !strings.Contains(want, "y2-fn:1") {
+		t.Fatalf("the fixture did not produce two distinct regions, so repeating it proves nothing:\n%s", want)
+	}
+
+	var wg sync.WaitGroup
+	got := make([]string, 32)
+	for i := range got {
+		wg.Go(func() { got[i] = r.HTML("Notes/host.md", "", body).HTML })
+	}
+	wg.Wait()
+	for i, out := range got {
+		if out != want {
+			t.Fatalf("render %d of the same note differs from the first:\n%s", i, cmp.Diff(want, out))
+		}
 	}
 }
 

@@ -4,6 +4,8 @@ type: concept
 domain: golang
 ---
 
+# Glass Tide
+
 The note a cross-note heading link is written at. Its sections exist so a probe
 can compare a link's fragment against the id this page really stamps, and it is
 deliberately long: on a note that fits in one screen, "the reader arrived at the

@@ -5,6 +5,8 @@ import (
 	"html"
 	"regexp"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 var (
@@ -20,14 +22,23 @@ var (
 	nestedHeadingOpen = regexp.MustCompile(`<h[1-6][>\s]`)
 )
 
-// slugify makes a CJK-safe fragment/DOM id from heading text: lowercase,
-// keep only Unicode letters and digits (\p{L}, \p{N}), collapse every run
-// of anything else to a single hyphen, trim leading/trailing hyphens, and
-// fall back to "section" when nothing is left. Keeping every Unicode
-// letter, not just ASCII, is what lets a CJK heading produce a usable id
-// instead of an empty string.
+// slugify makes a CJK-safe fragment/DOM id from heading text: normalize to
+// NFC, lowercase, keep only Unicode letters and digits (\p{L}, \p{N}),
+// collapse every run of anything else to a single hyphen, trim
+// leading/trailing hyphens, and fall back to "section" when nothing is left.
+// Keeping every Unicode letter, not just ASCII, is what lets a CJK heading
+// produce a usable id instead of an empty string.
+//
+// The NFC step comes first because two spellings of the same Japanese word are
+// the ordinary case here, not an exotic one: this vault's filenames arrive
+// decomposed from the filesystem and its prose arrives composed from an
+// editor. Left as bytes, a combining mark counts as "not a letter" and becomes
+// a hyphen, so か+◌゙ん slugs to "か-ん" while がん slugs to "がん" — two anchors
+// for one heading, and a link that misses with nothing on screen to show why.
+// It uses vault.NormalizeNFC so the repository keeps one definition of the
+// fold rather than a second one that agrees only by maintenance.
 func slugify(s string) string {
-	s = slugDrop.ReplaceAllString(strings.ToLower(s), "-")
+	s = slugDrop.ReplaceAllString(strings.ToLower(vault.NormalizeNFC(s)), "-")
 	s = strings.Trim(s, "-")
 	if s == "" {
 		return "section"
@@ -42,9 +53,18 @@ func slugify(s string) string {
 // in the document — not merely counted per base slug — so a heading whose
 // own natural text happens to collide with a generated "-2" form can
 // never silently duplicate an id.
-func assignHeadingSlugs(htmlOut string) (string, []TOCEntry) {
+//
+// reserved is an id already spoken for elsewhere on the page — the anchor a
+// removed opening heading passed to the visible title — and is taken as
+// assigned before the walk begins. The title is above this HTML and outside
+// it, so nothing in the walk could otherwise see it, and a section further
+// down reducing to the same name would quietly issue the id a second time.
+func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
+	if reserved != "" {
+		seen[reserved] = true
+	}
 	out := headingTag.ReplaceAllStringFunc(htmlOut, func(tag string) string {
 		m := headingTag.FindStringSubmatch(tag)
 		level := int(m[1][0] - '0') // headingTag guarantees a single 1-6 digit

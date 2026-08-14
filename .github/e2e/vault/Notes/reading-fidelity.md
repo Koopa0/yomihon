@@ -12,8 +12,16 @@ time[^scope] further along the sentence.
 
 A footnote nobody defined[^undefined] stays exactly as it was written.
 
-See [[Glass Tide#第三節：失約的燈]] for the lamp, and
-[[Glass Tide#Sensory material|back to the material]] for the rest.
+See [[Glass Tide#第三節：失約的燈]] for the lamp,
+[[Glass Tide#Sensory material|back to the material]] for the rest, and
+[[Glass Tide#Glass Tide]] for the note as a whole — that last one names the
+heading the destination removed as a duplicate of its own title.
+
+> [!note] A callout with a note of its own
+> The callout is rendered on its own and spliced in, so its footnote[^aside]
+> starts numbering from one just as the host's does.
+>
+> [^aside]: The callout's own footnote.
 
 ```go
 // countLamps reports how many lamps a listing says are lit.

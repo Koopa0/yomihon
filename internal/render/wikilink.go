@@ -126,25 +126,25 @@ func looksRisky(line string) bool {
 // preprocess call, not threaded across the recursive calls render makes
 // for a callout body or a transcluded embed, so a note with risky fences
 // in more than one such structurally-separate region can produce more
-// than one diagnostic overall. That is a deliberate simplicity trade:
-// each region gets its own accurate warning, at the cost of occasional
-// (harmless) redundancy across regions, rather than plumbing a shared
-// counter through every recursive render call for a rare case.
-func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, diags *[]Diagnostic) (out string, blocks, inline []string) {
+// than one diagnostic overall. That is deliberate rather than a
+// limitation: the warning names a place the author has to look at, and a
+// region is that place, so each one saying so once is the accurate
+// report and a single page-wide warning would hide the others.
+func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, col *collector) (out string, blocks, inline []string) {
 	st := &preprocessState{lines: strings.Split(body, "\n")}
 	st.kept = make([]string, 0, len(st.lines))
 
 	for st.i < len(st.lines) {
 		switch {
 		case st.inFence:
-			r.scanFenceLine(st, diags)
+			r.scanFenceLine(st, col)
 		case r.tryOpenFence(st):
 			// handled: either entered a fence, or fully consumed a
 			// mermaid block — see tryOpenFence.
-		case r.tryConsumeCallout(st, allowEmbed, diags):
+		case r.tryConsumeCallout(st, allowEmbed, col):
 			// handled: a known-type callout block was consumed.
 		default:
-			st.kept = append(st.kept, r.convertWikilinks(st.lines[st.i], allowEmbed, diags, &st.inline))
+			st.kept = append(st.kept, r.convertWikilinks(st.lines[st.i], allowEmbed, col, &st.inline))
 			st.i++
 		}
 	}
@@ -171,14 +171,14 @@ type preprocessState struct {
 // closes the fence, or it's fence content, checked once for a
 // risky-looking pattern worth a single warning (see preprocess's doc
 // comment on the dedup scope).
-func (r *Pipeline) scanFenceLine(st *preprocessState, diags *[]Diagnostic) {
+func (r *Pipeline) scanFenceLine(st *preprocessState, col *collector) {
 	line := st.lines[st.i]
 	switch {
 	case fenceCloses(line, st.fenceByte):
 		st.inFence = false
 	case !st.riskyFenceReported && looksRisky(line):
 		st.riskyFenceReported = true
-		*diags = append(*diags, Diagnostic{
+		col.report(Diagnostic{
 			Kind:    DiagRiskyFence,
 			Message: "wikilink/callout/table syntax found inside a fenced code block; left untouched",
 		})
@@ -245,14 +245,14 @@ func (r *Pipeline) consumeMermaid(st *preprocessState, marker byte) {
 // false — the line is left for ordinary per-line processing and
 // goldmark's own native blockquote parsing, so nothing is silently
 // dropped (see preprocess's caller doc).
-func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, diags *[]Diagnostic) bool {
+func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, col *collector) bool {
 	typ, fold, title, ok := calloutStart(st.lines[st.i])
 	if !ok {
 		return false
 	}
 	bucket, defaultTitle := calloutBucketOf(typ)
 	if bucket == bucketUnknown {
-		*diags = append(*diags, Diagnostic{
+		col.report(Diagnostic{
 			Kind:    DiagUnknownCallout,
 			Target:  typ,
 			Message: fmt.Sprintf("unknown callout type %q; rendered as a plain blockquote", typ),
@@ -269,7 +269,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 		bodyLines = append(bodyLines, quotePrefix.ReplaceAllString(st.lines[st.i], ""))
 		st.i++
 	}
-	calloutHTML := r.renderCallout(bucket, defaultTitle, fold, title, strings.Join(bodyLines, "\n"), allowEmbed, diags)
+	calloutHTML := r.renderCallout(bucket, defaultTitle, fold, title, strings.Join(bodyLines, "\n"), allowEmbed, col)
 	st.blocks = append(st.blocks, calloutHTML)
 	st.kept = append(st.kept, "", blockPlaceholder(len(st.blocks)-1), "")
 	return true
@@ -277,7 +277,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 
 // convertWikilinks scans one source line for [[...]] and ![[...]] and replaces
 // each with its rendered form.
-func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *[]Diagnostic, inline *[]string) string {
+func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *collector, inline *[]string) string {
 	// A code span is quoted text: the author is showing the reader what a
 	// wikilink looks like, not making one. Converting it substituted a
 	// renderer-owned placeholder that goldmark then escaped as the span's
@@ -301,11 +301,11 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, diags *
 			return html.EscapeString(link.Display)
 		}
 		if embed {
-			embedHTML := r.renderEmbed(link.Target, allowEmbed, diags)
+			embedHTML := r.renderEmbed(link.Target, allowEmbed, col)
 			*inline = append(*inline, embedHTML)
 			return inlinePlaceholder(len(*inline) - 1)
 		}
-		linkHTML := r.renderWikilink(link, diags)
+		linkHTML := r.renderWikilink(link, col)
 		*inline = append(*inline, linkHTML)
 		return inlinePlaceholder(len(*inline) - 1)
 	})
@@ -412,9 +412,14 @@ func notesHref(p string) string {
 // A block address is left off: "^name" identifies a paragraph rather than a
 // heading, and this renderer stamps no anchor for one, so writing the fragment
 // would send the reader to a place that does not exist on the page.
+//
+// So is anything that is not a note. A PDF, a canvas, a picture is handed to
+// the reader whole and nothing inside it is addressable from here; a fragment
+// on one names a place that cannot exist, and because a viewer simply ignores
+// what it does not understand, it would look like it had worked.
 func sectionHref(relPath string, link graph.Wikilink) string {
 	href := notesHref(relPath)
-	if link.Heading == "" || link.Block != "" {
+	if link.Heading == "" || link.Block != "" || !strings.HasSuffix(relPath, ".md") {
 		return href
 	}
 	return href + "#" + slugify(link.Heading)
@@ -429,14 +434,14 @@ func sectionHref(relPath string, link graph.Wikilink) string {
 // none has no page for the fragment to be an offset into, and a name that
 // placed several is not answered here at all — this renderer never picks one
 // of them.
-func (r *Pipeline) renderWikilink(link graph.Wikilink, diags *[]Diagnostic) string {
+func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
 	case graph.Unique:
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref already percent-escapes the path
 		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, sectionHref(res.Path, link), html.EscapeString(link.Display))
 	case graph.Ambiguous:
-		*diags = append(*diags, Diagnostic{
+		col.report(Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
 			Message: fmt.Sprintf("wikilink %q is ambiguous: %s", link.Target, strings.Join(res.Candidates, ", ")),
 		})
@@ -444,7 +449,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, diags *[]Diagnostic) stri
 		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">%s</span>`,
 			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(link.Display))
 	case graph.Unresolved:
-		*diags = append(*diags, Diagnostic{
+		col.report(Diagnostic{
 			Kind: DiagWikilinkBroken, Target: link.Target,
 			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", link.Target),
 		})
@@ -467,21 +472,21 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, diags *[]Diagnostic) stri
 // take on. The placeholder names the file so the reader knows it is there.
 // Ambiguous/unresolved get the same diagnostic-styled treatment as a broken
 // wikilink.
-func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, diags *[]Diagnostic) string {
+func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, col *collector) string {
 	if allowEmbed == embedsDenied {
-		return r.renderWikilink(graph.Wikilink{Target: target, Display: target}, diags)
+		return r.renderWikilink(graph.Wikilink{Target: target, Display: target}, col)
 	}
 
 	res := r.idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unresolved:
-		*diags = append(*diags, Diagnostic{
+		col.report(Diagnostic{
 			Kind: DiagWikilinkBroken, Target: target,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
 		return unwrittenTarget(target, "![["+target+"]]")
 	case graph.Ambiguous:
-		*diags = append(*diags, Diagnostic{
+		col.report(Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: target,
 			Message: fmt.Sprintf("embed target %q is ambiguous: %s", target, strings.Join(res.Candidates, ", ")),
 		})
@@ -495,15 +500,15 @@ func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, diags *[]D
 		}
 		body, ok := r.transclusions.Transclusion(res.Path)
 		if !ok {
-			*diags = append(*diags, Diagnostic{
+			col.report(Diagnostic{
 				Kind: DiagWikilinkBroken, Target: target,
 				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.Path),
 			})
 			return fmt.Sprintf(`<span class="wikilink-broken" title="這篇筆記存在，但這次讀取時拿不到它的內容">![[%s]]</span>`,
 				html.EscapeString(target))
 		}
-		inner := r.render(body, embedsDenied)
-		*diags = append(*diags, inner.Diagnostics...)
+		inner := r.render(body, embedsDenied, col.page)
+		col.diags = append(col.diags, inner.Diagnostics...)
 		// An image inside a transcluded body was written relative to the
 		// note it came from, which is rarely the note being read, so it is
 		// resolved here — where that note's own path is still known —

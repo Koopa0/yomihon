@@ -51,7 +51,7 @@ func FuzzHTML(f *testing.F) {
 
 		const fixedOverhead = 4 << 10
 		const maxExpansion = 256
-		if size := resultBytes(first); size > fixedOverhead+maxExpansion*len(body) {
+		if size := resultBytes(&first); size > fixedOverhead+maxExpansion*len(body) {
 			t.Fatalf("Pipeline.HTML() output uses %d bytes for %d input bytes", size, len(body))
 		}
 		if len(first.TOC) > len(body)+1 {
@@ -60,7 +60,7 @@ func FuzzHTML(f *testing.F) {
 	})
 }
 
-func resultBytes(result Result) int {
+func resultBytes(result *Result) int {
 	size := len(result.HTML)
 	for _, diagnostic := range result.Diagnostics {
 		size += len(diagnostic.Kind) + len(diagnostic.Target) + len(diagnostic.Message)
