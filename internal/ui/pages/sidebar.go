@@ -46,9 +46,13 @@ type Sidebar struct {
 	Next nav.NoteRef
 	// FooterPrev, FooterNext and FooterLabel are the sequence the foot of the
 	// article offers, chosen from the two orders above by footerSequence.
-	FooterPrev  nav.NoteRef
-	FooterNext  nav.NoteRef
-	FooterLabel string
+	// FooterCourse says which of the two arrived: a course's declared order, or
+	// the folder's. The two orders can disagree completely, so the foot prints
+	// the difference instead of leaving it to the accessible name alone.
+	FooterPrev   nav.NoteRef
+	FooterNext   nav.NoteRef
+	FooterLabel  string
+	FooterCourse bool
 
 	openMaps     map[string]bool
 	openBranches map[string]bool
@@ -76,7 +80,7 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	sb.Here, sb.HereTrimmed = windowAround(sb.Here, currentPath)
 	sb.Steps = model.Neighbors(currentPath)
 	sb.Prev, sb.Next = model.Adjacent(currentPath)
-	sb.FooterPrev, sb.FooterNext, sb.FooterLabel = footerSequence(&sb)
+	sb.FooterPrev, sb.FooterNext, sb.FooterLabel, sb.FooterCourse = footerSequence(&sb)
 
 	// Open every map branch that lists the current note, down to the
 	// branch it sits in (each heading prefix, so the ancestors open too).
@@ -338,12 +342,34 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 // courses teach also keeps the folder, and the rail still reports both courses
 // in full: which one the reader is walking is not something this can know, and
 // this vault does not guess.
-func footerSequence(sb *Sidebar) (prev, next nav.NoteRef, label string) {
+//
+// course reports which order won, so the foot can print it: the label and the
+// step words are all a sighted reader has to tell an author-declared course
+// from mere folder adjacency, and the two orders can disagree completely.
+func footerSequence(sb *Sidebar) (prev, next nav.NoteRef, label string, course bool) {
 	if len(sb.Steps) == 1 {
 		step := sb.Steps[0]
-		return step.Prev, step.Next, step.PathTitle + "課程順序"
+		return step.Prev, step.Next, step.PathTitle + " 課程順序", true
 	}
-	return sb.Prev, sb.Next, "同資料夾的前後檔案"
+	return sb.Prev, sb.Next, "同資料夾的前後檔案", false
+}
+
+// stepWordPrev and stepWordNext name a footer step for the order it walks: a
+// course hands the reader the previous or next lesson, a folder merely the
+// file beside this one. A neighbouring file is not a recommended next step,
+// and the word is where the foot says so.
+func stepWordPrev(course bool) string {
+	if course {
+		return "上一課"
+	}
+	return "上一份"
+}
+
+func stepWordNext(course bool) string {
+	if course {
+		return "下一課"
+	}
+	return "下一份"
 }
 
 // pathGroupDrawn reports whether the rail shows this branch of a study path:

@@ -596,24 +596,72 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	if strings.Contains(body, `rel="prev"`) {
 		t.Errorf("the first lesson of the course offers a step back")
 	}
-	if want := "Go course課程順序"; !strings.Contains(body, want) {
-		t.Errorf("the step does not name the order it walks: missing %q", want)
+	// The order's name is printed for every reader, not spoken only to
+	// assistive technology, and each link says it hands over a lesson.
+	for _, want := range []string{
+		`aria-label="Go course 課程順序"`,
+		`<p class="y-steps__source">Go course 課程順序</p>`,
+		`<span class="y-steps__role">下一課</span>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the step does not name the order it walks: missing %q", want)
+		}
 	}
 
-	// A note no course teaches keeps the folder, and keeps saying so.
-	write("Diary/2026-08-01.md", "today\n")
-	write("Diary/2026-08-02.md", "tomorrow\n")
+	// A note no course teaches keeps the folder, and keeps saying so — even
+	// when the author wrote their own recommendation into the prose. The foot
+	// still calls its links folder adjacency, never a next lesson: the folder's
+	// neighbour is not the author's suggested step, and the words must not
+	// claim otherwise.
+	write("Diary/2026-08-01.md", "today\n\n下一步：[[2026-08-02課程筆記]]\n")
+	// The neighbouring file's displayed name legitimately contains 課 — an
+	// author may call a note 課程筆記, and the folder line shows file names —
+	// so the guard below must refuse the course words only in the foot's
+	// structured chrome, never inside a note's own name.
+	write("Diary/2026-08-02課程筆記.md", "tomorrow\n")
 	srv2 := newServerWithContract(t, root, loadHomeContract(t))
 	code, body = get(t, srv2.URL+"/notes/Diary/2026-08-01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		`href="/notes/Diary/2026-08-02.md" rel="next"`,
-		"同資料夾的前後檔案",
+		`href="/notes/Diary/2026-08-02%E8%AA%B2%E7%A8%8B%E7%AD%86%E8%A8%98.md" rel="next"`,
+		`<p class="y-steps__source">同資料夾的前後檔案</p>`,
+		`<span class="y-steps__role">下一份</span>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("an entry no course teaches lost its folder line: missing %q", want)
 		}
 	}
+	// The refusal is scoped to the foot's structured chrome — the step-role
+	// words and the course's source line, matched with their markup — because
+	// a neighbouring file's own name may honestly say 課, and a folder note
+	// called 課程筆記 must not read as the footer borrowing course words.
+	foot := stepsBlock(t, body)
+	for _, forbidden := range []string{
+		`<span class="y-steps__role">上一課</span>`,
+		`<span class="y-steps__role">下一課</span>`,
+		`<p class="y-steps__source">Go course 課程順序</p>`,
+		`aria-label="Go course 課程順序"`,
+	} {
+		if strings.Contains(foot, forbidden) {
+			t.Errorf("a folder foot borrows the course's chrome %q; foot = %q", forbidden, foot)
+		}
+	}
+}
+
+// stepsBlock cuts the article-foot navigation out of a page, so an assertion
+// about its words cannot pass on the same words appearing elsewhere on the
+// page — the rail prints course steps too.
+func stepsBlock(t *testing.T, body string) string {
+	t.Helper()
+	start := strings.Index(body, `<nav class="y-steps"`)
+	if start < 0 {
+		t.Fatal("the page has no article-foot steps")
+	}
+	block, _, closed := strings.Cut(body[start:], "</nav>")
+	if !closed {
+		t.Fatal("the article-foot steps are not closed")
+	}
+	return block
 }

@@ -72,10 +72,13 @@ type NoteView struct {
 	// Prev and Next are the notes either side of this one in the sequence the
 	// foot of the article offers, so a reader walking it — a month of entries,
 	// a course of lessons — can take the next step from where they are reading
-	// rather than from the rail. StepsLabel names that sequence.
-	Prev       nav.NoteRef
-	Next       nav.NoteRef
-	StepsLabel string
+	// rather than from the rail. StepsLabel names that sequence, printed and
+	// spoken alike; StepsCourse says whether it is a course's declared order
+	// rather than folder adjacency, which picks the step words.
+	Prev        nav.NoteRef
+	Next        nav.NoteRef
+	StepsLabel  string
+	StepsCourse bool
 	// VaultHasLinks says some note in this folder cites another. Where nothing
 	// does — a folder of dated entries, a shelf of transcripts — an empty
 	// cited-by block on every page is furniture: a reader of three years of
@@ -701,18 +704,26 @@ templ citedByBlock(v NoteView) {
 //
 // Which line it offers is decided beside the two orders that could answer, and
 // the label says which one arrived, so the arrow never claims an order it is
-// not walking.
+// not walking. The label is printed, not only spoken: it once lived in the
+// accessible name alone, and a sighted reader had no way to tell a course's
+// declared order from mere folder adjacency — the two can disagree completely.
+// The step words carry the same fact per link: a course hands over the next
+// lesson, a folder merely the file beside this one. The printed label and the
+// accessible name render one field, so the two can never drift apart.
 templ sequenceSteps(v NoteView) {
 	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
 		<nav class="y-steps" aria-label={ v.StepsLabel }>
+			<p class="y-steps__source">{ v.StepsLabel }</p>
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
 					<span class="y-steps__dir" aria-hidden="true">←</span>
+					<span class="y-steps__role">{ stepWordPrev(v.StepsCourse) }</span>
 					<span class="y-steps__name">{ v.Prev.Name }</span>
 				</a>
 			}
 			if v.Next.RelPath != "" {
 				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
+					<span class="y-steps__role">{ stepWordNext(v.StepsCourse) }</span>
 					<span class="y-steps__name">{ v.Next.Name }</span>
 					<span class="y-steps__dir" aria-hidden="true">→</span>
 				</a>

@@ -2,6 +2,7 @@ package pages
 
 import (
 	"bytes"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,8 +104,8 @@ func TestBuildPathView(t *testing.T) {
 				Items: []PathItemView{{Branch: &PathBranchView{
 					Num: 1, Heading: "Text", Depth: 1, Total: 2,
 					Items: []PathItemView{
-						{Entry: &PathEntryView{Text: "Slices", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true}},
-						{Entry: &PathEntryView{Text: "Arrays", Href: "/notes/Writing/Arrays.md", Status: "draft"}},
+						{Entry: &PathEntryView{Text: "Slices", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true, Number: 1}},
+						{Entry: &PathEntryView{Text: "Arrays", Href: "/notes/Writing/Arrays.md", Status: "draft", Number: 2}},
 					},
 				}}},
 			},
@@ -112,17 +113,23 @@ func TestBuildPathView(t *testing.T) {
 				Anchor: "part-2", Ordinal: "II", Num: 2, Heading: "Memory", Depth: 0,
 				Total: 3,
 				Items: []PathItemView{
-					{Entry: &PathEntryView{Text: "GC", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true}},
+					// The main line's numbering continues from the first part:
+					// the course has one declared order across its parts.
+					{Entry: &PathEntryView{Text: "GC", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true, Number: 3}},
 					// The side branch is drawn where the author put it: under
-					// the lesson it hangs from, before the next main lesson.
+					// the lesson it hangs from, before the next main lesson —
+					// and it numbers its own rows from one, never sharing the
+					// main line's count.
 					{Branch: &PathBranchView{
 						Num: 1, Heading: "選修", Depth: 1, Local: true, Total: 1,
 						Items: []PathItemView{
-							{Entry: &PathEntryView{Text: "Tuning", Href: "/notes/Writing/Tuning.md", Status: "draft"}},
+							{Entry: &PathEntryView{Text: "Tuning", Href: "/notes/Writing/Tuning.md", Status: "draft", Number: 1}},
 						},
 					}},
-					{Entry: &PathEntryView{Text: "Template", Kind: nav.EntryNonInstance}},
-					{Entry: &PathEntryView{Text: "Unwritten", Kind: nav.EntryUnresolved}},
+					// Warning rows keep their place and their number: a planned
+					// lesson is still one of the course's lessons.
+					{Entry: &PathEntryView{Text: "Template", Kind: nav.EntryNonInstance, Number: 4}},
+					{Entry: &PathEntryView{Text: "Unwritten", Kind: nav.EntryUnresolved, Number: 5}},
 				},
 			},
 		},
@@ -130,6 +137,154 @@ func TestBuildPathView(t *testing.T) {
 
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("BuildPathView() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestLessonsAreAnOrderedList locks the course page's list semantics: an
+// author-declared run of lessons is a native ordered list whose item values
+// are the walk's own numbering, not look-alike sibling links whose order lives
+// only in the pixels. It would catch a revert to a neutral container, a main
+// line whose numbering restarts at each part, a side branch borrowing the main
+// line's count, a warning row losing its place or number, and a branch
+// declared out of the course leaking back in.
+func TestLessonsAreAnOrderedList(t *testing.T) {
+	t.Parallel()
+
+	body := "## Data {sequence=primary}\n\n" +
+		"### Text {sequence=primary}\n\n" +
+		"- [[Slices]]\n" +
+		"- [[Arrays]]\n" +
+		"\n## Memory {sequence=primary}\n\n" +
+		"- [[GC]]\n" +
+		"\t- 選修 {sequence=local}\n" +
+		"\t\t- [[Tuning]]\n" +
+		"- [[Template]]\n" +
+		"- [[Unwritten]]\n" +
+		"\n## 日常 {sequence=none}\n\n" +
+		"- [[Routine]]\n"
+	// Routine is a real, resolvable lesson: its absence below is then the none
+	// declaration at work, not a resolution failure.
+	path := buildTestPath(t, body, map[string]string{
+		"Writing/Routine.md": "---\ntitle: Routine\ntype: lesson\nstatus: draft\n---\nbody\n",
+	})
+	view := BuildPathView(&path, []nav.Path{path})
+
+	if view.Entries != 5 {
+		t.Errorf("BuildPathView() Entries = %d, want 5: a none block adds nothing and a planned row still counts", view.Entries)
+	}
+
+	var out bytes.Buffer
+	if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &out); err != nil {
+		t.Fatalf("render syllabus: %v", err)
+	}
+	html := out.String()
+
+	if got := strings.Count(html, `<ol class="y-lessons"`); got != 4 {
+		t.Errorf("the course renders %d ordered lists, want 4: one per uninterrupted run of lessons", got)
+	}
+	for _, want := range []string{
+		// Every fragment says which component it belongs to: the first
+		// main-line list opens the order, later ones resume it, and a side
+		// branch is named as one.
+		`<ol class="y-lessons" aria-label="主線">`,
+		`<ol class="y-lessons" aria-label="支線：選修">`,
+		// The main line numbers on across parts: one course, one order.
+		`<li value="1"><a class="y-lesson" href="/notes/Writing/Slices.md"`,
+		`<li value="3"><a class="y-lesson" href="/notes/Writing/GC.md"`,
+		// The side branch counts its own rows from one.
+		`<li value="1"><a class="y-lesson" href="/notes/Writing/Tuning.md"`,
+		// Warning rows keep their sequence position, their number, and their
+		// non-interactive form.
+		`<li value="4"><span class="y-lesson y-lesson--broken" data-resolution="non-instance"`,
+		`<li value="5"><span class="y-lesson y-lesson--broken" data-resolution="unresolved"`,
+		// The side branch is a sibling after its run closes, never a list item:
+		// its heading stays in the document outline.
+		`</ol><div class="y-module y-module--local">`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("ordered course list is missing %q; html = %q", want, html)
+		}
+	}
+	// Both interrupted resumptions of the main line — after the second part's
+	// heading and after the side branch — carry the resuming name.
+	if got := strings.Count(html, `<ol class="y-lessons" aria-label="主線（接續）">`); got != 2 {
+		t.Errorf("the course renders %d resuming main-line lists, want 2; html = %q", got, html)
+	}
+	if strings.Contains(html, "Routine") {
+		t.Errorf("a branch declared out of the course reached its page; html = %q", html)
+	}
+}
+
+// TestASideBranchHandsOutNoMainLineNumbers pins the one shape where the drawn
+// tree and navigation's walk disagree: a branch nested inside a side branch is
+// drawn, but the walk never descends into a side branch, so no order ever
+// reaches its rows. Numbering them would print ordinals no arrow can follow —
+// they render as plain rows outside any list, without a number and without a
+// component name. The side branch's own row after the interruption resumes
+// the side branch's order and says so.
+func TestASideBranchHandsOutNoMainLineNumbers(t *testing.T) {
+	t.Parallel()
+
+	body := "## Main {sequence=primary}\n\n" +
+		"- [[Slices]]\n" +
+		"\t- 選修 {sequence=local}\n" +
+		"\t\t- [[Tuning]]\n" +
+		"\t\t\t- 深入 {sequence=primary}\n" +
+		"\t\t\t\t- [[GC]]\n" +
+		"\t\t- [[Arrays]]\n"
+	path := buildTestPath(t, body)
+	view := BuildPathView(&path, []nav.Path{path})
+
+	var walkless *PathEntryView
+	var find func(items []PathItemView)
+	find = func(items []PathItemView) {
+		for _, item := range items {
+			switch {
+			case item.Entry != nil && item.Entry.Text == "GC":
+				walkless = item.Entry
+			case item.Branch != nil:
+				find(item.Branch.Items)
+			}
+		}
+	}
+	for _, b := range view.Branches {
+		find(b.Items)
+	}
+	if walkless == nil {
+		t.Fatal("the nested primary branch's row is not drawn at all")
+	}
+	if walkless.Number != 0 {
+		t.Errorf("a row navigation never walks carries number %d, want 0", walkless.Number)
+	}
+
+	var out bytes.Buffer
+	if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &out); err != nil {
+		t.Fatalf("render syllabus: %v", err)
+	}
+	html := out.String()
+	if got := strings.Count(html, "<li value="); got != 3 {
+		t.Errorf("the page numbers %d rows, want 3: the main line's one and the side branch's two", got)
+	}
+	if got := strings.Count(html, `<ol class="y-lessons"`); got != 3 {
+		t.Errorf("the page renders %d ordered lists, want 3: the walkless branch must not open one", got)
+	}
+	for _, want := range []string{
+		`<ol class="y-lessons" aria-label="主線">`,
+		`<ol class="y-lessons" aria-label="支線：選修">`,
+		// The side branch's row after the interruption resumes the branch's
+		// own count and name.
+		`<ol class="y-lessons" aria-label="支線：選修（接續）">`,
+		`<li value="2"><a class="y-lesson" href="/notes/Writing/Arrays.md"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("side-branch fragments are missing %q; html = %q", want, html)
+		}
+	}
+	if !strings.Contains(html, `<a class="y-lesson" href="/notes/Writing/GC.md"`) {
+		t.Errorf("the walkless row disappeared instead of rendering unnumbered; html = %q", html)
+	}
+	if strings.Contains(html, `<li value="0">`) {
+		t.Errorf("a walkless row was numbered onto an order that never reaches it; html = %q", html)
 	}
 }
 
@@ -161,8 +316,9 @@ func TestRoman(t *testing.T) {
 // buildTestPath writes a small vault holding one study path and the lessons it
 // names, then reads it back through the real navigation build. The page is
 // asserted against the interpretation the product actually produces, so a test
-// cannot agree with a projection the product would never make.
-func buildTestPath(t *testing.T, body string) nav.Path {
+// cannot agree with a projection the product would never make. extra files are
+// written beside the fixed fixture set.
+func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Path {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
@@ -172,6 +328,9 @@ func buildTestPath(t *testing.T, body string) nav.Path {
 		"Writing/GC.md":                "---\ntitle: GC\ntype: lesson\nstatus: " + schema.SealStatus + "\n---\nbody\n",
 		"Writing/Tuning.md":            "---\ntitle: Tuning\ntype: lesson\nstatus: draft\n---\nbody\n",
 		"System/templates/Template.md": "---\ntitle: Template\ntype: lesson\nstatus: draft\n---\nbody\n",
+	}
+	for _, m := range extra {
+		maps.Copy(files, m)
 	}
 	for rel, content := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))
