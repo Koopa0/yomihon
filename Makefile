@@ -65,6 +65,8 @@ real-vault-build-check:
 provider-live:
 	@test "$${YOMIHON_EMBED_LIVE:-}" = 1 || { echo 'YOMIHON_EMBED_LIVE=1 is required for provider-live' >&2; exit 2; }
 	@test -n "$${YOMIHON_EMBED_KEY:-}" || { echo 'YOMIHON_EMBED_KEY is required for provider-live' >&2; exit 2; }
+	@listed=$$(go test ./internal/search/semantic -run='^TestGeminiEmbedding2LiveProtocol$$' -list='^TestGeminiEmbedding2LiveProtocol$$') || exit 1; \
+	case "$$listed" in *TestGeminiEmbedding2LiveProtocol*) ;; *) echo 'TestGeminiEmbedding2LiveProtocol is gone; the live certification would run nothing' >&2; exit 1;; esac
 	go test -count=1 -run='^TestGeminiEmbedding2LiveProtocol$$' ./internal/search/semantic
 
 # Coverage is an observable report, not a percentage gate. A repository-wide

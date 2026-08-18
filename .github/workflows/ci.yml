@@ -190,9 +190,20 @@ jobs:
         if: runner.os == 'Windows'
         run: go test ./... -run '^$' -count=1
 
+      # The boundary tests are asked for before they are run. A -run pattern
+      # that matches nothing is not an error to Go and exits 0 without testing
+      # anything, so a renamed test would quietly turn this contract into a
+      # green no-op — the same loss the fuzz job guards against by discovering
+      # its targets. Requiring -list to name at least one test keeps this step
+      # red on the day a rename leaves the pattern behind.
       - name: Drive the Windows reader and status-write boundary
         if: runner.os == 'Windows'
-        run: go test ./... -run '^TestUnsupportedPlatform' -count=1
+        shell: bash
+        run: |
+          listed=$(go test ./... -run '^TestUnsupportedPlatform' -list '^TestUnsupportedPlatform')
+          printf '%s\n' "$listed"
+          printf '%s\n' "$listed" | grep -q '^Test' || { echo "no test matches ^TestUnsupportedPlatform; the boundary step would run nothing" >&2; exit 1; }
+          go test ./... -run '^TestUnsupportedPlatform' -count=1
 
   # Windows deliberately exposes no semantic-generation store in the first
   # store implementation. A real
@@ -209,8 +220,16 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # As in the Windows boundary step above, the test is asked for before it
+      # is run: a pattern matching nothing exits 0, and this job would stay
+      # green while proving nothing about the store's fail-fast contract.
       - name: Prove the semantic store is fail-fast and side-effect free
-        run: go test ./internal/search/semantic -run '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$' -count=1
+        shell: bash
+        run: |
+          listed=$(go test ./internal/search/semantic -run '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$' -list '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$')
+          printf '%s\n' "$listed"
+          printf '%s\n' "$listed" | grep -q '^Test' || { echo "the semantic-store platform test is gone; this job would run nothing" >&2; exit 1; }
+          go test ./internal/search/semantic -run '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$' -count=1
 
   # The writer lease is implemented separately on Darwin and Linux. Running
   # the package on a real macOS kernel proves the Darwin flock path is both
