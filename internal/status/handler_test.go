@@ -371,6 +371,42 @@ func TestHandlerDetachedHead(t *testing.T) {
 	}
 }
 
+// TestHandlerUnsupportedStatusSyntax locks the operator-facing wording for a
+// readable note whose status the surgical rewriter cannot locate: the page
+// must name the unsupported syntax and the plain form to switch to, never
+// the schema-violation message — the note violates no schema.
+func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	content := "---\n" +
+		"title: L05\n" +
+		"type: lesson\n" +
+		"domain: japanese\n" +
+		"'status': draft\n" +
+		"created: 2026-06-01\n" +
+		"updated: 2026-06-01\n" +
+		"---\n" +
+		"\nbody\n"
+	writeNote(t, root, content)
+	commitAll(t, root)
+	srv := newHandlerServer(t, lifecycle)
+
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
+	if code != http.StatusUnprocessableEntity {
+		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
+	}
+	for _, want := range []string{"不支援的 YAML 寫法", "status: 值"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body is missing %q: %q", want, body)
+		}
+	}
+	if strings.Contains(body, "違反 schema") {
+		t.Errorf("body still claims a schema violation for a readable status: %q", body)
+	}
+}
+
 // ErrStatusLine (422, "schema violation") is deliberately not exercised
 // here through a full HTTP round trip: reaching the surgical rewrite requires
 // a blank current status, while this handler rejects a blank "from" before

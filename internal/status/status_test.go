@@ -1117,6 +1117,111 @@ func TestFlipMalformedStatusLine(t *testing.T) {
 	}
 }
 
+// TestFlipRefusesStatusAnchorThatRewritingWouldSever covers the one
+// frontmatter shape where the byte-level rewrite used to corrupt a readable
+// note: a status value carrying a YAML anchor that another field aliases.
+// Replacing the whole status line deletes the anchor definition, the alias
+// dangles, and the note stops parsing — committed as a clean transition.
+// The flip must refuse before writing anything.
+func TestFlipRefusesStatusAnchorThatRewritingWouldSever(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	content := "---\n" +
+		"title: L05\n" +
+		"type: lesson\n" +
+		"status: &s draft\n" +
+		"domain: *s\n" +
+		"created: 2026-06-01\n" +
+		"updated: 2026-06-01\n" +
+		"---\n" +
+		"\nbody\n"
+	writeNote(t, root, content)
+	commitAll(t, root)
+	before := commitCount(t, root)
+
+	observed, err := lifecycle.ObservedStatus(t.Context(), testRel)
+	if err != nil || observed.Status != "draft" {
+		t.Fatalf("ObservedStatus() = (%+v, %v), want the reader to see draft", observed, err)
+	}
+
+	err = lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrStatusSyntaxUnsupported) {
+		t.Fatalf("Flip(status carrying an aliased anchor) = %v, want %v", err, status.ErrStatusSyntaxUnsupported)
+	}
+	if got := readNote(t, root); got != content {
+		t.Errorf("note after refusal = %q, want untouched %q", got, content)
+	}
+	if after := commitCount(t, root); after != before {
+		t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
+	}
+}
+
+// TestFlipRefusesUnsupportedStatusSyntax covers frontmatter the reader parses
+// fine but the surgical rewriter cannot locate: the status key written in
+// explicit-key, quoted-key, space-before-colon, or flow-mapping form. These
+// always failed closed, but were reported as a schema violation — a fault
+// report for a note that is not at fault, pointing the human at the wrong
+// thing. The refusal must name the unsupported syntax instead.
+func TestFlipRefusesUnsupportedStatusSyntax(t *testing.T) {
+	t.Parallel()
+
+	block := func(statusLines string) string {
+		return "---\n" +
+			"title: L05\n" +
+			"type: lesson\n" +
+			"domain: japanese\n" +
+			statusLines +
+			"created: 2026-06-01\n" +
+			"updated: 2026-06-01\n" +
+			"---\n" +
+			"\nbody\n"
+	}
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "explicit key", content: block("? status\n: draft\n")},
+		{name: "double-quoted key", content: block("\"status\": draft\n")},
+		{name: "single-quoted key", content: block("'status': draft\n")},
+		{name: "space before colon", content: block("status : draft\n")},
+		{
+			name: "flow mapping",
+			content: "---\n" +
+				"{title: L05, type: lesson, domain: japanese, status: draft, created: 2026-06-01, updated: 2026-06-01}\n" +
+				"---\n" +
+				"\nbody\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := newVault(t)
+			lifecycle := newLifecycle(t, root, loadContract(t))
+			writeNote(t, root, tt.content)
+			commitAll(t, root)
+			before := commitCount(t, root)
+
+			observed, err := lifecycle.ObservedStatus(t.Context(), testRel)
+			if err != nil || observed.Status != "draft" {
+				t.Fatalf("ObservedStatus() = (%+v, %v), want the reader to see draft", observed, err)
+			}
+
+			err = lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+			if !errors.Is(err, status.ErrStatusSyntaxUnsupported) {
+				t.Fatalf("Flip() = %v, want %v", err, status.ErrStatusSyntaxUnsupported)
+			}
+			if got := readNote(t, root); got != tt.content {
+				t.Errorf("note after refusal = %q, want untouched %q", got, tt.content)
+			}
+			if after := commitCount(t, root); after != before {
+				t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
+			}
+		})
+	}
+}
+
 func TestFlipFailClosed(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)

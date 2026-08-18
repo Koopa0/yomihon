@@ -111,6 +111,9 @@ func recoveryFor(err error) *recovery {
 	if r := recoveryForRepoState(err); r != nil {
 		return r
 	}
+	if r := recoveryForStatusField(err); r != nil {
+		return r
+	}
 	switch {
 	case errors.Is(err, ErrInvalidPath):
 		return &recovery{
@@ -152,12 +155,6 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusConflict,
 			summary:    "檔案在讀取與寫入之間遭到修改。",
 			nextAction: "先檢查 Obsidian 或其他工具的最新變更，再重新載入筆記；不要直接重送。",
-		}
-	case errors.Is(err, ErrStatusLine):
-		return &recovery{
-			code:       http.StatusUnprocessableEntity,
-			summary:    "frontmatter 的 status 欄位違反 schema。",
-			nextAction: "直接編輯筆記，讓 frontmatter 恰好包含一個合法的 status 欄位，再重新載入。",
 		}
 	case errors.Is(err, ErrDurabilityUnsupported):
 		return &recovery{
@@ -214,6 +211,29 @@ func recoveryFor(err error) *recovery {
 			cause:      err,
 		}
 	}
+}
+
+// recoveryForStatusField maps the refusals rooted in how the note's own
+// frontmatter writes its status field, or nil when err is neither. The two
+// stay distinct on the page: a missing or duplicated status line is a fault
+// in the note, while an unsupported syntax is a note the reader understands
+// perfectly well and only the surgical rewriter declines.
+func recoveryForStatusField(err error) *recovery {
+	switch {
+	case errors.Is(err, ErrStatusLine):
+		return &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    "frontmatter 的 status 欄位違反 schema。",
+			nextAction: "直接編輯筆記，讓 frontmatter 恰好包含一個合法的 status 欄位，再重新載入。",
+		}
+	case errors.Is(err, ErrStatusSyntaxUnsupported):
+		return &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    "frontmatter 的 status 欄位使用了 yomihon 狀態改寫不支援的 YAML 寫法。",
+			nextAction: "直接編輯筆記，把 status 欄位改成單行的「status: 值」形式（不使用引號鍵、flow mapping 或 YAML 錨點），再重新載入。",
+		}
+	}
+	return nil
 }
 
 // recoveryForRepoState maps the refusals rooted in the vault repository's own

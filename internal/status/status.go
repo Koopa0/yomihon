@@ -73,6 +73,14 @@ var (
 	// not repair. yomihon only reports faults; fixing the file belongs to
 	// a human editor.
 	ErrStatusLine = errors.New("status: frontmatter does not have exactly one status line")
+	// ErrStatusSyntaxUnsupported means the reader understands the note's
+	// status, but the frontmatter writes that field in a form the surgical
+	// single-line rewriter does not support — an explicit or quoted key, a
+	// flow mapping, or a YAML anchor the rewrite would sever. The note is
+	// refused unchanged: rewriting here would either be impossible or leave
+	// frontmatter the reader can no longer parse, and yomihon reports the
+	// fault for a human to edit rather than guessing.
+	ErrStatusSyntaxUnsupported = errors.New("status: frontmatter writes status in a syntax the surgical rewriter does not support")
 	// ErrDurabilityUnsupported means the running platform cannot prove that an
 	// atomic rename's directory entry reached durable storage. The write face
 	// refuses before reading or creating any vault path rather than changing a
@@ -614,9 +622,9 @@ func (lc *Lifecycle) flip(ctx context.Context, rel, from, to string, hooks flipH
 		return stateErr
 	}
 
-	rewritten, err := rewriteStatusLine(data, to)
+	rewritten, err := rewriteStatusChecked(relSlash, data, n.Status() != "", to)
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, relSlash)
+		return err
 	}
 	if err := lc.publishStatus(rel, relSlash, &source, rewritten, hooks); err != nil {
 		return err
@@ -868,6 +876,32 @@ func normalizeRelPath(rel string) (relSlash, osPath string, err error) {
 // this face, so nothing that can forge its shape is allowed to reach it.
 func hasControlByte(s string) bool {
 	return strings.ContainsFunc(s, func(r rune) bool { return r < 0x20 || r == 0x7f })
+}
+
+// rewriteStatusChecked computes the surgical rewrite and refuses, in the
+// reader's terms, whenever the byte-level writer cannot honor what the
+// reader read. The reader parses frontmatter as full YAML while the writer
+// locates one column-zero "status:" line, and the two definitions disagree
+// on legal syntax in both directions. When the reader understood a status
+// (readable) but the writer finds no such line, the note is written in a
+// key form the writer does not support — not a schema violation. When the
+// writer succeeds, the rewritten bytes are parsed again with the same
+// reader the product uses: a result that no longer parses (a severed YAML
+// anchor leaves a dangling alias) or does not read back as the target
+// status is refused before anything is written, so a reported success can
+// never leave a note the reader cannot parse.
+func rewriteStatusChecked(relSlash string, data []byte, readable bool, to string) ([]byte, error) {
+	rewritten, err := rewriteStatusLine(data, to)
+	if err != nil {
+		if errors.Is(err, ErrStatusLine) && readable {
+			return nil, fmt.Errorf("%w: %s", ErrStatusSyntaxUnsupported, relSlash)
+		}
+		return nil, fmt.Errorf("%w: %s", err, relSlash)
+	}
+	if reparsed := vault.Parse(relSlash, rewritten); reparsed.FMDiagnostic != "" || reparsed.Status() != to {
+		return nil, fmt.Errorf("%w: %s: the rewritten frontmatter would not read back as %q", ErrStatusSyntaxUnsupported, relSlash, to)
+	}
+	return rewritten, nil
 }
 
 // rewriteStatusLine replaces the single "status:" line inside data's
