@@ -32,5 +32,6 @@ the notices required by the exact linked module graph.
 - Licence: SIL Open Font License 1.1, reproduced in
   `assets/fonts/LICENSE.txt`
 
-Exact hashes are machine-checked from `assets/fonts/SHA256SUMS`; the limits of
-the retained provenance are recorded in `assets/fonts/README.md`.
+Exact hashes are machine-checked against `assets/fonts/SHA256SUMS` by
+`go test ./assets` (`TestThirdPartyAssetProvenance`); the limits of the
+retained provenance are recorded in `assets/fonts/README.md`.

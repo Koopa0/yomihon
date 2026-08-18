@@ -339,6 +339,38 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 		}
 	}
 
+	// The tracked inventory file is the redistribution claim the notices point
+	// at. The hashes above are proved against the embedded bytes, so requiring
+	// the inventory to match them exactly means a drifted or hand-edited
+	// SHA256SUMS line fails here rather than silently shipping.
+	sums, err := Files.ReadFile("fonts/SHA256SUMS")
+	if err != nil {
+		t.Fatalf("read font hash inventory: %v", err)
+	}
+	inventory := make(map[string]string)
+	for line := range strings.SplitSeq(strings.TrimSuffix(string(sums), "\n"), "\n") {
+		hash, file, ok := strings.Cut(line, "  ")
+		if !ok || len(hash) != 64 {
+			t.Fatalf("font hash inventory line %q is not \"<sha256>  <file>\"", line)
+		}
+		inventory["fonts/"+file] = hash
+	}
+	for name, wantHash := range want {
+		gotHash, ok := inventory[name]
+		if !ok {
+			t.Errorf("font hash inventory does not list %s", name)
+			continue
+		}
+		if gotHash != wantHash {
+			t.Errorf("font hash inventory records %s for %s, want %s", gotHash, name, wantHash)
+		}
+	}
+	for name := range inventory {
+		if _, ok := want[name]; !ok {
+			t.Errorf("font hash inventory lists %s, which is not a verified font", name)
+		}
+	}
+
 	for _, name := range []string{"fonts/LICENSE.txt", "js/mermaid/LICENSE"} {
 		data, readErr := Files.ReadFile(name)
 		if readErr != nil {

@@ -17,7 +17,8 @@ Upstream projects:
 - Newsreader: <https://github.com/productiontype/Newsreader>.
 
 `SHA256SUMS` is the machine-checked inventory for these four redistributed
-files; `make license-check` verifies it before a merge or release claim.
+files; `go test ./assets` (`TestThirdPartyAssetProvenance`) verifies the
+embedded bytes against it.
 
 The exact download URLs used for the four existing binaries were not retained.
 Their embedded name, version, copyright, and licence metadata were verified
