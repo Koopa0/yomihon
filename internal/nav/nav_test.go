@@ -95,46 +95,6 @@ func testArtifactPolicy(t *testing.T) schema.ArtifactPolicy {
 	return policy
 }
 
-func TestMapEntryCountsIncludesWarningsButMatchesResolvedOnly(t *testing.T) {
-	t.Parallel()
-
-	m := Map{Branches: []Branch{
-		{
-			Entries: []Entry{
-				{Status: "ready", Kind: EntryResolved},
-				{Status: "ready", Kind: EntryUnresolved},
-			},
-			Subbranches: []Branch{{Entries: []Entry{
-				{Status: "draft", Kind: EntryResolved},
-				{Status: "ready", Kind: EntryResolved},
-			}}},
-		},
-		{Entries: []Entry{{Status: "ready", Kind: EntryNonInstance}}},
-	}}
-
-	matching, total := m.EntryCounts("ready")
-	if matching != 2 || total != 5 {
-		t.Fatalf("EntryCounts(ready) = (%d, %d), want (2, 5)", matching, total)
-	}
-}
-
-func TestBranchEntryCountsIncludesDescendants(t *testing.T) {
-	t.Parallel()
-
-	branch := Branch{
-		Entries: []Entry{{Status: "draft", Kind: EntryResolved}},
-		Subbranches: []Branch{{Entries: []Entry{
-			{Status: "ready", Kind: EntryResolved},
-			{Kind: EntryAmbiguous},
-		}}},
-	}
-
-	matching, total := branch.EntryCounts("ready")
-	if matching != 1 || total != 3 {
-		t.Fatalf("EntryCounts(ready) = (%d, %d), want (1, 3)", matching, total)
-	}
-}
-
 func loadCapabilityContract(t *testing.T, navigation, artifacts string) *schema.Contract {
 	t.Helper()
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")

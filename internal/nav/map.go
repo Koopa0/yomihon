@@ -21,13 +21,6 @@ type Map struct {
 	Branches []Branch
 }
 
-// EntryCounts reports how many rows in m have status and how many rows m
-// contains in total. Warning rows count toward the total but never match a
-// status because they do not represent a governed note.
-func (m *Map) EntryCounts(status string) (matching, total int) {
-	return countEntries(m.Branches, status)
-}
-
 // Branch is one heading in a map (an H2 part, an H3 module or level, or
 // any deeper heading), holding the entries listed directly beneath it and
 // its nested subbranches. A Branch is present only if it, or a descendant,
@@ -43,30 +36,6 @@ type Branch struct {
 	Level       int
 	Entries     []Entry
 	Subbranches []Branch
-}
-
-// EntryCounts reports how many rows in b or its descendants have status and
-// how many rows the subtree contains in total. Warning rows count toward the
-// total but never match a status.
-func (b *Branch) EntryCounts(status string) (matching, total int) {
-	total = len(b.Entries)
-	for i := range b.Entries {
-		entry := &b.Entries[i]
-		if entry.Kind == EntryResolved && entry.Status == status {
-			matching++
-		}
-	}
-	subMatching, subTotal := countEntries(b.Subbranches, status)
-	return matching + subMatching, total + subTotal
-}
-
-func countEntries(branches []Branch, status string) (matching, total int) {
-	for i := range branches {
-		branchMatching, branchTotal := branches[i].EntryCounts(status)
-		matching += branchMatching
-		total += branchTotal
-	}
-	return matching, total
 }
 
 // EntryKind distinguishes a linked entry from each warning-row reason.
