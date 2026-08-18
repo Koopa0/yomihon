@@ -185,7 +185,14 @@ func run(log *slog.Logger, root string) (resultErr error) {
 
 	srv := newHTTPServer(site)
 	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
-	if err := serveHTTP(ctx, srv, listener); err != nil {
+	err = serveHTTP(ctx, srv, listener)
+	// The deferred close above waits without a deadline for in-flight handlers
+	// and the scanner, deliberately, so an uncertain status write is not
+	// abandoned. While the notify handler is installed that wait also swallows
+	// a repeated interrupt; restoring default signal delivery the moment
+	// serving ends lets a second Ctrl-C terminate a stuck shutdown.
+	stop()
+	if err != nil {
 		return err
 	}
 	log.Info("yomihon stopped")
