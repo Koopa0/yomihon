@@ -462,6 +462,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		WriteDiagnostic:   governance.writeDiagnostic,
 		Concepts:          concepts,
 		Transitions:       governance.transitions,
+		WithheldByOwner:   governance.withheldByOwner,
 		NoFrontmatter:     governance.noFrontmatter,
 	}
 
@@ -520,6 +521,10 @@ type governanceState struct {
 	instance        bool
 	nonInstance     bool
 	noFrontmatter   bool
+	// withheldByOwner distinguishes an empty transition list whose onward
+	// steps the contract defines for other owners from one where the schema
+	// defines nothing onward; the page words the two differently.
+	withheldByOwner bool
 }
 
 func (h *Handler) governance(
@@ -556,6 +561,9 @@ func (h *Handler) governance(
 			state.status, state.contentHash, state.writeDiagnostic = observed.Status, observed.ContentHash, blocked
 			if state.writeDiagnostic == "" {
 				state.transitions = statusView.Transitions(n.RelPath, n.Type, state.status)
+				if len(state.transitions) == 0 {
+					state.withheldByOwner = statusView.WithheldByOwner(n.Type, state.status)
+				}
 			}
 		}
 	}

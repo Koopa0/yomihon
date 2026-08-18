@@ -531,6 +531,60 @@ func TestShowKeepsTheWriteFaceClosedOnAGovernedFolderThatIsNoRepository(t *testi
 	}
 }
 
+// TestShowSaysOwnerWithheldRatherThanNoTransitions pins the wording for a
+// contract whose onward transitions from the note's status all belong to a
+// different owner. The schema defines those transitions, so telling the reader
+// none exist points a schema author at a gap that is not there; the page must
+// name the owner boundary instead, the same fact the write path already states
+// on refusal.
+func TestShowSaysOwnerWithheldRatherThanNoTransitions(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema test contract: %v", err)
+	}
+	// Every operator-owned lifecycle edge moves to a different owner, so from
+	// draft the contract still defines onward transitions — ready and archived
+	// — while granting the operator none of them.
+	rewritten := strings.ReplaceAll(string(base), `owner = ["claude", "koopa"]`, `owner = ["alice"]`)
+	rewritten = strings.ReplaceAll(rewritten, `owner = ["koopa"]`, `owner = ["alice"]`)
+	if strings.Contains(rewritten, "koopa") {
+		t.Fatal("the owner rewrite left an operator-owned edge; the fixture contract changed shape")
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(contractPath, []byte(rewritten), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("write rewritten contract: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(rewritten contract) = %v", err)
+	}
+
+	srv := newServerWithContract(t, root, contract)
+	code, body := get(t, srv.URL+"/notes/Note.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET note status = %d, want 200", code)
+	}
+	page := html.UnescapeString(body)
+
+	if !strings.Contains(page, "接下來的狀態轉換由其他 owner 持有；目前操作者沒有執行權限。") {
+		t.Error("owner-withheld transitions are not named as an owner boundary")
+	}
+	if strings.Contains(page, "目前沒有合法的狀態轉換") {
+		t.Error("owner-withheld transitions are misreported as the schema defining none")
+	}
+	// The operator label stays: naming who the fixed operator is remains
+	// accurate whether or not that operator owns the onward step.
+	if !strings.Contains(page, "操作者 · koopa") {
+		t.Error("the operator label disappeared from the owner-withheld panel")
+	}
+}
+
 // TestShowCarriesTheNavigationFaultOnANotePage pins the path the reader
 // actually takes to a note: the command palette opens one directly and never
 // renders Home. A contract whose navigation declaration was rejected closes

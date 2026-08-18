@@ -111,6 +111,11 @@ type NoteView struct {
 	NonInstance     bool
 	WriteDiagnostic string
 	NoFrontmatter   bool
+	// WithheldByOwner is meaningful only when Transitions is empty: the
+	// contract defines onward transitions from this note's status, but every
+	// one of them belongs to another owner. The panel then names the owner
+	// boundary instead of claiming the schema defines nothing.
+	WithheldByOwner bool
 
 	// WriteBlock is the reason a transition would be refused right now — an
 	// uncommitted edit to this note, or an unreadable working tree. Empty means
@@ -827,7 +832,11 @@ templ statusPanel(v NoteView) {
 					<p class="y-statuspanel__notice">沒有 frontmatter（合法）。</p>
 				case len(v.Transitions) == 0:
 					if !v.Sealed {
-						<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
+						if v.WithheldByOwner {
+							<p class="y-statuspanel__notice">接下來的狀態轉換由其他 owner 持有；目前操作者沒有執行權限。</p>
+						} else {
+							<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
+						}
 					}
 				default:
 					if v.WriteBlock != "" {
