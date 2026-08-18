@@ -29,6 +29,13 @@ const (
 type HomeView struct {
 	Governed bool
 	Fault    string
+	// Degraded states that the vault snapshot behind this page could not read
+	// everything: some sources are blocked, so the content may be incomplete
+	// or held at an older generation. DegradedDetail carries the blocked
+	// paths and their errors as technical detail. Empty means the snapshot is
+	// whole and current, which is the ordinary case.
+	Degraded       string
+	DegradedDetail string
 	// Subtitle names the content blocks this page actually carries. It is empty
 	// when it would name none of them, because a line under the title promising
 	// sections that are not below it is the same defect as a bordered box with
@@ -107,6 +114,14 @@ templ Home(v HomeView, c layouts.Chrome) {
 								@homeBlockHead("home-faults-title", "契約能力", "書庫宣告了無法履行的事")
 								<p class="y-homeempty" data-home-fault>
 									@browserDiagnostic("部分投影已關閉。", v.Fault)
+								</p>
+							</section>
+						}
+						if v.Degraded != "" {
+							<section class="y-homeblock y-homeblock--faults" data-home-block="degraded" aria-labelledby="home-degraded-title">
+								@homeBlockHead("home-degraded-title", "讀取狀況", "有檔案這次沒有讀進來")
+								<p class="y-homeempty" data-home-degraded>
+									@browserDiagnostic(v.Degraded, v.DegradedDetail)
 								</p>
 							</section>
 						}

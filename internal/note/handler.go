@@ -133,15 +133,31 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 // it. The path is echoed so the reader can see their own typo; it reaches the
 // page as text and is escaped there like any other note content.
 func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, asked string) {
+	h.showMissing(w, r, asked, false)
+}
+
+// showUnreadable answers a note the generation captured but could not read:
+// the file exists on disk, so the plain not-found page — whose repair is a
+// typo or an unwritten note — would send the reader the wrong way.
+func (h *Handler) showUnreadable(w http.ResponseWriter, r *http.Request, asked string) {
+	h.showMissing(w, r, asked, true)
+}
+
+func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked string, unreadable bool) {
 	snap := h.deps.Snapshot().Capture()
 	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
 	view := pages.NotFoundView{
-		Asked:   asked,
-		Sidebar: pages.NewSidebar(pageShell.Nav, ""),
+		Asked:      asked,
+		Unreadable: unreadable,
+		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+	}
+	title := "找不到"
+	if unreadable {
+		title = "讀不進來"
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
-	if err := pages.NotFound(view, pageShell.Chrome(r, "找不到")).Render(r.Context(), w); err != nil {
+	if err := pages.NotFound(view, pageShell.Chrome(r, title)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write not-found page", "path", asked, "error", err)
 	}
 }
@@ -184,13 +200,16 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	snap := h.deps.Snapshot().Capture()
 	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
 	health := snap.Health()
+	fresh := snap.Freshness()
 	view := pages.HealthView{
-		Unwritten:   healthLinks(health.Unwritten),
-		TitleOnly:   healthTitleLinks(health.TitleOnly),
-		Islands:     healthIslands(health.Islands),
-		IslandCount: healthIslandCount(health.Islands),
-		Collisions:  healthCollisions(health.Collisions),
-		Sidebar:     pages.NewSidebar(pageShell.Nav, ""),
+		Unwritten:    healthLinks(health.Unwritten),
+		TitleOnly:    healthTitleLinks(health.TitleOnly),
+		Islands:      healthIslands(health.Islands),
+		IslandCount:  healthIslandCount(health.Islands),
+		Collisions:   healthCollisions(health.Collisions),
+		Blocked:      healthBlocked(fresh.Blocked),
+		LastComplete: lastCompleteBuild(fresh),
+		Sidebar:      pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, pageShell.Chrome(r, "整體狀況")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
@@ -230,6 +249,26 @@ func healthTitleLinks(links []snapshot.HealthTitleLink) []pages.HealthTitleLink 
 		out = append(out, pages.HealthTitleLink{From: link.From, Target: link.Target, Note: link.Note})
 	}
 	return out
+}
+
+// healthBlocked carries the freshness record's blocked sources across to the
+// page as plain values, like every other health finding.
+func healthBlocked(blocked []snapshot.BlockedSource) []pages.HealthBlockedSource {
+	out := make([]pages.HealthBlockedSource, 0, len(blocked))
+	for _, source := range blocked {
+		out = append(out, pages.HealthBlockedSource{Path: source.Path, Reason: source.Reason})
+	}
+	return out
+}
+
+// lastCompleteBuild formats when the published generation was built, only when
+// that build read everything it wanted. An incomplete startup generation has
+// no complete read to date, and the page says that instead.
+func lastCompleteBuild(fresh snapshot.Freshness) string {
+	if !fresh.Complete || fresh.BuiltAt.IsZero() {
+		return ""
+	}
+	return fresh.BuiltAt.Format("2006-01-02 15:04")
 }
 
 func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthCollision {
@@ -307,6 +346,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 			visibleNav.NavigationDiagnostic(),
 			visibleNav.ArtifactDiagnostic(),
 		),
+		Degraded:        degradedNotice(snap.Freshness()),
+		DegradedDetail:  blockedDetail(snap.Freshness().Blocked),
 		Recent:          recent,
 		RecentOrdered:   recentOrdered,
 		RecentClosed:    recentClosed,
@@ -348,6 +389,14 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 
 	n, ok := snap.Note(rel)
 	if !ok {
+		// The scan captured the path but this generation has no body for it:
+		// the file exists and could not be read, which is a different fact —
+		// and a different repair — from a path that names nothing.
+		if snap.Contains(rel) {
+			h.deps.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
+			h.showUnreadable(w, r, r.URL.Path)
+			return
+		}
 		h.deps.Log.Warn("note is absent from the request snapshot", "path", rel)
 		h.showNotFound(w, r, r.URL.Path)
 		return
@@ -765,6 +814,31 @@ func homeStandIn(snap *snapshot.View, content homeContent) pages.HomeStandIn {
 	standIn.NewestDate = newest.ModTime().Format("2006-01-02")
 	standIn.NewestAt = newest.ModTime().Format(time.RFC3339)
 	return standIn
+}
+
+// degradedNotice states, in the reader's language, that the snapshot behind
+// the page could not read everything, so the content may be incomplete or held
+// at an older generation. Empty when the snapshot is whole and current, which
+// is the ordinary case and renders nothing.
+func degradedNotice(fresh snapshot.Freshness) string {
+	if len(fresh.Blocked) == 0 {
+		return ""
+	}
+	return "有 " + strconv.Itoa(len(fresh.Blocked)) + " 個檔案讀不進來，頁面內容可能不完整，或停在較舊的版本。詳細狀況見整體狀況頁。"
+}
+
+// blockedDetail joins the blocked paths and their errors into the technical
+// detail shown beside the notice, in the same shape other diagnostics use.
+func blockedDetail(blocked []snapshot.BlockedSource) string {
+	parts := make([]string, 0, len(blocked))
+	for _, source := range blocked {
+		if source.Reason == "" {
+			parts = append(parts, source.Path)
+			continue
+		}
+		parts = append(parts, source.Path+": "+source.Reason)
+	}
+	return strings.Join(parts, "; ")
 }
 
 // statedOnce joins the distinct reasons a page withheld something, in the order

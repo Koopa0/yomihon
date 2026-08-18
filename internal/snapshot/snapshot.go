@@ -14,6 +14,7 @@ import (
 	"iter"
 	"log/slog"
 	pathpkg "path"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -48,6 +49,35 @@ type Source interface {
 	ReadFile(context.Context, vault.Entry) ([]byte, error)
 }
 
+// Freshness is the published account of how the reading generation relates to
+// the folder on disk. It exists because both degraded states are otherwise
+// invisible: a startup view may omit a source so reading stays available, and
+// a failing rebuild retains the previous generation — in either case the
+// pages would present a partial or stale folder as current and whole.
+type Freshness struct {
+	// BuiltAt is when the published generation finished building.
+	BuiltAt time.Time
+	// Complete reports whether the published generation read every source it
+	// wanted. Startup may publish an incomplete view for availability; a
+	// rescan publishes complete generations only, so a retained stale view
+	// keeps Complete true while Blocked says what is holding the next one.
+	Complete bool
+	// Blocked lists the sources the latest build attempt could not observe or
+	// read, with the error each returned. Empty means the reading surface is
+	// whole and current.
+	Blocked []BlockedSource
+	// FailedRetries counts consecutive incomplete rebuild attempts since the
+	// published generation was built.
+	FailedRetries int
+}
+
+// BlockedSource is one vault path a generation build wanted and could not
+// have, and the reason it could not.
+type BlockedSource struct {
+	Path   string
+	Reason string
+}
+
 // View is one immutable reading generation. Every projection is built from the
 // same scan and captured bytes and remains behind read-only package APIs. The
 // artifact policy is a source-bound revocation capability: callers capture it
@@ -67,6 +97,12 @@ type View struct {
 	scan     vault.Scan
 	notes    map[string]Note
 	markdown *render.Pipeline
+
+	// freshness points at the owning Store's live record. Unlike every other
+	// projection it is deliberately not frozen at build time: while rebuilds
+	// fail, the retained generation is the one being served, and it is exactly
+	// the view that must be able to say it has gone stale.
+	freshness *atomic.Pointer[Freshness]
 }
 
 // Capture returns a request-local View bound to one point-in-time artifact
@@ -99,6 +135,23 @@ func (v *View) CitedBy(relPath string) []nav.NoteRef {
 		return nil
 	}
 	return v.backlinks.To(relPath)
+}
+
+// Freshness reports how the published generation relates to the folder on
+// disk right now: when it was built, whether it read everything it wanted,
+// and which sources the latest build attempt could not have. The returned
+// value is the caller's own copy.
+func (v *View) Freshness() Freshness {
+	if v == nil || v.freshness == nil {
+		return Freshness{}
+	}
+	record := v.freshness.Load()
+	if record == nil {
+		return Freshness{}
+	}
+	out := *record
+	out.Blocked = slices.Clone(record.Blocked)
+	return out
 }
 
 // Health returns the whole-folder view of what needs attention in this
@@ -248,6 +301,11 @@ func (v *View) Transclusion(canonicalPath string) (string, bool) {
 type Store struct {
 	ptr atomic.Pointer[View]
 
+	// fresh is the live freshness record every published View points at. The
+	// reconciliation loop is its only writer; requests read it through
+	// View.Freshness.
+	fresh atomic.Pointer[Freshness]
+
 	source          Source
 	log             *slog.Logger
 	now             func() time.Time
@@ -297,7 +355,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	view, retry, err := buildView(ctx, source, scan, log, roles, scope, policy, language)
+	view, blocked, err := buildView(ctx, source, scan, log, roles, scope, policy, language)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
@@ -310,8 +368,14 @@ func New(
 		artifactPolicy:  policy,
 		articleLanguage: language,
 		prev:            scan,
-		retry:           retry,
+		retry:           len(blocked) != 0,
 	}
+	store.fresh.Store(&Freshness{
+		BuiltAt:  store.now(),
+		Complete: len(blocked) == 0,
+		Blocked:  blocked,
+	})
+	view.freshness = &store.fresh
 	store.ptr.Store(view)
 	store.logBuild("vault snapshot built", view, scan)
 	return store, nil
@@ -359,7 +423,7 @@ func (s *Store) rescan(ctx context.Context) {
 	if s.artifactPolicy.Available() {
 		s.artifactPolicy = s.artifactPolicy.ValidateSource()
 	}
-	candidate, retry, err := buildView(
+	candidate, blocked, err := buildView(
 		ctx,
 		s.source,
 		scan,
@@ -375,10 +439,14 @@ func (s *Store) rescan(ctx context.Context) {
 		}
 		return
 	}
-	if retry {
-		s.noteIncomplete(scan)
+	if len(blocked) != 0 {
+		s.noteIncomplete(scan, blocked)
 		return
 	}
+	// The freshness record changes before the pointer swap so a reader of the
+	// new generation never sees the old record beside it.
+	s.fresh.Store(&Freshness{BuiltAt: s.now(), Complete: true})
+	candidate.freshness = &s.fresh
 	s.ptr.Store(candidate)
 	s.prev = scan
 	s.retry = false
@@ -391,8 +459,11 @@ func (s *Store) rescan(ctx context.Context) {
 // noteIncomplete records one incomplete rebuild attempt and schedules the next
 // expensive retry. A failure over a file domain that changed since the last
 // attempt restarts the schedule: the world moved, so this is a new failure
-// rather than the same one again.
-func (s *Store) noteIncomplete(scan vault.Scan) {
+// rather than the same one again. The published freshness record keeps the
+// retained generation's own build facts and carries the attempt's blocked
+// sources and the running failure count, which is how the pages serving that
+// generation can say it has gone stale.
+func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
 	if !s.incompleteScan.SameFiles(scan) {
 		s.consecutiveIncomplete = 0
 	}
@@ -400,6 +471,11 @@ func (s *Store) noteIncomplete(scan vault.Scan) {
 	s.incompleteScan = scan
 	s.nextRetry = s.now().Add(retryDelay(s.consecutiveIncomplete))
 	s.retry = true
+	record := Freshness{Blocked: blocked, FailedRetries: s.consecutiveIncomplete}
+	if published := s.fresh.Load(); published != nil {
+		record.BuiltAt, record.Complete = published.BuiltAt, published.Complete
+	}
+	s.fresh.Store(&record)
 	s.log.Warn("vault snapshot incomplete; retaining previous generation",
 		"scan_problems", len(scan.Problems()),
 		"consecutive_incomplete", s.consecutiveIncomplete,
@@ -421,10 +497,11 @@ func retryDelay(consecutive int) time.Duration {
 }
 
 // buildView performs one generation build from one completed enumeration. A
-// scan or file-read problem omits that source from the candidate and requests a
-// retry. New may publish such a candidate to preserve startup availability;
-// rescan retains its previous generation instead. Cancellation aborts the
-// generation so shutdown never publishes half a build.
+// scan or file-read problem omits that source from the candidate and returns
+// it as a blocked source so the caller retries. New may publish such a
+// candidate to preserve startup availability; rescan retains its previous
+// generation instead. Cancellation aborts the generation so shutdown never
+// publishes half a build.
 func buildView(
 	ctx context.Context,
 	source Source,
@@ -434,7 +511,7 @@ func buildView(
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 	languages schema.ArticleLanguage,
-) (*View, bool, error) {
+) (*View, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy must build
 	// every projection. View retains the source-bound handle separately and
 	// Capture rebinds request-time metadata access to the current authority.
@@ -442,16 +519,17 @@ func buildView(
 	entries := scan.Files()
 	parsedByPath := make(map[string]*vault.Note)
 	parsedNotes := make([]*vault.Note, 0, len(entries))
+	unreadableNotes := make([]*vault.Note, 0)
 	publishedNotes := make(map[string]Note)
 	indexableNotes := make(map[string]bool)
 	resources := make([]string, 0, len(entries))
 	slotFiles := make(map[string][]byte)
 	fileDocuments := make([]search.Document, 0, len(entries))
-	retry := len(scan.Problems()) != 0
+	blocked := blockedFromProblems(scan.Problems())
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
-			return nil, false, err
+			return nil, nil, err
 		}
 		relPath := entry.Path()
 		note := strings.HasSuffix(relPath, ".md")
@@ -467,10 +545,10 @@ func buildView(
 		data, err := source.ReadFile(ctx, entry)
 		if err != nil {
 			if contextErr := ctx.Err(); contextErr != nil {
-				return nil, false, contextErr
+				return nil, nil, contextErr
 			}
 			log.Warn("vault source unavailable in snapshot generation", "path", relPath, "error", err)
-			retry = retry || want.holdsBackGeneration
+			blocked, unreadableNotes = recordReadFailure(blocked, unreadableNotes, relPath, note, want, err)
 			continue
 		}
 		if !note {
@@ -484,7 +562,7 @@ func buildView(
 		publishedNotes[relPath] = captureNote(parsed, data, languages, want.indexable)
 	}
 
-	graphIndex := graph.New(parsedNotes, resources)
+	graphIndex := graph.New(slices.Concat(parsedNotes, unreadableNotes), resources)
 	navigation := nav.New(entries, parsedByPath, graphIndex, roles, scope, projectionPolicy)
 	searchIndex := search.NewIndex(indexDocuments(parsedNotes, indexableNotes, fileDocuments), projectionPolicy)
 
@@ -517,7 +595,49 @@ func buildView(
 		notes:          publishedNotes,
 	}
 	view.markdown = render.New(graphIndex, view)
-	return view, retry, nil
+	return view, blocked, nil
+}
+
+// recordReadFailure records what one failed read costs the generation: a
+// blocked source when the file's absence leaves the reading surface
+// incomplete, and a resolver-only stub when the file is a note — the file
+// exists and a citation naming it lands on it, so the resolver still learns
+// its path even though its bytes are missing. Without the stub, the health
+// page would class every citation to an unreadable note with the citations
+// whose targets do not exist.
+func recordReadFailure(
+	blocked []BlockedSource,
+	unreadableNotes []*vault.Note,
+	relPath string,
+	note bool,
+	want bytesWanted,
+	err error,
+) ([]BlockedSource, []*vault.Note) {
+	if want.holdsBackGeneration {
+		blocked = append(blocked, BlockedSource{Path: relPath, Reason: err.Error()})
+	}
+	if note {
+		unreadableNotes = append(unreadableNotes, vault.Parse(relPath, nil))
+	}
+	return blocked, unreadableNotes
+}
+
+// blockedFromProblems carries the scan's unobservable paths into the build's
+// blocked-source list, so a directory that cannot be opened is reported the
+// same way as a file that cannot be read.
+func blockedFromProblems(problems []vault.Problem) []BlockedSource {
+	if len(problems) == 0 {
+		return nil
+	}
+	blocked := make([]BlockedSource, 0, len(problems))
+	for _, problem := range problems {
+		reason := ""
+		if err := problem.Err(); err != nil {
+			reason = err.Error()
+		}
+		blocked = append(blocked, BlockedSource{Path: problem.Path(), Reason: reason})
+	}
+	return blocked
 }
 
 // noteBodies iterates the parsed bodies of one generation's notes. The planned

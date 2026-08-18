@@ -5,9 +5,14 @@ import "github.com/koopa0/yomihon/internal/ui/layouts"
 // NotFoundView is what a reader who asked for something that is not here needs
 // to see. Asked is the path they typed, echoed back so they can spot their own
 // typo; it is escaped like any other note text and never treated as markup.
+// Unreadable distinguishes the file that exists but could not be read in this
+// generation from the path that names nothing: the first needs a permission
+// fixed, the second needs a typo fixed or a note written, and telling a
+// reader the wrong one sends them to the wrong repair.
 type NotFoundView struct {
-	Asked   string
-	Sidebar Sidebar
+	Asked      string
+	Unreadable bool
+	Sidebar    Sidebar
 }
 
 // NotFound answers a request for something the vault does not hold, inside the
@@ -26,9 +31,15 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<article class="y-recovery" lang="zh-Hant" aria-labelledby="notfound-title">
-					<p class="y-recovery__kicker">找不到</p>
-					<h1 id="notfound-title" class="y-title">這裡沒有東西</h1>
-					<p class="y-recovery__summary">這個位置沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。</p>
+					if v.Unreadable {
+						<p class="y-recovery__kicker">讀不進來</p>
+						<h1 id="notfound-title" class="y-title">這個檔案目前讀不進來</h1>
+						<p class="y-recovery__summary">檔案存在，但這一次讀取沒有成功——可能是權限設定，或另一個程式正擋住它。排除之後，過幾秒重新整理就會看到內容。</p>
+					} else {
+						<p class="y-recovery__kicker">找不到</p>
+						<h1 id="notfound-title" class="y-title">這裡沒有東西</h1>
+						<p class="y-recovery__summary">這個位置沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。</p>
+					}
 					if v.Asked != "" {
 						<section class="y-recovery__detail" aria-labelledby="notfound-asked-title">
 							<h2 id="notfound-asked-title">你要找的位置</h2>

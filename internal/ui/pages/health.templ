@@ -25,7 +25,21 @@ type HealthView struct {
 	IslandCount int
 	// Collisions are names more than one file answers to.
 	Collisions []HealthCollision
-	Sidebar    Sidebar
+	// Blocked are vault sources the latest snapshot build could not read, so
+	// the pages either lack them or hold their older captured content.
+	Blocked []HealthBlockedSource
+	// LastComplete is when the generation behind this page was built, shown
+	// only when that build read everything it wanted; empty means no complete
+	// read has happened since startup.
+	LastComplete string
+	Sidebar      Sidebar
+}
+
+// HealthBlockedSource is one path the snapshot build could not read, with the
+// error it returned.
+type HealthBlockedSource struct {
+	Path   string
+	Reason string
 }
 
 // HealthLink is one citation with nowhere to land, and the note making it.
@@ -58,7 +72,18 @@ type HealthCollision struct {
 
 // clean reports whether the folder has nothing to answer for.
 func (v HealthView) clean() bool {
-	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 && len(v.Collisions) == 0
+	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
+		len(v.Collisions) == 0 && len(v.Blocked) == 0
+}
+
+// blockedLede states what the blocked list means for the reader, and how
+// current the page behind it is.
+func (v HealthView) blockedLede() string {
+	lede := "這一次讀取時打不開這些檔案，頁面顯示的內容缺了它們，或停在較舊的版本。"
+	if v.LastComplete == "" {
+		return lede + "啟動到現在還沒有一次完整的讀取。"
+	}
+	return lede + "最後一次完整讀取是 " + v.LastComplete + "。"
 }
 
 // Health is the page listing what the folder owes: citations with nowhere to
@@ -78,6 +103,18 @@ templ Health(v HealthView, c layouts.Chrome) {
 						<p class="y-homeempty">這個書庫目前沒有需要處理的事：每個連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用。</p>
 					} else {
 						<p class="y-healthlede">這裡只陳述狀況，不會動你的檔案。要修改請在編輯器裡改那個檔案。</p>
+						@healthSection("讀不進來的檔案", len(v.Blocked), v.blockedLede()) {
+							<ul class="y-healthlist">
+								for _, source := range v.Blocked {
+									<li>
+										<span class="y-healthlist__name">{ source.Path }</span>
+										if source.Reason != "" {
+											<span class="y-healthlist__detail"><code lang="en">{ source.Reason }</code></span>
+										}
+									</li>
+								}
+							</ul>
+						}
 						@healthSection("連到還沒寫的筆記", len(v.Unwritten), "這些連結的目標不存在，而且沒有任何缺口帳列出它們。") {
 							<ul class="y-healthlist">
 								for _, link := range v.Unwritten {

@@ -1001,6 +1001,91 @@ func TestPermanentlyUnreadableNoteRetainsGenerationUntilReadable(t *testing.T) {
 	}
 }
 
+// TestFreshnessReportsStartupIncompletenessAndRetainedStaleness pins the two
+// degraded states the freshness record exists for. A startup view published
+// with a source missing says so; and when later rebuilds fail, the retained —
+// still published — generation reports the blocked sources and the running
+// failure count through the same record, without its own build facts moving.
+func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const blocked = "Concepts/Alpha.md"
+	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   map[string]int{blocked: 1},
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fresh := store.Current().Freshness()
+	if fresh.Complete {
+		t.Error("a startup generation that lost a note reports itself complete")
+	}
+	if len(fresh.Blocked) != 1 || fresh.Blocked[0].Path != blocked {
+		t.Errorf("startup Blocked = %+v, want the one lost note", fresh.Blocked)
+	}
+	if fresh.BuiltAt.IsZero() {
+		t.Error("startup freshness carries no build time")
+	}
+	if fresh.FailedRetries != 0 {
+		t.Errorf("startup FailedRetries = %d, want 0", fresh.FailedRetries)
+	}
+
+	// The read failure was transient, so the first retry publishes a complete
+	// generation and the record follows it.
+	store.rescan(t.Context())
+	fresh = store.Current().Freshness()
+	if !fresh.Complete || len(fresh.Blocked) != 0 || fresh.FailedRetries != 0 {
+		t.Fatalf("recovered freshness = %+v, want complete with nothing blocked", fresh)
+	}
+	builtAt := fresh.BuiltAt
+
+	// The note is edited — so the next rescan rebuilds — and now never reads.
+	// The retained generation is the one being served, and it is the view
+	// that must be able to say it has gone stale.
+	clock := time.Now()
+	store.now = func() time.Time { return clock }
+	retained := store.Current()
+	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited to a different size\n")
+	source.fail[blocked] = 1 << 30
+	store.rescan(t.Context())
+	if store.Current() != retained {
+		t.Fatal("an incomplete rebuild published a generation")
+	}
+	fresh = retained.Freshness()
+	if !fresh.Complete {
+		t.Error("the retained generation stopped reporting its own complete build")
+	}
+	if len(fresh.Blocked) != 1 || fresh.Blocked[0].Path != blocked {
+		t.Errorf("retained Blocked = %+v, want the unreadable note", fresh.Blocked)
+	} else if !strings.Contains(fresh.Blocked[0].Reason, "injected read failure") {
+		t.Errorf("Blocked reason = %q, want the read error", fresh.Blocked[0].Reason)
+	}
+	if fresh.FailedRetries != 1 {
+		t.Errorf("FailedRetries after one failed rebuild = %d, want 1", fresh.FailedRetries)
+	}
+	if !fresh.BuiltAt.Equal(builtAt) {
+		t.Errorf("failed attempts moved BuiltAt from %v to %v", builtAt, fresh.BuiltAt)
+	}
+
+	clock = clock.Add(scanInterval)
+	store.rescan(t.Context())
+	if got := retained.Freshness().FailedRetries; got != 2 {
+		t.Errorf("FailedRetries after two failed rebuilds = %d, want 2", got)
+	}
+}
+
 // TestASidecarTooLargeToShowIsNotSearchable keeps one rule across both faces. A
 // lesson sidecar is read whatever its size, because the practice panel is built
 // from it — but its own page says its contents are not searched, and deciding
