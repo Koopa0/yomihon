@@ -914,6 +914,37 @@ func TestFlipRefusals(t *testing.T) {
 	}
 }
 
+// TestFlipRefusesDetachedHead locks the write face's refusal to commit while
+// the vault's HEAD names no branch. git itself accepts such a commit, but it
+// lands on no ref: the moment the operator checks a branch out again, the
+// note reverts and the receipt is reachable only through the reflog — a
+// success report whose evidence quietly evaporates.
+func TestFlipRefusesDetachedHead(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	original := lessonContent("draft")
+	writeNote(t, root, original)
+	commitAll(t, root)
+	runGit(t, root, "checkout", "--detach")
+	before := commitCount(t, root)
+
+	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrDetachedHead) {
+		t.Fatalf("Flip() on a detached HEAD = %v, want %v", err, status.ErrDetachedHead)
+	}
+	if got := readNote(t, root); got != original {
+		t.Errorf("note after detached-HEAD refusal = %q, want untouched %q", got, original)
+	}
+	if after := commitCount(t, root); after != before {
+		t.Errorf("commit count = %d, want unchanged %d (no commit on a detached HEAD)", after, before)
+	}
+	if porcelain := strings.TrimSpace(runGit(t, root, "status", "--porcelain")); porcelain != "" {
+		t.Errorf("git status --porcelain not empty after refusal: %q", porcelain)
+	}
+}
+
 func TestFlipMalformedStatusLine(t *testing.T) {
 	t.Parallel()
 

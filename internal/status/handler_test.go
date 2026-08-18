@@ -325,6 +325,27 @@ func TestHandlerDirty(t *testing.T) {
 	}
 }
 
+func TestHandlerDetachedHead(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+	runGit(t, root, "checkout", "--detach")
+	srv := newHandlerServer(t, lifecycle)
+
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
+	if code != http.StatusConflict {
+		t.Errorf("status = %d, want %d", code, http.StatusConflict)
+	}
+	for _, want := range []string{"detached HEAD", "回到分支", "狀態尚未變更"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body is missing %q: %q", want, body)
+		}
+	}
+}
+
 // ErrStatusLine (422, "schema violation") is deliberately not exercised
 // here through a full HTTP round trip: reaching the surgical rewrite requires
 // a blank current status, while this handler rejects a blank "from" before

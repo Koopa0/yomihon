@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	pathpkg "path"
 	"path/filepath"
 	"slices"
@@ -60,6 +61,13 @@ var (
 	// retry, while this refuses every transition until the folder itself
 	// changes, because each accepted transition is recorded as a commit.
 	ErrWorkTreeUnreadable = errors.New("status: working tree could not be read")
+	// ErrDetachedHead means the vault's HEAD names no branch — the repo is
+	// mid-rebase, mid-bisect, or checked out at a bare commit. git would
+	// happily commit here, but the commit would land on no branch: as soon
+	// as the operator returns to one, the note silently reverts and the
+	// receipt survives nowhere but the reflog. The write face refuses and
+	// leaves the file untouched instead of inheriting that default.
+	ErrDetachedHead = errors.New("status: vault HEAD is detached from any branch")
 	// ErrStatusLine means the frontmatter block does not contain exactly
 	// one line beginning with "status:" — a schema violation yomihon does
 	// not repair. yomihon only reports faults; fixing the file belongs to
@@ -592,12 +600,8 @@ func (lc *Lifecycle) flip(ctx context.Context, rel, from, to string, hooks flipH
 		return fmt.Errorf("status: %s %s -> %s: %w", relSlash, from, to, err)
 	}
 
-	dirty, err := lc.dirty(ctx, rel)
-	if err != nil {
-		return fmt.Errorf("%w: %s: %w", ErrWorkTreeUnreadable, relSlash, err)
-	}
-	if dirty {
-		return fmt.Errorf("%w: %s", ErrDirty, relSlash)
+	if stateErr := lc.validateRepoState(ctx, rel, relSlash); stateErr != nil {
+		return stateErr
 	}
 
 	rewritten, err := rewriteStatusLine(data, to)
@@ -660,6 +664,29 @@ func (lc *Lifecycle) validateWriteTarget(relSlash string) error {
 	}
 	if policy.IsNonInstance(relSlash) {
 		return ErrNonInstance
+	}
+	return nil
+}
+
+// validateRepoState refuses a flip the vault repository's own state makes
+// unrecordable: an uncommitted edit on the target that a commit would fold in,
+// or a detached HEAD on which the receipt commit would land outside every
+// branch. Every refusal here happens before publication and leaves the file
+// untouched.
+func (lc *Lifecycle) validateRepoState(ctx context.Context, rel, relSlash string) error {
+	dirty, err := lc.dirty(ctx, rel)
+	if err != nil {
+		return fmt.Errorf("%w: %s: %w", ErrWorkTreeUnreadable, relSlash, err)
+	}
+	if dirty {
+		return fmt.Errorf("%w: %s", ErrDirty, relSlash)
+	}
+	detached, err := lc.detachedHead(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %s: %w", ErrWorkTreeUnreadable, relSlash, err)
+	}
+	if detached {
+		return fmt.Errorf("%w: %s", ErrDetachedHead, relSlash)
 	}
 	return nil
 }
@@ -1041,6 +1068,24 @@ func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os
 		return "", fmt.Errorf("close temp file: %w", err)
 	}
 	return name, nil
+}
+
+// detachedHead reports whether the vault's HEAD is attached to no branch.
+// git answers through symbolic-ref: on a branch it prints the ref and exits
+// zero; detached, it exits one and, under -q, prints nothing at all. Any
+// other outcome — a fatal diagnostic, or the git child failing before it
+// could exec — carries output, so a silent exit one is the only shape read
+// as detached. The check only reads repository state; it never creates or
+// moves a branch.
+func (lc *Lifecycle) detachedHead(ctx context.Context) (bool, error) {
+	out, err := runGit(ctx, lc.root, "symbolic-ref", "-q", "HEAD")
+	if err == nil {
+		return false, nil
+	}
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 && len(bytes.TrimSpace(out)) == 0 {
+		return true, nil
+	}
+	return false, err
 }
 
 // dirty reports whether rel has uncommitted changes in the vault's git

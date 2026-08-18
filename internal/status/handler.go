@@ -108,6 +108,9 @@ type recovery struct {
 }
 
 func recoveryFor(err error) *recovery {
+	if r := recoveryForRepoState(err); r != nil {
+		return r
+	}
 	switch {
 	case errors.Is(err, ErrInvalidPath):
 		return &recovery{
@@ -149,23 +152,6 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusConflict,
 			summary:    "檔案在讀取與寫入之間遭到修改。",
 			nextAction: "先檢查 Obsidian 或其他工具的最新變更，再重新載入筆記；不要直接重送。",
-		}
-	case errors.Is(err, ErrDirty):
-		return &recovery{
-			code:       http.StatusConflict,
-			headline:   DirtyBlock.Headline,
-			summary:    DirtyBlock.Body,
-			nextAction: DirtyBlock.NextStep,
-		}
-	case errors.Is(err, ErrWorkTreeUnreadable):
-		return &recovery{
-			code:       http.StatusServiceUnavailable,
-			summary:    GitBlock.Body,
-			nextAction: "在這個資料夾建立 git 版本庫，或改用一個已是版本庫的 vault；閱讀與搜尋不受影響。",
-			// git's own message names the folder, so it stays in the log and
-			// out of the page.
-			logMessage: "status flip found the working tree unreadable",
-			cause:      err,
 		}
 	case errors.Is(err, ErrStatusLine):
 		return &recovery{
@@ -218,6 +204,38 @@ func recoveryFor(err error) *recovery {
 			cause:      err,
 		}
 	}
+}
+
+// recoveryForRepoState maps the refusals rooted in the vault repository's own
+// state — an uncommitted edit, a detached HEAD, an unreadable working tree —
+// or nil when err is none of them. All three leave the note untouched.
+func recoveryForRepoState(err error) *recovery {
+	switch {
+	case errors.Is(err, ErrDirty):
+		return &recovery{
+			code:       http.StatusConflict,
+			headline:   DirtyBlock.Headline,
+			summary:    DirtyBlock.Body,
+			nextAction: DirtyBlock.NextStep,
+		}
+	case errors.Is(err, ErrDetachedHead):
+		return &recovery{
+			code:       http.StatusConflict,
+			summary:    "vault 目前處於 detached HEAD，狀態提交會落在任何分支之外。",
+			nextAction: "請先完成或離開進行中的 git 操作（rebase、bisect 或 checkout），回到分支後再重試；這次操作沒有寫入任何內容。",
+		}
+	case errors.Is(err, ErrWorkTreeUnreadable):
+		return &recovery{
+			code:       http.StatusServiceUnavailable,
+			summary:    GitBlock.Body,
+			nextAction: "在這個資料夾建立 git 版本庫，或改用一個已是版本庫的 vault；閱讀與搜尋不受影響。",
+			// git's own message names the folder, so it stays in the log and
+			// out of the page.
+			logMessage: "status flip found the working tree unreadable",
+			cause:      err,
+		}
+	}
+	return nil
 }
 
 func recoveryForSchemaError(err error) *recovery {
