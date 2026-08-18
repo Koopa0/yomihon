@@ -13,6 +13,13 @@ import (
 
 const maxQueryBytes = 4096
 
+// maxRenderedResults bounds how many hits one search response materializes
+// and renders. A broad term over a vault of ten thousand notes matches most
+// of it, and the full answer is a multi-megabyte page rebuilt on every pause
+// in typing; the tally stays exact while the list holds only this opening
+// stretch.
+const maxRenderedResults = 200
+
 // RequestSnapshot is the search index and shell state bound to one request
 // capture of an atomic vault generation and its artifact authority.
 type RequestSnapshot struct {
@@ -59,11 +66,12 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, diagnostic, tokens := h.query(snap.Index, q)
+	results, total, diagnostic, tokens := h.query(snap.Index, q)
 
 	view := pages.SearchView{
 		Query:      q,
 		Results:    viewResults(results, snap.Shell.Governed, tokens),
+		Total:      total,
 		Diagnostic: diagnostic,
 		Governed:   snap.Shell.Governed,
 		StepBacks:  stepBackViews(snap.Index, q, results, diagnostic),
@@ -82,30 +90,32 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, diagnostic, tokens := h.query(snap.Index, q)
+	results, total, diagnostic, tokens := h.query(snap.Index, q)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	stepBacks := stepBackViews(snap.Index, q, results, diagnostic)
-	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, tokens), diagnostic, snap.Shell.Governed, stepBacks).Render(r.Context(), w); err != nil {
+	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, tokens), total, diagnostic, snap.Shell.Governed, stepBacks).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }
 
-// query parses once and hands back both the hits and the terms that produced
-// them, so the page can mark those terms in a snippet without parsing again.
-func (h *Handler) query(idx *Index, q string) (results []Result, diagnostic string, tokens []string) {
+// query parses once and hands back the hits, the true match tally, and the
+// terms that produced them, so the page can mark those terms in a snippet
+// without parsing again. The hits are bounded by maxRenderedResults; total is
+// not, so the page can stay honest about what the bounded list leaves out.
+func (h *Handler) query(idx *Index, q string) (results []Result, total int, diagnostic string, tokens []string) {
 	parsed := Parse(q)
-	results, err := idx.Search(parsed)
+	results, total, err := idx.search(parsed, maxRenderedResults)
 	if errors.Is(err, ErrMetadataUnavailable) {
-		return nil, err.Error(), nil
+		return nil, 0, err.Error(), nil
 	}
 	if err != nil {
 		h.logQueryError("search query", q, err)
-		return nil, "搜尋目前暫時無法使用。", nil
+		return nil, 0, "搜尋目前暫時無法使用。", nil
 	}
-	return results, "", parsed.Tokens()
+	return results, total, "", parsed.Tokens()
 }
 
 // stepBackViews computes the loosened offers for an empty answer, and nothing

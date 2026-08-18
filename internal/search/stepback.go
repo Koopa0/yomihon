@@ -55,11 +55,14 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		}
 		seen[candidate] = true
 		full := strings.Join(append(filters[:len(filters):len(filters)], candidate), " ")
-		results, err := idx.Search(Parse(full))
-		if err != nil || len(results) == 0 {
+		// A candidate is only offered for its count, so no result — and no
+		// snippet — is ever materialized for it, and the count is the true
+		// tally rather than the bounded page's opening stretch.
+		_, total, err := idx.search(Parse(full), 0)
+		if err != nil || total == 0 {
 			continue
 		}
-		out = append(out, StepBack{Query: full, Count: len(results)})
+		out = append(out, StepBack{Query: full, Count: total})
 		if len(out) == 4 {
 			break
 		}

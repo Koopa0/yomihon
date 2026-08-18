@@ -53,13 +53,24 @@ const (
 // continue against the complete readable corpus. A vault that never declared
 // one excludes nothing, so those filters run over raw frontmatter.
 func (idx *Index) Search(q Query) ([]Result, error) {
+	results, _, err := idx.search(q, -1)
+	return results, err
+}
+
+// search is Search with a bound: at most limit results are materialized (a
+// negative limit materializes them all), while total reports how many hits the
+// query truly has. The tail beyond limit is counted but never built — a
+// snippet is the per-hit cost, and skipping it is what keeps a broad query's
+// work proportional to the page rather than to the vault. The kept results are
+// exactly the opening stretch of the unbounded answer, in the same order.
+func (idx *Index) search(q Query, limit int) (results []Result, total int, err error) {
 	if len(q.tokens) == 0 && len(q.filters) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 	metadataAvailable := idx.policy.Trustworthy()
 	requiresMetadata := q.RequiresMetadata()
 	if requiresMetadata && !metadataAvailable {
-		return nil, idx.metadataUnavailableError()
+		return nil, 0, idx.metadataUnavailableError()
 	}
 	var answers resultBuckets
 	for _, e := range idx.entries {
@@ -69,61 +80,84 @@ func (idx *Index) Search(q Query) ([]Result, error) {
 		if !e.matchesFilters(q.filters) {
 			continue
 		}
-		switch {
-		case allContain(e.TitleFold, q.tokens):
-			bodyEvidence := len(q.tokens) != 0 && allContain(e.PlainFold, q.tokens)
-			answers.add(e.result(q.tokens, bodyEvidence, metadataAvailable), true)
-		case allContain(e.PlainFold, q.tokens):
-			answers.add(e.result(q.tokens, true, metadataAvailable), false)
-		case allContain(e.PathFold, q.tokens):
-			// Last, and appended after every other group, so widening what can
-			// be found still moves nothing that could be found already. A note
-			// whose words match is always the better answer than one that
-			// merely lives in a folder of that name.
-			answers.addPathHit(e.result(q.tokens, false, metadataAvailable))
-		}
+		answers.bucket(e, q.tokens)
 	}
-	return answers.ordered(), nil
+	hits := answers.ordered()
+	total = len(hits)
+	if limit >= 0 && len(hits) > limit {
+		hits = hits[:limit]
+	}
+	results = make([]Result, len(hits))
+	for i, h := range hits {
+		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable)
+	}
+	return results, total, nil
+}
+
+// hit is one matched entry before its Result is built. Buckets hold hits
+// rather than Results so a bounded search can count every match while
+// building — snippet included — only the results it will return.
+type hit struct {
+	entry        *entry
+	bodyEvidence bool
 }
 
 // resultBuckets keeps the four answer groups apart while one pass over the
 // entries fills them, so the final order is a concatenation rather than a sort:
 // entries are already kept in rel-path order, and each group inherits it.
 type resultBuckets struct {
-	titleNotes []Result
-	bodyNotes  []Result
-	titleFiles []Result
-	bodyFiles  []Result
-	pathNotes  []Result
-	pathFiles  []Result
+	titleNotes []hit
+	bodyNotes  []hit
+	titleFiles []hit
+	bodyFiles  []hit
+	pathNotes  []hit
+	pathFiles  []hit
 }
 
-// addPathHit files a result matched only by where the note lives.
-func (b *resultBuckets) addPathHit(hit Result) {
-	if hit.File {
-		b.pathFiles = append(b.pathFiles, hit)
+// bucket files one filter-matching entry into its answer group by what the
+// tokens matched: the title, the body, or only the path.
+func (b *resultBuckets) bucket(e *entry, tokens []string) {
+	switch {
+	case allContain(e.TitleFold, tokens):
+		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
+		b.add(hit{entry: e, bodyEvidence: bodyEvidence}, true)
+	case allContain(e.PlainFold, tokens):
+		b.add(hit{entry: e, bodyEvidence: true}, false)
+	case allContain(e.PathFold, tokens):
+		// Last, and appended after every other group, so widening what can
+		// be found still moves nothing that could be found already. A note
+		// whose words match is always the better answer than one that
+		// merely lives in a folder of that name.
+		b.addPathHit(hit{entry: e})
+	}
+}
+
+// addPathHit files a hit matched only by where the note lives.
+func (b *resultBuckets) addPathHit(h hit) {
+	if h.entry.isFile {
+		b.pathFiles = append(b.pathFiles, h)
 		return
 	}
-	b.pathNotes = append(b.pathNotes, hit)
+	b.pathNotes = append(b.pathNotes, h)
 }
 
-func (b *resultBuckets) add(hit Result, titleMatch bool) {
+func (b *resultBuckets) add(h hit, titleMatch bool) {
 	switch {
-	case titleMatch && !hit.File:
-		b.titleNotes = append(b.titleNotes, hit)
+	case titleMatch && !h.entry.isFile:
+		b.titleNotes = append(b.titleNotes, h)
 	case titleMatch:
-		b.titleFiles = append(b.titleFiles, hit)
-	case !hit.File:
-		b.bodyNotes = append(b.bodyNotes, hit)
+		b.titleFiles = append(b.titleFiles, h)
+	case !h.entry.isFile:
+		b.bodyNotes = append(b.bodyNotes, h)
 	default:
-		b.bodyFiles = append(b.bodyFiles, hit)
+		b.bodyFiles = append(b.bodyFiles, h)
 	}
 }
 
 // ordered flattens the groups into the answer: a note's title hits, a note's
 // body hits, then the same two over files.
-func (b *resultBuckets) ordered() []Result {
-	out := make([]Result, 0,
+func (b *resultBuckets) ordered() []hit {
+	out := make([]hit, 0,
 		len(b.titleNotes)+len(b.bodyNotes)+len(b.titleFiles)+len(b.bodyFiles)+len(b.pathNotes)+len(b.pathFiles))
 	out = append(out, b.titleNotes...)
 	out = append(out, b.bodyNotes...)

@@ -3,6 +3,7 @@ package search
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"html"
 	"io"
 	"log/slog"
@@ -224,6 +225,54 @@ func TestSearchHitStatusChipFollowsGovernance(t *testing.T) {
 				t.Errorf("status chip present = %t, want %t; body = %q", got, tt.wantChip, body)
 			}
 		})
+	}
+}
+
+// TestSearchResponseIsBounded pins the response cap. A term matching most of a
+// large vault used to ship every hit — a multi-megabyte fragment rebuilt on
+// each pause in typing — so the list holds only the opening two hundred while
+// the count line and the fragment's count marker keep the true tally.
+func TestSearchResponseIsBounded(t *testing.T) {
+	t.Parallel()
+
+	docs := make([]Document, 0, 207)
+	for i := range 207 {
+		docs = append(docs, Document{
+			RelPath:   fmt.Sprintf("Notes/n%03d.md", i),
+			Title:     fmt.Sprintf("Note %03d", i),
+			PlainText: "bounded needle body",
+		})
+	}
+	idx := NewIndex(docs, validArtifactPolicy(t))
+	h := NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=needle", http.NoBody)
+	rr := httptest.NewRecorder()
+	h.results(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	if got := strings.Count(body, "<li>"); got != 200 {
+		t.Errorf("rendered result rows = %d, want 200", got)
+	}
+	if !strings.Contains(body, "共 207 筆，顯示前 200 筆") {
+		t.Errorf("the capped list does not say both numbers; body opens %q", body[:min(len(body), 400)])
+	}
+	if !strings.Contains(body, `data-result-count="207"`) {
+		t.Errorf("the count marker does not carry the true tally; body opens %q", body[:min(len(body), 400)])
+	}
+
+	req = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
+	rr = httptest.NewRecorder()
+	h.search(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("full page status = %d, want 200", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "共 207 筆，顯示前 200 筆") {
+		t.Error("the full page does not say both numbers")
 	}
 }
 

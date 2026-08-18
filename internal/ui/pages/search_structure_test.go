@@ -26,7 +26,7 @@ func TestSearchPageHeadingAndResultList(t *testing.T) {
 		wantItems int
 		wantCount string
 	}{
-		{name: "hits arrive as a set", view: SearchView{Query: "a", Results: hits}, wantList: true, wantItems: 2, wantCount: "共 2 筆"},
+		{name: "hits arrive as a set", view: SearchView{Query: "a", Results: hits, Total: 2}, wantList: true, wantItems: 2, wantCount: "共 2 筆"},
 		// The two below are the control: a page that always carried a list
 		// would pass the first row while proving nothing, and a heading tucked
 		// inside the results branch would pass it too.
@@ -68,7 +68,7 @@ func TestSearchResultsFragmentCarriesNoHeading(t *testing.T) {
 
 	var buf bytes.Buffer
 	results := []SearchResult{{Title: "First", RelPath: "Concepts/first.md"}}
-	if err := SearchResults("a", results, "", false, nil).Render(t.Context(), &buf); err != nil {
+	if err := SearchResults("a", results, len(results), "", false, nil).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render search results: %v", err)
 	}
 	html := buf.String()

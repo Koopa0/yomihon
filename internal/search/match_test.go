@@ -2,6 +2,7 @@ package search
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -633,6 +634,52 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].RelPath != "Concepts/A.md" {
 		t.Errorf("bare-text Search() results = %v, want readable corpus preserved", results)
+	}
+}
+
+// TestBoundedSearchKeepsTheOpeningStretch pins the two properties the bounded
+// variant owes its callers: the total is the count the unbounded answer would
+// have, and the kept results are exactly that answer's opening stretch — same
+// hits, same order, same snippets. A cap that reordered or resampled would
+// make the first page of a broad query a different page each time.
+func TestBoundedSearchKeepsTheOpeningStretch(t *testing.T) {
+	t.Parallel()
+
+	docs := make([]Document, 0, 10)
+	for i := range 9 {
+		docs = append(docs, Document{
+			RelPath:   fmt.Sprintf("Notes/n%d.md", i),
+			Title:     fmt.Sprintf("Note %d", i),
+			PlainText: "shared needle body",
+		})
+	}
+	// A title hit sorted last by path, so bucket order (title hits first)
+	// disagrees with scan order and a cap taken during the scan would keep the
+	// wrong hits.
+	docs = append(docs, Document{RelPath: "Notes/z-title.md", Title: "needle in the title", PlainText: "no match here"})
+	idx := NewIndex(docs, validArtifactPolicy(t))
+
+	all, err := idx.Search(Parse("needle"))
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(all) != 10 || all[0].RelPath != "Notes/z-title.md" {
+		t.Fatalf("unbounded answer = %d results opening with %q, want 10 opening with the title hit", len(all), all[0].RelPath)
+	}
+
+	bounded, total, err := idx.search(Parse("needle"), 4)
+	if err != nil {
+		t.Fatalf("search() error = %v", err)
+	}
+	if total != 10 {
+		t.Errorf("total = %d, want 10", total)
+	}
+	if diff := cmp.Diff(all[:4], bounded); diff != "" {
+		t.Errorf("bounded results are not the opening stretch (-unbounded[:4] +bounded):\n%s", diff)
+	}
+
+	if _, countOnly, countErr := idx.search(Parse("needle"), 0); countErr != nil || countOnly != 10 {
+		t.Errorf("count-only search = (total %d, %v), want (10, nil)", countOnly, countErr)
 	}
 }
 

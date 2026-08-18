@@ -14,8 +14,13 @@ import (
 // SearchResult, keeping the import one-directional (search → pages), like the
 // reading page.
 type SearchView struct {
-	Query      string
-	Results    []SearchResult
+	Query   string
+	Results []SearchResult
+
+	// Total is how many hits the query truly has. Results holds at most the
+	// handler's bounded opening stretch of them, and the count line says both
+	// numbers whenever the two differ.
+	Total      int
 	Diagnostic string
 
 	// StepBacks are the loosened searches offered when nothing matched — each
@@ -59,9 +64,15 @@ type SearchResult struct {
 	File bool
 }
 
-// resultCount names how many hits a search returned, in the reader's language.
-func resultCount(n int) string {
-	return "共 " + strconv.Itoa(n) + " 筆"
+// resultCount names how many hits a search returned, in the reader's
+// language. When the list holds only the opening stretch of a larger answer,
+// it says both numbers, so the count never claims the page shows more than it
+// does.
+func resultCount(shown, total int) string {
+	if total > shown {
+		return "共 " + strconv.Itoa(total) + " 筆，顯示前 " + strconv.Itoa(shown) + " 筆"
+	}
+	return "共 " + strconv.Itoa(total) + " 筆"
 }
 
 // SnippetRun is one stretch of a result's snippet, marked or not.
@@ -100,7 +111,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 						<button type="submit" class="y-xbtn">搜尋</button>
 					</form>
 					<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
-					@SearchResults(v.Query, v.Results, v.Diagnostic, v.Governed, v.StepBacks)
+					@SearchResults(v.Query, v.Results, v.Total, v.Diagnostic, v.Governed, v.StepBacks)
 				</div>
 			</main>
 		</div>
@@ -108,10 +119,13 @@ templ Search(v SearchView, c layouts.Chrome) {
 }
 
 // SearchResults is the server-rendered lexical-results fragment shared by the
-// full results page and the progressive search fields. The outer data marker is
-// the HTML-to-JavaScript contract; the result links remain ordinary navigation.
-templ SearchResults(query string, results []SearchResult, diagnostic string, governed bool, stepBacks []SearchStepBack) {
-	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(len(results)) } aria-busy="false">
+// full results page and the progressive search fields. The outer data marker
+// is the HTML-to-JavaScript contract — it carries the true match tally, which
+// the live-search status line announces, while the list below holds at most
+// the handler's bounded opening stretch; the result links remain ordinary
+// navigation.
+templ SearchResults(query string, results []SearchResult, total int, diagnostic string, governed bool, stepBacks []SearchStepBack) {
+	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(total) } aria-busy="false">
 		if diagnostic != "" {
 			<div class="y-searchpage__empty" data-search-diagnostic>
 				<p>中介資料搜尋目前無法使用。</p>
@@ -123,7 +137,7 @@ templ SearchResults(query string, results []SearchResult, diagnostic string, gov
 			// The count lived only in the live region the client script writes,
 			// so a reader looking at the page saw no number and a reader without
 			// scripting got none at all. Four of them asked how many.
-			<p class="y-results__count">{ resultCount(len(results)) }</p>
+			<p class="y-results__count">{ resultCount(len(results), total) }</p>
 			// The hits are one set, so they are marked as one: a listener is
 			// told where it starts, how many it holds, and where it ends. The
 			// role is written out because the style reset takes the markers
