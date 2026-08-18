@@ -325,6 +325,31 @@ func TestHandlerDirty(t *testing.T) {
 	}
 }
 
+// TestHandlerReceiptDiverged locks the routing of a diverged commit receipt:
+// the note changed and a commit exists, so the page must carry the
+// changed=true warning, name hooks and filters as the likely cause, and
+// forbid resubmitting.
+func TestHandlerReceiptDiverged(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+	writeHook(t, root, "commit-msg", "#!/bin/sh\nprintf 'chore: routine maintenance\\n' > \"$1\"\n")
+	srv := newHandlerServer(t, lifecycle)
+
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
+	if code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", code, http.StatusInternalServerError)
+	}
+	for _, want := range []string{"筆記已改寫並提交", "不符", "不要重送", "hooks"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body is missing %q: %q", want, body)
+		}
+	}
+}
+
 func TestHandlerDetachedHead(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)

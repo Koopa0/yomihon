@@ -188,6 +188,16 @@ func recoveryFor(err error) *recovery {
 			logMessage:      "status commit failed",
 			cause:           err,
 		}
+	case errors.Is(err, ErrReceiptDiverged):
+		return &recovery{
+			code:            http.StatusInternalServerError,
+			changed:         true,
+			summary:         "筆記已改寫並提交，但這筆 commit 記錄的內容與這次變更不符。",
+			nextAction:      "不要重送。最可能的原因是 vault 的 git hooks 或 filters 改動了提交內容；請用 git log 與 git show 核對這筆 commit，再手動修復。",
+			technicalDetail: err.Error(),
+			logMessage:      "status commit receipt diverged",
+			cause:           err,
+		}
 	case errors.Is(err, fs.ErrNotExist):
 		return &recovery{
 			code:       http.StatusNotFound,

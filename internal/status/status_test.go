@@ -914,6 +914,85 @@ func TestFlipRefusals(t *testing.T) {
 	}
 }
 
+// writeHook installs an executable repo-local git hook in the fixture vault.
+// Hooks are how a vault owner's own tooling participates in commits; these
+// tests use them to make the created commit diverge from the intended change.
+func writeHook(t *testing.T, root, name, script string) {
+	t.Helper()
+	hook := filepath.Join(root, ".git", "hooks", name)
+	if err := os.WriteFile(hook, []byte(script), 0o700); err != nil { // #nosec G306 -- git executes this test-owned hook fixture, so it must keep an execute bit
+		t.Fatalf("write %s hook: %v", name, err)
+	}
+}
+
+// TestFlipReportsReceiptDivergenceWhenHookEditsTheNote covers a pre-commit
+// hook that edits the note and restages it: the hook writes into the partial
+// commit's temporary index, so the created commit carries bytes the flip
+// never published while its subject still claims a clean status transition.
+func TestFlipReportsReceiptDivergenceWhenHookEditsTheNote(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+	writeHook(t, root, "pre-commit",
+		"#!/bin/sh\nprintf 'INJECTED-BY-HOOK\\n' >> '"+testRel+"'\ngit add -- '"+testRel+"'\n")
+
+	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrReceiptDiverged) {
+		t.Fatalf("Flip() with a note-editing pre-commit hook = %v, want %v", err, status.ErrReceiptDiverged)
+	}
+	// No rollback: the diverged commit stays, and its blob shows what the
+	// hook actually committed.
+	if blob := runGit(t, root, "cat-file", "blob", "HEAD:"+testRel); !strings.Contains(blob, "INJECTED-BY-HOOK") {
+		t.Errorf("committed blob = %q, want it to carry the hook's injected line", blob)
+	}
+}
+
+// TestFlipReportsReceiptDivergenceWhenHookStagesAnotherFile covers a
+// pre-commit hook that creates and stages an unrelated file: the --only
+// pathspec confines what the flip stages, but a hook staging into the
+// partial commit's temporary index widens the commit anyway.
+func TestFlipReportsReceiptDivergenceWhenHookStagesAnotherFile(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+	writeHook(t, root, "pre-commit",
+		"#!/bin/sh\nprintf 'planted by hook\\n' > Writing/hook-planted.md\ngit add -- Writing/hook-planted.md\n")
+
+	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrReceiptDiverged) {
+		t.Fatalf("Flip() with an unrelated-file-staging pre-commit hook = %v, want %v", err, status.ErrReceiptDiverged)
+	}
+	changed := strings.Fields(runGit(t, root, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"))
+	if len(changed) != 2 {
+		t.Errorf("HEAD changed paths = %v, want the note plus the hook's file (the divergence being reported)", changed)
+	}
+}
+
+// TestFlipReportsReceiptDivergenceWhenHookRewritesTheMessage covers a
+// commit-msg hook replacing the subject line wholesale: the note's bytes are
+// committed as intended, but the transition is recorded nowhere.
+func TestFlipReportsReceiptDivergenceWhenHookRewritesTheMessage(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+	writeHook(t, root, "commit-msg",
+		"#!/bin/sh\nprintf 'chore: routine maintenance\\n' > \"$1\"\n")
+
+	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrReceiptDiverged) {
+		t.Fatalf("Flip() with a message-rewriting commit-msg hook = %v, want %v", err, status.ErrReceiptDiverged)
+	}
+	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != "chore: routine maintenance" {
+		t.Errorf("commit subject = %q, want the hook's replacement (the divergence being reported)", got)
+	}
+}
+
 // TestFlipRefusesDetachedHead locks the write face's refusal to commit while
 // the vault's HEAD names no branch. git itself accepts such a commit, but it
 // lands on no ref: the moment the operator checks a branch out again, the

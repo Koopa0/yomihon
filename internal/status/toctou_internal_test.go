@@ -557,6 +557,48 @@ func TestFlipCommitsSelectedRootWhenPathIsReplacedAfterPublication(t *testing.T)
 	}
 }
 
+// TestFlipReportsReceiptDivergenceForExternalWriteBeforeCommit reproduces an
+// external writer (an editor's autosave) landing in the window between the
+// atomic publication and the git commit: git add samples the disk again, so
+// the created commit records the external bytes while its subject line
+// describes the status flip. The flip must read its receipt back and report
+// the divergence instead of unqualified success. Nothing is rolled back —
+// the commit stays for the operator to inspect.
+func TestFlipReportsReceiptDivergenceForExternalWriteBeforeCommit(t *testing.T) {
+	t.Parallel()
+	root, lifecycle := internalVault(t)
+	const rel = "Writing/lessons/japanese/L05.md"
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir note parent: %v", err)
+	}
+	original := internalLesson()
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	internalRunGit(t, root, "add", "-A")
+	internalRunGit(t, root, "commit", "-m", "seed lesson")
+	before := internalCommitCount(t, root)
+
+	external := strings.Replace(original, "\nbody\n", "\nan external edit the operator never approved\n", 1)
+	err := lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{
+		afterPublish: func() {
+			if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {
+				t.Fatalf("write external bytes: %v", writeErr)
+			}
+		},
+	})
+	if !errors.Is(err, ErrReceiptDiverged) {
+		t.Fatalf("Flip() with a post-publication external write = %v, want %v", err, ErrReceiptDiverged)
+	}
+	if after := internalCommitCount(t, root); after != before+1 {
+		t.Errorf("commit count = %d, want %d (the diverged commit stays in place)", after, before+1)
+	}
+	if blob := internalRunGit(t, root, "cat-file", "blob", "HEAD:"+rel); blob != external {
+		t.Errorf("committed blob = %q, want the external bytes %q (what actually got committed)", blob, external)
+	}
+}
+
 func TestGitChildExecFailureAfterPublicationPreservesPublishedBytes(t *testing.T) {
 	root, lifecycle := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"

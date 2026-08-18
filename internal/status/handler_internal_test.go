@@ -40,6 +40,7 @@ func TestRecoveryClassification(t *testing.T) {
 		{name: "owner forbidden", err: errors.Join(schema.ErrOwnerForbidden, errors.New("owner detail")), code: http.StatusUnprocessableEntity, wantDetail: "owner detail"},
 		{name: "publication uncertain", err: errors.Join(ErrPublishUncertain, errors.New("disk barrier failed")), code: http.StatusInternalServerError, changed: true, noDetail: true},
 		{name: "commit failed", err: errors.Join(ErrCommitFailed, errors.New("git detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "git detail"},
+		{name: "receipt diverged", err: errors.Join(ErrReceiptDiverged, errors.New("receipt detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "receipt detail"},
 		{name: "target removed", err: fs.ErrNotExist, code: http.StatusNotFound, noDetail: true},
 		{name: "unknown internal", err: errors.New("secret internal detail"), code: http.StatusInternalServerError, noDetail: true},
 	}
@@ -91,7 +92,7 @@ func TestOnlyPostPublicationFailuresClaimChanged(t *testing.T) {
 			t.Errorf("recoveryFor(%v).changed = true, want false", err)
 		}
 	}
-	for _, err := range []error{ErrPublishUncertain, ErrCommitFailed} {
+	for _, err := range []error{ErrPublishUncertain, ErrCommitFailed, ErrReceiptDiverged} {
 		if got := recoveryFor(err); !got.changed {
 			t.Errorf("recoveryFor(%v).changed = false, want true", err)
 		}

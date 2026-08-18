@@ -88,6 +88,16 @@ var (
 	// vault git error is surfaced (this is a local, single-operator tool;
 	// there is no one else who could read it) so Koopa can fix it by hand.
 	ErrCommitFailed = errors.New("status: note rewritten but git commit failed")
+	// ErrReceiptDiverged means the note was rewritten and a commit was
+	// created, but reading the commit back shows it does not record exactly
+	// the intended change: its tree touches other paths, its blob for the
+	// note differs from the bytes just published, or its subject line was
+	// replaced. Repo-local hooks and clean filters are the usual causes,
+	// and an external writer racing the commit can produce the same shape.
+	// Like ErrCommitFailed, nothing is rolled back — a rollback would be a
+	// second write hiding what happened; the divergence is surfaced so the
+	// operator can inspect the commit by hand.
+	ErrReceiptDiverged = errors.New("status: note rewritten and committed, but the commit does not record exactly this change")
 )
 
 const (
@@ -611,7 +621,7 @@ func (lc *Lifecycle) flip(ctx context.Context, rel, from, to string, hooks flipH
 	if err := lc.publishStatus(rel, relSlash, &source, rewritten, hooks); err != nil {
 		return err
 	}
-	if err := lc.commit(ctx, rel, relSlash, from, to); err != nil {
+	if err := lc.commit(ctx, rel, relSlash, from, to, rewritten); err != nil {
 		return err
 	}
 	return nil
@@ -1103,7 +1113,7 @@ func (lc *Lifecycle) dirty(ctx context.Context, rel string) (bool, error) {
 // is "Koopa pressed it". relSlash is used in the commit
 // message (a stable, slash-form path); rel is what's passed to git, which
 // on this platform are the same string.
-func (lc *Lifecycle) commit(ctx context.Context, rel, relSlash, from, to string) error {
+func (lc *Lifecycle) commit(ctx context.Context, rel, relSlash, from, to string, rewritten []byte) error {
 	// replaceRegularFile has already rewritten the file on disk by the time this
 	// runs, so a failure here — same as a failing `git commit` below — must
 	// also carry ErrCommitFailed: the caller owes the operator the "file
@@ -1115,6 +1125,53 @@ func (lc *Lifecycle) commit(ctx context.Context, rel, relSlash, from, to string)
 	msg := fmt.Sprintf("status(%s): %s → %s (via yomihon)", relSlash, from, to)
 	if _, err := runGit(ctx, lc.root, "--literal-pathspecs", "commit", "--only", "-m", msg, "--", rel); err != nil {
 		return fmt.Errorf("%w: %w", ErrCommitFailed, err)
+	}
+	return lc.verifyReceipt(ctx, relSlash, msg, rewritten)
+}
+
+// verifyReceipt reads the commit just created back and confirms it records
+// exactly the intended change: the tree touches the note alone, the
+// committed blob is the one git stores for the bytes just published, and
+// the subject line is the composed message. A zero exit from git commit
+// cannot promise any of this — repo-local hooks may edit and restage files
+// or replace the message inside the partial commit, and an external writer
+// can race the two child processes — so success is reported only after the
+// receipt itself has been read back. On any mismatch the commit is left in
+// place, mirroring the no-rollback stance of ErrCommitFailed, and the
+// divergence is surfaced to the operator. Refusals never reach this point:
+// only a flip that already published its bytes has a receipt to verify.
+func (lc *Lifecycle) verifyReceipt(ctx context.Context, relSlash, msg string, rewritten []byte) error {
+	// --root covers the degenerate first-commit shape; -z keeps names raw
+	// so non-ASCII paths are not C-quoted.
+	names, err := runGit(ctx, lc.root, "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--root", "HEAD")
+	if err != nil {
+		return fmt.Errorf("%w: %s: inspect committed paths: %w", ErrReceiptDiverged, relSlash, err)
+	}
+	if got := strings.Split(strings.TrimSuffix(string(names), "\x00"), "\x00"); len(got) != 1 || got[0] != relSlash {
+		return fmt.Errorf("%w: %s: commit changed paths %q", ErrReceiptDiverged, relSlash, got)
+	}
+	committed, err := runGit(ctx, lc.root, "rev-parse", "HEAD:"+relSlash)
+	if err != nil {
+		return fmt.Errorf("%w: %s: read committed blob id: %w", ErrReceiptDiverged, relSlash, err)
+	}
+	// The published bytes are fed through the same check-in conversion a
+	// hand-run git add applies at this path — the vault's own line-ending
+	// and attribute configuration — so the comparison asks whether the
+	// commit stores these bytes, not whether the vault is configured to
+	// store them verbatim.
+	intended, err := runGitInput(ctx, lc.root, rewritten, "hash-object", "--stdin", "--path", relSlash)
+	if err != nil {
+		return fmt.Errorf("%w: %s: compute intended blob id: %w", ErrReceiptDiverged, relSlash, err)
+	}
+	if !bytes.Equal(bytes.TrimSpace(committed), bytes.TrimSpace(intended)) {
+		return fmt.Errorf("%w: %s: committed bytes differ from the published note", ErrReceiptDiverged, relSlash)
+	}
+	subject, err := runGit(ctx, lc.root, "log", "-1", "--format=%s", "HEAD")
+	if err != nil {
+		return fmt.Errorf("%w: %s: read commit subject: %w", ErrReceiptDiverged, relSlash, err)
+	}
+	if got := strings.TrimSuffix(string(subject), "\n"); got != msg {
+		return fmt.Errorf("%w: %s: commit subject %q, want %q", ErrReceiptDiverged, relSlash, got, msg)
 	}
 	return nil
 }

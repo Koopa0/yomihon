@@ -21,6 +21,12 @@ const gitRootFD = 3
 // the child, rather than starting a grandchild, keeps CommandContext's process
 // cancellation attached to the actual git process.
 func runGit(ctx context.Context, root *os.Root, args ...string) ([]byte, error) {
+	return runGitInput(ctx, root, nil, args...)
+}
+
+// runGitInput is runGit with the given bytes supplied to git on standard
+// input, for subcommands that read content from stdin instead of a path.
+func runGitInput(ctx context.Context, root *os.Root, input []byte, args ...string) ([]byte, error) {
 	dir, err := root.Open(".")
 	if err != nil {
 		return nil, fmt.Errorf("duplicate git root: %w", err)
@@ -34,6 +40,9 @@ func runGit(ctx context.Context, root *os.Root, args ...string) ([]byte, error) 
 	childArgs = append(childArgs, args...)
 	cmd := exec.CommandContext(ctx, executable, childArgs...) // #nosec G204 G702 -- executable is this binary; arguments remain discrete and the child can only exec git
 	cmd.ExtraFiles = []*os.File{dir}
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	out, runErr := cmd.CombinedOutput()
 	closeErr := dir.Close()
 	if runErr != nil {
