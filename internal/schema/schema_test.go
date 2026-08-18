@@ -1368,30 +1368,43 @@ func TestSealStatusPinned(t *testing.T) {
 
 // TestStatusValuesAreNeverHardcodedOutsideSchema guards the single-source rule
 // for the status state machine. The legal status values are defined once, in
-// the vault contract that this package alone reads; no other package under
-// internal/ may pin one of those values as a string literal in its logic.
-// Naming the value as a const, at any scope, is allowed — that is a single
-// named reference, not a second copy of the value set — so only literals used
-// directly in expressions are flagged. The judge package is exempt: it
+// the vault contract that this package alone reads; no other package in this
+// module — cmd included — may pin one of those values as a string literal in
+// its logic. Naming the value as a const, at any scope, is allowed — that is a
+// single named reference, not a second copy of the value set — so only literals
+// used directly in expressions are flagged. The judge package is exempt: it
 // reproduces, byte for byte, a frozen external contract whose rule constants
 // happen to be status values, pinned by its golden files rather than derived
-// from this contract. The forbidden set is loaded from the fixture contract, so
-// the test behaves the same on every machine, with or without the real vault.
-// The set is the bare status words, so an unrelated literal equal to one — a
-// log line, a class name — would also trip this guard; that trade-off is
-// accepted, since restricting the match to literals compared against a
-// status-typed value is far harder to express and the words rarely collide.
+// from this contract. Generated files are exempt too, except the templ
+// outputs: they embed each template source's expression literals
+// deterministically, so scanning them covers the templates without parsing
+// templ syntax. The forbidden set is the union of the fixture contract and the
+// example contract shipped for new vaults, so a value present in either is
+// guarded and the test behaves the same on every machine, with or without the
+// real vault. The set is the bare status words, so an unrelated literal equal
+// to one — a log line, a class name — would also trip this guard; that
+// trade-off is accepted, since restricting the match to literals compared
+// against a status-typed value is far harder to express and the words rarely
+// collide.
 func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 	t.Parallel()
-	s := loadFixture(t)
+	root := moduleRoot(t)
 	forbidden := map[string]bool{}
-	for _, group := range s.Definition().Enums.Status {
-		for _, value := range group {
-			forbidden[value] = true
+	for _, contractPath := range []string{
+		filepath.Join("testdata", "contract.toml"),
+		filepath.Join(root, "examples", "vault-schema.toml"),
+	} {
+		s, err := schema.LoadFile(contractPath)
+		if err != nil {
+			t.Fatalf("LoadFile(%q) = %v", contractPath, err)
+		}
+		for _, group := range s.Definition().Enums.Status {
+			for _, value := range group {
+				forbidden[value] = true
+			}
 		}
 	}
 
-	const root = ".." // this test runs in internal/schema, so .. is internal/
 	fset := token.NewFileSet()
 	var violations []string
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -1400,8 +1413,13 @@ func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 		}
 		if d.IsDir() {
 			// schema owns the contract; judge reproduces a frozen external one
-			// whose rule constants happen to be status values.
-			if path == filepath.Join(root, "schema") || path == filepath.Join(root, "judge") {
+			// whose rule constants happen to be status values. node_modules
+			// holds runner-local lint tooling, not module sources.
+			switch {
+			case path == filepath.Join(root, ".git"),
+				d.Name() == "node_modules",
+				path == filepath.Join(root, "internal", "schema"),
+				path == filepath.Join(root, "internal", "judge"):
 				return filepath.SkipDir
 			}
 			return nil
@@ -1413,7 +1431,7 @@ func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 		if perr != nil {
 			return fmt.Errorf("parse %s: %w", path, perr)
 		}
-		if ast.IsGenerated(f) {
+		if ast.IsGenerated(f) && !strings.HasSuffix(path, "_templ.go") {
 			return nil
 		}
 		// A status value on the right of a const declaration names the value in
@@ -1454,11 +1472,32 @@ func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 		return nil
 	})
 	if walkErr != nil {
-		t.Fatalf("walk internal/: %v", walkErr)
+		t.Fatalf("walk module: %v", walkErr)
 	}
 	if len(violations) > 0 {
 		t.Errorf("a status value is defined only in the vault contract, but these string literals hardcode one outside internal/schema — name it as a const or move the decision behind this package:\n%s",
 			strings.Join(violations, "\n"))
+	}
+}
+
+// moduleRoot walks up from the test's working directory to the directory
+// holding go.mod, so the status-literal guard covers the whole module — cmd,
+// tools, and the templ outputs — rather than only the tree beneath internal/.
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	for {
+		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("module root: go.mod not found above the working directory")
+		}
+		dir = parent
 	}
 }
 
