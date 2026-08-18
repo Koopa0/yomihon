@@ -11,6 +11,10 @@ require (
 )
 
 require (
+	// chroma has no stable v3 tag yet; this is deliberately the newest v3
+	// prerelease, and the pin moves to v3.0.0 when it exists. Dropping to the
+	// stable v2 line would be an API rework without cause; the render goldens
+	// gate any future bump.
 	github.com/alecthomas/chroma/v3 v3.0.0-alpha.5
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.40.0
