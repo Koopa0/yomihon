@@ -155,11 +155,13 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 // origin also receive a Content-Security-Policy sandbox; PDF keeps the narrower
 // confinement described by rawContentSecurityPolicy.
 //
-// The sandbox here is stricter than the report route's. A briefing runs its own
-// charts and so is allowed scripts; a vault file has no reason ever to execute
-// against yomihon's origin, so a bare sandbox is what a same-origin SVG or HTML
-// document meets. Without it, opening one top-level would give it read of the
-// whole reading surface.
+// The sandbox here is tighter than the report route's in one respect: both
+// policies refuse scripts, but the report policy admits data: fonts, images,
+// and media so a self-contained briefing can render its embedded resources,
+// while a vault file gets no sources at all. A vault file has no reason ever to
+// execute against yomihon's origin, so a bare sandbox is what a same-origin SVG
+// or HTML document meets. Without it, opening one top-level would give it read
+// of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {

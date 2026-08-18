@@ -144,10 +144,11 @@ type Pipeline struct {
 }
 
 // New builds a rendering pipeline from one generation's link resolver and
-// captured transclusion bodies. It enables GFM (tables, task lists, and
-// strikethrough), footnotes, the inert authored-markup subset used by Japanese
-// lessons, and the ==highlight== inline extension. Both capabilities must
-// describe the same generation and must not be nil.
+// captured transclusion bodies. It enables GFM (tables, task lists,
+// strikethrough, and autolinked bare URLs), footnotes, the inert
+// authored-markup subset used by Japanese lessons, and the ==highlight==
+// inline extension. Both capabilities must describe the same generation and
+// must not be nil.
 //
 // Footnotes are a parser concern rather than one of this package's own dialect
 // passes, and enabling them is what stops "[^name]" being read as an ordinary
