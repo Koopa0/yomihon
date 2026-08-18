@@ -1,6 +1,7 @@
 package nav
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,12 +21,38 @@ func FuzzParseBranches(f *testing.F) {
 		"## Anchors\n- [[#same-file]]",
 		"######## Deep\n+ [[深いリンク]]",
 		"## Controls\x00\n- [[目標\u0085名]]",
+		"## Warnings\n- [[Duplicate Name]]\n- [[Card]]\n- [[No Such Note]]",
 	} {
 		f.Add(seed)
 	}
 
-	idx := graph.BuildFromNotes(nil, nil)
-	policy := schema.ArtifactPolicy{}
+	// A small fixed vault instead of an empty one: the parser keeps only
+	// uniquely resolved governed entries, so an empty index prunes every
+	// branch and the assertions below never execute. These notes make each
+	// resolution outcome reachable — unique targets the seeds link to, a
+	// duplicate basename pair for ambiguity, and a note inside the fixture
+	// contract's non-instance directory.
+	idx := graph.BuildFromNotes([]graph.NoteInput{
+		{Path: "Effective Go.md"},
+		{Path: "Lessons/L01 はじめまして.md"},
+		{Path: "Concepts/Duplicate Name.md"},
+		{Path: "Sources/Duplicate Name.md"},
+		{Path: "System/templates/Card.md"},
+	}, nil)
+	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		f.Fatalf("schema.LoadFile: %v", err)
+	}
+	policy := contract.ArtifactPolicy()
+
+	// The harness proves its own reach before fuzzing: if the fixed vault
+	// stopped resolving the seed links, every tree would be empty again and
+	// the tree assertions would pass over anything.
+	smoke := parseBranches("## part\n- [[Effective Go]]", idx, nil, policy)
+	if len(smoke) != 1 || len(smoke[0].Entries) != 1 || smoke[0].Entries[0].Kind != EntryResolved {
+		f.Fatalf("harness self-check: parseBranches() = %#v, want one branch holding one resolved entry", smoke)
+	}
+
 	f.Fuzz(func(t *testing.T, body string) {
 		const maxInput = 32 << 10
 		if len(body) > maxInput {
@@ -61,8 +88,8 @@ func checkBranchTree(t *testing.T, branches []Branch, parentLevel int) (nodes, e
 		nodes++
 		entries += len(branch.Entries)
 		for _, entry := range branch.Entries {
-			if entry.Kind != EntryUnresolved || entry.RelPath != "" || len(entry.Candidates) != 0 {
-				t.Fatalf("entry from empty resolver = %#v, want unresolved without path or candidates", entry)
+			if entry.Kind != EntryResolved || entry.RelPath == "" || len(entry.Candidates) != 0 {
+				t.Fatalf("kept entry = %#v, want uniquely resolved with a path — this parser drops warning kinds", entry)
 			}
 		}
 		subNodes, subEntries := checkBranchTree(t, branch.Subbranches, branch.Level)
