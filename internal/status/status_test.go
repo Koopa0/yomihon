@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -1434,6 +1435,62 @@ func TestFlipByteIdentical(t *testing.T) {
 				t.Errorf("file mismatch after flip (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// TestFlipRemovesAbandonedTempFiles covers the one residue a crash inside
+// the publication window leaves behind: a dot-prefixed temp file with the
+// full intended note content, invisible to the reading scan and reclaimed
+// by nothing. A later flip in the same directory must clear exactly that
+// shape — a regular file named as writeTemp names them, old enough that no
+// live process can own it — and must leave every other entry alone: a
+// fresh temp may belong to a concurrently running process, and any other
+// name or file kind was never yomihon's to touch.
+func TestFlipRemovesAbandonedTempFiles(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	original := lessonContent("draft")
+	writeNote(t, root, original)
+	commitAll(t, root)
+
+	dir := filepath.Dir(filepath.Join(root, filepath.FromSlash(testRel)))
+	agedTemp := filepath.Join(dir, ".yomihon-status-PLANTEDOLD.tmp")
+	freshTemp := filepath.Join(dir, ".yomihon-status-PLANTEDNEW.tmp")
+	suffixDecoy := filepath.Join(dir, ".yomihon-status-PLANTED.keep")
+	prefixDecoy := filepath.Join(dir, "yomihon-status-PLANTED.tmp")
+	dirShape := filepath.Join(dir, ".yomihon-status-PLANTEDDIR.tmp")
+	for _, path := range []string{agedTemp, freshTemp, suffixDecoy, prefixDecoy} {
+		if err := os.WriteFile(path, []byte("stranded"), 0o600); err != nil {
+			t.Fatalf("plant %s: %v", path, err)
+		}
+	}
+	if err := os.Mkdir(dirShape, 0o750); err != nil {
+		t.Fatalf("plant directory: %v", err)
+	}
+	aged := time.Now().Add(-2 * time.Hour)
+	for _, path := range []string{agedTemp, suffixDecoy, prefixDecoy, dirShape} {
+		if err := os.Chtimes(path, aged, aged); err != nil {
+			t.Fatalf("age %s: %v", path, err)
+		}
+	}
+
+	if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
+		t.Fatalf("Flip() = %v, want nil", err)
+	}
+
+	if _, err := os.Lstat(agedTemp); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("aged conforming temp survives (lstat error = %v), want it removed", err)
+	}
+	for _, path := range []string{freshTemp, suffixDecoy, prefixDecoy, dirShape} {
+		if _, err := os.Lstat(path); err != nil {
+			t.Errorf("lstat %s = %v, want the entry left alone", path, err)
+		}
+	}
+	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	if got := readNote(t, root); got != want {
+		t.Errorf("note after flip = %q, want %q", got, want)
 	}
 }
 

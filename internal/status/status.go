@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -969,6 +970,7 @@ func replaceRegularFile(
 	if err != nil {
 		return err
 	}
+	removeStaleTemps(preparedParent)
 	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp)
 	if err != nil {
 		closeRoot(preparedParent)
@@ -1091,8 +1093,53 @@ func readCurrentSource(parent *os.Root, relSlash string, source *fileSnapshot) (
 	return current, opened, nil
 }
 
+// statusTempPrefix and statusTempSuffix bracket the names writeTemp creates
+// beside the note. removeStaleTemps recognizes abandoned temps by exactly
+// this shape, so the two stay defined in one place.
+const (
+	statusTempPrefix = ".yomihon-status-"
+	statusTempSuffix = ".tmp"
+)
+
+// staleTempAge is how old an abandoned temp file must be before the write
+// face clears it away. Only process death inside the publication window can
+// strand one — every in-process failure removes its own temp — and a
+// stranded file is invisible to the reading scan, which hides dot-prefixed
+// names, so nothing else ever reclaims it. An hour is far beyond any flip's
+// lifetime and keeps a temp belonging to a concurrently running process out
+// of reach.
+const staleTempAge = time.Hour
+
+// removeStaleTemps clears temp files a crashed flip abandoned in the note's
+// directory. The sweep is deliberately narrow: only a regular file whose
+// name carries exactly the shape writeTemp creates, older than
+// staleTempAge, is removed; directories, symbolic links, young files, and
+// every other name are left alone. Best-effort throughout — the flip about
+// to run does not depend on it.
+func removeStaleTemps(parent *os.Root) {
+	dir, err := parent.Open(".")
+	if err != nil {
+		return
+	}
+	names, err := dir.Readdirnames(-1)
+	_ = dir.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
+	if err != nil {
+		return
+	}
+	for _, name := range names {
+		if !strings.HasPrefix(name, statusTempPrefix) || !strings.HasSuffix(name, statusTempSuffix) {
+			continue
+		}
+		info, statErr := parent.Lstat(name)
+		if statErr != nil || !info.Mode().IsRegular() || time.Since(info.ModTime()) < staleTempAge {
+			continue
+		}
+		_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup of an abandoned temp
+	}
+}
+
 func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error) (string, error) {
-	name := ".yomihon-status-" + rand.Text() + ".tmp"
+	name := statusTempPrefix + rand.Text() + statusTempSuffix
 	tmp, err := parent.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
