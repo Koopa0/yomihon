@@ -413,6 +413,11 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The loop's clock is pinned so the test can stand at the next tick: after
+	// a failed rebuild the next expensive attempt waits one scan interval, and
+	// real time does not pass between two direct rescan calls.
+	clock := time.Now()
+	store.now = func() time.Time { return clock }
 	complete := store.Current()
 
 	writeNote(t, root, relPath, "---\ntitle: Alpha\ntype: concept\n---\nreplacement body with a different size\n")
@@ -425,6 +430,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 		t.Fatal("transient read did not retain a retry signal")
 	}
 
+	clock = clock.Add(scanInterval)
 	store.rescan(t.Context())
 	if got := store.Current(); got == complete {
 		t.Fatal("successful retry did not publish the replacement generation")
@@ -825,6 +831,87 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note(added); !ok {
 		t.Error("a note written after the unreadable file never reached a published generation")
+	}
+}
+
+// TestPermanentReadFailureBoundsRebuildWork pins the cost of a read that never
+// succeeds. Every rescan tick keeps its cheap metadata scan, but the expensive
+// full rebuild — re-reading every file and rebuilding every projection — backs
+// off exponentially while the vault's metadata holds still, and any
+// metadata-visible change retries immediately. Without the bound, one
+// permanently unreadable note re-reads the whole folder every two seconds,
+// forever, with stderr as the only evidence.
+func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const failing = "Concepts/Alpha.md"
+	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "Concepts/Base.md", "---\ntitle: Base\ntype: concept\n---\nbase\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete := store.Current()
+	base := time.Now()
+	clock := base
+	store.now = func() time.Time { return clock }
+
+	// The note is edited — its size changes, so the next rescan rebuilds — and
+	// from now on every read of it fails.
+	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha, now a different size\n")
+	source.fail[failing] = 1 << 30
+
+	// One rescan per scan interval, as the ticker would drive it. The cheap
+	// metadata scan runs on every tick; the expensive rebuild follows the
+	// doubling schedule, capped at one minute.
+	var attemptTicks []int
+	last := source.reads[failing]
+	for tick := range 62 {
+		clock = base.Add(time.Duration(tick) * scanInterval)
+		store.rescan(t.Context())
+		if source.reads[failing] > last {
+			attemptTicks = append(attemptTicks, tick)
+			last = source.reads[failing]
+		}
+	}
+	// Ticks are two seconds apart: attempts at 0s, 2s, 6s, 14s, 30s, 62s and
+	// then the capped interval, 122s. Unbounded retry attempts on all 62.
+	if diff := cmp.Diff([]int{0, 1, 3, 7, 15, 31, 61}, attemptTicks); diff != "" {
+		t.Errorf("rebuild attempt ticks mismatch (-want +got):\n%s", diff)
+	}
+	if store.Current() != complete {
+		t.Error("an incomplete rebuild published a generation")
+	}
+
+	// A metadata-visible change — here the fixed permission the operator just
+	// made — retries immediately rather than waiting out the delay.
+	if err := os.Chmod(filepath.Join(root, filepath.FromSlash(failing)), 0o400); err != nil {
+		t.Fatalf("Chmod(%s): %v", failing, err)
+	}
+	before := source.reads[failing]
+	store.rescan(t.Context())
+	if got := source.reads[failing] - before; got != 1 {
+		t.Errorf("rebuild attempts after a metadata change = %d, want an immediate 1", got)
+	}
+	// The change also restarts the schedule: the next attempt after this new
+	// failure waits one interval again rather than the capped minute.
+	clock = clock.Add(scanInterval)
+	before = source.reads[failing]
+	store.rescan(t.Context())
+	if got := source.reads[failing] - before; got != 1 {
+		t.Errorf("rebuild attempts one interval after the restarted schedule = %d, want 1", got)
 	}
 }
 

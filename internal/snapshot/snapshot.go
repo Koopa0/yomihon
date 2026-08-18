@@ -33,6 +33,13 @@ import (
 // identity model.
 const scanInterval = 2 * time.Second
 
+// maxRetryDelay caps the exponential backoff between full rebuild attempts
+// while a wanted source stays unreadable. The cheap metadata scan still runs
+// every scanInterval, so any visible change — a fixed permission, a new file —
+// retries immediately; the cap bounds only how often an unchanged and still
+// unreadable folder is fully re-read.
+const maxRetryDelay = time.Minute
+
 // Source is the rooted read capability required to construct a generation.
 // The interface is defined by its only consumer so tests can count scans and
 // reads without weakening vault.Reader's production identity checks.
@@ -236,19 +243,30 @@ func (v *View) Transclusion(canonicalPath string) (string, bool) {
 }
 
 // Store publishes the current View and drives its single reconciliation loop.
-// prev and retry are owned by that one loop; Current is safe for concurrent
-// request use.
+// prev, retry, and the backoff fields are owned by that one loop; Current is
+// safe for concurrent request use.
 type Store struct {
 	ptr atomic.Pointer[View]
 
 	source          Source
 	log             *slog.Logger
+	now             func() time.Time
 	roles           schema.NavigationRoles
 	scope           schema.KnowledgeScope
 	artifactPolicy  schema.ArtifactPolicy
 	articleLanguage schema.ArticleLanguage
 	prev            vault.Scan
 	retry           bool
+
+	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry
+	// loop. While rebuild attempts keep coming back incomplete over an
+	// unchanged file domain, each failure doubles the wait before the next
+	// expensive attempt, up to maxRetryDelay; any metadata-visible change
+	// bypasses the wait and restarts the schedule, so recovery stays as
+	// immediate as the scan interval.
+	consecutiveIncomplete int
+	nextRetry             time.Time
+	incompleteScan        vault.Scan
 }
 
 // New captures and builds the initial generation synchronously. source and log
@@ -286,6 +304,7 @@ func New(
 	store := &Store{
 		source:          source,
 		log:             log,
+		now:             time.Now,
 		roles:           roles,
 		scope:           scope,
 		artifactPolicy:  policy,
@@ -330,6 +349,13 @@ func (s *Store) rescan(ctx context.Context) {
 	if !s.retry && s.prev.SameFiles(scan) {
 		return
 	}
+	// While rebuilds keep failing over an unchanged file domain, the expensive
+	// attempt waits out its backoff delay. The cheap scan above already ran,
+	// so any metadata-visible change — including the fix that makes the source
+	// readable again — falls through here and retries at once.
+	if s.retry && s.now().Before(s.nextRetry) && s.incompleteScan.SameFiles(scan) {
+		return
+	}
 	if s.artifactPolicy.Available() {
 		s.artifactPolicy = s.artifactPolicy.ValidateSource()
 	}
@@ -350,15 +376,48 @@ func (s *Store) rescan(ctx context.Context) {
 		return
 	}
 	if retry {
-		s.retry = true
-		s.log.Warn("vault snapshot incomplete; retaining previous generation",
-			"scan_problems", len(scan.Problems()))
+		s.noteIncomplete(scan)
 		return
 	}
 	s.ptr.Store(candidate)
 	s.prev = scan
 	s.retry = false
+	s.consecutiveIncomplete = 0
+	s.nextRetry = time.Time{}
+	s.incompleteScan = vault.Scan{}
 	s.logBuild("vault snapshot rebuilt", candidate, scan)
+}
+
+// noteIncomplete records one incomplete rebuild attempt and schedules the next
+// expensive retry. A failure over a file domain that changed since the last
+// attempt restarts the schedule: the world moved, so this is a new failure
+// rather than the same one again.
+func (s *Store) noteIncomplete(scan vault.Scan) {
+	if !s.incompleteScan.SameFiles(scan) {
+		s.consecutiveIncomplete = 0
+	}
+	s.consecutiveIncomplete++
+	s.incompleteScan = scan
+	s.nextRetry = s.now().Add(retryDelay(s.consecutiveIncomplete))
+	s.retry = true
+	s.log.Warn("vault snapshot incomplete; retaining previous generation",
+		"scan_problems", len(scan.Problems()),
+		"consecutive_incomplete", s.consecutiveIncomplete,
+		"next_retry", s.nextRetry)
+}
+
+// retryDelay is the wait after the nth consecutive incomplete rebuild over an
+// unchanged file domain: one scan interval, doubled per further failure,
+// capped at maxRetryDelay.
+func retryDelay(consecutive int) time.Duration {
+	delay := scanInterval
+	for i := 1; i < consecutive; i++ {
+		delay *= 2
+		if delay >= maxRetryDelay {
+			return maxRetryDelay
+		}
+	}
+	return delay
 }
 
 // buildView performs one generation build from one completed enumeration. A
