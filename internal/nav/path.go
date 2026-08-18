@@ -117,6 +117,15 @@ type PathEntry struct {
 	Span   sequence.Span
 	State  sequence.EntryState
 
+	// Number is the row's position in the sequence its branch projects,
+	// assigned by the same walk that builds the components: the main line
+	// counts on through every primary branch in document order, and each side
+	// branch counts its own rows from one. A planned or otherwise warning row
+	// keeps its number — an unwritten lesson is still one of the course's
+	// lessons. Zero means the walk never reaches the row's branch. Line, by
+	// contrast, is a source location, not a course position.
+	Number int
+
 	Kind       EntryKind
 	RelPath    string
 	Status     string
@@ -305,7 +314,8 @@ func (w *stopWalk) walk(g *PathGroup) {
 }
 
 // primary folds one main-line branch into the course: every accepted row is a
-// planned lesson, and the ones that resolve are the stops a reader can walk.
+// planned lesson carrying its position on the line, and the ones that resolve
+// are the stops a reader can walk.
 func (w *stopWalk) primary(g *PathGroup) {
 	for _, item := range g.Items {
 		switch {
@@ -314,6 +324,7 @@ func (w *stopWalk) primary(g *PathGroup) {
 				continue
 			}
 			w.main.planned++
+			item.Entry.Number = w.main.planned
 			if item.Entry.Openable() {
 				w.main.stops = append(w.main.stops, NoteRef{Name: item.Entry.Text, RelPath: item.Entry.RelPath})
 			}
@@ -333,13 +344,22 @@ func (w *stopWalk) descend(g *PathGroup) {
 }
 
 // localStops are the lessons a local branch itself lists that a reader can
-// open. A local branch never carries another walkable branch: an undeclared
-// nested list beneath it projects nothing, and a local inside a local was
-// already refused.
+// open. Its accepted rows are numbered from one on the branch's own count —
+// never the main line's, because the declared orders never join. A local
+// branch never carries another walkable branch: an undeclared nested list
+// beneath it projects nothing, a local inside a local was already refused,
+// and a branch nested beneath it with any other declaration is drawn by the
+// course page but walked by nothing, so its rows keep number zero.
 func localStops(g *PathGroup) []NoteRef {
 	var stops []NoteRef
+	n := 0
 	for _, item := range g.Items {
-		if item.Entry != nil && item.Entry.Openable() {
+		if item.Entry == nil || item.Entry.State != sequence.EntryAccepted {
+			continue
+		}
+		n++
+		item.Entry.Number = n
+		if item.Entry.Openable() {
 			stops = append(stops, NoteRef{Name: item.Entry.Text, RelPath: item.Entry.RelPath})
 		}
 	}

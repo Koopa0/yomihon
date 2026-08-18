@@ -64,13 +64,80 @@ type PathItemView struct {
 }
 
 // PathEntryView is one linked or warning row. Only resolved rows have an href,
-// status, or sealed state.
+// status, or sealed state. Number is copied from navigation's own walk — the
+// single owner of sequence position — and keeps its meaning: zero says the
+// walk never reaches the row's branch, and the page must not print an ordinal
+// no walk can match.
 type PathEntryView struct {
 	Text   string
 	Href   string
 	Status string
 	Sealed bool
 	Kind   nav.EntryKind
+	Number int
+}
+
+// PathRunView is one uninterrupted stretch of what a branch lists: either a
+// run of rows or one nested branch. Ordered marks a run whose rows carry
+// sequence numbers, which is what lets the page render it as a real ordered
+// list instead of look-alike siblings; Label is that list's accessible name.
+type PathRunView struct {
+	Entries []PathEntryView
+	Branch  *PathBranchView
+	Ordered bool
+	Label   string
+}
+
+// Runs regroups a branch's items for rendering: consecutive rows form one
+// run, and each nested branch stands alone, exactly in document order. It is
+// derived on demand so Items stays the single stored form of the branch.
+//
+// An ordered run is named for the sequence component it belongs to — 主線 for
+// the main line, 支線：name for a side branch — with （接續） marking a
+// fragment that resumes after an interruption, read off the first row's walk
+// number. Assistive technology otherwise announces every fragment as an
+// anonymous list, and a course split by its own headings and side branches
+// becomes several indistinguishable ones. The name is a plain attribute
+// string: no visible text says 主線 or （接續） anywhere — the part headings
+// are the author's own words — so there is nothing for the accessible name to
+// point at, and the side-branch heading beside its list also carries the
+// count chip, which a name should not swallow. The rail's lesson-steps
+// label set the precedent of a chrome phrase carrying an authored title.
+func (v *PathBranchView) Runs() []PathRunView {
+	var runs []PathRunView
+	for _, item := range v.Items {
+		switch {
+		case item.Entry != nil:
+			if len(runs) == 0 || runs[len(runs)-1].Branch != nil {
+				run := PathRunView{Ordered: item.Entry.Number > 0}
+				if run.Ordered {
+					run.Label = v.runLabel(item.Entry.Number)
+				}
+				runs = append(runs, run)
+			}
+			last := &runs[len(runs)-1]
+			last.Entries = append(last.Entries, *item.Entry)
+		case item.Branch != nil:
+			runs = append(runs, PathRunView{Branch: item.Branch})
+		}
+	}
+	return runs
+}
+
+// runLabel names one ordered fragment. first is the fragment's first walk
+// number: one means the component opens here, anything later means the
+// fragment resumes an already-open order.
+func (v *PathBranchView) runLabel(first int) string {
+	if v.Local {
+		if first > 1 {
+			return "支線：" + v.Heading + "（接續）"
+		}
+		return "支線：" + v.Heading
+	}
+	if first > 1 {
+		return "主線（接續）"
+	}
+	return "主線"
 }
 
 // PathLink is one entry in the path switcher: a study-path's title, the
@@ -116,7 +183,9 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 // buildPathBranch converts one projectable branch and its drawable subtree into
 // a view. ok is false for a branch the course does not include and that carries
 // no declared branch beneath it — a structural heading whose whole job is to
-// hold parts still draws, because dropping it would orphan them.
+// hold parts still draws, because dropping it would orphan them. Sequence
+// position is not decided here: navigation's walk already numbered every row
+// it reaches, and the view only copies that answer.
 func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	if !drawable(g) {
 		return PathBranchView{}, false
@@ -203,8 +272,10 @@ func countReady(branches []PathBranchView) int {
 }
 
 // buildPathEntry maps one nav entry onto a linked or warning study-path row.
+// The number is copied for every row, warning rows included — a planned
+// lesson keeps its place on the line it is planned into.
 func buildPathEntry(entry *nav.PathEntry) PathEntryView {
-	v := PathEntryView{Text: entry.Text, Kind: entry.Kind}
+	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number}
 	if entry.Kind != nav.EntryResolved {
 		return v
 	}

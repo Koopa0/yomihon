@@ -403,6 +403,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Prev:              sidebar.FooterPrev,
 		Next:              sidebar.FooterNext,
 		StepsLabel:        sidebar.FooterLabel,
+		StepsCourse:       sidebar.FooterCourse,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
 		TitleAnchor:       result.TitleAnchor,

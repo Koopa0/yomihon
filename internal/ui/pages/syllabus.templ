@@ -94,12 +94,30 @@ templ moduleBlock(sec PathBranchView) {
 // side branch is drawn where it sits — under the lesson it hangs from — because
 // the source order already says where it belongs; matching it back to a lesson
 // by name would guess, and two lessons can share a name.
+//
+// A numbered run renders as a real ordered list, because that is what it is:
+// the author declared the order, and look-alike sibling links would keep that
+// fact from anyone reading the tree rather than the pixels. Each item carries
+// its walk position as the HTML list-item value, so the main line counts on
+// across the branches it spans while a side branch counts alone — an implied
+// index would restart at every interruption and lie. Rows navigation never
+// walks stay outside any list and carry no ordinal.
 templ branchItems(sec PathBranchView) {
-	for _, item := range sec.Items {
-		if item.Entry != nil {
-			@entryRow(*item.Entry)
-		} else if item.Branch != nil {
-			@moduleBlock(*item.Branch)
+	for _, run := range sec.Runs() {
+		if run.Branch != nil {
+			@moduleBlock(*run.Branch)
+		} else if run.Ordered {
+			<ol class="y-lessons" aria-label={ run.Label }>
+				for _, entry := range run.Entries {
+					<li value={ strconv.Itoa(entry.Number) }>
+						@entryRow(entry)
+					</li>
+				}
+			</ol>
+		} else {
+			for _, entry := range run.Entries {
+				@entryRow(entry)
+			}
 		}
 	}
 }

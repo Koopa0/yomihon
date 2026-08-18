@@ -133,6 +133,89 @@ func TestAStructuralHeadingStillCarriesItsParts(t *testing.T) {
 	}
 }
 
+// TestTheWalkNumbersWhatItPlans holds the walk's numbering, on the walk itself
+// rather than on any consumer: the main line counts on through every primary
+// branch a structural wrapper carries, in document order; a side branch counts
+// its own rows from one without displacing the main line; a planned row that
+// resolves to nothing keeps its place on the line; and a row in a branch the
+// walk never reaches — declared out, never declared, structurally broken, or
+// nested beneath a side branch — keeps number zero. It would catch a
+// structural wrapper dropping its children off the line, a side branch seeded
+// from the main count, and a walkless branch handing out numbers.
+func TestTheWalkNumbersWhatItPlans(t *testing.T) {
+	t.Parallel()
+
+	// L03 is deliberately absent from the resolver: a planned, unwritten
+	// lesson. X01 sits in a branch nested beneath the side branch, which the
+	// walk never enters; V01 sits in a branch whose duplicate declaration is
+	// a structural error.
+	idx := resolver(t,
+		"Writing/L01.md", "Writing/L02.md", "Writing/L04.md",
+		"Writing/S01.md", "Writing/S02.md", "Writing/X01.md",
+		"Writing/R01.md", "Writing/U01.md", "Writing/V01.md")
+	body := "## Part\n\n" +
+		"### A {sequence=primary}\n\n" +
+		"- [[L01]]\n" +
+		"- [[L02]]\n" +
+		"\t- 支線 {sequence=local}\n" +
+		"\t\t- [[S01]]\n" +
+		"\t\t\t- 深入 {sequence=primary}\n" +
+		"\t\t\t\t- [[X01]]\n" +
+		"\t\t- [[S02]]\n" +
+		"\n### B {sequence=primary}\n\n" +
+		"- [[L03]]\n" +
+		"- [[L04]]\n" +
+		"\n## 日常 {sequence=none}\n\n- [[R01]]\n" +
+		"\n## 忘了宣告\n\n- [[U01]]\n" +
+		"\n## 壞 {sequence=primary} {sequence=local}\n\n- [[V01]]\n"
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+
+	want := map[string]int{
+		"L01": 1, "L02": 2, "L03": 3, "L04": 4,
+		"S01": 1, "S02": 2,
+		"X01": 0, "R01": 0, "U01": 0, "V01": 0,
+	}
+	got := map[string]int{}
+	var collect func(groups []*PathGroup)
+	collect = func(groups []*PathGroup) {
+		for _, g := range groups {
+			for _, item := range g.Items {
+				switch {
+				case item.Entry != nil:
+					got[item.Entry.Text] = item.Entry.Number
+				case item.Group != nil:
+					collect([]*PathGroup{item.Group})
+				}
+			}
+		}
+	}
+	collect(p.Groups)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("walk numbering mismatch (-want +got):\n%s", diff)
+	}
+
+	// The numbering rides the same walk the reader's arrow follows, so the
+	// openable projection must be unchanged beside it: the unwritten L03 is
+	// counted but not walkable.
+	if p.Planned != 4 {
+		t.Errorf("Planned = %d, want 4: the planned line counts its unwritten lesson", p.Planned)
+	}
+	wantComponents := [][]NoteRef{
+		{
+			{Name: "L01", RelPath: "Writing/L01.md"},
+			{Name: "L02", RelPath: "Writing/L02.md"},
+			{Name: "L04", RelPath: "Writing/L04.md"},
+		},
+		{
+			{Name: "S01", RelPath: "Writing/S01.md"},
+			{Name: "S02", RelPath: "Writing/S02.md"},
+		},
+	}
+	if diff := cmp.Diff(wantComponents, p.components); diff != "" {
+		t.Errorf("components mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestReversePlacementTakesOnlyCourseMembership holds what "this note is in
 // that course" means. A row in a block declared out of the course, or in one
 // nobody declared, is not a membership and must not appear as one.
