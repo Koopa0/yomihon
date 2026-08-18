@@ -678,12 +678,106 @@ func TestEmbedNonMarkdownTargetIsPlaceholder(t *testing.T) {
 	if !strings.Contains(got.HTML, `class="embed-media"`) {
 		t.Errorf("HTML().HTML missing embed-media placeholder:\n%s", got.HTML)
 	}
-	if !strings.Contains(got.HTML, "x.canvas") {
-		t.Errorf("HTML().HTML missing the resource's filename:\n%s", got.HTML)
+	// The named file has a working page of its own, so the placeholder's
+	// filename is a way there rather than dead text.
+	if !strings.Contains(got.HTML, `<a href="/notes/Diagrams/x.canvas">x.canvas</a>`) {
+		t.Errorf("HTML().HTML missing the placeholder's link to the file's own page:\n%s", got.HTML)
 	}
 	if len(got.Diagnostics) != 0 {
 		t.Errorf("Diagnostics = %+v, want none — a resolved-but-unsupported embed is not a diagnostic", got.Diagnostics)
 	}
+}
+
+// TestEmbedPictureTargetPaintsInline is the assertion site for Obsidian's
+// ordinary image syntax. A picture embed and a markdown image are the same
+// request written two ways, so both must land on the raw-bytes route; before
+// this branch existed the wikilink form got a labelled placeholder while the
+// markdown form beside it painted, and a vault pasted full of ![[...]] images
+// showed none of them.
+func TestEmbedPictureTargetPaintsInline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plain filename embeds as an exact img element", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, []string{"attachments/pic.png"}, nil)
+		got := r.HTML("note.md", "", "![[pic.png]]\n")
+		const wantHTML = "<p><img src=\"/raw/attachments/pic.png\" alt=\"pic.png\"></p>\n"
+		if got.HTML != wantHTML {
+			t.Errorf("HTML().HTML = %q, want exactly %q", got.HTML, wantHTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none for a resolvable picture embed", got.Diagnostics)
+		}
+	})
+
+	tests := []struct {
+		name     string
+		resource string
+		body     string
+		want     string
+	}{
+		{
+			name:     "space and cjk in the filename are percent-escaped per segment",
+			resource: "attachments/pic with space 図.png",
+			body:     "![[pic with space 図.png]]\n",
+			want:     `<img src="/raw/attachments/pic%20with%20space%20%E5%9B%B3.png" alt="pic with space 図.png">`,
+		},
+		{
+			name:     "full-path embed resolves to the same raw route",
+			resource: "attachments/pic.png",
+			body:     "![[attachments/pic.png]]\n",
+			want:     `<img src="/raw/attachments/pic.png" alt="pic.png">`,
+		},
+		{
+			name:     "svg embeds as a picture too",
+			resource: "Diagrams/flow.svg",
+			body:     "![[flow.svg]]\n",
+			want:     `<img src="/raw/Diagrams/flow.svg" alt="flow.svg">`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, nil, []string{tt.resource}, nil)
+			got := r.HTML("note.md", "", tt.body)
+			if !strings.Contains(got.HTML, tt.want) {
+				t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, tt.want, got.HTML)
+			}
+			if len(got.Diagnostics) != 0 {
+				t.Errorf("Diagnostics = %+v, want none for a resolvable picture embed", got.Diagnostics)
+			}
+		})
+	}
+
+	t.Run("missing picture target keeps the broken-embed treatment", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, nil, nil)
+		got := r.HTML("note.md", "", "![[missing.png]]\n")
+		if strings.Contains(got.HTML, "<img") {
+			t.Errorf("an unresolved picture embed must not paint an image:\n%s", got.HTML)
+		}
+		if !strings.Contains(got.HTML, `class="wikilink-broken"`) {
+			t.Errorf("HTML().HTML missing wikilink-broken span:\n%s", got.HTML)
+		}
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagWikilinkBroken {
+			t.Errorf("Diagnostics = %+v, want one DiagWikilinkBroken", got.Diagnostics)
+		}
+	})
+
+	t.Run("ambiguous picture target keeps the ambiguous treatment", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, []string{"a/pic.png", "b/pic.png"}, nil)
+		got := r.HTML("note.md", "", "![[pic.png]]\n")
+		if strings.Contains(got.HTML, "<img") {
+			t.Errorf("an ambiguous picture embed must not paint an image:\n%s", got.HTML)
+		}
+		if !strings.Contains(got.HTML, `class="wikilink-ambiguous"`) {
+			t.Errorf("HTML().HTML missing wikilink-ambiguous span:\n%s", got.HTML)
+		}
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagWikilinkAmbiguous {
+			t.Errorf("Diagnostics = %+v, want one DiagWikilinkAmbiguous", got.Diagnostics)
+		}
+	})
 }
 
 func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {

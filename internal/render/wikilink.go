@@ -385,17 +385,28 @@ func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(strin
 	return out.String()
 }
 
-// notesHref builds the reading page's URL for a vault-relative path,
-// percent-escaping each path segment individually (so a literal "/" in
-// the escaped output can never be mistaken for a path separator) while
-// leaving "/" itself as the separator between segments — matching how
-// GET /notes/{path...} expects to receive it back.
-func notesHref(p string) string {
+// escapedVaultPath percent-escapes each segment of a vault-relative path
+// individually (so a literal "/" in the escaped output can never be mistaken
+// for a path separator) while leaving "/" itself as the separator between
+// segments — matching how the {path...} route patterns expect to receive it
+// back.
+func escapedVaultPath(p string) string {
 	segments := strings.Split(p, "/")
 	for i, s := range segments {
 		segments[i] = url.PathEscape(s)
 	}
-	return "/notes/" + strings.Join(segments, "/")
+	return strings.Join(segments, "/")
+}
+
+// notesHref builds the reading page's URL for a vault-relative path.
+func notesHref(p string) string {
+	return "/notes/" + escapedVaultPath(p)
+}
+
+// rawHref builds the raw-bytes URL for a vault-relative path — the route a
+// browser fetches when the file itself, not a page about it, is wanted.
+func rawHref(p string) string {
+	return "/raw/" + escapedVaultPath(p)
 }
 
 // sectionHref is notesHref plus the place inside the destination a link named.
@@ -465,11 +476,12 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 // is embedsDenied (this call is itself inside an already-transcluded
 // note's body), the embed renders as plain wikilink-style text instead of
 // expanding again (see embedPolicy's doc comment for why this alone
-// prevents runaway/cyclic chains). A unique non-markdown target (image,
-// PDF, canvas, ...) gets a labelled placeholder rather than being drawn into
-// the note's body: the file itself opens on its own page, and painting its
-// media inline here is a distinct rendering concern this renderer does not
-// take on. The placeholder names the file so the reader knows it is there.
+// prevents runaway/cyclic chains). A unique picture target paints inline
+// from the raw-bytes route — the same place a markdown image of the same
+// file already loads from, so the two spellings of one request agree.
+// Any other unique non-markdown target (PDF, canvas, ...) gets a labelled
+// placeholder rather than being drawn into the note's body; the placeholder's
+// filename links to the file's own page, so the reader can still open it.
 // Ambiguous/unresolved get the same diagnostic-styled treatment as a broken
 // wikilink.
 func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, col *collector) string {
@@ -494,9 +506,15 @@ func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, col *colle
 		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">![[%s]]</span>`,
 			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(target))
 	case graph.Unique:
+		if IsPicture(res.Path) {
+			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; rawHref percent-escapes the path and the name is html.EscapeString'd
+			return fmt.Sprintf(`<img src="%s" alt="%s">`,
+				rawHref(res.Path), html.EscapeString(path.Base(res.Path)))
+		}
 		if !strings.HasSuffix(res.Path, ".md") {
-			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <span>%s</span> — inline display not yet supported]</div>`,
-				html.EscapeString(path.Base(res.Path)))
+			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; notesHref percent-escapes the path and the name is html.EscapeString'd
+			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <a href="%s">%s</a> — inline display not yet supported]</div>`,
+				notesHref(res.Path), html.EscapeString(path.Base(res.Path)))
 		}
 		body, ok := r.transclusions.Transclusion(res.Path)
 		if !ok {
