@@ -26,6 +26,8 @@ func diagKindLabel(kind render.DiagnosticKind) string {
 		return "沒見過的提示框類型"
 	case render.DiagRiskyFence:
 		return "程式碼區塊裡的筆記語法"
+	case render.DiagEmbedFragmentMissing:
+		return "嵌入指定的段落不存在"
 	default:
 		return string(kind)
 	}

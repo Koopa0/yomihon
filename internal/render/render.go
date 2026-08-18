@@ -72,6 +72,13 @@ const (
 	// convert; it was left untouched. At most one per render call (see
 	// the preprocessing pass doc).
 	DiagRiskyFence DiagnosticKind = "risky-fence"
+	// DiagEmbedFragmentMissing means an embed named a section or block
+	// inside its target ("![[note#heading]]", "![[note#^block]]") that the
+	// captured body does not contain; the whole note was shown instead.
+	// Unlike a link's fragment, an embed's fragment changes what is
+	// displayed, so falling back without saying so would present the wrong
+	// scope as the author's own choice.
+	DiagEmbedFragmentMissing DiagnosticKind = "embed-fragment-missing"
 	// DiagRenderFailed means goldmark's own renderer returned an error —
 	// normally unreachable (see render's fallback), kept only so a
 	// future extension that breaks that assumption still produces a

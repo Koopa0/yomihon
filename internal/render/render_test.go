@@ -780,6 +780,181 @@ func TestEmbedPictureTargetPaintsInline(t *testing.T) {
 	})
 }
 
+// TestEmbedHeadingFragmentScopesTheTransclusion is the assertion site for
+// "![[note#section]]". Obsidian embeds only the named section — the heading
+// through to the next heading of the same or a higher level — and an author
+// who wrote the fragment scoped the excerpt on purpose, so showing the whole
+// note presents content they deliberately left out as if they had chosen it.
+// The match folds heading text the same way the destination's anchors are
+// stamped, so an embed and a link to one section agree on what it is named.
+func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
+	t.Parallel()
+
+	const body = "INTRO-MARKER opening prose.\n\n" +
+		"## Alpha\n\nALPHA-MARKER section body.\n\n" +
+		"### Alpha Sub\n\nSUB-MARKER nested body.\n\n" +
+		"## Beta\n\nBETA-MARKER other body.\n"
+
+	t.Run("the named section embeds with its subsections and nothing else", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
+		if !strings.Contains(got.HTML, `<div class="embed">`) {
+			t.Errorf("HTML().HTML missing embed container:\n%s", got.HTML)
+		}
+		for _, want := range []string{"ALPHA-MARKER", "SUB-MARKER"} {
+			if !strings.Contains(got.HTML, want) {
+				t.Errorf("the named section lost %q:\n%s", want, got.HTML)
+			}
+		}
+		for _, forbidden := range []string{"INTRO-MARKER", "BETA-MARKER"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("content outside the named section leaked in (%q):\n%s", forbidden, got.HTML)
+			}
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none for a section that exists", got.Diagnostics)
+		}
+	})
+
+	t.Run("a missing heading shows the whole note and says so", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		got := r.HTML("note.md", "", "![[B#No Such Section]]\n")
+		for _, want := range []string{"INTRO-MARKER", "ALPHA-MARKER", "BETA-MARKER"} {
+			if !strings.Contains(got.HTML, want) {
+				t.Errorf("the whole-note fallback lost %q:\n%s", want, got.HTML)
+			}
+		}
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagEmbedFragmentMissing {
+			t.Fatalf("Diagnostics = %+v, want one DiagEmbedFragmentMissing", got.Diagnostics)
+		}
+		if got.Diagnostics[0].Target != "B#No Such Section" {
+			t.Errorf("Diagnostic.Target = %q, want %q", got.Diagnostics[0].Target, "B#No Such Section")
+		}
+	})
+
+	// Nothing external rules on a duplicated section name inside an embed
+	// target, so the choice is stated here: the first occurrence wins,
+	// matching how Obsidian's reading view resolves the same embed — a
+	// deterministic answer rather than a silent pick of a later candidate.
+	t.Run("a duplicated heading embeds its first occurrence", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "## Alpha\n\nFIRST-MARKER\n\n## Alpha\n\nSECOND-MARKER\n",
+		})
+		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
+		if !strings.Contains(got.HTML, "FIRST-MARKER") {
+			t.Errorf("the first occurrence's body is missing:\n%s", got.HTML)
+		}
+		if strings.Contains(got.HTML, "SECOND-MARKER") {
+			t.Errorf("a later occurrence leaked into the embed:\n%s", got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none", got.Diagnostics)
+		}
+	})
+
+	t.Run("the heading match folds unicode form like the anchor rule", func(t *testing.T) {
+		t.Parallel()
+		const (
+			composed   = "\u304C\u3093"       // がん
+			decomposed = "\u304B\u3099\u3093" // か + combining dakuten, then ん
+		)
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "OUTSIDE-MARKER\n\n## " + decomposed + "\n\nINSIDE-MARKER\n",
+		})
+		got := r.HTML("note.md", "", "![[B#"+composed+"]]\n")
+		if !strings.Contains(got.HTML, "INSIDE-MARKER") {
+			t.Errorf("the section written in the other unicode form was not found:\n%s", got.HTML)
+		}
+		if strings.Contains(got.HTML, "OUTSIDE-MARKER") {
+			t.Errorf("content outside the named section leaked in:\n%s", got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none", got.Diagnostics)
+		}
+	})
+
+	t.Run("a heading-looking line inside a fence is not a section start", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "```\n## Alpha\nFENCED-MARKER\n```\n\n## Alpha\n\nREAL-MARKER\n",
+		})
+		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
+		if !strings.Contains(got.HTML, "REAL-MARKER") {
+			t.Errorf("the real section body is missing:\n%s", got.HTML)
+		}
+		if strings.Contains(got.HTML, "FENCED-MARKER") {
+			t.Errorf("the fenced copy of the heading started the section:\n%s", got.HTML)
+		}
+	})
+}
+
+// TestEmbedBlockFragmentScopesTheTransclusion is the assertion site for
+// "![[note#^block]]". Obsidian embeds only the paragraph carrying the
+// "^block" marker; before the fragment was threaded through, the whole note
+// appeared with nothing anywhere saying the scope had widened.
+func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
+	t.Parallel()
+
+	const body = "FIRST-MARKER first paragraph.\n\n" +
+		"SECOND-MARKER the addressed paragraph. ^quux\n\n" +
+		"THIRD-MARKER third paragraph.\n"
+
+	t.Run("only the addressed paragraph embeds", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		got := r.HTML("note.md", "", "![[B#^quux]]\n")
+		if !strings.Contains(got.HTML, "SECOND-MARKER") {
+			t.Errorf("the addressed paragraph is missing:\n%s", got.HTML)
+		}
+		for _, forbidden := range []string{"FIRST-MARKER", "THIRD-MARKER"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("content outside the addressed paragraph leaked in (%q):\n%s", forbidden, got.HTML)
+			}
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none for a block that exists", got.Diagnostics)
+		}
+	})
+
+	t.Run("a multi-line paragraph embeds whole", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "OUTSIDE-MARKER\n\nLINE-ONE continues\nLINE-TWO ends here. ^blk\n\nAFTER-MARKER\n",
+		})
+		got := r.HTML("note.md", "", "![[B#^blk]]\n")
+		for _, want := range []string{"LINE-ONE", "LINE-TWO"} {
+			if !strings.Contains(got.HTML, want) {
+				t.Errorf("the addressed paragraph lost %q:\n%s", want, got.HTML)
+			}
+		}
+		for _, forbidden := range []string{"OUTSIDE-MARKER", "AFTER-MARKER"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("content outside the addressed paragraph leaked in (%q):\n%s", forbidden, got.HTML)
+			}
+		}
+	})
+
+	t.Run("a missing block shows the whole note and says so", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		got := r.HTML("note.md", "", "![[B#^missing]]\n")
+		for _, want := range []string{"FIRST-MARKER", "SECOND-MARKER", "THIRD-MARKER"} {
+			if !strings.Contains(got.HTML, want) {
+				t.Errorf("the whole-note fallback lost %q:\n%s", want, got.HTML)
+			}
+		}
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagEmbedFragmentMissing {
+			t.Fatalf("Diagnostics = %+v, want one DiagEmbedFragmentMissing", got.Diagnostics)
+		}
+		if got.Diagnostics[0].Target != "B#^missing" {
+			t.Errorf("Diagnostic.Target = %q, want %q", got.Diagnostics[0].Target, "B#^missing")
+		}
+	})
+}
+
 func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {
 	t.Parallel()
 

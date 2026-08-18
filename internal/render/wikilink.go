@@ -301,7 +301,7 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 			return html.EscapeString(link.Display)
 		}
 		if embed {
-			embedHTML := r.renderEmbed(link.Target, allowEmbed, col)
+			embedHTML := r.renderEmbed(link, allowEmbed, col)
 			*inline = append(*inline, embedHTML)
 			return inlinePlaceholder(len(*inline) - 1)
 		}
@@ -470,13 +470,15 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	}
 }
 
-// renderEmbed renders ![[target]]. A unique markdown-note target is
-// transcluded through the same rendering pipeline (render), wrapped in a
-// distinctly-styled container — but only one level deep: when allowEmbed
-// is embedsDenied (this call is itself inside an already-transcluded
-// note's body), the embed renders as plain wikilink-style text instead of
-// expanding again (see embedPolicy's doc comment for why this alone
-// prevents runaway/cyclic chains). A unique picture target paints inline
+// renderEmbed renders ![[target]] for the parsed link. A unique
+// markdown-note target is transcluded through the same rendering pipeline
+// (render), wrapped in a distinctly-styled container — but only one level
+// deep: when allowEmbed is embedsDenied (this call is itself inside an
+// already-transcluded note's body), the embed renders as plain
+// wikilink-style text instead of expanding again (see embedPolicy's doc
+// comment for why this alone prevents runaway/cyclic chains). A fragment
+// on the link narrows the transclusion to the named section or block —
+// see embedScope. A unique picture target paints inline
 // from the raw-bytes route — the same place a markdown image of the same
 // file already loads from, so the two spellings of one request agree.
 // Any other unique non-markdown target (PDF, canvas, ...) gets a labelled
@@ -484,11 +486,12 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 // filename links to the file's own page, so the reader can still open it.
 // Ambiguous/unresolved get the same diagnostic-styled treatment as a broken
 // wikilink.
-func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, col *collector) string {
+func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col *collector) string {
 	if allowEmbed == embedsDenied {
-		return r.renderWikilink(graph.Wikilink{Target: target, Display: target}, col)
+		return r.renderWikilink(link, col)
 	}
 
+	target := link.Target
 	res := r.idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unresolved:
@@ -525,6 +528,7 @@ func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, col *colle
 			return fmt.Sprintf(`<span class="wikilink-broken" title="這篇筆記存在，但這次讀取時拿不到它的內容">![[%s]]</span>`,
 				html.EscapeString(target))
 		}
+		body = embedScope(link, res.Path, body, col)
 		inner := r.render(body, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		// An image inside a transcluded body was written relative to the
@@ -535,4 +539,136 @@ func (r *Pipeline) renderEmbed(target string, allowEmbed embedPolicy, col *colle
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
+}
+
+// embedScope narrows a transcluded body to the section or block the embed's
+// fragment named, which is what the fragment means: Obsidian shows only that
+// slice, and an author who wrote one scoped the excerpt on purpose. A
+// fragment that names nothing in the body falls back to the whole note and
+// reports it — unlike a link's fragment, an embed's changes what is
+// displayed, so widening the scope without saying so would present content
+// the author left out as their own choice. A block address takes precedence
+// over a heading when both parsed, mirroring how the plain-link fragment
+// rule already resolves that conflict.
+//
+// The scan runs over the comment-stripped source so a heading or marker
+// hidden inside an Obsidian %% comment cannot anchor a visible excerpt; the
+// later render pass strips comments again, which leaves an already-stripped
+// body unchanged.
+func embedScope(link graph.Wikilink, resPath, body string, col *collector) string {
+	switch {
+	case link.Block != "":
+		stripped := stripObsidianComments(body)
+		if slice, ok := blockSlice(stripped, link.Block); ok {
+			return slice
+		}
+		col.report(Diagnostic{
+			Kind:    DiagEmbedFragmentMissing,
+			Target:  link.Target + "#^" + link.Block,
+			Message: fmt.Sprintf("embed block %q not found in %q; the whole note is shown", "^"+link.Block, resPath),
+		})
+	case link.Heading != "":
+		stripped := stripObsidianComments(body)
+		if slice, ok := headingSlice(stripped, link.Heading); ok {
+			return slice
+		}
+		col.report(Diagnostic{
+			Kind:    DiagEmbedFragmentMissing,
+			Target:  link.Target + "#" + link.Heading,
+			Message: fmt.Sprintf("embed heading %q not found in %q; the whole note is shown", link.Heading, resPath),
+		})
+	}
+	return body
+}
+
+// atxHeadingLine matches an ATX heading the way goldmark will read it: up to
+// three spaces of indent, one to six '#' characters, then whitespace before
+// the text. A '#' run glued to text is not a heading in CommonMark and is
+// not one here.
+var atxHeadingLine = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)
+
+// headingSlice returns the section of body that heading names: the first
+// heading line outside fenced code whose text folds to the same slug as the
+// name — the same fold that stamps the destination page's anchors, so an
+// embed and a link to one section agree on what matches — through to the
+// line before the next heading of the same or a higher level. Deeper
+// headings stay inside the slice, because a section owns its subsections.
+// When the name appears twice the first occurrence wins, matching Obsidian's
+// reading view.
+func headingSlice(body, heading string) (string, bool) {
+	want := slugify(heading)
+	lines := strings.Split(body, "\n")
+	start, level := -1, 0
+	inFence, fenceByte := false, byte(0)
+	for i, line := range lines {
+		if inFence {
+			if fenceCloses(line, fenceByte) {
+				inFence = false
+			}
+			continue
+		}
+		if marker, _, ok := fenceOpen(line); ok {
+			inFence, fenceByte = true, marker
+			continue
+		}
+		m := atxHeadingLine.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		if start < 0 {
+			if slugify(m[2]) == want {
+				start, level = i, len(m[1])
+			}
+			continue
+		}
+		if len(m[1]) <= level {
+			return strings.Join(lines[start:i], "\n"), true
+		}
+	}
+	if start < 0 {
+		return "", false
+	}
+	return strings.Join(lines[start:], "\n"), true
+}
+
+// blockSlice returns the paragraph carrying the "^name" block marker: the
+// contiguous run of non-blank lines around the first line outside fenced
+// code that ends with the marker, which is where Obsidian attaches a block
+// address. A marker written on its own line directly under a multi-line
+// block reaches that block through the same expansion, since no blank line
+// separates them.
+func blockSlice(body, block string) (string, bool) {
+	marker := "^" + block
+	lines := strings.Split(body, "\n")
+	at := -1
+	inFence, fenceByte := false, byte(0)
+	for i, line := range lines {
+		if inFence {
+			if fenceCloses(line, fenceByte) {
+				inFence = false
+			}
+			continue
+		}
+		if open, _, ok := fenceOpen(line); ok {
+			inFence, fenceByte = true, open
+			continue
+		}
+		trimmed := strings.TrimRight(line, " \t")
+		if trimmed == marker || strings.HasSuffix(trimmed, " "+marker) || strings.HasSuffix(trimmed, "\t"+marker) {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return "", false
+	}
+	start := at
+	for start > 0 && strings.TrimSpace(lines[start-1]) != "" {
+		start--
+	}
+	end := at + 1
+	for end < len(lines) && strings.TrimSpace(lines[end]) != "" {
+		end++
+	}
+	return strings.Join(lines[start:end], "\n"), true
 }
