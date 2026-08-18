@@ -1227,6 +1227,71 @@ non_instance_dirs = ["System//./templates", "Cafe\u0301/models"]
 	}
 }
 
+// TestDirectoryPoliciesShareCaseFoldedIdentity pins the one path identity both
+// directory policies answer from. On a case-insensitive filesystem any case
+// spelling of a path opens the same file, so membership in a declared
+// directory cannot depend on the spelling: a lowercase request for a protected
+// template is the protected template. The privacy policy has always folded
+// case for exactly this reason; the artifact policy answers the same question
+// and folds identically, through the same function, so the two cannot drift.
+func TestDirectoryPoliciesShareCaseFoldedIdentity(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractTextWithPrivacy(t, "", `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`, `
+[privacy]
+never_egress_dirs = ["Private"]
+`)
+	policy := s.ArtifactPolicy()
+	if !policy.Available() {
+		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+	}
+	privacy := s.PrivacyPolicy()
+	if !privacy.Available() {
+		t.Fatalf("PrivacyPolicy().Available() = false, diagnostic %q", privacy.Diagnostic())
+	}
+
+	artifactTests := []struct {
+		path string
+		want bool
+	}{
+		{path: "System/templates/Card.md", want: true},
+		{path: "system/templates/card.md", want: true},
+		{path: "SYSTEM/Templates/Card.md", want: true},
+		{path: "system/templates", want: true},
+		{path: "system/templates-old/card.md", want: false},
+		{path: "Writing/lessons/L05.md", want: false},
+	}
+	for _, tt := range artifactTests {
+		t.Run("artifact/"+tt.path, func(t *testing.T) {
+			t.Parallel()
+			if got := policy.IsNonInstance(tt.path); got != tt.want {
+				t.Errorf("ArtifactPolicy().IsNonInstance(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+
+	privacyTests := []struct {
+		path string
+		want bool
+	}{
+		{path: "Private/x.md", want: false},
+		{path: "private/x.md", want: false},
+		{path: "PRIVATE/x.md", want: false},
+		{path: "Public/x.md", want: true},
+	}
+	for _, tt := range privacyTests {
+		t.Run("privacy/"+tt.path, func(t *testing.T) {
+			t.Parallel()
+			if got := privacy.EgressAllowed(tt.path); got != tt.want {
+				t.Errorf("PrivacyPolicy().EgressAllowed(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCapabilitiesAllowEmptyLists(t *testing.T) {
 	t.Parallel()
 

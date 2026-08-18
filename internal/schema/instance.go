@@ -128,16 +128,20 @@ func (p ArtifactPolicy) Diagnostic() string {
 
 // IsNonInstance reports whether rel is equal to or below a declared artifact
 // directory. Component boundaries prevent a sibling with the same prefix from
-// matching. An unclaimed policy excludes nothing, which is the true answer for
-// a vault that never declared an exclusion; an unresolved one also answers
-// false, so callers that act on the classification gate on Trustworthy first.
+// matching, and components compare case-insensitively through the same folded
+// identity the privacy policy uses: on a case-insensitive filesystem any case
+// spelling of a path opens the same file, so the classification cannot depend
+// on the spelling. An unclaimed policy excludes nothing, which is the true
+// answer for a vault that never declared an exclusion; an unresolved one also
+// answers false, so callers that act on the classification gate on
+// Trustworthy first.
 func (p ArtifactPolicy) IsNonInstance(rel string) bool {
 	if !p.Trustworthy() || p.state == nil {
 		return false
 	}
 	rel = vault.NormalizeNFC(rel)
 	for _, dir := range p.state.nonInstanceDirs {
-		if rel == dir || strings.HasPrefix(rel, dir+"/") {
+		if pathHasFoldedPrefix(rel, dir) {
 			return true
 		}
 	}

@@ -798,6 +798,44 @@ func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
 	}
 }
 
+// TestFlipRefusesCaseVariantNonInstancePath locks the non-instance refusal to
+// the directory's identity rather than its spelling. On a case-insensitive
+// filesystem a lowercase spelling of a declared artifact directory opens the
+// same protected file, so a flip addressed to "system/templates" reaches the
+// bytes of "System/templates" — the refusal must fire before any filesystem
+// access, leave the canonical file byte-identical, and record no commit.
+func TestFlipRefusesCaseVariantNonInstancePath(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	const canonicalRel = "System/templates/Card.md"
+	original := lessonContent("draft")
+	writeVaultFile(t, root, canonicalRel, original)
+	commitAll(t, root)
+	beforeCommits := commitCount(t, root)
+
+	for _, rel := range []string{"system/templates/Card.md", "SYSTEM/Templates/Card.md"} {
+		err := lifecycle.Flip(t.Context(), rel, "draft", schema.SealStatus)
+		if !errors.Is(err, status.ErrNonInstance) {
+			t.Errorf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
+		}
+	}
+	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(canonicalRel))) // #nosec G304 -- canonicalRel is a fixed in-test constant under newVault's TempDir
+	if readErr != nil {
+		t.Fatalf("read template note: %v", readErr)
+	}
+	if diff := cmp.Diff(original, string(got)); diff != "" {
+		t.Errorf("canonical template bytes changed (-want +got):\n%s", diff)
+	}
+	if after := commitCount(t, root); after != beforeCommits {
+		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
+	}
+	if porcelain := strings.TrimSpace(runGit(t, root, "status", "--porcelain")); porcelain != "" {
+		t.Errorf("working tree dirty after refused flip:\n%s", porcelain)
+	}
+}
+
 // TestFlipRefusesNonMarkdownTarget locks the write face to the same note
 // definition the reading scan uses: a note is a file whose path ends in
 // ".md", and everything else is a resource. A resource carrying note-shaped

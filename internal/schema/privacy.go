@@ -87,6 +87,14 @@ func (p PrivacyPolicy) EgressAllowed(rel string) bool {
 	return true
 }
 
+// pathHasFoldedPrefix reports whether rel is dir itself or a path below it,
+// comparing whole components case-insensitively. It is the single directory
+// membership identity for both vault directory policies — the privacy policy's
+// never-egress set and the artifact policy's non-instance set — so the two
+// cannot drift apart on any normalization dimension. Case folds because a
+// case-insensitive filesystem opens the same file under any case spelling;
+// strings.EqualFold applies Unicode simple case folding per rune (ß matches ẞ
+// but never "ss"), and both policies share exactly these semantics.
 func pathHasFoldedPrefix(rel, dir string) bool {
 	relComponents := strings.Split(rel, "/")
 	dirComponents := strings.Split(dir, "/")
