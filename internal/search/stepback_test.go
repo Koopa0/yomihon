@@ -70,6 +70,29 @@ func TestStepBacksOfferOnlySearchesThatFindSomething(t *testing.T) {
 	}
 }
 
+// A quoted phrase that sits nowhere contiguously still deserves the loosened
+// offers: the words without their adjacency, together and one at a time. The
+// quote characters must not ride along into the candidates — they once did,
+// every candidate matched nothing, and the empty page stayed adviceless.
+func TestStepBacksRecoverAQuotedPhrase(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Notes/apart.md", Title: "Apart", PlainText: "semantic things sit here and retrieval happens later"},
+		{RelPath: "Notes/semantic-only.md", Title: "One word", PlainText: "semantic musings"},
+	}, schema.ArtifactPolicy{})
+
+	got := idx.StepBacks(`"semantic retrieval"`)
+	want := []StepBack{
+		{Query: "semantic retrieval", Count: 1},
+		{Query: "semantic", Count: 2},
+		{Query: "retrieval", Count: 1},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("StepBacks() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // The count on an offer is a promise about the vault, not about one response
 // page, so it must not inherit the rendered list's bound: an offer that says
 // two hundred where the vault holds more would teach the reader the same

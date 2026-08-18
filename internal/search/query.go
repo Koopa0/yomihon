@@ -3,6 +3,8 @@ package search
 import (
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -79,7 +81,7 @@ func isFilterKey(key string) bool {
 	return ok
 }
 
-// Parse turns a raw query string into a Query under four rules:
+// Parse turns a raw query string into a Query under five rules:
 //
 //   - classify before folding: a token is a filter only if its pre-fold key
 //     is exactly one of the six lowercase keys; otherwise it is a bare token,
@@ -87,22 +89,95 @@ func isFilterKey(key string) bool {
 //   - split on the first colon ("slug:a:b" → key "slug", value "a:b").
 //   - filter values are NFC only (not case-folded); bare tokens are fold()ed.
 //   - a "folder:" value drops one trailing slash.
+//   - a span in matched quotes — ASCII double quotes or the full-width 「」
+//     and 『』 pairs — is one bare token with the quotes stripped, whitespace
+//     and all. Matching is a contiguous substring test, so the one token is
+//     what makes the quoted words match only where they sit together. Quoting
+//     also means the text is wanted literally, so a quoted span is never a
+//     filter. A quote with no partner is dropped where it stands.
 //
-// Whitespace tokenizes; a whitespace-only or empty query yields an empty Query
-// (nil slices), which the match layer treats as "return nothing".
+// Whitespace tokenizes outside quotes; a whitespace-only or empty query
+// yields an empty Query (nil slices), which the match layer treats as
+// "return nothing".
 func Parse(q string) Query {
 	var out Query
 	var bare []string
-	for raw := range strings.FieldsSeq(q) {
-		if key, value, ok := splitFilter(raw); ok {
-			out.filters = append(out.filters, Filter{Key: key, Value: value})
-			continue
+	for _, field := range quoteFields(q) {
+		if !field.quoted {
+			if key, value, ok := splitFilter(field.text); ok {
+				out.filters = append(out.filters, Filter{Key: key, Value: value})
+				continue
+			}
 		}
-		out.tokens = append(out.tokens, fold(raw))
-		bare = append(bare, raw)
+		out.tokens = append(out.tokens, fold(field.text))
+		bare = append(bare, field.text)
 	}
 	out.bareText = strings.Join(bare, " ")
 	return out
+}
+
+// queryField is one whitespace-delimited unit of a raw query. quoted reports
+// that part of it came from inside a quoted span, which exempts the whole
+// field from filter classification: quoting means the text is wanted
+// literally.
+type queryField struct {
+	text   string
+	quoted bool
+}
+
+// quotePairs maps each opening quote character to its closing partner. ASCII
+// double quotes close themselves; the full-width corner brackets of Chinese
+// and Japanese prose close with their distinct partners.
+var quotePairs = map[rune]rune{'"': '"', '「': '」', '『': '』'}
+
+// quoteFields splits q into fields the way strings.FieldsSeq does, except
+// that a span enclosed in a matched quote pair keeps its whitespace inside
+// one field and the quote characters themselves are stripped. A quote with no
+// closing partner — and a closing bracket no opener claimed — is dropped
+// where it stands, so an unclosed quote degrades to the plain whitespace
+// split rather than swallowing the rest of the query. A field that is empty
+// or whitespace-only is not emitted: an empty token would match everything.
+func quoteFields(q string) []queryField {
+	var fields []queryField
+	var b strings.Builder
+	quoted := false
+	flush := func() {
+		if strings.TrimSpace(b.String()) != "" {
+			fields = append(fields, queryField{text: b.String(), quoted: quoted})
+		}
+		b.Reset()
+		quoted = false
+	}
+	for i := 0; i < len(q); {
+		r, size := utf8.DecodeRuneInString(q[i:])
+		if closer, ok := quotePairs[r]; ok {
+			rest := q[i+size:]
+			if j := strings.IndexRune(rest, closer); j >= 0 {
+				b.WriteString(rest[:j])
+				quoted = true
+				i += size + j + utf8.RuneLen(closer)
+				continue
+			}
+			i += size
+			continue
+		}
+		if r == '」' || r == '』' {
+			i += size
+			continue
+		}
+		if unicode.IsSpace(r) {
+			flush()
+			i += size
+			continue
+		}
+		// The original bytes pass through untouched — folding is the token's
+		// business, not the splitter's — so a byte that is not valid UTF-8
+		// survives here exactly as strings.FieldsSeq would keep it.
+		b.WriteString(q[i : i+size])
+		i += size
+	}
+	flush()
+	return fields
 }
 
 // splitFilter classifies one raw token: on the first colon it splits

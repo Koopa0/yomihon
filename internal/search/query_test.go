@@ -64,6 +64,49 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// Double-quoting a phrase is a near-universal search habit, and matching is
+// already a contiguous substring test, so the quoted span becomes one bare
+// token with the quotes stripped — adjacency comes for free. Before this, the
+// quote characters rode along inside the tokens and matched almost nothing,
+// and a phrase sitting verbatim in the vault came back as 找不到. The
+// full-width 「」 and 『』 pairs of Chinese and Japanese prose quote the same
+// way; a quote with no partner is dropped where it stands.
+func TestParseQuotedPhrase(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  Query
+	}{
+		{name: "quoted phrase is one token", input: `"semantic retrieval"`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "semantic retrieval"}},
+		{name: "quoted phrase still folds", input: `"Semantic Retrieval"`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "Semantic Retrieval"}},
+		{name: "corner brackets quote the same way", input: "「深度 工作」", want: Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
+		{name: "white corner brackets too", input: "『深度 工作』", want: Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
+		{name: "unclosed quote degrades to plain terms", input: `"semantic retrieval`, want: Query{tokens: []string{"semantic", "retrieval"}, bareText: "semantic retrieval"}},
+		{name: "empty quotes ask nothing", input: `""`, want: Query{}},
+		{name: "whitespace-only quotes ask nothing", input: `" "`, want: Query{}},
+		{name: "a lone quote inside a word is dropped", input: `don"t`, want: Query{tokens: []string{"dont"}, bareText: "dont"}},
+		{name: "a stray closing bracket is dropped", input: "読本」", want: Query{tokens: []string{"読本"}, bareText: "読本"}},
+		{name: "quoting keeps filter-shaped text literal", input: `"type:lesson"`, want: Query{tokens: []string{"type:lesson"}, bareText: "type:lesson"}},
+		{
+			name:  "a filter beside a phrase stays a filter",
+			input: `type:lesson "semantic retrieval"`,
+			want:  Query{tokens: []string{"semantic retrieval"}, filters: []Filter{{Key: "type", Value: "lesson"}}, bareText: "semantic retrieval"},
+		},
+		{name: "paired quotes splice their span into the word around them", input: `sem"antic ret"rieval`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "semantic retrieval"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := Parse(tt.input)
+			if diff := cmp.Diff(tt.want, got, cmp.AllowUnexported(Query{})); diff != "" {
+				t.Errorf("Parse(%q) mismatch (-want +got):\n%s", tt.input, diff)
+			}
+		})
+	}
+}
+
 func TestParsePreservesBareTextForSemanticProjection(t *testing.T) {
 	t.Parallel()
 

@@ -637,6 +637,46 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 	}
 }
 
+// TestSearchQuotedPhraseMatchesAdjacentText pins phrase semantics end to end:
+// a quoted span matches only where its words sit together, because the parsed
+// phrase is one token and matching is a contiguous substring test. A reader
+// who quoted a phrase sitting verbatim in their own note used to get 找不到 —
+// the quote characters rode along inside the tokens and matched nothing.
+func TestSearchQuotedPhraseMatchesAdjacentText(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Notes/adjacent.md", Title: "Adjacent", PlainText: "daily semantic retrieval log"},
+		{RelPath: "Notes/apart.md", Title: "Apart", PlainText: "semantic things sit here and retrieval happens later"},
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{name: "quoted phrase finds only the adjacent note", query: `"semantic retrieval"`, want: []string{"Notes/adjacent.md"}},
+		{name: "corner-bracket phrase finds the same note", query: "「semantic retrieval」", want: []string{"Notes/adjacent.md"}},
+		{name: "unquoted terms find both notes", query: "semantic retrieval", want: []string{"Notes/adjacent.md", "Notes/apart.md"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			results, err := idx.Search(Parse(tt.query))
+			if err != nil {
+				t.Fatalf("Search(%q) error = %v", tt.query, err)
+			}
+			paths := make([]string, 0, len(results))
+			for _, r := range results {
+				paths = append(paths, r.RelPath)
+			}
+			if diff := cmp.Diff(tt.want, paths); diff != "" {
+				t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", tt.query, diff)
+			}
+		})
+	}
+}
+
 // TestBoundedSearchKeepsTheOpeningStretch pins the two properties the bounded
 // variant owes its callers: the total is the count the unbounded answer would
 // have, and the kept results are exactly that answer's opening stretch — same

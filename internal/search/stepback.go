@@ -14,25 +14,35 @@ type StepBack struct {
 	Count int
 }
 
-// StepBacks proposes ways to loosen a query that found nothing. Two loosenings
-// cover how a zero actually happens here: a term is matched as one contiguous
-// run, so a reader who types 20mg misses the note that says 20-40mg — splitting
-// where letters meet digits turns the run into two terms the note does carry;
-// and several terms must all land in one note, so each term is also offered
-// alone. Every candidate is run before it is offered, because a zero here reads
-// as "I never wrote that down", and advice that leads to another zero teaches
-// the reader to distrust the page that gave it.
+// StepBacks proposes ways to loosen a query that found nothing. Three
+// loosenings cover how a zero actually happens here: a quoted phrase demands
+// its words sit together, so the same words are offered without their
+// adjacency; a term is matched as one contiguous run, so a reader who types
+// 20mg misses the note that says 20-40mg — splitting where letters meet
+// digits turns the run into two terms the note does carry; and several terms
+// must all land in one note, so each term is also offered alone. Every
+// candidate is run before it is offered, because a zero here reads as "I
+// never wrote that down", and advice that leads to another zero teaches the
+// reader to distrust the page that gave it.
 //
 // Filter fields ride along unchanged on every candidate: the reader scoped the
 // search deliberately, and loosening the words is not a licence to widen the
 // scope.
 func (idx *Index) StepBacks(raw string) []StepBack {
 	var bare, filters []string
-	for field := range strings.FieldsSeq(raw) {
-		if _, _, ok := splitFilter(field); ok {
-			filters = append(filters, field)
+	quoted := false
+	for _, field := range quoteFields(raw) {
+		if field.quoted {
+			// A phrase loosens by shedding its adjacency, so its words join
+			// the bare terms one by one, quote characters already stripped.
+			quoted = true
+			bare = append(bare, strings.Fields(field.text)...)
+			continue
+		}
+		if _, _, ok := splitFilter(field.text); ok {
+			filters = append(filters, field.text)
 		} else {
-			bare = append(bare, field)
+			bare = append(bare, field.text)
 		}
 	}
 	if len(bare) == 0 {
@@ -40,6 +50,9 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 	}
 
 	var candidates []string
+	if quoted && len(bare) > 1 {
+		candidates = append(candidates, strings.Join(bare, " "))
+	}
 	if split := splitDigitLetterRuns(bare); split != "" {
 		candidates = append(candidates, split)
 	}
@@ -47,7 +60,12 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		candidates = append(candidates, bare...)
 	}
 
-	seen := map[string]bool{strings.Join(bare, " "): true}
+	// The joined bare terms are the query as asked only when nothing was
+	// quoted; for a quoted phrase that same join is the first loosening.
+	seen := map[string]bool{}
+	if !quoted {
+		seen[strings.Join(bare, " ")] = true
+	}
 	var out []StepBack
 	for _, candidate := range candidates {
 		if seen[candidate] {

@@ -17,6 +17,9 @@ func FuzzParse(f *testing.F) {
 	f.Add("Type:lesson slug:a:b")
 	f.Add("domain:が topic:日本語")
 	f.Add("status: foo:bar")
+	f.Add(`"semantic retrieval" type:lesson`)
+	f.Add("「深度 工作」 『読本』")
+	f.Add(`don"t ""  読本」 "unclosed`)
 
 	f.Fuzz(func(t *testing.T, raw string) {
 		first := Parse(raw)
@@ -24,8 +27,14 @@ func FuzzParse(f *testing.F) {
 		if diff := cmp.Diff(first, second, cmp.AllowUnexported(Query{})); diff != "" {
 			t.Errorf("Parse(%q) is not deterministic (-first +second):\n%s", raw, diff)
 		}
-		if got, want := len(first.tokens)+len(first.filters), len(strings.Fields(raw)); got != want {
-			t.Errorf("Parse(%q) classified %d tokens, want %d", raw, got, want)
+		// Quote characters restructure fields — a matched pair glues
+		// whitespace into one token, an unmatched one is dropped — so the
+		// one-to-one count against strings.Fields holds only for quote-free
+		// input.
+		if !strings.ContainsAny(raw, "\"「」『』") {
+			if got, want := len(first.tokens)+len(first.filters), len(strings.Fields(raw)); got != want {
+				t.Errorf("Parse(%q) classified %d tokens, want %d", raw, got, want)
+			}
 		}
 
 		metadata := false
