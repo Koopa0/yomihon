@@ -25,7 +25,9 @@ its authored language. This screenshot uses a synthetic demonstration vault.*
 
 - **Read without migration.** Ordinary Markdown remains ordinary Markdown.
   Notes, links, images, callouts, Mermaid diagrams, PDFs, and reports are
-  presented as a coherent reading surface.
+  presented as a coherent reading surface. Math notation is displayed as
+  written, not typeset; characters inside `$…$` spans follow ordinary
+  Markdown emphasis rules.
 - **See the right structure at the right time.** Navigation, headings,
   backlinks, and lexical search stay close to the text. Opt-in Study Paths
   express ordered progress; Maps express relationships; Reports remain
