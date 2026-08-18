@@ -286,7 +286,15 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 	// resolved, so a note that names a target it does not link to collected a
 	// broken-link diagnostic for it.
 	spans := codeSpanRanges(text)
-	return replaceOutside(text, spans, wikilinkToken, func(m string) string {
+	return replaceOutside(text, spans, wikilinkToken, func(start int, m string) string {
+		// A backslash escape is the author writing the syntax to be shown,
+		// not followed (CommonMark backslash escapes). The match is left
+		// untouched for goldmark, whose own escape handling prints the
+		// literal text — converting it anyway both showed a stray backslash
+		// and reported a broken link the author never made.
+		if escapedAt(text, start) {
+			return m
+		}
 		embed := strings.HasPrefix(m, "!")
 		raw := m
 		if embed {
@@ -360,9 +368,24 @@ func codeSpanRanges(text string) [][2]int {
 	return spans
 }
 
+// escapedAt reports whether the character at start is backslash-escaped: an
+// odd-length run of '\' immediately before it. An even-length run is pairs
+// of literal backslashes and escapes nothing — the counting CommonMark's own
+// backslash-escape rule implies.
+func escapedAt(text string, start int) bool {
+	n := 0
+	for i := start - 1; i >= 0 && text[i] == '\\'; i-- {
+		n++
+	}
+	return n%2 == 1
+}
+
 // replaceOutside applies fn to every match of re that lies wholly outside the
-// given ranges, leaving everything else byte-identical.
-func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(string) string) string {
+// given ranges, leaving everything else byte-identical. fn receives the
+// match's starting byte offset in text alongside the matched bytes, so a
+// caller can consult the characters just before the match — returning the
+// match unchanged leaves that occurrence byte-identical too.
+func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(start int, m string) string) string {
 	inSkip := func(start, end int) bool {
 		for _, s := range skip {
 			if start >= s[0] && end <= s[1] {
@@ -378,7 +401,7 @@ func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(strin
 			continue
 		}
 		out.WriteString(text[last:loc[0]])
-		out.WriteString(fn(text[loc[0]:loc[1]]))
+		out.WriteString(fn(loc[0], text[loc[0]:loc[1]]))
 		last = loc[1]
 	}
 	out.WriteString(text[last:])

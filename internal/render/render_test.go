@@ -1369,6 +1369,89 @@ func TestWikilinkInsideACodeSpanIsQuotedNotResolved(t *testing.T) {
 	}
 }
 
+// TestEscapedWikilinkStaysLiteral covers CommonMark's backslash escape at the
+// wikilink seam. "\[[X]]" is the author showing the syntax, not writing a
+// link; converting it anyway printed a stray backslash and — when X named
+// nothing — reported a broken link the author never made, telling them the
+// opposite of what they did.
+func TestEscapedWikilinkStaysLiteral(t *testing.T) {
+	t.Parallel()
+
+	t.Run("an escaped wikilink renders literally with no diagnostic", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, nil, nil)
+		got := r.HTML("note.md", "", `\[[Nonexistent]]`+"\n")
+		if strings.Contains(got.HTML, "wikilink") {
+			t.Errorf("an escaped wikilink must not become any wikilink markup:\n%s", got.HTML)
+		}
+		if !strings.Contains(got.HTML, "[[Nonexistent]]") {
+			t.Errorf("HTML().HTML missing the literal text %q:\n%s", "[[Nonexistent]]", got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none — the author escaped the link on purpose", got.Diagnostics)
+		}
+	})
+
+	t.Run("an escaped embed renders literally too", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, nil, nil)
+		got := r.HTML("note.md", "", `\![[Ghost]]`+"\n")
+		if strings.Contains(got.HTML, "wikilink") || strings.Contains(got.HTML, `class="embed`) {
+			t.Errorf("an escaped embed must not become link or embed markup:\n%s", got.HTML)
+		}
+		if !strings.Contains(got.HTML, "![[Ghost]]") {
+			t.Errorf("HTML().HTML missing the literal text %q:\n%s", "![[Ghost]]", got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none", got.Diagnostics)
+		}
+	})
+
+	t.Run("an escaped backslash before a wikilink still converts", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+		got := r.HTML("note.md", "", `\\[[Target]]`+"\n")
+		// "\\" is one literal backslash; the link after it is a real link.
+		want := `\<a href="/notes/Target.md" class="wikilink">Target</a>`
+		if !strings.Contains(got.HTML, want) {
+			t.Errorf("HTML().HTML missing %q:\n%s", want, got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none for a resolvable wikilink", got.Diagnostics)
+		}
+	})
+
+	t.Run("a doubly escaped backslash run escapes the link again", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, nil, nil)
+		got := r.HTML("note.md", "", `\\\[[Ghost]]`+"\n")
+		if strings.Contains(got.HTML, "wikilink") {
+			t.Errorf("an odd backslash run must keep the link escaped:\n%s", got.HTML)
+		}
+		if !strings.Contains(got.HTML, `[[Ghost]]`) {
+			t.Errorf("HTML().HTML missing the literal text %q:\n%s", "[[Ghost]]", got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none", got.Diagnostics)
+		}
+	})
+
+	t.Run("an escape on the line after a fence still holds", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, nil, nil, nil)
+		got := r.HTML("note.md", "", "```\ncode\n```\n\n"+`\[[Ghost]]`+"\n")
+		if strings.Contains(got.HTML, "wikilink") {
+			t.Errorf("an escaped wikilink after a fence must stay literal:\n%s", got.HTML)
+		}
+		if !strings.Contains(got.HTML, "[[Ghost]]") {
+			t.Errorf("HTML().HTML missing the literal text %q:\n%s", "[[Ghost]]", got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none", got.Diagnostics)
+		}
+	})
+}
+
 // TestUnclosedBacktickRunIsOrdinaryText keeps the span scanner from swallowing
 // the rest of a document: a run with no closer of the same width is not a code
 // span, and a wikilink after it still resolves.
