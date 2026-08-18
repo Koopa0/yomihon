@@ -22,8 +22,12 @@ var commandHelp = map[string]string{
 		"\n" +
 		"The folder is fixed for the life of the process: reading another one\n" +
 		"means another yomihon, on another port.\n",
-	"search":       "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n",
-	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n",
+	"search": "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n" +
+		"\n" +
+		"--semantic embeds the query with the key in $YOMIHON_EMBED_KEY.\n",
+	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n" +
+		"\n" +
+		"Needs an embedding key in $YOMIHON_EMBED_KEY.\n",
 	"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 		"\n" +
 		"--root is the vault to judge; without it, the folder you are standing in is\n" +

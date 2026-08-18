@@ -866,7 +866,7 @@ func searchGenerationMessage(reason searchReason) (string, bool) {
 func searchEmbedderMessage(reason searchReason) (string, bool) {
 	switch reason {
 	case searchReasonEmbedderUnconfigured:
-		return "no embedding key is configured, so semantic search is off", true
+		return "no embedding key is configured, so semantic search is off; set YOMIHON_EMBED_KEY", true
 	case searchReasonEmbedderUnreachable:
 		return "the embedding API did not answer", true
 	case searchReasonEmbedderFailed:

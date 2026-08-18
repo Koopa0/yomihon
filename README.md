@@ -53,6 +53,13 @@ yomihon /path/to/vault
 Open `http://127.0.0.1:9610`. You can also run `yomihon` from inside the
 folder you want to read.
 
+Two environment variables configure yomihon: `YOMIHON_PORT` picks the local
+port (default `9610`; the listener always stays on `127.0.0.1`), and
+`YOMIHON_EMBED_KEY` holds your embedding provider credential for the explicit
+semantic actions — it is used only to build local search vectors from note
+content the vault's privacy contract allows, and to embed the query text of a
+semantic search you request.
+
 A plain folder is readable without changing its files. To opt in to governed
 metadata, structured navigation, and lifecycle actions, add a vault contract
 at `System/schemas/vault-schema.toml`; start with

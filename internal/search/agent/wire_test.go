@@ -624,7 +624,7 @@ func TestSearchStderrLine(t *testing.T) {
 		{name: "corrupt", reason: searchReasonCacheCorrupt, want: "yomihon search: cache-corrupt: the semantic index is unreadable; run yomihon search-index build\n"},
 		{name: "mismatch", reason: searchReasonCacheMismatch, want: "yomihon search: cache-mismatch: the semantic index uses a different configuration; run yomihon search-index build\n"},
 		{name: "retired", reason: searchReasonEmbedderRetired, want: "yomihon search: embedder-retired: the old index's embedding model is no longer available\n"},
-		{name: "unconfigured", reason: searchReasonEmbedderUnconfigured, want: "yomihon search: embedder-unconfigured: no embedding key is configured, so semantic search is off\n"},
+		{name: "unconfigured", reason: searchReasonEmbedderUnconfigured, want: "yomihon search: embedder-unconfigured: no embedding key is configured, so semantic search is off; set YOMIHON_EMBED_KEY\n"},
 		{name: "unreachable", reason: searchReasonEmbedderUnreachable, want: "yomihon search: embedder-unreachable: the embedding API did not answer\n"},
 		{name: "failed", reason: searchReasonEmbedderFailed, want: readWireGolden(t, "embedder-failed.stderr")},
 		{name: "rejected", reason: searchReasonEmbedderRejected, want: "yomihon search: embedder-rejected: the embedding API refused the credential\n"},

@@ -48,6 +48,11 @@ yomihon /path/to/vault
 開啟 `http://127.0.0.1:9610`。你也可以先進入要閱讀的資料夾，再直接執行
 `yomihon`。
 
+yomihon 有兩個環境變數：`YOMIHON_PORT` 指定本機埠號（預設 `9610`；監聽位址
+永遠是 `127.0.0.1`）；`YOMIHON_EMBED_KEY` 存放你自己的 embedding 服務憑證，
+供明確啟用的語意功能使用——它只用於把隱私契約允許的筆記內容轉成本機搜尋
+向量，以及送出你主動發起的語意查詢文字。
+
 普通資料夾不必修改檔案就能閱讀。若要漸進啟用受規範的中繼資料、結構化導覽與
 生命週期操作，請在 `System/schemas/vault-schema.toml` 加入知識庫契約；可以從
 [`examples/vault-schema.toml`](examples/vault-schema.toml) 開始。
