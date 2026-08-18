@@ -73,10 +73,27 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"means another yomihon, on another port.\n",
 		"search": "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n" +
 			"\n" +
-			"--semantic embeds the query with the key in $YOMIHON_EMBED_KEY.\n",
+			"Searches Markdown notes only, needs the vault contract, and excludes the\n" +
+			"contract's never-egress directories. Browser search additionally covers\n" +
+			"other text-presentable files up to 1 MiB; this command does not.\n" +
+			"\n" +
+			"--semantic embeds the query with the key in $YOMIHON_EMBED_KEY.\n" +
+			"\n" +
+			"Writes a human-readable list by default — empty for zero results —\n" +
+			"whether or not stdout is a terminal; --json always writes the machine\n" +
+			"envelope instead.\n" +
+			"\n" +
+			"Exits 0 on an answer, 1 on an internal error, 2 when the command could\n" +
+			"not run, and 3 when search is refused or semantic retrieval is degraded.\n",
 		"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n" +
 			"\n" +
-			"Needs an embedding key in $YOMIHON_EMBED_KEY.\n",
+			"Needs an embedding key in $YOMIHON_EMBED_KEY.\n" +
+			"\n" +
+			"Writes human progress by default; --json writes the machine envelope.\n" +
+			"\n" +
+			"Exits 0 when the index is current or built, 1 on an internal error,\n" +
+			"2 when the command could not run, and 3 when building is refused or\n" +
+			"could not complete.\n",
 		"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 			"\n" +
 			"--root is the vault to judge; without it, the folder you are standing in is\n" +
@@ -94,8 +111,23 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"Exits 0 when nothing named by --deny was found, 1 when something was, and\n" +
 			"2 when the command itself could not run. Findings alone do not fail the\n" +
 			"command: without --deny it reports and exits 0.\n",
-		"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n",
-		"exists":   "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n",
+		"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n" +
+			"\n" +
+			"Writes a compact JSON object when the output is not a terminal, and a\n" +
+			"human summary when it is; --format decides instead of the terminal, and\n" +
+			"md falls back to the human view.\n" +
+			"\n" +
+			"Exits 0 — coverage reports state, it never gates — and 2 when the\n" +
+			"command itself could not run.\n",
+		"exists": "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n" +
+			"\n" +
+			"Writes a compact JSON object when the output is not a terminal, and a\n" +
+			"human answer when it is; --format decides instead of the terminal, and\n" +
+			"md falls back to the human view.\n" +
+			"\n" +
+			"Exits 0 when a note for the name exists and 1 when none does, so a\n" +
+			"caller can gate a write-if-absent on the exit code alone; 2 when the\n" +
+			"command itself could not run.\n",
 	}
 
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {
@@ -119,6 +151,40 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		}
 	}
 	assertHomeUntouched(t, home)
+}
+
+// The machine surface is a frozen contract, and its tracked description has to
+// keep naming every command and the anchors a consumer builds on. Prose can
+// drift where help strings cannot, so the anchors are asserted here: losing a
+// command section, the contract path, the refusal token, or the exit-code
+// table from the document fails the build that removed it.
+func TestAgentInterfaceDocumentCoversTheMachineSurface(t *testing.T) {
+	t.Parallel()
+
+	doc, err := os.ReadFile(filepath.Join("..", "..", "AGENT_INTERFACE.md"))
+	if err != nil {
+		t.Fatalf("read the agent interface document: %v", err)
+	}
+	text := string(doc)
+	for _, anchor := range []string{
+		"yomihon check",
+		"yomihon coverage",
+		"yomihon exists",
+		"yomihon search",
+		"yomihon search-index build",
+		"System/schemas/vault-schema.toml",
+		"privacy-capability-unavailable",
+		"`--format json`",
+		"`--json`",
+		"fingerprint",
+		"rel_path",
+		"YOMIHON_EMBED_KEY",
+		"## Exit codes",
+	} {
+		if !strings.Contains(text, anchor) {
+			t.Errorf("agent interface document does not mention %q", anchor)
+		}
+	}
 }
 
 func TestServeRejectsArgumentsBeforeLoadingConfiguration(t *testing.T) {
