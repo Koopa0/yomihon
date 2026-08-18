@@ -1,136 +1,91 @@
 <h1><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"> yomihon</h1>
 
+English | [繁體中文](README.zh-TW.md)
+
 [![CI](https://github.com/koopa0/yomihon/actions/workflows/ci.yml/badge.svg)](https://github.com/koopa0/yomihon/actions/workflows/ci.yml)
-[![Go 1.26.6+](https://img.shields.io/badge/Go-1.26.6%2B-00ADD8?style=flat&logo=go&logoColor=white)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
-yomihon is a local, single-user web interface for reading a personal Markdown
-vault and deciding what to do about what you read. It renders your notes as
-calm, navigable pages, and it writes exactly one thing back: a note's lifecycle
-`status`, as one git commit under your own name.
+**A focused reading room for your Markdown knowledge base.**
 
-[![Yomihon's Traditional Chinese browser interface, with a note open for
-reading: the vault's notes down the left, the article in the middle in a serif
-face, and the note's status, contents, and relations down the
-right](.github/media/reading.png)](.github/media/reading.png)
+yomihon turns a folder of notes into a calm, local reading experience. Read
+long-form Markdown, keep its links and context close, follow learning
+structures when they exist, and decide when a note is ready—without moving
+your knowledge into another database.
 
-*The browser chrome is intentionally in Traditional Chinese. Vault notes keep
-their own declared language; this screenshot was captured from a demonstration
-vault.*
+[![An English note open in yomihon, with a Study Path and Map on the left, the article in the centre, and its status, contents, and backlinks on the right](.github/media/reading-en.png)](.github/media/reading-en.png)
+
+*The browser chrome is intentionally in Traditional Chinese; each note keeps
+its authored language. This screenshot uses a synthetic demonstration vault.*
 
 > [!WARNING]
-> yomihon is under active development. Expect significant feature and
-> interface changes before the first stable release.
+> yomihon is under active development. Expect meaningful product and interface
+> changes before the first stable release.
 
-## Features
+## Why yomihon
 
-- Renders Markdown, wikilinks, transclusions, callouts, ruby, Mermaid, source
-  files, images, PDFs, and HTML reports as one reading surface.
-- Builds navigation, backlinks, a table of contents, and lexical search from
-  the current vault snapshot.
-- Presents study paths, lesson tools, vault diagnostics, and concept coverage
-  without changing your notes.
-- Answers diagnostic and search commands for local agents.
-- Advances one note's `status` through your vault's own lifecycle rules and
-  records the accepted transition as one git commit.
+- **Read without migration.** Ordinary Markdown remains ordinary Markdown.
+  Notes, links, images, callouts, Mermaid diagrams, PDFs, and reports are
+  presented as a coherent reading surface.
+- **See the right structure at the right time.** Navigation, headings,
+  backlinks, and lexical search stay close to the text. Opt-in Study Paths
+  express ordered progress; Maps express relationships; Reports remain
+  reports. They are distinct surfaces, not one universal markup system.
+- **Keep the final decision human.** yomihon is a reader, not an editor. It can
+  advance one note's approved `status`; prose revisions stay in the writing
+  tool you already use.
 
-## Boundaries
+## Start reading
 
-1. **One vault write.** yomihon updates only the frontmatter `status` field.
-   Every other vault byte is read-only.
-2. **Local by default.** The server has no authentication and listens only on
-   `127.0.0.1`. Reading and lexical search stay on your machine; provider
-   egress requires an explicit semantic action and your own credential.
-3. **The vault owns its contract.** The legal types and fields, the lifecycle,
-   the privacy boundary, and which document types may take part in path and
-   map behaviour all come from `System/schemas/vault-schema.toml`, never a
-   copy compiled into the binary.
-4. **Ordinary Markdown needs no changes.** A folder of notes reads, links,
-   searches and renders as it is. Structured presentation — a course with an
-   order, a side branch, a block that stays out of navigation — is opt-in, and
-   the body syntax for it belongs to yomihon rather than to your vault:
-   see [`AUTHORING.md`](AUTHORING.md). A note that declares nothing keeps
-   reading as prose; a course that declares its structure gets one.
-5. **Problems stay visible.** Invalid metadata and broken or ambiguous links
-   become diagnostics. The renderer never guesses or repairs your notes.
-
-## Requirements
-
-- Go 1.26.6 or newer.
-- A vault contract at `System/schemas/vault-schema.toml`. Start from
-  [`examples/vault-schema.toml`](examples/vault-schema.toml) and adapt it to
-  your own directories and note types. yomihon diagnoses a missing or invalid
-  contract, but never creates or edits one.
-- To change a `status`: the vault must be a git repository, and the note must
-  have no uncommitted changes. yomihon refuses rather than mix its one-line
-  edit into work you have not committed. Reading, search, and diagnostics need
-  no git.
-
-## Install
+You need Git and Go 1.26.6 or newer. Install from source:
 
 ```sh
-git clone https://github.com/Koopa0/yomihon.git && cd yomihon
+git clone https://github.com/Koopa0/yomihon.git
+cd yomihon
 go install ./cmd/yomihon
 ```
 
-This repository is private, so `go install <module>@<version>` cannot resolve
-it — the clone supplies the source. The built binary carries every asset it
-serves and runs without the repository beside it.
-
-## Run
-
-Read the folder you are standing in, or one you name:
-
-```sh
-cd /path/to/vault && yomihon
-```
+Then point yomihon at a Markdown folder:
 
 ```sh
 yomihon /path/to/vault
 ```
 
-Home loads at `http://127.0.0.1:9610` once the log says `yomihon serving`. An
-invalid vault path exits non-zero. A missing or invalid contract is reported on
-the page, leaves reading available, and closes the write face.
+Open `http://127.0.0.1:9610`. You can also run `yomihon` from inside the
+folder you want to read.
 
-Every command reads the current folder unless told otherwise, so `yomihon
-check` and `yomihon search <query>` answer about the folder `yomihon` serves.
-Run `yomihon help` for the list, or `yomihon <command> --help` for one.
+A plain folder is readable without changing its files. To opt in to governed
+metadata, structured navigation, and lifecycle actions, add a vault contract
+at `System/schemas/vault-schema.toml`; start with
+[`examples/vault-schema.toml`](examples/vault-schema.toml).
+[`AUTHORING.md`](AUTHORING.md) documents yomihon's opt-in Study Path body
+syntax; Maps and Reports keep their own document roles.
 
-Each process holds one folder for its lifetime, so reading a second vault means
-a second `yomihon` on a second port.
+## Trust by design
 
-## Configure
-
-Which folder to read is not configuration: it is the one you are standing in,
-or the one you name on the line.
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `YOMIHON_PORT` | Listen port. The address itself is always `127.0.0.1`. | `9610` |
-
-### Semantic search
-
-Semantic retrieval is an optional CLI action and the one place yomihon talks to
-a network service. It is off unless you set `YOMIHON_EMBED_KEY` to your own
-Gemini credential; the vectors it computes are stored locally, and the server
-never uses it.
+- **Local and single-user.** The server listens only on `127.0.0.1` and has no
+  remote or multi-user mode.
+- **One narrow write.** Reading, rendering, search, and diagnostics do not
+  change vault content. An authorized lifecycle action changes only `status`
+  and records that transition as one Git commit under your identity.
+- **Visible failure.** Invalid metadata and broken or ambiguous links become
+  diagnostics. yomihon does not guess at or silently repair your notes.
+- **Optional network use.** Ordinary reading and lexical search stay local.
+  Semantic actions are explicit, use your own provider credential, and respect
+  the vault's privacy contract.
 
 ## Platform support
 
-| | macOS | Linux | Windows |
-|---|---|---|---|
-| Reading, navigation, diagnostics, lexical search | yes | yes | yes |
-| `status` writes, semantic generations | yes | yes | no |
+| Capability | macOS | Linux | Windows |
+|---|---:|---:|---:|
+| Reading, navigation, diagnostics, lexical search | Yes | Yes | Yes |
+| `status` writes and semantic generations | Yes | Yes | No |
 
-yomihon is a personal application, not a multi-user service, and is
-deliberately not published as a container image: the listener binds `127.0.0.1`
-in its own network namespace, which a host cannot reach from inside a
-container, and the `status` commit runs `git` as you so it carries your
-identity. Use [GitHub Issues](https://github.com/Koopa0/yomihon/issues) for
-questions and defects.
+## Project
 
-## License
+Questions and defects belong in [GitHub Issues](https://github.com/Koopa0/yomihon/issues).
+Before contributing, read [`CONTRIBUTING.md`](CONTRIBUTING.md). Report security
+problems through the private process in [`SECURITY.md`](SECURITY.md).
 
-[MIT](LICENSE). Redistributed fonts and client assets are documented in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+yomihon is released under the [MIT License](LICENSE). Redistributed fonts and
+client assets are listed in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
