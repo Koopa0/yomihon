@@ -1,8 +1,10 @@
 // Package status is the write face: the only package in this repo
 // allowed to write vault files or run git. It flips a note's frontmatter
 // `status` field — a surgical, single-line rewrite, never a YAML
-// re-serialization — and commits the change under the vault's own git
-// identity so the commit author is genuinely Koopa.
+// re-serialization — and commits the change with the vault's configured
+// git identity, never one yomihon sets itself. Within this tool's
+// single-user, local-trust model the commit records that the write face
+// performed the transition; it does not authenticate who triggered it.
 package status
 
 import (
@@ -1197,9 +1199,11 @@ func (lc *Lifecycle) dirty(ctx context.Context, rel string) (bool, error) {
 	return len(bytes.TrimSpace(out)) > 0, nil
 }
 
-// commit records the flip as one commit, authored by the vault's own git
-// identity, never one yomihon sets itself — the audit meaning of the commit
-// is "Koopa pressed it". relSlash is used in the commit
+// commit records the flip as one commit, authored with the vault's
+// configured git identity, never one yomihon sets itself. Within this
+// tool's single-user, local-trust model the commit records that the write
+// face performed the transition; it does not authenticate who triggered
+// it. relSlash is used in the commit
 // message (a stable, slash-form path); rel is what's passed to git, which
 // on this platform are the same string.
 func (lc *Lifecycle) commit(ctx context.Context, rel, relSlash, from, to string, rewritten []byte) error {
