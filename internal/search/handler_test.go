@@ -227,6 +227,32 @@ func TestSearchHitStatusChipFollowsGovernance(t *testing.T) {
 	}
 }
 
+// TestSearchResultsSurviveFoldLengtheningNote pins the whole request path for
+// a note whose snippet lowercases to a longer byte string: one Ⱥ (or one stray
+// invalid byte) ahead of the matched word used to push the fold-space match
+// offset past the snippet and panic the request that should have surfaced that
+// very note.
+func TestSearchResultsSurviveFoldLengtheningNote(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Notes/stroke.md", Title: "Stroke", PlainText: "Ⱥ body qfindq"},
+	}, validArtifactPolicy(t))
+	h := NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=qfindq", http.NoBody)
+	rr := httptest.NewRecorder()
+	h.results(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "<mark>qfindq</mark>") {
+		t.Errorf("the matched word is not the marked text; body = %q", rr.Body.String())
+	}
+}
+
 func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 

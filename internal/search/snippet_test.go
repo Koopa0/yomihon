@@ -228,6 +228,77 @@ func snippetFor(t *testing.T, idx *Index, query string) string {
 	return results[0].Snippet
 }
 
+// markHits locates matches on a lowercased copy of the snippet, and
+// lowercasing does not preserve length: Ⱥ grows from two bytes to three, a
+// byte that is not valid UTF-8 becomes the three-byte replacement character,
+// and Turkish İ shrinks from two bytes to one. An offset found on the folded
+// copy therefore cannot index the original directly — growing folds pushed a
+// match past the end of the snippet and the page panicked; shrinking folds
+// marked the wrong bytes and cut characters in half. The runs must land on
+// the note's own bytes in every one of those shapes.
+func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		snippet string
+		tokens  []string
+		want    []pages.SnippetRun
+	}{
+		{
+			name:    "a letter whose lowercase is longer does not push the match off the end",
+			snippet: "Ⱥ zap",
+			tokens:  []string{"zap"},
+			want: []pages.SnippetRun{
+				{Text: "Ⱥ "},
+				{Text: "zap", Hit: true},
+			},
+		},
+		{
+			name:    "a byte that is not valid UTF-8 does not push the match off the end",
+			snippet: "\x80 zap",
+			tokens:  []string{"zap"},
+			want: []pages.SnippetRun{
+				{Text: "\x80 "},
+				{Text: "zap", Hit: true},
+			},
+		},
+		{
+			name:    "a letter whose lowercase is shorter does not drag the mark onto the wrong bytes",
+			snippet: "İİİİ zap",
+			tokens:  []string{"zap"},
+			want: []pages.SnippetRun{
+				{Text: "İİİİ "},
+				{Text: "zap", Hit: true},
+			},
+		},
+		{
+			name:    "a match on the shrinking letter itself marks the whole character",
+			snippet: "İ 筆記",
+			tokens:  []string{"i"},
+			want: []pages.SnippetRun{
+				{Text: "İ", Hit: true},
+				{Text: " 筆記"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := markHits(tt.snippet, tt.tokens)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("markHits(%q, %v) mismatch (-want +got):\n%s", tt.snippet, tt.tokens, diff)
+			}
+			var rebuilt strings.Builder
+			for _, r := range got {
+				rebuilt.WriteString(r.Text)
+			}
+			if rebuilt.String() != tt.snippet {
+				t.Errorf("markHits() runs rebuild to %q, want %q", rebuilt.String(), tt.snippet)
+			}
+		})
+	}
+}
+
 // The matched offset is found on a folded copy and used against the original.
 // A fold that is not length-preserving can land it inside a character, and
 // counting characters outward from a broken start would carry the break into

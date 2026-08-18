@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"unicode"
 
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
@@ -183,11 +184,16 @@ func viewResults(results []Result, governed bool, tokens []string) []pages.Searc
 // carry slices of the original text, so what the reader sees is their own note
 // and not a re-cased copy of it. Overlapping matches are merged: two tokens
 // that cover the same words produce one mark rather than nested ones.
+//
+// A match offset lives in the folded copy, and lowercasing does not preserve
+// length, so every offset is carried back through the fold's source mapping
+// before it touches the snippet: covered is marked and the runs are sliced in
+// the snippet's own bytes, never the fold's.
 func markHits(snippet string, tokens []string) []pages.SnippetRun {
 	if snippet == "" || len(tokens) == 0 {
 		return nil
 	}
-	fold := strings.ToLower(snippet)
+	fold, src := foldWithSourceOffsets(snippet)
 	covered := make([]bool, len(snippet))
 	found := false
 	for _, t := range tokens {
@@ -200,7 +206,7 @@ func markHits(snippet string, tokens []string) []pages.SnippetRun {
 				break
 			}
 			i += at
-			for j := i; j < i+len(t); j++ {
+			for j := src[i]; j < src[i+len(t)]; j++ {
 				covered[j] = true
 			}
 			found = true
@@ -220,4 +226,25 @@ func markHits(snippet string, tokens []string) []pages.SnippetRun {
 		start = i
 	}
 	return runs
+}
+
+// foldWithSourceOffsets lowercases s the way the index folds text, and maps
+// every byte position of the folded copy — including one past its end — back
+// to the byte offset in s of the character it came from. Lowercasing does not
+// preserve length: Ⱥ grows from two bytes to three, a byte that is not valid
+// UTF-8 becomes the three-byte replacement character, and Turkish İ shrinks
+// from two bytes to one. An offset found in the folded copy therefore cannot
+// index s directly; it has to come back through this mapping.
+func foldWithSourceOffsets(s string) (fold string, src []int) {
+	var folded strings.Builder
+	folded.Grow(len(s))
+	src = make([]int, 0, len(s)+1)
+	for i, r := range s {
+		n := folded.Len()
+		folded.WriteRune(unicode.ToLower(r))
+		for ; n < folded.Len(); n++ {
+			src = append(src, i)
+		}
+	}
+	return folded.String(), append(src, len(s))
 }
