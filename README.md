@@ -83,8 +83,16 @@ syntax; Maps and Reports keep their own document roles.
 ## Project
 
 Questions and defects belong in [GitHub Issues](https://github.com/Koopa0/yomihon/issues).
-Before contributing, read [`CONTRIBUTING.md`](CONTRIBUTING.md). Report security
-problems through the private process in [`SECURITY.md`](SECURITY.md).
+Report security problems privately through
+[GitHub's vulnerability reporting](https://github.com/Koopa0/yomihon/security/advisories/new)
+rather than a public issue.
+
+Contributions gate on `make verify`. `make tools` installs the pinned Go
+analysis tools it expects; a tool built outside `go install` (a Homebrew
+build, for example) carries no module version stamp and cannot pass the
+exact-version check. The Makefile and CI workflow pin the remaining
+prerequisites: the Tailwind CSS standalone CLI, ShellCheck, Node.js with npm
+for the development-only frontend lint, and Chrome for the browser probes.
 
 yomihon is released under the [MIT License](LICENSE). Redistributed fonts and
 client assets are listed in

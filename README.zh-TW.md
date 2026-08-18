@@ -74,8 +74,15 @@ yomihon /path/to/vault
 ## 專案資訊
 
 問題與功能建議請到 [GitHub Issues](https://github.com/Koopa0/yomihon/issues)。
-參與貢獻前請閱讀 [`CONTRIBUTING.md`](CONTRIBUTING.md)；安全性問題請依
-[`SECURITY.md`](SECURITY.md) 中的私密流程回報。
+安全性問題請透過
+[GitHub 私密漏洞回報](https://github.com/Koopa0/yomihon/security/advisories/new)
+提交，不要開公開 issue。
+
+貢獻以 `make verify` 為驗收閘門；`make tools` 會安裝閘門要求的固定版本 Go
+分析工具。非 `go install` 產出的執行檔（例如 Homebrew 版本）沒有模組版本
+戳記，無法通過精確版本檢查。其餘先決工具（Tailwind CSS 獨立 CLI、
+ShellCheck、供開發期前端 lint 使用的 Node.js 與 npm、瀏覽器探針使用的
+Chrome）版本固定在 Makefile 與 CI 工作流程中。
 
 yomihon 採用 [MIT License](LICENSE)。重新散布的字型與前端資產列於
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
