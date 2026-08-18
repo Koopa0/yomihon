@@ -1052,6 +1052,64 @@ func TestCalloutFoldSuffixes(t *testing.T) {
 	})
 }
 
+// TestCalloutSerializationLocks pins each callout variant's full
+// serialization byte-exact for one fixed body, the way the heading and table
+// surfaces are already locked. The class-fragment assertions above prove the
+// pieces exist; only an exact string proves there is exactly one body
+// wrapper, that attributes keep their order, and that the icon precedes the
+// title — the drifts a substring check waves through.
+func TestCalloutSerializationLocks(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "static callout",
+			body: "> [!note]\n> body text\n",
+			want: `<div class="callout callout-note"><p class="callout-title">` +
+				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</p>` +
+				`<div class="callout-body"><p>body text</p>` + "\n</div></div>\n",
+		},
+		{
+			name: "foldable callout closed by default",
+			body: "> [!note]-\n> body text\n",
+			want: `<details class="callout callout-note"><summary class="callout-title">` +
+				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</summary>` +
+				`<div class="callout-body"><p>body text</p>` + "\n</div></details>\n",
+		},
+		{
+			name: "foldable callout open by default",
+			body: "> [!note]+\n> body text\n",
+			want: `<details class="callout callout-note" open><summary class="callout-title">` +
+				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</summary>` +
+				`<div class="callout-body"><p>body text</p>` + "\n</div></details>\n",
+		},
+		{
+			name: "static warning callout with an authored title",
+			body: "> [!warning] 自訂標題\n> body text\n",
+			want: `<div class="callout callout-warning"><p class="callout-title">` +
+				`<span class="callout-icon" aria-hidden="true">⚠</span>自訂標題</p>` +
+				`<div class="callout-body"><p>body text</p>` + "\n</div></div>\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("note.md", "", tt.body)
+			if got.HTML != tt.want {
+				t.Errorf("HTML(%q).HTML = %q, want exactly %q", tt.body, got.HTML, tt.want)
+			}
+			if len(got.Diagnostics) != 0 {
+				t.Errorf("Diagnostics = %+v, want none", got.Diagnostics)
+			}
+		})
+	}
+}
+
 func TestCalloutUnknownTypeFallsBackToBlockquote(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
