@@ -436,6 +436,38 @@ func TestScanSameFilesDetectsObservationChanges(t *testing.T) {
 		}
 	})
 
+	// The comparison is deliberately identity-and-metadata only: bytes
+	// rewritten in place with size and mtime restored are invisible to it.
+	// That boundary is covered rather than accepted — the scanner's consumer
+	// runs a slow reconciliation cycle that periodically rebuilds without
+	// this comparison, so such an edit is still republished eventually.
+	t.Run("leaf content, same size and mtime", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeReaderFixture(t, root, "Notes/one.md", "same")
+		reader := openTestReader(t, root)
+		first := scanCompleteFixture(t, reader)
+		file := first.Files()[0]
+		path := filepath.Join(root, "Notes", "one.md")
+		handle, err := os.OpenFile(path, os.O_WRONLY, 0) // #nosec G304 -- a path inside this test's own TempDir
+		if err != nil {
+			t.Fatalf("OpenFile(one.md) error = %v", err)
+		}
+		if _, err := handle.WriteAt([]byte("swap"), 0); err != nil {
+			t.Fatalf("WriteAt(one.md) error = %v", err)
+		}
+		if err := handle.Close(); err != nil {
+			t.Fatalf("Close(one.md) error = %v", err)
+		}
+		if err := os.Chtimes(path, file.ModTime(), file.ModTime()); err != nil {
+			t.Fatalf("Chtimes(one.md) error = %v", err)
+		}
+		second := scanCompleteFixture(t, reader)
+		if !first.SameFiles(second) {
+			t.Fatal("SameFiles(in-place same-size same-mtime edit) = false, want true: the comparison is metadata-only")
+		}
+	})
+
 	t.Run("leaf mode", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

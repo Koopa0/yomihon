@@ -41,6 +41,15 @@ const scanInterval = 2 * time.Second
 // unreadable folder is fully re-read.
 const maxRetryDelay = time.Minute
 
+// reconcileEvery is the number of scan ticks between unconditional rebuilds.
+// The fast path compares only file identity and metadata, so an in-place edit
+// that preserves inode, mode, size, and mtime is invisible to it; every
+// reconcileEvery-th tick rebuilds without the short-circuit so such an edit is
+// still republished eventually. The trade: those edits can stay stale for up
+// to about five minutes, and a quiescent folder pays one full re-read (about
+// 0.7 CPU-seconds at three thousand notes) per period.
+const reconcileEvery = 150
+
 // Source is the rooted read capability required to construct a generation.
 // The interface is defined by its only consumer so tests can count scans and
 // reads without weakening vault.Reader's production identity checks.
@@ -325,6 +334,11 @@ type Store struct {
 	consecutiveIncomplete int
 	nextRetry             time.Time
 	incompleteScan        vault.Scan
+
+	// sinceRebuild counts scan ticks since the last completed build attempt,
+	// driving the slow reconciliation cycle that catches metadata-invisible
+	// edits.
+	sinceRebuild int
 }
 
 // New captures and builds the initial generation synchronously. source and log
@@ -410,7 +424,14 @@ func (s *Store) rescan(ctx context.Context) {
 		}
 		return
 	}
-	if !s.retry && s.prev.SameFiles(scan) {
+	// The metadata comparison cannot see an in-place edit that preserves
+	// inode, mode, size, and mtime, so every reconcileEvery-th tick rebuilds
+	// without the short-circuit. Reconciliation never fires while rebuilds
+	// are failing: the backoff owns the rebuild cadence there, and every
+	// retry attempt is already a full re-read.
+	s.sinceRebuild++
+	reconcile := !s.retry && s.sinceRebuild >= reconcileEvery
+	if !s.retry && !reconcile && s.prev.SameFiles(scan) {
 		return
 	}
 	// While rebuilds keep failing over an unchanged file domain, the expensive
@@ -439,6 +460,9 @@ func (s *Store) rescan(ctx context.Context) {
 		}
 		return
 	}
+	// A completed build attempt re-read every file, whether or not it
+	// publishes, so the reconciliation clock restarts here.
+	s.sinceRebuild = 0
 	if len(blocked) != 0 {
 		s.noteIncomplete(scan, blocked)
 		return

@@ -1086,6 +1086,116 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	}
 }
 
+// TestMetadataInvisibleEditIsEventuallyRepublished pins the slow half of the
+// freshness contract. The fast path trusts identity and metadata, so an
+// in-place edit that preserves inode, mode, size, and mtime is invisible to
+// it — deliberately, and the companion scanner test states that boundary. What
+// keeps that from meaning "stale forever in a quiescent folder" is the slow
+// reconciliation cycle: every reconcileEvery-th tick rebuilds without the
+// short-circuit, so the changed bytes are republished within minutes.
+func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const relPath = "Concepts/Alpha.md"
+	const oldBody = "---\ntitle: Alpha\ntype: concept\n---\nMARKER_OLD_XYZ\n"
+	const newBody = "---\ntitle: Alpha\ntype: concept\n---\nMARKER_NEW_ABC\n"
+	if len(oldBody) != len(newBody) {
+		t.Fatalf("fixture bodies differ in size (%d vs %d); this would prove nothing", len(oldBody), len(newBody))
+	}
+	writeNote(t, root, relPath, oldBody)
+	contract := testContract(t, root)
+	store, _ := newTestStore(t, root, contract)
+	first := store.Current()
+	entry, ok := first.Entry(relPath)
+	if !ok {
+		t.Fatalf("Entry(%s) missing from the initial generation", relPath)
+	}
+
+	// Rewrite the bytes in place — same inode, same size — and put the mtime
+	// back where the scanner observed it.
+	full := filepath.Join(root, filepath.FromSlash(relPath))
+	file, err := os.OpenFile(full, os.O_WRONLY, 0) // #nosec G304 -- a path inside this test's own TempDir
+	if err != nil {
+		t.Fatalf("OpenFile(%s): %v", relPath, err)
+	}
+	if _, err := file.WriteAt([]byte(newBody), 0); err != nil {
+		t.Fatalf("WriteAt(%s): %v", relPath, err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("Close(%s): %v", relPath, err)
+	}
+	if err := os.Chtimes(full, entry.ModTime(), entry.ModTime()); err != nil {
+		t.Fatalf("Chtimes(%s): %v", relPath, err)
+	}
+
+	// One ordinary rescan keeps the fast path honest: metadata is unchanged,
+	// so nothing is re-read and the generation stands.
+	store.rescan(t.Context())
+	if store.Current() != first {
+		t.Fatal("a metadata-invisible edit was picked up by the fast path; this test no longer covers the slow cycle")
+	}
+
+	// Driving the loop through one reconciliation period republishes the
+	// changed bytes even though no metadata ever moved.
+	for range reconcileEvery {
+		store.rescan(t.Context())
+	}
+	note, ok := store.Current().Note(relPath)
+	if !ok {
+		t.Fatalf("Note(%s) missing after the reconciliation period", relPath)
+	}
+	if !strings.Contains(note.Body, "MARKER_NEW_ABC") {
+		t.Errorf("note body after the reconciliation period still carries the old bytes: %q", note.Body)
+	}
+}
+
+// TestReconciliationDefersToFailureBackoff pins how the two cadences meet:
+// while rebuilds are failing, the reconciliation counter keeps counting but
+// never forces the expensive path. The backoff owns the rebuild cadence
+// there, and every retry attempt is already a full re-read, so a forced
+// rebuild would only bypass the bound the backoff exists to hold.
+func TestReconciliationDefersToFailureBackoff(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const failing = "Concepts/Alpha.md"
+	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The clock never advances, so the backoff delay never expires.
+	clock := time.Now()
+	store.now = func() time.Time { return clock }
+
+	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha, now a different size\n")
+	source.fail[failing] = 1 << 30
+	store.rescan(t.Context())
+	if !store.retry {
+		t.Fatal("the failed rebuild did not latch a retry")
+	}
+
+	before := source.reads[failing]
+	for range reconcileEvery + 10 {
+		store.rescan(t.Context())
+	}
+	if got := source.reads[failing] - before; got != 0 {
+		t.Errorf("reconciliation forced %d rebuild attempts past the failure backoff, want 0", got)
+	}
+}
+
 // TestASidecarTooLargeToShowIsNotSearchable keeps one rule across both faces. A
 // lesson sidecar is read whatever its size, because the practice panel is built
 // from it — but its own page says its contents are not searched, and deciding
