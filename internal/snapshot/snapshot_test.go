@@ -915,6 +915,92 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	}
 }
 
+// TestPermanentlyUnreadableNoteRetainsGenerationUntilReadable locks the
+// behavior the comment above TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder
+// describes for the opposite branch: a note the reading surface is made of.
+// While one note stays unreadable, no later generation publishes — the folder
+// holds at the last complete one, and a note written after the failure stays
+// invisible — the retry work is bounded by the backoff schedule, and the
+// moment the blocked note reads again the next attempt publishes everything.
+func TestPermanentlyUnreadableNoteRetainsGenerationUntilReadable(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const blocked = "Concepts/Alpha.md"
+	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	frozen := store.Current()
+	base := time.Now()
+	clock := base
+	store.now = func() time.Time { return clock }
+
+	// The note is edited to a different size — so the next rescan rebuilds —
+	// and from now on every read of it fails.
+	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited to a different size\n")
+	source.fail[blocked] = 1 << 30
+
+	var attemptTicks []int
+	last := source.reads[blocked]
+	for tick := range 10 {
+		clock = base.Add(time.Duration(tick) * scanInterval)
+		store.rescan(t.Context())
+		if source.reads[blocked] > last {
+			attemptTicks = append(attemptTicks, tick)
+			last = source.reads[blocked]
+		}
+	}
+	if store.Current() != frozen {
+		t.Fatal("a rescan under a permanently unreadable note published a generation")
+	}
+	if diff := cmp.Diff([]int{0, 1, 3, 7}, attemptTicks); diff != "" {
+		t.Errorf("rebuild attempt ticks mismatch (-want +got):\n%s", diff)
+	}
+
+	// A note written after the failure retries immediately — its arrival is a
+	// metadata change — but the folder still cannot publish, so it stays
+	// invisible: the 404 the reader meets in a folder that is otherwise fine.
+	const added = "Concepts/Beta.md"
+	writeNote(t, root, added, "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
+	clock = base.Add(10 * scanInterval)
+	store.rescan(t.Context())
+	if store.Current() != frozen {
+		t.Fatal("an incomplete rebuild after a new note published a generation")
+	}
+	if _, ok := store.Current().Note(added); ok {
+		t.Fatal("a note written after the failure appeared while the folder was held back")
+	}
+
+	// The blocked note becomes readable again; the next scheduled attempt
+	// publishes the whole folder, the added note included.
+	source.fail[blocked] = 0
+	clock = base.Add(11 * scanInterval)
+	store.rescan(t.Context())
+	if store.Current() == frozen {
+		t.Fatal("a readable folder did not publish a new generation")
+	}
+	if _, ok := store.Current().Note(added); !ok {
+		t.Error("the recovered generation lost the note written during the freeze")
+	}
+	note, ok := store.Current().Note(blocked)
+	if !ok || !strings.Contains(note.Body, "edited to a different size") {
+		t.Errorf("recovered note = %+v, present %t; want the edited body", note, ok)
+	}
+}
+
 // TestASidecarTooLargeToShowIsNotSearchable keeps one rule across both faces. A
 // lesson sidecar is read whatever its size, because the practice panel is built
 // from it — but its own page says its contents are not searched, and deciding
