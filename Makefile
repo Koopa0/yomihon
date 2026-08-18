@@ -27,9 +27,9 @@ list=$$(go list $(1) ./assets ./cmd/... ./internal/...); \
 endef
 
 define require-go-tool
-path=$$(command -v $(1)) || { echo '$(1) is required at $(3)' >&2; exit 1; }; \
+path=$$(command -v $(1)) || { echo '$(1) is required at $(3); run: make tools' >&2; exit 1; }; \
 go version -m "$$path" | awk '$$1 == "mod" && $$2 == "$(2)" && $$3 == "$(3)" { found = 1 } END { exit !found }' || { \
-	echo '$(1) must be built from $(2) $(3)' >&2; \
+	echo '$(1) must be built from $(2) $(3); run: make tools' >&2; \
 	exit 1; \
 }
 endef
