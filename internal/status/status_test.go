@@ -797,6 +797,39 @@ func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
 	}
 }
 
+// TestFlipRefusesNonMarkdownTarget locks the write face to the same note
+// definition the reading scan uses: a note is a file whose path ends in
+// ".md", and everything else is a resource. A resource carrying note-shaped
+// frontmatter and a legal transition must not receive a committed status
+// flip — that would mint a note-lifecycle receipt for a file the reading
+// face itself refuses to offer a write form for.
+func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	const txtRel = "Writing/lessons/japanese/L05.txt"
+	original := lessonContent("draft")
+	writeVaultFile(t, root, txtRel, original)
+	commitAll(t, root)
+	before := commitCount(t, root)
+
+	err := lifecycle.Flip(t.Context(), txtRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrNonInstance) {
+		t.Fatalf("Flip(%q) = %v, want %v", txtRel, err, status.ErrNonInstance)
+	}
+	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(txtRel))) // #nosec G304 -- txtRel is a fixed in-test constant under newVault's TempDir
+	if readErr != nil {
+		t.Fatalf("read resource: %v", readErr)
+	}
+	if diff := cmp.Diff(original, string(got)); diff != "" {
+		t.Errorf("resource bytes changed (-want +got):\n%s", diff)
+	}
+	if after := commitCount(t, root); after != before {
+		t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
+	}
+}
+
 func TestFlipValidatesPathBeforeClosure(t *testing.T) {
 	t.Parallel()
 	lifecycle := newLifecycle(t, t.TempDir(), nil)
