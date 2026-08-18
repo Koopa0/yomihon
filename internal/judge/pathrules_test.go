@@ -9,10 +9,14 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
-// TestEveryEmittedRuleIsDeniable holds the registry honest. --deny takes a rule
-// id, and a rule that fires but is not listed cannot be denied by name — the
-// list drifted that way once already, silently, because nothing compared it
-// against what the rules actually emit.
+// TestEveryEmittedRuleIsDeniable holds the registry honest in both directions.
+// --deny takes a rule id, and a rule that fires but is not listed cannot be
+// denied by name — the list drifted that way once already, silently, because
+// nothing compared it against what the rules actually emit. The reverse holds
+// too: a registered id that no golden exercises is either a dead entry
+// accumulating silently or a live rule with no fixture behind it, so every
+// registry entry must appear in at least one golden line — landing a rule
+// means landing the fixture that proves it fires.
 func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 	t.Parallel()
 
@@ -47,6 +51,11 @@ func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 	for id := range seen {
 		if !slices.Contains(ruleIDs, id) {
 			t.Errorf("rule %q fires but --deny rejects it: the registry is missing it", id)
+		}
+	}
+	for _, id := range ruleIDs {
+		if _, emitted := seen[id]; !emitted {
+			t.Errorf("rule %q is registered for --deny but no golden exercises it: add a fixture that makes it fire, or drop the dead entry", id)
 		}
 	}
 }
