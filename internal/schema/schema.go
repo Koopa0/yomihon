@@ -42,6 +42,12 @@ const (
 	// note its provenance. It is spelled once, here, so no face keeps a second
 	// copy of it.
 	conceptType = "concept"
+
+	// inboxType is the note type a vault-schema.toml reserves for captures
+	// whose shape is not yet decided. The contract gives this word meaning too:
+	// a contract declaring fields.required_inbox has to list the type in
+	// enums.type.
+	inboxType = "inbox"
 )
 
 // Sentinel errors for state-machine answers. Callers match with errors.Is.
@@ -63,6 +69,7 @@ type Contract struct {
 	artifactPolicy  ArtifactPolicy
 	privacyPolicy   PrivacyPolicy
 	metadata        contractMetadata
+	written         writtenKeys
 
 	statusGroupByType map[string]string
 	statusesByGroup   map[string][]string
@@ -91,6 +98,15 @@ type contractFile struct {
 	Privacy              toml.Primitive       `toml:"privacy"`
 	Supersession         *supersessionSection `toml:"supersession"`
 	Lifecycle            []rawLifecycleStage  `toml:"lifecycle"`
+}
+
+// writtenKeys records which optional keys the contract actually wrote down.
+// Both of these carry a value that is also its own Go zero value, so without
+// this a key nobody wrote would be indistinguishable from one written as false
+// or as an empty list — and the two say opposite things about the vault.
+type writtenKeys struct {
+	noFrontmatterIsLegal bool
+	requiredInbox        bool
 }
 
 // contractMetadata retains machine-readable coordination and supersession
@@ -266,6 +282,10 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	contract := &Contract{
 		version:    decoded.Version,
 		definition: decoded.Definition,
+		written: writtenKeys{
+			noFrontmatterIsLegal: tomlMeta.IsDefined("scan", "no_frontmatter_is_legal"),
+			requiredInbox:        tomlMeta.IsDefined("fields", "required_inbox"),
+		},
 		metadata: contractMetadata{
 			alignedWith:          decoded.AlignedWith,
 			generatedAtMustMatch: decoded.GeneratedAtMustMatch,
@@ -614,7 +634,7 @@ func validateFields(enums *Enums, fields *Fields) error {
 		return err
 	}
 	if len(fields.RequiredInbox) > 0 {
-		if _, ok := types["inbox"]; !ok {
+		if _, ok := types[inboxType]; !ok {
 			return errors.New(`fields.required_inbox requires enums.type to contain "inbox"`)
 		}
 	}
@@ -1130,6 +1150,32 @@ func (c *Contract) ConceptType() (name string, declared bool) {
 		return conceptType, false
 	}
 	return conceptType, slices.Contains(c.definition.Enums.Type, conceptType)
+}
+
+// InboxRequiredFields returns the note type a vault reserves for captures whose
+// shape is not yet decided, the fields it requires of such a note, and whether
+// the contract declared that requirement at all. A vault that declared none
+// holds its captures to the same fields as any other note, which is what a
+// reader of a contract that says nothing about them can honestly conclude. An
+// explicitly empty list is still a declaration: it says a capture is required
+// to carry nothing.
+func (c *Contract) InboxRequiredFields() (noteType string, fields []string, declared bool) {
+	if c == nil {
+		return inboxType, nil, false
+	}
+	return inboxType, slices.Clone(c.definition.Fields.RequiredInbox), c.written.requiredInbox
+}
+
+// RequiresFrontmatter reports whether this vault treats a note carrying no
+// frontmatter block as a fault. Only a contract that wrote the scan declaration
+// down and set it against legality asks for that: a contract that says nothing
+// has not ruled on raw files, and reading silence as a prohibition would fault
+// every transcript a vault keeps.
+func (c *Contract) RequiresFrontmatter() bool {
+	if c == nil {
+		return false
+	}
+	return c.written.noFrontmatterIsLegal && !c.definition.Scan.NoFrontmatterIsLegal
 }
 
 // DeclaresType reports whether noteType is listed in the contract's own type

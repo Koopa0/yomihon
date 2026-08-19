@@ -27,6 +27,9 @@ slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
 [scan]
 knowledge_dirs = ["Notes", "Lessons"]
 skip_basenames = ["README.md"]
+# Leave this key out and yomihon does not rule on files carrying no frontmatter
+# block. Write false and every note in a knowledge directory that carries none
+# is reported as a fault.
 no_frontmatter_is_legal = true
 
 [navigation]

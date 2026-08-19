@@ -26,6 +26,8 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile slug pattern %q: %w", definition.Rules.SlugPattern, err)
 	}
+	policy := contractPolicy{requiresFrontmatter: contract.RequiresFrontmatter()}
+	policy.inboxType, policy.inboxRequired, policy.inboxDeclared = contract.InboxRequiredFields()
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -33,10 +35,21 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 		inScope := slices.Contains(definition.Scan.KnowledgeDirs, seg[0])
 		skipped := slices.Contains(definition.Scan.SkipBasenames, seg[len(seg)-1])
 		if inScope && !skipped {
-			out = append(out, lintNote(n, &definition, seg, slug)...)
+			out = append(out, lintNote(n, &definition, policy, seg, slug)...)
 		}
 	}
 	return out, nil
+}
+
+// contractPolicy is the part of the contract the frontmatter rules ask for by
+// name instead of spelling themselves, resolved once for a whole run: whether a
+// note has to carry a frontmatter block at all, and what a capture of undecided
+// shape is required to carry.
+type contractPolicy struct {
+	requiresFrontmatter bool
+	inboxType           string
+	inboxRequired       []string
+	inboxDeclared       bool
 }
 
 // lintNote returns the frontmatter findings for one in-scope note, in the
@@ -44,8 +57,11 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 // language, the lesson-only rules, then either the light system-document rules or the full
 // knowledge-note rules. That order is the tiebreak the stable sort preserves
 // among findings that share a path and rule id.
-func lintNote(n *note, definition *schema.Definition, seg []string, slug *regexp.Regexp) []Finding {
+func lintNote(n *note, definition *schema.Definition, policy contractPolicy, seg []string, slug *regexp.Regexp) []Finding {
 	if n.noFrontmatter {
+		if policy.requiresFrontmatter {
+			return []Finding{schemaFinding(n, "schema.frontmatter", "", false, "", "is missing")}
+		}
 		return nil
 	}
 	if n.badFrontmatter {
@@ -70,7 +86,7 @@ func lintNote(n *note, definition *schema.Definition, seg []string, slug *regexp
 	if hasType && slices.Contains(definition.Fields.StatusGroup["system"], ty) {
 		return append(out, lintSystemStatus(n, definition)...)
 	}
-	return append(out, lintKnowledge(n, definition, seg)...)
+	return append(out, lintKnowledge(n, definition, policy, seg)...)
 }
 
 func lintArticleLanguage(n *note, definition *schema.Definition) []Finding {
@@ -130,9 +146,9 @@ func lintSystemStatus(n *note, definition *schema.Definition) []Finding {
 // lintKnowledge reports the full knowledge-note rules, in reading order:
 // required fields, the note status enum, the remaining value enums, then the
 // structural rules.
-func lintKnowledge(n *note, definition *schema.Definition, seg []string) []Finding {
+func lintKnowledge(n *note, definition *schema.Definition, policy contractPolicy, seg []string) []Finding {
 	var out []Finding
-	out = append(out, lintRequired(n, definition)...)
+	out = append(out, lintRequired(n, definition, policy)...)
 	group := configuredStatusGroup(definition, n.noteType)
 	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(definition.Enums.Status[group], st) {
 		reason := "is not a valid status"
@@ -155,15 +171,25 @@ func configuredStatusGroup(definition *schema.Definition, noteType string) strin
 	return "note"
 }
 
-// lintRequired reports each required field that is absent or blank. The domain
-// requirement is waived for undefined-shape inbox notes and for the types the
-// contract exempts (system docs, research briefs), which are not classified by
-// knowledge domain.
-func lintRequired(n *note, definition *schema.Definition) []Finding {
+// lintRequired reports each required field that is absent or blank. A capture
+// of undecided shape answers to the field set the contract declares for one, in
+// place of the general set; where the contract declares none it answers to the
+// general set with the domain requirement waived, since such a capture is not
+// classified by knowledge domain. The same waiver covers the types the contract
+// exempts (system docs, research briefs).
+func lintRequired(n *note, definition *schema.Definition, policy contractPolicy) []Finding {
 	ty, hasType := fmScalar(n.frontmatter, "type")
-	noDomain := hasType && (ty == "inbox" || slices.Contains(definition.Fields.DomainExempt, ty))
+	isInbox := hasType && ty == policy.inboxType
+	noDomain := isInbox || (hasType && slices.Contains(definition.Fields.DomainExempt, ty))
+	required := definition.Fields.Required
+	if isInbox && policy.inboxDeclared {
+		// The declared set is the whole answer for a capture, so nothing is
+		// waived out of it: a contract that lists domain there wants it.
+		required = policy.inboxRequired
+		noDomain = false
+	}
 	var out []Finding
-	for _, key := range definition.Fields.Required {
+	for _, key := range required {
 		if key == "domain" && noDomain {
 			continue
 		}

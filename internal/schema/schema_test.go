@@ -66,6 +66,25 @@ func TestDefinitionIsDetached(t *testing.T) {
 	}
 }
 
+// TestInboxRequiredFieldsIsDetached asserts a caller that edits the returned
+// list edits its own copy, the same guarantee Definition() gives.
+func TestInboxRequiredFieldsIsDetached(t *testing.T) {
+	t.Parallel()
+
+	contract := loadFixture(t)
+	_, want, _ := contract.InboxRequiredFields()
+	_, mutated, _ := contract.InboxRequiredFields()
+	if len(mutated) == 0 {
+		t.Fatal("fixture declares no inbox required fields; the detachment claim would be vacuous")
+	}
+	mutated[0] = "changed"
+
+	_, got, _ := contract.InboxRequiredFields()
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("InboxRequiredFields() changed after caller mutation (-want +got):\n%s", diff)
+	}
+}
+
 func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	t.Parallel()
 
