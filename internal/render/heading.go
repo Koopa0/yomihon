@@ -14,6 +14,17 @@ var (
 	slugDrop   = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 	tagStrip   = regexp.MustCompile(`<[^>]+>`)
 
+	// offscreenNote matches the explanation this renderer attaches, out of
+	// sight, to a link whose target is unwritten. It is dropped with its
+	// contents rather than unwrapped: those words say why the link goes
+	// nowhere, which is an answer to the reader who pauses on the link and
+	// never part of what the section holding it is called. Left in, they
+	// became the heading's anchor, its table-of-contents entry, and the
+	// fragment of every address written at that section. The element is
+	// renderer-owned and never nests another, so the shortest close is its
+	// own.
+	offscreenNote = regexp.MustCompile(`(?s)<span class="` + offscreenNoteClass + `">.*?</span>`)
+
 	// nestedHeadingOpen detects a raw inline <h1-6> inside a heading's own inner
 	// HTML. goldmark never nests block headings, so this only fires on a raw
 	// inline <hN> pasted mid-heading — the one input that makes headingTag's
@@ -57,14 +68,22 @@ func slugify(s string) string {
 }
 
 // headingInnerText reduces a heading's inner markup to the words the reader
-// sees in it: a ruby heading carries its reading inside <rt>, which is dropped
-// before the remaining tags are, so the text keeps the base characters once
-// rather than the kana echoed after them, and character references resolve to
-// the characters they name. The scan that answers an embed's "#section"
-// fragment reduces heading source through this same step, so the two surfaces
-// agree on what a section is called.
+// sees in it: a ruby heading carries its reading inside <rt>, and a link to an
+// unwritten note carries the sentence saying so out of sight, and both are
+// dropped with their contents before the remaining tags are — so the text keeps
+// the base characters once rather than the kana echoed after them, and names a
+// section by the words on screen rather than by an explanation of one of them.
+// Character references then resolve to the characters they name. The scan that
+// answers an embed's "#section" fragment reduces heading source through this
+// same step, so the two surfaces agree on what a section is called.
+//
+// Both removals run before the tags do, and therefore before any character
+// reference is resolved: authored markup arrives escaped, so a note writing
+// either element by hand keeps it as the text it is.
 func headingInnerText(inner string) string {
-	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(rubyReading.ReplaceAllString(inner, ""), "")))
+	inner = offscreenNote.ReplaceAllString(inner, "")
+	inner = rubyReading.ReplaceAllString(inner, "")
+	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
 }
 
 // assignHeadingSlugs walks the final rendered HTML, assigns each h1-h6 a

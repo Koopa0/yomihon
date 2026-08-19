@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
 // A link to a note nobody has written yet is styled with a help cursor, which
@@ -44,6 +45,71 @@ func TestUnwrittenLinkCarriesItsExplanation(t *testing.T) {
 				t.Errorf("HTML(%q) still renders a help-cursor mark with no explanation:\n%s", tt.body, got.HTML)
 			}
 		})
+	}
+}
+
+// The sentence an unwritten link carries is an explanation of that link, not
+// part of what the section around it is called. Rendered inside a heading it
+// became the heading's anchor, its table-of-contents entry, and the fragment of
+// every address written at that section, so the reader met an error message
+// where a section name belongs.
+func TestUnwrittenLinkInAHeadingStaysOutOfItsAnchor(t *testing.T) {
+	t.Parallel()
+
+	const body = "## 見 [[節拍器練習法|那份練習法]]\n\n本文。\n"
+	const name = "見 那份練習法"
+	const anchor = "見-那份練習法"
+
+	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+	page := r.HTML("B.md", "", body)
+
+	if len(page.TOC) != 1 {
+		t.Fatalf("TOC = %+v, want exactly one entry", page.TOC)
+	}
+	if page.TOC[0].Text != name {
+		t.Errorf("the table of contents reads %q, want the heading's own words %q", page.TOC[0].Text, name)
+	}
+	if page.TOC[0].ID != anchor {
+		t.Errorf("the anchor is %q, want %q", page.TOC[0].ID, anchor)
+	}
+	if !strings.Contains(page.HTML, `<h2 id="`+anchor+`">`) {
+		t.Errorf("the heading element does not carry the anchor %q:\n%s", anchor, page.HTML)
+	}
+
+	// The explanation is still where it was owed — beside the link, out of
+	// sight — because the reader who pauses on that mark is still promised it.
+	if !strings.Contains(page.HTML, `<span class="y-offscreen">（還沒有「節拍器練習法」這篇筆記）</span>`) {
+		t.Errorf("the link lost the explanation it promises on hover:\n%s", page.HTML)
+	}
+
+	// The scan that answers an embed's "#section" reads the same heading from
+	// source. Both surfaces name a section by the words on screen, so the name
+	// the page publishes is one an embed accepts.
+	embedded := r.HTML("note.md", "", "![[B#"+name+"]]\n")
+	if !strings.Contains(embedded.HTML, "本文。") {
+		t.Errorf("an embed of the section the page names did not reach it:\n%s", embedded.HTML)
+	}
+	for _, d := range embedded.Diagnostics {
+		if d.Kind == render.DiagEmbedFragmentMissing {
+			t.Errorf("the embed reported the section absent from the note that publishes it: %s", d.Message)
+		}
+	}
+}
+
+// The words dropped from a heading's anchor are the renderer's own; the same
+// markup authored in a note is display input and stays visible, so nothing a
+// note can write reaches inside the anchor rule.
+func TestAuthoredOffscreenMarkupInAHeadingIsShownRatherThanDropped(t *testing.T) {
+	t.Parallel()
+
+	r := newRenderer(t, nil, nil, nil)
+	page := r.HTML("a.md", "", "## 標題<span class=\"y-offscreen\">（隱藏）</span>\n\n本文。\n")
+
+	if len(page.TOC) != 1 {
+		t.Fatalf("TOC = %+v, want exactly one entry", page.TOC)
+	}
+	if !strings.Contains(page.TOC[0].Text, "隱藏") {
+		t.Errorf("the table of contents reads %q, want the authored words kept", page.TOC[0].Text)
 	}
 }
 

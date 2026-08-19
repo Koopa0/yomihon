@@ -26,8 +26,16 @@ import (
 func unwrittenTarget(target, display string) string {
 	reason := html.EscapeString(fmt.Sprintf("還沒有「%s」這篇筆記", target))
 	return `<span class="wikilink-broken" title="` + reason + `">` +
-		html.EscapeString(display) + `<span class="y-offscreen">（` + reason + `）</span></span>`
+		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">（` + reason + `）</span></span>`
 }
+
+// offscreenNoteClass names the element the explanation above is carried out of
+// sight in. The heading scan removes elements of this name before it reads a
+// heading's words, so the sentence explaining a link never becomes the name of
+// the section around it; the two are written against one constant so they
+// cannot drift apart. A note that authors the same markup is display input and
+// keeps it — that text arrives escaped, which is not what this names.
+const offscreenNoteClass = "y-offscreen"
 
 // blockPlaceholder is the reserved marker substituted into markdown source for
 // first-party markup that stands on its own line — a transclusion, a callout.

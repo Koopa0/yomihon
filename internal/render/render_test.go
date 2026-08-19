@@ -1071,14 +1071,18 @@ func TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors(t *testing.T) {
 	})
 }
 
-// TestEmbedHeadingFragmentReportsWhatItCouldNotMatch holds the two spellings
-// the scan still cannot reproduce from a note's own source: a heading whose
-// link target is unwritten carries the sentence that says so into its anchor,
-// and a heading carrying a markdown link keeps the address the rendered
-// heading drops. Both degrade the way the fault-tolerance rule requires — the
-// whole note, plus a report — and the report says what actually happened,
-// which is that nothing matched, rather than asserting a section the reader
-// can see on the destination page is absent.
+// TestEmbedHeadingFragmentReportsWhatItCouldNotMatch holds the spelling the
+// scan still cannot reproduce from a note's own source: a heading carrying a
+// markdown link keeps the address the rendered heading drops. It degrades the
+// way the fault-tolerance rule requires — the whole note, plus a report — and
+// the report says what actually happened, which is that nothing matched,
+// rather than asserting a section the reader can see on the destination page
+// is absent.
+//
+// A heading whose link target is unwritten used to sit here too, because the
+// sentence saying the note was unwritten was read into the anchor. It is a
+// section like any other now, and its case is asserted where the explanation's
+// placement is.
 func TestEmbedHeadingFragmentReportsWhatItCouldNotMatch(t *testing.T) {
 	t.Parallel()
 
@@ -1088,12 +1092,6 @@ func TestEmbedHeadingFragmentReportsWhatItCouldNotMatch(t *testing.T) {
 		fragment string
 		want     string
 	}{
-		{
-			name:     "an unwritten link target speaks in the anchor",
-			body:     "## See [[Ghost|display]]\n\nA-BODY\n",
-			fragment: "See display（還沒有「Ghost」這篇筆記）",
-			want:     `no heading in "B.md" matched "See display（還沒有「Ghost」這篇筆記）"; the whole note is shown`,
-		},
 		{
 			name:     "a markdown link keeps its address in the source",
 			body:     "## See [docs](https://example.invalid/x)\n\nA-BODY\n",
