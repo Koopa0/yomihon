@@ -598,7 +598,7 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) strin
 		col.report(Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
 			Target:  link.Target + "#" + link.Heading,
-			Message: fmt.Sprintf("embed heading %q not found in %q; the whole note is shown", link.Heading, resPath),
+			Message: fmt.Sprintf("no heading in %q matched %q; the whole note is shown", resPath, link.Heading),
 		})
 	}
 	return body
@@ -699,41 +699,122 @@ func (s *blockScan) skips(line string) bool {
 	return false
 }
 
+// setextUnderline matches the line that underlines a heading written without
+// '#' marks, and reports the level it makes: '=' is a level-1 heading, '-' a
+// level-2 one.
+var setextUnderline = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
+
+// The line shapes that are not running prose, and therefore cannot be the text
+// an underline turns into a heading: a quote, a list item, a break rule, and
+// an indented code line. Anything else that is not blank continues a
+// paragraph.
+var (
+	quotedLine       = regexp.MustCompile(`^ {0,3}>`)
+	listItemLine     = regexp.MustCompile(`^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)`)
+	breakRuleLine    = regexp.MustCompile(`^ {0,3}((\*[ \t]*){3,}|(_[ \t]*){3,}|(-[ \t]*){3,})$`)
+	indentedCodeLine = regexp.MustCompile(`^ {4,}\S`)
+)
+
+// sectionHeading is one heading a scan found: the line its section opens on,
+// its level, and the source text its anchor is folded from. An underlined
+// heading opens on the first line of the text, not on the underline.
+type sectionHeading struct {
+	line  int
+	level int
+	text  string
+}
+
+// scanHeadings reports every heading in lines, in document order, reading them
+// the way the page that displays them does: '#'-marked and underlined headings
+// both count, and a heading-looking line inside fenced code or an authored
+// HTML block counts as neither.
+//
+// An underline only makes a heading of running prose, so the shapes that open
+// a different construct — a quote, a list item, a break rule, an indented code
+// line — end the run of lines an underline could claim. Where the reading is
+// genuinely ambiguous the scan keeps the plainer one, which costs an
+// underlined heading and never invents one.
+func scanHeadings(lines []string) []sectionHeading {
+	var out []sectionHeading
+	var scan blockScan
+	paragraph := -1
+	for i, line := range lines {
+		if scan.skips(line) {
+			paragraph = -1
+			continue
+		}
+		if m := atxHeadingLine.FindStringSubmatch(line); m != nil {
+			out = append(out, sectionHeading{line: i, level: len(m[1]), text: m[2]})
+			paragraph = -1
+			continue
+		}
+		switch {
+		case paragraph >= 0 && setextUnderline.MatchString(line):
+			level := 2
+			if strings.HasPrefix(strings.TrimSpace(line), "=") {
+				level = 1
+			}
+			out = append(out, sectionHeading{line: paragraph, level: level, text: strings.Join(lines[paragraph:i], "\n")})
+			paragraph = -1
+		case blankLine(line), quotedLine.MatchString(line), listItemLine.MatchString(line),
+			breakRuleLine.MatchString(line), setextUnderline.MatchString(line),
+			paragraph < 0 && indentedCodeLine.MatchString(line):
+			paragraph = -1
+		case paragraph < 0:
+			paragraph = i
+		}
+	}
+	return out
+}
+
 // headingSlice returns the section of body that heading names: the first
-// heading line outside fenced code and authored HTML whose text folds to the
-// same slug as the name — the same fold that stamps the destination page's anchors, so an
-// embed and a link to one section agree on what matches — through to the
-// line before the next heading of the same or a higher level. Deeper
-// headings stay inside the slice, because a section owns its subsections.
-// When the name appears twice the first occurrence wins, matching Obsidian's
-// reading view.
+// heading whose text folds to the same slug as the name, through to the line
+// before the next heading of the same or a higher level. Deeper headings stay
+// inside the slice, because a section owns its subsections. When the name
+// appears twice the first occurrence wins, matching Obsidian's reading view.
+//
+// The name is folded through slugify, the same function that stamps the
+// destination page's anchors, over heading text reduced the same way that pass
+// reduces it: a link contributes the words it displays, a ruby reading drops
+// out, tags and character references resolve. So the spellings the destination
+// page lists in its own table of contents are the spellings an embed of that
+// section accepts.
+//
+// Two do not survive the trip, because they are read from source rather than
+// from the rendered page: a heading whose link target is unwritten has the
+// sentence saying so read aloud inside its anchor, and a heading carrying a
+// markdown link keeps the address the rendered heading drops. Both report,
+// they do not truncate.
 func headingSlice(body, heading string) (string, bool) {
 	want := slugify(heading)
 	lines := strings.Split(body, "\n")
-	start, level := -1, 0
-	var scan blockScan
-	for i, line := range lines {
-		if scan.skips(line) {
+	headings := scanHeadings(lines)
+	for i, h := range headings {
+		if slugify(headingSourceText(h.text)) != want {
 			continue
 		}
-		m := atxHeadingLine.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		if start < 0 {
-			if slugify(m[2]) == want {
-				start, level = i, len(m[1])
+		for _, next := range headings[i+1:] {
+			if next.level <= h.level {
+				return strings.Join(lines[h.line:next.line], "\n"), true
 			}
-			continue
 		}
-		if len(m[1]) <= level {
-			return strings.Join(lines[start:i], "\n"), true
-		}
+		return strings.Join(lines[h.line:], "\n"), true
 	}
-	if start < 0 {
-		return "", false
-	}
-	return strings.Join(lines[start:], "\n"), true
+	return "", false
+}
+
+// headingSourceText reduces a heading's markdown source to the text the page
+// stamps its anchor from. A wikilink contributes what it displays, which is
+// the target itself unless the author wrote a display alias — the rendered
+// heading shows exactly those words, and a reader copying the section's name
+// off the page copies them too.
+func headingSourceText(raw string) string {
+	displayed := wikilinkToken.ReplaceAllStringFunc(raw, func(token string) string {
+		inner := strings.TrimPrefix(token, "!")
+		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
+		return display
+	})
+	return headingInnerText(displayed)
 }
 
 // blockSlice returns the paragraph carrying the "^name" block marker: the

@@ -46,6 +46,17 @@ func slugify(s string) string {
 	return s
 }
 
+// headingInnerText reduces a heading's inner markup to the words the reader
+// sees in it: a ruby heading carries its reading inside <rt>, which is dropped
+// before the remaining tags are, so the text keeps the base characters once
+// rather than the kana echoed after them, and character references resolve to
+// the characters they name. The scan that answers an embed's "#section"
+// fragment reduces heading source through this same step, so the two surfaces
+// agree on what a section is called.
+func headingInnerText(inner string) string {
+	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(rubyReading.ReplaceAllString(inner, ""), "")))
+}
+
 // assignHeadingSlugs walks the final rendered HTML, assigns each h1-h6 a
 // slugify'd id, and collects the TOC in document order. Two headings
 // producing the same base slug are disambiguated by bumping a numeric
@@ -77,10 +88,7 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 		if nestedHeadingOpen.MatchString(inner) {
 			return tag
 		}
-		// A ruby heading carries its reading inside <rt>; strip that before
-		// reducing the remaining tags so the entry and its anchor keep the base
-		// characters once, not the kana echoed after them.
-		text := strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(rubyReading.ReplaceAllString(inner, ""), "")))
+		text := headingInnerText(inner)
 
 		id := slugify(text)
 		if seen[id] {

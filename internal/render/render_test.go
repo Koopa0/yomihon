@@ -967,6 +967,166 @@ func TestEmbedHeadingSliceReadsAuthoredHTMLBlocks(t *testing.T) {
 	}
 }
 
+// TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors is the agreement
+// oracle for the two surfaces that read a heading: the destination page's own
+// table of contents, and the scan that answers "![[note#section]]". Every
+// spelling the page lists is one a reader can copy into an embed, so each of
+// them has to slice — a report that the section is not there, about a heading
+// the page itself lists and links to, sends the reader looking for a fault in
+// their own note.
+func TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "atx", body: "## Alpha\n\nA-BODY\n"},
+		{name: "setext underlined with dashes", body: "Alpha\n-----\n\nA-BODY\n"},
+		{name: "setext underlined with equals", body: "Alpha\n=====\n\nA-BODY\n"},
+		{name: "display alias", body: "## See [[Other|display]]\n\nA-BODY\n"},
+		{name: "bare wikilink", body: "## See [[Other]]\n\nA-BODY\n"},
+		{name: "ruby reading", body: "## <ruby>今日<rt>きょう</rt></ruby>\n\nA-BODY\n"},
+		{name: "emphasis", body: "## **Bold** heading\n\nA-BODY\n"},
+		{name: "character reference", body: "## A &amp; B\n\nA-BODY\n"},
+		{name: "authored html block inside the section", body: "## Alpha\n\n<div>\n# not a heading\n</div>\n\n## Beta\n\nB-BODY\n"},
+		{name: "a fenced copy of a heading", body: "```\n## Fenced\n```\n\n## Real\n\nR-BODY\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}, {Path: "Other.md"}}, nil, transclusions{"B.md": tt.body})
+			dest := r.HTML("B.md", "", tt.body)
+			if len(dest.TOC) == 0 {
+				t.Fatalf("the destination page stamped no anchor at all for:\n%s", tt.body)
+			}
+			for _, entry := range dest.TOC {
+				if entry.Text == "" {
+					continue // no fragment can spell a heading with no text
+				}
+				got := r.HTML("note.md", "", "![["+"B#"+entry.Text+"]]\n")
+				for _, d := range got.Diagnostics {
+					if d.Kind == render.DiagEmbedFragmentMissing {
+						t.Errorf("the page anchors %q as %q, but the embed of that spelling reports: %s", entry.Text, entry.ID, d.Message)
+					}
+				}
+			}
+		})
+	}
+
+	// A heading underlined across two lines has no spelling a fragment can
+	// carry — a wikilink never spans lines — so what matters about it is that
+	// the section above it ends where the reader sees it end.
+	t.Run("a heading underlined under two lines ends the section above it", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "## Alpha\n\nINSIDE-MARKER\n\nBeta\nGamma\n-----\n\nAFTER-MARKER\n",
+		})
+		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
+		if !strings.Contains(got.HTML, "INSIDE-MARKER") {
+			t.Errorf("the named section is missing:\n%s", got.HTML)
+		}
+		if strings.Contains(got.HTML, "AFTER-MARKER") {
+			t.Errorf("content past the underlined heading leaked in:\n%s", got.HTML)
+		}
+	})
+
+	// The two underlines are different levels — '=' opens a level-1 section,
+	// '-' a level-2 one — so an underlined top-level section owns the '##'
+	// subsections written under it, exactly as a '#' one does.
+	t.Run("an equals-underlined section owns its subsections", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "Alpha\n=====\n\nINSIDE-MARKER\n\n## Sub\n\nSUB-MARKER\n\n# Beta\n\nBETA-MARKER\n",
+		})
+		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
+		for _, want := range []string{"INSIDE-MARKER", "SUB-MARKER"} {
+			if !strings.Contains(got.HTML, want) {
+				t.Errorf("the named section lost %q:\n%s", want, got.HTML)
+			}
+		}
+		if strings.Contains(got.HTML, "BETA-MARKER") {
+			t.Errorf("content outside the named section leaked in:\n%s", got.HTML)
+		}
+	})
+
+	t.Run("a setext section ends at the next heading of its level", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "TOP-MARKER\n\nAlpha\n-----\n\nINSIDE-MARKER\n\n## Beta\n\nBETA-MARKER\n",
+		})
+		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
+		if !strings.Contains(got.HTML, "INSIDE-MARKER") {
+			t.Errorf("the named section is missing:\n%s", got.HTML)
+		}
+		for _, forbidden := range []string{"TOP-MARKER", "BETA-MARKER"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("content outside the named section leaked in (%q):\n%s", forbidden, got.HTML)
+			}
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none for a section that exists", got.Diagnostics)
+		}
+	})
+}
+
+// TestEmbedHeadingFragmentReportsWhatItCouldNotMatch holds the two spellings
+// the scan still cannot reproduce from a note's own source: a heading whose
+// link target is unwritten carries the sentence that says so into its anchor,
+// and a heading carrying a markdown link keeps the address the rendered
+// heading drops. Both degrade the way the fault-tolerance rule requires — the
+// whole note, plus a report — and the report says what actually happened,
+// which is that nothing matched, rather than asserting a section the reader
+// can see on the destination page is absent.
+func TestEmbedHeadingFragmentReportsWhatItCouldNotMatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		fragment string
+		want     string
+	}{
+		{
+			name:     "an unwritten link target speaks in the anchor",
+			body:     "## See [[Ghost|display]]\n\nA-BODY\n",
+			fragment: "See display（還沒有「Ghost」這篇筆記）",
+			want:     `no heading in "B.md" matched "See display（還沒有「Ghost」這篇筆記）"; the whole note is shown`,
+		},
+		{
+			name:     "a markdown link keeps its address in the source",
+			body:     "## See [docs](https://example.invalid/x)\n\nA-BODY\n",
+			fragment: "See docs",
+			want:     `no heading in "B.md" matched "See docs"; the whole note is shown`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": tt.body})
+			dest := r.HTML("B.md", "", tt.body)
+			if len(dest.TOC) != 1 || dest.TOC[0].Text != tt.fragment {
+				t.Fatalf("destination TOC = %+v, want one entry reading %q", dest.TOC, tt.fragment)
+			}
+			got := r.HTML("note.md", "", "![[B#"+tt.fragment+"]]\n")
+			if !strings.Contains(got.HTML, "A-BODY") {
+				t.Errorf("the whole-note fallback lost the body:\n%s", got.HTML)
+			}
+			var messages []string
+			for _, d := range got.Diagnostics {
+				if d.Kind == render.DiagEmbedFragmentMissing {
+					messages = append(messages, d.Message)
+				}
+			}
+			if len(messages) != 1 || messages[0] != tt.want {
+				t.Errorf("fragment-missing diagnostics = %q, want exactly one reading %q", messages, tt.want)
+			}
+		})
+	}
+}
+
 // TestEmbedBlockFragmentScopesTheTransclusion is the assertion site for
 // "![[note#^block]]". Obsidian embeds only the paragraph carrying the
 // "^block" marker; before the fragment was threaded through, the whole note

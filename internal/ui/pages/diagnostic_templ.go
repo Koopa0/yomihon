@@ -86,7 +86,7 @@ func renderDiagnosticSummary(kind render.DiagnosticKind) string {
 	case render.DiagRiskyFence:
 		return "程式碼區塊含類似筆記語法的文字；已保持原樣。"
 	case render.DiagEmbedFragmentMissing:
-		return "嵌入指定的段落或區塊不存在；已改顯示整篇筆記。"
+		return "找不到嵌入指定的段落或區塊；已改顯示整篇筆記。"
 	case render.DiagRenderFailed:
 		return "Markdown 轉譯失敗；已顯示原始內容。"
 	default:
