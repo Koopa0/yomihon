@@ -89,6 +89,14 @@ var (
 	// refuses before reading or creating any vault path rather than changing a
 	// note and presenting an unconfirmed publication as success.
 	ErrDurabilityUnsupported = errors.New("status: durable publication is unsupported on this platform")
+	// ErrPublicationStranded means another program edited the note inside the
+	// publication window and the write face could not finish putting that edit
+	// back under the note's own name. Both versions are on disk — one under the
+	// note's name and one beside it, named in the error — nothing was removed,
+	// and no commit was made. It is deliberately distinct from
+	// ErrConcurrentWrite: that refusal leaves the note as the other program
+	// wrote it, while this one cannot say which of the two the note carries.
+	ErrPublicationStranded = errors.New("status: an edit raced the flip and both versions were left on disk")
 	// ErrPublishUncertain means the atomic replacement completed, but the
 	// containing directory could not be synchronized. The new bytes are visible
 	// now, but their survival across an immediate crash was not confirmed.
@@ -605,6 +613,7 @@ type flipHooks struct {
 	beforeLock    func()
 	afterLock     func()
 	beforePublish func()
+	beforeInstall func()
 	afterPublish  func()
 }
 
@@ -678,7 +687,7 @@ func (lc *Lifecycle) publishStatus(
 		relSlash,
 		source,
 		rewritten,
-		publishHooks{beforeAuthority: hooks.beforePublish},
+		publishHooks{beforeAuthority: hooks.beforePublish, beforeInstall: hooks.beforeInstall},
 		func() error {
 			_, authorityErr := lc.validatedArtifactPolicy()
 			return authorityErr
@@ -975,15 +984,29 @@ func rewriteStatusLine(data []byte, to string) ([]byte, error) {
 type publishHooks struct {
 	beforeAuthority func()
 	afterAuthority  func()
-	syncTemp        func(*os.File) error
-	syncParent      func(*os.Root) error
+	// beforeInstall runs inside the publication window: after the source has
+	// been confirmed unmodified and before the rewritten bytes take the
+	// note's name. It is the only seam that can place an external writer
+	// exactly where the install has to survive one.
+	beforeInstall func()
+	syncTemp      func(*os.File) error
+	syncParent    func(*os.Root) error
+	// rung, when set, replaces the per-filesystem probe for this publication.
+	// The probe's answer is cached for the whole process, so a test that needs
+	// a particular rung says so for its own call instead of deciding for every
+	// other publication on the same filesystem.
+	rung func() installRung
+	// ops, when set, wraps the publication's filesystem operations, which is
+	// how a test reproduces a driver or a race no temporary directory offers.
+	ops func(installOps) installOps
 }
 
 // replaceRegularFile prepares the complete replacement beside the source,
 // then reopens the source's named parent, validates caller-supplied write
 // authority, and finally verifies the same regular-file identity, mode, mtime,
-// and bytes immediately before one descriptor-relative rename. The rename is
-// atomic, so readers see either complete version.
+// and bytes immediately before installing the replacement under the note's own
+// name. The rung the install ran on — which is what any guarantee about a
+// racing external edit rests on — is named in every failure it can produce.
 func replaceRegularFile(
 	root *os.Root,
 	rel, relSlash string,
@@ -996,7 +1019,8 @@ func replaceRegularFile(
 	if err != nil {
 		return err
 	}
-	removeStaleTemps(preparedParent)
+	quarantineStaleTemps(preparedParent)
+	rung := selectRung(preparedParent, hooks)
 	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp)
 	if err != nil {
 		closeRoot(preparedParent)
@@ -1031,15 +1055,21 @@ func replaceRegularFile(
 		closeRoot(publishParent)
 		return err
 	}
-	// Root.Rename is atomic but not a conditional rename by file identity.
-	// A cooperating local process should not replace the name in this final
-	// instruction window; if it does, the rename replaces that entry without
-	// following it and remains confined to the validated parent directory.
-	if err = publishParent.Rename(tmpName, source.name); err != nil {
-		closeRoot(publishParent)
-		return fmt.Errorf("rename temp file: %w", err)
+	if hooks.beforeInstall != nil {
+		hooks.beforeInstall()
 	}
+	// The temporary entry stops being spare scratch here. Once the install
+	// starts, that name can hold the version another program wrote, so only
+	// the install — which reads the bytes before it decides — may remove it.
 	removeTemp = false
+	ops := rootOps(publishParent)
+	if hooks.ops != nil {
+		ops = hooks.ops(ops)
+	}
+	if err = installRewritten(ops, relSlash, tmpName, rung, source, data); err != nil {
+		closeRoot(publishParent)
+		return err
+	}
 	syncParent := syncDirectory
 	if hooks.syncParent != nil {
 		syncParent = hooks.syncParent
@@ -1120,29 +1150,45 @@ func readCurrentSource(parent *os.Root, relSlash string, source *fileSnapshot) (
 }
 
 // statusTempPrefix and statusTempSuffix bracket the names writeTemp creates
-// beside the note. removeStaleTemps recognizes abandoned temps by exactly
-// this shape, so the two stay defined in one place.
+// beside the note, around exactly tempRandomLength characters of the base32
+// alphabet crypto/rand's Text produces. The sweep recognizes an abandoned
+// temp by that whole shape, so the pieces stay defined in one place and a
+// name that merely starts the same way is left alone.
 const (
 	statusTempPrefix = ".yomihon-status-"
 	statusTempSuffix = ".tmp"
+	tempRandomLength = 26
+)
+
+// statusOrphanPrefix and statusOrphanSuffix bracket the name a stale temp is
+// moved to. The sweep never deletes: a temp a dead flip left behind can hold
+// the version another program wrote, displaced there by the atomic exchange
+// and never put back because the process died first, and there is no way to
+// tell that from the note's own retired bytes by looking at the name. Moving
+// it out of the temp shape leaves it where a person can compare it against
+// the note, and keeps it out of every later sweep.
+const (
+	statusOrphanPrefix = ".yomihon-orphaned-"
+	statusOrphanSuffix = ".keep"
 )
 
 // staleTempAge is how old an abandoned temp file must be before the write
-// face clears it away. Only process death inside the publication window can
-// strand one — every in-process failure removes its own temp — and a
-// stranded file is invisible to the reading scan, which hides dot-prefixed
-// names, so nothing else ever reclaims it. An hour is far beyond any flip's
-// lifetime and keeps a temp belonging to a concurrently running process out
-// of reach.
+// face moves it aside. Only process death inside the publication window can
+// strand one — every in-process failure clears its own temp or names it in
+// the error — and a stranded file is invisible to the reading scan, which
+// hides dot-prefixed names, so nothing else ever reclaims it. An hour is far
+// beyond any flip's lifetime and keeps a temp belonging to a concurrently
+// running process out of reach.
 const staleTempAge = time.Hour
 
-// removeStaleTemps clears temp files a crashed flip abandoned in the note's
-// directory. The sweep is deliberately narrow: only a regular file whose
-// name carries exactly the shape writeTemp creates, older than
-// staleTempAge, is removed; directories, symbolic links, young files, and
-// every other name are left alone. Best-effort throughout — the flip about
-// to run does not depend on it.
-func removeStaleTemps(parent *os.Root) {
+// quarantineStaleTemps moves aside the temp files a crashed flip abandoned in
+// the note's directory. The sweep is deliberately narrow: only a regular file
+// named in exactly the shape writeTemp creates, older than staleTempAge, is
+// touched; directories, symbolic links, young files, and every other name are
+// left where they are. Nothing is deleted, and an entry already sitting under
+// the destination name is left alone rather than overwritten. Best-effort
+// throughout — the flip about to run does not depend on it.
+func quarantineStaleTemps(parent *os.Root) {
 	dir, err := parent.Open(".")
 	if err != nil {
 		return
@@ -1153,19 +1199,49 @@ func removeStaleTemps(parent *os.Root) {
 		return
 	}
 	for _, name := range names {
-		if !strings.HasPrefix(name, statusTempPrefix) || !strings.HasSuffix(name, statusTempSuffix) {
+		middle, ok := writeTempMiddle(name)
+		if !ok {
 			continue
 		}
 		info, statErr := parent.Lstat(name)
 		if statErr != nil || !info.Mode().IsRegular() || time.Since(info.ModTime()) < staleTempAge {
 			continue
 		}
-		_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup of an abandoned temp
+		orphan := statusOrphanPrefix + middle + statusOrphanSuffix
+		if _, exists := parent.Lstat(orphan); exists == nil {
+			continue
+		}
+		_ = parent.Rename(name, orphan) //nolint:errcheck // moving an abandoned temp aside is best-effort
 	}
 }
 
+// writeTempMiddle reports the random middle of a name writeTemp created, and
+// whether name has that exact shape at all.
+func writeTempMiddle(name string) (string, bool) {
+	middle, ok := strings.CutPrefix(name, statusTempPrefix)
+	if !ok {
+		return "", false
+	}
+	middle, ok = strings.CutSuffix(middle, statusTempSuffix)
+	if !ok || len(middle) != tempRandomLength {
+		return "", false
+	}
+	for _, r := range middle {
+		if (r < 'A' || r > 'Z') && (r < '2' || r > '7') {
+			return "", false
+		}
+	}
+	return middle, true
+}
+
+// tempName is one fresh name for a file placed beside the note during a
+// publication.
+func tempName() string {
+	return statusTempPrefix + rand.Text() + statusTempSuffix
+}
+
 func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error) (string, error) {
-	name := statusTempPrefix + rand.Text() + statusTempSuffix
+	name := tempName()
 	tmp, err := parent.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)

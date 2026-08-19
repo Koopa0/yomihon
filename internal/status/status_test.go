@@ -1476,15 +1476,16 @@ func TestFlipByteIdentical(t *testing.T) {
 	}
 }
 
-// TestFlipRemovesAbandonedTempFiles covers the one residue a crash inside
-// the publication window leaves behind: a dot-prefixed temp file with the
-// full intended note content, invisible to the reading scan and reclaimed
-// by nothing. A later flip in the same directory must clear exactly that
-// shape — a regular file named as writeTemp names them, old enough that no
-// live process can own it — and must leave every other entry alone: a
-// fresh temp may belong to a concurrently running process, and any other
-// name or file kind was never yomihon's to touch.
-func TestFlipRemovesAbandonedTempFiles(t *testing.T) {
+// TestFlipQuarantinesAbandonedTempFiles covers the one residue a crash inside
+// the publication window leaves behind: a dot-prefixed temp file, invisible to
+// the reading scan and reclaimed by nothing. Its bytes cannot be identified
+// from the outside — a flip that died after the atomic exchange parks the
+// version another program wrote under exactly this name — so a later flip in
+// the same directory moves it out of the temp shape instead of deleting it,
+// with its bytes intact. Everything else is left alone: a fresh temp may
+// belong to a concurrently running process, a name that only resembles the
+// shape was never yomihon's, and neither was any other file kind.
+func TestFlipQuarantinesAbandonedTempFiles(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
 	lifecycle := newLifecycle(t, root, loadContract(t))
@@ -1493,14 +1494,33 @@ func TestFlipRemovesAbandonedTempFiles(t *testing.T) {
 	writeNote(t, root, original)
 	commitAll(t, root)
 
+	// The middles are the 26 base32 characters crypto/rand's Text produces;
+	// a name outside that shape is a decoy, not a temp.
+	// Every middle below draws on its own letters: the vault filesystem may
+	// be case-insensitive, and two names differing only in case would be one
+	// entry there, which would prove nothing.
+	const (
+		agedMiddle      = "AAAAABBBBBCCCCCDDDDDEEEEEF"
+		freshMiddle     = "GGGGGHHHHHIIIIIJJJJJKKKKKL"
+		dirMiddle       = "MMMMMNNNNNOOOOOPPPPPQQQQQR"
+		lowercaseCase   = "ssssstttttuuuuuvvvvvwwwwwx"
+		outsideAlphabet = "YYYYYZZZZZ0000011111888899"
+	)
 	dir := filepath.Dir(filepath.Join(root, filepath.FromSlash(testRel)))
-	agedTemp := filepath.Join(dir, ".yomihon-status-PLANTEDOLD.tmp")
-	freshTemp := filepath.Join(dir, ".yomihon-status-PLANTEDNEW.tmp")
-	suffixDecoy := filepath.Join(dir, ".yomihon-status-PLANTED.keep")
-	prefixDecoy := filepath.Join(dir, "yomihon-status-PLANTED.tmp")
-	dirShape := filepath.Join(dir, ".yomihon-status-PLANTEDDIR.tmp")
-	for _, path := range []string{agedTemp, freshTemp, suffixDecoy, prefixDecoy} {
-		if err := os.WriteFile(path, []byte("stranded"), 0o600); err != nil {
+	agedTemp := filepath.Join(dir, ".yomihon-status-"+agedMiddle+".tmp")
+	agedOrphan := filepath.Join(dir, ".yomihon-orphaned-"+agedMiddle+".keep")
+	freshTemp := filepath.Join(dir, ".yomihon-status-"+freshMiddle+".tmp")
+	shortDecoy := filepath.Join(dir, ".yomihon-status-PLANTEDSHORT.tmp")
+	caseDecoy := filepath.Join(dir, ".yomihon-status-"+lowercaseCase+".tmp")
+	alphabetDecoy := filepath.Join(dir, ".yomihon-status-"+outsideAlphabet+".tmp")
+	suffixDecoy := filepath.Join(dir, ".yomihon-status-"+agedMiddle+".keep")
+	prefixDecoy := filepath.Join(dir, "yomihon-status-"+agedMiddle+".tmp")
+	dirShape := filepath.Join(dir, ".yomihon-status-"+dirMiddle+".tmp")
+
+	const strandedBytes = "bytes only a person can identify"
+	decoys := []string{freshTemp, shortDecoy, caseDecoy, alphabetDecoy, suffixDecoy, prefixDecoy}
+	for _, path := range append([]string{agedTemp}, decoys...) {
+		if err := os.WriteFile(path, []byte(strandedBytes), 0o600); err != nil {
 			t.Fatalf("plant %s: %v", path, err)
 		}
 	}
@@ -1508,7 +1528,7 @@ func TestFlipRemovesAbandonedTempFiles(t *testing.T) {
 		t.Fatalf("plant directory: %v", err)
 	}
 	aged := time.Now().Add(-2 * time.Hour)
-	for _, path := range []string{agedTemp, suffixDecoy, prefixDecoy, dirShape} {
+	for _, path := range []string{agedTemp, shortDecoy, caseDecoy, alphabetDecoy, suffixDecoy, prefixDecoy, dirShape} {
 		if err := os.Chtimes(path, aged, aged); err != nil {
 			t.Fatalf("age %s: %v", path, err)
 		}
@@ -1519,11 +1539,17 @@ func TestFlipRemovesAbandonedTempFiles(t *testing.T) {
 	}
 
 	if _, err := os.Lstat(agedTemp); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("aged conforming temp survives (lstat error = %v), want it removed", err)
+		t.Errorf("aged conforming temp still under its temp name (lstat error = %v), want it moved aside", err)
 	}
-	for _, path := range []string{freshTemp, suffixDecoy, prefixDecoy, dirShape} {
-		if _, err := os.Lstat(path); err != nil {
-			t.Errorf("lstat %s = %v, want the entry left alone", path, err)
+	kept, err := os.ReadFile(agedOrphan) // #nosec G304 -- a fixed name under this test's TempDir
+	if err != nil {
+		t.Errorf("read quarantined temp: %v, want the bytes preserved rather than deleted", err)
+	} else if string(kept) != strandedBytes {
+		t.Errorf("quarantined temp = %q, want %q", kept, strandedBytes)
+	}
+	for _, path := range append(decoys, dirShape) {
+		if _, statErr := os.Lstat(path); statErr != nil {
+			t.Errorf("lstat %s = %v, want the entry left alone", path, statErr)
 		}
 	}
 	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)

@@ -114,6 +114,9 @@ func recoveryFor(err error) *recovery {
 	if r := recoveryForStatusField(err); r != nil {
 		return r
 	}
+	if r := recoveryForPublished(err); r != nil {
+		return r
+	}
 	switch {
 	case errors.Is(err, ErrInvalidPath):
 		return &recovery{
@@ -155,6 +158,12 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusConflict,
 			summary:    "檔案在讀取與寫入之間遭到修改。",
 			nextAction: "先檢查 Obsidian 或其他工具的最新變更，再重新載入筆記；不要直接重送。",
+			// Which publication step the refusal came from, and on volumes
+			// that cannot swap two entries atomically what that costs, rides
+			// in the error text. It is the only record of the guarantee this
+			// vault's filesystem was able to give, so it reaches the log.
+			logMessage: "status flip refused a raced write",
+			cause:      err,
 		}
 	case errors.Is(err, ErrDurabilityUnsupported):
 		return &recovery{
@@ -166,6 +175,40 @@ func recoveryFor(err error) *recovery {
 		errors.Is(err, schema.ErrIllegalTransition),
 		errors.Is(err, schema.ErrOwnerForbidden):
 		return recoveryForSchemaError(err)
+	case errors.Is(err, fs.ErrNotExist):
+		return &recovery{
+			code:       http.StatusNotFound,
+			noteGone:   true,
+			summary:    "找不到這篇筆記；它可能已被刪除或移動。",
+			nextAction: "返回首頁，從目前的導覽重新找到筆記；這次操作沒有寫入任何內容。",
+		}
+	default:
+		return &recovery{
+			code:       http.StatusInternalServerError,
+			summary:    "yomihon 無法完成狀態變更。",
+			nextAction: "查看 yomihon 日誌並確認 vault 狀態；在原因不明時不要反覆重送。",
+			logMessage: "status flip failed",
+			cause:      err,
+		}
+	}
+}
+
+// recoveryForPublished maps the outcomes that happen after the note's bytes
+// already changed on disk, or nil when err is none of them. They share one
+// shape the page has to keep: the file is not what it was, no second POST is
+// offered, and the operator finishes by hand.
+func recoveryForPublished(err error) *recovery {
+	switch {
+	case errors.Is(err, ErrPublicationStranded):
+		return &recovery{
+			code:            http.StatusInternalServerError,
+			changed:         true,
+			summary:         "有其他程式在寫入途中改了這個檔案，yomihon 無法確定筆記現在是哪一份內容。兩份都留在磁碟上，沒有刪除任何內容，也沒有提交。",
+			nextAction:      "不要重送。請依下方訊息比對筆記與旁邊保留的那一份，手動留下正確的內容後再操作。",
+			technicalDetail: err.Error(),
+			logMessage:      "status publication left both versions on disk",
+			cause:           err,
+		}
 	case errors.Is(err, ErrPublishUncertain):
 		return &recovery{
 			code:       http.StatusInternalServerError,
@@ -195,22 +238,8 @@ func recoveryFor(err error) *recovery {
 			logMessage:      "status commit receipt diverged",
 			cause:           err,
 		}
-	case errors.Is(err, fs.ErrNotExist):
-		return &recovery{
-			code:       http.StatusNotFound,
-			noteGone:   true,
-			summary:    "找不到這篇筆記；它可能已被刪除或移動。",
-			nextAction: "返回首頁，從目前的導覽重新找到筆記；這次操作沒有寫入任何內容。",
-		}
-	default:
-		return &recovery{
-			code:       http.StatusInternalServerError,
-			summary:    "yomihon 無法完成狀態變更。",
-			nextAction: "查看 yomihon 日誌並確認 vault 狀態；在原因不明時不要反覆重送。",
-			logMessage: "status flip failed",
-			cause:      err,
-		}
 	}
+	return nil
 }
 
 // recoveryForStatusField maps the refusals rooted in how the note's own
