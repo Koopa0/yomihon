@@ -190,19 +190,27 @@ jobs:
         if: runner.os == 'Windows'
         run: go test ./... -run '^$' -count=1
 
-      # The boundary tests are asked for before they are run. A -run pattern
-      # that matches nothing is not an error to Go and exits 0 without testing
-      # anything, so a renamed test would quietly turn this contract into a
-      # green no-op — the same loss the fuzz job guards against by discovering
-      # its targets. Requiring -list to name at least one test keeps this step
-      # red on the day a rename leaves the pattern behind.
+      # The boundary tests are asked for by name before they are run. A -run
+      # pattern that matches nothing is not an error to Go and exits 0 without
+      # testing anything, so a renamed test would quietly turn this contract
+      # into a green no-op — the same loss the fuzz job guards against by
+      # discovering its targets. Demanding at least one match is not enough:
+      # the pattern spans two packages, and renaming one package's tests would
+      # leave the step green behind the other package's. Every test the step
+      # exists to run is therefore named here, and a rename reds it until the
+      # name here follows. A test added later still runs under the pattern, so
+      # the list is a floor rather than an inventory to keep exact.
       - name: Drive the Windows reader and status-write boundary
         if: runner.os == 'Windows'
         shell: bash
         run: |
           listed=$(go test ./... -run '^TestUnsupportedPlatform' -list '^TestUnsupportedPlatform')
           printf '%s\n' "$listed"
-          printf '%s\n' "$listed" | grep -q '^Test' || { echo "no test matches ^TestUnsupportedPlatform; the boundary step would run nothing" >&2; exit 1; }
+          for name in TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed \
+                      TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem \
+                      TestUnsupportedPlatformPOSTIsAnUnchangedServiceRefusal; do
+            printf '%s\n' "$listed" | grep -qx "$name" || { echo "$name is not among the listed tests; the boundary step would leave its contract unrun" >&2; exit 1; }
+          done
           go test ./... -run '^TestUnsupportedPlatform' -count=1
 
   # Windows deliberately exposes no semantic-generation store in the first
