@@ -92,10 +92,14 @@ func isFilterKey(key string) bool {
 //   - a span in matched quotes — ASCII double quotes or the full-width 「」
 //     and 『』 pairs — is one bare token with the quotes stripped, whitespace
 //     and all. Matching keeps the token contiguous, so the one token is what
-//     makes the quoted words match only where they sit together; the
-//     whitespace between them matches whatever whitespace the note wrote,
-//     including the line break of a wrapped sentence. A quote with no partner
-//     is dropped where it stands.
+//     makes the quoted words match only where they sit together; a run of
+//     whitespace between them matches any run of whitespace in the note, the
+//     line break of a wrapped sentence included. The indexed text separates
+//     one block from the next with a single break too, so a phrase can also
+//     join the last words of a heading to the first words of the paragraph
+//     under it — the price of answering the wrapped sentence, which is the
+//     shape most of this vault's prose has. A quote with no partner is
+//     dropped where it stands.
 //   - quoting a key asks for those characters as text, so "type:lesson" in
 //     quotes is a phrase and not a filter; quoting only the value leaves the
 //     filter standing, which is how a value carrying a space — a topic of two

@@ -218,6 +218,12 @@ func allContain(hay string, tokens []string) bool {
 // verbatim in the vault with nothing, which is the one answer a reader has no
 // way to argue with. Adjacency is still required: the words must be separated
 // by whitespace and nothing else, which is what the quotes asked for.
+//
+// The indexed text separates one block from the next with a single break as
+// well, so a phrase can join the last words of one block to the first words of
+// the next. That is a known cost rather than an oversight: nothing in the
+// stored text tells a wrapped sentence apart from a block boundary, and
+// answering the wrapped sentence is worth the pair of blocks it also joins.
 // A token with no whitespace in it takes the plain substring path it always
 // took, so the ordinary query allocates nothing here; the phrase walk below
 // allocates nothing either, reading both strings in place.
