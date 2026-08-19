@@ -719,12 +719,13 @@ func (lc *Lifecycle) validateWriteTarget(relSlash string) error {
 	if policy.IsNonInstance(relSlash) {
 		return ErrNonInstance
 	}
-	// The reading scan defines a note as a file whose path ends in ".md";
-	// every other path is a resource, never a governed instance. The write
-	// face applies the same suffix rule before touching the file, so a
-	// resource carrying note-shaped frontmatter cannot acquire a committed
-	// note-lifecycle receipt the reading face would contradict.
-	if !strings.HasSuffix(relSlash, ".md") {
+	// The reading scan defines a note as a file whose path ends in ".md" and
+	// carries no dot-prefixed component: it does not descend into a hidden
+	// directory and does not serve a hidden file. The write face applies the
+	// whole of that definition before touching the file, so a resource
+	// carrying note-shaped frontmatter cannot acquire a committed
+	// note-lifecycle receipt for something the reading face never shows.
+	if !strings.HasSuffix(relSlash, ".md") || vault.OutsideScan(relSlash) {
 		return ErrNonInstance
 	}
 	return nil

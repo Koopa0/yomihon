@@ -869,6 +869,48 @@ func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
 	}
 }
 
+// TestFlipRefusesHiddenTarget locks the write face to the whole of the
+// reading scan's note definition, not half of it. The scan never descends
+// into a dot-prefixed name and never serves a dot-prefixed file, so such a
+// file is a resource however note-shaped its frontmatter is. Committing a
+// status transition on one would mint a note-lifecycle receipt for a file no
+// reading page can ever show.
+func TestFlipRefusesHiddenTarget(t *testing.T) {
+	t.Parallel()
+
+	for _, rel := range []string{
+		"Writing/lessons/japanese/.hidden-lesson.md",
+		"Writing/.drafts/japanese/L05.md",
+		".obsidian/plugins/note.md",
+	} {
+		t.Run(rel, func(t *testing.T) {
+			t.Parallel()
+			root := newVault(t)
+			lifecycle := newLifecycle(t, root, loadContract(t))
+
+			original := lessonContent("draft")
+			writeVaultFile(t, root, rel, original)
+			commitAll(t, root)
+			before := commitCount(t, root)
+
+			err := lifecycle.Flip(t.Context(), rel, "draft", schema.SealStatus)
+			if !errors.Is(err, status.ErrNonInstance) {
+				t.Fatalf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
+			}
+			got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a fixed in-test path under newVault's TempDir
+			if readErr != nil {
+				t.Fatalf("read hidden file: %v", readErr)
+			}
+			if diff := cmp.Diff(original, string(got)); diff != "" {
+				t.Errorf("hidden file bytes changed (-want +got):\n%s", diff)
+			}
+			if after := commitCount(t, root); after != before {
+				t.Errorf("commit count = %d, want unchanged %d (no receipt for a file the scan never serves)", after, before)
+			}
+		})
+	}
+}
+
 func TestFlipValidatesPathBeforeClosure(t *testing.T) {
 	t.Parallel()
 	lifecycle := newLifecycle(t, t.TempDir(), nil)
