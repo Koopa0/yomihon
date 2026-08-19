@@ -562,9 +562,9 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 // embed's changes what is displayed, so widening the scope without saying so
 // would present content the author left out as their own choice. Where the
 // excerpt's exact edges are unruled, the narrower reading is taken and the
-// scan states it: see headingSlice and blockSlice. A block address takes precedence
-// over a heading when both parsed, mirroring how the plain-link fragment
-// rule already resolves that conflict.
+// scan states it: see headingSlice and blockSlice. A block address takes
+// precedence over a heading when both parsed, mirroring how the plain-link
+// fragment rule already resolves that conflict.
 //
 // The scan runs over the comment-stripped source so a heading or marker
 // hidden inside an Obsidian %% comment cannot anchor a visible excerpt; the
