@@ -287,18 +287,21 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 	// broken-link diagnostic for it.
 	spans := codeSpanRanges(text)
 	return replaceOutside(text, spans, wikilinkToken, func(start int, m string) string {
-		// A backslash escape is the author writing the syntax to be shown,
-		// not followed (CommonMark backslash escapes). The match is left
-		// untouched for goldmark, whose own escape handling prints the
-		// literal text — converting it anyway both showed a stray backslash
-		// and reported a broken link the author never made.
-		if escapedAt(text, start) {
-			return m
-		}
 		embed := strings.HasPrefix(m, "!")
 		raw := m
+		open := start
 		if embed {
 			raw = m[1:]
+			open++
+		}
+		// A backslash escape is the author writing the syntax to be shown,
+		// not followed. The match is left untouched for goldmark, whose own
+		// escape handling prints the literal text — converting it anyway both
+		// showed a stray backslash and reported a broken link the author never
+		// made. The same rule decides what the adjudicator counts as a
+		// citation, which is why it is answered in one place.
+		if graph.EscapedWikilinkAt(text, open) {
+			return m
 		}
 		inner := raw[2 : len(raw)-2]
 		link, ok := graph.ParseWikilink(inner)
@@ -366,18 +369,6 @@ func codeSpanRanges(text string) [][2]int {
 		i = end
 	}
 	return spans
-}
-
-// escapedAt reports whether the character at start is backslash-escaped: an
-// odd-length run of '\' immediately before it. An even-length run is pairs
-// of literal backslashes and escapes nothing — the counting CommonMark's own
-// backslash-escape rule implies.
-func escapedAt(text string, start int) bool {
-	n := 0
-	for i := start - 1; i >= 0 && text[i] == '\\'; i-- {
-		n++
-	}
-	return n%2 == 1
 }
 
 // replaceOutside applies fn to every match of re that lies wholly outside the

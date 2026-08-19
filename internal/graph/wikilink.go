@@ -31,6 +31,30 @@ type Wikilink struct {
 	Block string
 }
 
+// EscapedWikilinkAt reports whether the wikilink whose "[[" begins at open is
+// written to be shown rather than followed: the CommonMark backslash escape,
+// an odd-length run of '\' immediately in front of it. An even-length run is
+// pairs of literal backslashes and escapes nothing, which is the counting that
+// rule implies. An embed writes its '!' between the escape and the brackets,
+// so the run is counted from in front of whichever of the two the author's
+// link opens with.
+//
+// It lives here because every reader of this vault has to agree about it. A
+// name the author showed is not a name they cited: the reading page prints it
+// as text, the adjudicator counts no link, and the list of notes citing a note
+// gains no entry — otherwise one product reports a broken link on a page that
+// displays no link at all.
+func EscapedWikilinkAt(text string, open int) bool {
+	if open > 0 && text[open-1] == '!' {
+		open--
+	}
+	n := 0
+	for i := open - 1; i >= 0 && text[i] == '\\'; i-- {
+		n++
+	}
+	return n%2 == 1
+}
+
 // ParseWikilink splits inner into its target, display text, and fragments.
 //
 // The markers are stripped in a fixed order: first '|' (display separator),

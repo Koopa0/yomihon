@@ -7,6 +7,8 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
+
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // The diagnostics extract [[wikilinks]] and file references from a note body
@@ -81,15 +83,15 @@ type rawLink struct {
 }
 
 // extractWikilinks returns every [[target]] in body, skipping those inside code
-// or comment zones and dropping bare same-file anchors, each with its 1-based
-// file line and gap-section context. bodyStartLine is the file line the body
-// begins on.
+// or comment zones, those the author escaped to show rather than to follow, and
+// dropping bare same-file anchors, each with its 1-based file line and
+// gap-section context. bodyStartLine is the file line the body begins on.
 func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 	codeZones, headings := structure(body)
 	skip := append(slicesConcat(codeZones), commentZones(body, codeZones)...)
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
-		if inAnyZone(skip, raw.offset) {
+		if inAnyZone(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
 			continue
 		}
 		target, ok := stripTarget(raw.inner)
