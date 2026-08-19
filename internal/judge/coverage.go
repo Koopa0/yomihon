@@ -14,23 +14,32 @@ import (
 // counts and each concept's mount state, the concepts not yet on a map, the
 // true orphans, and the routable notes that have not reached their index. A
 // concept is classified by the source of its inbound edges, not its own status
-// — a concept sits at seedling whether mapped or not. An edge from a map (a
-// MOC, topic-map, or source-map) mounts it; an edge only from a lesson or
-// another concept leaves it pending on a map; no inbound edge at all is a true
-// orphan, the only real problem. The shape is part of the frozen output.
+// — a concept sits at seedling whether mapped or not. An edge from a note whose
+// type the contract declares as a map mounts it; an edge only from another kind
+// of note leaves it pending on a map; no inbound edge at all is a true orphan,
+// the only real problem. The shape is part of the frozen output.
+//
+// Which types are concepts and which are maps are both the vault's own words,
+// read from vault-schema.toml. A vault that names no concept type has no such
+// corpus, and is told so rather than handed a zero tally that would read as a
+// vault with nothing wrong.
 
 // Coverage is the whole coverage report. Every field is always present; the
 // slices are empty rather than absent when there is nothing to list.
 type Coverage struct {
 	TotalConcepts int              `json:"total_concepts"`
 	Domains       []DomainCoverage `json:"domains"`
-	// PendingMount lists concepts reached only by a lesson or concept edge,
-	// not yet mounted on a map (advisory).
+	// PendingMount lists concepts reached only by a non-map edge, not yet
+	// mounted on a map (advisory).
 	PendingMount []string `json:"pending_mount"`
 	// Orphans lists concepts with no inbound edge at all.
 	Orphans []string `json:"orphans"`
 	// Unrouted lists non-concept routable notes not yet on their index.
 	Unrouted []Unrouted `json:"unrouted"`
+	// NotApplicable says why this vault's contract leaves the concept tally
+	// with nothing to be about. It is absent from the report of a vault that
+	// declares the type, so the answer for such a vault is unchanged.
+	NotApplicable string `json:"not_applicable,omitempty"`
 }
 
 // DomainCoverage is one domain's concept counts by mount state.
@@ -59,6 +68,19 @@ type Unrouted struct {
 // so a private note never appears here even when mistyped as a concept.
 func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Coverage {
 	mapped, referenced := mountEdges(notes, idx, authority)
+	unrouted := unroutedNotes(notes, mapped, authority)
+
+	conceptType, declared := authority.conceptType()
+	if !declared {
+		return Coverage{
+			Domains:      []DomainCoverage{},
+			PendingMount: []string{},
+			Orphans:      []string{},
+			Unrouted:     unrouted,
+			NotApplicable: "contract declares no " + strconv.Quote(conceptType) +
+				" type, so there is no concept corpus to judge",
+		}
+	}
 
 	rows := make(map[string]*DomainCoverage)
 	pending := []string{}
@@ -66,7 +88,7 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 	total := 0
 	for i := range notes {
 		n := &notes[i]
-		if n.noteType != "concept" ||
+		if n.noteType != conceptType ||
 			strings.HasPrefix(n.path, "System/") ||
 			!authority.egressAllowed(n.path) {
 			continue
@@ -105,14 +127,14 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 		Domains:       domainsList,
 		PendingMount:  pending,
 		Orphans:       orphans,
-		Unrouted:      unroutedNotes(notes, mapped, authority),
+		Unrouted:      unrouted,
 	}
 }
 
 // mountEdges walks the reverse edges to learn which concepts are reached, and
-// which of those are reached by a map. A map here is a MOC, topic-map, or
-// source-map; an edge from one mounts its target, while an edge from a lesson
-// or another concept only references it.
+// which of those are reached by a map. A map is a note whose type the vault's
+// own contract declares as one; an edge from a map mounts its target, while an
+// edge from any other note only references it.
 func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped, referenced map[string]bool) {
 	mapped = make(map[string]bool)
 	referenced = make(map[string]bool)
@@ -124,7 +146,7 @@ func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped
 			// could infer that the private note references it.
 			continue
 		}
-		fromMap := n.noteType == "moc" || n.noteType == "topic-map" || n.noteType == "source-map"
+		fromMap := authority.roles.IsMapType(n.noteType)
 		for _, target := range coverageTargets(n) {
 			for _, path := range resolveTargets(idx, target) {
 				referenced[path] = true
@@ -141,12 +163,13 @@ func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped
 // index, ordered by path — the watchdog for a new note nobody filed.
 func unroutedNotes(notes []note, mapped map[string]bool, authority scanAuthority) []Unrouted {
 	unrouted := []Unrouted{}
+	routes := coverageRoutes(authority)
 	for i := range notes {
 		n := &notes[i]
 		if strings.HasPrefix(n.path, "System/") || !authority.egressAllowed(n.path) {
 			continue
 		}
-		if route, ok := routeFor(n.noteType); ok && !mapped[n.path] {
+		if route, ok := routes[n.noteType]; ok && !mapped[n.path] {
 			unrouted = append(unrouted, Unrouted{Path: n.path, NoteType: n.noteType, ExpectedRoute: route})
 		}
 	}
@@ -201,20 +224,40 @@ func resolveTargets(idx *graph.Index, value string) []string {
 	}
 }
 
-// routeFor reports the index a routable non-concept type belongs on. A concept
-// has its own three-way classification above; most types route only once their
-// index note exists, so only the research brief is wired here.
-func routeFor(noteType string) (string, bool) {
-	if noteType == "research-brief" {
-		return "Maps/研究 Brief 索引", true
+// coverageRoutes is the index each routable non-concept type belongs on. A
+// concept has its own three-way classification above; most types route only
+// once their index note exists, so the research brief is the single route.
+//
+// vault-schema.toml has no vocabulary for routes: it names types and their
+// roles, never the note a type is filed under. So this one route cannot be
+// derived, and it is offered only to a vault whose contract declares the type
+// it is about — a vault that never names the type is not told to file its notes
+// under an index it does not have.
+func coverageRoutes(authority scanAuthority) map[string]string {
+	if !authority.declaresType(researchBriefType) {
+		return nil
 	}
-	return "", false
+	return map[string]string{researchBriefType: researchBriefIndex}
 }
+
+const (
+	researchBriefType = "research-brief"
+
+	// researchBriefIndex names the index note in the vault this route was
+	// written for. It is a note title, not contract vocabulary, and nothing in
+	// vault-schema.toml can confirm or replace it.
+	researchBriefIndex = "Maps/研究 Brief 索引"
+)
 
 // renderCoverage renders the coverage report for a terminal reader.
 func renderCoverage(c *Coverage) string {
 	var s strings.Builder
-	fmt.Fprintf(&s, "%d concepts across %d domains\n", c.TotalConcepts, len(c.Domains))
+	if c.NotApplicable != "" {
+		s.WriteString(c.NotApplicable)
+		s.WriteString("\n")
+	} else {
+		fmt.Fprintf(&s, "%d concepts across %d domains\n", c.TotalConcepts, len(c.Domains))
+	}
 	for _, d := range c.Domains {
 		fmt.Fprintf(&s, "  %-16s %d concepts: %d mounted, %d pending-mount, %d orphan\n",
 			d.Domain, d.Concepts, d.Mounted, d.PendingMount, d.Orphan)

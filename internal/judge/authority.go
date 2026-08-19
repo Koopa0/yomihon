@@ -66,3 +66,17 @@ func (a scanAuthority) validate() error {
 func (a scanAuthority) egressAllowed(relPath string) bool {
 	return a.privacy.EgressAllowed(relPath)
 }
+
+// conceptType is the note type this vault files as its distilled ideas, and
+// whether the contract declares it. The name comes from the contract layer for
+// the same reason the map and path roles do: a vault names its own vocabulary,
+// and a judge that spelled the word itself would judge a vault that never uses
+// it against a corpus it does not have.
+func (a scanAuthority) conceptType() (name string, declared bool) {
+	return a.contract.ConceptType()
+}
+
+// declaresType reports whether the contract lists noteType at all.
+func (a scanAuthority) declaresType(noteType string) bool {
+	return a.contract.DeclaresType(noteType)
+}

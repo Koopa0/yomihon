@@ -35,6 +35,13 @@ const (
 	// ownership alone is ambiguous because the published transition is also
 	// koopa-only.
 	SealStatus = "ready"
+
+	// conceptType is the note type a vault-schema.toml reserves for its
+	// distilled-idea notes. The contract itself gives the word meaning: a
+	// contract listing it in enums.type has to say which fields give such a
+	// note its provenance. It is spelled once, here, so no face keeps a second
+	// copy of it.
+	conceptType = "concept"
 )
 
 // Sentinel errors for state-machine answers. Callers match with errors.Is.
@@ -693,7 +700,7 @@ func validateRules(enums *Enums, fields *Fields, rules *Rules) error {
 		return err
 	}
 	types := stringSet(enums.Type)
-	if _, hasConcept := types["concept"]; hasConcept && len(rules.ConceptRequiresProvenance) == 0 {
+	if _, hasConcept := types[conceptType]; hasConcept && len(rules.ConceptRequiresProvenance) == 0 {
 		return errors.New(`rules.concept_requires_provenance must not be empty when enums.type contains "concept"`)
 	}
 	known := stringSet(fields.Known)
@@ -1111,6 +1118,28 @@ func (c *Contract) Supersession() (Supersession, bool) {
 		GeneralLinkField: section.GeneralLinkField,
 		ArchivedStatus:   section.ArchivedStatus,
 	}, true
+}
+
+// ConceptType returns the note type a vault files as its distilled ideas, and
+// whether this contract declares it at all. The name is always returned so a
+// caller can say which type it looked for; declared is the answer to whether
+// this vault has such a corpus. A vault that never lists the type has none, and
+// a face that judges how well that corpus is filed has nothing to judge.
+func (c *Contract) ConceptType() (name string, declared bool) {
+	if c == nil {
+		return conceptType, false
+	}
+	return conceptType, slices.Contains(c.definition.Enums.Type, conceptType)
+}
+
+// DeclaresType reports whether noteType is listed in the contract's own type
+// vocabulary, so a face can decline to apply a rule about a type this vault
+// never named.
+func (c *Contract) DeclaresType(noteType string) bool {
+	if c == nil {
+		return false
+	}
+	return slices.Contains(c.definition.Enums.Type, noteType)
 }
 
 // NavigationRoles returns the contract-derived navigation role capability.
