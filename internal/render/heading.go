@@ -22,6 +22,16 @@ var (
 	nestedHeadingOpen = regexp.MustCompile(`<h[1-6][>\s]`)
 )
 
+// foldFragment is the fold the two kinds of "#fragment" share: Unicode form
+// and letter case, and nothing else. A name written on one side of the vault
+// and read back on the other differs in exactly these two ways for reasons the
+// author never chose — the filesystem hands over decomposed Japanese while the
+// editor composes it, and a name typed in a link rarely repeats the heading's
+// capitals — while every other difference is something they did choose.
+func foldFragment(s string) string {
+	return strings.ToLower(vault.NormalizeNFC(s))
+}
+
 // slugify makes a CJK-safe fragment/DOM id from heading text: normalize to
 // NFC, lowercase, keep only Unicode letters and digits (\p{L}, \p{N}),
 // collapse every run of anything else to a single hyphen, trim
@@ -38,7 +48,7 @@ var (
 // It uses vault.NormalizeNFC so the repository keeps one definition of the
 // fold rather than a second one that agrees only by maintenance.
 func slugify(s string) string {
-	s = slugDrop.ReplaceAllString(strings.ToLower(vault.NormalizeNFC(s)), "-")
+	s = slugDrop.ReplaceAllString(foldFragment(s), "-")
 	s = strings.Trim(s, "-")
 	if s == "" {
 		return "section"

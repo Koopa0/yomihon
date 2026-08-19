@@ -565,12 +565,13 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 }
 
 // embedScope narrows a transcluded body to the section or block the embed's
-// fragment named, which is what the fragment means: Obsidian shows only that
-// slice, and an author who wrote one scoped the excerpt on purpose. A
-// fragment that names nothing in the body falls back to the whole note and
-// reports it — unlike a link's fragment, an embed's changes what is
-// displayed, so widening the scope without saying so would present content
-// the author left out as their own choice. A block address takes precedence
+// fragment named, which is what the fragment means: an author who wrote one
+// scoped the excerpt on purpose. A fragment that matches nothing in the body
+// falls back to the whole note and reports it — unlike a link's fragment, an
+// embed's changes what is displayed, so widening the scope without saying so
+// would present content the author left out as their own choice. Where the
+// excerpt's exact edges are unruled, the narrower reading is taken and the
+// scan states it: see headingSlice and blockSlice. A block address takes precedence
 // over a heading when both parsed, mirroring how the plain-link fragment
 // rule already resolves that conflict.
 //
@@ -588,7 +589,7 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) strin
 		col.report(Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
 			Target:  link.Target + "#^" + link.Block,
-			Message: fmt.Sprintf("embed block %q not found in %q; the whole note is shown", "^"+link.Block, resPath),
+			Message: fmt.Sprintf("no block in %q matched %q; the whole note is shown", resPath, "^"+link.Block),
 		})
 	case link.Heading != "":
 		stripped := stripObsidianComments(body)
@@ -817,14 +818,25 @@ func headingSourceText(raw string) string {
 	return headingInnerText(displayed)
 }
 
-// blockSlice returns the paragraph carrying the "^name" block marker: the
-// contiguous run of non-blank lines around the first line outside fenced
-// code that ends with the marker, which is where Obsidian attaches a block
-// address. A marker written on its own line directly under a multi-line
-// block reaches that block through the same expansion, since no blank line
-// separates them.
+// blockSlice returns the block carrying the "^name" marker: the run of
+// non-blank lines around the first line outside fenced code that ends with the
+// marker, stopping at a list item's own line so a marker written on one item
+// addresses that item rather than the list it sits in. Where the marked line
+// is a continuation, the run reaches back to the line its block opens on — a
+// marker written under a multi-line block reaches that block the same way,
+// since no blank line separates them.
+//
+// The address is matched through the fold both fragment kinds share, so
+// "^Quote1" and "#^quote1" are one name. Only case and Unicode form fold: the
+// rest of an address is an identifier the author chose, and "^quote-1" and
+// "^quote1" are two of them.
+//
+// Nothing external rules on how wide a block reference reaches, so the narrow
+// reading is taken: the reader asked for the line the author marked, and
+// widening it here would be this renderer choosing an excerpt the author did
+// not.
 func blockSlice(body, block string) (string, bool) {
-	marker := "^" + block
+	want := foldFragment("^" + block)
 	lines := strings.Split(body, "\n")
 	at := -1
 	inFence, fenceByte := false, byte(0)
@@ -839,8 +851,8 @@ func blockSlice(body, block string) (string, bool) {
 			inFence, fenceByte = true, open
 			continue
 		}
-		trimmed := strings.TrimRight(line, " \t")
-		if trimmed == marker || strings.HasSuffix(trimmed, " "+marker) || strings.HasSuffix(trimmed, "\t"+marker) {
+		trimmed := foldFragment(strings.TrimRight(line, " \t"))
+		if trimmed == want || strings.HasSuffix(trimmed, " "+want) || strings.HasSuffix(trimmed, "\t"+want) {
 			at = i
 			break
 		}
@@ -849,11 +861,11 @@ func blockSlice(body, block string) (string, bool) {
 		return "", false
 	}
 	start := at
-	for start > 0 && strings.TrimSpace(lines[start-1]) != "" {
+	for start > 0 && !listItemLine.MatchString(lines[start]) && strings.TrimSpace(lines[start-1]) != "" {
 		start--
 	}
 	end := at + 1
-	for end < len(lines) && strings.TrimSpace(lines[end]) != "" {
+	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !listItemLine.MatchString(lines[end]) {
 		end++
 	}
 	return strings.Join(lines[start:end], "\n"), true

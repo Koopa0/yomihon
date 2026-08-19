@@ -1155,6 +1155,89 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 		}
 	})
 
+	// A marker sitting on a list item addresses that item. Nothing external
+	// rules on it — the vault's own dialect notes say only that "^block" names
+	// a block — so the narrower reading is the one taken: the reader asked for
+	// the line the author marked, and handing them the whole list would be
+	// this renderer widening a scope the author set.
+	t.Run("a marker on a list item embeds that item alone", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "- ITEM-A first\n- ITEM-B addressed ^id\n- ITEM-C last\n",
+		})
+		got := r.HTML("note.md", "", "![[B#^id]]\n")
+		if !strings.Contains(got.HTML, "ITEM-B") {
+			t.Errorf("the addressed item is missing:\n%s", got.HTML)
+		}
+		for _, forbidden := range []string{"ITEM-A", "ITEM-C"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("a neighbouring item leaked in (%q):\n%s", forbidden, got.HTML)
+			}
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("Diagnostics = %+v, want none for a block that exists", got.Diagnostics)
+		}
+	})
+
+	t.Run("a marker under a list item's own continuation embeds the item whole", func(t *testing.T) {
+		t.Parallel()
+		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+			"B.md": "- ITEM-A first\n- ITEM-B opens\n  ITEM-B continues ^id\n- ITEM-C last\n",
+		})
+		got := r.HTML("note.md", "", "![[B#^id]]\n")
+		for _, want := range []string{"ITEM-B opens", "ITEM-B continues"} {
+			if !strings.Contains(got.HTML, want) {
+				t.Errorf("the addressed item lost %q:\n%s", want, got.HTML)
+			}
+		}
+		for _, forbidden := range []string{"ITEM-A", "ITEM-C"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("a neighbouring item leaked in (%q):\n%s", forbidden, got.HTML)
+			}
+		}
+	})
+
+	// A block address and a heading name are both written by hand on one side
+	// and read back on the other, so they fold the same way: case and Unicode
+	// form, and nothing else. An address is an identifier the author chose, so
+	// the punctuation inside it is part of the name rather than a separator.
+	t.Run("the block address folds case and unicode form", func(t *testing.T) {
+		t.Parallel()
+		const (
+			composed   = "\u304C"       // が
+			decomposed = "\u304B\u3099" // か + combining dakuten
+		)
+		tests := []struct {
+			name     string
+			marker   string
+			fragment string
+			want     bool
+		}{
+			{name: "case differs", marker: "^Quote1", fragment: "^quote1", want: true},
+			{name: "unicode form differs", marker: "^" + decomposed, fragment: "^" + composed, want: true},
+			{name: "punctuation differs", marker: "^quote-1", fragment: "^quote1", want: false},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+					"B.md": "OUTSIDE-MARKER first.\n\nADDRESSED-MARKER the paragraph. " + tt.marker + "\n",
+				})
+				got := r.HTML("note.md", "", "![[B#"+tt.fragment+"]]\n")
+				if sliced := !strings.Contains(got.HTML, "OUTSIDE-MARKER"); sliced != tt.want {
+					t.Errorf("embed of %q against marker %q sliced = %v, want %v:\n%s",
+						tt.fragment, tt.marker, sliced, tt.want, got.HTML)
+				}
+				if tt.want && len(got.Diagnostics) != 0 {
+					t.Errorf("Diagnostics = %+v, want none for a block that exists", got.Diagnostics)
+				}
+				if !tt.want && len(got.Diagnostics) != 1 {
+					t.Errorf("Diagnostics = %+v, want the widened scope reported once", got.Diagnostics)
+				}
+			})
+		}
+	})
+
 	t.Run("a multi-line paragraph embeds whole", func(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
