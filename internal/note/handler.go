@@ -261,14 +261,18 @@ func healthBlocked(blocked []snapshot.BlockedSource) []pages.HealthBlockedSource
 	return out
 }
 
-// lastCompleteBuild formats when the published generation was built, only when
-// that build read everything it wanted. An incomplete startup generation has
-// no complete read to date, and the page says that instead.
+// lastCompleteBuild formats when the folder was last read whole, which is not
+// always when the generation behind this page was built: a generation
+// published without the sources it could not re-read carries the time of the
+// last one that did read everything. Empty means there has been no whole read
+// since startup, and the page says that instead — which it may not say while
+// one has happened, because a reader deciding whether to trust the page is
+// then being told the folder has never been seen entire.
 func lastCompleteBuild(fresh snapshot.Freshness) string {
-	if !fresh.Complete || fresh.BuiltAt.IsZero() {
+	if fresh.LastComplete.IsZero() {
 		return ""
 	}
-	return fresh.BuiltAt.Format("2006-01-02 15:04")
+	return fresh.LastComplete.Format("2006-01-02 15:04")
 }
 
 func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthCollision {
@@ -455,6 +459,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Sealed:            governance.instance && noteStatus == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
+		Stale:             n.Stale,
 		RenderDiagnostics: faults(result.Diagnostics, snap),
 		CitedBy:           snap.CitedBy(rel),
 		VaultHasLinks:     snap.AnyCitations(),

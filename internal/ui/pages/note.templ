@@ -28,6 +28,8 @@ func diagKindLabel(kind render.DiagnosticKind) string {
 		return "程式碼區塊裡的筆記語法"
 	case render.DiagEmbedFragmentMissing:
 		return "找不到嵌入指定的段落"
+	case render.DiagLinkFragmentMissing:
+		return "找不到連結指定的區塊"
 	default:
 		return string(kind)
 	}
@@ -61,7 +63,12 @@ type NoteView struct {
 	// like any other; a reader who later searches for a phrase in it would be
 	// told there are no results, which would be untrue of the folder.
 	Unsearchable bool
-	BodyHTML     string
+	// Stale is set when the file itself could not be read while this page was
+	// built, so the words below are the last ones yomihon did read. Nothing
+	// else on the page differs, and a reader comparing it against what they
+	// last wrote would conclude the edit was lost rather than unread.
+	Stale    bool
+	BodyHTML string
 	// TitleAnchor is the id the title carries, set when the note opened with a
 	// heading saying the same thing and the renderer dropped it as a
 	// duplicate. A link may be written at that section, and the title is where
@@ -269,6 +276,9 @@ templ articleHead(v NoteView) {
 	}
 	if v.Unsearchable {
 		<p class="y-fileinfo__note" data-note-unsearchable>這個筆記太大,內容不會被搜尋讀取;閱讀不受影響。</p>
+	}
+	if v.Stale {
+		<p class="y-fileinfo__note" data-note-stale>這個檔案這一次讀不進來，下面是上一次讀到的內容，可能不是檔案現在的樣子。排除之後，過幾秒重新整理就會讀到新的。</p>
 	}
 	<div class="y-seam" aria-hidden="true"></div>
 }

@@ -27,6 +27,12 @@ type Note struct {
 	// cannot reach it must say so, or the answer "no results" is a false
 	// statement about the folder.
 	Searchable bool
+	// Stale is true for a copy this generation could not re-read and took from
+	// the generation before it. The note renders its last-known content, which
+	// is the only content there is; a reader deciding what the file says now
+	// has to be told that the file itself was not readable when the page was
+	// built.
+	Stale bool
 }
 
 func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, searchable bool) Note {

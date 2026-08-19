@@ -34,6 +34,7 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 		if _, _, err := buildView(
 			b.Context(),
 			reader,
+			nil,
 			scan,
 			log,
 			contract.NavigationRoles(),

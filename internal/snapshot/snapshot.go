@@ -41,6 +41,18 @@ const scanInterval = 2 * time.Second
 // unreadable folder is fully re-read.
 const maxRetryDelay = time.Minute
 
+// degradeAfter is how many build attempts in a row may come back incomplete —
+// counted from the last generation that read every source it wanted — before
+// the folder publishes what it could read instead of holding the previous
+// generation. The retry schedule puts those attempts about zero, two, and six
+// seconds after the first failure, so the folder starts telling the truth
+// about itself within a few seconds rather than after the schedule has
+// stretched to its one-minute cap. Waiting longer means every note written
+// after one unreadable file is answered with a 404, in a folder that is
+// otherwise entirely fine — for a reading tool that is a worse trade than
+// showing the last copy of the one file that cannot be re-read.
+const degradeAfter = 3
+
 // reconcileEvery is the number of scan ticks between unconditional rebuilds.
 // The fast path compares only file identity and metadata, so an in-place edit
 // that preserves inode, mode, size, and mtime is invisible to it; every
@@ -78,6 +90,14 @@ type Freshness struct {
 	// FailedRetries counts the rebuild attempts that have come back incomplete
 	// in a row behind the generation being reported.
 	FailedRetries int
+	// LastComplete is when the most recent generation that did read every
+	// source it wanted was built, as that was known when the generation being
+	// reported was published. Zero means no whole read has happened since
+	// startup. It is separate from BuiltAt because a generation may be
+	// published without sources it could not re-read, and "this page is a few
+	// seconds old" and "the folder was last seen whole an hour ago" are then
+	// two different facts, both of which the reader needs.
+	LastComplete time.Time
 }
 
 // BlockedSource is one vault path a generation build wanted and could not
@@ -106,6 +126,14 @@ type View struct {
 	scan     vault.Scan
 	notes    map[string]Note
 	markdown *render.Pipeline
+
+	// parsed and sidecars are what a later build can fall back on for a source
+	// it can no longer read: the frontmatter and body this generation parsed,
+	// and the practice files a lesson is built from. Both are already held by
+	// this generation's projections, so keeping them addressable by path costs
+	// two maps rather than a second copy of the folder.
+	parsed   map[string]*vault.Note
+	sidecars map[string][]byte
 
 	// built is this generation's own account of itself, fixed when it was
 	// published: when the build finished, whether it read every source it
@@ -360,6 +388,24 @@ type Store struct {
 	nextRetry             time.Time
 	incompleteScan        vault.Scan
 
+	// incompleteSincePublish counts the build attempts that have come back
+	// incomplete since the last generation that read everything it wanted, and
+	// it is what decides when the folder stops holding that generation back.
+	// It is a second count rather than a reuse of consecutiveIncomplete
+	// because the two answer different questions: the backoff restarts
+	// whenever the folder changes, since a changed folder deserves an
+	// immediate attempt, while a folder that is being edited would then never
+	// reach a degrade threshold at all — and a folder being edited is exactly
+	// the case degrading exists for. It resets only on a whole read, so once
+	// the threshold is crossed every later incomplete attempt publishes too.
+	incompleteSincePublish int
+
+	// lastComplete is when the last generation that read every source it
+	// wanted was built. A degraded generation carries it so the pages can say
+	// how old the whole picture is rather than implying there has never been
+	// one.
+	lastComplete time.Time
+
 	// sinceRebuild counts scan ticks since the last completed build attempt,
 	// driving the slow reconciliation cycle that catches metadata-invisible
 	// edits.
@@ -394,7 +440,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	view, blocked, err := buildView(ctx, source, scan, log, roles, scope, policy, language)
+	view, blocked, err := buildView(ctx, source, nil, scan, log, roles, scope, policy, language)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
@@ -409,10 +455,20 @@ func New(
 		prev:            scan,
 		retry:           len(blocked) != 0,
 	}
+	builtAt := store.now()
 	view.built = Freshness{
-		BuiltAt:  store.now(),
+		BuiltAt:  builtAt,
 		Complete: len(blocked) == 0,
 		Blocked:  blocked,
+	}
+	if view.built.Complete {
+		view.built.LastComplete = builtAt
+		store.lastComplete = builtAt
+	} else {
+		// Startup publishes an incomplete generation so reading stays
+		// available. It is the first attempt that did not read the folder
+		// whole, and the threshold counts from here.
+		store.incompleteSincePublish = 1
 	}
 	store.fresh.Store(&Freshness{Blocked: blocked})
 	view.freshness = &store.fresh
@@ -473,6 +529,7 @@ func (s *Store) rescan(ctx context.Context) {
 	candidate, blocked, err := buildView(
 		ctx,
 		s.source,
+		s.ptr.Load(),
 		scan,
 		s.log,
 		s.roles,
@@ -490,21 +547,58 @@ func (s *Store) rescan(ctx context.Context) {
 	// publishes, so the reconciliation clock restarts here.
 	s.sinceRebuild = 0
 	if len(blocked) != 0 {
+		// The attempt is recorded first, so the retry schedule that governs
+		// how often the folder is re-read is the same whether or not this
+		// attempt goes on to publish.
 		s.noteIncomplete(scan, blocked)
+		s.publishOnceDegraded(candidate, scan, blocked)
 		return
 	}
 	// The attempt record is cleared before the pointer swap so a reader of the
 	// new generation never sees the previous attempt's trouble beside it.
 	s.fresh.Store(&Freshness{})
-	candidate.built = Freshness{BuiltAt: s.now(), Complete: true}
+	builtAt := s.now()
+	candidate.built = Freshness{BuiltAt: builtAt, Complete: true, LastComplete: builtAt}
 	candidate.freshness = &s.fresh
 	s.ptr.Store(candidate)
 	s.prev = scan
 	s.retry = false
 	s.consecutiveIncomplete = 0
+	s.incompleteSincePublish = 0
+	s.lastComplete = builtAt
 	s.nextRetry = time.Time{}
 	s.incompleteScan = vault.Scan{}
 	s.logBuild("vault snapshot rebuilt", candidate, scan)
+}
+
+// publishOnceDegraded publishes an attempt that could not read every source it
+// wanted, once such attempts have outlasted degradeAfter in a row. Retaining
+// the last whole generation is the right answer while a read failure might
+// still be a passing one, so until then this does nothing. Past it, retention
+// has become the more damaging fault of the two: every note written since is
+// answered with a 404, in a folder whose reading surface is otherwise intact,
+// with nothing on the page saying why. What publishes then holds every source
+// that could be read plus the last copy of each one that could not, and its
+// own record says it is not whole and names the sources behind that, so no
+// page presents it as current.
+//
+// The retry state is untouched: the folder keeps trying for a whole read on
+// the same schedule, and every later incomplete attempt publishes too, so work
+// written during the failure appears as soon as the scan sees it.
+func (s *Store) publishOnceDegraded(candidate *View, scan vault.Scan, blocked []BlockedSource) {
+	if s.incompleteSincePublish < degradeAfter {
+		return
+	}
+	candidate.built = Freshness{
+		BuiltAt:      s.now(),
+		Complete:     false,
+		Blocked:      blocked,
+		LastComplete: s.lastComplete,
+	}
+	candidate.freshness = &s.fresh
+	s.ptr.Store(candidate)
+	s.prev = scan
+	s.logBuild("vault snapshot published without its unreadable sources", candidate, scan)
 }
 
 // noteIncomplete records one incomplete rebuild attempt and schedules the next
@@ -519,6 +613,7 @@ func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
 		s.consecutiveIncomplete = 0
 	}
 	s.consecutiveIncomplete++
+	s.incompleteSincePublish++
 	s.incompleteScan = scan
 	s.nextRetry = s.now().Add(retryDelay(s.consecutiveIncomplete))
 	s.retry = true
@@ -544,14 +639,15 @@ func retryDelay(consecutive int) time.Duration {
 }
 
 // buildView performs one generation build from one completed enumeration. A
-// scan or file-read problem omits that source from the candidate and returns
-// it as a blocked source so the caller retries. New may publish such a
-// candidate to preserve startup availability; rescan retains its previous
-// generation instead. Cancellation aborts the generation so shutdown never
-// publishes half a build.
+// scan or file-read problem returns that source as blocked so the caller
+// retries; the source itself is taken from previous when that generation read
+// it, and is otherwise omitted. previous is nil at startup, when there is no
+// earlier reading of the folder to fall back on. Cancellation aborts the
+// generation so shutdown never publishes half a build.
 func buildView(
 	ctx context.Context,
 	source Source,
+	previous *View,
 	scan vault.Scan,
 	log *slog.Logger,
 	roles schema.NavigationRoles,
@@ -573,6 +669,7 @@ func buildView(
 	slotFiles := make(map[string][]byte)
 	fileDocuments := make([]search.Document, 0, len(entries))
 	blocked := blockedFromProblems(scan.Problems())
+	carried := carriedFrom(previous)
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -595,7 +692,15 @@ func buildView(
 				return nil, nil, contextErr
 			}
 			log.Warn("vault source unavailable in snapshot generation", "path", relPath, "error", err)
-			blocked, unreadableNotes = recordReadFailure(blocked, unreadableNotes, relPath, note, want, err)
+			if want.holdsBackGeneration {
+				blocked = append(blocked, BlockedSource{Path: relPath, Reason: err.Error()})
+			}
+			if note {
+				parsedNotes, unreadableNotes = carried.carryNote(
+					relPath, parsedNotes, unreadableNotes, parsedByPath, publishedNotes, indexableNotes)
+			} else {
+				fileDocuments = carried.carryFile(relPath, want, slotFiles, fileDocuments)
+			}
 			continue
 		}
 		if !note {
@@ -640,33 +745,87 @@ func buildView(
 		artifactPolicy: policy,
 		scan:           scan,
 		notes:          publishedNotes,
+		parsed:         parsedByPath,
+		sidecars:       slotFiles,
 	}
 	view.markdown = render.New(graphIndex, view)
 	return view, blocked, nil
 }
 
-// recordReadFailure records what one failed read costs the generation: a
-// blocked source when the file's absence leaves the reading surface
-// incomplete, and a resolver-only stub when the file is a note — the file
-// exists and a citation naming it lands on it, so the resolver still learns
-// its path even though its bytes are missing. Without the stub, the health
-// page would class every citation to an unreadable note with the citations
-// whose targets do not exist.
-func recordReadFailure(
-	blocked []BlockedSource,
-	unreadableNotes []*vault.Note,
+// carriedGeneration is the reading of the folder a build falls back on, source
+// by source, for the ones it cannot read itself. It holds nothing of its own:
+// the maps belong to the published generation it was taken from, and are read
+// and never written here.
+type carriedGeneration struct {
+	parsed   map[string]*vault.Note
+	captured map[string]Note
+	sidecars map[string][]byte
+}
+
+// carriedFrom takes the fallback reading from the generation currently
+// published. A nil generation — startup, where the folder has never been read
+// — yields empty maps, so a source that fails its first read is simply absent.
+func carriedFrom(previous *View) carriedGeneration {
+	if previous == nil {
+		return carriedGeneration{}
+	}
+	return carriedGeneration{
+		parsed:   previous.parsed,
+		captured: previous.notes,
+		sidecars: previous.sidecars,
+	}
+}
+
+// carryNote gives the generation being built the copy of relPath the fallback
+// generation read, marked as one that could not be re-read so the page showing
+// it can say so. Both halves of that copy are required: the parsed note is what
+// the resolver, navigation, and index are built from, and the captured
+// projection is what the reading page renders, and a generation holding one
+// without the other would answer the same question two ways.
+//
+// Without such a copy the note is left out, and the resolver gets a stub in its
+// place: the file exists and a citation naming it lands on it, so the resolver
+// still learns its path even though its bytes are missing. Without the stub,
+// the health page would class every citation to it with the citations whose
+// targets do not exist.
+func (c carriedGeneration) carryNote(
 	relPath string,
-	note bool,
+	parsedNotes, unreadableNotes []*vault.Note,
+	parsedByPath map[string]*vault.Note,
+	publishedNotes map[string]Note,
+	indexableNotes map[string]bool,
+) (parsed, unreadable []*vault.Note) {
+	lastKnown, lastKnownOK := c.parsed[relPath]
+	captured, capturedOK := c.captured[relPath]
+	if !lastKnownOK || !capturedOK {
+		return parsedNotes, append(unreadableNotes, vault.Parse(relPath, nil))
+	}
+	captured.Stale = true
+	parsedByPath[relPath] = lastKnown
+	publishedNotes[relPath] = captured
+	// The carried copy answers for itself throughout: what the index holds and
+	// what the note's own page says about being searchable describe the same
+	// bytes, which are the last ones read.
+	indexableNotes[relPath] = captured.Searchable
+	return append(parsedNotes, lastKnown), unreadableNotes
+}
+
+// carryFile gives the generation being built the practice file the fallback
+// generation read, when it read one. Any other file that could not be read is
+// simply absent from this generation: it lends the search index its words and
+// nothing else, and its own page reads it from disk at request time rather
+// than from a generation.
+func (c carriedGeneration) carryFile(
+	relPath string,
 	want bytesWanted,
-	err error,
-) ([]BlockedSource, []*vault.Note) {
-	if want.holdsBackGeneration {
-		blocked = append(blocked, BlockedSource{Path: relPath, Reason: err.Error()})
+	slotFiles map[string][]byte,
+	fileDocuments []search.Document,
+) []search.Document {
+	lastKnown, ok := c.sidecars[relPath]
+	if !ok {
+		return fileDocuments
 	}
-	if note {
-		unreadableNotes = append(unreadableNotes, vault.Parse(relPath, nil))
-	}
-	return blocked, unreadableNotes
+	return captureFile(relPath, lastKnown, want.indexable, slotFiles, fileDocuments)
 }
 
 // blockedFromProblems carries the scan's unobservable paths into the build's

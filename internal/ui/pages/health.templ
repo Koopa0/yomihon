@@ -28,9 +28,10 @@ type HealthView struct {
 	// Blocked are vault sources the latest snapshot build could not read, so
 	// the pages either lack them or hold their older captured content.
 	Blocked []HealthBlockedSource
-	// LastComplete is when the generation behind this page was built, shown
-	// only when that build read everything it wanted; empty means no complete
-	// read has happened since startup.
+	// LastComplete is when the folder was last read whole, which is not always
+	// when the generation behind this page was built: a page can be built from
+	// a reading that lost some sources and carried the last copy of each.
+	// Empty means no whole read has happened since startup.
 	LastComplete string
 	Sidebar      Sidebar
 }

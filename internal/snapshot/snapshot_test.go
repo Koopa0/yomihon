@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -699,6 +700,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 			view, _, err := buildView(
 				t.Context(),
 				reader,
+				nil,
 				scan,
 				discardLogger(),
 				contract.NavigationRoles(),
@@ -841,6 +843,10 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 // metadata-visible change retries immediately. Without the bound, one
 // permanently unreadable note re-reads the whole folder every two seconds,
 // forever, with stderr as the only evidence.
+//
+// The schedule is the same whether or not an attempt publishes: past the
+// degrade threshold the folder publishes what each of these same attempts
+// could read, and that neither adds an attempt nor moves one.
 func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	t.Parallel()
 
@@ -891,8 +897,11 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	if diff := cmp.Diff([]int{0, 1, 3, 7, 15, 31, 61}, attemptTicks); diff != "" {
 		t.Errorf("rebuild attempt ticks mismatch (-want +got):\n%s", diff)
 	}
-	if store.Current() != complete {
-		t.Error("an incomplete rebuild published a generation")
+	if store.Current() == complete {
+		t.Error("the folder never left its last whole generation, so every change after the failure stayed invisible")
+	}
+	if fresh := store.Current().Freshness(); fresh.Complete {
+		t.Errorf("the published generation calls itself whole: %+v", fresh)
 	}
 
 	// A metadata-visible change — here the fixed permission the operator just
@@ -915,14 +924,16 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	}
 }
 
-// TestPermanentlyUnreadableNoteRetainsGenerationUntilReadable locks the
+// TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold locks the
 // behavior the comment above TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder
 // describes for the opposite branch: a note the reading surface is made of.
-// While one note stays unreadable, no later generation publishes — the folder
-// holds at the last complete one, and a note written after the failure stays
-// invisible — the retry work is bounded by the backoff schedule, and the
-// moment the blocked note reads again the next attempt publishes everything.
-func TestPermanentlyUnreadableNoteRetainsGenerationUntilReadable(t *testing.T) {
+// While one note cannot be read, no later generation publishes — the folder
+// holds at the last whole one, and a note written meanwhile stays invisible —
+// because a read that fails once and works on the next attempt must never
+// publish half a folder. That retention is bounded: degradeAfter attempts in a
+// row is where it ends, and the companion test states what happens then. The
+// retry work stays on the backoff schedule throughout.
+func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -949,55 +960,202 @@ func TestPermanentlyUnreadableNoteRetainsGenerationUntilReadable(t *testing.T) {
 	store.now = func() time.Time { return clock }
 
 	// The note is edited to a different size — so the next rescan rebuilds —
-	// and from now on every read of it fails.
+	// and from now on every read of it fails. A second note is written
+	// alongside it, so what the retention costs the reader is visible.
 	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited to a different size\n")
 	source.fail[blocked] = 1 << 30
+	const added = "Concepts/Beta.md"
+	writeNote(t, root, added, "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
 
+	// Under the backoff the attempts land on ticks 0, 1, 3, and 7, so ticks 0
+	// through 2 carry the first two failures — one short of the threshold.
 	var attemptTicks []int
 	last := source.reads[blocked]
-	for tick := range 10 {
-		clock = base.Add(time.Duration(tick) * scanInterval)
-		store.rescan(t.Context())
-		if source.reads[blocked] > last {
-			attemptTicks = append(attemptTicks, tick)
-			last = source.reads[blocked]
+	rescanTicks := func(from, to int) {
+		for tick := from; tick < to; tick++ {
+			clock = base.Add(time.Duration(tick) * scanInterval)
+			store.rescan(t.Context())
+			if source.reads[blocked] > last {
+				attemptTicks = append(attemptTicks, tick)
+				last = source.reads[blocked]
+			}
 		}
 	}
+	rescanTicks(0, 3)
 	if store.Current() != frozen {
-		t.Fatal("a rescan under a permanently unreadable note published a generation")
+		t.Fatal("a failure that has not yet outlasted the threshold published half a folder")
+	}
+	if _, ok := store.Current().Note(added); ok {
+		t.Error("a note written during a failure that may still clear appeared before the folder degraded")
+	}
+
+	// The third attempt, on tick 3, is where the retention ends.
+	rescanTicks(3, 10)
+	if store.Current() == frozen {
+		t.Fatal("the retention never ended; every change after the failure stayed invisible")
 	}
 	if diff := cmp.Diff([]int{0, 1, 3, 7}, attemptTicks); diff != "" {
 		t.Errorf("rebuild attempt ticks mismatch (-want +got):\n%s", diff)
 	}
+}
 
-	// A note written after the failure retries immediately — its arrival is a
-	// metadata change — but the folder still cannot publish, so it stays
-	// invisible: the 404 the reader meets in a folder that is otherwise fine.
+// TestDegradedGenerationPublishesWhatCouldBeRead pins where retention stops.
+// Holding the last whole generation is the right answer for a read that fails
+// once and works on the next attempt. Held without a bound it means every note
+// written after one file stopped being readable is answered with a 404, in a
+// folder that is otherwise entirely fine, with nothing on the page a reader
+// could act on. So after degradeAfter attempts in a row come back incomplete,
+// the folder publishes what it could read, carries the last copy of what it
+// could not, and reports itself as not whole for as long as that lasts.
+func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const unreadable = "Concepts/Alpha.md"
+	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha as first read\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	whole := store.Current()
+	wholeAt := whole.Freshness().BuiltAt
+	base := time.Now()
+	clock := base
+	store.now = func() time.Time { return clock }
+
+	// The note is edited to a different size — so the next rescan rebuilds —
+	// and from now on every read of it fails. A second note is written while
+	// the folder cannot be read whole: this is the reader's own new work, and
+	// it is what the old policy suppressed for as long as the failure lasted.
+	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited and now unreadable\n")
+	source.fail[unreadable] = 1 << 30
 	const added = "Concepts/Beta.md"
 	writeNote(t, root, added, "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
-	clock = base.Add(10 * scanInterval)
-	store.rescan(t.Context())
-	if store.Current() != frozen {
-		t.Fatal("an incomplete rebuild after a new note published a generation")
-	}
-	if _, ok := store.Current().Note(added); ok {
-		t.Fatal("a note written after the failure appeared while the folder was held back")
+
+	// One rescan per scan interval, as the ticker drives it. The backoff puts
+	// the first three attempts on ticks 0, 1, and 3 — about six seconds.
+	for tick := range 4 {
+		clock = base.Add(time.Duration(tick) * scanInterval)
+		store.rescan(t.Context())
 	}
 
-	// The blocked note becomes readable again; the next scheduled attempt
-	// publishes the whole folder, the added note included.
-	source.fail[blocked] = 0
-	clock = base.Add(11 * scanInterval)
+	degraded := store.Current()
+	if degraded == whole {
+		t.Fatal("a read failure that never clears held the folder at its last whole generation forever")
+	}
+	if _, ok := degraded.Note(added); !ok {
+		t.Error("a note written while one file was unreadable never reached a published generation")
+	}
+	fresh := degraded.Freshness()
+	if fresh.Complete {
+		t.Error("a generation published without one of its sources calls itself complete")
+	}
+	if len(fresh.Blocked) != 1 || fresh.Blocked[0].Path != unreadable {
+		t.Errorf("Blocked = %+v, want the one source that could not be read", fresh.Blocked)
+	}
+	if !fresh.LastComplete.Equal(wholeAt) {
+		t.Errorf("LastComplete = %v, want the last whole read at %v", fresh.LastComplete, wholeAt)
+	}
+	carried, ok := degraded.Note(unreadable)
+	if !ok {
+		t.Fatal("the degraded generation dropped the note it could not re-read instead of carrying its last copy")
+	}
+	if !strings.Contains(carried.Body, "alpha as first read") {
+		t.Errorf("carried body = %q, want the copy the last whole generation read", carried.Body)
+	}
+	if !carried.Stale {
+		t.Error("the carried copy is not marked as one that could not be re-read")
+	}
+	// The carried copy replaces the resolver stub rather than joining it: two
+	// registrations of one path would report the folder as having two files
+	// answering to the same name.
+	if collisions := degraded.Health().Collisions; len(collisions) != 0 {
+		t.Errorf("degraded generation reports name collisions %+v; the carried copy was registered twice", collisions)
+	}
+
+	// Recovery is the ordinary path: the file reads again, the next attempt
+	// publishes a whole generation, and every degraded fact clears.
+	source.fail[unreadable] = 0
+	clock = base.Add(20 * scanInterval)
 	store.rescan(t.Context())
-	if store.Current() == frozen {
-		t.Fatal("a readable folder did not publish a new generation")
+	recovered := store.Current()
+	if recovered == degraded {
+		t.Fatal("a folder that reads whole again did not publish a new generation")
 	}
-	if _, ok := store.Current().Note(added); !ok {
-		t.Error("the recovered generation lost the note written during the freeze")
+	fresh = recovered.Freshness()
+	if !fresh.Complete || len(fresh.Blocked) != 0 {
+		t.Errorf("recovered freshness = %+v, want whole with nothing blocked", fresh)
 	}
-	note, ok := store.Current().Note(blocked)
-	if !ok || !strings.Contains(note.Body, "edited to a different size") {
-		t.Errorf("recovered note = %+v, present %t; want the edited body", note, ok)
+	note, ok := recovered.Note(unreadable)
+	if !ok || note.Stale || !strings.Contains(note.Body, "edited and now unreadable") {
+		t.Errorf("recovered note = %+v, present %t; want the edited body read afresh", note, ok)
+	}
+	if _, ok := recovered.Note(added); !ok {
+		t.Error("the recovered generation lost the note written while the folder was degraded")
+	}
+}
+
+// TestAFolderBeingWrittenInStillDegrades pins which of the two failure counts
+// decides. The retry backoff restarts whenever the folder's files change,
+// because a changed folder deserves an immediate attempt rather than the
+// remains of the previous wait. Counting those restarts toward the degrade
+// threshold as well would mean a folder somebody is writing in never reaches
+// it — and that is precisely the folder where holding every new note back
+// costs the most.
+func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const unreadable = "Concepts/Alpha.md"
+	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	whole := store.Current()
+	base := time.Now()
+	clock := base
+	store.now = func() time.Time { return clock }
+
+	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited and now unreadable\n")
+	source.fail[unreadable] = 1 << 30
+
+	// A note arrives before every attempt, so the file domain differs each
+	// time and the backoff restarts on each one.
+	for tick := range degradeAfter {
+		writeNote(t, root, "Concepts/Beta-"+strconv.Itoa(tick)+".md",
+			"---\ntitle: Beta\ntype: concept\n---\nbeta\n")
+		clock = base.Add(time.Duration(tick) * scanInterval)
+		store.rescan(t.Context())
+	}
+	if store.Current() == whole {
+		t.Fatal("a folder being written in never degraded, so none of the new notes were published")
+	}
+	last := "Concepts/Beta-" + strconv.Itoa(degradeAfter-1) + ".md"
+	if _, ok := store.Current().Note(last); !ok {
+		t.Errorf("the degraded generation is missing %s, the note written before the attempt that published it", last)
 	}
 }
 
