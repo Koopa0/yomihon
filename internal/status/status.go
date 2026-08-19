@@ -634,7 +634,7 @@ func (lc *Lifecycle) flip(ctx context.Context, rel, from, to string, hooks flipH
 		return ErrClosed
 	}
 
-	err = lc.validateWriteTarget(relSlash)
+	err = lc.validateWriteTarget(rel, relSlash)
 	if err != nil {
 		return err
 	}
@@ -705,7 +705,7 @@ func (lc *Lifecycle) publishStatus(
 	return nil
 }
 
-func (lc *Lifecycle) validateWriteTarget(relSlash string) error {
+func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
 	if !durablePublicationSupported {
 		return ErrDurabilityUnsupported
 	}
@@ -726,6 +726,45 @@ func (lc *Lifecycle) validateWriteTarget(relSlash string) error {
 	// carrying note-shaped frontmatter cannot acquire a committed
 	// note-lifecycle receipt for something the reading face never shows.
 	if !strings.HasSuffix(relSlash, ".md") || vault.OutsideScan(relSlash) {
+		return ErrNonInstance
+	}
+	return lc.targetSpelledAsRequested(rel, relSlash)
+}
+
+// targetSpelledAsRequested refuses a request the filesystem answers with an
+// entry spelled differently from the one asked for.
+//
+// A vault on a case-insensitive filesystem opens "L06.MD" for a request naming
+// "L06.md". The scan compares spellings exactly and reads the file on disk as
+// a resource, and so does git, whose index holds the entry under the name it
+// was added with — which is why this used to end as a rewritten resource and a
+// commit that could not find its own path. The check asks the directory what
+// it actually holds, so the refusal comes before anything is written. It also
+// covers spellings that differ in ways beyond letter case, since it compares
+// the resolved entry rather than reasoning about one kind of equivalence.
+func (lc *Lifecycle) targetSpelledAsRequested(rel, relSlash string) error {
+	parent, _, name, err := openRegularParent(lc.root, rel, relSlash)
+	if err != nil {
+		// The walk to the note's directory failed, and reading the note
+		// reports that failure in the operator's own terms a moment later.
+		return nil
+	}
+	defer closeRoot(parent)
+	if _, statErr := parent.Lstat(name); statErr != nil {
+		// The name resolves to nothing at all, which is a missing note rather
+		// than a resource, and the read says so.
+		return nil
+	}
+	dir, err := parent.Open(".")
+	if err != nil {
+		return fmt.Errorf("status: confirm the name of %s: %w", relSlash, err)
+	}
+	names, err := dir.Readdirnames(-1)
+	_ = dir.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
+	if err != nil {
+		return fmt.Errorf("status: confirm the name of %s: %w", relSlash, err)
+	}
+	if !slices.Contains(names, name) {
 		return ErrNonInstance
 	}
 	return nil

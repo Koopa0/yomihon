@@ -3,6 +3,7 @@ package status_test
 import (
 	"crypto/sha256"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -866,6 +867,69 @@ func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
 	}
 	if after := commitCount(t, root); after != before {
 		t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
+	}
+}
+
+// TestFlipRefusesADifferentlySpelledOnDiskName locks the write face to the
+// name the directory actually holds rather than the one the request typed. On
+// a case-insensitive filesystem a request for "L06.md" opens the entry spelled
+// "L06.MD", which the scan reads as a resource; the flip has to refuse before
+// it rewrites those bytes, not after git declines a path its index does not
+// have under that spelling.
+func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	const onDiskRel = "Writing/lessons/japanese/L06.MD"
+	const requestedRel = "Writing/lessons/japanese/L06.md"
+	original := lessonContent("draft")
+	writeVaultFile(t, root, onDiskRel, original)
+	commitAll(t, root)
+	before := commitCount(t, root)
+
+	onDisk := filepath.Join(root, filepath.FromSlash(onDiskRel))
+	if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(requestedRel))); err != nil {
+		t.Skipf("this filesystem keeps the two spellings apart, so the bypass cannot arise here: %v", err)
+	}
+
+	err := lifecycle.Flip(t.Context(), requestedRel, "draft", schema.SealStatus)
+	if !errors.Is(err, status.ErrNonInstance) {
+		t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, status.ErrNonInstance)
+	}
+	got, readErr := os.ReadFile(onDisk) // #nosec G304 -- a fixed in-test path under newVault's TempDir
+	if readErr != nil {
+		t.Fatalf("read the on-disk file: %v", readErr)
+	}
+	if diff := cmp.Diff(original, string(got)); diff != "" {
+		t.Errorf("bytes rewritten before the refusal (-want +got):\n%s", diff)
+	}
+	if after := commitCount(t, root); after != before {
+		t.Errorf("commit count = %d, want unchanged %d", after, before)
+	}
+	if porcelain := strings.TrimSpace(runGit(t, root, "status", "--porcelain")); porcelain != "" {
+		t.Errorf("working tree dirty after refused flip:\n%s", porcelain)
+	}
+}
+
+// TestFlipReportsAMissingNoteAsMissing guards the boundary the on-disk name
+// check introduces: a name that resolves to nothing is a note that is not
+// there, and the operator has to be told that rather than that their note is
+// somehow ungovernable.
+func TestFlipReportsAMissingNoteAsMissing(t *testing.T) {
+	t.Parallel()
+	root := newVault(t)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	writeNote(t, root, lessonContent("draft"))
+	commitAll(t, root)
+
+	err := lifecycle.Flip(t.Context(), "Writing/lessons/japanese/Absent.md", "draft", schema.SealStatus)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Flip(missing note) = %v, want an error wrapping %v", err, fs.ErrNotExist)
+	}
+	if errors.Is(err, status.ErrNonInstance) {
+		t.Errorf("Flip(missing note) = %v, must not report a missing note as a resource", err)
 	}
 }
 
