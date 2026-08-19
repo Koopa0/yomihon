@@ -1086,6 +1086,67 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	}
 }
 
+// TestSupersededGenerationKeepsItsOwnBuildFacts pins which way the freshness
+// record is allowed to be wrong. A request captures a generation and renders
+// its content; a rebuild can replace that generation while the response is
+// still being written. The record read beside the content then has to describe
+// the generation the reader is looking at — the one that never read a source
+// stays incomplete and keeps naming it — because the alternative direction
+// tells the reader that a folder they cannot see is whole and current.
+func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const blocked = "Concepts/Alpha.md"
+	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   map[string]int{blocked: 1},
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The generation a request would be holding: published for availability at
+	// startup without the note it could not read.
+	superseded := store.Current()
+	startup := superseded.Freshness()
+	if startup.Complete || len(startup.Blocked) != 1 {
+		t.Fatalf("startup freshness = %+v, want incomplete with the lost note", startup)
+	}
+
+	// The read failure was transient, so the next attempt publishes a complete
+	// generation — while the earlier one is still being rendered.
+	clock := store.now().Add(time.Hour)
+	store.now = func() time.Time { return clock }
+	store.rescan(t.Context())
+	if store.Current() == superseded {
+		t.Fatal("the recovering rebuild published no generation")
+	}
+
+	after := superseded.Freshness()
+	if after.Complete {
+		t.Error("a generation that never read a source calls itself complete once a later one did")
+	}
+	if !after.BuiltAt.Equal(startup.BuiltAt) {
+		t.Errorf("BuiltAt moved from %v to %v: a later generation's build time was reported beside this one's content", startup.BuiltAt, after.BuiltAt)
+	}
+	if len(after.Blocked) != 1 || after.Blocked[0].Path != blocked {
+		t.Errorf("Blocked = %+v, want the source this generation never read", after.Blocked)
+	}
+	if current := store.Current().Freshness(); !current.Complete || len(current.Blocked) != 0 {
+		t.Errorf("published freshness = %+v, want the new generation reported complete and whole", current)
+	}
+}
+
 // TestMetadataInvisibleEditIsEventuallyRepublished pins the slow half of the
 // freshness contract. The fast path trusts identity and metadata, so an
 // in-place edit that preserves inode, mode, size, and mtime is invisible to
