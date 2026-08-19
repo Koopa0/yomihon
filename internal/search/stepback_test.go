@@ -93,6 +93,28 @@ func TestStepBacksRecoverAQuotedPhrase(t *testing.T) {
 	}
 }
 
+// A scoped search loosens its words and keeps its scope, and a scope whose
+// value carries a space has to be handed back the way a reader would type it.
+// Offered bare, the suggestion reads back as a filter on the first word plus a
+// stray second one — a different search wearing the count of this one.
+func TestStepBacksKeepAQuotedFilterValueSpelled(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Notes/a.md", Title: "A", Topics: []string{"functional programming"}, PlainText: "semantic things sit here and retrieval happens later"},
+		{RelPath: "Notes/b.md", Title: "B", PlainText: "semantic retrieval together, but no topic at all"},
+	}, schema.ArtifactPolicy{})
+
+	got := idx.StepBacks(`topic:"functional programming" semantic retrieval`)
+	want := []StepBack{
+		{Query: `topic:"functional programming" semantic`, Count: 1},
+		{Query: `topic:"functional programming" retrieval`, Count: 1},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("StepBacks() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // The count on an offer is a promise about the vault, not about one response
 // page, so it must not inherit the rendered list's bound: an offer that says
 // two hundred where the vault holds more would teach the reader the same

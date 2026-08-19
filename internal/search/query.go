@@ -81,7 +81,7 @@ func isFilterKey(key string) bool {
 	return ok
 }
 
-// Parse turns a raw query string into a Query under five rules:
+// Parse turns a raw query string into a Query under six rules:
 //
 //   - classify before folding: a token is a filter only if its pre-fold key
 //     is exactly one of the six lowercase keys; otherwise it is a bare token,
@@ -94,9 +94,12 @@ func isFilterKey(key string) bool {
 //     and all. Matching keeps the token contiguous, so the one token is what
 //     makes the quoted words match only where they sit together; the
 //     whitespace between them matches whatever whitespace the note wrote,
-//     including the line break of a wrapped sentence. Quoting also means the
-//     text is wanted literally, so a quoted span is never a filter. A quote
-//     with no partner is dropped where it stands.
+//     including the line break of a wrapped sentence. A quote with no partner
+//     is dropped where it stands.
+//   - quoting a key asks for those characters as text, so "type:lesson" in
+//     quotes is a phrase and not a filter; quoting only the value leaves the
+//     filter standing, which is how a value carrying a space — a topic of two
+//     words — is asked for at all.
 //
 // Whitespace tokenizes outside quotes; a whitespace-only or empty query
 // yields an empty Query (nil slices), which the match layer treats as
@@ -105,11 +108,9 @@ func Parse(q string) Query {
 	var out Query
 	var bare []string
 	for _, field := range quoteFields(q) {
-		if !field.quoted {
-			if key, value, ok := splitFilter(field.text); ok {
-				out.filters = append(out.filters, Filter{Key: key, Value: value})
-				continue
-			}
+		if key, value, ok := splitFilter(field.text, field.quotedFrom); ok {
+			out.filters = append(out.filters, Filter{Key: key, Value: value})
+			continue
 		}
 		out.tokens = append(out.tokens, fold(field.text))
 		bare = append(bare, field.text)
@@ -118,13 +119,19 @@ func Parse(q string) Query {
 	return out
 }
 
-// queryField is one whitespace-delimited unit of a raw query. quoted reports
-// that part of it came from inside a quoted span, which exempts the whole
-// field from filter classification: quoting means the text is wanted
-// literally.
+// queryField is one whitespace-delimited unit of a raw query. quotedFrom is
+// the offset in text where quoting first began, or -1 when nothing in the
+// field was quoted.
+//
+// Where the quoting began is what decides how the field reads. Quoting a key —
+// or the colon after it — asks for those characters as text, so the field is
+// text. Quoting only the value leaves the key spelled plainly and still asks
+// for a filter, which is how a value with a space in it is written at all:
+// spelled without the quotes it splits into two fields, and quoted whole it
+// stops being a filter.
 type queryField struct {
-	text   string
-	quoted bool
+	text       string
+	quotedFrom int
 }
 
 // quotePairs maps each opening quote character to its closing partner. ASCII
@@ -142,21 +149,23 @@ var quotePairs = map[rune]rune{'"': '"', '「': '」', '『': '』'}
 func quoteFields(q string) []queryField {
 	var fields []queryField
 	var b strings.Builder
-	quoted := false
+	quotedFrom := -1
 	flush := func() {
 		if strings.TrimSpace(b.String()) != "" {
-			fields = append(fields, queryField{text: b.String(), quoted: quoted})
+			fields = append(fields, queryField{text: b.String(), quotedFrom: quotedFrom})
 		}
 		b.Reset()
-		quoted = false
+		quotedFrom = -1
 	}
 	for i := 0; i < len(q); {
 		r, size := utf8.DecodeRuneInString(q[i:])
 		if closer, ok := quotePairs[r]; ok {
 			rest := q[i+size:]
 			if j := strings.IndexRune(rest, closer); j >= 0 {
+				if quotedFrom < 0 {
+					quotedFrom = b.Len()
+				}
 				b.WriteString(rest[:j])
-				quoted = true
 				i += size + j + utf8.RuneLen(closer)
 				continue
 			}
@@ -183,13 +192,19 @@ func quoteFields(q string) []queryField {
 }
 
 // splitFilter classifies one raw token: on the first colon it splits
-// key/value, and returns a filter only when the key is one of the six. The
-// value is NFC-normalized, and a "folder:" value drops one trailing slash.
-// A non-filter token returns ok=false so the caller folds it as a bare
-// token.
-func splitFilter(raw string) (key, value string, ok bool) {
+// key/value, and returns a filter only when the key is one of the six and was
+// written outside quotes — quotedFrom is where quoting began in raw, or -1
+// when it did not. The value is NFC-normalized, and a "folder:" value drops
+// one trailing slash. A non-filter token returns ok=false so the caller folds
+// it as a bare token.
+func splitFilter(raw string, quotedFrom int) (key, value string, ok bool) {
 	key, rest, found := strings.Cut(raw, ":")
 	if !found {
+		return "", "", false
+	}
+	if quotedFrom >= 0 && quotedFrom <= len(key) {
+		// The key, or the colon standing after it, came out of quotes: the
+		// reader asked for those characters, not for a constraint.
 		return "", "", false
 	}
 	if !isFilterKey(key) {

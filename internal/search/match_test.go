@@ -917,3 +917,29 @@ func TestQuotedPhraseCrossesALineBreak(t *testing.T) {
 		t.Errorf("markHits over the wrapped hit mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// A topic can carry a space, and the way to name one is the same convention
+// every search box uses: quote the value. Quoting had exempted the whole
+// field from being read as a filter, so the idiom looked supported and
+// quietly ran as body text over notes that never write their own topics down.
+func TestQuotedFilterValueStillFilters(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "a.md", Title: "A", Topics: []string{"functional programming"}, PlainText: "one"},
+		{RelPath: "b.md", Title: "B", Topics: []string{"functional"}, PlainText: "two"},
+		{RelPath: "c.md", Title: "C", PlainText: "topic:functional programming written out in the body"},
+	}, schema.ArtifactPolicy{})
+
+	got := paths(searchResults(t, idx, Parse(`topic:"functional programming"`)))
+	if diff := cmp.Diff([]string{"a.md"}, got); diff != "" {
+		t.Errorf(`Search(topic:"functional programming") mismatch (-want +got):`+"\n%s", diff)
+	}
+
+	// The other direction stands unchanged: quote the whole field and it is
+	// text, matched wherever those characters sit together.
+	quoted := paths(searchResults(t, idx, Parse(`"topic:functional programming"`)))
+	if diff := cmp.Diff([]string{"c.md"}, quoted); diff != "" {
+		t.Errorf(`Search("topic:functional programming") mismatch (-want +got):`+"\n%s", diff)
+	}
+}

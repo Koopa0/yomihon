@@ -95,6 +95,40 @@ func TestParseQuotedPhrase(t *testing.T) {
 			want:  Query{tokens: []string{"semantic retrieval"}, filters: []Filter{{Key: "type", Value: "lesson"}}, bareText: "semantic retrieval"},
 		},
 		{name: "paired quotes splice their span into the word around them", input: `sem"antic ret"rieval`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "semantic retrieval"}},
+		{
+			name:  "quoting a value keeps the filter and carries the space",
+			input: `topic:"functional programming"`,
+			want:  Query{filters: []Filter{{Key: "topic", Value: "functional programming"}}},
+		},
+		{
+			name:  "corner brackets quote a value the same way",
+			input: "topic:「深度 工作」",
+			want:  Query{filters: []Filter{{Key: "topic", Value: "深度 工作"}}},
+		},
+		{
+			name:  "a quoted single-word value is still a filter",
+			input: `type:"lesson"`,
+			want:  Query{filters: []Filter{{Key: "type", Value: "lesson"}}},
+		},
+		{
+			name:  "a quoted folder value drops its trailing slash",
+			input: `folder:"My Notes/"`,
+			want:  Query{filters: []Filter{{Key: "folder", Value: "My Notes"}}},
+		},
+		{
+			name:  "quoting the key makes the whole field text",
+			input: `"topic:functional programming"`,
+			want:  Query{tokens: []string{"topic:functional programming"}, bareText: "topic:functional programming"},
+		},
+		{
+			name:  "a quoted value beside a phrase leaves the phrase a token",
+			input: `topic:"functional programming" "semantic retrieval"`,
+			want: Query{
+				tokens:   []string{"semantic retrieval"},
+				filters:  []Filter{{Key: "topic", Value: "functional programming"}},
+				bareText: "semantic retrieval",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

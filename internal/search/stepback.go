@@ -2,6 +2,7 @@ package search
 
 import (
 	"strings"
+	"unicode"
 )
 
 // StepBack is one looser query the empty page may offer: a real search this
@@ -32,18 +33,18 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 	var bare, filters []string
 	quoted := false
 	for _, field := range quoteFields(raw) {
-		if field.quoted {
+		if _, _, ok := splitFilter(field.text, field.quotedFrom); ok {
+			filters = append(filters, respellFilter(field.text))
+			continue
+		}
+		if field.quotedFrom >= 0 {
 			// A phrase loosens by shedding its adjacency, so its words join
 			// the bare terms one by one, quote characters already stripped.
 			quoted = true
 			bare = append(bare, strings.Fields(field.text)...)
 			continue
 		}
-		if _, _, ok := splitFilter(field.text); ok {
-			filters = append(filters, field.text)
-		} else {
-			bare = append(bare, field.text)
-		}
+		bare = append(bare, field.text)
 	}
 	if len(bare) == 0 {
 		return nil
@@ -86,6 +87,20 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		}
 	}
 	return out
+}
+
+// respellFilter writes a filter back the way a reader would have to type it:
+// the quotes around a value carrying a space are gone by the time a field is
+// split, and a suggestion offering the bare characters would read back as a
+// filter on the first word plus a stray second one. Every suggestion is run
+// before it is offered, so a spelling that parses differently would cost the
+// reader the count as well as the query.
+func respellFilter(field string) string {
+	key, value, _ := strings.Cut(field, ":")
+	if strings.IndexFunc(value, unicode.IsSpace) < 0 {
+		return field
+	}
+	return key + `:"` + value + `"`
 }
 
 // splitDigitLetterRuns rewrites the bare terms with a space wherever an ASCII
