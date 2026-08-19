@@ -24,18 +24,27 @@ func writeDegradedFixture(t *testing.T) (root string) {
 	if err := os.WriteFile(lockedPath, []byte("---\ntitle: Locked\ntype: concept\n---\nlocked body\n"), 0o600); err != nil {
 		t.Fatalf("write note-locked.md: %v", err)
 	}
-	if err := os.Chmod(lockedPath, 0o000); err != nil {
-		t.Fatalf("chmod note-locked.md: %v", err)
+	lockNote(t, lockedPath)
+	return root
+}
+
+// lockNote takes the read permission off a file for the rest of the test and
+// gives it back afterwards, so the temporary directory can be removed. A
+// privileged user reads the file anyway, and a folder that is not degraded
+// proves nothing about the pages that report degradation.
+func lockNote(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatalf("chmod %s: %v", filepath.Base(path), err)
 	}
 	t.Cleanup(func() {
-		if err := os.Chmod(lockedPath, 0o600); err != nil {
-			t.Errorf("restore note-locked.md mode: %v", err)
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Errorf("restore %s mode: %v", filepath.Base(path), err)
 		}
 	})
-	if _, err := os.ReadFile(lockedPath); err == nil { // #nosec G304 -- probing a path inside this test's own TempDir
+	if _, err := os.ReadFile(path); err == nil { // #nosec G304 -- probing a path inside this test's own TempDir
 		t.Skip("mode 000 does not block reads here (running as a privileged user)")
 	}
-	return root
 }
 
 // TestUnreadableNoteIsVisibleOnEveryReadingSurface pins the three surfaces
@@ -118,4 +127,133 @@ func TestFolderNamedLikeANoteGetsThePlainNotFoundPage(t *testing.T) {
 	if !strings.Contains(page, "這裡沒有東西") {
 		t.Error("a folder named like a note does not get the plain not-found page")
 	}
+}
+
+// TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead is the plural case of
+// the same two surfaces. One blocked file is the case where naming the first
+// one and naming all of them look identical; with two, a report that stops at
+// the first sends the reader to clear one permission and leaves the folder
+// degraded with no account of the rest. Home says how many there are and lists
+// them; the health page gives each its own line.
+func TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const (
+		first  = "note-locked-one.md"
+		second = "note-locked-two.md"
+	)
+	if err := os.WriteFile(filepath.Join(root, "note-ok.md"),
+		[]byte("---\ntitle: OK\ntype: concept\n---\nreadable body\n"), 0o600); err != nil {
+		t.Fatalf("write note-ok.md: %v", err)
+	}
+	for _, name := range []string{first, second} {
+		path := filepath.Join(root, name)
+		if err := os.WriteFile(path, []byte("---\ntitle: Locked\ntype: concept\n---\nlocked body\n"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		lockNote(t, path)
+	}
+	srv := newServer(t, root)
+
+	code, home := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", code, http.StatusOK)
+	}
+	if !strings.Contains(home, "有 2 個檔案讀不進來") {
+		t.Error("home page does not say how many files the folder could not read")
+	}
+	// The rail lists every file in the folder, so a name found anywhere on the
+	// page proves nothing. The notice's own detail is what is read here.
+	detail := degradedDetail(t, home)
+	for _, name := range []string{first, second} {
+		if !strings.Contains(detail, name) {
+			t.Errorf("home degraded notice detail %q does not name %s", detail, name)
+		}
+	}
+
+	code, health := get(t, srv.URL+"/health")
+	if code != http.StatusOK {
+		t.Fatalf("GET /health status = %d, want %d", code, http.StatusOK)
+	}
+	blocked := healthBlockedSection(t, health)
+	for _, name := range []string{first, second} {
+		if !strings.Contains(blocked, `<span class="y-healthlist__name">`+name+`</span>`) {
+			t.Errorf("health blocked-sources section does not list %s as a file of its own", name)
+		}
+	}
+}
+
+// TestStatusFaceReadsTheFileNotTheGeneration pins where the write face gets
+// the status it puts under the controls. The rest of the page comes from a
+// generation that lags the folder by a couple of seconds, and lags it without
+// bound for a file that generation could not re-read and carried. A body that
+// is a few seconds old is what reading costs; a status that is a few seconds
+// old is a control acting on a value the reader has already changed.
+func TestStatusFaceReadsTheFileNotTheGeneration(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const rel = "Concepts/Carried.md"
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir for %s: %v", rel, err)
+	}
+	if err := os.WriteFile(path,
+		[]byte("---\ntitle: Carried\ntype: concept\nstatus: seedling\n---\ncarried body\n"), 0o600); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+
+	// The generation now holds the status the file carried when it was built.
+	// The file moves on without it.
+	if err := os.WriteFile(path,
+		[]byte("---\ntitle: Carried\ntype: concept\nstatus: growing\n---\ncarried body\n"), 0o600); err != nil {
+		t.Fatalf("rewrite %s: %v", rel, err)
+	}
+
+	code, page := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want %d", rel, code, http.StatusOK)
+	}
+	if !strings.Contains(page, "ui-status--growing") {
+		t.Error("the status face does not show the status the file itself carries")
+	}
+	if strings.Contains(page, "ui-status--seedling") {
+		t.Error("the status face shows the generation's copy, which a transition would be built from")
+	}
+}
+
+// degradedDetail returns the technical detail the home page's degraded notice
+// carries, which is the part of the page that names the files. Reading it out
+// of the notice keeps the assertion off the file rail, where every name in the
+// folder appears whether or not anything went wrong.
+func degradedDetail(t *testing.T, page string) string {
+	t.Helper()
+	_, afterNotice, ok := strings.Cut(page, "個檔案讀不進來")
+	if !ok {
+		t.Fatal("home page carries no degraded notice")
+	}
+	_, detail, ok := strings.Cut(afterNotice, `<code lang="en">`)
+	if !ok {
+		t.Fatal("the home page's degraded notice carries no detail naming what could not be read")
+	}
+	detail, _, ok = strings.Cut(detail, "</code>")
+	if !ok {
+		t.Fatal("the home page's degraded detail is not closed")
+	}
+	return detail
+}
+
+// healthBlockedSection returns the blocked-sources section of the health page,
+// bounded by the section that follows it, so a name found in a later section
+// cannot stand in for one this section left out.
+func healthBlockedSection(t *testing.T, page string) string {
+	t.Helper()
+	_, section, ok := strings.Cut(page, "讀不進來的檔案")
+	if !ok {
+		t.Fatal("health page has no blocked-sources section")
+	}
+	if before, _, found := strings.Cut(section, "連到還沒寫的筆記"); found {
+		section = before
+	}
+	return section
 }

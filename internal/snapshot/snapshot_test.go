@@ -1106,6 +1106,94 @@ func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
 	}
 }
 
+// TestDegradedGenerationNamesEverySourceItCouldNotRead separates the two kinds
+// of unreadable file a degraded generation holds, because the reading pages
+// answer for them differently.
+//
+// A file the folder read once keeps that copy, so its page still has words to
+// show and says they are the last known ones. A file that appeared and was
+// never readable has no copy to show: it stays out of the generation's notes
+// while remaining one of its files, which is what lets the missing-note page
+// tell the reader the file is there and could not be read this time, rather
+// than that there is nothing at that address.
+//
+// The freshness record names both. Naming only the first sends the reader to
+// clear one permission and leaves the folder degraded with no account of why.
+func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const (
+		carried = "Concepts/Carried.md"
+		never   = "Concepts/Never.md"
+	)
+	writeNote(t, root, carried, "---\ntitle: Carried\ntype: concept\n---\nthe words read before the file shut\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	whole := store.Current()
+	base := time.Now()
+	clock := base
+	store.now = func() time.Time { return clock }
+
+	// The note that was read is edited to a different size, so the next rescan
+	// rebuilds; a second note arrives beside it. From here neither can be read.
+	writeNote(t, root, carried, "---\ntitle: Carried\ntype: concept\n---\nwords written after the file shut\n")
+	writeNote(t, root, never, "---\ntitle: Never\ntype: concept\n---\nnever read\n")
+	source.fail[carried] = 1 << 30
+	source.fail[never] = 1 << 30
+
+	// One rescan per scan interval, as the ticker drives it. The backoff puts
+	// the first three attempts on ticks 0, 1, and 3.
+	for tick := range 4 {
+		clock = base.Add(time.Duration(tick) * scanInterval)
+		store.rescan(t.Context())
+	}
+	degraded := store.Current()
+	if degraded == whole {
+		t.Fatal("the folder never degraded, so nothing below is under test")
+	}
+	fresh := degraded.Freshness()
+	if fresh.Complete {
+		t.Error("a generation published without two of its sources calls itself complete")
+	}
+	blocked := make([]string, 0, len(fresh.Blocked))
+	for _, source := range fresh.Blocked {
+		blocked = append(blocked, source.Path)
+	}
+	slices.Sort(blocked)
+	if diff := cmp.Diff([]string{carried, never}, blocked); diff != "" {
+		t.Errorf("blocked sources mismatch (-want +got):\n%s", diff)
+	}
+
+	kept, ok := degraded.Note(carried)
+	if !ok {
+		t.Fatal("the degraded generation dropped the note it had read once instead of carrying its last copy")
+	}
+	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
+		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
+	}
+	if unread, ok := degraded.Note(never); ok {
+		t.Errorf("a file the folder has never had a reading of was published with a body: %+v", unread)
+	}
+	if _, ok := degraded.Entry(never); !ok {
+		t.Error("the generation does not hold the unread file's identity, so its page cannot tell " +
+			"a reader to clear a permission apart from telling them nothing is there")
+	}
+}
+
 // TestAFolderBeingWrittenInStillDegrades pins which of the two failure counts
 // decides. The retry backoff restarts whenever the folder's files change,
 // because a changed folder deserves an immediate attempt rather than the
