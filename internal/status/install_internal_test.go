@@ -328,3 +328,41 @@ func TestRetainedHardlinkInstallPutsBackAnInPlaceEdit(t *testing.T) {
 		t.Errorf("residue = %v, want the retained name cleared once the edit was put back", residue)
 	}
 }
+
+// TestExchangeRefusesANameThatIsNotOneEntry is the whole of the confinement
+// argument for the raw directory-relative swap. The descriptor comes from a
+// directory the per-component walk already validated, so the swap stays inside
+// that directory exactly as long as neither name can reach out of it. Nothing
+// else in the publication re-checks that, which is why the check is asserted
+// here rather than trusted.
+func TestExchangeRefusesANameThatIsNotOneEntry(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	parent := internalRoot(t, dir)
+	for _, name := range []string{"", ".", "..", "sub/note.md", "/note.md", "../note.md"} {
+		if err := exchangeAt(parent, name, "note.md"); !errors.Is(err, errNotSingleComponent) {
+			t.Errorf("exchangeAt(from=%q) = %v, want %v", name, err, errNotSingleComponent)
+		}
+		if err := exchangeAt(parent, "note.md", name); !errors.Is(err, errNotSingleComponent) {
+			t.Errorf("exchangeAt(to=%q) = %v, want %v", name, err, errNotSingleComponent)
+		}
+	}
+	// Two ordinary entry names get past the guard and reach the filesystem,
+	// so the refusals above are the guard's answer and not a blanket one.
+	for _, name := range []string{"first.md", "second.md"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	if err := exchangeAt(parent, "first.md", "second.md"); err != nil {
+		t.Fatalf("exchangeAt() on two ordinary names = %v, want the swap to be attempted", err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "first.md")) // #nosec G304 -- a fixed name under this test's TempDir
+	if err != nil {
+		t.Fatalf("read first.md: %v", err)
+	}
+	if string(got) != "second.md" {
+		t.Errorf("first.md = %q after the swap, want the other entry's bytes", got)
+	}
+}
