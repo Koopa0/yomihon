@@ -356,8 +356,7 @@ func TestWikilinkKeepsCrossNoteHeadingFragment(t *testing.T) {
 // TestWikilinkFragmentOnlyWhenTheNoteIsCertain pins what a fragment must not
 // do. It is an addition to a link that already resolved: a name yomihon cannot
 // place, or places in more than one file, has no page for the fragment to be
-// an offset into, and a block reference is a different kind of address this
-// renderer does not yet resolve.
+// an offset into.
 func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 	t.Parallel()
 
@@ -382,10 +381,12 @@ func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 		}
 	})
 
-	// A block names a paragraph, and this renderer stamps an id on headings
-	// only. Every way of writing one has to leave the address alone, or the
-	// reader is handed a place on the page that does not exist — and, if some
-	// heading's slug happens to match, one that does but is the wrong one.
+	// A block address answers to an anchor the destination page writes, so it
+	// is written only against a body this generation actually read. Where the
+	// name resolved but the bytes did not arrive, nothing is claimed in either
+	// direction: yomihon cannot tell a block that is absent from one it never
+	// saw, and both "it is missing" and "here is where it is" would be
+	// statements about a note it did not read.
 	blocks := []struct {
 		name string
 		body string
@@ -410,10 +411,18 @@ func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 	for _, tt := range blocks {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			// The note is in the resolver and its body was not captured, which
+			// is what a generation that read the name but not the bytes looks
+			// like.
 			r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
 			got := r.HTML("note.md", "", tt.body)
 			if !strings.Contains(got.HTML, tt.want) {
 				t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, tt.want, got.HTML)
+			}
+			for _, d := range got.Diagnostics {
+				if d.Kind == render.DiagLinkFragmentMissing {
+					t.Errorf("a block was called absent from a note whose body was never read: %s", d.Message)
+				}
 			}
 		})
 	}

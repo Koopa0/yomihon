@@ -79,6 +79,13 @@ const (
 	// displayed, so falling back without saying so would present the wrong
 	// scope as the author's own choice.
 	DiagEmbedFragmentMissing DiagnosticKind = "embed-fragment-missing"
+	// DiagLinkFragmentMissing means a plain link named a block inside its
+	// target ("[[note#^block]]") that the captured body does not carry. The
+	// link is left leading to the note itself: a block address answers to an
+	// anchor the destination page stamps, and writing one the page has no
+	// anchor for would tell the reader they are going to a block and land them
+	// somewhere else.
+	DiagLinkFragmentMissing DiagnosticKind = "link-fragment-missing"
 	// DiagRenderFailed means goldmark's own renderer returned an error —
 	// normally unreachable (see render's fallback), kept only so a
 	// future extension that breaks that assumption still produces a
@@ -258,14 +265,37 @@ const hostRegion = ""
 // assembled, which is document order, so the same input always yields the same
 // ids — including when one note is transcluded twice, since those are two
 // occurrences and take two numbers.
+//
+// blocks is the set of block addresses this assembly has already anchored. It
+// belongs to the page rather than to one body for the same reason the counter
+// does: the bodies are parsed separately and spliced together, so only
+// something they share can keep one address from being stamped on two elements
+// of the finished document.
 type composition struct {
 	base    string
 	regions int
+	blocks  map[string]bool
 }
 
 func (c *composition) nextRegion() string {
 	c.regions++
 	return c.base + "y" + strconv.Itoa(c.regions) + "-"
+}
+
+// claimBlockAnchor reports whether id is still free on this page, taking it
+// when it is. Bodies are assembled in document order, so the first block
+// written under a repeated address is the one that keeps it — the reading the
+// excerpt scan already takes, and the one a browser would take of a repeated id
+// regardless.
+func (c *composition) claimBlockAnchor(id string) bool {
+	if c.blocks[id] {
+		return false
+	}
+	if c.blocks == nil {
+		c.blocks = map[string]bool{}
+	}
+	c.blocks[id] = true
+	return true
 }
 
 // collector gathers one region's diagnostics and carries the page that region

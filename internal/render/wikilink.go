@@ -152,7 +152,20 @@ func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, col *collecto
 		case r.tryConsumeCallout(st, allowEmbed, col):
 			// handled: a known-type callout block was consumed.
 		default:
-			st.kept = append(st.kept, r.convertWikilinks(st.lines[st.i], allowEmbed, col, &st.inline))
+			line := r.convertWikilinks(st.lines[st.i], allowEmbed, col, &st.inline)
+			// A transcluded body's blocks are the blocks of the note it came
+			// from, so an excerpt brings no addresses into the page reading
+			// it — otherwise a name the host note does not have would land a
+			// reader inside someone else's paragraph. Embeds being allowed is
+			// exactly the state of being the note's own text.
+			//
+			// Links are converted first: a wikilink is a placeholder by the
+			// time the address is looked for, so a caret written inside one is
+			// never mistaken for the line's own address.
+			if allowEmbed == embedsAllowed {
+				line = markBlockAnchor(line, col.page, &st.inline)
+			}
+			st.kept = append(st.kept, line)
 			st.i++
 		}
 	}
@@ -432,30 +445,63 @@ func rawHref(p string) string {
 }
 
 // sectionHref is notesHref plus the place inside the destination a link named.
-// A link written at a section means that section: without the fragment the
-// reader arrives at the top of a note that may run for pages, with nothing on
-// screen to say which part they were sent to.
+// A link written at a section or a block means that part of the note: without
+// the fragment the reader arrives at the top of a note that may run for pages,
+// with nothing on screen to say which part they were sent to. It returns a
+// string safe to write straight into an href attribute.
 //
-// The fragment is built by slugify — the same function that stamps the
+// A section's fragment is built by slugify — the same function that stamps the
 // destination's heading ids — because a second rule for turning heading text
 // into an anchor would agree by maintenance accident and disagree by default.
-// It emits Unicode letters, digits, and hyphens only, so it needs no escaping
-// in either the URL or the attribute.
+// It emits Unicode letters, digits, and hyphens only, so it needs no escaping.
 //
-// A block address is left off: "^name" identifies a paragraph rather than a
-// heading, and this renderer stamps no anchor for one, so writing the fragment
-// would send the reader to a place that does not exist on the page.
+// A block address takes precedence over a section name when the author wrote
+// both, the same order the excerpt scan resolves that conflict in, and is
+// written only when the destination carries the block: it is an address to an
+// anchor, and the reader who is told they are going to one paragraph and lands
+// at the top of the note is worse served than the one who was told nothing.
+// The check reads the destination through the same scan an embed of that block
+// would, so a link and an excerpt accept exactly the same addresses. Where the
+// destination's body was not captured nothing is claimed either way — yomihon
+// cannot tell a block that is absent from one it did not read, and reporting
+// either would be a statement about a note it never saw.
 //
-// So is anything that is not a note. A PDF, a canvas, a picture is handed to
-// the reader whole and nothing inside it is addressable from here; a fragment
-// on one names a place that cannot exist, and because a viewer simply ignores
-// what it does not understand, it would look like it had worked.
-func sectionHref(relPath string, link graph.Wikilink) string {
+// A block fragment is percent-escaped, because a block name is whatever the
+// author typed and can carry a quote or a space, and the caret it opens with is
+// not a character a URL may spell literally. A browser resolving the fragment
+// decodes it before looking for the id, so the escaped address still finds the
+// anchor the page wrote unescaped.
+//
+// Anything that is not a note gets no fragment at all. A PDF, a canvas, a
+// picture is handed to the reader whole and nothing inside it is addressable
+// from here; a fragment on one names a place that cannot exist, and because a
+// viewer simply ignores what it does not understand, it would look like it had
+// worked.
+func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collector) string {
 	href := notesHref(relPath)
-	if link.Heading == "" || link.Block != "" || !strings.HasSuffix(relPath, ".md") {
+	if !strings.HasSuffix(relPath, ".md") {
 		return href
 	}
-	return href + "#" + slugify(link.Heading)
+	switch {
+	case link.Block != "":
+		address := "^" + link.Block
+		body, ok := r.transclusions.Transclusion(relPath)
+		if !ok {
+			return href
+		}
+		if _, found := blockSlice(stripObsidianComments(body), link.Block); !found {
+			col.report(Diagnostic{
+				Kind:    DiagLinkFragmentMissing,
+				Target:  link.Target + "#" + address,
+				Message: fmt.Sprintf("no block in %q matched %q; the link leads to the note itself", relPath, address),
+			})
+			return href
+		}
+		return href + "#" + url.PathEscape(blockAnchorID(address))
+	case link.Heading != "":
+		return href + "#" + slugify(link.Heading)
+	}
+	return href
 }
 
 // renderWikilink renders a plain (non-embed) [[target|display]]. The
@@ -471,8 +517,8 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
 	case graph.Unique:
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref already percent-escapes the path
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, sectionHref(res.Path, link), html.EscapeString(link.Display))
+		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref returns an attribute-safe string, path and fragment both percent-escaped
+		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, r.sectionHref(res.Path, link, col), html.EscapeString(link.Display))
 	case graph.Ambiguous:
 		col.report(Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
@@ -840,14 +886,21 @@ func blockSlice(body, block string) (string, bool) {
 	at := -1
 	inFence, fenceByte := false, byte(0)
 	for i, line := range lines {
+		// A fence is looked for with any quote marker taken off it, because a
+		// fence written inside a callout opens one: that body is read on its
+		// own with the markers stripped, and a line of code in it is code.
+		unquoted := quotePrefix.ReplaceAllString(line, "")
 		if inFence {
-			if fenceCloses(line, fenceByte) {
+			if fenceCloses(unquoted, fenceByte) {
 				inFence = false
 			}
 			continue
 		}
-		if open, _, ok := fenceOpen(line); ok {
+		if open, _, ok := fenceOpen(unquoted); ok {
 			inFence, fenceByte = true, open
+			continue
+		}
+		if unanchorableLine(line) {
 			continue
 		}
 		trimmed := foldFragment(strings.TrimRight(line, " \t"))
