@@ -89,3 +89,33 @@ func TestUnreadableNoteIsVisibleOnEveryReadingSurface(t *testing.T) {
 		t.Error("the unreadable note's page is indistinguishable from the plain not-found page")
 	}
 }
+
+// TestFolderNamedLikeANoteGetsThePlainNotFoundPage separates the two repairs
+// the missing-note page offers. A folder whose name ends in .md is observed by
+// the scan the same way a note is, and the page saying the file exists but
+// could not be read this time — clear the permission, refresh in a few
+// seconds — describes a repair a folder can never satisfy. Only a regular file
+// the generation captured earns that page.
+func TestFolderNamedLikeANoteGetsThePlainNotFoundPage(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "Folder.md"), 0o750); err != nil {
+		t.Fatalf("mkdir Folder.md: %v", err)
+	}
+	inner := filepath.Join(root, "Folder.md", "inner.md")
+	if err := os.WriteFile(inner, []byte("---\ntitle: Inner\ntype: concept\n---\ninner body\n"), 0o600); err != nil {
+		t.Fatalf("write inner note: %v", err)
+	}
+	srv := newServer(t, root)
+
+	code, page := get(t, srv.URL+"/notes/Folder.md")
+	if code != http.StatusNotFound {
+		t.Fatalf("GET /notes/Folder.md status = %d, want %d", code, http.StatusNotFound)
+	}
+	if strings.Contains(page, "這個檔案目前讀不進來") {
+		t.Error("a folder named like a note is sent to repair a file's permissions")
+	}
+	if !strings.Contains(page, "這裡沒有東西") {
+		t.Error("a folder named like a note does not get the plain not-found page")
+	}
+}
