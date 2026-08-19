@@ -891,6 +891,82 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 	})
 }
 
+// TestEmbedHeadingSliceReadsAuthoredHTMLBlocks pins where an embedded section
+// ends when the note hands the reader raw HTML. A '#' line inside an authored
+// HTML block is text — markdown passes such a block through verbatim — so it
+// does not end the section above it, and an excerpt that stopped there would
+// drop the rest of a section the destination page shows in full, with nothing
+// on either page saying so.
+//
+// The last two rows hold the guard to its other edge: a block ends where
+// markdown ends it, and a line that merely carries a tag opens nothing. Were
+// either wrong, the excerpt would run past the next heading instead — the same
+// silent change of scope in the opposite direction.
+func TestEmbedHeadingSliceReadsAuthoredHTMLBlocks(t *testing.T) {
+	t.Parallel()
+
+	const tail = "\n\n## Beta\n\nBETA-MARKER other body.\n"
+
+	tests := []struct {
+		name string
+		body string
+		want []string
+		omit []string
+	}{
+		{
+			name: "a div block keeps its heading-looking line",
+			body: "## Alpha\n\nTOP-MARKER\n\n<div>\n# not a heading, inside an HTML block\nINNER-MARKER\n</div>\n\nTAIL-MARKER" + tail,
+			want: []string{"TOP-MARKER", "INNER-MARKER", "TAIL-MARKER"},
+			omit: []string{"BETA-MARKER"},
+		},
+		{
+			name: "an html comment keeps its heading-looking line",
+			body: "## Alpha\n\nTOP-MARKER\n\n<!--\n# not a heading, inside a comment\n-->\n\nTAIL-MARKER" + tail,
+			want: []string{"TOP-MARKER", "TAIL-MARKER"},
+			omit: []string{"BETA-MARKER"},
+		},
+		{
+			name: "a pre block keeps its heading-looking line",
+			body: "## Alpha\n\nTOP-MARKER\n\n<pre>\n# not a heading, inside pre\nINNER-MARKER\n</pre>\n\nTAIL-MARKER" + tail,
+			want: []string{"TOP-MARKER", "INNER-MARKER", "TAIL-MARKER"},
+			omit: []string{"BETA-MARKER"},
+		},
+		{
+			name: "a closed block still lets the next heading end the section",
+			body: "## Alpha\n\n<div>\nINNER-MARKER\n</div>\n\nTAIL-MARKER" + tail,
+			want: []string{"INNER-MARKER", "TAIL-MARKER"},
+			omit: []string{"BETA-MARKER"},
+		},
+		{
+			name: "a line opening with ruby markup opens no block",
+			body: "## Alpha\n\nTOP-MARKER\n\n<ruby>今日<rt>きょう</rt></ruby>\n## Beta\n\nBETA-MARKER other body.\n",
+			want: []string{"TOP-MARKER", "今日"},
+			omit: []string{"BETA-MARKER"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": tt.body})
+			got := r.HTML("note.md", "", "![[B#Alpha]]\n")
+			for _, want := range tt.want {
+				if !strings.Contains(got.HTML, want) {
+					t.Errorf("the named section lost %q:\n%s", want, got.HTML)
+				}
+			}
+			for _, omit := range tt.omit {
+				if strings.Contains(got.HTML, omit) {
+					t.Errorf("content outside the named section leaked in (%q):\n%s", omit, got.HTML)
+				}
+			}
+			if len(got.Diagnostics) != 0 {
+				t.Errorf("Diagnostics = %+v, want none for a section that exists", got.Diagnostics)
+			}
+		})
+	}
+}
+
 // TestEmbedBlockFragmentScopesTheTransclusion is the assertion site for
 // "![[note#^block]]". Obsidian embeds only the paragraph carrying the
 // "^block" marker; before the fragment was threaded through, the whole note

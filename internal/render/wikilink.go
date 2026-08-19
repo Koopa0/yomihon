@@ -610,9 +610,98 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) strin
 // not one here.
 var atxHeadingLine = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)
 
+// The HTML block start conditions of the CommonMark spec, minus the one for a
+// bare complete tag alone on its own line. A block opened by any of these
+// hands its lines to the reader as written, so a '#' line inside one is text
+// rather than a section boundary — the line is quoted markup in a note about
+// markup, or a comment, as often as it is anything else.
+//
+// The omitted condition is the one that cannot interrupt a paragraph, and
+// telling those two readings apart needs paragraph state this scan does not
+// keep. Leaving it out costs a '#' line inside such a block, and buys never
+// mistaking an ordinary sentence that carries a tag for the start of one.
+var (
+	htmlBlockRawText = regexp.MustCompile(`(?i)^ {0,3}<(script|pre|style|textarea)([ \t>]|$)`)
+	htmlBlockRawEnd  = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
+	htmlBlockComment = regexp.MustCompile(`^ {0,3}<!--`)
+	htmlBlockInstr   = regexp.MustCompile(`^ {0,3}<\?`)
+	htmlBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
+	htmlBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
+	htmlBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
+)
+
+// htmlBlockOpen reports whether line opens an authored HTML block, and returns
+// the test for the line that closes it. The raw-text, comment, instruction,
+// declaration, and CDATA blocks close on their own end marker — which may sit
+// on the opening line itself — while an element block runs to the next blank
+// line.
+func htmlBlockOpen(line string) (closes func(string) bool, ok bool) {
+	switch {
+	case htmlBlockRawText.MatchString(line):
+		return htmlBlockRawEnd.MatchString, true
+	case htmlBlockComment.MatchString(line):
+		return closesOn("-->"), true
+	case htmlBlockInstr.MatchString(line):
+		return closesOn("?>"), true
+	case htmlBlockCDATA.MatchString(line):
+		return closesOn("]]>"), true
+	case htmlBlockDecl.MatchString(line):
+		return closesOn(">"), true
+	case htmlBlockElement.MatchString(line):
+		return blankLine, true
+	}
+	return nil, false
+}
+
+func closesOn(marker string) func(string) bool {
+	return func(line string) bool { return strings.Contains(line, marker) }
+}
+
+func blankLine(line string) bool { return strings.TrimSpace(line) == "" }
+
+// blockScan carries the running state a line-by-line section scan needs to
+// tell a real heading from a heading-looking line: fenced code and authored
+// HTML blocks both hand their contents to the reader as written, so a line
+// inside either is content and never a boundary. The zero value starts a scan.
+type blockScan struct {
+	inFence    bool
+	fenceByte  byte
+	htmlCloses func(string) bool
+}
+
+// skips advances the scan by one line and reports whether that line is inside
+// a fenced code block or an authored HTML block — including the line that
+// opens or closes one, which belongs to the block rather than to the prose
+// around it.
+func (s *blockScan) skips(line string) bool {
+	switch {
+	case s.inFence:
+		if fenceCloses(line, s.fenceByte) {
+			s.inFence = false
+		}
+		return true
+	case s.htmlCloses != nil:
+		if s.htmlCloses(line) {
+			s.htmlCloses = nil
+		}
+		return true
+	}
+	if marker, _, ok := fenceOpen(line); ok {
+		s.inFence, s.fenceByte = true, marker
+		return true
+	}
+	if closes, ok := htmlBlockOpen(line); ok {
+		if !closes(line) {
+			s.htmlCloses = closes
+		}
+		return true
+	}
+	return false
+}
+
 // headingSlice returns the section of body that heading names: the first
-// heading line outside fenced code whose text folds to the same slug as the
-// name — the same fold that stamps the destination page's anchors, so an
+// heading line outside fenced code and authored HTML whose text folds to the
+// same slug as the name — the same fold that stamps the destination page's anchors, so an
 // embed and a link to one section agree on what matches — through to the
 // line before the next heading of the same or a higher level. Deeper
 // headings stay inside the slice, because a section owns its subsections.
@@ -622,16 +711,9 @@ func headingSlice(body, heading string) (string, bool) {
 	want := slugify(heading)
 	lines := strings.Split(body, "\n")
 	start, level := -1, 0
-	inFence, fenceByte := false, byte(0)
+	var scan blockScan
 	for i, line := range lines {
-		if inFence {
-			if fenceCloses(line, fenceByte) {
-				inFence = false
-			}
-			continue
-		}
-		if marker, _, ok := fenceOpen(line); ok {
-			inFence, fenceByte = true, marker
+		if scan.skips(line) {
 			continue
 		}
 		m := atxHeadingLine.FindStringSubmatch(line)
