@@ -1381,7 +1381,11 @@ func TestSealStatusPinned(t *testing.T) {
 // templ syntax. The forbidden set is the union of the fixture contract and the
 // example contract shipped for new vaults, so a value present in either is
 // guarded and the test behaves the same on every machine, with or without the
-// real vault. The set is the bare status words, so an unrelated literal equal
+// real vault. That union is also the guard's whole reach: an operator's own
+// contract may declare a value neither file lists, and such a value would pass
+// unguarded — which is why the fixture carries every status word the product
+// itself names, the koopa-only publication value included.
+// The set is the bare status words, so an unrelated literal equal
 // to one — a log line, a class name — would also trip this guard; that
 // trade-off is accepted, since restricting the match to literals compared
 // against a status-typed value is far harder to express and the words rarely
@@ -1530,7 +1534,7 @@ func TestStatuses(t *testing.T) {
 	s := loadFixture(t)
 
 	got := s.Statuses("lesson")
-	want := []string{"imported", "draft", "ready", "archived"}
+	want := []string{"imported", "draft", "ready", "published", "archived"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Statuses(\"lesson\") mismatch (-want +got):\n%s", diff)
 	}

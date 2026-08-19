@@ -11,9 +11,13 @@ level = ["fundamental"]
 map_kind = ["topic"]
 
 [enums.status]
-note   = ["captured", "cleaned", "seedling", "growing", "evergreen", "imported", "draft", "ready", "archived"]
+# published is declarable, and no transition in this fixture reaches it: the
+# lifecycle table below stops at the sealed status. The value set is still
+# complete, so a reader of this file sees every status word the product names
+# and the single-source rule for those words can be checked against it.
+note   = ["captured", "cleaned", "seedling", "growing", "evergreen", "imported", "draft", "ready", "published", "archived"]
 system = ["active", "archived"]
-lesson = ["imported", "draft", "ready", "archived"]
+lesson = ["imported", "draft", "ready", "published", "archived"]
 
 [fields]
 required = ["title", "type", "domain", "status", "created", "updated"]
