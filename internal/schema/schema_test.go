@@ -1426,6 +1426,16 @@ func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 				path == filepath.Join(root, "internal", "judge"):
 				return filepath.SkipDir
 			}
+			// A directory carrying its own go.mod is a separate module, so its
+			// sources are not the ones this rule governs and a file there that
+			// fails to parse would fail this test for a reason outside the tree
+			// it speaks for. The boundary is the go.mod, not a directory name,
+			// so a second nested module needs no edit here.
+			if path != root {
+				if _, statErr := os.Stat(filepath.Join(path, "go.mod")); statErr == nil {
+					return filepath.SkipDir
+				}
+			}
 			return nil
 		}
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
