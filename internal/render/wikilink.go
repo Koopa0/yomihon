@@ -826,11 +826,9 @@ func scanHeadings(lines []string) []sectionHeading {
 // page lists in its own table of contents are the spellings an embed of that
 // section accepts.
 //
-// Two do not survive the trip, because they are read from source rather than
-// from the rendered page: a heading whose link target is unwritten has the
-// sentence saying so read aloud inside its anchor, and a heading carrying a
-// markdown link keeps the address the rendered heading drops. Both report,
-// they do not truncate.
+// One spelling does not survive the trip, because it is read from source
+// rather than from the rendered page: a heading carrying a markdown link keeps
+// the address the rendered heading drops. It reports, it does not truncate.
 func headingSlice(body, heading string) (string, bool) {
 	want := slugify(heading)
 	lines := strings.Split(body, "\n")
