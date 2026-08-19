@@ -232,10 +232,20 @@ func recoveryForPublished(err error) *recovery {
 		return &recovery{
 			code:            http.StatusInternalServerError,
 			changed:         true,
-			summary:         "筆記已改寫並提交，但這筆 commit 記錄的內容與這次變更不符。",
-			nextAction:      "不要重送。最可能的原因是 vault 的 git hooks 或 filters 改動了提交內容；請用 git log 與 git show 核對這筆 commit，再手動修復。",
+			summary:         "筆記已改寫並提交，但這筆 commit 並未如預期記錄這次變更。",
+			nextAction:      "不要重送。請用 git log 與 git show 核對這筆 commit；常見原因是 vault 的 git hooks 或 filters 改動了提交內容，或提交當下 HEAD 已不在任何分支上。確認後再手動修復。",
 			technicalDetail: err.Error(),
 			logMessage:      "status commit receipt diverged",
+			cause:           err,
+		}
+	case errors.Is(err, ErrReceiptUnreadable):
+		return &recovery{
+			code:            http.StatusInternalServerError,
+			changed:         true,
+			summary:         "筆記已改寫並提交，但 yomihon 無法讀回這筆 commit 來核對，因此不能確認它記錄了什麼。",
+			nextAction:      "不要重送。請依下方 git 錯誤確認 vault 的 git 狀態，再用 git log 與 git show 自行核對這筆 commit。",
+			technicalDetail: err.Error(),
+			logMessage:      "status commit receipt could not be read back",
 			cause:           err,
 		}
 	}

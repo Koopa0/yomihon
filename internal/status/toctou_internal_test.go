@@ -1154,3 +1154,68 @@ func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 		t.Error("no transition is offered after a touch; the note's state machine did not change")
 	}
 }
+
+// TestReceiptReadbackFailureIsNotReportedAsDivergence separates two answers a
+// receipt check can give. A commit whose recorded paths, bytes, or subject
+// differ from the change is a divergence the operator has to inspect. A git
+// invocation that fails while asking is not: nothing is known about the
+// commit, and telling the operator their commit records the wrong thing when
+// the truth is that it could not be read sends them looking for a problem that
+// may not exist.
+func TestReceiptReadbackFailureIsNotReportedAsDivergence(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	contractBytes, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- fixed basename under this test's TempDir
+		t.Fatalf("write test contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
+	}
+	// No git repository here at all, so every receipt query fails to run.
+	lifecycle := internalOpenLifecycle(t, root, contract)
+
+	err = lifecycle.verifyReceipt(t.Context(), "note.md", "status(note.md): draft → ready (via yomihon)", []byte("bytes"))
+	if !errors.Is(err, ErrReceiptUnreadable) {
+		t.Errorf("verifyReceipt() with git unavailable = %v, want %v", err, ErrReceiptUnreadable)
+	}
+	if errors.Is(err, ErrReceiptDiverged) {
+		t.Errorf("verifyReceipt() = %v, must not claim divergence when the receipt could not be read", err)
+	}
+}
+
+// TestReceiptRefusesACommitThatLandedOnNoBranch closes the window the
+// flip-time check cannot cover. HEAD is confirmed to name a branch before
+// anything is written, but an operator can detach it while the flip runs, and
+// a commit made there survives nowhere but the reflog: returning to a branch
+// silently takes the note back to its old status with the receipt gone. The
+// receipt read-back already has the commit in hand, so it asks once more.
+func TestReceiptRefusesACommitThatLandedOnNoBranch(t *testing.T) {
+	t.Parallel()
+
+	root, lifecycle := internalVault(t)
+	const rel = "note.md"
+	body := []byte("---\nstatus: ready\n---\n\nbody\n")
+	if err := os.WriteFile(filepath.Join(root, rel), body, 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	msg := "status(note.md): draft → ready (via yomihon)"
+	internalRunGit(t, root, "add", "-A")
+	internalRunGit(t, root, "commit", "-m", msg)
+
+	if err := lifecycle.verifyReceipt(t.Context(), rel, msg, body); err != nil {
+		t.Fatalf("verifyReceipt() on a branch = %v, want nil", err)
+	}
+
+	internalRunGit(t, root, "checkout", "--detach")
+	err := lifecycle.verifyReceipt(t.Context(), rel, msg, body)
+	if !errors.Is(err, ErrReceiptDiverged) {
+		t.Errorf("verifyReceipt() with HEAD detached = %v, want %v", err, ErrReceiptDiverged)
+	}
+}

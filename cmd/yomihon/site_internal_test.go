@@ -412,9 +412,10 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 		return recorder.Code
 	}
 
-	// A browser-labeled cross-site write is refused outright, and the note's
-	// bytes stay untouched — a refusal delivered after a side effect would
-	// pass a status-only check.
+	// A browser-labeled cross-site write is refused outright. The note's bytes
+	// are re-read afterwards as well, but only the 403 carries the assertion:
+	// this form names no target status, so the handler behind the middleware
+	// would decline it too and no admitted request could have written anything.
 	if got := postStatus(t, "cross-site"); got != http.StatusForbidden {
 		t.Errorf("cross-site POST /status = %d, want %d", got, http.StatusForbidden)
 	}

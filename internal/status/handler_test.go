@@ -325,10 +325,10 @@ func TestHandlerDirty(t *testing.T) {
 	}
 }
 
-// TestHandlerReceiptDiverged locks the routing of a diverged commit receipt:
-// the note changed and a commit exists, so the page must carry the
-// changed=true warning, name hooks and filters as the likely cause, and
-// forbid resubmitting.
+// TestHandlerReceiptDiverged locks the routing of a commit receipt that does
+// not record what the flip intended: the note changed and a commit exists, so
+// the page must carry the changed=true warning, name hooks and filters among
+// the likely causes, and forbid resubmitting.
 func TestHandlerReceiptDiverged(t *testing.T) {
 	t.Parallel()
 	root := newVault(t)
@@ -343,7 +343,7 @@ func TestHandlerReceiptDiverged(t *testing.T) {
 	if code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want %d", code, http.StatusInternalServerError)
 	}
-	for _, want := range []string{"筆記已改寫並提交", "不符", "不要重送", "hooks"} {
+	for _, want := range []string{"筆記已改寫並提交", "並未如預期記錄", "不要重送", "hooks"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body is missing %q: %q", want, body)
 		}

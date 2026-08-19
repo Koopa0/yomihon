@@ -110,13 +110,22 @@ var (
 	// ErrReceiptDiverged means the note was rewritten and a commit was
 	// created, but reading the commit back shows it does not record exactly
 	// the intended change: its tree touches other paths, its blob for the
-	// note differs from the bytes just published, or its subject line was
-	// replaced. Repo-local hooks and clean filters are the usual causes,
-	// and an external writer racing the commit can produce the same shape.
+	// note differs from the bytes just published, its subject line was
+	// replaced, or it landed on no branch at all. Repo-local hooks and clean
+	// filters are the usual causes, and an external writer racing the commit
+	// or an operator detaching HEAD mid-flip produce the same shape.
 	// Like ErrCommitFailed, nothing is rolled back — a rollback would be a
 	// second write hiding what happened; the divergence is surfaced so the
 	// operator can inspect the commit by hand.
 	ErrReceiptDiverged = errors.New("status: note rewritten and committed, but the commit does not record exactly this change")
+	// ErrReceiptUnreadable means the note was rewritten and a commit was
+	// created, but git could not be asked what that commit records. Nothing is
+	// known to be wrong with the commit, and nothing is known to be right
+	// either, which is why it is kept apart from ErrReceiptDiverged: telling the
+	// operator their commit records the wrong change, when the truth is that the
+	// question could not be put, sends them hunting a fault that may not exist.
+	// Like ErrCommitFailed, nothing is rolled back.
+	ErrReceiptUnreadable = errors.New("status: note rewritten and committed, but the commit could not be read back")
 )
 
 const (
@@ -1363,9 +1372,10 @@ func (lc *Lifecycle) commit(ctx context.Context, rel, relSlash, from, to string,
 }
 
 // verifyReceipt reads the commit just created back and confirms it records
-// exactly the intended change: the tree touches the note alone, the
-// committed blob is the one git stores for the bytes just published, and
-// the subject line is the composed message. A zero exit from git commit
+// exactly the intended change and that it will survive: the tree touches the
+// note alone, the committed blob is the one git stores for the bytes just
+// published, the subject line is the composed message, and HEAD still names a
+// branch. A zero exit from git commit
 // cannot promise any of this — repo-local hooks may edit and restage files
 // or replace the message inside the partial commit, and an external writer
 // can race the two child processes — so success is reported only after the
@@ -1378,14 +1388,14 @@ func (lc *Lifecycle) verifyReceipt(ctx context.Context, relSlash, msg string, re
 	// so non-ASCII paths are not C-quoted.
 	names, err := runGit(ctx, lc.root, "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--root", "HEAD")
 	if err != nil {
-		return fmt.Errorf("%w: %s: inspect committed paths: %w", ErrReceiptDiverged, relSlash, err)
+		return fmt.Errorf("%w: %s: inspect committed paths: %w", ErrReceiptUnreadable, relSlash, err)
 	}
 	if got := strings.Split(strings.TrimSuffix(string(names), "\x00"), "\x00"); len(got) != 1 || got[0] != relSlash {
 		return fmt.Errorf("%w: %s: commit changed paths %q", ErrReceiptDiverged, relSlash, got)
 	}
 	committed, err := runGit(ctx, lc.root, "rev-parse", "HEAD:"+relSlash)
 	if err != nil {
-		return fmt.Errorf("%w: %s: read committed blob id: %w", ErrReceiptDiverged, relSlash, err)
+		return fmt.Errorf("%w: %s: read committed blob id: %w", ErrReceiptUnreadable, relSlash, err)
 	}
 	// The published bytes are fed through the same check-in conversion a
 	// hand-run git add applies at this path — the vault's own line-ending
@@ -1394,17 +1404,30 @@ func (lc *Lifecycle) verifyReceipt(ctx context.Context, relSlash, msg string, re
 	// store them verbatim.
 	intended, err := runGitInput(ctx, lc.root, rewritten, "hash-object", "--stdin", "--path", relSlash)
 	if err != nil {
-		return fmt.Errorf("%w: %s: compute intended blob id: %w", ErrReceiptDiverged, relSlash, err)
+		return fmt.Errorf("%w: %s: compute intended blob id: %w", ErrReceiptUnreadable, relSlash, err)
 	}
 	if !bytes.Equal(bytes.TrimSpace(committed), bytes.TrimSpace(intended)) {
 		return fmt.Errorf("%w: %s: committed bytes differ from the published note", ErrReceiptDiverged, relSlash)
 	}
 	subject, err := runGit(ctx, lc.root, "log", "-1", "--format=%s", "HEAD")
 	if err != nil {
-		return fmt.Errorf("%w: %s: read commit subject: %w", ErrReceiptDiverged, relSlash, err)
+		return fmt.Errorf("%w: %s: read commit subject: %w", ErrReceiptUnreadable, relSlash, err)
 	}
 	if got := strings.TrimSuffix(string(subject), "\n"); got != msg {
 		return fmt.Errorf("%w: %s: commit subject %q, want %q", ErrReceiptDiverged, relSlash, got, msg)
+	}
+	// HEAD was confirmed to name a branch before anything was written, but an
+	// operator can detach it while the flip runs. A commit made there records
+	// the transition correctly and still loses it: returning to a branch takes
+	// the note back to its old status and leaves the receipt in the reflog
+	// alone. The commit is already in hand here, so asking once more costs one
+	// query and closes the window the earlier check cannot see.
+	detached, err := lc.detachedHead(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %s: read the branch the commit landed on: %w", ErrReceiptUnreadable, relSlash, err)
+	}
+	if detached {
+		return fmt.Errorf("%w: %s: the commit landed on no branch", ErrReceiptDiverged, relSlash)
 	}
 	return nil
 }

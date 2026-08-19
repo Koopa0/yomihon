@@ -95,6 +95,15 @@ func (p PrivacyPolicy) EgressAllowed(rel string) bool {
 // case-insensitive filesystem opens the same file under any case spelling;
 // strings.EqualFold applies Unicode simple case folding per rune (ß matches ẞ
 // but never "ss"), and both policies share exactly these semantics.
+//
+// The fold is unconditional, which costs something on a case-sensitive
+// filesystem: two genuinely distinct sibling directories differing only in
+// case are treated as one, so a declared "System/templates" also covers a
+// separate "system/templates" that the scan would otherwise govern. Both
+// policies are exclusion sets, so the error is always toward excluding more —
+// a refusal or a withheld artifact, never a write to the wrong file or an
+// unintended egress — and reading a spelling out of the classification is the
+// direction that cannot be recovered from.
 func pathHasFoldedPrefix(rel, dir string) bool {
 	relComponents := strings.Split(rel, "/")
 	dirComponents := strings.Split(dir, "/")
