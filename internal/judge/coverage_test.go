@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -115,6 +116,30 @@ func TestCoverageMountsOnContractMapTypes(t *testing.T) {
 	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":1,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}` + "\n"
 	if string(got) != want {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
+	}
+}
+
+// TestCoverageWithholdsTheRouteFromAnUndeclaredType asserts a vault whose
+// contract never names the research brief is not told to file one under the
+// index note of the vault this route was written for. The route cannot be
+// derived from a contract, so it is offered only where the contract declares
+// the type it is about.
+func TestCoverageWithholdsTheRouteFromAnUndeclaredType(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, atlasContract)
+	write(t, root, "Concepts/Brief.md", "---\ntitle: Brief\ntype: research-brief\n---\n\nBody.\n")
+
+	got, _, err := RunCoverage(&CoverageOptions{Root: root, Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunCoverage() error = %v", err)
+	}
+	if !bytes.Contains(got, []byte(`"unrouted":[]`)) {
+		t.Errorf("a vault that never declared the type was given a route:\n%s", got)
+	}
+	if bytes.Contains(got, []byte("Brief")) {
+		t.Errorf("coverage named a note of a type the contract does not declare:\n%s", got)
 	}
 }
 
