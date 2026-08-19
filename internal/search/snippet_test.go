@@ -160,6 +160,27 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 			tokens:  []string{"別的"},
 			want:    nil,
 		},
+		{
+			// A snippet is one line, so whatever whitespace stood between the
+			// phrase's words in the note arrives here as a single space. The
+			// query's spacing is whatever the reader typed — a full-width space
+			// between two words of Japanese, two spaces after a full stop — and
+			// the mark has to land on the words either way.
+			name:    "a phrase spaced differently in the query still marks the words",
+			snippet: "daily semantic retrieval log",
+			tokens:  []string{"semantic　retrieval"},
+			want: []pages.SnippetRun{
+				{Text: "daily "},
+				{Text: "semantic retrieval", Hit: true},
+				{Text: " log"},
+			},
+		},
+		{
+			name:    "a phrase whose words are not adjacent marks nothing",
+			snippet: "semantic log retrieval",
+			tokens:  []string{"semantic retrieval"},
+			want:    nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

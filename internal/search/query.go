@@ -91,10 +91,12 @@ func isFilterKey(key string) bool {
 //   - a "folder:" value drops one trailing slash.
 //   - a span in matched quotes — ASCII double quotes or the full-width 「」
 //     and 『』 pairs — is one bare token with the quotes stripped, whitespace
-//     and all. Matching is a contiguous substring test, so the one token is
-//     what makes the quoted words match only where they sit together. Quoting
-//     also means the text is wanted literally, so a quoted span is never a
-//     filter. A quote with no partner is dropped where it stands.
+//     and all. Matching keeps the token contiguous, so the one token is what
+//     makes the quoted words match only where they sit together; the
+//     whitespace between them matches whatever whitespace the note wrote,
+//     including the line break of a wrapped sentence. Quoting also means the
+//     text is wanted literally, so a quoted span is never a filter. A quote
+//     with no partner is dropped where it stands.
 //
 // Whitespace tokenizes outside quotes; a whitespace-only or empty query
 // yields an empty Query (nil slices), which the match layer treats as

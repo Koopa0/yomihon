@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -858,5 +859,61 @@ func TestFileEntriesRemainReachableByFolder(t *testing.T) {
 	got := paths(searchResults(t, widened, Parse("folder:Notes")))
 	if diff := cmp.Diff([]string{"Notes/todo.txt"}, got); diff != "" {
 		t.Errorf("Search(folder:Notes) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestQuotedPhraseCrossesALineBreak fixes the shape of this vault's prose into
+// the phrase rule: sentences are hard-wrapped near 80 columns, and the plain
+// text an index is built from keeps those breaks, so the two words a reader
+// quotes sit on two lines about as often as on one. Asking for the same bytes
+// answered a phrase written verbatim in the vault with nothing at all — a
+// confident zero, the one answer a reader cannot argue with.
+//
+// The words still have to be adjacent. A note that holds both words with
+// something between them is not what the quotes asked for and stays out.
+func TestQuotedPhraseCrossesALineBreak(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "wrapped.md", Title: "Wrapped", PlainText: "daily semantic\nretrieval log"},
+		{RelPath: "apart.md", Title: "Apart", PlainText: "semantic log\nretrieval notes"},
+		{RelPath: "spaced.md", Title: "Spaced", PlainText: "the semantic  retrieval pass"},
+		{RelPath: "deep.md", Title: "Deep", PlainText: strings.Repeat("filler ", 60) + "deep semantic\nretrieval marker"},
+	}, schema.ArtifactPolicy{})
+
+	query := Parse(`"semantic retrieval"`)
+	got := searchResults(t, idx, query)
+	if diff := cmp.Diff([]string{"deep.md", "spaced.md", "wrapped.md"}, paths(got)); diff != "" {
+		t.Fatalf("Search(%q) mismatch (-want +got):\n%s", `"semantic retrieval"`, diff)
+	}
+
+	// The hit is also shown, and the marks on it are cut from the note's own
+	// bytes: an offset located in the folded copy that is carried back wrong
+	// paints the highlight over the neighbouring words.
+	var wrapped, deep Result
+	for _, r := range got {
+		switch r.RelPath {
+		case "wrapped.md":
+			wrapped = r
+		case "deep.md":
+			deep = r
+		}
+	}
+	// A window opened at the top of a long note would show the reader filler
+	// and mark nothing, which reads as a hit on a note that does not contain
+	// the phrase.
+	if !strings.Contains(deep.Snippet, "semantic retrieval") {
+		t.Errorf("snippet of the long note = %q, want the window around the phrase", deep.Snippet)
+	}
+	if wrapped.Snippet != "daily semantic retrieval log" {
+		t.Errorf("snippet = %q, want the wrapped sentence on one line", wrapped.Snippet)
+	}
+	want := []pages.SnippetRun{
+		{Text: "daily "},
+		{Text: "semantic retrieval", Hit: true},
+		{Text: " log"},
+	}
+	if diff := cmp.Diff(want, markHits(wrapped.Snippet, query.Tokens())); diff != "" {
+		t.Errorf("markHits over the wrapped hit mismatch (-want +got):\n%s", diff)
 	}
 }

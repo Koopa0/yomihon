@@ -210,17 +210,16 @@ func markHits(snippet string, tokens []string) []pages.SnippetRun {
 		if t == "" {
 			continue
 		}
-		for at := 0; ; {
-			i := strings.Index(fold[at:], t)
+		for at := 0; at <= len(fold); {
+			i, stop := phraseIndex(fold, t, at)
 			if i < 0 {
 				break
 			}
-			i += at
-			for j := src[i]; j < src[i+len(t)]; j++ {
+			for j := src[i]; j < src[stop]; j++ {
 				covered[j] = true
 			}
 			found = true
-			at = i + len(t)
+			at = max(stop, i+1)
 		}
 	}
 	if !found {

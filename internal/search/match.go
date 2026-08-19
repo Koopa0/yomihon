@@ -3,6 +3,7 @@ package search
 import (
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -194,15 +195,108 @@ func (idx *Index) AllowedPaths(q Query) (map[string]struct{}, error) {
 
 // allContain reports whether hay contains every token (AND). Tokens are already
 // folded and hay is a *Fold field, so this is a literal substring test — a
-// query "%" matches a literal "%", there are no wildcards. Zero tokens is
-// vacuously true.
+// query "%" matches a literal "%", there are no wildcards — except that a run
+// of whitespace inside a token matches any run of whitespace (see
+// phraseIndex). Zero tokens is vacuously true.
 func allContain(hay string, tokens []string) bool {
 	for _, t := range tokens {
-		if !strings.Contains(hay, t) {
+		if start, _ := phraseIndex(hay, t, 0); start < 0 {
 			return false
 		}
 	}
 	return true
+}
+
+// phraseIndex reports the byte range of the first occurrence of token in hay at
+// or after from, treating every run of whitespace inside token as a match for
+// any run of whitespace in hay. start is -1 when token does not occur.
+//
+// The flexibility is what a quoted phrase needs to be answerable here. This
+// vault's prose is hard-wrapped near 80 columns and the indexed text keeps
+// those breaks, so the two words a reader quotes sit on two lines about as
+// often as on one — and demanding the same bytes answered a phrase written
+// verbatim in the vault with nothing, which is the one answer a reader has no
+// way to argue with. Adjacency is still required: the words must be separated
+// by whitespace and nothing else, which is what the quotes asked for.
+// A token with no whitespace in it takes the plain substring path it always
+// took, so the ordinary query allocates nothing here; the phrase walk below
+// allocates nothing either, reading both strings in place.
+func phraseIndex(hay, token string, from int) (start, end int) {
+	if from < 0 || from > len(hay) {
+		return -1, -1
+	}
+	head := token[:wordRun(token, 0)]
+	if len(head) == len(token) {
+		i := strings.Index(hay[from:], token)
+		if i < 0 {
+			return -1, -1
+		}
+		return from + i, from + i + len(token)
+	}
+	for at := from; at <= len(hay); {
+		i := strings.Index(hay[at:], head)
+		if i < 0 {
+			return -1, -1
+		}
+		i += at
+		if stop, ok := phraseAt(hay, token, i); ok {
+			return i, stop
+		}
+		at = i + 1
+	}
+	return -1, -1
+}
+
+// phraseAt matches token against hay starting at pos, taking each run of
+// whitespace in token as a demand for whitespace rather than for those exact
+// characters, and reports where the match ends.
+func phraseAt(hay, token string, pos int) (end int, ok bool) {
+	for t := 0; t < len(token); {
+		if run := whitespaceRun(token, t); run > 0 {
+			t += run
+			run = whitespaceRun(hay, pos)
+			if run == 0 {
+				return 0, false
+			}
+			pos += run
+			continue
+		}
+		word := token[t : t+wordRun(token, t)]
+		if !strings.HasPrefix(hay[pos:], word) {
+			return 0, false
+		}
+		pos += len(word)
+		t += len(word)
+	}
+	return pos, true
+}
+
+// whitespaceRun reports the byte length of the run of whitespace beginning at
+// pos, zero when nothing there is whitespace.
+func whitespaceRun(s string, pos int) int {
+	n := 0
+	for pos+n < len(s) {
+		r, size := utf8.DecodeRuneInString(s[pos+n:])
+		if !unicode.IsSpace(r) {
+			break
+		}
+		n += size
+	}
+	return n
+}
+
+// wordRun reports the byte length of the run of non-whitespace beginning at
+// pos, zero when whitespace begins there.
+func wordRun(s string, pos int) int {
+	n := 0
+	for pos+n < len(s) {
+		r, size := utf8.DecodeRuneInString(s[pos+n:])
+		if unicode.IsSpace(r) {
+			break
+		}
+		n += size
+	}
+	return n
 }
 
 // matchesFilters reports whether e satisfies every filter (a repeated key is
@@ -332,7 +426,7 @@ func snippet(plain, plainFold string, tokens []string) string {
 func earliestOffset(hay string, tokens []string) int {
 	off := -1
 	for _, t := range tokens {
-		if i := strings.Index(hay, t); i >= 0 && (off < 0 || i < off) {
+		if i, _ := phraseIndex(hay, t, 0); i >= 0 && (off < 0 || i < off) {
 			off = i
 		}
 	}
