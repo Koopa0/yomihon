@@ -84,7 +84,6 @@ func markBlockAnchor(line string, page *composition, inline *[]string) string {
 	if !page.claimBlockAnchor(blockAnchorID(address)) {
 		return line
 	}
-	//nolint:gocritic // sprintfQuotedString would not apply: these quotes are HTML attribute syntax, and both values are html.EscapeString'd
 	anchor := `<span id="` + html.EscapeString(blockAnchorID(address)) + `">` +
 		html.EscapeString(address) + `</span>`
 	*inline = append(*inline, anchor)

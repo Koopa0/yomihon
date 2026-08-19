@@ -881,9 +881,27 @@ func headingSourceText(raw string) string {
 // widening it here would be this renderer choosing an excerpt the author did
 // not.
 func blockSlice(body, block string) (string, bool) {
-	want := foldFragment("^" + block)
 	lines := strings.Split(body, "\n")
-	at := -1
+	at := blockMarkerLine(lines, block)
+	if at < 0 {
+		return "", false
+	}
+	start := at
+	for start > 0 && !listItemLine.MatchString(lines[start]) && strings.TrimSpace(lines[start-1]) != "" {
+		start--
+	}
+	end := at + 1
+	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !listItemLine.MatchString(lines[end]) {
+		end++
+	}
+	return strings.Join(lines[start:end], "\n"), true
+}
+
+// blockMarkerLine reports which line carries the marker naming block, or -1
+// when the note has no such marker. A marker written inside a fenced block is
+// code rather than an address, so the scan tracks fences as it walks.
+func blockMarkerLine(lines []string, block string) int {
+	want := foldFragment("^" + block)
 	inFence, fenceByte := false, byte(0)
 	for i, line := range lines {
 		// A fence is looked for with any quote marker taken off it, because a
@@ -905,20 +923,8 @@ func blockSlice(body, block string) (string, bool) {
 		}
 		trimmed := foldFragment(strings.TrimRight(line, " \t"))
 		if trimmed == want || strings.HasSuffix(trimmed, " "+want) || strings.HasSuffix(trimmed, "\t"+want) {
-			at = i
-			break
+			return i
 		}
 	}
-	if at < 0 {
-		return "", false
-	}
-	start := at
-	for start > 0 && !listItemLine.MatchString(lines[start]) && strings.TrimSpace(lines[start-1]) != "" {
-		start--
-	}
-	end := at + 1
-	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !listItemLine.MatchString(lines[end]) {
-		end++
-	}
-	return strings.Join(lines[start:end], "\n"), true
+	return -1
 }

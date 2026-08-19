@@ -208,7 +208,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		IslandCount:  healthIslandCount(health.Islands),
 		Collisions:   healthCollisions(health.Collisions),
 		Blocked:      healthBlocked(fresh.Blocked),
-		LastComplete: lastCompleteBuild(fresh),
+		LastComplete: lastCompleteBuild(&fresh),
 		Sidebar:      pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, pageShell.Chrome(r, "整體狀況")).Render(r.Context(), w); err != nil {
@@ -268,7 +268,7 @@ func healthBlocked(blocked []snapshot.BlockedSource) []pages.HealthBlockedSource
 // since startup, and the page says that instead — which it may not say while
 // one has happened, because a reader deciding whether to trust the page is
 // then being told the folder has never been seen entire.
-func lastCompleteBuild(fresh snapshot.Freshness) string {
+func lastCompleteBuild(fresh *snapshot.Freshness) string {
 	if fresh.LastComplete.IsZero() {
 		return ""
 	}
@@ -355,7 +355,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 			visibleNav.NavigationDiagnostic(),
 			visibleNav.ArtifactDiagnostic(),
 		),
-		Degraded:        degradedNotice(fresh),
+		Degraded:        degradedNotice(&fresh),
 		DegradedDetail:  blockedDetail(fresh.Blocked),
 		Recent:          recent,
 		RecentOrdered:   recentOrdered,
@@ -842,7 +842,7 @@ func homeStandIn(snap *snapshot.View, content homeContent) pages.HomeStandIn {
 // the page could not read everything, so the content may be incomplete or held
 // at an older generation. Empty when the snapshot is whole and current, which
 // is the ordinary case and renders nothing.
-func degradedNotice(fresh snapshot.Freshness) string {
+func degradedNotice(fresh *snapshot.Freshness) string {
 	if len(fresh.Blocked) == 0 {
 		return ""
 	}

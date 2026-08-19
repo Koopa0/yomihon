@@ -695,12 +695,10 @@ func buildView(
 			if want.holdsBackGeneration {
 				blocked = append(blocked, BlockedSource{Path: relPath, Reason: err.Error()})
 			}
-			if note {
-				parsedNotes, unreadableNotes = carried.carryNote(
-					relPath, parsedNotes, unreadableNotes, parsedByPath, publishedNotes, indexableNotes)
-			} else {
-				fileDocuments = carried.carryFile(relPath, want, slotFiles, fileDocuments)
-			}
+			parsedNotes, unreadableNotes, fileDocuments = carried.lastCopyOf(
+				relPath, note, want,
+				parsedNotes, unreadableNotes, parsedByPath, publishedNotes, indexableNotes,
+				slotFiles, fileDocuments)
 			continue
 		}
 		if !note {
@@ -774,6 +772,30 @@ func carriedFrom(previous *View) carriedGeneration {
 		captured: previous.notes,
 		sidecars: previous.sidecars,
 	}
+}
+
+// lastCopyOf gives the generation being built whatever the fallback generation
+// held for a source this reading could not open, choosing by whether that
+// source is a note or a practice file. It returns the three collections the
+// choice can extend, so the reading loop states the fallback once instead of
+// branching on the kind of source in the middle of its read-failure handling.
+func (c carriedGeneration) lastCopyOf(
+	relPath string,
+	note bool,
+	want bytesWanted,
+	parsedNotes, unreadableNotes []*vault.Note,
+	parsedByPath map[string]*vault.Note,
+	publishedNotes map[string]Note,
+	indexableNotes map[string]bool,
+	slotFiles map[string][]byte,
+	fileDocuments []search.Document,
+) (notes, unreadable []*vault.Note, files []search.Document) {
+	if note {
+		parsedNotes, unreadableNotes = c.carryNote(
+			relPath, parsedNotes, unreadableNotes, parsedByPath, publishedNotes, indexableNotes)
+		return parsedNotes, unreadableNotes, fileDocuments
+	}
+	return parsedNotes, unreadableNotes, c.carryFile(relPath, want, slotFiles, fileDocuments)
 }
 
 // carryNote gives the generation being built the copy of relPath the fallback

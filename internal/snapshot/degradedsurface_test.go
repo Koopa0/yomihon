@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -34,12 +35,8 @@ type lockedSource struct {
 }
 
 func (s *lockedSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
-	if paths := s.locked.Load(); paths != nil {
-		for _, path := range *paths {
-			if path == entry.Path() {
-				return nil, errors.New("locked by another program")
-			}
-		}
+	if paths := s.locked.Load(); paths != nil && slices.Contains(*paths, entry.Path()) {
+		return nil, errors.New("locked by another program")
 	}
 	return s.Reader.ReadFile(ctx, entry)
 }
@@ -70,7 +67,7 @@ func governedVault(t *testing.T, root string) *schema.Contract {
 	if mkdirErr := os.MkdirAll(filepath.Dir(full), 0o750); mkdirErr != nil {
 		t.Fatalf("mkdir for the contract: %v", mkdirErr)
 	}
-	if writeErr := os.WriteFile(full, declaration, 0o600); writeErr != nil {
+	if writeErr := os.WriteFile(full, declaration, 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 		t.Fatalf("write the contract: %v", writeErr)
 	}
 	contract, err := schema.Load(root)
@@ -80,9 +77,10 @@ func governedVault(t *testing.T, root string) *schema.Contract {
 	return contract
 }
 
-func getPage(t *testing.T, url string) (int, string) {
+func getPage(t *testing.T, url string) (code int, body string) {
 	t.Helper()
-	resp, err := http.Get(url) //nolint:noctx // the request is to this test's own server and outlives nothing
+	//nolint:noctx // the request is to this test's own server and outlives nothing
+	resp, err := http.Get(url) // #nosec G107 -- the address is this test's own httptest server
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
@@ -91,11 +89,11 @@ func getPage(t *testing.T, url string) (int, string) {
 			t.Errorf("close %s body: %v", url, closeErr)
 		}
 	}()
-	body, err := io.ReadAll(resp.Body)
+	read, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read %s body: %v", url, err)
 	}
-	return resp.StatusCode, string(body)
+	return resp.StatusCode, string(read)
 }
 
 // TestDegradedGenerationTellsTheTruthOnEveryReadingSurface drives a folder
