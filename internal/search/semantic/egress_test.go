@@ -102,6 +102,44 @@ func TestReadCorpusBuildsOnlyEligibleCurrentDocuments(t *testing.T) {
 	}
 }
 
+// TestCorpusReadFailsWholeOnInvalidUTF8 pins the asymmetry inside the
+// corpus's eligibility guard. A file that is not markdown never reaches the
+// byte check: it is outside the corpus whatever its bytes hold. An eligible
+// note that is not valid UTF-8 fails the whole read rather than being
+// skipped — a silent skip would ship a corpus that quietly lacks a note the
+// vault plainly holds, and every downstream answer would look complete.
+func TestCorpusReadFailsWholeOnInvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	const invalid = "prefix \xff\xfe suffix"
+	t.Run("a non-markdown file never reaches the byte check", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		reader, artifact, privacy := writeCorpusContract(t, root)
+		writeCorpusNote(t, root, "Writing/public.md", "public marker")
+		writeCorpusNote(t, root, "Writing/blob.bin", invalid)
+
+		corpus, err := readCorpus(t.Context(), reader, artifact, privacy, 100)
+		if err != nil {
+			t.Fatalf("readCorpus() error = %v, want the non-markdown bytes left unread", err)
+		}
+		if len(corpus.Chunks) != 1 || corpus.Chunks[0].RelPath != "Writing/public.md" {
+			t.Errorf("readCorpus() chunks = %+v, want the one markdown note", corpus.Chunks)
+		}
+	})
+	t.Run("an eligible note that is not utf-8 fails the whole read", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		reader, artifact, privacy := writeCorpusContract(t, root)
+		writeCorpusNote(t, root, "Writing/public.md", "public marker")
+		writeCorpusNote(t, root, "Writing/broken.md", invalid)
+
+		if _, err := readCorpus(t.Context(), reader, artifact, privacy, 100); !errors.Is(err, ErrCorpusRead) {
+			t.Fatalf("readCorpus() error = %v, want ErrCorpusRead", err)
+		}
+	})
+}
+
 func TestReadCorpusStaysBoundToTheVaultThatSuppliedItsPolicies(t *testing.T) {
 	t.Parallel()
 

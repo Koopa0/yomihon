@@ -347,6 +347,114 @@ func TestReaderScansExcludeDotEntries(t *testing.T) {
 	}
 }
 
+// TestScanIndexesEveryRegularFileWhateverItsName pins the negative space of
+// the walk: no extension filter exists. A regular, non-hidden file is in the
+// scan whether it is markdown, an archive, or carries no extension at all —
+// what a kind means is decided by the faces that read the scan, never by the
+// scan itself.
+func TestScanIndexesEveryRegularFileWhateverItsName(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	paths := []string{"Data/notes.tar.gz", "Makefile", "Notes/plain.md", "no-dot-at-all", "weird.XYZ"}
+	for _, rel := range paths {
+		writeReaderFixture(t, root, rel, "content")
+	}
+
+	scan := scanCompleteFixture(t, openTestReader(t, root))
+	got := make([]string, 0, len(scan.Files()))
+	for _, entry := range scan.Files() {
+		got = append(got, entry.Path())
+	}
+	if !slices.Equal(got, paths) {
+		t.Errorf("scan().Files() paths = %q, want every regular file: %q", got, paths)
+	}
+}
+
+// TestScanReturnsEntriesInCanonicalPathByteOrder pins the scan's ordering
+// contract: entries arrive sorted by the bytes of their canonical paths, not
+// in the order the directory walk happened to visit them. A space sorts
+// before the path separator, so a root file can rank between two directories'
+// contents — an order no per-directory walk produces on its own.
+func TestScanReturnsEntriesInCanonicalPathByteOrder(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	want := []string{"B.md", "a c.md", "a/z.md", "b/x.md"}
+	for _, rel := range want {
+		writeReaderFixture(t, root, rel, "content")
+	}
+
+	scan := scanCompleteFixture(t, openTestReader(t, root))
+	got := make([]string, 0, len(scan.Files()))
+	for _, entry := range scan.Files() {
+		got = append(got, entry.Path())
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("scan().Files() paths = %q, want canonical byte order %q", got, want)
+	}
+}
+
+// TestScanDropsASymlinkWithoutAProblem pins the scan half of the symlink
+// stance: a symlink inside the tree simply does not exist to the scan — no
+// entry, no problem record — while the read path refuses one by name
+// (ErrSymbolicLink). The quiet drop and the named refusal are different
+// answers to the same file, and this test keeps the quiet half from changing
+// shape unnoticed.
+func TestScanDropsASymlinkWithoutAProblem(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeReaderFixture(t, root, "Notes/real.md", "real")
+	if err := os.Symlink(filepath.Join(root, "Notes", "real.md"), filepath.Join(root, "Notes", "link.md")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	reader := openTestReader(t, root)
+	for _, scan := range []func(context.Context) (Scan, error){reader.ScanAvailable, reader.ScanComplete} {
+		got, err := scan(t.Context())
+		if err != nil {
+			t.Fatalf("scan() error = %v", err)
+		}
+		files := got.Files()
+		if len(files) != 1 || files[0].Path() != "Notes/real.md" {
+			t.Errorf("scan().Files() = %#v, want only the real file", files)
+		}
+		if problems := got.Problems(); len(problems) != 0 {
+			t.Errorf("scan().Problems() = %#v, want none — the drop is silent", problems)
+		}
+		if got.Contains("Notes/link.md") {
+			t.Error("scan().Contains(symlink) = true, want false")
+		}
+	}
+}
+
+// TestOutsideScanIsAnyDotLeadingSegment pins the boundary predicate to the
+// same rule the walk applies: a path is beyond the scan exactly when any of
+// its segments opens with a dot. Callers use it to tell "I looked and it was
+// not there" apart from "I never looked", so it has to match the walk's
+// exclusion precisely.
+func TestOutsideScanIsAnyDotLeadingSegment(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		relPath string
+		want    bool
+	}{
+		{relPath: ".git/config", want: true},
+		{relPath: "Notes/.trash/old.md", want: true},
+		{relPath: "Notes/sub/.hidden.md", want: true},
+		{relPath: ".", want: true},
+		{relPath: "Notes/visible.md", want: false},
+		{relPath: "a.b/c.d.md", want: false},
+		{relPath: "Notes", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.relPath, func(t *testing.T) {
+			t.Parallel()
+			if got := OutsideScan(tt.relPath); got != tt.want {
+				t.Errorf("OutsideScan(%q) = %v, want %v", tt.relPath, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestScanReturnsDefensiveClones(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

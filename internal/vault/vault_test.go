@@ -125,6 +125,110 @@ func TestParseFrontmatterBoundary(t *testing.T) {
 	}
 }
 
+// TestACarriageReturnOnlyFileHasNoFrontmatter pins the line discipline of the
+// frontmatter split: lines end at a line feed, alone or after a carriage
+// return, and nothing else. A file whose lines end in bare carriage returns
+// has no recognizable fence, so the whole file is body — read charity extends
+// to CRLF and a byte-order mark, and stops there.
+func TestACarriageReturnOnlyFileHasNoFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	const content = "---\rtitle: CR\r---\rbody"
+	n := vault.Parse("note.md", []byte(content))
+	if n.Frontmatter != nil || n.FMDiagnostic != "" {
+		t.Errorf("Parse() frontmatter = %#v, diagnostic %q, want none of either", n.Frontmatter, n.FMDiagnostic)
+	}
+	if n.Body != content {
+		t.Errorf("Parse() body = %q, want the whole file", n.Body)
+	}
+	if n.BodyLine != 1 {
+		t.Errorf("Parse() body line = %d, want 1", n.BodyLine)
+	}
+	if got := n.Title(); got != "note" {
+		t.Errorf("Title() = %q, want the filename stem", got)
+	}
+}
+
+// TestNonMappingYAMLIsInvalidYAML pins that a frontmatter block holding
+// well-formed YAML of the wrong shape — a list, a bare scalar — earns the
+// same diagnostic as broken YAML. Frontmatter is a mapping by definition;
+// tolerating another shape would leave every field lookup silently empty
+// while the note claimed to have frontmatter.
+func TestNonMappingYAMLIsInvalidYAML(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "a list is not frontmatter", content: "---\n- a\n- b\n---\nbody\n"},
+		{name: "a bare scalar is not frontmatter", content: "---\nhello\n---\nbody\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse("note.md", []byte(tt.content))
+			if n.FMDiagnostic == "" {
+				t.Error("Parse() diagnostic empty, want the invalid-YAML diagnostic")
+			}
+			if n.Frontmatter != nil {
+				t.Errorf("Parse() frontmatter = %#v, want none", n.Frontmatter)
+			}
+			if n.Body != "body\n" {
+				t.Errorf("Parse() body = %q, want %q", n.Body, "body\n")
+			}
+		})
+	}
+}
+
+// TestAnEmptyFrontmatterBlockReadsAsNoFrontmatter pins the current
+// equivalence: a note opening with an empty fence pair carries no fields, no
+// diagnostic, and answers every frontmatter question exactly as a note with
+// no block at all. The one trace the block leaves is the body's file line,
+// which still counts the fences.
+func TestAnEmptyFrontmatterBlockReadsAsNoFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	n := vault.Parse("note.md", []byte("---\n---\nbody\n"))
+	if n.Frontmatter != nil || n.FMDiagnostic != "" {
+		t.Errorf("Parse() frontmatter = %#v, diagnostic %q, want none of either", n.Frontmatter, n.FMDiagnostic)
+	}
+	if n.Body != "body\n" {
+		t.Errorf("Parse() body = %q, want %q", n.Body, "body\n")
+	}
+	if n.BodyLine != 3 {
+		t.Errorf("Parse() body line = %d, want 3 — the empty block still occupies two file lines", n.BodyLine)
+	}
+	if got := n.Title(); got != "note" {
+		t.Errorf("Title() = %q, want the filename stem", got)
+	}
+}
+
+// TestTitleStripsOnlyTheFinalExtension pins the fallback title of a note
+// with a dotted name: exactly one extension comes off the stem, so a
+// language-tagged name keeps its tag.
+func TestTitleStripsOnlyTheFinalExtension(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		relPath string
+		want    string
+	}{
+		{relPath: "Writing/note.ja.md", want: "note.ja"},
+		{relPath: "Writing/note.md", want: "note"},
+		{relPath: "Writing/archive.tar.gz", want: "archive.tar"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.relPath, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse(tt.relPath, []byte("body\n"))
+			if got := n.Title(); got != tt.want {
+				t.Errorf("Title() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestSplitFrontmatterStepsOverAByteOrderMark asserts a note whose first bytes
 // are a byte-order mark is read as the note it is, and that stepping over the
 // mark does not move the offsets the status writer splices against.

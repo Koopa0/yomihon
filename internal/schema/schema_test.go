@@ -1261,7 +1261,7 @@ func TestDirectoryPoliciesShareCaseFoldedIdentity(t *testing.T) {
 non_instance_dirs = ["System/templates"]
 `, `
 [privacy]
-never_egress_dirs = ["Private"]
+never_egress_dirs = ["Private", "Straße"]
 `)
 	policy := s.ArtifactPolicy()
 	if !policy.Available() {
@@ -1300,12 +1300,152 @@ never_egress_dirs = ["Private"]
 		{path: "private/x.md", want: false},
 		{path: "PRIVATE/x.md", want: false},
 		{path: "Public/x.md", want: true},
+		// The fold is Unicode simple case folding, per rune: the capital ẞ is
+		// the same letter as ß, while the two-letter "ss" spelling is a
+		// different string — a full case fold would accept it, and the shared
+		// identity deliberately does not.
+		{path: "Straße/x.md", want: false},
+		{path: "STRAẞE/x.md", want: false},
+		{path: "Strasse/x.md", want: true},
 	}
 	for _, tt := range privacyTests {
 		t.Run("privacy/"+tt.path, func(t *testing.T) {
 			t.Parallel()
 			if got := privacy.EgressAllowed(tt.path); got != tt.want {
 				t.Errorf("PrivacyPolicy().EgressAllowed(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestKnowledgeScopeMatchesOnlyTheFirstSegmentByExactBytes pins how narrow
+// knowledge-layer membership deliberately is, in contrast with the two
+// directory policies: the first path segment alone is consulted, and it is
+// compared byte for byte — no case folding, no Unicode normalization. The
+// scan hands this predicate canonical NFC paths, so the narrow compare
+// suffices there; widening it is a product decision, not a cleanup.
+func TestKnowledgeScopeMatchesOnlyTheFirstSegmentByExactBytes(t *testing.T) {
+	t.Parallel()
+
+	const declared = `knowledge_dirs = ["Writing"]`
+	const widened = `knowledge_dirs = ["Writing", "だ体"]`
+	text := strings.Replace(contractText("", "", ""), declared, widened, 1)
+	if !strings.Contains(text, widened) {
+		t.Fatalf("fixture drift: the base contract no longer declares %s", declared)
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) = %v", path, err)
+	}
+	s, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	scope := s.KnowledgeScope()
+	if !scope.Available() {
+		t.Fatal("KnowledgeScope().Available() = false, want a declared scope")
+	}
+
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{path: "Writing/lessons/L05.md", want: true},
+		{path: "Writing", want: true},
+		// A different case spelling is a different byte string.
+		{path: "writing/lessons/L05.md", want: false},
+		// The whole first segment, never a prefix of it.
+		{path: "Writings/L05.md", want: false},
+		// Deeper segments are not consulted.
+		{path: "Other/Writing/L05.md", want: false},
+		{path: "だ体/note.md", want: true},
+		// The decomposed spelling of the same name is a different byte string.
+		{path: "た\u3099体/note.md", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+			if got := scope.Includes(tt.path); got != tt.want {
+				t.Errorf("KnowledgeScope().Includes(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestPrivacyResolvesDottedPathsWhileArtifactMembershipDoesNot is a
+// characterization of a live asymmetry, not an endorsement of it. The privacy
+// policy cleans a path before matching, so a dotted spelling is judged by
+// where it lands, and an escaping spelling is refused outright. Artifact
+// membership normalizes only the Unicode form and compares the spelling it
+// was given, so a dotted route into a declared artifact directory is not
+// classified as non-instance. Whether both ends should share one fail-closed
+// identity is an open design question; until it is ruled, this keeps the
+// asymmetry from drifting unnoticed.
+func TestPrivacyResolvesDottedPathsWhileArtifactMembershipDoesNot(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractTextWithPrivacy(t, "", `
+[artifacts]
+non_instance_dirs = ["System/templates", "だ体"]
+`, `
+[privacy]
+never_egress_dirs = ["Private", "だ体"]
+`)
+	artifact := s.ArtifactPolicy()
+	if !artifact.Available() {
+		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", artifact.Diagnostic())
+	}
+	privacy := s.PrivacyPolicy()
+	if !privacy.Available() {
+		t.Fatalf("PrivacyPolicy().Available() = false, diagnostic %q", privacy.Diagnostic())
+	}
+
+	privacyTests := []struct {
+		path string
+		want bool
+	}{
+		// Cleaned first: the dotted spelling lands inside the protected
+		// directory and is refused.
+		{path: "Writing/../Private/x.md", want: false},
+		// Cleaned to a public spelling: allowed.
+		{path: "Writing/../Writing/x.md", want: true},
+		// An escaping spelling is refused outright, wherever it points.
+		{path: "../Private/x.md", want: false},
+		// A trailing slash cleans away.
+		{path: "Private/", want: false},
+		// The decomposed spelling is normalized before matching.
+		{path: "た\u3099体/x.md", want: false},
+	}
+	for _, tt := range privacyTests {
+		t.Run("privacy/"+tt.path, func(t *testing.T) {
+			t.Parallel()
+			if got := privacy.EgressAllowed(tt.path); got != tt.want {
+				t.Errorf("PrivacyPolicy().EgressAllowed(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+
+	artifactTests := []struct {
+		path string
+		want bool
+	}{
+		{path: "System/templates/card.md", want: true},
+		// The asymmetric cell: the dotted spelling resolves under a declared
+		// directory, but membership never resolves it, so the classification
+		// fails open toward instance.
+		{path: "Writing/../System/templates/card.md", want: false},
+		// A trailing slash still matches: the empty last component is beyond
+		// the compared prefix.
+		{path: "System/templates/", want: true},
+		// The decomposed spelling is normalized before matching, same as the
+		// privacy side.
+		{path: "た\u3099体/x.md", want: true},
+	}
+	for _, tt := range artifactTests {
+		t.Run("artifact/"+tt.path, func(t *testing.T) {
+			t.Parallel()
+			if got := artifact.IsNonInstance(tt.path); got != tt.want {
+				t.Errorf("ArtifactPolicy().IsNonInstance(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
 	}
