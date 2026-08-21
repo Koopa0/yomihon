@@ -56,6 +56,12 @@ var (
 	// not repair. yomihon only reports faults; fixing the file belongs to
 	// a human editor.
 	ErrStatusLine = errors.New("status: frontmatter does not have exactly one status line")
+	// ErrPublishedReserved means the flip named published as its target.
+	// That status records a completed publication — a receipt-backed fact
+	// about the world outside the vault — and nothing in yomihon can attest
+	// one, so the write face refuses before touching the note. The value
+	// enters a note only by hand.
+	ErrPublishedReserved = errors.New("status: published records a completed publication and no publisher exists to attest one")
 	// ErrStatusSyntaxUnsupported means the reader understands the note's
 	// status, but the frontmatter writes that field in a form the surgical
 	// single-line rewriter does not support — an explicit or quoted key, a
@@ -296,7 +302,9 @@ func (v View) WriteDiagnostic() string {
 
 // Transitions returns the from-list-legal target statuses from current in
 // contract order. Lifecycle owner lists are declarative data and never
-// subtract from the answer. It is pure over the captured view.
+// subtract from the answer. The published status is never among the results:
+// it records a completed publication, which no interactive control can
+// attest, so Flip would refuse it. It is pure over the captured view.
 func (v View) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
 	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
@@ -305,6 +313,9 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 	}
 	var legal []string
 	for _, to := range v.contract.Statuses(noteType) {
+		if to == schema.PublishedStatus {
+			continue
+		}
 		if err := v.contract.Transition(noteType, current, to); err == nil {
 			legal = append(legal, to)
 		}
@@ -389,6 +400,9 @@ func (lc *Lifecycle) flip(rel, from, to string, hooks flipHooks) error {
 	relSlash, rel, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
+	}
+	if to == schema.PublishedStatus {
+		return ErrPublishedReserved
 	}
 	if hooks.beforeLock != nil {
 		hooks.beforeLock()

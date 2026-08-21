@@ -1276,3 +1276,95 @@ owner = ["agent"]
 		t.Errorf("Transitions() mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// publishableContract loads a contract whose from-lists make published
+// reachable from ready, alongside an ordinary retirement edge. The write
+// face must keep refusing the published target even when the contract
+// admits it: the value records a completed publication, and nothing in
+// yomihon can attest one.
+func publishableContract(t *testing.T) *schema.Contract {
+	t.Helper()
+	const contractText = `schema_version = "1"
+
+[enums]
+type = ["doc"]
+
+[enums.status]
+note = ["draft", "ready", "published", "archived"]
+
+[artifacts]
+non_instance_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["doc"]
+from = []
+owner = ["agent"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["doc"]
+from = ["draft"]
+owner = ["agent"]
+
+[[lifecycle]]
+status = "published"
+applies_to = ["doc"]
+from = ["ready"]
+owner = ["agent"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["agent"]
+`
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err := os.WriteFile(contractPath, []byte(contractText), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) = %v", contractPath, err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
+	}
+	return contract
+}
+
+// TestTransitionsNeverOfferPublished locks the render half of the published
+// reservation: even when the contract's from-lists admit ready→published,
+// the offered set omits it — published records a completed publication, and
+// no interactive control may claim one happened.
+func TestTransitionsNeverOfferPublished(t *testing.T) {
+	t.Parallel()
+	lifecycle := newLifecycle(t, t.TempDir(), publishableContract(t))
+
+	got := lifecycle.View().Transitions("Writing/doc.md", "doc", "ready")
+	if diff := cmp.Diff([]string{"archived"}, got); diff != "" {
+		t.Errorf("Transitions(ready) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestFlipRefusesPublishedTarget locks the write half of the published
+// reservation: a POST whose target is published is refused before the note
+// is touched, even when the contract's from-lists admit the transition.
+func TestFlipRefusesPublishedTarget(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lifecycle := newLifecycle(t, root, publishableContract(t))
+
+	const rel = "Writing/doc.md"
+	original := "---\ntitle: Doc\ntype: doc\nstatus: ready\n---\n\nBody.\n"
+	writeVaultFile(t, root, rel, original)
+
+	err := lifecycle.Flip(rel, "ready", schema.PublishedStatus)
+	if !errors.Is(err, status.ErrPublishedReserved) {
+		t.Fatalf("Flip(to=published) = %v, want %v", err, status.ErrPublishedReserved)
+	}
+	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read note: %v", readErr)
+	}
+	if string(got) != original {
+		t.Errorf("note after refused flip = %q, want untouched %q", got, original)
+	}
+}

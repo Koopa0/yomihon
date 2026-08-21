@@ -30,11 +30,19 @@ const (
 	ContractRelPath  = "System/schemas/vault-schema.toml"
 	supportedVersion = "1"
 
-	// SealStatus is the status rendered as the koopa-only seal. It remains
-	// pinned here until vault-schema.toml declares an explicit seal marker;
-	// ownership alone is ambiguous because the published transition is also
-	// koopa-only.
+	// SealStatus is the status of a note that has been reviewed and
+	// approved. Reading surfaces render it with a distinct accent and
+	// nothing more. It stays pinned here rather than derived because no
+	// contract field singles the value out.
 	SealStatus = "ready"
+
+	// PublishedStatus is the status recording a completed publication — a
+	// receipt-backed fact about the world outside the vault, not a verdict
+	// a reader reaches. Nothing in yomihon can attest such a receipt, so no
+	// interactive control offers a transition to it and the write face
+	// refuses one on arrival; the value enters a note only by hand. It is
+	// pinned here for the same reason as SealStatus.
+	PublishedStatus = "published"
 
 	// conceptType is the note type a vault-schema.toml reserves for its
 	// distilled-idea notes. The contract itself gives the word meaning: a

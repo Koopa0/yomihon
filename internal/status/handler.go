@@ -163,6 +163,12 @@ func recoveryFor(err error) *recovery {
 			summary:    DurableInstallUnavailableDiagnostic,
 			nextAction: "改用目前支援 status 寫入的 macOS 或 Linux；閱讀與搜尋仍可在此平台使用。",
 		}
+	case errors.Is(err, ErrPublishedReserved):
+		return &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    "published 記錄的是一次已完成的發布；沒有任何發布器能為這次寫入作證，yomihon 不會設定這個值。",
+			nextAction: "筆記沒有任何變更。若發布確實已完成，請直接編輯筆記的 frontmatter 記下這個事實。",
+		}
 	case errors.Is(err, schema.ErrUnknownStatus),
 		errors.Is(err, schema.ErrIllegalTransition):
 		return recoveryForSchemaError(err)
