@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -2190,6 +2191,248 @@ func homeSection(t *testing.T, body, marker string) string {
 		t.Fatalf("Home section %q has no closing tag", marker)
 	}
 	return body[openAt : markerAt+closeAt+len("</section>")]
+}
+
+// waitingContract loads a contract whose lifecycle covers every answer the
+// waiting derivation can give. header carries the top-level human_owners
+// line, or nothing to leave the declaration out. Under it: a doc at inbox
+// has an onward step owned only by agents, a doc at draft has one owned by
+// the declared human, a doc at ready has published as its only onward step,
+// and a guide moves through a status group the default vocabulary never
+// mentions.
+func waitingContract(t *testing.T, header string) *schema.Contract {
+	t.Helper()
+	text := `schema_version = "1"
+` + header + `
+[enums]
+type = ["doc", "guide"]
+
+[enums.status]
+note = ["inbox", "draft", "ready", "published"]
+system = ["proposed", "active"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status"]
+
+[fields.status_group]
+system = ["guide"]
+
+[scan]
+knowledge_dirs = ["Writing"]
+skip_basenames = ["README.md"]
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
+[[lifecycle]]
+status = "inbox"
+applies_to = ["doc"]
+from = []
+owner = ["agent"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["doc"]
+from = ["inbox"]
+owner = ["agent"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["doc"]
+from = ["draft"]
+owner = ["reviewer"]
+
+[[lifecycle]]
+status = "published"
+applies_to = ["doc"]
+from = ["ready"]
+owner = ["reviewer"]
+
+[[lifecycle]]
+status = "proposed"
+applies_to = ["guide"]
+from = []
+owner = ["agent"]
+
+[[lifecycle]]
+status = "active"
+applies_to = ["guide"]
+from = ["proposed"]
+owner = ["reviewer"]
+`
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err := os.WriteFile(path, []byte(text), 0o600) // #nosec G703 -- path is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	return contract
+}
+
+// TestHomeWaitingDerivesFromDeclaredHumanOwners pins the waiting block to
+// its one source: the contract's human_owners declaration intersected with
+// each status's onward owners. No declaration, no block at all; a status
+// whose onward step no declared human owns is not a row; an onward step to
+// published never counts; and a status another group declares still gets
+// its row when a human owns its onward step.
+func TestHomeWaitingDerivesFromDeclaredHumanOwners(t *testing.T) {
+	t.Parallel()
+
+	const humans = `human_owners = ["reviewer"]` + "\n"
+	type note struct{ path, front string }
+	doc := func(name, status string) note {
+		return note{
+			path:  "Writing/" + name + ".md",
+			front: "title: " + name + "\ntype: doc\nstatus: " + status,
+		}
+	}
+	tests := []struct {
+		name       string
+		header     string
+		notes      []note
+		wantRows   map[string]int
+		absentRows []string
+	}{
+		{
+			name:   "no human declaration renders no block",
+			header: "",
+			notes:  []note{doc("D1", "draft")},
+		},
+		{
+			name:   "only a human-owned onward step counts",
+			header: humans,
+			notes: []note{
+				doc("D1", "inbox"),
+				doc("D2", "draft"), doc("D3", "draft"),
+			},
+			wantRows:   map[string]int{"draft": 2},
+			absentRows: []string{"inbox"},
+		},
+		{
+			name:   "an onward step to published does not count",
+			header: humans,
+			notes: []note{
+				doc("D1", "draft"),
+				doc("D2", "ready"),
+			},
+			wantRows:   map[string]int{"draft": 1},
+			absentRows: []string{"ready"},
+		},
+		{
+			name:   "a status only another group declares",
+			header: humans,
+			notes: []note{
+				doc("D1", "draft"),
+				{path: "System/agent-guides/G1.md", front: "title: G1\ntype: guide\nstatus: proposed"},
+			},
+			wantRows: map[string]int{"draft": 1, "proposed": 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+				t.Fatalf("write README: %v", err)
+			}
+			for _, n := range tt.notes {
+				full := filepath.Join(root, filepath.FromSlash(n.path))
+				if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+					t.Fatalf("mkdir: %v", err)
+				}
+				body := "---\n" + n.front + "\n---\n\nbody\n"
+				if err := os.WriteFile(full, []byte(body), 0o600); err != nil { // #nosec G703 -- a fixed fixture path under this test's TempDir
+					t.Fatalf("write %s: %v", n.path, err)
+				}
+			}
+			srv := newServerWithContract(t, root, waitingContract(t, tt.header))
+
+			code, body := get(t, srv.URL+"/")
+			if code != http.StatusOK {
+				t.Fatalf("GET / status = %d, want 200", code)
+			}
+
+			if len(tt.wantRows) == 0 {
+				if strings.Contains(body, `data-home-block="lifecycle"`) {
+					t.Error("Home rendered a waiting block no human declaration derives")
+				}
+				return
+			}
+			block := homeSection(t, body, `data-home-block="lifecycle"`)
+			counts := chipCounts(t, block)
+			if len(counts) == 0 {
+				t.Fatal("the fixture produced nothing to count, so this proves nothing")
+			}
+			for _, n := range counts {
+				if n == 0 {
+					t.Errorf("the block lists a status nothing is waiting at; counts = %v", counts)
+				}
+			}
+			if len(counts) != len(tt.wantRows) {
+				t.Errorf("the block lists %d statuses and %d are waiting; counts = %v, want %v", len(counts), len(tt.wantRows), counts, tt.wantRows)
+			}
+			for status, want := range tt.wantRows {
+				row := homeLifecycleRow(t, block, status)
+				if marker := `>` + strconv.Itoa(want) + `<`; !strings.Contains(row, marker) {
+					t.Errorf("the %q row does not state %d; row = %q", status, want, row)
+				}
+			}
+			for _, status := range tt.absentRows {
+				if marker := `href="/search?q=` + url.QueryEscape("status:"+status) + `"`; strings.Contains(block, marker) {
+					t.Errorf("the block carries a %q row nothing derives; block = %q", status, block)
+				}
+			}
+		})
+	}
+}
+
+// homeLifecycleRow returns the one chip anchor for statusName inside the
+// waiting block's markup.
+func homeLifecycleRow(t *testing.T, section, statusName string) string {
+	t.Helper()
+	marker := `href="/search?q=` + url.QueryEscape("status:"+statusName) + `"`
+	markerAt := strings.Index(section, marker)
+	if markerAt < 0 {
+		t.Fatalf("Lifecycle has no %q row", statusName)
+	}
+	openAt := strings.LastIndex(section[:markerAt], "<a")
+	if openAt < 0 {
+		t.Fatalf("Lifecycle %q marker is not inside a row", statusName)
+	}
+	closeAt := strings.Index(section[markerAt:], "</a>")
+	if closeAt < 0 {
+		t.Fatalf("Lifecycle %q row has no closing tag", statusName)
+	}
+	return section[openAt : markerAt+closeAt+len("</a>")]
+}
+
+// chipCounts reads every per-status figure the block states.
+func chipCounts(t *testing.T, block string) []int {
+	t.Helper()
+	var out []int
+	const marker = `class="y-homechip__count"`
+	for rest := block; ; {
+		at := strings.Index(rest, marker)
+		if at < 0 {
+			return out
+		}
+		rest = rest[at:]
+		open := strings.IndexByte(rest, '>')
+		end := strings.Index(rest, "</span>")
+		if open < 0 || end < 0 || end < open {
+			t.Fatalf("a chip count is malformed: %q", rest[:80])
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(rest[open+1 : end]))
+		if err != nil {
+			t.Fatalf("a chip count is not a number: %v", err)
+		}
+		out = append(out, n)
+		rest = rest[end:]
+	}
 }
 
 // TestShowNoFrontmatter exercises handler.go's NoFrontmatter branch with a

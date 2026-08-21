@@ -28,6 +28,11 @@ var exampleContractPath = filepath.Join("..", "..", "examples", "vault-schema.to
 // every certification a new operator attempts is refused; a lifecycle bent
 // into a cycle with no entry point passes those same checks and lets no note
 // be created at all. Walking the journey pins the topology the rows cannot.
+//
+// The example also has to declare its human owners so the home waiting
+// panel it teaches actually renders: at least one status must be waiting on
+// a person under that declaration, and at least one must not be, or the
+// derivation it demonstrates distinguishes nothing.
 func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 	t.Parallel()
 
@@ -90,6 +95,15 @@ func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 				t.Errorf("the example declares status %q for type %q but the walk never reaches it: extend the walk or drop the status",
 					status, noteType)
 			}
+		}
+	}
+
+	for _, noteType := range noteTypes {
+		if !contract.AwaitsHuman(noteType, "draft") {
+			t.Errorf("AwaitsHuman(%q, %q) = false, want a declared human owning the onward step; the example's waiting panel would show nothing", noteType, "draft")
+		}
+		if contract.AwaitsHuman(noteType, "archived") {
+			t.Errorf("AwaitsHuman(%q, %q) = true, want false: nothing moves on from retirement, so a row here would invent a queue", noteType, "archived")
 		}
 	}
 }

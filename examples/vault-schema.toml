@@ -6,6 +6,11 @@
 
 schema_version = "1"
 
+# Owners listed here are people. The home overview counts a status as waiting
+# when one of its onward transitions is owned by someone named here; leave the
+# key out and the overview shows nothing.
+human_owners = ["koopa"]
+
 [enums]
 type = ["note", "lesson", "study-path", "moc"]
 

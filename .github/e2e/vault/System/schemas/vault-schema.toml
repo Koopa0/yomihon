@@ -3,10 +3,11 @@
 # most notes here exercise the faces without conforming to every required field.
 # Notes/out-of-contract.md deliberately uses type field-note, absent from the
 # enum below, so live smoke locks fail-open reading independently of map types.
-# The lifecycle entries carry one real edge — draft to ready, owned by the
-# human actor — so the lesson note renders a live seal form for the
-# seal-select-guard probe without ever committing a transition.
+# The lifecycle entries carry one real edge — draft to ready — so the lesson
+# note offers a live status control for the write-face probes, and the human
+# owner declared below gives the home waiting panel one status to count.
 schema_version = "1"
+human_owners = ["koopa"]
 [enums]
 type = ["concept", "guide", "inbox", "lesson", "moc", "source-map", "study-path", "system", "topic-map"]
 domain = ["golang", "japanese"]
