@@ -35,6 +35,16 @@ func IsPicture(relPath string) bool {
 	return pictureExts[strings.ToLower(path.Ext(relPath))]
 }
 
+// IsPDF reports whether relPath names a PDF, by its final extension in any
+// case — like IsPicture, the name alone chooses the viewer. The file page
+// hands a PDF to the browser's own document viewer, and search leaves it out
+// of the text index for the same reason: its bytes are never shown as
+// characters, so a text hit would point a reader at words that are nowhere
+// on the screen.
+func IsPDF(relPath string) bool {
+	return strings.EqualFold(path.Ext(relPath), ".pdf")
+}
+
 // IsText reports whether b is text yomihon reads as characters: no NUL byte,
 // and valid UTF-8. The extension is deliberately not consulted — a .txt holding
 // a compiled object must never be poured into a source page, and a build file

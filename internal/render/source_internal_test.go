@@ -31,6 +31,32 @@ func TestIsText(t *testing.T) {
 	}
 }
 
+// TestIsPDF fixes the viewer decision to the final extension alone, any case.
+func TestIsPDF(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{path: "paper.pdf", want: true},
+		{path: "Sources/Paper.PDF", want: true},
+		{path: "weird.Pdf", want: true},
+		{path: "note.md.pdf", want: true},
+		{path: "archive.pdf.md", want: false},
+		{path: "paper.pdfx", want: false},
+		{path: "pdf", want: false},
+		{path: "Notes/paper", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+			if got := IsPDF(tt.path); got != tt.want {
+				t.Errorf("IsPDF(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestTrimPartialRune covers the sniff window's edge: a character the window
 // cut in half must not make a text file read as binary.
 func TestTrimPartialRune(t *testing.T) {

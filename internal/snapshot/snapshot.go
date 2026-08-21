@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	pathpkg "path"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -972,7 +971,7 @@ func indexDocuments(
 func readableAsText(entry vault.Entry) bool {
 	relPath := entry.Path()
 	return !render.IsPicture(relPath) &&
-		!strings.EqualFold(pathpkg.Ext(relPath), ".pdf") &&
+		!render.IsPDF(relPath) &&
 		withinSourceCap(entry)
 }
 

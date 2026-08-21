@@ -111,12 +111,11 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		Sidebar: pages.NewSidebar(pageShell.Nav, rel),
 	}
 
-	ext := strings.ToLower(path.Ext(rel))
 	switch {
 	case render.IsPicture(rel):
 		view.Kind = pages.FileImage
 		view.ContentType = fileContentType(rel, nil)
-	case ext == ".pdf":
+	case render.IsPDF(rel):
 		view.Kind = pages.FilePDF
 		view.ContentType = fileContentType(rel, nil)
 	case entry.Size() > render.MaxSourceBytes:
