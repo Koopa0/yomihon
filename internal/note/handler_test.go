@@ -3192,6 +3192,45 @@ func TestTransitionsArePlainControls(t *testing.T) {
 	}
 }
 
+// TestShowFlagsAStatusOutsideTheSchema locks the reading page's answer to a
+// status value the contract never declared. An empty transition set is true
+// of such a value but misleading: the schema did not define nothing onward —
+// it never defined the value at all. The panel states that fact instead,
+// wall-4 voiced: yomihon reports, a human edits the file.
+func TestShowFlagsAStatusOutsideTheSchema(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: 這是草稿\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for _, want := range []string{
+		"狀態值 <code>這是草稿</code> 不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。",
+		"ui-status--這是草稿",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page is missing %q", want)
+		}
+	}
+	for _, absent := range []string{
+		"目前沒有合法的狀態轉換。",
+		`action="/status"`,
+	} {
+		if strings.Contains(page, absent) {
+			t.Errorf("page unexpectedly contains %q", absent)
+		}
+	}
+}
+
 // TestShowOffersTransitionsWhateverTheOwnerLists locks the reading page to
 // the same demotion: the buttons come from the from-lists alone, so a
 // contract whose onward stages name only another owner still renders each of

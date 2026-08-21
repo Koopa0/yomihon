@@ -874,6 +874,38 @@ func TestTransitions(t *testing.T) {
 	}
 }
 
+// TestKnownStatus pins the declared-value check the reading page's
+// out-of-enum flag rests on: a value in the type's list is known, everything
+// else — an unlisted value, an undeclared type, an empty value, a closed
+// view — is not.
+func TestKnownStatus(t *testing.T) {
+	t.Parallel()
+
+	if newLifecycle(t, t.TempDir(), nil).View().KnownStatus("lesson", "draft") {
+		t.Error("KnownStatus on a closed write face = true, want false")
+	}
+	view := newLifecycle(t, t.TempDir(), loadContract(t)).View()
+	tests := []struct {
+		name     string
+		noteType string
+		status   string
+		want     bool
+	}{
+		{name: "declared value", noteType: "lesson", status: "draft", want: true},
+		{name: "unlisted value", noteType: "lesson", status: "這是草稿", want: false},
+		{name: "undeclared type", noteType: "mystery", status: "draft", want: false},
+		{name: "empty value", noteType: "lesson", status: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := view.KnownStatus(tt.noteType, tt.status); got != tt.want {
+				t.Errorf("KnownStatus(%q, %q) = %v, want %v", tt.noteType, tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestAwaitsHuman locks the closed and undeclared ends of the human-owner
 // derivation: a closed view reports nothing as waiting, and so does a
 // contract that declares no human owners — owner lists alone are declarative

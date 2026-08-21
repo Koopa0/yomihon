@@ -508,6 +508,10 @@ html, body { margin: 0; background: var(--bg); }
 .y-diag__body { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
 .y-diag__body code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
 .y-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 12px; line-height: 1.6; color: var(--fg-faint); }
+/* out-of-enum status flag — the diagnostics rail's amber accent applied to a
+   status-face notice, so the flag reads as a finding rather than as copy */
+.y-statusflag { border-left: 2.5px solid var(--warn); }
+.y-statusflag code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
 
 /* ============================================================
    Status bar — the status face wherever the right rail is absent: narrow

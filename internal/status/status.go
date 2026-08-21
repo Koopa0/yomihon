@@ -323,6 +323,15 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 	return legal
 }
 
+// KnownStatus reports whether status is among the contract's declared values
+// for the given note type. A closed view knows no values, and an undeclared
+// type declares none. The reading page uses it to flag a status the schema
+// never listed, instead of implying the schema defines no onward transitions
+// from a value it never defined.
+func (v View) KnownStatus(noteType, status string) bool {
+	return v.available() && slices.Contains(v.contract.Statuses(noteType), status)
+}
+
 // Order returns the default note group's statuses in declared order. A nil
 // result means this view is closed; an empty non-nil result is a valid empty
 // declaration.

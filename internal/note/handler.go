@@ -464,6 +464,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Concepts:          concepts,
 		Transitions:       governance.transitions,
 		NoFrontmatter:     governance.noFrontmatter,
+		StatusUnknown:     governance.statusUnknown,
 	}
 
 	pageChrome := governance.shell.Chrome(r, n.Title)
@@ -508,6 +509,10 @@ type governanceState struct {
 	instance        bool
 	nonInstance     bool
 	noFrontmatter   bool
+	// statusUnknown is set when the note's non-empty status value is not in
+	// the contract's declared list for its type, so the page can state that
+	// fact instead of implying the schema defines nothing onward from it.
+	statusUnknown bool
 }
 
 func (h *Handler) governance(
@@ -542,6 +547,7 @@ func (h *Handler) governance(
 			state.status, state.writeDiagnostic = h.observedStatus(n.RelPath)
 			if state.writeDiagnostic == "" {
 				state.transitions = statusView.Transitions(n.RelPath, n.Type, state.status)
+				state.statusUnknown = state.status != "" && !statusView.KnownStatus(n.Type, state.status)
 			}
 		}
 	}

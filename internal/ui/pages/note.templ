@@ -115,6 +115,10 @@ type NoteView struct {
 	NonInstance     bool
 	WriteDiagnostic string
 	NoFrontmatter   bool
+	// StatusUnknown is set when the note's non-empty status value is not in
+	// the contract's declared list for its type. Both status faces then flag
+	// the value instead of implying the schema defines nothing onward.
+	StatusUnknown bool
 
 	// Concepts are the grammar-concept notes this lesson links to, each
 	// pre-rendered for the in-app concept sheet. Empty for a non-lesson note or a
@@ -793,6 +797,8 @@ templ statusPanel(v NoteView) {
 					</p>
 				case v.NoFrontmatter:
 					<p class="y-statuspanel__notice">沒有 frontmatter（合法）。</p>
+				case v.StatusUnknown:
+					@statusUnknownFlag(v, "y-statuspanel__notice")
 				case len(v.Transitions) == 0:
 					<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
 				default:
@@ -802,6 +808,15 @@ templ statusPanel(v NoteView) {
 			}
 		}
 	</section>
+}
+
+// statusUnknownFlag states that the note's status value is outside the
+// contract's declared list. Yomihon only reports the fault — a human edits
+// the file — and the flag replaces the empty-transitions notice, which would
+// otherwise imply the schema defines nothing onward from a value it never
+// defined.
+templ statusUnknownFlag(v NoteView, noticeClass string) {
+	<p class={ noticeClass, "y-statusflag" }>狀態值 <code>{ v.Status }</code> 不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。</p>
 }
 
 // transitionForm is one quiet, one-click transition: a plain POST form whose
@@ -884,6 +899,10 @@ templ statusBar(v NoteView) {
 					</p>
 				case v.NoFrontmatter:
 					<p class="y-sealbar__notice">沒有 frontmatter（合法）。</p>
+				case v.StatusUnknown:
+					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					<span class="y-sealbar__spacer"></span>
+					@statusUnknownFlag(v, "y-sealbar__notice")
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
