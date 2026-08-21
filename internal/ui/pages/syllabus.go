@@ -27,9 +27,9 @@ type PathView struct {
 
 	// Path-level figures, precomputed so the header metarow is a dumb read.
 	// Entries is the course's planned lesson total — the main line only, a
-	// planned-but-unwritten lesson included. Ready is the subset waiting at
-	// ready for a human to rule on it — a queue, never a measure of progress:
-	// a lesson finished and published leaves it.
+	// planned-but-unwritten lesson included. Ready is the subset sitting at
+	// ready — never a measure of progress: a lesson finished and published
+	// leaves it.
 	Parts   int
 	Modules int
 	Entries int
@@ -254,8 +254,8 @@ func countModules(sv *PathBranchView) int {
 	return n
 }
 
-// countReady is the queue waiting at ready for a human to rule on it — never
-// a measure of progress, because a lesson finished and published leaves it.
+// countReady counts the lessons sitting at ready — never a measure of
+// progress, because a lesson finished and published leaves it.
 func countReady(branches []PathBranchView) int {
 	n := 0
 	for _, sv := range branches {

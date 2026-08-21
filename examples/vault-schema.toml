@@ -6,11 +6,6 @@
 
 schema_version = "1"
 
-# Owners listed here are people. The home overview counts a status as waiting
-# when one of its onward transitions is owned by someone named here; leave the
-# key out and the overview shows nothing.
-human_owners = ["koopa"]
-
 [enums]
 type = ["note", "lesson", "study-path", "moc"]
 
@@ -50,8 +45,8 @@ non_instance_dirs = ["System/templates"]
 never_egress_dirs = ["Private"]
 
 # Owner lists are declarative data: they gate nothing, and any name works.
-# They exist to say who a status's onward step belongs to, which is the
-# vocabulary a waiting overview can intersect against the people you declare.
+# They record, for your own agents' doctrine, who a status's onward step
+# belongs to; yomihon parses and tolerates them without reading them.
 [[lifecycle]]
 status = "draft"
 applies_to = ["*"]

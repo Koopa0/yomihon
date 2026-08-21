@@ -1685,10 +1685,17 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 		t.Error("recent section includes the eighth-newest note, want the newest seven")
 	}
 
-	// The waiting block derives from a human-owner declaration the contract
-	// cannot yet make, so it renders nothing here.
-	if strings.Contains(body, `data-home-block="lifecycle"`) {
-		t.Error("the waiting block rendered with no human-owner declaration to derive it from")
+	// The lifecycle block states the distribution: every status these notes
+	// actually carry, with its live count, and nothing about who owns what.
+	lifecycleBlock := homeSection(t, body, `data-home-block="lifecycle"`)
+	for status, want := range map[string]int{"draft": 9, "ready": 1} {
+		row := homeLifecycleRow(t, lifecycleBlock, status)
+		if marker := `>` + strconv.Itoa(want) + `<`; !strings.Contains(row, marker) {
+			t.Errorf("the %q row does not state %d; row = %q", status, want, row)
+		}
+	}
+	if got := chipCounts(t, lifecycleBlock); len(got) != 2 {
+		t.Errorf("the block lists %d statuses and the notes carry 2; counts = %v", len(got), got)
 	}
 	paths := homeSection(t, body, `data-home-block="study-paths"`)
 	// The block says how big a course is, not how much of it is done. The
@@ -1706,8 +1713,8 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if !strings.Contains(body, "data-home-readme") {
 		t.Error("Home is missing the link to the folder's introduction")
 	}
-	if got := homeSubtitle(t, body); got != "查看最近變更與接下來的學習路徑。" {
-		t.Errorf("subtitle = %q, want the sentence naming exactly the two blocks below it", got)
+	if got := homeSubtitle(t, body); got != "查看最近變更、狀態分布，以及接下來的學習路徑。" {
+		t.Errorf("subtitle = %q, want the sentence naming exactly the three blocks below it", got)
 	}
 }
 
@@ -2184,17 +2191,15 @@ func homeSection(t *testing.T, body, marker string) string {
 	return body[openAt : markerAt+closeAt+len("</section>")]
 }
 
-// waitingContract loads a contract whose lifecycle covers every answer the
-// waiting derivation can give. header carries the top-level human_owners
-// line, or nothing to leave the declaration out. Under it: a doc at inbox
-// has an onward step owned only by agents, a doc at draft has one owned by
-// the declared human, a doc at ready has published as its only onward step,
-// and a guide moves through a status group the default vocabulary never
-// mentions.
-func waitingContract(t *testing.T, header string) *schema.Contract {
+// distributionContract loads a contract whose lifecycle covers the shapes the
+// distribution block must be indifferent to: the owner names differ from row
+// to row, ready moves only to published, and a guide moves through a status
+// group the default vocabulary never mentions. The owner lists are inert
+// vault-side data; nothing below reads them.
+func distributionContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	text := `schema_version = "1"
-` + header + `
+
 [enums]
 type = ["doc", "guide"]
 
@@ -2264,16 +2269,15 @@ owner = ["reviewer"]
 	return contract
 }
 
-// TestHomeWaitingDerivesFromDeclaredHumanOwners pins the waiting block to
-// its one source: the contract's human_owners declaration intersected with
-// each status's onward owners. No declaration, no block at all; a status
-// whose onward step no declared human owns is not a row; an onward step to
-// published never counts; and a status another group declares still gets
-// its row when a human owns its onward step.
-func TestHomeWaitingDerivesFromDeclaredHumanOwners(t *testing.T) {
+// TestHomeLifecycleCountsStatusDistribution pins the home block to its one
+// source: the snapshot's per-status note counts. Every status at least one
+// note carries gets its chip — whoever the contract says owns the onward
+// step, and terminal values included, because a distribution that hides a
+// bucket disagrees with its own total. A note carrying no status value sits
+// in no bucket, and a vault whose notes carry none renders no block at all.
+func TestHomeLifecycleCountsStatusDistribution(t *testing.T) {
 	t.Parallel()
 
-	const humans = `human_owners = ["reviewer"]` + "\n"
 	type note struct{ path, front string }
 	doc := func(name, status string) note {
 		return note{
@@ -2282,45 +2286,47 @@ func TestHomeWaitingDerivesFromDeclaredHumanOwners(t *testing.T) {
 		}
 	}
 	tests := []struct {
-		name       string
-		header     string
-		notes      []note
-		wantRows   map[string]int
-		absentRows []string
+		name     string
+		notes    []note
+		wantRows map[string]int
 	}{
 		{
-			name:   "no human declaration renders no block",
-			header: "",
-			notes:  []note{doc("D1", "draft")},
-		},
-		{
-			name:   "only a human-owned onward step counts",
-			header: humans,
+			name: "an agent-owned onward step does not hide a status",
 			notes: []note{
 				doc("D1", "inbox"),
 				doc("D2", "draft"), doc("D3", "draft"),
 			},
-			wantRows:   map[string]int{"draft": 2},
-			absentRows: []string{"inbox"},
+			wantRows: map[string]int{"inbox": 1, "draft": 2},
 		},
 		{
-			name:   "an onward step to published does not count",
-			header: humans,
+			name: "terminal statuses show what exists",
 			notes: []note{
-				doc("D1", "draft"),
-				doc("D2", "ready"),
+				doc("D1", "ready"),
+				doc("D2", "published"),
 			},
-			wantRows:   map[string]int{"draft": 1},
-			absentRows: []string{"ready"},
+			wantRows: map[string]int{"ready": 1, "published": 1},
 		},
 		{
-			name:   "a status only another group declares",
-			header: humans,
+			name: "a status only another group declares",
 			notes: []note{
 				doc("D1", "draft"),
 				{path: "System/agent-guides/G1.md", front: "title: G1\ntype: guide\nstatus: proposed"},
 			},
 			wantRows: map[string]int{"draft": 1, "proposed": 1},
+		},
+		{
+			name: "a note without a status is not a bucket",
+			notes: []note{
+				doc("D1", "draft"),
+				{path: "Writing/D2.md", front: "title: D2\ntype: doc"},
+			},
+			wantRows: map[string]int{"draft": 1},
+		},
+		{
+			name: "no status values render no block",
+			notes: []note{
+				{path: "Writing/D1.md", front: "title: D1\ntype: doc"},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -2340,7 +2346,7 @@ func TestHomeWaitingDerivesFromDeclaredHumanOwners(t *testing.T) {
 					t.Fatalf("write %s: %v", n.path, err)
 				}
 			}
-			srv := newServerWithContract(t, root, waitingContract(t, tt.header))
+			srv := newServerWithContract(t, root, distributionContract(t))
 
 			code, body := get(t, srv.URL+"/")
 			if code != http.StatusOK {
@@ -2349,7 +2355,11 @@ func TestHomeWaitingDerivesFromDeclaredHumanOwners(t *testing.T) {
 
 			if len(tt.wantRows) == 0 {
 				if strings.Contains(body, `data-home-block="lifecycle"`) {
-					t.Error("Home rendered a waiting block no human declaration derives")
+					t.Error("Home rendered a distribution block with nothing to count")
+				}
+				// The subtitle must not promise a block that is not below it.
+				if strings.Contains(body, "狀態分布") {
+					t.Error("the subtitle names the distribution block while the page carries none")
 				}
 				return
 			}
@@ -2360,11 +2370,11 @@ func TestHomeWaitingDerivesFromDeclaredHumanOwners(t *testing.T) {
 			}
 			for _, n := range counts {
 				if n == 0 {
-					t.Errorf("the block lists a status nothing is waiting at; counts = %v", counts)
+					t.Errorf("the block lists a status no note carries; counts = %v", counts)
 				}
 			}
 			if len(counts) != len(tt.wantRows) {
-				t.Errorf("the block lists %d statuses and %d are waiting; counts = %v, want %v", len(counts), len(tt.wantRows), counts, tt.wantRows)
+				t.Errorf("the block lists %d statuses and the notes carry %d; counts = %v, want %v", len(counts), len(tt.wantRows), counts, tt.wantRows)
 			}
 			for status, want := range tt.wantRows {
 				row := homeLifecycleRow(t, block, status)
@@ -2372,17 +2382,15 @@ func TestHomeWaitingDerivesFromDeclaredHumanOwners(t *testing.T) {
 					t.Errorf("the %q row does not state %d; row = %q", status, want, row)
 				}
 			}
-			for _, status := range tt.absentRows {
-				if marker := `href="/search?q=` + url.QueryEscape("status:"+status) + `"`; strings.Contains(block, marker) {
-					t.Errorf("the block carries a %q row nothing derives; block = %q", status, block)
-				}
+			if marker := `href="/search?q=` + url.QueryEscape("status:") + `"`; strings.Contains(block, marker) {
+				t.Errorf("the block carries a chip for the absent status value; block = %q", block)
 			}
 		})
 	}
 }
 
 // homeLifecycleRow returns the one chip anchor for statusName inside the
-// waiting block's markup.
+// distribution block's markup.
 func homeLifecycleRow(t *testing.T, section, statusName string) string {
 	t.Helper()
 	marker := `href="/search?q=` + url.QueryEscape("status:"+statusName) + `"`
@@ -3311,12 +3319,10 @@ func TestShowOffersTransitionsWhateverTheOwnerLists(t *testing.T) {
 	}
 }
 
-// TestHomeLifecycleBlockAbsentWithoutHumanOwnerDeclaration pins the bridge to
-// the human-owner derivation: with owner enforcement removed and no way yet to
-// declare which owners are people, nothing is presented as awaiting one, so
-// the home waiting block renders nothing at all — the same silence as an
-// ungoverned folder, not a header over an empty list.
-func TestHomeLifecycleBlockAbsentWithoutHumanOwnerDeclaration(t *testing.T) {
+// TestHomeLifecycleBlockDropsTheQueueHeading pins the block's voice: it
+// counts statuses, so the heading that claimed a queue may not return. A
+// lesson at draft is the plainest fixture — one status, one note, one chip.
+func TestHomeLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -3337,14 +3343,16 @@ func TestHomeLifecycleBlockAbsentWithoutHumanOwnerDeclaration(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	if strings.Contains(body, `data-home-block="lifecycle"`) {
-		t.Error("the waiting block rendered with no human-owner declaration to derive it from")
+	block := homeSection(t, body, `data-home-block="lifecycle"`)
+	if row := homeLifecycleRow(t, block, "draft"); !strings.Contains(row, ">1<") {
+		t.Errorf("the draft row does not state its count; row = %q", row)
 	}
-	if strings.Contains(body, "等你處理") {
-		t.Error("the waiting heading rendered with no human-owner declaration to derive it from")
+	if !strings.Contains(block, "依狀態分組") {
+		t.Error("the block does not carry the distribution heading")
 	}
-	// The subtitle must not promise a block that is not below it.
-	if strings.Contains(body, "待判讀內容") {
-		t.Error("the subtitle names the waiting block while the page carries none")
+	for _, phrase := range []string{"等你處理", "待判讀內容"} {
+		if strings.Contains(body, phrase) {
+			t.Errorf("the page still claims a queue: %q", phrase)
+		}
 	}
 }

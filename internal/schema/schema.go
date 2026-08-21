@@ -67,10 +67,9 @@ var (
 // Contract is the validated, immutable vault authority. Its zero value carries
 // no authority; load one with [Load], [LoadFile], or [LoadReader].
 type Contract struct {
-	version     string
-	definition  Definition
-	stages      []Stage
-	humanOwners []string
+	version    string
+	definition Definition
+	stages     []Stage
 
 	navigationRoles NavigationRoles
 	knowledgeScope  KnowledgeScope
@@ -101,7 +100,6 @@ type contractFile struct {
 
 	AlignedWith          string               `toml:"aligned_with"`
 	GeneratedAtMustMatch bool                 `toml:"generated_at_must_match"`
-	HumanOwners          []string             `toml:"human_owners"`
 	Navigation           toml.Primitive       `toml:"navigation"`
 	Artifacts            toml.Primitive       `toml:"artifacts"`
 	Privacy              toml.Primitive       `toml:"privacy"`
@@ -289,9 +287,8 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		return nil, err
 	}
 	contract := &Contract{
-		version:     decoded.Version,
-		definition:  decoded.Definition,
-		humanOwners: decoded.HumanOwners,
+		version:    decoded.Version,
+		definition: decoded.Definition,
 		written: writtenKeys{
 			noFrontmatterIsLegal: tomlMeta.IsDefined("scan", "no_frontmatter_is_legal"),
 			requiredInbox:        tomlMeta.IsDefined("fields", "required_inbox"),
@@ -551,9 +548,6 @@ func validateContractSemantics(contract *Contract) error {
 		return err
 	}
 	if err := validateScan(contract.definition.Scan); err != nil {
-		return err
-	}
-	if err := validateUniqueStrings("human_owners", contract.humanOwners); err != nil {
 		return err
 	}
 	if err := compileLifecycle(contract); err != nil {
@@ -1301,50 +1295,4 @@ func (c *Contract) Transition(noteType, from, to string) error {
 		return fmt.Errorf("%w: %s → %s for type %q", ErrIllegalTransition, from, to, noteType)
 	}
 	return nil
-}
-
-// advancesFrom reports whether one stage is somewhere a note at status can
-// move next, under the same predecessor rule a real transition is checked
-// against — a wildcard predecessor list admits every status, which an exact
-// comparison used to miss, so a note the page offered two buttons for was
-// counted as having nowhere to go.
-//
-// Two edges are not somewhere to go. A stage cannot follow itself. And the one
-// stage every type can reach from every status is retirement, which is
-// identifiable from the contract alone as the entry whose applicability and
-// predecessors are both unrestricted: counting it would make every note in the
-// vault advanceable and the figure would stop distinguishing anything.
-func advancesFrom(st *Stage, status string) bool {
-	if st.Status == status {
-		return false
-	}
-	if slices.Contains(st.AppliesTo, "*") && slices.Contains(st.From, "*") {
-		return false
-	}
-	return slices.Contains(st.From, status) || slices.Contains(st.From, "*")
-}
-
-// AwaitsHuman reports whether a note of the given type at the given status
-// is waiting on a person: at least one onward stage names an owner the
-// contract's top-level human_owners list also names. Owner lists gate
-// nothing; this intersection is the one thing that reads them. The published
-// stage is never counted — no interactive control may set it, so nothing
-// about it waits on a person here. Without a human_owners declaration the
-// answer is always false.
-func (c *Contract) AwaitsHuman(noteType, status string) bool {
-	if len(c.humanOwners) == 0 {
-		return false
-	}
-	for i := range c.lifecycleByType[noteType] {
-		st := &c.lifecycleByType[noteType][i]
-		if st.Status == PublishedStatus || !advancesFrom(st, status) {
-			continue
-		}
-		for _, owner := range st.Owner {
-			if slices.Contains(c.humanOwners, owner) {
-				return true
-			}
-		}
-	}
-	return false
 }

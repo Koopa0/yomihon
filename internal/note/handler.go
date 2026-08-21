@@ -628,11 +628,12 @@ func (h *Handler) loadConcepts(
 	return docs
 }
 
-// lifecycle assembles Home's Lifecycle block: the note group's statuses in the
-// contract's toml order, each with its live snapshot count and whether it is
-// current. A closed result means the block was withheld — the vault declared a
-// vocabulary yomihon could not read — never that the vault has no statuses.
-// A vault that declares none legitimately yields an open, empty block.
+// lifecycle assembles Home's Lifecycle block: the vault's status
+// distribution, one entry per status at least one note currently carries, in
+// the contract's toml order. A closed result means the block was withheld —
+// the vault declared a vocabulary yomihon could not read — never that the
+// vault has no statuses. A vault whose notes carry none yields an open,
+// empty block.
 func (h *Handler) lifecycle(
 	statusView status.View,
 	snap *snapshot.View,
@@ -648,31 +649,33 @@ func (h *Handler) lifecycle(
 	if err != nil {
 		return nil, true
 	}
-	// One entry per status that has notes the operator can actually move on
-	// from. The vocabulary is not the subject: a status nothing sits at, and a
-	// status whose only onward edge is retirement, say nothing about what is
-	// waiting.
-	waiting := make(map[string]int, len(counts))
+	// The block states what the notes carry and claims nothing more: owner
+	// lists play no part, and a terminal status with notes at it is as much a
+	// fact of the vault as any other — a distribution that hid a bucket would
+	// disagree with its own total. A note carrying no status value sits in no
+	// bucket and is not a row.
+	byStatus := make(map[string]int, len(counts))
 	for ts, n := range counts {
-		if statusView.AwaitsHuman(ts.Type, ts.Status) {
-			waiting[ts.Status] += n
+		if ts.Status == "" {
+			continue
 		}
+		byStatus[ts.Status] += n
 	}
-	items = make([]pages.LifecycleItem, 0, len(waiting))
+	items = make([]pages.LifecycleItem, 0, len(byStatus))
 	add := func(s string) {
 		items = append(items, pages.LifecycleItem{
 			Name:   s,
-			Count:  waiting[s],
+			Count:  byStatus[s],
 			Active: s == current,
 			Sealed: s == schema.SealStatus,
 		})
 	}
 	for _, s := range statusView.Order() {
-		if waiting[s] == 0 {
+		if byStatus[s] == 0 {
 			continue
 		}
 		add(s)
-		delete(waiting, s)
+		delete(byStatus, s)
 	}
 	// Whatever is still here sits at a value the default vocabulary does not
 	// list: the contract routes that kind of note to another group of statuses,
@@ -680,7 +683,7 @@ func (h *Handler) lifecycle(
 	// counted those notes, so leaving them out is exactly how a number stops
 	// agreeing with its own breakdown. Nothing declares an order across groups,
 	// so they follow in a stable one.
-	for _, s := range slices.Sorted(maps.Keys(waiting)) {
+	for _, s := range slices.Sorted(maps.Keys(byStatus)) {
 		add(s)
 	}
 	return items, false
@@ -708,7 +711,7 @@ func (c homeContent) subtitle() string {
 		parts = append(parts, "最近變更")
 	}
 	if c.lifecycle {
-		parts = append(parts, "待判讀內容")
+		parts = append(parts, "狀態分布")
 	}
 	if c.paths {
 		parts = append(parts, "接下來的學習路徑")

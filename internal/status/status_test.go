@@ -576,9 +576,6 @@ func TestArtifactPolicyClosureIsDistinct(t *testing.T) {
 			if got := lifecycle.View().Order(); got != nil {
 				t.Errorf("Order() = %v while artifact policy closes instance projections, want nil", got)
 			}
-			if lifecycle.View().AwaitsHuman("lesson", "draft") {
-				t.Error("AwaitsHuman() = true while artifact policy closes writes")
-			}
 			err := lifecycle.Flip(testRel, "draft", schema.SealStatus)
 			if !errors.Is(err, status.ErrArtifactPolicyUnavailable) {
 				t.Errorf("Flip() = %v, want %v", err, status.ErrArtifactPolicyUnavailable)
@@ -903,22 +900,6 @@ func TestKnownStatus(t *testing.T) {
 				t.Errorf("KnownStatus(%q, %q) = %v, want %v", tt.noteType, tt.status, got, tt.want)
 			}
 		})
-	}
-}
-
-// TestAwaitsHuman locks the closed and undeclared ends of the human-owner
-// derivation: a closed view reports nothing as waiting, and so does a
-// contract that declares no human owners — owner lists alone are declarative
-// data with no enforcement. Wiring this back to raw from-lists would count
-// every note as waiting and must show up here.
-func TestAwaitsHuman(t *testing.T) {
-	t.Parallel()
-
-	if newLifecycle(t, t.TempDir(), nil).View().AwaitsHuman("lesson", "draft") {
-		t.Error("AwaitsHuman on a closed write face = true, want false")
-	}
-	if newLifecycle(t, t.TempDir(), loadContract(t)).View().AwaitsHuman("lesson", "draft") {
-		t.Error("AwaitsHuman with no human-owner declaration = true, want false")
 	}
 }
 

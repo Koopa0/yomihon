@@ -346,14 +346,6 @@ func (v View) Order() []string {
 	return order
 }
 
-// AwaitsHuman reports whether a note of the given type and status is waiting
-// on a person, per the contract's declared human owners. A closed view waits
-// on nothing, and a contract that declares no human owners reports nothing
-// as waiting — the home panel then renders no waiting block at all.
-func (v View) AwaitsHuman(noteType, current string) bool {
-	return v.available() && v.contract.AwaitsHuman(noteType, current)
-}
-
 // VaultRoot reports the absolute path of the vault this lifecycle writes
 // into: the resolved directory its capability was pinned to at Open. It is
 // empty on a nil lifecycle and after Close.

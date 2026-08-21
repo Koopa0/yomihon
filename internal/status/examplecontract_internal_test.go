@@ -19,20 +19,15 @@ var exampleContractPath = filepath.Join("..", "..", "examples", "vault-schema.to
 // Both promises are load-bearing because the file is copied, not imported. A
 // starting point that no longer parses hands a new operator a vault that
 // cannot be judged. Every status also has a lifecycle row and a non-empty
-// owner list: the lists are declarative data — they gate nothing — but they
-// are the vocabulary a waiting derivation intersects, and a starting point
-// whose rows name nobody teaches the shape wrong on the first read.
+// owner list: the lists are vault-side doctrine data yomihon parses and
+// tolerates without reading, and a starting point whose rows name nobody
+// teaches the shape wrong on the first read.
 //
 // Declaring a status is not the same as being able to reach it. A ready row
 // whose predecessor list is emptied still decodes and still resolves, while
 // every certification a new operator attempts is refused; a lifecycle bent
 // into a cycle with no entry point passes those same checks and lets no note
 // be created at all. Walking the journey pins the topology the rows cannot.
-//
-// The example also has to declare its human owners so the home waiting
-// panel it teaches actually renders: at least one status must be waiting on
-// a person under that declaration, and at least one must not be, or the
-// derivation it demonstrates distinguishes nothing.
 func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 	t.Parallel()
 
@@ -95,15 +90,6 @@ func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 				t.Errorf("the example declares status %q for type %q but the walk never reaches it: extend the walk or drop the status",
 					status, noteType)
 			}
-		}
-	}
-
-	for _, noteType := range noteTypes {
-		if !contract.AwaitsHuman(noteType, "draft") {
-			t.Errorf("AwaitsHuman(%q, %q) = false, want a declared human owning the onward step; the example's waiting panel would show nothing", noteType, "draft")
-		}
-		if contract.AwaitsHuman(noteType, "archived") {
-			t.Errorf("AwaitsHuman(%q, %q) = true, want false: nothing moves on from retirement, so a row here would invent a queue", noteType, "archived")
 		}
 	}
 }

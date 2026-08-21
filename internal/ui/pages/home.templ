@@ -163,7 +163,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if v.Governed && !v.LifecycleClosed && len(v.Lifecycle) > 0 {
 							<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
-								@homeBlockHead("home-lifecycle-title", "等你處理", "依狀態分組")
+								@homeBlockHead("home-lifecycle-title", "依狀態分組", "書庫中每個狀態的筆記數")
 								<div class="y-homechips">
 									for _, it := range v.Lifecycle {
 										<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
