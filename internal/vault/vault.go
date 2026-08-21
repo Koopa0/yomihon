@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -42,8 +43,19 @@ func Parse(rel string, data []byte) *Note {
 	if !found {
 		return n
 	}
+	content := block.Content
+	// The yaml parser numbers lines from the first byte it is handed.
+	// Prefixing the newlines that precede the block in the file makes it
+	// count in the file's geometry rather than the block's, so the line
+	// numbers in the diagnostic are the file's own — where the parser
+	// places a fault exactly, that is the line an editor shows. Leading
+	// blank lines carry no YAML meaning, so a block that decodes cleanly
+	// decodes identically.
+	if newlines := bytes.Count(data[:block.ContentStart], []byte("\n")); newlines > 0 {
+		content = slices.Concat(bytes.Repeat([]byte("\n"), newlines), block.Content)
+	}
 	var fields map[string]any
-	if err := yaml.Unmarshal(block.Content, &fields); err != nil {
+	if err := yaml.Unmarshal(content, &fields); err != nil {
 		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
 		return n
 	}

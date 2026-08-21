@@ -229,6 +229,51 @@ func TestTitleStripsOnlyTheFinalExtension(t *testing.T) {
 	}
 }
 
+// TestYAMLDiagnosticNamesFileLinesNotBlockLines holds the frontmatter
+// diagnostic to the discipline the body side already obeys: line numbers in
+// a fault message count over the file, not the block. The yaml parser
+// numbers lines from the first byte it is handed, so the block arrives
+// prefixed with the newlines that precede it in the file and the parser
+// counts in the file's own geometry — where it places a mark exactly, as it
+// does for a decoding fault, the number is the very line an editor shows.
+func TestYAMLDiagnosticNamesFileLinesNotBlockLines(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			// The duplicate sits on file line 4, first defined on file line 3.
+			name:    "duplicate key cites both file lines",
+			content: "---\ntitle: ok\ndup: 1\ndup: 2\n---\nbody\n",
+			want:    `line 4: mapping key "dup" already defined at line 3`,
+		},
+		{
+			// The stray mapping value sits on file line 3.
+			name:    "parser fault cites its file line",
+			content: "---\na: b\n c: d\n---\nbody\n",
+			want:    "line 3: mapping values are not allowed in this context",
+		},
+		{
+			// A byte-order mark and carriage returns do not shift the count.
+			name:    "mark and carriage returns leave the count alone",
+			content: "\xef\xbb\xbf---\r\ntitle: ok\r\ndup: 1\r\ndup: 2\r\n---\r\nbody\r\n",
+			want:    `line 4: mapping key "dup" already defined at line 3`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse("note.md", []byte(tt.content))
+			if !strings.Contains(n.FMDiagnostic, tt.want) {
+				t.Errorf("Parse() diagnostic = %q, missing %q", n.FMDiagnostic, tt.want)
+			}
+		})
+	}
+}
+
 // TestSplitFrontmatterStepsOverAByteOrderMark asserts a note whose first bytes
 // are a byte-order mark is read as the note it is, and that stepping over the
 // mark does not move the offsets the status writer splices against.
