@@ -337,11 +337,11 @@ func (v View) Order() []string {
 	return order
 }
 
-// Advanceable reports whether a note of the given type and status is waiting
+// AwaitsHuman reports whether a note of the given type and status is waiting
 // on a person, per the contract's declared human owners. A closed view waits
 // on nothing, and a contract that declares no human owners reports nothing
 // as waiting — the home panel then renders no waiting block at all.
-func (v View) Advanceable(noteType, current string) bool {
+func (v View) AwaitsHuman(noteType, current string) bool {
 	return v.available() && v.contract.AwaitsHuman(noteType, current)
 }
 

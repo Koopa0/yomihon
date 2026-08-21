@@ -1403,7 +1403,7 @@ func TestSealStatusPinned(t *testing.T) {
 // real vault. That union is also the guard's whole reach: an operator's own
 // contract may declare a value neither file lists, and such a value would pass
 // unguarded — which is why the fixture carries every status word the product
-// itself names, the koopa-only publication value included.
+// itself names, the reserved publication value included.
 // The set is the bare status words, so an unrelated literal equal
 // to one — a log line, a class name — would also trip this guard; that
 // trade-off is accepted, since restricting the match to literals compared

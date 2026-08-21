@@ -139,8 +139,13 @@ templ-fmt-check:
 templ-gen-check:
 	go tool templ generate -check -path internal/ui
 
+# The second pass compiles the yomihon_nodurable configuration, which also
+# selects the platform-boundary test files hiding behind it on the supported
+# platforms. Without it a break inside those files is invisible to every
+# local gate: plain vet skips them and the cross-builds compile no tests.
 vet: sqlc-check
 	@$(call owned-go-list); go vet $$list
+	@$(call owned-go-list); go vet -tags yomihon_nodurable $$list
 
 staticcheck:
 	@$(call require-go-tool,staticcheck,honnef.co/go/tools,$(STATICCHECK_VERSION))

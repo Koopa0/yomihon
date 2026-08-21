@@ -36,7 +36,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 		t.Errorf("View().Transitions() = %v, want none on a platform without a durable install", got)
 	}
 
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(testRel, "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrDurabilityUnsupported) {
 		t.Fatalf("Flip() = %v, want %v before opening the target", err, status.ErrDurabilityUnsupported)
 	}

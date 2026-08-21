@@ -653,7 +653,7 @@ func (h *Handler) lifecycle(
 	// waiting.
 	waiting := make(map[string]int, len(counts))
 	for ts, n := range counts {
-		if statusView.Advanceable(ts.Type, ts.Status) {
+		if statusView.AwaitsHuman(ts.Type, ts.Status) {
 			waiting[ts.Status] += n
 		}
 	}

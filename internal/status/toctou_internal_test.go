@@ -232,8 +232,8 @@ func TestLifecycleProjectionsCloseWhenContractChanges(t *testing.T) {
 	if got := lifecycle.View().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
 		t.Errorf("Transitions() after contract source change = %v, want nil", got)
 	}
-	if lifecycle.View().Advanceable("lesson", "draft") {
-		t.Error("Advanceable() after contract source change = true, want false")
+	if lifecycle.View().AwaitsHuman("lesson", "draft") {
+		t.Error("AwaitsHuman() after contract source change = true, want false")
 	}
 }
 
