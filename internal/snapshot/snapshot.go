@@ -964,10 +964,10 @@ func indexDocuments(
 }
 
 // readableAsText reports whether a vault file that is not a note is a candidate
-// for the text index: not shown as a picture, and small enough that its own page
-// shows its characters rather than an information card. The predicate is the
-// page's, so one rule holds across both faces — if yomihon shows it to you as
-// text, you can find it.
+// for the text index: not shown as a picture, not handed to the PDF viewer, and
+// small enough that its own page shows its characters rather than an
+// information card. The predicates are the page's, so one rule holds across
+// both faces — if yomihon shows it to you as text, you can find it.
 func readableAsText(entry vault.Entry) bool {
 	relPath := entry.Path()
 	return !render.IsPicture(relPath) &&
