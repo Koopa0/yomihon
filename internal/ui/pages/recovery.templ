@@ -12,7 +12,12 @@ type StatusRecoveryView struct {
 	NextAction      string
 	TechnicalDetail string
 	NotePath        string
-	Sidebar         Sidebar
+	// ObsidianHref is the obsidian://open URI for the note, already built
+	// and escaped by ObsidianHref. Empty renders no editor link. The repair
+	// a recovery page asks for is always a hand edit, so the page offers
+	// the way to where editing happens.
+	ObsidianHref string
+	Sidebar      Sidebar
 }
 
 // Title is the page's one title, used for both the document title and the
@@ -59,6 +64,12 @@ templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
 					<nav class="y-recovery__actions" aria-label="復原操作">
 						if v.NotePath != "" {
 							<a class="y-recovery__action" href={ templ.URL(notesHref(v.NotePath)) }>返回筆記</a>
+						}
+						if v.ObsidianHref != "" {
+							// Server-built and escaped from the vault root and a
+							// normalized relative path, so it bypasses the URL
+							// sanitizer that would reject its custom scheme.
+							<a class="y-recovery__action" href={ templ.SafeURL(v.ObsidianHref) }>在 Obsidian 開啟</a>
 						}
 						<a class="y-recovery__action y-recovery__action--quiet" href="/">返回首頁</a>
 					</nav>

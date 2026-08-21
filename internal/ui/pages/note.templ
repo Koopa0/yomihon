@@ -50,12 +50,15 @@ func articleLanguage(tag string) string {
 // status panel and the fixed-bottom status bar, the reading page's two status
 // faces.
 type NoteView struct {
-	Title      string
-	RelPath    string
-	Language   string
-	Type       string
-	Status     string
-	Diagnostic string
+	Title    string
+	RelPath  string
+	Language string
+	Type     string
+	Status   string
+	// ObsidianHref is the obsidian://open URI for this note, already built
+	// and escaped by ObsidianHref. Empty renders no editor link.
+	ObsidianHref string
+	Diagnostic   string
 	// Unsearchable is set for a note too large to hold in the index. It renders
 	// like any other; a reader who later searches for a phrase in it would be
 	// told there are no results, which would be untrue of the folder.
@@ -235,6 +238,14 @@ templ articleHead(v NoteView) {
 				// "what does the file actually say" was the one with no way to
 				// look. The endpoint was there; only the door was missing.
 				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>原始檔</a>
+			}
+			if v.ObsidianHref != "" {
+				// Every repair yomihon reports is a hand edit, so the page
+				// offers the one-click way to where editing happens. The href
+				// is already built and escaped server-side from the vault root
+				// and a route-validated relative path, so it bypasses the URL
+				// sanitizer that would reject its custom scheme.
+				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>在 Obsidian 開啟</a>
 			}
 		</div>
 	}

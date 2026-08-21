@@ -268,9 +268,17 @@ try {
     tag: child.tagName,
     href: child.getAttribute('href'),
   })));
-  const wantActions = [{ tag: 'A', href: PAGE }, { tag: 'A', href: '/' }];
-  if (JSON.stringify(recoveryActions) !== JSON.stringify(wantActions)) {
-    fail('safe-get-navigation', `recovery actions are ${JSON.stringify(recoveryActions)}, want ${JSON.stringify(wantActions)}`);
+  // The middle action opens the note in Obsidian; its href carries the
+  // serving machine's absolute vault path, so only its shape is pinned here.
+  if (
+    recoveryActions.length !== 3
+    || recoveryActions[0].tag !== 'A' || recoveryActions[0].href !== PAGE
+    || recoveryActions[1].tag !== 'A'
+    || !recoveryActions[1].href.startsWith('obsidian://open?path=')
+    || !recoveryActions[1].href.endsWith('/Writing/lessons/japanese/L01.md')
+    || recoveryActions[2].tag !== 'A' || recoveryActions[2].href !== '/'
+  ) {
+    fail('safe-get-navigation', `recovery actions are ${JSON.stringify(recoveryActions)}, want the note link, an obsidian://open link, and home`);
   }
 
   const retryControls = await page.locator('form[method="post"], form[action="/status"], button[formaction="/status"]').count();

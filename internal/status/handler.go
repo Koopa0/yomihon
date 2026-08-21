@@ -278,6 +278,7 @@ func (h *Handler) respondRecovery(
 		NextAction:      failure.nextAction,
 		TechnicalDetail: failure.technicalDetail,
 		NotePath:        notePath,
+		ObsidianHref:    pages.ObsidianHref(h.lifecycle.VaultRoot(), notePath),
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
 	component := pages.StatusRecovery(view, shell.Chrome(r, view.Title()))

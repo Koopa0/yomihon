@@ -354,6 +354,21 @@ func (v View) AwaitsHuman(noteType, current string) bool {
 	return v.available() && v.contract.AwaitsHuman(noteType, current)
 }
 
+// VaultRoot reports the absolute path of the vault this lifecycle writes
+// into: the resolved directory its capability was pinned to at Open. It is
+// empty on a nil lifecycle and after Close.
+func (lc *Lifecycle) VaultRoot() string {
+	if lc == nil {
+		return ""
+	}
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	if lc.root == nil {
+		return ""
+	}
+	return lc.root.Name()
+}
+
 // ObservedStatus reports the status the note carries on disk right now.
 //
 // The reading page takes everything else from a scan that is up to a couple of

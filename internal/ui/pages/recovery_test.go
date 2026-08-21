@@ -94,3 +94,37 @@ func renderRecovery(t *testing.T, view *StatusRecoveryView) string {
 	}
 	return buf.String()
 }
+
+// TestStatusRecoveryObsidianAction locks the recovery page's editor link to
+// the views that know which note they are about: a view carrying the href
+// renders it among the GET actions, and a view without one — a refusal that
+// never resolved a note — offers no such door.
+func TestStatusRecoveryObsidianAction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		href string
+		want bool
+	}{
+		{name: "resolved note offers the editor", href: "obsidian://open?path=/vault/Notes/n.md", want: true},
+		{name: "unresolved refusal offers none", href: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := StatusRecoveryView{Summary: "s", NextAction: "n", ObsidianHref: tt.href}
+			var buf bytes.Buffer
+			if err := StatusRecovery(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := buf.String()
+			if got := strings.Contains(html, "在 Obsidian 開啟"); got != tt.want {
+				t.Errorf("Obsidian action rendered = %v, want %v", got, tt.want)
+			}
+			if tt.want && !strings.Contains(html, `href="obsidian://open?path=/vault/Notes/n.md"`) {
+				t.Errorf("recovery page does not carry the built href; html = %q", html)
+			}
+		})
+	}
+}

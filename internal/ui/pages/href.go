@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
@@ -75,6 +76,26 @@ func rawHref(p string) string {
 		segments[i] = url.PathEscape(s)
 	}
 	return "/raw/" + strings.Join(segments, "/")
+}
+
+// ObsidianHref builds the obsidian://open URI for the note at rel inside the
+// vault rooted at root. The absolute path rides as the URI's single query
+// parameter with every segment percent-escaped on its own and "&" escaped
+// besides, so a name carrying "?", "#", "%", or "&" cannot cut the parameter
+// short or start a second one. Spaces become %20, never "+": Obsidian reads
+// a literal "+" as itself. Containment needs no second check here — every
+// caller passes a rel the serving route has already bounded to the vault,
+// and root is the reader's own resolved vault path. Either argument empty
+// yields "", and the caller then renders no link.
+func ObsidianHref(root, rel string) string {
+	if root == "" || rel == "" {
+		return ""
+	}
+	segments := strings.Split(filepath.ToSlash(root)+"/"+rel, "/")
+	for i, s := range segments {
+		segments[i] = strings.ReplaceAll(url.PathEscape(s), "&", "%26")
+	}
+	return "obsidian://open?path=" + strings.Join(segments, "/")
 }
 
 // syllabusHref builds the study-path page URL for a vault-relative path,

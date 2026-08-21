@@ -3231,6 +3231,38 @@ func TestShowFlagsAStatusOutsideTheSchema(t *testing.T) {
 	}
 }
 
+// TestShowOffersAnObsidianDoor locks the reading page's hand-off to the
+// editor: the metarow beside the note's path carries an obsidian://open link
+// whose query names the note's absolute path, segment-escaped. Every repair
+// yomihon reports is a hand edit, so the page offers the one-click way to
+// where editing happens.
+func TestShowOffersAnObsidianDoor(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if !strings.Contains(page, "在 Obsidian 開啟") {
+		t.Error("page offers no Obsidian link")
+	}
+	if !strings.Contains(page, `href="obsidian://open?path=`) {
+		t.Error("page carries no obsidian://open href")
+	}
+	if !strings.Contains(page, "Writing/lessons/japanese/L01.md") {
+		t.Error("the Obsidian href does not name the note")
+	}
+}
+
 // TestShowOffersTransitionsWhateverTheOwnerLists locks the reading page to
 // the same demotion: the buttons come from the from-lists alone, so a
 // contract whose onward stages name only another owner still renders each of

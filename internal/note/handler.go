@@ -444,6 +444,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Language:          n.Language,
 		Type:              n.Type,
 		Status:            noteStatus,
+		ObsidianHref:      pages.ObsidianHref(h.deps.Source.Name(), n.RelPath),
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,

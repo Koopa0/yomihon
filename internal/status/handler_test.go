@@ -268,6 +268,14 @@ func TestHandlerStale(t *testing.T) {
 	if !strings.Contains(body, "頁面已過期") || !strings.Contains(body, "重新載入") {
 		t.Errorf("body = %q, want the Traditional Chinese stale-page recovery", body)
 	}
+	// The repair a recovery page asks for is a hand edit, so a refusal that
+	// knows which note it was about links straight to it in Obsidian.
+	if !strings.Contains(body, "在 Obsidian 開啟") || !strings.Contains(body, `href="obsidian://open?path=`) {
+		t.Errorf("body = %q, want an Obsidian editor link on the recovery page", body)
+	}
+	if !strings.Contains(body, testRel) {
+		t.Errorf("body = %q, want the Obsidian href to name %q", body, testRel)
+	}
 }
 
 func TestHandlerTargetRemovedAfterPageLoad(t *testing.T) {
