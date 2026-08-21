@@ -31,9 +31,12 @@ fail() {
 # One named site per dashboard block, plus one content marker that only the
 # fixture vault's rendered README can supply. The live verdict and its self-test
 # share this table, so neither can silently stop checking one block.
+# The waiting block is absent by design for now: it derives from a
+# human-owner declaration the contract cannot make yet, so this fixture has
+# nothing waiting. When the declaration lands, the fixture declares its human
+# owners and the lifecycle marker returns to this table.
 home_markers=(
   'recent|data-home-block="recent"'
-  'lifecycle|data-home-block="lifecycle"'
   'study-paths|data-home-block="study-paths"'
   'search|data-home-block="search"'
   'vault-readme|data-home-readme'
@@ -46,7 +49,7 @@ home_markers=(
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(recent lifecycle study-paths search vault-readme sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal kbd-shortcut-pref)
+required_home_sites=(recent study-paths search vault-readme sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal kbd-shortcut-pref)
 
 check_home_marker_table() {
   local actual required

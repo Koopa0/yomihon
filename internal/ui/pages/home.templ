@@ -161,20 +161,18 @@ templ Home(v HomeView, c layouts.Chrome) {
 								</div>
 							</section>
 						}
-						if v.Governed && !v.LifecycleClosed {
+						if v.Governed && !v.LifecycleClosed && len(v.Lifecycle) > 0 {
 							<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
 								@homeBlockHead("home-lifecycle-title", "等你處理", "依狀態分組")
-								if len(v.Lifecycle) > 0 {
-									<div class="y-homechips">
-										for _, it := range v.Lifecycle {
-											<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
-												<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
-												<span>{ statusChipLabel(it.Name) }</span>
-												<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " 篇筆記" }>{ strconv.Itoa(it.Count) }</span>
-											</a>
-										}
-									</div>
-								}
+								<div class="y-homechips">
+									for _, it := range v.Lifecycle {
+										<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
+											<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
+											<span>{ statusChipLabel(it.Name) }</span>
+											<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " 篇筆記" }>{ strconv.Itoa(it.Count) }</span>
+										</a>
+									}
+								</div>
 							</section>
 						}
 						if !v.PathsClosed && len(v.Paths) > 0 {

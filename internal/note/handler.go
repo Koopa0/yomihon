@@ -318,7 +318,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	content := homeContent{
 		recent:    !recentClosed && len(recent) > 0,
-		lifecycle: pageShell.Governed && !lifecycleClosed,
+		lifecycle: pageShell.Governed && !lifecycleClosed && len(lifecycle) > 0,
 		paths:     !pathsClosed && len(paths) > 0,
 		withheld:  recentClosed || lifecycleClosed || pathsClosed,
 	}
@@ -465,7 +465,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		WriteDiagnostic:   governance.writeDiagnostic,
 		Concepts:          concepts,
 		Transitions:       governance.transitions,
-		WithheldByOwner:   governance.withheldByOwner,
 		NoFrontmatter:     governance.noFrontmatter,
 	}
 
@@ -515,10 +514,6 @@ type governanceState struct {
 	instance        bool
 	nonInstance     bool
 	noFrontmatter   bool
-	// withheldByOwner distinguishes an empty transition list whose onward
-	// steps the contract defines for other owners from one where the schema
-	// defines nothing onward; the page words the two differently.
-	withheldByOwner bool
 }
 
 func (h *Handler) governance(
@@ -553,9 +548,6 @@ func (h *Handler) governance(
 			state.status, state.writeDiagnostic = h.observedStatus(n.RelPath)
 			if state.writeDiagnostic == "" {
 				state.transitions = statusView.Transitions(n.RelPath, n.Type, state.status)
-				if len(state.transitions) == 0 {
-					state.withheldByOwner = statusView.WithheldByOwner(n.Type, state.status)
-				}
 			}
 		}
 	}

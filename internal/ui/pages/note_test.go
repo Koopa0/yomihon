@@ -147,17 +147,17 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAbsent: []string{"y-shell--rail-empty"},
 		},
 		{
-			// An empty transition list has two producers, and the rail must not
-			// use the schema-defines-nothing sentence for the one where onward
-			// steps exist but belong to another owner.
-			name:     "owner-withheld transitions name the owner boundary",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, WithheldByOwner: true},
+			// The one wording for an empty transition set: the schema defines
+			// nothing onward. Owner lists gate nothing, so there is no second
+			// owner-boundary sentence for the panel to reach for.
+			name:     "empty transition set states the schema fact",
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus},
 			wantAids: false,
 			wantPresent: []string{
 				"y-statuspanel",
-				"接下來的狀態轉換由其他 owner 持有；目前操作者沒有執行權限。",
+				"目前沒有合法的狀態轉換。",
 			},
-			wantAbsent: []string{"目前沒有合法的狀態轉換"},
+			wantAbsent: []string{"接下來的狀態轉換由其他 owner 持有"},
 		},
 		{
 			name:     "broken frontmatter: the diagnostics face owns the page, no seal bar",

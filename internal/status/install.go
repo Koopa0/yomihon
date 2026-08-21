@@ -219,7 +219,7 @@ func installRewritten(
 
 // installByExchange swaps the prepared replacement with the note in one
 // atomic step and then reads what the swap displaced. Recognizing those bytes
-// as the version the flip was computed from is what makes the publication
+// as the version the flip was computed from is what makes the install
 // safe: anything else is an edit that landed inside the window, and it is
 // already preserved under the temporary name rather than overwritten.
 func installByExchange(ops installOps, relSlash, tmpName string, source *fileSnapshot, data []byte) error {

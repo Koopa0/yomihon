@@ -874,69 +874,19 @@ func TestTransitions(t *testing.T) {
 	}
 }
 
-// TestAdvanceable checks that the named-onward-transition predicate is closed
-// under a nil contract and, when open, asks the contract with the operator as
-// the actor — so an onward step someone else owns does not count. The contract
-// is synthetic (states a, b, c) to keep the test about the actor wiring, not any
-// real vault's status words.
+// TestAdvanceable pins the bridge to the human-owner derivation: owner lists
+// are declarative data with no enforcement, and the contract cannot yet say
+// which owners are people, so no status is reported as waiting on one — on a
+// closed view or an open one. Wiring this back to raw from-lists would count
+// every note as waiting and must show up here.
 func TestAdvanceable(t *testing.T) {
 	t.Parallel()
 
-	// a→b is owned by the operator; b→c is owned by someone else, so only a is
-	// advanceable by the operator.
-	const contractText = `schema_version = "1"
-
-[enums]
-type = ["doc"]
-
-[enums.status]
-note = ["a", "b", "c"]
-
-[artifacts]
-non_instance_dirs = []
-
-[[lifecycle]]
-status = "b"
-applies_to = ["doc"]
-from = ["a"]
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "c"
-applies_to = ["doc"]
-from = ["b"]
-owner = ["bot"]
-`
-	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(contractPath, []byte(contractText), 0o600); err != nil {
-		t.Fatalf("WriteFile(%q) = %v", contractPath, err)
-	}
-	contract, err := schema.LoadFile(contractPath)
-	if err != nil {
-		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
-	}
-
-	if newLifecycle(t, t.TempDir(), nil).View().Advanceable("doc", "a") {
+	if newLifecycle(t, t.TempDir(), nil).View().Advanceable("lesson", "draft") {
 		t.Error("Advanceable on a closed write face = true, want false")
 	}
-
-	lifecycle := newLifecycle(t, t.TempDir(), contract)
-	tests := []struct {
-		name   string
-		status string
-		want   bool
-	}{
-		{"operator owns the onward step", "a", true},
-		{"onward step owned by someone else", "b", false},
-		{"no onward step defined", "c", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := lifecycle.View().Advanceable("doc", tt.status); got != tt.want {
-				t.Errorf("Advanceable(%q, %q) = %v, want %v", "doc", tt.status, got, tt.want)
-			}
-		})
+	if newLifecycle(t, t.TempDir(), loadContract(t)).View().Advanceable("lesson", "draft") {
+		t.Error("Advanceable with no human-owner declaration = true, want false")
 	}
 }
 
@@ -1279,5 +1229,50 @@ func TestFlipLeavesAnExistingRepositoryUntouched(t *testing.T) {
 	staged := strings.TrimSpace(runGit(t, root, "diff", "--cached", "--name-only"))
 	if staged != "" {
 		t.Errorf("staged paths = %q, want nothing staged", staged)
+	}
+}
+
+// TestTransitionsIgnoreOwnerLists locks the demotion of lifecycle owner lists
+// to declarative data: a transition whose from-list admits the current status
+// is offered whoever the owner list names, including a stage no human owns.
+func TestTransitionsIgnoreOwnerLists(t *testing.T) {
+	t.Parallel()
+
+	const contractText = `schema_version = "1"
+
+[enums]
+type = ["doc"]
+
+[enums.status]
+note = ["a", "b"]
+
+[artifacts]
+non_instance_dirs = []
+
+[[lifecycle]]
+status = "a"
+applies_to = ["doc"]
+from = []
+owner = ["agent"]
+
+[[lifecycle]]
+status = "b"
+applies_to = ["doc"]
+from = ["a"]
+owner = ["agent"]
+`
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err := os.WriteFile(contractPath, []byte(contractText), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) = %v", contractPath, err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
+	}
+	lifecycle := newLifecycle(t, t.TempDir(), contract)
+
+	got := lifecycle.View().Transitions("Writing/doc.md", "doc", "a")
+	if diff := cmp.Diff([]string{"b"}, got); diff != "" {
+		t.Errorf("Transitions() mismatch (-want +got):\n%s", diff)
 	}
 }

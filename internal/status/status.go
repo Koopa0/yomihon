@@ -116,10 +116,6 @@ func (e *ArtifactPolicyUnavailableError) Unwrap() error {
 	return ErrArtifactPolicyUnavailable
 }
 
-// actor is the single local operator yomihon writes on behalf of. yomihon is
-// a local-only, single-user tool; there is no multi-user concept.
-const actor = "koopa"
-
 // Lifecycle is the write face: it flips one note's frontmatter status field.
 // Constructed once per process with the loaded vault contract (or nil,
 // meaning fail-closed).
@@ -298,8 +294,9 @@ func (v View) WriteDiagnostic() string {
 	return ""
 }
 
-// Transitions returns the operator-owned target statuses from current in
-// contract order. It is pure over the captured view.
+// Transitions returns the from-list-legal target statuses from current in
+// contract order. Lifecycle owner lists are declarative data and never
+// subtract from the answer. It is pure over the captured view.
 func (v View) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
 	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
@@ -308,35 +305,11 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 	}
 	var legal []string
 	for _, to := range v.contract.Statuses(noteType) {
-		if err := v.contract.Transition(noteType, current, to, actor); err == nil {
+		if err := v.contract.Transition(noteType, current, to); err == nil {
 			legal = append(legal, to)
 		}
 	}
 	return legal
-}
-
-// WithheldByOwner reports whether the contract defines at least one onward
-// transition from current for this note type while granting the operator none
-// of them. It separates two states an empty transition list conflates: a
-// schema that defines nothing onward, and a schema whose onward steps other
-// owners hold — a schema author debugging a missing seal needs to be pointed
-// at the owner list, not at a schema gap that does not exist.
-func (v View) WithheldByOwner(noteType, current string) bool {
-	if !v.available() || noteType == "" || current == "" {
-		return false
-	}
-	withheld := false
-	for _, to := range v.contract.Statuses(noteType) {
-		err := v.contract.Transition(noteType, current, to, actor)
-		switch {
-		case err == nil:
-			// The operator owns an onward step, so nothing is withheld.
-			return false
-		case errors.Is(err, schema.ErrOwnerForbidden):
-			withheld = true
-		}
-	}
-	return withheld
 }
 
 // Order returns the default note group's statuses in declared order. A nil
@@ -353,10 +326,12 @@ func (v View) Order() []string {
 	return order
 }
 
-// Advanceable reports whether the operator owns a named onward transition,
-// excluding wildcard-predecessor escape transitions.
+// Advanceable reports whether a note of the given type and status is waiting
+// on a person. Owner lists carry no enforcement, and the contract cannot yet
+// say which of its owners are people, so nothing is reported as waiting; the
+// home panel consequently renders no waiting block.
 func (v View) Advanceable(noteType, current string) bool {
-	return v.available() && v.contract.AdvanceableBy(noteType, current, actor)
+	return false
 }
 
 // ObservedStatus reports the status the note carries on disk right now.
@@ -443,7 +418,7 @@ func (lc *Lifecycle) flip(rel, from, to string, hooks flipHooks) error {
 		return fmt.Errorf("%w: status is %q, page said %q", ErrStale, current, from)
 	}
 
-	if err = lc.contract.Transition(n.Type(), from, to, actor); err != nil {
+	if err = lc.contract.Transition(n.Type(), from, to); err != nil {
 		return fmt.Errorf("status: %s %s -> %s: %w", relSlash, from, to, err)
 	}
 

@@ -54,7 +54,6 @@ const (
 var (
 	ErrUnknownStatus     = errors.New("status not defined for this type")
 	ErrIllegalTransition = errors.New("transition not allowed by lifecycle")
-	ErrOwnerForbidden    = errors.New("actor may not set this status")
 )
 
 // Contract is the validated, immutable vault authority. Its zero value carries
@@ -1259,10 +1258,11 @@ func (c *Contract) stage(noteType, status string) (Stage, bool) {
 	return stage, ok
 }
 
-// Transition reports whether actor may move a note of the given type from
-// one status to another. An empty from means the note is being given its
-// initial status. The returned error wraps one of the package sentinels.
-func (c *Contract) Transition(noteType, from, to, actor string) error {
+// Transition reports whether a note of the given type may move from one
+// status to another. An empty from means the note is being given its initial
+// status. Lifecycle owner lists are declarative data and play no part in the
+// answer. The returned error wraps one of the package sentinels.
+func (c *Contract) Transition(noteType, from, to string) error {
 	st, ok := c.stage(noteType, to)
 	if !ok {
 		return fmt.Errorf("%w: %q for type %q", ErrUnknownStatus, to, noteType)
@@ -1286,32 +1286,7 @@ func (c *Contract) Transition(noteType, from, to, actor string) error {
 	default:
 		return fmt.Errorf("%w: %s → %s for type %q", ErrIllegalTransition, from, to, noteType)
 	}
-	if !slices.Contains(st.Owner, actor) {
-		return fmt.Errorf("%w: %q may not set %q (owners: %v)", ErrOwnerForbidden, actor, to, st.Owner)
-	}
 	return nil
-}
-
-// AdvanceableBy reports whether actor may move a note of the given type one
-// concrete step onward from status: some lifecycle entry names status as a
-// specific predecessor in its from list and grants actor the ownership to make
-// that move.
-//
-// It differs from Transition in two deliberate ways, matching the question of
-// whether a note still awaits a decision from actor. It ignores every edge
-// whose predecessor list is the wildcard rather than a named predecessor, so a
-// match requires status to be listed literally. And it reports only whether one
-// such owned edge exists, not whether a specific target is reachable.
-func (c *Contract) AdvanceableBy(noteType, status, actor string) bool {
-	for _, st := range c.lifecycleByType[noteType] {
-		if !advancesFrom(&st, status) {
-			continue
-		}
-		if slices.Contains(st.Owner, actor) {
-			return true
-		}
-	}
-	return false
 }
 
 // advancesFrom reports whether one stage is somewhere a note at status can

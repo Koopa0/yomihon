@@ -250,7 +250,7 @@ func TestLifecycleViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 		t.Fatal("initial View() has no lifecycle order")
 	}
 	wantTransitions := view.Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft")
-	if len(wantTransitions) == 0 || !view.Advanceable("lesson", "draft") {
+	if len(wantTransitions) == 0 {
 		t.Fatal("initial View() has no governed draft transition")
 	}
 
@@ -278,9 +278,6 @@ func TestLifecycleViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 	}
 	if got := view.Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); !slices.Equal(got, wantTransitions) {
 		t.Errorf("captured View().Transitions() after source drift = %v, want immutable %v", got, wantTransitions)
-	}
-	if !view.Advanceable("lesson", "draft") {
-		t.Error("captured View().Advanceable() after source drift = false, want immutable true")
 	}
 }
 
@@ -819,10 +816,10 @@ func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
 // The pinned entry records which file the contract was at startup, and that
 // record includes the modification time — so a git checkout, a pull, a restored
 // backup or an editor that saves by rename moves it without changing a byte.
-// The vault this serves is a git repository and yomihon runs git against it, so
-// this is an ordinary event. Treating it as a contract change closed the write
-// face until restart and told the operator their contract had changed, which it
-// had not.
+// The vault this serves commonly lives under version control and sync tools,
+// so this is an ordinary event. Treating it as a contract change closed the
+// write face until restart and told the operator their contract had changed,
+// which it had not.
 func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 	t.Parallel()
 

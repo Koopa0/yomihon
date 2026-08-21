@@ -104,7 +104,7 @@ func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	if _, ok := contract.Stage("lesson", "draft"); ok {
 		t.Error("Stage() on zero Contract = true, want false")
 	}
-	if err := contract.Transition("lesson", "draft", "ready", "koopa"); !errors.Is(err, schema.ErrUnknownStatus) {
+	if err := contract.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
 		t.Errorf("Transition() on zero Contract = %v, want %v", err, schema.ErrUnknownStatus)
 	}
 	if contract.NavigationRoles().Available() {
@@ -1578,111 +1578,26 @@ func TestTransition(t *testing.T) {
 		typ     string
 		from    string
 		to      string
-		actor   string
 		wantErr error
 	}{
-		{"lesson imported→draft by claude", "lesson", "imported", "draft", "claude", nil},
-		{"lesson draft→ready by koopa", "lesson", "draft", "ready", "koopa", nil},
-		{"ready is koopa-only", "lesson", "draft", "ready", "claude", schema.ErrOwnerForbidden},
-		{"skip a stage", "lesson", "imported", "ready", "koopa", schema.ErrIllegalTransition},
-		{"archived from anywhere", "concept", "seedling", "archived", "koopa", nil},
-		{"initial captured", "transcript", "", "captured", "hermes", nil},
-		{"non-initial needs predecessor", "source-note", "", "cleaned", "claude", schema.ErrIllegalTransition},
-		{"undefined status for type", "concept", "seedling", "ready", "koopa", schema.ErrUnknownStatus},
+		{"lesson imported→draft", "lesson", "imported", "draft", nil},
+		{"lesson draft→ready", "lesson", "draft", "ready", nil},
+		// Owner lists are declarative data: an edge whose owner list would
+		// have excluded a caller under the retired enforcement stays legal.
+		{"owner list does not gate", "lesson", "draft", "ready", nil},
+		{"skip an intermediate status", "lesson", "imported", "ready", schema.ErrIllegalTransition},
+		{"archived from anywhere", "concept", "seedling", "archived", nil},
+		{"initial captured", "transcript", "", "captured", nil},
+		{"non-initial needs predecessor", "source-note", "", "cleaned", schema.ErrIllegalTransition},
+		{"undefined status for type", "concept", "seedling", "ready", schema.ErrUnknownStatus},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := s.Transition(tt.typ, tt.from, tt.to, tt.actor)
+			err := s.Transition(tt.typ, tt.from, tt.to)
 			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("Transition(%q, %q, %q, %q) = %v, want %v",
-					tt.typ, tt.from, tt.to, tt.actor, err, tt.wantErr)
-			}
-		})
-	}
-}
-
-// TestAdvanceableBy exercises the "still has a named, owned onward step"
-// predicate on a synthetic contract, so it proves the state-machine logic
-// rather than any particular vault's status words. The state names here are
-// invented (s1…final, retired) precisely so the test cannot pass by accident of
-// matching a real status.
-func TestAdvanceableBy(t *testing.T) {
-	t.Parallel()
-
-	// s1→s2→s3→final is a linear owned path; retired is the "any state" escape
-	// (both its from and applies_to are the wildcard), which must never count as
-	// an onward step.
-	const contract = `schema_version = "1"
-
-[enums]
-type = ["doc", "note"]
-
-[enums.status]
-note = ["s1", "s2", "s3", "final", "retired"]
-
-[[lifecycle]]
-status = "s1"
-applies_to = ["doc"]
-from = []
-owner = ["bot"]
-
-[[lifecycle]]
-status = "s2"
-applies_to = ["doc"]
-from = ["s1"]
-owner = ["editor"]
-
-[[lifecycle]]
-status = "s3"
-applies_to = ["doc", "note"]
-from = ["s2"]
-owner = ["editor", "bot"]
-
-[[lifecycle]]
-status = "final"
-applies_to = ["*"]
-from = ["s3"]
-owner = ["editor"]
-
-[[lifecycle]]
-status = "retired"
-applies_to = ["*"]
-from = ["*"]
-owner = ["editor", "bot"]
-`
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(path, []byte(contract), 0o600); err != nil {
-		t.Fatalf("WriteFile(%q) = %v", path, err)
-	}
-	s, err := schema.LoadFile(path)
-	if err != nil {
-		t.Fatalf("LoadFile(%q) = %v", path, err)
-	}
-
-	tests := []struct {
-		name     string
-		noteType string
-		status   string
-		actor    string
-		want     bool
-	}{
-		{"named edge, owner matches", "doc", "s1", "editor", true},
-		{"named edge, owner excluded", "doc", "s1", "bot", false},
-		{"named edge, type not in applies_to", "note", "s1", "editor", false},
-		{"owner list includes actor", "doc", "s2", "bot", true},
-		{"applies_to wildcard admits the type", "doc", "s3", "editor", true},
-		{"applies_to wildcard rejects unknown type", "anytype", "s3", "editor", false},
-		{"only the wildcard escape remains", "doc", "final", "editor", false},
-		{"escape state itself has no named onward step", "doc", "retired", "editor", false},
-		{"status defined nowhere", "doc", "nope", "editor", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := s.AdvanceableBy(tt.noteType, tt.status, tt.actor); got != tt.want {
-				t.Errorf("AdvanceableBy(%q, %q, %q) = %v, want %v",
-					tt.noteType, tt.status, tt.actor, got, tt.want)
+				t.Errorf("Transition(%q, %q, %q) = %v, want %v",
+					tt.typ, tt.from, tt.to, err, tt.wantErr)
 			}
 		})
 	}
@@ -1694,9 +1609,9 @@ owner = ["editor", "bot"]
 // The pinned entry records which file the contract was at startup, and that
 // record includes the modification time — so a git checkout, a pull, a restored
 // backup or an editor that saves by rename moves it without changing a byte.
-// The vault this serves is a git repository and yomihon runs git against it, so
-// this is an ordinary event, and treating it as a contract change closed the
-// write face until restart while reporting a change that had not happened.
+// The vault this serves commonly lives under version control and sync tools,
+// so this is an ordinary event, and treating it as a contract change closed
+// the write face until restart while reporting a change that had not happened.
 func TestTouchingTheContractLeavesThePolicyAvailable(t *testing.T) {
 	t.Parallel()
 	root, _ := loadSemanticRootContract(t, `

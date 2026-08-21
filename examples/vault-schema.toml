@@ -44,9 +44,9 @@ non_instance_dirs = ["System/templates"]
 # influence or enter agent output or embedding-provider egress.
 never_egress_dirs = ["Private"]
 
-# The shipped status action uses the fixed actor ID "koopa". Keep every
-# lifecycle owner below exactly "koopa"; this is product policy, not a user
-# identity setting. Other actor models require a separate product decision.
+# Owner lists are declarative data: they gate nothing, and any name works.
+# They exist to say who a status's onward step belongs to, which is the
+# vocabulary a waiting overview can intersect against the people you declare.
 [[lifecycle]]
 status = "draft"
 applies_to = ["*"]

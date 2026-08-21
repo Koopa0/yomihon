@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -452,60 +451,6 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 			assertCauseStatedAtMostOncePerRegion(t, page, diagnostic)
 		})
-	}
-}
-
-// TestShowSaysOwnerWithheldRatherThanNoTransitions pins the wording for a
-// contract whose onward transitions from the note's status all belong to a
-// different owner. The schema defines those transitions, so telling the reader
-// none exist points a schema author at a gap that is not there; the page must
-// name the owner boundary instead, the same fact the write path already states
-// on refusal.
-func TestShowSaysOwnerWithheldRatherThanNoTransitions(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read schema test contract: %v", err)
-	}
-	// Every operator-owned lifecycle edge moves to a different owner, so from
-	// draft the contract still defines onward transitions — ready and archived
-	// — while granting the operator none of them.
-	rewritten := strings.ReplaceAll(string(base), `owner = ["claude", "koopa"]`, `owner = ["alice"]`)
-	rewritten = strings.ReplaceAll(rewritten, `owner = ["koopa"]`, `owner = ["alice"]`)
-	if strings.Contains(rewritten, "koopa") {
-		t.Fatal("the owner rewrite left an operator-owned edge; the fixture contract changed shape")
-	}
-	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if writeErr := os.WriteFile(contractPath, []byte(rewritten), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
-		t.Fatalf("write rewritten contract: %v", writeErr)
-	}
-	contract, err := schema.LoadFile(contractPath)
-	if err != nil {
-		t.Fatalf("LoadFile(rewritten contract) = %v", err)
-	}
-
-	srv := newServerWithContract(t, root, contract)
-	code, body := get(t, srv.URL+"/notes/Note.md")
-	if code != http.StatusOK {
-		t.Fatalf("GET note status = %d, want 200", code)
-	}
-	page := html.UnescapeString(body)
-
-	if !strings.Contains(page, "接下來的狀態轉換由其他 owner 持有；目前操作者沒有執行權限。") {
-		t.Error("owner-withheld transitions are not named as an owner boundary")
-	}
-	if strings.Contains(page, "目前沒有合法的狀態轉換") {
-		t.Error("owner-withheld transitions are misreported as the schema defining none")
-	}
-	// The operator label stays: naming who the fixed operator is remains
-	// accurate whether or not that operator owns the onward step.
-	if !strings.Contains(page, "操作者 · koopa") {
-		t.Error("the operator label disappeared from the owner-withheld panel")
 	}
 }
 
@@ -1748,19 +1693,10 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 		t.Error("recent section includes the eighth-newest note, want the newest seven")
 	}
 
-	lifecycle := homeSection(t, body, `data-home-block="lifecycle"`)
-	// A status appears when notes sit at it and the operator has somewhere to
-	// take them. In this contract a
-	// lesson at draft can be sealed, so draft appears; the sealed status itself
-	// has nowhere left to go but retirement, which every note can reach from
-	// everywhere and which therefore says nothing about what is waiting.
-	for _, marker := range []string{"status%3Adraft", "draft"} {
-		if !strings.Contains(lifecycle, marker) {
-			t.Errorf("Lifecycle block is missing %q", marker)
-		}
-	}
-	if strings.Contains(lifecycle, "status%3A"+schema.SealStatus) {
-		t.Errorf("the block offers a status whose only onward move is retirement; section = %q", lifecycle)
+	// The waiting block derives from a human-owner declaration the contract
+	// cannot yet make, so it renders nothing here.
+	if strings.Contains(body, `data-home-block="lifecycle"`) {
+		t.Error("the waiting block rendered with no human-owner declaration to derive it from")
 	}
 	paths := homeSection(t, body, `data-home-block="study-paths"`)
 	// The block says how big a course is, not how much of it is done. The
@@ -1778,11 +1714,8 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if !strings.Contains(body, "data-home-readme") {
 		t.Error("Home is missing the link to the folder's introduction")
 	}
-	if lifecycle := homeSection(t, body, `data-home-block="lifecycle"`); !strings.Contains(lifecycle, `aria-label="1 篇筆記"`) {
-		t.Errorf("Home is missing the snapshot-derived lifecycle count; block = %q", lifecycle)
-	}
-	if got := homeSubtitle(t, body); got != "查看最近變更、待判讀內容，以及接下來的學習路徑。" {
-		t.Errorf("a vault filling every block has the subtitle %q, want the sentence naming all three", got)
+	if got := homeSubtitle(t, body); got != "查看最近變更與接下來的學習路徑。" {
+		t.Errorf("subtitle = %q, want the sentence naming exactly the two blocks below it", got)
 	}
 }
 
@@ -2012,14 +1945,6 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 	if !strings.Contains(recent, "Aggregate sentinel") || strings.Contains(recent, "data-home-recent-diagnostic") {
 		t.Errorf("Recent degraded with navigation roles; section = %q", recent)
 	}
-	lifecycle := homeSection(t, page, `data-home-block="lifecycle"`)
-	if strings.Contains(lifecycle, "data-home-lifecycle-diagnostic") {
-		t.Errorf("Lifecycle degraded with navigation roles; section = %q", lifecycle)
-	}
-	draftRow := homeLifecycleRow(t, lifecycle, "draft")
-	if !strings.Contains(draftRow, `aria-label="1 篇筆記">1</span>`) {
-		t.Errorf("Lifecycle draft count degraded with navigation roles; row = %q", draftRow)
-	}
 	body := html.UnescapeString(page)
 	if strings.Contains(body, `data-home-block="study-paths"`) {
 		t.Error("Study Paths rendered without usable navigation roles")
@@ -2032,9 +1957,6 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 		`invalid navigation roles: path type "missing-type" is not declared in enums.type`)
 	if strings.Contains(body, "contract declares no artifact policy; instance projections disabled until it does") {
 		t.Errorf("Home falsely reports an artifact failure: %q", body)
-	}
-	if lifecycle := homeSection(t, page, `data-home-block="lifecycle"`); !strings.Contains(lifecycle, `aria-label="1 篇筆記"`) {
-		t.Errorf("the lifecycle count was suppressed by a navigation-only failure; block = %q", lifecycle)
 	}
 }
 
@@ -2076,7 +1998,7 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 	}
 }
 
-func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
+func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
@@ -2107,18 +2029,13 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecentAndCounts(t *testing.T) {
 	if strings.Contains(recent, "LOUD TEMPLATE DRAFT SENTINEL") {
 		t.Error("Recent includes a non-instance template")
 	}
-	lifecycle := homeSection(t, page, `data-home-block="lifecycle"`)
-	draftRow := homeLifecycleRow(t, lifecycle, "draft")
-	if !strings.Contains(draftRow, `aria-label="1 篇筆記">1</span>`) {
-		t.Errorf("draft lifecycle count includes the template or misses the instance; row = %q", draftRow)
-	}
 }
 
 // TestHomeWithoutReadmeKeepsDashboardReadOnly pins first-use recovery: Home is
 // still the dashboard, only the absent README body is replaced, and neither
 // route creates the missing vault file. This vault declares a lifecycle and
-// holds no notes yet, so the block naming that vocabulary is on the page while
-// the two that would have nothing in them are not.
+// holds no notes yet, so nothing waits and no content block renders; the
+// stand-in line and the search block carry the page.
 func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2128,16 +2045,12 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / without README status = %d, want %d", code, http.StatusOK)
 	}
-	for _, marker := range []string{
-		`data-home-block="lifecycle"`,
-		`data-home-block="search"`,
-	} {
-		if !strings.Contains(body, marker) {
-			t.Errorf("GET / without README is missing %q", marker)
-		}
+	if !strings.Contains(body, `data-home-block="search"`) {
+		t.Error(`GET / without README is missing the search block`)
 	}
 	for _, absent := range []string{
 		`data-home-block="recent"`,
+		`data-home-block="lifecycle"`,
 		`data-home-block="study-paths"`,
 		"y-homeempty",
 	} {
@@ -2146,8 +2059,8 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 		}
 	}
 
-	if got := homeSubtitle(t, body); got != "查看待判讀內容。" {
-		t.Errorf("subtitle = %q; it must name the one block below it and no other", got)
+	if got := homeSubtitle(t, body); got != "" {
+		t.Errorf("subtitle = %q; it must not promise blocks the page does not carry", got)
 	}
 
 	noteCode, _ := get(t, srv.URL+"/notes/README.md")
@@ -2277,24 +2190,6 @@ func homeSection(t *testing.T, body, marker string) string {
 		t.Fatalf("Home section %q has no closing tag", marker)
 	}
 	return body[openAt : markerAt+closeAt+len("</section>")]
-}
-
-func homeLifecycleRow(t *testing.T, section, statusName string) string {
-	t.Helper()
-	marker := `href="/search?q=` + url.QueryEscape("status:"+statusName) + `"`
-	markerAt := strings.Index(section, marker)
-	if markerAt < 0 {
-		t.Fatalf("Lifecycle has no %q row", statusName)
-	}
-	openAt := strings.LastIndex(section[:markerAt], "<a")
-	if openAt < 0 {
-		t.Fatalf("Lifecycle %q marker is not inside a row", statusName)
-	}
-	closeAt := strings.Index(section[markerAt:], "</a>")
-	if closeAt < 0 {
-		t.Fatalf("Lifecycle %q row has no closing tag", statusName)
-	}
-	return section[openAt : markerAt+closeAt+len("</a>")]
 }
 
 // TestShowNoFrontmatter exercises handler.go's NoFrontmatter branch with a
@@ -2864,147 +2759,6 @@ func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
 	}
 }
 
-// TestHomeLifecycleBlockNamesEveryStatusWaiting pins which rows the block
-// carries: every status holding notes the operator can still move on from, and
-// no others. It used to list the whole status vocabulary with counts beside it,
-// which put a row in front of the reader for statuses nothing was waiting at.
-func TestHomeLifecycleBlockNamesEveryStatusWaiting(t *testing.T) {
-	t.Parallel()
-
-	type note struct{ path, front string }
-	lesson := func(i int, status string) note {
-		return note{
-			path: "Writing/lessons/japanese/L0" + strconv.Itoa(i) + ".md",
-			front: "title: L0" + strconv.Itoa(i) + "\ntype: lesson\ndomain: japanese\nstatus: " + status +
-				"\ncreated: 2026-06-01\nupdated: 2026-06-01",
-		}
-	}
-	tests := []struct {
-		name     string
-		contract func(*testing.T) *schema.Contract
-		notes    []note
-		wantRows map[string]int
-	}{
-		{
-			// The control. One of these has nowhere to go but retirement, so
-			// the block may not carry a row for it — which is what makes the
-			// expected set meaningful rather than one that holds for any
-			// fixture. It passed before this block learned about other
-			// vocabularies and must keep passing, or the case below is
-			// measuring nothing.
-			name:     "one vocabulary",
-			contract: loadContract,
-			notes: []note{
-				lesson(0, "draft"), lesson(1, "draft"),
-				lesson(2, "imported"), lesson(3, schema.SealStatus),
-			},
-			wantRows: map[string]int{"draft": 2, "imported": 1},
-		},
-		{
-			// A guide moves through statuses the default list never mentions.
-			// The block once walked the default vocabulary only, so a note
-			// waiting at one of those statuses never appeared in it.
-			name:     "a status only another group declares",
-			contract: loadHomeContractWithSystemGroup,
-			notes: []note{
-				{path: "System/agent-guides/Privacy.md", front: "title: Privacy\ntype: guide\nstatus: proposed"},
-				lesson(0, "draft"),
-			},
-			wantRows: map[string]int{"proposed": 1, "draft": 1},
-		},
-		{
-			// The same hole in its other shape: a note carrying no status at
-			// all still has somewhere to go, so it is counted, and no
-			// vocabulary lists the empty value.
-			name:     "a note with no status at all",
-			contract: loadHomeContractWithSystemGroup,
-			notes: []note{
-				{path: "System/agent-guides/Unmarked.md", front: "title: Unmarked\ntype: guide"},
-				lesson(0, "draft"),
-			},
-			wantRows: map[string]int{"": 1, "draft": 1},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			root := t.TempDir()
-			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
-				t.Fatalf("write README: %v", err)
-			}
-			for _, n := range tt.notes {
-				full := filepath.Join(root, filepath.FromSlash(n.path))
-				if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-					t.Fatalf("mkdir: %v", err)
-				}
-				body := "---\n" + n.front + "\n---\n\nbody\n"
-				if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
-					t.Fatalf("write %s: %v", n.path, err)
-				}
-			}
-			srv := newServerWithContract(t, root, tt.contract(t))
-
-			code, body := get(t, srv.URL+"/")
-			if code != http.StatusOK {
-				t.Fatalf("GET / status = %d, want 200", code)
-			}
-
-			block := homeSection(t, body, `data-home-block="lifecycle"`)
-			counts := chipCounts(t, block)
-			if len(counts) == 0 {
-				t.Fatal("the fixture produced nothing to count, so this proves nothing")
-			}
-			for _, n := range counts {
-				if n == 0 {
-					t.Errorf("the block lists a status nothing is waiting at; counts = %v", counts)
-				}
-			}
-			// The block lists exactly the statuses something waits at: a row
-			// too many invents a queue, a row too few hides one. Naming each
-			// row below would leave both standing on their own.
-			if len(counts) != len(tt.wantRows) {
-				t.Errorf("the block lists %d statuses and %d are waiting; counts = %v, want %v", len(counts), len(tt.wantRows), counts, tt.wantRows)
-			}
-			// Naming each row as well as summing them: two numbers wrong in the
-			// same direction would leave the sum standing.
-			for status, want := range tt.wantRows {
-				row := homeLifecycleRow(t, block, status)
-				if marker := `>` + strconv.Itoa(want) + `<`; !strings.Contains(row, marker) {
-					t.Errorf("the %q row does not state %d; row = %q", status, want, row)
-				}
-			}
-			if _, ok := tt.wantRows[""]; ok && !strings.Contains(block, "未標示狀態") {
-				t.Errorf("the row for a note with no status is unnamed; block = %q", block)
-			}
-		})
-	}
-}
-
-// chipCounts reads every per-status figure the block states.
-func chipCounts(t *testing.T, block string) []int {
-	t.Helper()
-	var out []int
-	const marker = `class="y-homechip__count"`
-	for rest := block; ; {
-		at := strings.Index(rest, marker)
-		if at < 0 {
-			return out
-		}
-		rest = rest[at:]
-		open := strings.IndexByte(rest, '>')
-		end := strings.Index(rest, "</span>")
-		if open < 0 || end < 0 || end < open {
-			t.Fatalf("a chip count is malformed: %q", rest[:80])
-		}
-		n, err := strconv.Atoi(strings.TrimSpace(rest[open+1 : end]))
-		if err != nil {
-			t.Fatalf("a chip count is not a number: %v", err)
-		}
-		out = append(out, n)
-		rest = rest[end:]
-	}
-}
-
 // TestFuriganaControlAppearsOnlyWhereThereIsFurigana covers a control for a
 // capability the page does not have. The button switches readings off; a folder
 // that holds no Japanese has none to switch, and shipping it anyway is where
@@ -3098,46 +2852,6 @@ func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
 	// TestAnOversizeNoteRendersAndStaysOutOfTheIndex in internal/snapshot.
 }
 
-// loadHomeContractWithSystemGroup routes a second family of notes to its own
-// vocabulary, the way a real contract does: guides move through statuses the
-// default list never mentions. Nothing in the shipped fixture does that, which
-// is why the block could disagree with its own header unnoticed.
-func loadHomeContractWithSystemGroup(t *testing.T) *schema.Contract {
-	t.Helper()
-	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read schema test contract: %v", err)
-	}
-	const systemStatuses = `system = ["active", "archived"]`
-	contractText := strings.Replace(string(base), systemStatuses, `system = ["proposed", "active", "archived"]`, 1)
-	if contractText == string(base) {
-		t.Fatal("schema test contract system status group was not replaced")
-	}
-	contractText += `
-[[lifecycle]]
-status = "proposed"
-applies_to = ["system", "template", "guide"]
-from = []
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "active"
-applies_to = ["system", "template", "guide"]
-from = ["*"]
-owner = ["koopa"]
-`
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	err = os.WriteFile(path, []byte(contractText), 0o600) // #nosec G703 -- path is a fixed basename under this test's TempDir
-	if err != nil {
-		t.Fatalf("write contract: %v", err)
-	}
-	contract, err := schema.LoadFile(path)
-	if err != nil {
-		t.Fatalf("LoadFile(%q) = %v", path, err)
-	}
-	return contract
-}
-
 // TestFolderWithoutARepositoryStillOffersTransitions locks the reading page to
 // the same rule as the write path: a governed folder that is no git repository
 // offers its legal transitions like any other, because a flip is a plain file
@@ -3165,5 +2879,93 @@ func TestFolderWithoutARepositoryStillOffersTransitions(t *testing.T) {
 	}
 	if !strings.Contains(page, `name="to" value="`+schema.SealStatus+`"`) {
 		t.Errorf("page is missing the draft note's onward transition; body = %q", page)
+	}
+}
+
+// TestShowOffersTransitionsWhateverTheOwnerLists locks the reading page to
+// the same demotion: the buttons come from the from-lists alone, so a
+// contract whose onward stages name only another owner still renders each of
+// them as a plain control, and the page never claims the schema defines
+// nothing onward.
+func TestShowOffersTransitionsWhateverTheOwnerLists(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema test contract: %v", err)
+	}
+	// Every lifecycle edge moves to a different owner, so from draft the
+	// contract still defines onward transitions — ready and archived — while
+	// naming nobody this tool ever wrote as.
+	rewritten := strings.ReplaceAll(string(base), `owner = ["claude", "koopa"]`, `owner = ["alice"]`)
+	rewritten = strings.ReplaceAll(rewritten, `owner = ["koopa"]`, `owner = ["alice"]`)
+	if strings.Contains(rewritten, "koopa") {
+		t.Fatal("the owner rewrite left an edge behind; the fixture contract changed shape")
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(contractPath, []byte(rewritten), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
+		t.Fatalf("write rewritten contract: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(rewritten contract) = %v", err)
+	}
+
+	srv := newServerWithContract(t, root, contract)
+	code, body := get(t, srv.URL+"/notes/Note.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET note status = %d, want 200", code)
+	}
+	page := html.UnescapeString(body)
+
+	for _, want := range []string{`name="to" value="ready"`, `name="to" value="archived"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page is missing the from-list transition %q", want)
+		}
+	}
+	if strings.Contains(page, "接下來的狀態轉換由其他 owner 持有") {
+		t.Error("page still words an owner boundary that no longer exists")
+	}
+}
+
+// TestHomeLifecycleBlockAbsentWithoutHumanOwnerDeclaration pins the bridge to
+// the human-owner derivation: with owner enforcement removed and no way yet to
+// declare which owners are people, nothing is presented as awaiting one, so
+// the home waiting block renders nothing at all — the same silence as an
+// ungoverned folder, not a header over an empty list.
+func TestHomeLifecycleBlockAbsentWithoutHumanOwnerDeclaration(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	if strings.Contains(body, `data-home-block="lifecycle"`) {
+		t.Error("the waiting block rendered with no human-owner declaration to derive it from")
+	}
+	if strings.Contains(body, "等你處理") {
+		t.Error("the waiting heading rendered with no human-owner declaration to derive it from")
+	}
+	// The subtitle must not promise a block that is not below it.
+	if strings.Contains(body, "待判讀內容") {
+		t.Error("the subtitle names the waiting block while the page carries none")
 	}
 }

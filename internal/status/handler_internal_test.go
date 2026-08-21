@@ -35,7 +35,6 @@ func TestRecoveryClassification(t *testing.T) {
 		{name: "status syntax unsupported", err: ErrStatusSyntaxUnsupported, code: http.StatusUnprocessableEntity, noDetail: true},
 		{name: "unknown status", err: errors.Join(schema.ErrUnknownStatus, errors.New("unknown-status detail")), code: http.StatusUnprocessableEntity, wantDetail: "unknown-status detail"},
 		{name: "illegal transition", err: errors.Join(schema.ErrIllegalTransition, errors.New("transition detail")), code: http.StatusUnprocessableEntity, wantDetail: "transition detail"},
-		{name: "owner forbidden", err: errors.Join(schema.ErrOwnerForbidden, errors.New("owner detail")), code: http.StatusUnprocessableEntity, wantDetail: "owner detail"},
 		{name: "install uncertain", err: errors.Join(ErrInstallUncertain, errors.New("disk barrier failed")), code: http.StatusInternalServerError, changed: true, noDetail: true},
 		{name: "install stranded", err: errors.Join(ErrInstallStranded, errors.New("stranded detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "stranded detail"},
 		{name: "target removed", err: fs.ErrNotExist, code: http.StatusNotFound, noDetail: true},
@@ -80,7 +79,6 @@ func TestOnlyPostPublicationFailuresClaimChanged(t *testing.T) {
 		ErrStatusSyntaxUnsupported,
 		schema.ErrUnknownStatus,
 		schema.ErrIllegalTransition,
-		schema.ErrOwnerForbidden,
 		fs.ErrNotExist,
 		errors.New("unknown"),
 	} {

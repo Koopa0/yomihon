@@ -180,8 +180,10 @@ func TestLifecycleExplicitEmptyLists(t *testing.T) {
 	if archived.Owner == nil || len(archived.Owner) != 0 {
 		t.Errorf("archived Owner = %#v, want explicit empty slice", archived.Owner)
 	}
-	if err := s.Transition("article", "review", "archived", "editor"); !errors.Is(err, ErrOwnerForbidden) {
-		t.Errorf("Transition(article, review, archived, editor) = %v, want %v", err, ErrOwnerForbidden)
+	// An empty owner list is declarative data, not a gate: the transition the
+	// from-list admits is still legal.
+	if err := s.Transition("article", "review", "archived"); err != nil {
+		t.Errorf("Transition(article, review, archived) with an empty owner list = %v, want nil", err)
 	}
 }
 
@@ -403,36 +405,26 @@ func TestLifecycleRejectsUnknownRuntimeType(t *testing.T) {
 	if _, ok := s.Stage("undeclared", "archived"); ok {
 		t.Error(`Stage("undeclared", "archived") = true, want false`)
 	}
-	if s.AdvanceableBy("undeclared", "draft", "editor") {
-		t.Error(`AdvanceableBy("undeclared", "draft", "editor") = true, want false`)
-	}
-	if err := s.Transition("undeclared", "draft", "archived", "editor"); !errors.Is(err, ErrUnknownStatus) {
-		t.Errorf("Transition(undeclared, draft, archived, editor) = %v, want %v", err, ErrUnknownStatus)
+	if err := s.Transition("undeclared", "draft", "archived"); !errors.Is(err, ErrUnknownStatus) {
+		t.Errorf("Transition(undeclared, draft, archived) = %v, want %v", err, ErrUnknownStatus)
 	}
 }
 
 func TestLifecycleWildcardPredecessorIncludesInitialAndDeclaredStates(t *testing.T) {
 	t.Parallel()
 
-	data := replaceLifecycleRowText(
-		t,
-		lifecycleContract,
-		5,
-		`owner = []`,
-		`owner = ["editor"]`,
-	)
-	s := decodeLifecycleFixture(t, data)
-	if err := s.Transition("article", "", "archived", "editor"); err != nil {
-		t.Errorf("Transition(article, initial, archived, editor) error = %v", err)
+	s := decodeLifecycleFixture(t, lifecycleContract)
+	if err := s.Transition("article", "", "archived"); err != nil {
+		t.Errorf("Transition(article, initial, archived) error = %v", err)
 	}
-	if err := s.Transition("article", "review", "archived", "editor"); err != nil {
-		t.Errorf("Transition(article, review, archived, editor) error = %v", err)
+	if err := s.Transition("article", "review", "archived"); err != nil {
+		t.Errorf("Transition(article, review, archived) error = %v", err)
 	}
-	if err := s.Transition("article", "missing", "archived", "editor"); !errors.Is(err, ErrUnknownStatus) {
-		t.Errorf("Transition(article, unknown, archived, editor) = %v, want %v", err, ErrUnknownStatus)
+	if err := s.Transition("article", "missing", "archived"); !errors.Is(err, ErrUnknownStatus) {
+		t.Errorf("Transition(article, unknown, archived) = %v, want %v", err, ErrUnknownStatus)
 	}
-	if err := s.Transition("article", "archived", "archived", "editor"); !errors.Is(err, ErrIllegalTransition) {
-		t.Errorf("Transition(article, archived, archived, editor) = %v, want %v", err, ErrIllegalTransition)
+	if err := s.Transition("article", "archived", "archived"); !errors.Is(err, ErrIllegalTransition) {
+		t.Errorf("Transition(article, archived, archived) = %v, want %v", err, ErrIllegalTransition)
 	}
 }
 
@@ -475,11 +467,8 @@ func TestLifecycleLookupsAreImmutable(t *testing.T) {
 	if got, want := gotStage.Owner, []string{"editor"}; !slices.Equal(got, want) {
 		t.Errorf("Stage(article, review).Owner after mutation = %v, want %v", got, want)
 	}
-	if err := s.Transition("article", "draft", "review", "editor"); err != nil {
-		t.Errorf("Transition(article, draft, review, editor) after mutation error = %v", err)
-	}
-	if !s.AdvanceableBy("article", "draft", "editor") {
-		t.Error("AdvanceableBy(article, draft, editor) after mutation = false, want true")
+	if err := s.Transition("article", "draft", "review"); err != nil {
+		t.Errorf("Transition(article, draft, review) after mutation error = %v", err)
 	}
 }
 

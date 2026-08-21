@@ -150,7 +150,7 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusConflict,
 			summary:    "檔案在讀取與寫入之間遭到修改。",
 			nextAction: "先檢查 Obsidian 或其他工具的最新變更，再重新載入筆記；不要直接重送。",
-			// Which publication step the refusal came from, and on volumes
+			// Which install step the refusal came from, and on volumes
 			// that cannot swap two entries atomically what that costs, rides
 			// in the error text. It is the only record of the guarantee this
 			// vault's filesystem was able to give, so it reaches the log.
@@ -164,8 +164,7 @@ func recoveryFor(err error) *recovery {
 			nextAction: "改用目前支援 status 寫入的 macOS 或 Linux；閱讀與搜尋仍可在此平台使用。",
 		}
 	case errors.Is(err, schema.ErrUnknownStatus),
-		errors.Is(err, schema.ErrIllegalTransition),
-		errors.Is(err, schema.ErrOwnerForbidden):
+		errors.Is(err, schema.ErrIllegalTransition):
 		return recoveryForSchemaError(err)
 	case errors.Is(err, fs.ErrNotExist):
 		return &recovery{
@@ -244,8 +243,6 @@ func recoveryForSchemaError(err error) *recovery {
 		summary = "狀態值不在 vault schema 的允許清單中。"
 	case errors.Is(err, schema.ErrIllegalTransition):
 		summary = "vault schema 不允許這個狀態轉換。"
-	case errors.Is(err, schema.ErrOwnerForbidden):
-		summary = "目前操作者沒有執行這個狀態轉換的權限。"
 	}
 	return schemaRecovery(summary, err)
 }
