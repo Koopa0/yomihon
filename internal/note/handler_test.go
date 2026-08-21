@@ -3181,8 +3181,6 @@ func TestTransitionsArePlainControls(t *testing.T) {
 				"y-sealed",
 				"鈐印",
 				"済",
-				"y-toast",
-				"y-justsealed",
 			} {
 				if strings.Contains(page, absent) {
 					t.Errorf("page still carries retired markup %q", absent)

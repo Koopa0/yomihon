@@ -297,6 +297,35 @@ func TestStatusBarMirrorsTheStatusPanelGuard(t *testing.T) {
 	})
 }
 
+// TestStatusBarFlagsAStatusOutsideTheSchema locks the narrow-width status
+// face to the same answer the rail panel gives an undeclared status value:
+// the flag states the fault and no transition form renders, even when the
+// view carries onward targets. The bar is the only status face where the
+// right rail is absent, so a bar that fell through to plain forms would
+// contradict the panel on exactly the viewports that cannot see the panel.
+func TestStatusBarFlagsAStatusOutsideTheSchema(t *testing.T) {
+	t.Parallel()
+
+	v := NoteView{
+		Governed:      true,
+		RelPath:       "a.md",
+		Status:        "這是草稿",
+		StatusUnknown: true,
+		Transitions:   []string{"archived"},
+	}
+	var buf bytes.Buffer
+	if err := statusBar(v).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render status bar: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, "y-statusflag") {
+		t.Errorf("status bar does not carry the out-of-schema flag:\n%s", html)
+	}
+	if got := strings.Count(html, `name="to"`); got != 0 {
+		t.Errorf("status bar renders %d transition forms for an undeclared status, want 0:\n%s", got, html)
+	}
+}
+
 // TestInlineDiagnosticsFoldAboveTheProse pins the placement, not the contents.
 // At widths where the right rail is gone this block sits between the title and
 // the first sentence, so an open list of findings was the last thing the page

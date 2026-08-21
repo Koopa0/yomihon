@@ -84,8 +84,8 @@ func servable(rel string) bool {
 // and anything left — opaque bytes, or text too large to render comfortably —
 // becomes an honest information page pointing at the raw endpoint.
 //
-// No status face, no seal, no diagnostics: a source file is not a note, and the
-// write face has no opinion about it.
+// No status face, no ready accent, no diagnostics: a source file is not a
+// note, and the write face has no opinion about it.
 func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
 	entry, ok := snap.Entry(rel)
 	if !ok {

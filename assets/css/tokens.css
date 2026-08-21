@@ -3,7 +3,7 @@
    ------------------------------------------------------------
    Consolidates the design bundle: theme.css's @theme values +
    colors_and_type.css's alias vocabulary, re-skinned to the product
-   accent (theme-adaptive vermilion 朱, reserved for `ready` and the seal;
+   accent (theme-adaptive vermilion 朱, reserved for `ready`;
    the official mark carries its separately fixed approved vermilion) and the product type
    stack (Geist + Noto Serif/Sans CJK + Newsreader + LXGW WenKai).
 
@@ -35,7 +35,7 @@
   --border-faint:  oklch(0.930 0.006 106);
 
   /* ---- The one interface accent — 朱 seal-ink vermilion, reserved for
-     `ready` and the seal. The official mark's fixed publication obi carries
+     `ready`. The official mark's fixed publication obi carries
      the same scarce semantic but does not consume this theme token. ---- */
   --accent:        oklch(0.470 0.175 33);
   --accent-strong: oklch(0.400 0.165 33);
