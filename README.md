@@ -74,8 +74,8 @@ syntax; Maps and Reports keep their own document roles.
 - **Local and single-user.** The server listens only on `127.0.0.1` and has no
   remote or multi-user mode.
 - **One narrow write.** Reading, rendering, search, and diagnostics do not
-  change vault content. An authorized lifecycle action changes only `status`
-  and records that transition as one Git commit under your identity.
+  change vault content. An authorized lifecycle action changes only `status` —
+  a single frontmatter line, rewritten in place.
 - **Visible failure.** Invalid metadata and broken or ambiguous links become
   diagnostics. yomihon does not guess at or silently repair your notes.
 - **Optional network use.** Ordinary reading and lexical search stay local.

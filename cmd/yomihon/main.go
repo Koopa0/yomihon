@@ -17,13 +17,9 @@ import (
 
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/search/agent"
-	"github.com/koopa0/yomihon/internal/status"
 )
 
 func main() {
-	if handled, exit := status.RunGitChild(os.Args[1:], os.Stderr); handled {
-		os.Exit(exit)
-	}
 	if text, handled, err := helpRequest(os.Args[1:]); handled {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "yomihon: %v\n", err)

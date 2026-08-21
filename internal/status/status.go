@@ -1,22 +1,19 @@
-// Package status is the write face: the only package in this repo
-// allowed to write vault files or run git. It flips a note's frontmatter
-// `status` field — a surgical, single-line rewrite, never a YAML
-// re-serialization — and commits the change with the vault's configured
-// git identity, never one yomihon sets itself. Within this tool's
-// single-user, local-trust model the commit records that the write face
-// performed the transition; it does not authenticate who triggered it.
+// Package status is the write face: the only package in this repo allowed
+// to write vault files. It flips a note's frontmatter `status` field — a
+// surgical, single-line rewrite, never a YAML re-serialization — and leaves
+// every other byte of the file, and everything else on the machine, exactly
+// as it found it. Within this tool's single-user, local-trust model nothing
+// authenticates who triggered a flip; the file's new bytes are the whole
+// record.
 package status
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	pathpkg "path"
 	"path/filepath"
 	"slices"
@@ -54,23 +51,6 @@ var (
 	// itself. Distinct from ErrStale: the two cases carry different user-facing
 	// presentations and this sentinel must not satisfy errors.Is(err, ErrStale).
 	ErrConcurrentWrite = errors.New("status: note changed while flipping")
-	// ErrDirty means the target file already has uncommitted changes; a
-	// flip here would silently fold an unrelated edit into a
-	// Koopa-authored audit commit.
-	ErrDirty = errors.New("status: note has uncommitted changes")
-	// ErrWorkTreeUnreadable means the working tree could not be inspected at
-	// all — most often a folder that is no git repository. Distinct from
-	// ErrDirty: an uncommitted edit is something the operator can clear and
-	// retry, while this refuses every transition until the folder itself
-	// changes, because each accepted transition is recorded as a commit.
-	ErrWorkTreeUnreadable = errors.New("status: working tree could not be read")
-	// ErrDetachedHead means the vault's HEAD names no branch — the repo is
-	// mid-rebase, mid-bisect, or checked out at a bare commit. git would
-	// happily commit here, but the commit would land on no branch: as soon
-	// as the operator returns to one, the note silently reverts and the
-	// receipt survives nowhere but the reflog. The write face refuses and
-	// leaves the file untouched instead of inheriting that default.
-	ErrDetachedHead = errors.New("status: vault HEAD is detached from any branch")
 	// ErrStatusLine means the frontmatter block does not contain exactly
 	// one line beginning with "status:" — a schema violation yomihon does
 	// not repair. yomihon only reports faults; fixing the file belongs to
@@ -89,43 +69,18 @@ var (
 	// refuses before reading or creating any vault path rather than changing a
 	// note and presenting an unconfirmed publication as success.
 	ErrDurabilityUnsupported = errors.New("status: durable publication is unsupported on this platform")
-	// ErrPublicationStranded means another program edited the note inside the
-	// publication window and the write face could not finish putting that edit
+	// ErrInstallStranded means another program edited the note inside the
+	// replacement window and the write face could not finish putting that edit
 	// back under the note's own name. Both versions are on disk — one under the
-	// note's name and one beside it, named in the error — nothing was removed,
-	// and no commit was made. It is deliberately distinct from
-	// ErrConcurrentWrite: that refusal leaves the note as the other program
-	// wrote it, while this one cannot say which of the two the note carries.
-	ErrPublicationStranded = errors.New("status: an edit raced the flip and both versions were left on disk")
-	// ErrPublishUncertain means the atomic replacement completed, but the
+	// note's name and one beside it, named in the error — and nothing was
+	// removed. It is deliberately distinct from ErrConcurrentWrite: that
+	// refusal leaves the note as the other program wrote it, while this one
+	// cannot say which of the two the note carries.
+	ErrInstallStranded = errors.New("status: an edit raced the flip and both versions were left on disk")
+	// ErrInstallUncertain means the atomic replacement completed, but the
 	// containing directory could not be synchronized. The new bytes are visible
 	// now, but their survival across an immediate crash was not confirmed.
-	ErrPublishUncertain = errors.New("status: note rewritten but durable publication was not confirmed")
-	// ErrCommitFailed means the file was already rewritten on disk but the
-	// git commit failed. yomihon deliberately does not roll back — a
-	// rollback is a second write that would hide what happened, and the
-	// vault git error is surfaced (this is a local, single-operator tool;
-	// there is no one else who could read it) so Koopa can fix it by hand.
-	ErrCommitFailed = errors.New("status: note rewritten but git commit failed")
-	// ErrReceiptDiverged means the note was rewritten and a commit was
-	// created, but reading the commit back shows it does not record exactly
-	// the intended change: its tree touches other paths, its blob for the
-	// note differs from the bytes just published, its subject line was
-	// replaced, or it landed on no branch at all. Repo-local hooks and clean
-	// filters are the usual causes, and an external writer racing the commit
-	// or an operator detaching HEAD mid-flip produce the same shape.
-	// Like ErrCommitFailed, nothing is rolled back — a rollback would be a
-	// second write hiding what happened; the divergence is surfaced so the
-	// operator can inspect the commit by hand.
-	ErrReceiptDiverged = errors.New("status: note rewritten and committed, but the commit does not record exactly this change")
-	// ErrReceiptUnreadable means the note was rewritten and a commit was
-	// created, but git could not be asked what that commit records. Nothing is
-	// known to be wrong with the commit, and nothing is known to be right
-	// either, which is why it is kept apart from ErrReceiptDiverged: telling the
-	// operator their commit records the wrong change, when the truth is that the
-	// question could not be put, sends them hunting a fault that may not exist.
-	// Like ErrCommitFailed, nothing is rolled back.
-	ErrReceiptUnreadable = errors.New("status: note rewritten and committed, but the commit could not be read back")
+	ErrInstallUncertain = errors.New("status: note rewritten but durability was not confirmed")
 )
 
 const (
@@ -136,6 +91,11 @@ const (
 	// explanation for a platform on which the status write face cannot prove
 	// durable publication.
 	DurablePublicationUnavailableDiagnostic = "此平台無法確認狀態檔案的耐久發布；生命週期寫入已關閉（fail-closed）。"
+	// NoteUnreadableDiagnostic is shown when the note's own status line could
+	// not be read for this request. The page will not offer a transition from
+	// a value it could not confirm: whatever blocked the read blocks the write
+	// too, so every control derived from it would be refused on arrival.
+	NoteUnreadableDiagnostic = "無法讀取這個筆記目前的狀態。狀態操作暫時關閉，重新載入頁面可以再試一次。"
 )
 
 var errNotRegular = errors.New("status: target is not a regular file")
@@ -160,20 +120,20 @@ func (e *ArtifactPolicyUnavailableError) Unwrap() error {
 // a local-only, single-user tool; there is no multi-user concept.
 const actor = "koopa"
 
-// Lifecycle is the write face: it flips one note's frontmatter status field
-// and commits the change. Constructed once per process with the loaded
-// vault contract (or nil, meaning fail-closed).
+// Lifecycle is the write face: it flips one note's frontmatter status field.
+// Constructed once per process with the loaded vault contract (or nil,
+// meaning fail-closed).
 type Lifecycle struct {
 	root       *os.Root
 	contract   *schema.Contract
 	governance schema.Governance
 	policy     schema.ArtifactPolicy
-	// mu serializes View, Flip, provenance reads, and Close: the vault's git repo
-	// (index, HEAD) and root capability are shared resources. Neither another
-	// flip nor a reading page may observe the rename-to-commit interval, and
-	// Close cannot release the root under an operation. One lifecycle-wide lock
-	// is deliberately simpler than per-file locking: this is a local,
-	// single-operator tool where correctness matters far more than throughput.
+	// mu serializes View, Flip, ObservedStatus, and Close: the pinned root
+	// capability is a shared resource, two flips must never interleave their
+	// read-check-replace windows, and Close cannot release the root under an
+	// operation. One lifecycle-wide lock is deliberately simpler than per-file
+	// locking: this is a local, single-operator tool where correctness matters
+	// far more than throughput.
 	mu sync.Mutex
 }
 
@@ -221,7 +181,7 @@ func Open(source *vault.Reader, contract *schema.Contract, governance schema.Gov
 	return &Lifecycle{root: root, contract: contract, governance: governance, policy: policy}, nil
 }
 
-// Close waits for an in-progress Flip or provenance read, then releases the
+// Close waits for an in-progress Flip or status read, then releases the
 // pinned write capability. Calls after Close fail closed.
 func (lc *Lifecycle) Close() error {
 	return lc.close(closeHooks{})
@@ -265,7 +225,7 @@ type View struct {
 }
 
 // View captures the write face's current read-only authority. Flip does not use
-// this snapshot: writes revalidate the source under the publication lock.
+// this snapshot: writes revalidate the source under the lifecycle lock.
 func (lc *Lifecycle) View() View {
 	// A released capability is a fault whichever folder it was pinned to: the
 	// process asserted a write face and then lost it.
@@ -399,112 +359,6 @@ func (v View) Advanceable(noteType, current string) bool {
 	return v.available() && v.contract.AdvanceableBy(noteType, current, actor)
 }
 
-// LastCommitHash returns the short hash of the most recent commit that touched
-// rel only while the clean current file still matches expected. expected is
-// the digest of the exact bytes rendered by the reading request, so a flip or
-// external edit between the note read and this git query yields no provenance
-// instead of pairing old content with a newer commit. internal/status is the
-// only package permitted to run git; a read-only query is no exception.
-func (lc *Lifecycle) LastCommitHash(
-	ctx context.Context,
-	rel string,
-	expected [sha256.Size]byte,
-) (string, error) {
-	return lc.lastCommitHash(ctx, rel, expected, provenanceHooks{})
-}
-
-// Block is one operator-facing refusal, in the three parts a reader needs: the
-// thing to do, why the transition stopped, and the step that clears it.
-//
-// The parts stay separate because they are read in different places. A control
-// the working tree would refuse carries Headline as its accessible name, where
-// three sentences would bury the answer; the paragraph beside it can afford all
-// three.
-type Block struct {
-	Headline string
-	Body     string
-	NextStep string
-}
-
-// Blocked reports whether this value names a refusal at all.
-func (b Block) Blocked() bool { return b.Body != "" }
-
-// Label is the short form for an accessible name: the headline where one was
-// written, and the body otherwise.
-func (b Block) Label() string {
-	if b.Headline != "" {
-		return b.Headline
-	}
-	return b.Body
-}
-
-// Operator-facing reasons a transition would be refused, stated before the
-// press rather than after it.
-var (
-	// DirtyBlock explains the refusal a note with uncommitted changes would
-	// receive. Staging the file would carry the pre-existing edit into the
-	// commit that records the transition, so the write face declines instead of
-	// folding the two together.
-	//
-	// It names the operator's own next action first because that is what the
-	// reader wants, and it puts committing before reverting deliberately:
-	// yomihon never removes anyone's work, and a message that offers discarding
-	// as the equal first option reads as an invitation to lose an edit.
-	DirtyBlock = Block{
-		Headline: "先處理這篇筆記的其他修改",
-		Body:     "Yomihon 只會單獨記錄狀態變更。為避免把內容修改一起提交，這次不會變更狀態。",
-		NextStep: "請先提交這篇筆記的修改；若確定不需要這些修改，才將它還原。完成後重新整理此頁。",
-	}
-	// GitBlock explains a refusal caused by the working tree being unreadable —
-	// most often a folder that is not a git repository at all.
-	GitBlock = Block{
-		Body: "無法讀取這個資料夾的 git 狀態。狀態寫入需要可用的 git 版本庫，這個轉換會被拒絕。",
-	}
-
-	// ReadBlock is shown when the note's own status line could not be read for
-	// this request. The page will not offer a transition from a value it could
-	// not confirm: whatever blocked the read blocks the write too, so every
-	// control derived from it would be refused on arrival.
-	ReadBlock = Block{
-		Body: "無法讀取這個筆記目前的狀態。狀態操作暫時關閉，重新載入頁面可以再試一次。",
-	}
-)
-
-// WriteBlockReason reports why a transition on rel would be refused right now,
-// or the zero Block when one could proceed. The transition controls are derived
-// from the contract alone, which cannot see the working tree, so without this
-// the reading page offers a control the write path then rejects. The answer is
-// advisory: it is computed for one request and the write path revalidates
-// under its own lock, so a stale zero costs a refusal, never a wrong write.
-func (lc *Lifecycle) WriteBlockReason(ctx context.Context, rel string) (Block, error) {
-	_, osPath, err := normalizeRelPath(rel)
-	if err != nil {
-		return Block{}, err
-	}
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
-	if lc.root == nil {
-		return Block{}, ErrClosed
-	}
-	dirty, err := lc.dirty(ctx, osPath)
-	if err != nil {
-		return GitBlock, err
-	}
-	if dirty {
-		return DirtyBlock, nil
-	}
-	return Block{}, nil
-}
-
-// Observed is what one read of a note's own file found. Status and ContentHash
-// come from the same bytes deliberately: the page shows the one and the audit
-// query is bound to the other, and a receipt paired with bytes the reader is not
-// looking at is worse than no receipt.
-type Observed struct {
-	Status      string
-	ContentHash [sha256.Size]byte
-}
-
 // ObservedStatus reports the status the note carries on disk right now.
 //
 // The reading page takes everything else from a scan that is up to a couple of
@@ -515,118 +369,48 @@ type Observed struct {
 // page that shows an older value offers a transition from a state the note has
 // already left — most visibly right after a write, when the reader is looking
 // straight at the thing they just did.
-func (lc *Lifecycle) ObservedStatus(_ context.Context, rel string) (Observed, error) {
+func (lc *Lifecycle) ObservedStatus(rel string) (string, error) {
 	relSlash, osPath, err := normalizeRelPath(rel)
 	if err != nil {
-		return Observed{}, err
+		return "", err
 	}
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
-	if lc.root == nil {
-		return Observed{}, ErrClosed
-	}
-	source, err := readRegularFile(lc.root, osPath, relSlash)
-	if err != nil {
-		return Observed{}, err
-	}
-	return Observed{
-		Status:      vault.Parse(relSlash, source.data).Status(),
-		ContentHash: sha256.Sum256(source.data),
-	}, nil
-}
-
-type provenanceHooks struct {
-	beforeLock func()
-	afterLock  func()
-	afterGit   func()
-}
-
-func (lc *Lifecycle) lastCommitHash(
-	ctx context.Context,
-	rel string,
-	expected [sha256.Size]byte,
-	hooks provenanceHooks,
-) (string, error) {
-	relSlash, relPath, err := normalizeRelPath(rel)
-	if err != nil {
-		return "", fmt.Errorf("status: hash %q: %w", rel, err)
-	}
-	if hooks.beforeLock != nil {
-		hooks.beforeLock()
-	}
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
-	if hooks.afterLock != nil {
-		hooks.afterLock()
-	}
 	if lc.root == nil {
 		return "", ErrClosed
 	}
-	matches, err := fileMatches(lc.root, relPath, relSlash, expected)
+	source, err := readRegularFile(lc.root, osPath, relSlash)
 	if err != nil {
-		return "", fmt.Errorf("status: check commit hash for %s: %w", relSlash, err)
+		return "", err
 	}
-	if !matches {
-		return "", nil
-	}
-	dirty, err := lc.dirty(ctx, relPath)
-	if err != nil {
-		return "", fmt.Errorf("status: check commit hash for %s: %w", relSlash, err)
-	}
-	if dirty {
-		return "", nil
-	}
-	out, err := runGit(ctx, lc.root, "--literal-pathspecs", "log", "-1", "--format=%h", "--", relPath)
-	if err != nil {
-		return "", fmt.Errorf("status: last commit hash %s: %w", relSlash, err)
-	}
-	if hooks.afterGit != nil {
-		hooks.afterGit()
-	}
-	matches, err = fileMatches(lc.root, relPath, relSlash, expected)
-	if err != nil {
-		return "", fmt.Errorf("status: recheck commit hash for %s: %w", relSlash, err)
-	}
-	if !matches {
-		return "", nil
-	}
-	return string(bytes.TrimSpace(out)), nil
+	return vault.Parse(relSlash, source.data).Status(), nil
 }
 
-func fileMatches(
-	root *os.Root,
-	rel, relSlash string,
-	expected [sha256.Size]byte,
-) (bool, error) {
-	snapshot, err := readRegularFile(root, rel, relSlash)
-	if err != nil {
-		return false, err
-	}
-	return sha256.Sum256(snapshot.data) == expected, nil
-}
-
-// Flip moves the note at rel from status "from" to status "to": it
-// validates the transition against the contract, rewrites exactly the
-// frontmatter status line, and commits the change under the vault's own
-// git identity. Every refusal before publication leaves the file untouched. A
-// commit failure is reported after the atomic replacement and therefore leaves
-// the rewritten file in place for the operator to recover explicitly.
+// Flip moves the note at rel from status "from" to status "to": it validates
+// the transition against the contract, rewrites exactly the frontmatter
+// status line, and atomically installs the rewritten bytes under the note's
+// own name. Every refusal before the install leaves the file untouched.
 //
 // Flip holds the Lifecycle's lock for its entire duration (see the mu field
 // doc): concurrent callers are serialized, never interleaved.
-func (lc *Lifecycle) Flip(ctx context.Context, rel, from, to string) error {
-	return lc.flip(ctx, rel, from, to, flipHooks{})
+func (lc *Lifecycle) Flip(rel, from, to string) error {
+	return lc.flip(rel, from, to, flipHooks{})
 }
 
 type flipHooks struct {
-	beforeLock    func()
-	afterLock     func()
-	beforePublish func()
+	beforeLock func()
+	afterLock  func()
+	// beforeAuthority runs after the replacement bytes are prepared and
+	// before the install window's authority recheck.
+	beforeAuthority func()
+	// beforeInstall runs inside the install window: after the source has been
+	// confirmed unmodified and before the rewritten bytes take the note's name.
 	beforeInstall func()
-	afterPublish  func()
+	// afterInstall runs once the replacement is durably visible.
+	afterInstall func()
 }
 
-func (lc *Lifecycle) flip(ctx context.Context, rel, from, to string, hooks flipHooks) error {
+func (lc *Lifecycle) flip(rel, from, to string, hooks flipHooks) error {
 	relSlash, rel, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
@@ -663,28 +447,18 @@ func (lc *Lifecycle) flip(ctx context.Context, rel, from, to string, hooks flipH
 		return fmt.Errorf("status: %s %s -> %s: %w", relSlash, from, to, err)
 	}
 
-	if stateErr := lc.validateRepoState(ctx, rel, relSlash); stateErr != nil {
-		return stateErr
-	}
-
 	rewritten, err := rewriteStatusChecked(relSlash, data, n.Status() != "", to)
 	if err != nil {
 		return err
 	}
-	if err := lc.publishStatus(rel, relSlash, &source, rewritten, hooks); err != nil {
-		return err
-	}
-	if err := lc.commit(ctx, rel, relSlash, from, to, rewritten); err != nil {
-		return err
-	}
-	return nil
+	return lc.install(rel, relSlash, &source, rewritten, hooks)
 }
 
-// publishStatus crosses Flip's irreversible boundary. It revalidates the
-// current artifact authority inside replaceRegularFile's publication section,
-// atomically installs the rewritten bytes, and reports only after the durable
+// install crosses Flip's irreversible boundary. It revalidates the current
+// artifact authority inside replaceRegularFile's install window, atomically
+// installs the rewritten bytes, and reports only after the durable
 // replacement is visible.
-func (lc *Lifecycle) publishStatus(
+func (lc *Lifecycle) install(
 	rel, relSlash string,
 	source *fileSnapshot,
 	rewritten []byte,
@@ -696,7 +470,7 @@ func (lc *Lifecycle) publishStatus(
 		relSlash,
 		source,
 		rewritten,
-		publishHooks{beforeAuthority: hooks.beforePublish, beforeInstall: hooks.beforeInstall},
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall},
 		func() error {
 			_, authorityErr := lc.validatedArtifactPolicy()
 			return authorityErr
@@ -708,8 +482,8 @@ func (lc *Lifecycle) publishStatus(
 		}
 		return fmt.Errorf("status: write %s: %w", relSlash, err)
 	}
-	if hooks.afterPublish != nil {
-		hooks.afterPublish()
+	if hooks.afterInstall != nil {
+		hooks.afterInstall()
 	}
 	return nil
 }
@@ -732,8 +506,8 @@ func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
 	// carries no dot-prefixed component: it does not descend into a hidden
 	// directory and does not serve a hidden file. The write face applies the
 	// whole of that definition before touching the file, so a resource
-	// carrying note-shaped frontmatter cannot acquire a committed
-	// note-lifecycle receipt for something the reading face never shows.
+	// carrying note-shaped frontmatter cannot acquire a note-lifecycle
+	// transition for something the reading face never shows.
 	if !strings.HasSuffix(relSlash, ".md") || vault.OutsideScan(relSlash) {
 		return ErrNonInstance
 	}
@@ -745,10 +519,9 @@ func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
 //
 // A vault on a case-insensitive filesystem opens "L06.MD" for a request naming
 // "L06.md". The scan compares spellings exactly and reads the file on disk as
-// a resource, and so does git, whose index holds the entry under the name it
-// was added with — which is why this used to end as a rewritten resource and a
-// commit that could not find its own path. The check asks the directory what
-// it actually holds, so the refusal comes before anything is written. It also
+// a resource — which is why this used to end as a rewritten resource no
+// reading page would show. The check asks the directory what it actually
+// holds, so the refusal comes before anything is written. It also
 // covers spellings that differ in ways beyond letter case, since it compares
 // the resolved entry rather than reasoning about one kind of equivalence.
 func (lc *Lifecycle) targetSpelledAsRequested(rel, relSlash string) error {
@@ -775,29 +548,6 @@ func (lc *Lifecycle) targetSpelledAsRequested(rel, relSlash string) error {
 	}
 	if !slices.Contains(names, name) {
 		return ErrNonInstance
-	}
-	return nil
-}
-
-// validateRepoState refuses a flip the vault repository's own state makes
-// unrecordable: an uncommitted edit on the target that a commit would fold in,
-// or a detached HEAD on which the receipt commit would land outside every
-// branch. Every refusal here happens before publication and leaves the file
-// untouched.
-func (lc *Lifecycle) validateRepoState(ctx context.Context, rel, relSlash string) error {
-	dirty, err := lc.dirty(ctx, rel)
-	if err != nil {
-		return fmt.Errorf("%w: %s: %w", ErrWorkTreeUnreadable, relSlash, err)
-	}
-	if dirty {
-		return fmt.Errorf("%w: %s", ErrDirty, relSlash)
-	}
-	detached, err := lc.detachedHead(ctx)
-	if err != nil {
-		return fmt.Errorf("%w: %s: %w", ErrWorkTreeUnreadable, relSlash, err)
-	}
-	if detached {
-		return fmt.Errorf("%w: %s", ErrDetachedHead, relSlash)
 	}
 	return nil
 }
@@ -929,13 +679,13 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 
 func closeRoot(root *os.Root) {
 	// Root holds only a directory descriptor. A close failure cannot change a
-	// completed read or rename, and turning it into a Flip failure after rename
-	// would incorrectly skip the required git commit.
+	// completed read or rename, so reporting it as a Flip failure would call a
+	// finished write unsuccessful.
 	_ = root.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
 }
 
 // normalizeRelPath validates and normalizes the external slash path before any
-// contract, filesystem, or git decision. It returns both slash and OS forms.
+// contract or filesystem decision. It returns both slash and OS forms.
 func normalizeRelPath(rel string) (relSlash, osPath string, err error) {
 	if rel == "" || strings.Contains(rel, `\`) || pathpkg.IsAbs(rel) || hasControlByte(rel) {
 		return "", "", fmt.Errorf("%w: %q", ErrInvalidPath, rel)
@@ -951,14 +701,13 @@ func normalizeRelPath(rel string) (relSlash, osPath string, err error) {
 // hasControlByte reports whether s carries a byte no note's name can carry.
 //
 // A zero byte ends a path as far as the operating system is concerned, so no
-// file has ever been named with one; asking to seal such a path reached the
+// file has ever been named with one; asking to flip such a path reached the
 // filesystem and came back as an unrecognized failure, which the reader was
 // shown as "yomihon could not do this" rather than as the malformed request it
-// was. The rest of this range is refused for what it would do afterwards: this
-// path is quoted into the subject line of the commit that records the seal, and
-// a line ending inside it would split that one line into a subject and a body
-// of the sender's choosing. The receipt is the whole point of writing through
-// this face, so nothing that can forge its shape is allowed to reach it.
+// was. The rest of the range — line endings, tabs, escapes — has the same
+// character: no note is named with one, so a request carrying one is
+// malformed, and it is refused up front rather than quoted onward into
+// errors and logs.
 func hasControlByte(s string) bool {
 	return strings.ContainsFunc(s, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
@@ -1030,22 +779,22 @@ func rewriteStatusLine(data []byte, to string) ([]byte, error) {
 	return out, nil
 }
 
-type publishHooks struct {
+type installHooks struct {
 	beforeAuthority func()
 	afterAuthority  func()
-	// beforeInstall runs inside the publication window: after the source has
+	// beforeInstall runs inside the install window: after the source has
 	// been confirmed unmodified and before the rewritten bytes take the
 	// note's name. It is the only seam that can place an external writer
 	// exactly where the install has to survive one.
 	beforeInstall func()
 	syncTemp      func(*os.File) error
 	syncParent    func(*os.Root) error
-	// rung, when set, replaces the per-filesystem probe for this publication.
+	// rung, when set, replaces the per-filesystem probe for this install.
 	// The probe's answer is cached for the whole process, so a test that needs
 	// a particular rung says so for its own call instead of deciding for every
-	// other publication on the same filesystem.
+	// other install on the same filesystem.
 	rung func() installRung
-	// ops, when set, wraps the publication's filesystem operations, which is
+	// ops, when set, wraps the install's filesystem operations, which is
 	// how a test reproduces a driver or a race no temporary directory offers.
 	ops func(installOps) installOps
 }
@@ -1061,7 +810,7 @@ func replaceRegularFile(
 	rel, relSlash string,
 	source *fileSnapshot,
 	data []byte,
-	hooks publishHooks,
+	hooks installHooks,
 	authorize func() error,
 ) error {
 	preparedParent, err := openSameParent(root, rel, relSlash, source)
@@ -1087,21 +836,21 @@ func replaceRegularFile(
 		hooks.beforeAuthority()
 	}
 
-	publishParent, err := openSameParent(root, rel, relSlash, source)
+	installParent, err := openSameParent(root, rel, relSlash, source)
 	if err != nil {
 		return err
 	}
 	if authorize != nil {
 		if err = authorize(); err != nil {
-			closeRoot(publishParent)
+			closeRoot(installParent)
 			return err
 		}
 	}
 	if hooks.afterAuthority != nil {
 		hooks.afterAuthority()
 	}
-	if err = sourceUnmodified(publishParent, relSlash, source); err != nil {
-		closeRoot(publishParent)
+	if err = sourceUnmodified(installParent, relSlash, source); err != nil {
+		closeRoot(installParent)
 		return err
 	}
 	if hooks.beforeInstall != nil {
@@ -1111,23 +860,23 @@ func replaceRegularFile(
 	// starts, that name can hold the version another program wrote, so only
 	// the install — which reads the bytes before it decides — may remove it.
 	removeTemp = false
-	ops := rootOps(publishParent)
+	ops := rootOps(installParent)
 	if hooks.ops != nil {
 		ops = hooks.ops(ops)
 	}
 	if err = installRewritten(ops, relSlash, tmpName, rung, source, data); err != nil {
-		closeRoot(publishParent)
+		closeRoot(installParent)
 		return err
 	}
 	syncParent := syncDirectory
 	if hooks.syncParent != nil {
 		syncParent = hooks.syncParent
 	}
-	if err = syncParent(publishParent); err != nil {
-		closeRoot(publishParent)
-		return fmt.Errorf("%w: sync containing directory: %w", ErrPublishUncertain, err)
+	if err = syncParent(installParent); err != nil {
+		closeRoot(installParent)
+		return fmt.Errorf("%w: sync containing directory: %w", ErrInstallUncertain, err)
 	}
-	closeRoot(publishParent)
+	closeRoot(installParent)
 	return nil
 }
 
@@ -1222,7 +971,7 @@ const (
 )
 
 // staleTempAge is how old an abandoned temp file must be before the write
-// face moves it aside. Only process death inside the publication window can
+// face moves it aside. Only process death inside the install window can
 // strand one — every in-process failure clears its own temp or names it in
 // the error — and a stranded file is invisible to the reading scan, which
 // hides dot-prefixed names, so nothing else ever reclaims it. An hour is far
@@ -1283,8 +1032,8 @@ func writeTempMiddle(name string) (string, bool) {
 	return middle, true
 }
 
-// tempName is one fresh name for a file placed beside the note during a
-// publication.
+// tempName is one fresh name for a file placed beside the note during an
+// install.
 func tempName() string {
 	return statusTempPrefix + rand.Text() + statusTempSuffix
 }
@@ -1318,116 +1067,4 @@ func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os
 		return "", fmt.Errorf("close temp file: %w", err)
 	}
 	return name, nil
-}
-
-// detachedHead reports whether the vault's HEAD is attached to no branch.
-// git answers through symbolic-ref: on a branch it prints the ref and exits
-// zero; detached, it exits one and, under -q, prints nothing at all. Any
-// other outcome — a fatal diagnostic, or the git child failing before it
-// could exec — carries output, so a silent exit one is the only shape read
-// as detached. The check only reads repository state; it never creates or
-// moves a branch.
-func (lc *Lifecycle) detachedHead(ctx context.Context) (bool, error) {
-	out, err := runGit(ctx, lc.root, "symbolic-ref", "-q", "HEAD")
-	if err == nil {
-		return false, nil
-	}
-	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 && len(bytes.TrimSpace(out)) == 0 {
-		return true, nil
-	}
-	return false, err
-}
-
-// dirty reports whether rel has uncommitted changes in the vault's git
-// working tree.
-func (lc *Lifecycle) dirty(ctx context.Context, rel string) (bool, error) {
-	out, err := runGit(ctx, lc.root, "--literal-pathspecs", "status", "--porcelain", "--", rel)
-	if err != nil {
-		return false, err
-	}
-	return len(bytes.TrimSpace(out)) > 0, nil
-}
-
-// commit records the flip as one commit, authored with the vault's
-// configured git identity, never one yomihon sets itself. Within this
-// tool's single-user, local-trust model the commit records that the write
-// face performed the transition; it does not authenticate who triggered
-// it. relSlash is used in the commit
-// message (a stable, slash-form path); rel is what's passed to git, which
-// on this platform are the same string.
-func (lc *Lifecycle) commit(ctx context.Context, rel, relSlash, from, to string, rewritten []byte) error {
-	// replaceRegularFile has already rewritten the file on disk by the time this
-	// runs, so a failure here — same as a failing `git commit` below — must
-	// also carry ErrCommitFailed: the caller owes the operator the "file
-	// already changed, here is the git error" presentation whether staging
-	// or committing failed, not just the latter.
-	if _, err := runGit(ctx, lc.root, "--literal-pathspecs", "add", "--", rel); err != nil {
-		return fmt.Errorf("%w: git add %s: %w", ErrCommitFailed, relSlash, err)
-	}
-	msg := fmt.Sprintf("status(%s): %s → %s (via yomihon)", relSlash, from, to)
-	if _, err := runGit(ctx, lc.root, "--literal-pathspecs", "commit", "--only", "-m", msg, "--", rel); err != nil {
-		return fmt.Errorf("%w: %w", ErrCommitFailed, err)
-	}
-	return lc.verifyReceipt(ctx, relSlash, msg, rewritten)
-}
-
-// verifyReceipt reads the commit just created back and confirms it records
-// exactly the intended change and that it will survive: the tree touches the
-// note alone, the committed blob is the one git stores for the bytes just
-// published, the subject line is the composed message, and HEAD still names a
-// branch. A zero exit from git commit
-// cannot promise any of this — repo-local hooks may edit and restage files
-// or replace the message inside the partial commit, and an external writer
-// can race the two child processes — so success is reported only after the
-// receipt itself has been read back. On any mismatch the commit is left in
-// place, mirroring the no-rollback stance of ErrCommitFailed, and the
-// divergence is surfaced to the operator. Refusals never reach this point:
-// only a flip that already published its bytes has a receipt to verify.
-func (lc *Lifecycle) verifyReceipt(ctx context.Context, relSlash, msg string, rewritten []byte) error {
-	// --root covers the degenerate first-commit shape; -z keeps names raw
-	// so non-ASCII paths are not C-quoted.
-	names, err := runGit(ctx, lc.root, "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--root", "HEAD")
-	if err != nil {
-		return fmt.Errorf("%w: %s: inspect committed paths: %w", ErrReceiptUnreadable, relSlash, err)
-	}
-	if got := strings.Split(strings.TrimSuffix(string(names), "\x00"), "\x00"); len(got) != 1 || got[0] != relSlash {
-		return fmt.Errorf("%w: %s: commit changed paths %q", ErrReceiptDiverged, relSlash, got)
-	}
-	committed, err := runGit(ctx, lc.root, "rev-parse", "HEAD:"+relSlash)
-	if err != nil {
-		return fmt.Errorf("%w: %s: read committed blob id: %w", ErrReceiptUnreadable, relSlash, err)
-	}
-	// The published bytes are fed through the same check-in conversion a
-	// hand-run git add applies at this path — the vault's own line-ending
-	// and attribute configuration — so the comparison asks whether the
-	// commit stores these bytes, not whether the vault is configured to
-	// store them verbatim.
-	intended, err := runGitInput(ctx, lc.root, rewritten, "hash-object", "--stdin", "--path", relSlash)
-	if err != nil {
-		return fmt.Errorf("%w: %s: compute intended blob id: %w", ErrReceiptUnreadable, relSlash, err)
-	}
-	if !bytes.Equal(bytes.TrimSpace(committed), bytes.TrimSpace(intended)) {
-		return fmt.Errorf("%w: %s: committed bytes differ from the published note", ErrReceiptDiverged, relSlash)
-	}
-	subject, err := runGit(ctx, lc.root, "log", "-1", "--format=%s", "HEAD")
-	if err != nil {
-		return fmt.Errorf("%w: %s: read commit subject: %w", ErrReceiptUnreadable, relSlash, err)
-	}
-	if got := strings.TrimSuffix(string(subject), "\n"); got != msg {
-		return fmt.Errorf("%w: %s: commit subject %q, want %q", ErrReceiptDiverged, relSlash, got, msg)
-	}
-	// HEAD was confirmed to name a branch before anything was written, but an
-	// operator can detach it while the flip runs. A commit made there records
-	// the transition correctly and still loses it: returning to a branch takes
-	// the note back to its old status and leaves the receipt in the reflog
-	// alone. The commit is already in hand here, so asking once more costs one
-	// query and closes the window the earlier check cannot see.
-	detached, err := lc.detachedHead(ctx)
-	if err != nil {
-		return fmt.Errorf("%w: %s: read the branch the commit landed on: %w", ErrReceiptUnreadable, relSlash, err)
-	}
-	if detached {
-		return fmt.Errorf("%w: %s: the commit landed on no branch", ErrReceiptDiverged, relSlash)
-	}
-	return nil
 }

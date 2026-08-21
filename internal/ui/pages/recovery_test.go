@@ -50,53 +50,6 @@ func TestStatusRecoveryDistinguishesMutationState(t *testing.T) {
 	}
 }
 
-// TestStatusRecoveryHeadlineNeverHidesAChangedFile holds the one thing this
-// page cannot get wrong. A refusal may name the operator's next move as the
-// title, which reads better than restating the outcome — but a failure that
-// already replaced the note's bytes has to keep saying so, and a headline
-// supplied for the refusal it was written for must not travel onto that page
-// and bury it.
-func TestStatusRecoveryHeadlineNeverHidesAChangedFile(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		changed bool
-		want    string
-	}{
-		{name: "refused before the write", want: "先處理這篇筆記的其他修改"},
-		{name: "failed after the write", changed: true, want: "狀態已寫入，需要手動收尾"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			view := StatusRecoveryView{
-				Changed:    tt.changed,
-				Headline:   "先處理這篇筆記的其他修改",
-				Summary:    "摘要",
-				NextAction: "下一步內容",
-			}
-			if got := view.Title(); got != tt.want {
-				t.Errorf("Title() = %q, want %q", got, tt.want)
-			}
-			html := renderRecovery(t, &view)
-			if !strings.Contains(html, `<h1 id="recovery-title" class="y-title">`+tt.want+`</h1>`) {
-				t.Errorf("recovery heading is not %q; html = %q", tt.want, html)
-			}
-		})
-	}
-}
-
-// TestStatusRecoveryFallsBackToTheOutcomeTitle keeps the headline optional: a
-// refusal that supplies none still gets a title, and it is the one the page had
-// before any refusal carried its own.
-func TestStatusRecoveryFallsBackToTheOutcomeTitle(t *testing.T) {
-	t.Parallel()
-	view := StatusRecoveryView{Summary: "摘要", NextAction: "下一步內容"}
-	if got := view.Title(); got != "狀態尚未變更" {
-		t.Errorf("Title() with no headline = %q, want %q", got, "狀態尚未變更")
-	}
-}
-
 func TestStatusRecoveryEscapesDetailAndOffersOnlySafeGETLinks(t *testing.T) {
 	t.Parallel()
 	html := renderRecovery(t, &StatusRecoveryView{

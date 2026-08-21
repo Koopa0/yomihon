@@ -512,14 +512,6 @@ html, body { margin: 0; background: var(--bg); }
 .y-xbtn { width: 100%; height: 34px; background: transparent; color: var(--fg-subtle); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--font-sans); font-size: var(--fs-13); cursor: pointer; }
 .y-xbtn:hover { background: var(--overlay); color: var(--fg); }
 
-/* a transition the working tree would refuse: legible, and visibly not pressable.
-   :hover still matches on a disabled control, so the lift has to be taken back
-   explicitly or the button keeps inviting the press it will not accept. */
-.y-sealbtn:disabled,
-.y-xbtn:disabled { cursor: not-allowed; opacity: 0.5; }
-.y-sealbtn:disabled { box-shadow: none; }
-.y-xbtn:disabled:hover { background: transparent; color: var(--fg-subtle); }
-
 /* sealed state (status == ready) */
 .y-sealed { display: inline-flex; align-items: center; gap: 9px; padding: 6px 13px 6px 8px; border: 1.5px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-muted); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, transparent); }
 .y-sealed__stamp { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 1.5px solid var(--accent); border-radius: 4px; color: var(--accent); font-family: var(--font-kai); font-size: 16px; line-height: 1; padding-top: 1px; }
@@ -527,7 +519,6 @@ html, body { margin: 0; background: var(--bg); }
 .y-sealline { margin-top: 12px; height: 1.5px; background: linear-gradient(90deg, var(--accent), var(--gold)); transform-origin: left; }
 .y-sealby { margin-top: 10px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); display: flex; align-items: center; gap: 7px; }
 .y-sealby svg { width: 12px; height: 12px; }
-.y-sealgit { margin-top: 5px; font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); opacity: .75; }
 /* one-shot ceremony (activated by status.js when ?sealed=1) */
 .y-justsealed .y-sealed { animation: y-sealBed .5s var(--ease-standard) both; }
 .y-justsealed .y-sealed__stamp { animation: y-inkBloom .65s ease-out both; }
@@ -559,20 +550,6 @@ html, body { margin: 0; background: var(--bg); }
 .y-sealbar .y-xbtn { width: auto; padding-inline: 14px; }
 .y-sealbar .y-sealpoem { display: none; }
 .y-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
-
-/* Stated beside the transition controls, not after the press: the working tree
-   already carries an edit this note's own commit would swallow. Amber marks it
-   as a condition the reader can clear, distinct from the neutral notices. */
-.y-writeblock { color: var(--warn); border-inline-start: 2px solid currentColor; padding-inline-start: 10px; }
-.y-sealbar__notice.y-writeblock { border-inline-start: none; padding-inline-start: 0; flex: 1 1 auto; min-width: 0; }
-/* The refusal reads as three lines, not one paragraph: what to do, why the
-   transition stopped, and the step that clears it. Both faces carry all three,
-   and one of them is a span, so each part becomes its own block here rather
-   than relying on the element it happens to sit in. */
-.y-writeblock__head, .y-writeblock__body, .y-writeblock__step { display: block; }
-.y-writeblock__head { font-weight: 600; }
-.y-writeblock__body, .y-writeblock__step { font-weight: 400; }
-.y-writeblock__step { margin-top: 4px; color: var(--fg-subtle); }
 
 /* ============================================================
    ⌘K search dialog (native <dialog>)

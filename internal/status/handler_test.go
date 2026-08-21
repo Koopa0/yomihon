@@ -58,11 +58,10 @@ func postStatus(t *testing.T, srv *httptest.Server, form url.Values) (statusCode
 
 func TestHandlerSuccess(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
 	srv := newHandlerServer(t, lifecycle)
 
 	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
@@ -78,7 +77,7 @@ func TestHandlerSuccess(t *testing.T) {
 
 func TestHandlerMissingFields(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 	srv := newHandlerServer(t, lifecycle)
 
@@ -127,7 +126,7 @@ func TestHandlerRejectsOversizedFormWithRecoveryPage(t *testing.T) {
 
 func TestHandlerClosed(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, nil) // no contract: fail-closed
 	srv := newHandlerServer(t, lifecycle)
 
@@ -161,7 +160,7 @@ func TestHandlerPathValidationPrecedesClosure(t *testing.T) {
 
 func TestHandlerNonInstance(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	srv := newHandlerServer(t, newLifecycle(t, root, loadContract(t)))
 
 	code, _, body := postStatus(t, srv, url.Values{
@@ -254,11 +253,10 @@ func TestHandlerRejectsChangedContractSource(t *testing.T) {
 
 func TestHandlerStale(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
 	srv := newHandlerServer(t, lifecycle)
 
 	// The page claims "imported"; the file actually says "draft".
@@ -273,11 +271,10 @@ func TestHandlerStale(t *testing.T) {
 
 func TestHandlerTargetRemovedAfterPageLoad(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
 	if err := os.Remove(filepath.Join(root, filepath.FromSlash(testRel))); err != nil {
 		t.Fatalf("remove status target: %v", err)
 	}
@@ -297,87 +294,13 @@ func TestHandlerTargetRemovedAfterPageLoad(t *testing.T) {
 	}
 }
 
-func TestHandlerDirty(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	committed := lessonContent("draft")
-	writeNote(t, root, committed)
-	commitAll(t, root)
-	writeNote(t, root, committed+"<!-- uncommitted -->\n")
-	srv := newHandlerServer(t, lifecycle)
-
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
-	if code != http.StatusConflict {
-		t.Errorf("status = %d, want %d", code, http.StatusConflict)
-	}
-	// The page has to do three things here, and each is a separate way of
-	// getting it wrong: name the operator's own next move as the title, say
-	// plainly that nothing was written, and give the step that clears it.
-	for _, want := range []string{status.DirtyBlock.Headline, status.DirtyBlock.Body, status.DirtyBlock.NextStep} {
-		if !strings.Contains(body, want) {
-			t.Errorf("recovery page for an uncommitted edit is missing %q; body = %q", want, body)
-		}
-	}
-	if !strings.Contains(body, "這次操作沒有變更筆記檔案。") {
-		t.Errorf("recovery page stopped saying the note file is untouched; body = %q", body)
-	}
-}
-
-// TestHandlerReceiptDiverged locks the routing of a commit receipt that does
-// not record what the flip intended: the note changed and a commit exists, so
-// the page must carry the changed=true warning, name hooks and filters among
-// the likely causes, and forbid resubmitting.
-func TestHandlerReceiptDiverged(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	writeHook(t, root, "commit-msg", "#!/bin/sh\nprintf 'chore: routine maintenance\\n' > \"$1\"\n")
-	srv := newHandlerServer(t, lifecycle)
-
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
-	if code != http.StatusInternalServerError {
-		t.Errorf("status = %d, want %d", code, http.StatusInternalServerError)
-	}
-	for _, want := range []string{"筆記已改寫並提交", "並未如預期記錄", "不要重送", "hooks"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("body is missing %q: %q", want, body)
-		}
-	}
-}
-
-func TestHandlerDetachedHead(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	runGit(t, root, "checkout", "--detach")
-	srv := newHandlerServer(t, lifecycle)
-
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
-	if code != http.StatusConflict {
-		t.Errorf("status = %d, want %d", code, http.StatusConflict)
-	}
-	for _, want := range []string{"detached HEAD", "回到分支", "狀態尚未變更"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("body is missing %q: %q", want, body)
-		}
-	}
-}
-
 // TestHandlerUnsupportedStatusSyntax locks the operator-facing wording for a
 // readable note whose status the surgical rewriter cannot locate: the page
 // must name the unsupported syntax and the plain form to switch to, never
 // the schema-violation message — the note violates no schema.
 func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	content := "---\n" +
@@ -390,7 +313,6 @@ func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 		"---\n" +
 		"\nbody\n"
 	writeNote(t, root, content)
-	commitAll(t, root)
 	srv := newHandlerServer(t, lifecycle)
 
 	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
@@ -407,19 +329,12 @@ func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 	}
 }
 
-// ErrStatusLine (422, "schema violation") is deliberately not exercised
-// here through a full HTTP round trip: reaching the surgical rewrite requires
-// a blank current status, while this handler rejects a blank "from" before
-// Flip is called. The branch remains a defense-in-depth guard for future
-// non-HTTP callers and is covered directly by TestFlipMalformedStatusLine.
-
 func TestHandlerIllegalTransition(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("imported"))
-	commitAll(t, root)
 	srv := newHandlerServer(t, lifecycle)
 
 	// imported -> ready skips the required "draft" stage.
@@ -437,63 +352,5 @@ func TestHandlerIllegalTransition(t *testing.T) {
 		if !strings.Contains(decoded, want) {
 			t.Errorf("body = %q, want it to contain the schema's own rejection reason (missing %q)", body, want)
 		}
-	}
-}
-
-// TestHandlerWorkTreeUnreadable covers a folder that is no git repository: the
-// working tree cannot be inspected, so no transition can ever be recorded there.
-// It is answered as an unavailable capability rather than an unexplained
-// failure, and — the part that matters most — neither git's own message nor the
-// filesystem path reaches the page.
-//
-// The generic unexplained-failure path keeps its own coverage in
-// handler_internal_test.go's mapping table ("unknown internal").
-func TestHandlerWorkTreeUnreadable(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir() // deliberately not a git repo
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	writeNote(t, root, lessonContent("draft"))
-	srv := newHandlerServer(t, lifecycle)
-
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
-	if code != http.StatusServiceUnavailable {
-		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
-	}
-	if !strings.Contains(html.UnescapeString(body), status.GitBlock.Body) {
-		t.Errorf("body = %q, does not state why the write face is closed", body)
-	}
-	if strings.Contains(body, "fatal:") || strings.Contains(body, root) {
-		t.Errorf("body = %q, leaks internal error detail (git output or filesystem path)", body)
-	}
-}
-
-// TestHandlerCommitFailedRoutesGitAddFailure guards handler.go's switch: a
-// failing `git add` inside commit() must route to the same informative
-// ErrCommitFailed branch as a failing `git commit`, not fall through to the
-// generic "cannot flip status" 500 — the operator is owed the
-// file-already-changed warning and raw git error for either staging or
-// committing failing.
-func TestHandlerCommitFailedRoutesGitAddFailure(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	srv := newHandlerServer(t, lifecycle)
-
-	lockPath := filepath.Join(root, ".git", "index.lock")
-	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
-		t.Fatalf("create index.lock: %v", err)
-	}
-	removeOnCleanup(t, lockPath)
-
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
-	if code != http.StatusInternalServerError {
-		t.Errorf("status = %d, want %d", code, http.StatusInternalServerError)
-	}
-	if !strings.Contains(body, "筆記已改寫") || !strings.Contains(body, "git commit 失敗") {
-		t.Errorf("body = %q, want the file-already-changed + git-failed message, not the generic 500", body)
 	}
 }

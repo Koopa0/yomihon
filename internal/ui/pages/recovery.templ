@@ -3,14 +3,11 @@ package pages
 import "github.com/koopa0/yomihon/internal/ui/layouts"
 
 // StatusRecoveryView is the truthful browser projection of a failed status
-// change. Changed distinguishes failures before publication from failures
-// after the note bytes were replaced; callers must never infer it from copy.
+// change. Changed distinguishes refusals that left the file untouched from
+// failures after the note bytes were replaced; callers must never infer it
+// from copy.
 type StatusRecoveryView struct {
-	Changed bool
-	// Headline is the refusal's own title where it has a better one than the
-	// generic outcome — usually the operator's next action. It is ignored once
-	// the note bytes changed, because that page has one thing to say first.
-	Headline        string
+	Changed         bool
 	Summary         string
 	NextAction      string
 	TechnicalDetail string
@@ -24,9 +21,6 @@ type StatusRecoveryView struct {
 func (v StatusRecoveryView) Title() string {
 	if v.Changed {
 		return "狀態已寫入，需要手動收尾"
-	}
-	if v.Headline != "" {
-		return v.Headline
 	}
 	return "狀態尚未變更"
 }

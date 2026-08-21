@@ -207,8 +207,8 @@ try {
   }, RAW);
   if (rawBefore.status !== 200) broken(`${RAW} returned ${rawBefore.status} before the POST, want 200`);
 
-  const form = page.locator('form[data-seal][action="/status"]').first();
-  if (await form.count() !== 1) broken('the L01 fixture exposes no native seal form');
+  const form = page.locator('form[action="/status"]').first();
+  if (await form.count() !== 1) broken('the L01 fixture exposes no native status form');
   const formState = await form.evaluate((element) => ({
     path: Array.from(element.querySelectorAll('input[name="path"]'), (input) => input.value),
     from: Array.from(element.querySelectorAll('input[name="from"]'), (input) => input.value),
@@ -217,7 +217,7 @@ try {
   if (JSON.stringify(formState.path) !== JSON.stringify(['Writing/lessons/japanese/L01.md']) ||
       JSON.stringify(formState.from) !== JSON.stringify(['draft']) ||
       formState.to.length !== 1 || formState.to[0] === '') {
-    broken(`the fixture seal form fields are ${JSON.stringify(formState)}, want one path/from/to for L01 draft`);
+    broken(`the fixture status form fields are ${JSON.stringify(formState)}, want one path/from/to for L01 draft`);
   }
   await form.locator('input[name="to"]').evaluate((input) => input.remove());
   const [postResponse] = await Promise.all([

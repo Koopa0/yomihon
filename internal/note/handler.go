@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"crypto/sha256"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -52,25 +51,18 @@ const homeReadmePath = "README.md"
 // struct keeps the constructor within the parameter budget. Snapshot is one
 // closure because a request must read the atomic pointer once and derive its
 // navigation and counts from that coherent value. Status captures one immutable
-// lifecycle view for the request. Source changes affect the next request;
-// write publication still revalidates current authority under the lifecycle
-// lock. Provenance is a closure over the read-only git query owned by the write
-// package and binds the result to the exact note bytes this request read.
+// lifecycle view for the request. Source changes affect the next request; a
+// write still revalidates current authority under the lifecycle lock.
 type Dependencies struct {
-	Source     *vault.Reader
-	Status     func() status.View
-	Snapshot   func() *snapshot.View
-	Provenance func(ctx context.Context, rel string, content [sha256.Size]byte) (string, error)
-	// WriteBlock is a closure over the write package's read-only working-tree
-	// query. It answers why a transition on this note would be refused, so the
-	// reading page states it beside the controls rather than after a press.
-	WriteBlock func(ctx context.Context, rel string) (status.Block, error)
+	Source   *vault.Reader
+	Status   func() status.View
+	Snapshot func() *snapshot.View
 	// ObservedStatus is a closure over the write package's read of the note's
 	// own status line. The rest of the page comes from a scan that lags the
 	// folder by a couple of seconds, which a body and a link graph can afford
 	// and an adjudication state cannot: the reader arrives here straight from a
 	// write, and a status that lags is one they have already changed.
-	ObservedStatus func(ctx context.Context, rel string) (status.Observed, error)
+	ObservedStatus func(rel string) (string, error)
 	Log            *slog.Logger
 }
 
@@ -97,9 +89,6 @@ func New(d *Dependencies) *Handler {
 	}
 	if d.Snapshot == nil {
 		panic("note: New requires a non-nil Snapshot provider")
-	}
-	if d.Provenance == nil {
-		panic("note: New requires a non-nil Provenance provider")
 	}
 	if d.ObservedStatus == nil {
 		panic("note: New requires a non-nil ObservedStatus provider")
@@ -416,7 +405,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	artifactPolicy := snap.ArtifactPolicy()
-	governance := h.governance(r.Context(), &n, snap, statusView, artifactPolicy)
+	governance := h.governance(&n, snap, statusView, artifactPolicy)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body)
@@ -480,14 +469,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		NoFrontmatter:     governance.noFrontmatter,
 	}
 
-	h.addWriteBlock(r.Context(), rel, &view)
-	// The receipt is checked against the bytes the status face just read, not
-	// against the scan's capture. A write lands and redirects here inside the
-	// scan interval, so the captured bytes are the ones from before it — and a
-	// note whose seal is the only thing anyone will look at showed no commit at
-	// all on the one page load that mattered.
-	sealedAgainst := cmp.Or(governance.contentHash, n.ContentHash)
-	h.addSealProvenance(r.Context(), rel, sealedAgainst, r.URL.Query().Get("sealed") == "1", &view)
+	// The redirect after a seal carries a one-shot signal; only a sealed note
+	// plays it.
+	view.JustSealed = view.Sealed && r.URL.Query().Get("sealed") == "1"
 
 	pageChrome := governance.shell.Chrome(r, n.Title)
 	// The furigana control switches readings off. A page with none has nothing
@@ -525,11 +509,7 @@ type governanceState struct {
 	// empty unless the write face applies to this note; the page falls back to
 	// the scan's value, which is the only answer available when nothing may be
 	// written and is then never contradicted by anything.
-	status string
-	// contentHash is of the same bytes status came from. The seal receipt is
-	// checked against it, so the commit shown belongs to the file the page is
-	// describing rather than to whatever the scan last captured.
-	contentHash     [sha256.Size]byte
+	status          string
 	transitions     []string
 	writeDiagnostic string
 	instance        bool
@@ -542,7 +522,6 @@ type governanceState struct {
 }
 
 func (h *Handler) governance(
-	ctx context.Context,
 	n *snapshot.Note,
 	snap *snapshot.View,
 	statusView status.View,
@@ -571,8 +550,7 @@ func (h *Handler) governance(
 			// Legally no frontmatter (e.g. drills): no keys either.
 			state.noFrontmatter = true
 		default:
-			observed, blocked := h.observedStatus(ctx, n.RelPath)
-			state.status, state.contentHash, state.writeDiagnostic = observed.Status, observed.ContentHash, blocked
+			state.status, state.writeDiagnostic = h.observedStatus(n.RelPath)
 			if state.writeDiagnostic == "" {
 				state.transitions = statusView.Transitions(n.RelPath, n.Type, state.status)
 				if len(state.transitions) == 0 {
@@ -591,65 +569,13 @@ func (h *Handler) governance(
 // holds may be exactly the one the reader has already moved away from, and a
 // transition offered from it is refused on arrival. Whatever prevented this
 // read is the same thing that would prevent the write.
-func (h *Handler) observedStatus(ctx context.Context, rel string) (observed status.Observed, blocked string) {
-	observed, err := h.deps.ObservedStatus(ctx, rel)
+func (h *Handler) observedStatus(rel string) (current, blocked string) {
+	current, err := h.deps.ObservedStatus(rel)
 	if err != nil {
 		h.deps.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
-		return status.Observed{}, status.ReadBlock.Body
+		return "", status.NoteUnreadableDiagnostic
 	}
-	return observed, ""
-}
-
-// addWriteBlock asks the write package whether a transition on this note would
-// be refused, so the page states it beside the controls instead of leaving the
-// operator to discover it by pressing. It runs only when transitions are on
-// offer.
-//
-// The two refusals differ in kind and are presented differently. An uncommitted
-// edit is something the reader can clear and retry, so the controls stay and the
-// reason sits beside them. A working tree that cannot be read at all — most often
-// a folder that is not a git repository — cannot be cleared from inside yomihon,
-// and every transition there is recorded as a commit that can never be made, so
-// the whole write face closes and says why. Offering a control that can only fail
-// is worse than offering none.
-func (h *Handler) addWriteBlock(ctx context.Context, rel string, view *pages.NoteView) {
-	if len(view.Transitions) == 0 || h.deps.WriteBlock == nil {
-		return
-	}
-	block, err := h.deps.WriteBlock(ctx, rel)
-	if err != nil {
-		h.deps.Log.Warn("write block check", "path", rel, "error", err)
-		if !block.Blocked() {
-			block = status.GitBlock
-		}
-		view.WriteDiagnostic = block.Body
-		view.Transitions = nil
-		return
-	}
-	view.WriteBlock = block.Body
-	view.WriteBlockHeadline = block.Headline
-	view.WriteBlockNextStep = block.NextStep
-}
-
-// addSealProvenance performs the git read only for a governed sealed note and
-// carries the redirect's one-shot ceremony signal into the view.
-func (h *Handler) addSealProvenance(
-	ctx context.Context,
-	rel string,
-	contentHash [sha256.Size]byte,
-	justSealed bool,
-	view *pages.NoteView,
-) {
-	if !view.Sealed {
-		return
-	}
-	view.JustSealed = justSealed
-	hash, err := h.deps.Provenance(ctx, rel, contentHash)
-	if err != nil {
-		h.deps.Log.Warn("seal provenance", "path", rel, "error", err)
-		return
-	}
-	view.SealedHash = hash
+	return current, ""
 }
 
 // injectSlotMachine splices this lesson's slot-pattern machine into its rendered

@@ -204,20 +204,6 @@ func TestServeRejectsArgumentsBeforeLoadingConfiguration(t *testing.T) {
 	assertHomeUntouched(t, home)
 }
 
-func TestProductionBinaryDispatchesPrivateGitChildBeforeCLIParsing(t *testing.T) {
-	t.Parallel()
-	binary := buildYomihonBinary(t)
-	exit, stdout, stderr := runYomihonBinary(
-		t,
-		binary,
-		[]string{"__yomihon-status-git"},
-		isolatedUserEnv(t.TempDir()),
-	)
-	if exit != 1 || stdout != "" || stderr != "yomihon: status git child: missing git arguments\n" {
-		t.Errorf("private git child = exit %d, stdout %q, stderr %q; want 1, empty, missing-arguments diagnostic", exit, stdout, stderr)
-	}
-}
-
 func TestServeRejectsNonDirectoryVaultRoot(t *testing.T) {
 	t.Parallel()
 	binary := buildYomihonBinary(t)
@@ -503,7 +489,6 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		Source:         reader,
 		Status:         lifecycle.View,
 		Snapshot:       store.Current,
-		Provenance:     lifecycle.LastCommitHash,
 		Log:            log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
@@ -643,10 +628,7 @@ func drive(t *testing.T, url string) {
 // allowedEnvKeys are the two variables this command may interpret as
 // configuration: the listening port, and the embedding credential read lazily
 // by an explicit semantic CLI action. Which folder to read is not among them —
-// it is where you are standing, or what you name on the line. The private git
-// child has one separately audited whole-environment read whose only purpose is
-// to remove every GIT_* repository redirection and YOMIHON_* application value
-// before the external git process and its hooks can observe them.
+// it is where you are standing, or what you name on the line.
 var allowedEnvKeys = map[string]bool{
 	"YOMIHON_PORT":      true,
 	"YOMIHON_EMBED_KEY": true,
@@ -830,11 +812,6 @@ func envOffenders(reads []envRead) []envRead {
 	return offenders
 }
 
-func isGitEnvironmentSanitizer(r *envRead) bool {
-	return r.Pkg == "os" && r.Symbol == "Environ" && r.Func == "execGitChild" &&
-		strings.HasSuffix(filepath.ToSlash(r.Pos.Filename), "/internal/status/git_supported.go")
-}
-
 // module is this repository's import path, used to keep the file listing below
 // to the packages written here rather than the ones they borrow.
 const module = "github.com/koopa0/yomihon"
@@ -952,10 +929,7 @@ func goTargetEnvironment(target goTarget) []string {
 // listener binds the loopback address and only the port is configurable, so the
 // only environment values this binary may interpret are the vault root, the
 // port, and the embedding credential. The credential is dormant unless an
-// explicit semantic CLI action reaches the provider gate. One exact whole-env
-// read is required at the private git exec boundary to remove every GIT_*
-// repository redirection and YOMIHON_* application value; it is pinned to that
-// function and tested separately for total prefix removal. The
+// explicit semantic CLI action reaches the provider gate. The
 // test parses every file the command is built from — its own and each package it
 // links, as the toolchain reports them — and asserts that every reach for the
 // environment, through os or through the syscall package beneath it, called or
@@ -967,27 +941,13 @@ func goTargetEnvironment(target goTarget) []string {
 func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	t.Parallel()
 	fset := token.NewFileSet()
-	reads := envReads(fset, productionGoFiles(t, fset), allowedEnvKeys)
-	var offenders []envRead
-	sanitizers := 0
-	for _, read := range reads {
-		switch {
-		case read.Why == "":
-		case isGitEnvironmentSanitizer(&read):
-			sanitizers++
-		default:
-			offenders = append(offenders, read)
-		}
-	}
-	if sanitizers != 1 {
-		t.Errorf("private git boundary has %d whole-environment sanitizer reads, want exactly 1", sanitizers)
-	}
+	offenders := envOffenders(envReads(fset, productionGoFiles(t, fset), allowedEnvKeys))
 	if len(offenders) > 0 {
 		lines := make([]string, 0, len(offenders))
 		for _, o := range offenders {
 			lines = append(lines, fmt.Sprintf("%s: %s", o.Pos, o.Why))
 		}
-		t.Errorf("this command may configure only YOMIHON_PORT and YOMIHON_EMBED_KEY, plus one exact git-environment sanitizer read, but found:\n%s",
+		t.Errorf("this command may configure only YOMIHON_PORT and YOMIHON_EMBED_KEY, but found:\n%s",
 			strings.Join(lines, "\n"))
 	}
 }

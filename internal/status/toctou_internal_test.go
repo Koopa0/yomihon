@@ -7,11 +7,9 @@ package status
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"errors"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -25,17 +23,6 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-func internalRunGit(t *testing.T, root string, args ...string) string {
-	t.Helper()
-	fullArgs := append([]string{"-C", root}, args...)
-	cmd := exec.CommandContext(t.Context(), "git", fullArgs...) // #nosec G204 -- fixed test-controlled invocation, never passed through a shell
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, out)
-	}
-	return string(out)
-}
-
 func internalVault(t *testing.T) (string, *Lifecycle) {
 	t.Helper()
 	root, _, lifecycle := internalVaultWithMutableContract(t)
@@ -45,10 +32,6 @@ func internalVault(t *testing.T) (string, *Lifecycle) {
 func internalVaultWithMutableContract(t *testing.T) (root, contractPath string, lifecycle *Lifecycle) {
 	t.Helper()
 	root = t.TempDir()
-	internalRunGit(t, root, "init", "--initial-branch=main")
-	internalRunGit(t, root, "config", "user.name", "Test Vault")
-	internalRunGit(t, root, "config", "user.email", "test-vault@example.invalid")
-	internalRunGit(t, root, "config", "commit.gpgsign", "false")
 	contractBytes, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
 	if err != nil {
 		t.Fatalf("read test contract: %v", err)
@@ -103,15 +86,6 @@ func internalLesson() string {
 		"\nbody\n"
 }
 
-func internalCommitCount(t *testing.T, root string) int {
-	t.Helper()
-	out := strings.TrimSpace(internalRunGit(t, root, "log", "--oneline"))
-	if out == "" {
-		return 0
-	}
-	return len(strings.Split(out, "\n"))
-}
-
 func assertNoStatusTemps(t *testing.T, dir string) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -157,7 +131,7 @@ func TestFlipRejectsChangedContractBeforeFilesystem(t *testing.T) {
 		t.Fatalf("write reclassified contract: %v", err)
 	}
 
-	err = lifecycle.Flip(t.Context(), "Writing/missing.md", "draft", schema.SealStatus)
+	err = lifecycle.Flip("Writing/missing.md", "draft", schema.SealStatus)
 	if !errors.Is(err, ErrArtifactPolicyUnavailable) {
 		t.Fatalf("Flip() after contract change = %v, want %v before target access", err, ErrArtifactPolicyUnavailable)
 	}
@@ -186,8 +160,6 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lessons")
 
 	firstAtPublish := make(chan struct{})
 	releaseFirst := make(chan struct{})
@@ -197,11 +169,10 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		firstErr <- lifecycle.flip(
-			t.Context(),
 			firstRel,
 			"draft",
 			schema.SealStatus,
-			flipHooks{beforePublish: func() {
+			flipHooks{beforeAuthority: func() {
 				close(firstAtPublish)
 				<-releaseFirst
 			}},
@@ -210,7 +181,6 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	<-firstAtPublish
 	wg.Go(func() {
 		secondErr <- lifecycle.flip(
-			t.Context(),
 			secondRel,
 			"draft",
 			schema.SealStatus,
@@ -237,65 +207,6 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	}
 	if err = <-secondErr; !errors.Is(err, ErrArtifactPolicyUnavailable) {
 		t.Errorf("queued Flip() error = %v, want %v before target access", err, ErrArtifactPolicyUnavailable)
-	}
-}
-
-func TestLastCommitHashHoldsLifecycleLock(t *testing.T) {
-	t.Parallel()
-
-	root, lifecycle := internalVault(t)
-	const rel = "Writing/lessons/japanese/L05.md"
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("mkdir note parent: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(internalLesson()), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
-
-	_, err := lifecycle.lastCommitHash(t.Context(), rel, sha256.Sum256([]byte(internalLesson())), provenanceHooks{
-		afterLock: func() {
-			if lifecycle.mu.TryLock() {
-				lifecycle.mu.Unlock()
-				t.Error("LastCommitHash reached git without holding Lifecycle.mu")
-			}
-		},
-	})
-	if err != nil {
-		t.Fatalf("LastCommitHash() error = %v", err)
-	}
-}
-
-func TestLastCommitHashRechecksBytesAfterGit(t *testing.T) {
-	t.Parallel()
-
-	root, lifecycle := internalVault(t)
-	const rel = "Writing/lessons/japanese/L05.md"
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("mkdir note parent: %v", err)
-	}
-	original := []byte(internalLesson())
-	if err := os.WriteFile(path, original, 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
-
-	got, err := lifecycle.lastCommitHash(t.Context(), rel, sha256.Sum256(original), provenanceHooks{
-		afterGit: func() {
-			if writeErr := os.WriteFile(path, append(original, []byte("\nnewer bytes\n")...), 0o600); writeErr != nil {
-				t.Fatalf("change note after git query: %v", writeErr)
-			}
-		},
-	})
-	if err != nil {
-		t.Fatalf("LastCommitHash() error = %v", err)
-	}
-	if got != "" {
-		t.Errorf("LastCommitHash() = %q after bytes changed behind the git query, want empty", got)
 	}
 }
 
@@ -447,11 +358,8 @@ func TestFlipRejectsContractChangeBeforePublish(t *testing.T) {
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
-	beforeCommits := internalCommitCount(t, root)
 
-	err := lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{beforePublish: func() {
+	err := lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{beforeAuthority: func() {
 		data, readErr := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
 		if readErr != nil {
 			t.Fatalf("read mutable contract: %v", readErr)
@@ -480,158 +388,7 @@ func TestFlipRejectsContractChangeBeforePublish(t *testing.T) {
 	if string(got) != original {
 		t.Errorf("note changed after authority refusal:\ngot:  %q\nwant: %q", got, original)
 	}
-	if after := internalCommitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
-	}
 	assertNoStatusTemps(t, filepath.Dir(path))
-}
-
-func TestFlipCommitsSelectedRootWhenPathIsReplacedAfterPublication(t *testing.T) {
-	t.Parallel()
-
-	root, lifecycle := internalVault(t)
-	const rel = "Writing/lessons/japanese/L05.md"
-	original := internalLesson()
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("mkdir note parent: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed selected vault")
-
-	moved := root + "-selected"
-	err := lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{
-		afterPublish: func() {
-			if renameErr := os.Rename(root, moved); renameErr != nil {
-				t.Fatalf("rename selected vault after publication: %v", renameErr)
-			}
-			t.Cleanup(func() {
-				if removeErr := os.RemoveAll(moved); removeErr != nil {
-					t.Errorf("remove moved vault: %v", removeErr)
-				}
-			})
-			if mkdirErr := os.Mkdir(root, 0o750); mkdirErr != nil {
-				t.Fatalf("create replacement vault: %v", mkdirErr)
-			}
-			internalRunGit(t, root, "init", "--initial-branch=main")
-			internalRunGit(t, root, "config", "user.name", "Replacement Vault")
-			internalRunGit(t, root, "config", "user.email", "replacement@example.invalid")
-			internalRunGit(t, root, "config", "commit.gpgsign", "false")
-			replacementPath := filepath.Join(root, filepath.FromSlash(rel))
-			if mkdirErr := os.MkdirAll(filepath.Dir(replacementPath), 0o750); mkdirErr != nil {
-				t.Fatalf("mkdir replacement note parent: %v", mkdirErr)
-			}
-			if writeErr := os.WriteFile(replacementPath, []byte(original), 0o600); writeErr != nil {
-				t.Fatalf("write replacement note: %v", writeErr)
-			}
-			internalRunGit(t, root, "add", "-A")
-			internalRunGit(t, root, "commit", "-m", "seed replacement vault")
-		},
-	})
-	if err != nil {
-		t.Fatalf("Flip() after publication-time root replacement = %v, want nil", err)
-	}
-	wantSelected := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	selected, err := os.ReadFile(filepath.Join(moved, filepath.FromSlash(rel))) // #nosec G304 -- moved is a test-owned temporary directory
-	if err != nil {
-		t.Fatalf("read selected note: %v", err)
-	}
-	if string(selected) != wantSelected {
-		t.Errorf("selected note = %q, want %q", selected, wantSelected)
-	}
-	replacement, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- root is a test-owned temporary directory
-	if err != nil {
-		t.Fatalf("read replacement note: %v", err)
-	}
-	if string(replacement) != original {
-		t.Errorf("replacement note = %q, want untouched %q", replacement, original)
-	}
-	if got := internalCommitCount(t, moved); got != 2 {
-		t.Errorf("selected commit count = %d, want 2", got)
-	}
-	if got := internalCommitCount(t, root); got != 1 {
-		t.Errorf("replacement commit count = %d, want 1", got)
-	}
-}
-
-// TestFlipReportsReceiptDivergenceForExternalWriteBeforeCommit reproduces an
-// external writer (an editor's autosave) landing in the window between the
-// atomic publication and the git commit: git add samples the disk again, so
-// the created commit records the external bytes while its subject line
-// describes the status flip. The flip must read its receipt back and report
-// the divergence instead of unqualified success. Nothing is rolled back —
-// the commit stays for the operator to inspect.
-func TestFlipReportsReceiptDivergenceForExternalWriteBeforeCommit(t *testing.T) {
-	t.Parallel()
-	root, lifecycle := internalVault(t)
-	const rel = "Writing/lessons/japanese/L05.md"
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("mkdir note parent: %v", err)
-	}
-	original := internalLesson()
-	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
-	before := internalCommitCount(t, root)
-
-	external := strings.Replace(original, "\nbody\n", "\nan external edit the operator never approved\n", 1)
-	err := lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{
-		afterPublish: func() {
-			if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {
-				t.Fatalf("write external bytes: %v", writeErr)
-			}
-		},
-	})
-	if !errors.Is(err, ErrReceiptDiverged) {
-		t.Fatalf("Flip() with a post-publication external write = %v, want %v", err, ErrReceiptDiverged)
-	}
-	if after := internalCommitCount(t, root); after != before+1 {
-		t.Errorf("commit count = %d, want %d (the diverged commit stays in place)", after, before+1)
-	}
-	if blob := internalRunGit(t, root, "cat-file", "blob", "HEAD:"+rel); blob != external {
-		t.Errorf("committed blob = %q, want the external bytes %q (what actually got committed)", blob, external)
-	}
-}
-
-func TestGitChildExecFailureAfterPublicationPreservesPublishedBytes(t *testing.T) {
-	root, lifecycle := internalVault(t)
-	const rel = "Writing/lessons/japanese/L05.md"
-	original := internalLesson()
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("mkdir note parent: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
-	originalPath := os.Getenv("PATH")
-
-	err := lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{
-		afterPublish: func() { t.Setenv("PATH", t.TempDir()) },
-	})
-	t.Setenv("PATH", originalPath)
-	if !errors.Is(err, ErrCommitFailed) {
-		t.Fatalf("Flip() with post-publication child exec failure = %v, want %v", err, ErrCommitFailed)
-	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	got, readErr := os.ReadFile(path) // #nosec G304 -- path is a test-owned file under t.TempDir
-	if readErr != nil {
-		t.Fatalf("read published note: %v", readErr)
-	}
-	if string(got) != want {
-		t.Errorf("published bytes after child exec failure = %q, want %q", got, want)
-	}
-	if got := internalCommitCount(t, root); got != 1 {
-		t.Errorf("commit count after child exec failure = %d, want unchanged 1", got)
-	}
 }
 
 func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
@@ -646,8 +403,6 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	if err := os.WriteFile(path, []byte(internalLesson()), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
 
 	flipLocked := make(chan struct{})
 	releaseFlip := make(chan struct{})
@@ -657,7 +412,7 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	closeResult := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		flipResult <- lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{
+		flipResult <- lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{
 			afterLock: func() {
 				close(flipLocked)
 				<-releaseFlip
@@ -690,39 +445,11 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	default:
 		t.Fatal("Close never acquired Lifecycle.mu after Flip returned")
 	}
-	if err := lifecycle.Flip(t.Context(), rel, schema.SealStatus, "archived"); !errors.Is(err, ErrClosed) {
+	if err := lifecycle.Flip(rel, schema.SealStatus, "archived"); !errors.Is(err, ErrClosed) {
 		t.Errorf("Flip() after Close = %v, want %v", err, ErrClosed)
-	}
-	if _, err := lifecycle.LastCommitHash(t.Context(), rel, sha256.Sum256(nil)); !errors.Is(err, ErrClosed) {
-		t.Errorf("LastCommitHash() after Close = %v, want %v", err, ErrClosed)
 	}
 	if !lifecycle.View().Closed() {
 		t.Error("View().Closed() after Close = false, want true")
-	}
-}
-
-func TestGitChildEnvironmentRemovesRepositoryControlAndApplicationValues(t *testing.T) {
-	t.Parallel()
-
-	environ := []string{
-		"PATH=/usr/bin:/bin",
-		"GIT_DIR=/tmp/other.git",
-		"GIT_WORK_TREE=/tmp/other-tree",
-		"GIT_CONFIG_COUNT=1",
-		"GIT_OBJECT_DIRECTORY=/tmp/objects",
-		"GITHUB_TOKEN=preserved",
-		"HOME=/tmp/home",
-		"YOMIHON_EMBED_KEY=secret",
-		"YOMIHON_ROOT=/tmp/vault",
-		"YOMIHON_FUTURE_SECRET=secret",
-	}
-	want := []string{
-		"PATH=/usr/bin:/bin",
-		"GITHUB_TOKEN=preserved",
-		"HOME=/tmp/home",
-	}
-	if diff := cmp.Diff(want, gitChildEnvironment(environ)); diff != "" {
-		t.Errorf("gitChildEnvironment() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -747,7 +474,7 @@ func TestReplaceRegularFileChecksTargetAfterAuthority(t *testing.T) {
 		rel,
 		&source,
 		[]byte("replacement"),
-		publishHooks{
+		installHooks{
 			afterAuthority: func() {
 				if writeErr := os.WriteFile(path, []byte("external edit"), 0o600); writeErr != nil {
 					t.Fatalf("write concurrent edit: %v", writeErr)
@@ -783,7 +510,7 @@ func TestReplaceRegularFileSyncOrder(t *testing.T) {
 		t.Fatalf("readRegularFile() = %v", err)
 	}
 	var order []string
-	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), publishHooks{
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), installHooks{
 		syncTemp: func(file *os.File) error {
 			order = append(order, "file")
 			if got := readNoteFixture(t, root); string(got) != "original" {
@@ -821,7 +548,7 @@ func TestReplaceRegularFileTempSyncFailureLeavesSource(t *testing.T) {
 		t.Fatalf("readRegularFile() = %v", err)
 	}
 	wantErr := errors.New("sync failed")
-	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), publishHooks{
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), installHooks{
 		syncTemp: func(*os.File) error { return wantErr },
 	}, func() error { return nil })
 	if !errors.Is(err, wantErr) {
@@ -847,11 +574,11 @@ func TestReplaceRegularFileDirectorySyncFailureMarksPublished(t *testing.T) {
 		t.Fatalf("readRegularFile() = %v", err)
 	}
 	wantErr := errors.New("directory sync failed")
-	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), publishHooks{
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), installHooks{
 		syncParent: func(*os.Root) error { return wantErr },
 	}, func() error { return nil })
-	if !errors.Is(err, ErrPublishUncertain) || !errors.Is(err, wantErr) {
-		t.Fatalf("replaceRegularFile() = %v, want errors wrapping %v and %v", err, ErrPublishUncertain, wantErr)
+	if !errors.Is(err, ErrInstallUncertain) || !errors.Is(err, wantErr) {
+		t.Fatalf("replaceRegularFile() = %v, want errors wrapping %v and %v", err, ErrInstallUncertain, wantErr)
 	}
 	if got := readNoteFixture(t, root); string(got) != "replacement" {
 		t.Errorf("target after failed directory sync = %q, want replacement", got)
@@ -1006,9 +733,6 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
-	beforeCommits := internalCommitCount(t, root)
 
 	before, err := os.Stat(path)
 	if err != nil {
@@ -1019,7 +743,7 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 		t.Fatalf("replacement length = %d, want same as original %d", len(replacement), len(original))
 	}
 
-	err = lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{beforePublish: func() {
+	err = lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{beforeAuthority: func() {
 		if writeErr := os.WriteFile(path, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("replace note bytes: %v", writeErr)
 		}
@@ -1037,9 +761,6 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 	if string(got) != replacement {
 		t.Errorf("replacement bytes = %q, want preserved %q", got, replacement)
 	}
-	if after := internalCommitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
-	}
 	assertNoStatusTemps(t, filepath.Dir(path))
 }
 
@@ -1054,16 +775,13 @@ func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
-	beforeCommits := internalCommitCount(t, root)
 	before, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat note: %v", err)
 	}
 	replacement := strings.Replace(original, "\nbody\n", "\nreplacement\n", 1)
 
-	err = lifecycle.flip(t.Context(), rel, "draft", schema.SealStatus, flipHooks{beforePublish: func() {
+	err = lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{beforeAuthority: func() {
 		tmp := filepath.Join(filepath.Dir(path), ".external-replacement.tmp")
 		if writeErr := os.WriteFile(tmp, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("write replacement: %v", writeErr)
@@ -1091,9 +809,6 @@ func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
 	}
 	if string(got) != replacement {
 		t.Errorf("replacement bytes = %q, want preserved %q", got, replacement)
-	}
-	if after := internalCommitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
 	}
 	assertNoStatusTemps(t, filepath.Dir(path))
 }
@@ -1152,70 +867,5 @@ func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 	}
 	if got := view.Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got == nil {
 		t.Error("no transition is offered after a touch; the note's state machine did not change")
-	}
-}
-
-// TestReceiptReadbackFailureIsNotReportedAsDivergence separates two answers a
-// receipt check can give. A commit whose recorded paths, bytes, or subject
-// differ from the change is a divergence the operator has to inspect. A git
-// invocation that fails while asking is not: nothing is known about the
-// commit, and telling the operator their commit records the wrong thing when
-// the truth is that it could not be read sends them looking for a problem that
-// may not exist.
-func TestReceiptReadbackFailureIsNotReportedAsDivergence(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	contractBytes, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read test contract: %v", err)
-	}
-	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err = os.WriteFile(contractPath, contractBytes, 0o600); err != nil { // #nosec G703 -- fixed basename under this test's TempDir
-		t.Fatalf("write test contract: %v", err)
-	}
-	contract, err := schema.LoadFile(contractPath)
-	if err != nil {
-		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
-	}
-	// No git repository here at all, so every receipt query fails to run.
-	lifecycle := internalOpenLifecycle(t, root, contract)
-
-	err = lifecycle.verifyReceipt(t.Context(), "note.md", "status(note.md): draft → ready (via yomihon)", []byte("bytes"))
-	if !errors.Is(err, ErrReceiptUnreadable) {
-		t.Errorf("verifyReceipt() with git unavailable = %v, want %v", err, ErrReceiptUnreadable)
-	}
-	if errors.Is(err, ErrReceiptDiverged) {
-		t.Errorf("verifyReceipt() = %v, must not claim divergence when the receipt could not be read", err)
-	}
-}
-
-// TestReceiptRefusesACommitThatLandedOnNoBranch closes the window the
-// flip-time check cannot cover. HEAD is confirmed to name a branch before
-// anything is written, but an operator can detach it while the flip runs, and
-// a commit made there survives nowhere but the reflog: returning to a branch
-// silently takes the note back to its old status with the receipt gone. The
-// receipt read-back already has the commit in hand, so it asks once more.
-func TestReceiptRefusesACommitThatLandedOnNoBranch(t *testing.T) {
-	t.Parallel()
-
-	root, lifecycle := internalVault(t)
-	const rel = "note.md"
-	body := []byte("---\nstatus: ready\n---\n\nbody\n")
-	if err := os.WriteFile(filepath.Join(root, rel), body, 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	msg := "status(note.md): draft → ready (via yomihon)"
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", msg)
-
-	if err := lifecycle.verifyReceipt(t.Context(), rel, msg, body); err != nil {
-		t.Fatalf("verifyReceipt() on a branch = %v, want nil", err)
-	}
-
-	internalRunGit(t, root, "checkout", "--detach")
-	err := lifecycle.verifyReceipt(t.Context(), rel, msg, body)
-	if !errors.Is(err, ErrReceiptDiverged) {
-		t.Errorf("verifyReceipt() with HEAD detached = %v, want %v", err, ErrReceiptDiverged)
 	}
 }

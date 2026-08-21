@@ -77,7 +77,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.lifecycle.Flip(r.Context(), path, from, to)
+	err := h.lifecycle.Flip(path, from, to)
 	if err == nil {
 		target := notesHref(path)
 		if to == schema.SealStatus {
@@ -92,14 +92,9 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 }
 
 type recovery struct {
-	code     int
-	changed  bool
-	noteGone bool
-	// headline replaces the page's generic title when a refusal has a better
-	// one to offer — the thing the operator should do, rather than a restatement
-	// of what did not happen. It never applies once the note bytes changed: that
-	// page has to keep saying so.
-	headline        string
+	code            int
+	changed         bool
+	noteGone        bool
 	summary         string
 	nextAction      string
 	technicalDetail string
@@ -108,13 +103,10 @@ type recovery struct {
 }
 
 func recoveryFor(err error) *recovery {
-	if r := recoveryForRepoState(err); r != nil {
-		return r
-	}
 	if r := recoveryForStatusField(err); r != nil {
 		return r
 	}
-	if r := recoveryForPublished(err); r != nil {
+	if r := recoveryForInstall(err); r != nil {
 		return r
 	}
 	switch {
@@ -193,60 +185,30 @@ func recoveryFor(err error) *recovery {
 	}
 }
 
-// recoveryForPublished maps the outcomes that happen after the note's bytes
-// already changed on disk, or nil when err is none of them. They share one
-// shape the page has to keep: the file is not what it was, no second POST is
+// recoveryForInstall maps the outcomes that happen after the note's bytes
+// already changed on disk, or nil when err is neither. They share one shape
+// the page has to keep: the file is not what it was, no second POST is
 // offered, and the operator finishes by hand.
-func recoveryForPublished(err error) *recovery {
+func recoveryForInstall(err error) *recovery {
 	switch {
-	case errors.Is(err, ErrPublicationStranded):
+	case errors.Is(err, ErrInstallStranded):
 		return &recovery{
 			code:            http.StatusInternalServerError,
 			changed:         true,
-			summary:         "有其他程式在寫入途中改了這個檔案，yomihon 無法確定筆記現在是哪一份內容。兩份都留在磁碟上，沒有刪除任何內容，也沒有提交。",
+			summary:         "有其他程式在寫入途中改了這個檔案，yomihon 無法確定筆記現在是哪一份內容。兩份都留在磁碟上，沒有刪除任何內容。",
 			nextAction:      "不要重送。請依下方訊息比對筆記與旁邊保留的那一份，手動留下正確的內容後再操作。",
 			technicalDetail: err.Error(),
-			logMessage:      "status publication left both versions on disk",
+			logMessage:      "status install left both versions on disk",
 			cause:           err,
 		}
-	case errors.Is(err, ErrPublishUncertain):
+	case errors.Is(err, ErrInstallUncertain):
 		return &recovery{
 			code:       http.StatusInternalServerError,
 			changed:    true,
 			summary:    "筆記已改寫，但無法確認資料已耐久保存。",
 			nextAction: "不要重送。請直接在 vault 中檢查筆記內容與檔案狀態，確認後再手動收尾。",
-			logMessage: "status publication durability is uncertain",
+			logMessage: "status install durability is uncertain",
 			cause:      err,
-		}
-	case errors.Is(err, ErrCommitFailed):
-		return &recovery{
-			code:            http.StatusInternalServerError,
-			changed:         true,
-			summary:         "筆記已改寫，但 git commit 失敗。",
-			nextAction:      "不要重送。請直接在 vault 中檢查修改，依下方 git 錯誤手動完成或修復提交。",
-			technicalDetail: err.Error(),
-			logMessage:      "status commit failed",
-			cause:           err,
-		}
-	case errors.Is(err, ErrReceiptDiverged):
-		return &recovery{
-			code:            http.StatusInternalServerError,
-			changed:         true,
-			summary:         "筆記已改寫並提交，但這筆 commit 並未如預期記錄這次變更。",
-			nextAction:      "不要重送。請用 git log 與 git show 核對這筆 commit；常見原因是 vault 的 git hooks 或 filters 改動了提交內容，或提交當下 HEAD 已不在任何分支上。確認後再手動修復。",
-			technicalDetail: err.Error(),
-			logMessage:      "status commit receipt diverged",
-			cause:           err,
-		}
-	case errors.Is(err, ErrReceiptUnreadable):
-		return &recovery{
-			code:            http.StatusInternalServerError,
-			changed:         true,
-			summary:         "筆記已改寫並提交，但 yomihon 無法讀回這筆 commit 來核對，因此不能確認它記錄了什麼。",
-			nextAction:      "不要重送。請依下方 git 錯誤確認 vault 的 git 狀態，再用 git log 與 git show 自行核對這筆 commit。",
-			technicalDetail: err.Error(),
-			logMessage:      "status commit receipt could not be read back",
-			cause:           err,
 		}
 	}
 	return nil
@@ -270,38 +232,6 @@ func recoveryForStatusField(err error) *recovery {
 			code:       http.StatusUnprocessableEntity,
 			summary:    "frontmatter 的 status 欄位使用了 yomihon 狀態改寫不支援的 YAML 寫法。",
 			nextAction: "直接編輯筆記，把 status 欄位改成單行的「status: 值」形式（不使用引號鍵、flow mapping 或 YAML 錨點），再重新載入。",
-		}
-	}
-	return nil
-}
-
-// recoveryForRepoState maps the refusals rooted in the vault repository's own
-// state — an uncommitted edit, a detached HEAD, an unreadable working tree —
-// or nil when err is none of them. All three leave the note untouched.
-func recoveryForRepoState(err error) *recovery {
-	switch {
-	case errors.Is(err, ErrDirty):
-		return &recovery{
-			code:       http.StatusConflict,
-			headline:   DirtyBlock.Headline,
-			summary:    DirtyBlock.Body,
-			nextAction: DirtyBlock.NextStep,
-		}
-	case errors.Is(err, ErrDetachedHead):
-		return &recovery{
-			code:       http.StatusConflict,
-			summary:    "vault 目前處於 detached HEAD，狀態提交會落在任何分支之外。",
-			nextAction: "請先完成或離開進行中的 git 操作（rebase、bisect 或 checkout），回到分支後再重試；這次操作沒有寫入任何內容。",
-		}
-	case errors.Is(err, ErrWorkTreeUnreadable):
-		return &recovery{
-			code:       http.StatusServiceUnavailable,
-			summary:    GitBlock.Body,
-			nextAction: "在這個資料夾建立 git 版本庫，或改用一個已是版本庫的 vault；閱讀與搜尋不受影響。",
-			// git's own message names the folder, so it stays in the log and
-			// out of the page.
-			logMessage: "status flip found the working tree unreadable",
-			cause:      err,
 		}
 	}
 	return nil
@@ -345,7 +275,6 @@ func (h *Handler) respondRecovery(
 	shell := h.shell()
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,
-		Headline:        failure.headline,
 		Summary:         failure.summary,
 		NextAction:      failure.nextAction,
 		TechnicalDetail: failure.technicalDetail,

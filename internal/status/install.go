@@ -12,10 +12,10 @@ import (
 
 // installRung names how far the filesystem under a note lets the write face
 // go toward one guarantee: an edit some other program makes to the note while
-// the flip is publishing must still be on disk afterwards.
+// the flip is installing its replacement must still be on disk afterwards.
 //
 // The rungs differ in what they can promise, so the rung in force is part of
-// every publication failure the operator is shown.
+// every install failure the operator is shown.
 type installRung int
 
 const (
@@ -59,9 +59,9 @@ const restoreAttempts = 2
 
 // errNotSingleComponent guards the raw directory-relative syscalls: every name
 // they receive has to be one entry inside the already-confined parent.
-var errNotSingleComponent = errors.New("status: publication name is not a single directory entry")
+var errNotSingleComponent = errors.New("status: install name is not a single directory entry")
 
-// installOps is the filesystem behind one publication, named operation by
+// installOps is the filesystem behind one install, named operation by
 // operation so a test can reproduce a driver that reports success without
 // swapping anything, or a note that keeps changing under the restore.
 type installOps struct {
@@ -72,7 +72,7 @@ type installOps struct {
 	remove func(name string) error
 }
 
-// rootOps binds the publication operations to one confined parent directory.
+// rootOps binds the install operations to one confined parent directory.
 func rootOps(parent *os.Root) installOps {
 	return installOps{
 		swap:   func(from, to string) error { return exchangeAt(parent, from, to) },
@@ -96,7 +96,7 @@ func exchangeAt(parent *os.Root, from, to string) error {
 	}
 	dir, err := parent.Open(".")
 	if err != nil {
-		return fmt.Errorf("open publication directory: %w", err)
+		return fmt.Errorf("open install directory: %w", err)
 	}
 	err = exchangeNames(int(dir.Fd()), from, to)
 	// The descriptor carried the swap; a close failure afterwards cannot
@@ -118,9 +118,9 @@ func singleComponent(name string) error {
 // of the driver, and a vault spread over several mounts probes each one.
 var exchangeProbes sync.Map
 
-// selectRung reports the strongest publication rung this directory's
+// selectRung reports the strongest install rung this directory's
 // filesystem has been shown to support.
-func selectRung(parent *os.Root, hooks publishHooks) installRung {
+func selectRung(parent *os.Root, hooks installHooks) installRung {
 	if hooks.rung != nil {
 		return hooks.rung()
 	}
@@ -158,11 +158,11 @@ func deviceKey(parent *os.Root) (any, bool) {
 // other's bytes.
 func probeRung(parent *os.Root, ops installOps) installRung {
 	const (
-		firstBytes  = "yomihon publication probe 1"
-		secondBytes = "yomihon publication probe 2"
+		firstBytes  = "yomihon install probe 1"
+		secondBytes = "yomihon install probe 2"
 	)
 	// The probe's own files are thrown away either way, so they skip the
-	// durability barrier a real publication pays for.
+	// durability barrier a real install pays for.
 	noSync := func(*os.File) error { return nil }
 	first, err := writeTemp(parent, []byte(firstBytes), 0o600, noSync)
 	if err != nil {
@@ -232,12 +232,12 @@ func installByExchange(ops installOps, relSlash, tmpName string, source *fileSna
 		return strandedError(relSlash, tmpName, rungExchange, fmt.Errorf("read the displaced version: %w", err))
 	}
 	if bytes.Equal(displaced, source.data) {
-		_ = ops.remove(tmpName) //nolint:errcheck // the displaced version is the pre-flip note, already recorded in git
+		_ = ops.remove(tmpName) //nolint:errcheck // the displaced entry holds the pre-flip bytes the caller already read
 		return nil
 	}
 	// Another program reached the note inside the window. Its bytes are the
 	// ones now sitting under the temporary name, so putting them back is one
-	// more exchange, and the flip is refused rather than published over them.
+	// more exchange, and the flip is refused rather than installed over them.
 	for range restoreAttempts {
 		if err = ops.swap(tmpName, source.name); err != nil {
 			return strandedError(relSlash, tmpName, rungExchange, fmt.Errorf("restore the external edit: %w", err))
@@ -247,7 +247,7 @@ func installByExchange(ops installOps, relSlash, tmpName string, source *fileSna
 			return strandedError(relSlash, tmpName, rungExchange, fmt.Errorf("confirm the restored note: %w", readErr))
 		}
 		if bytes.Equal(back, data) {
-			_ = ops.remove(tmpName) //nolint:errcheck // these are the bytes this flip wrote and never published
+			_ = ops.remove(tmpName) //nolint:errcheck // these are the bytes this flip wrote and never installed
 			return concurrentWriteError(relSlash, rungExchange)
 		}
 	}
@@ -255,7 +255,7 @@ func installByExchange(ops installOps, relSlash, tmpName string, source *fileSna
 		errors.New("the note changed again while the external edit was being restored"))
 }
 
-// installByHardlink takes a second name for the current version, publishes
+// installByHardlink takes a second name for the current version, installs
 // through a plain rename, and then reads that second name back. Because the
 // extra name shares the file itself, an editor writing through the existing
 // file is visible there; an editor that replaces the note's name after the
@@ -277,7 +277,7 @@ func installByHardlink(ops installOps, relSlash, tmpName string, source *fileSna
 		return strandedError(relSlash, retained, rungHardlink, fmt.Errorf("read the retained version: %w", err))
 	}
 	if bytes.Equal(kept, source.data) {
-		_ = ops.remove(retained) //nolint:errcheck // the retained name holds the pre-flip note, already recorded in git
+		_ = ops.remove(retained) //nolint:errcheck // the retained name holds the pre-flip bytes the caller already read
 		return nil
 	}
 	if err = ops.rename(retained, source.name); err != nil {
@@ -286,7 +286,7 @@ func installByHardlink(ops installOps, relSlash, tmpName string, source *fileSna
 	return concurrentWriteError(relSlash, rungHardlink)
 }
 
-// installByRename publishes through one atomic rename and can say nothing
+// installByRename installs through one atomic rename and can say nothing
 // about the window it crosses.
 func installByRename(ops installOps, tmpName string, source *fileSnapshot) error {
 	if err := ops.rename(tmpName, source.name); err != nil {
@@ -301,11 +301,11 @@ func concurrentWriteError(relSlash string, rung installRung) error {
 		ErrConcurrentWrite, relSlash, rung)
 }
 
-// strandedError reports a publication that could neither finish nor tidy up,
+// strandedError reports an install that could neither finish nor tidy up,
 // because the entry left beside the note may hold bytes yomihon did not write.
 // It names that entry so a person can compare the two by hand, and nothing is
 // removed on the way out.
 func strandedError(relSlash, kept string, rung installRung, cause error) error {
 	return fmt.Errorf("%w: %s: %w; the other version is kept beside the note as %q (install: %s)",
-		ErrPublicationStranded, relSlash, cause, kept, rung)
+		ErrInstallStranded, relSlash, cause, kept, rung)
 }

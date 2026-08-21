@@ -31,19 +31,13 @@ func TestRecoveryClassification(t *testing.T) {
 		{name: "non instance", err: ErrNonInstance, code: http.StatusUnprocessableEntity, noDetail: true},
 		{name: "stale", err: ErrStale, code: http.StatusConflict, noDetail: true},
 		{name: "concurrent write", err: ErrConcurrentWrite, code: http.StatusConflict, noDetail: true},
-		{name: "dirty", err: ErrDirty, code: http.StatusConflict, noDetail: true},
-		{name: "work tree unreadable", err: errors.Join(ErrWorkTreeUnreadable, errors.New("fatal: not a git repository")), code: http.StatusServiceUnavailable, noDetail: true},
-		{name: "detached head", err: ErrDetachedHead, code: http.StatusConflict, noDetail: true},
 		{name: "status line", err: ErrStatusLine, code: http.StatusUnprocessableEntity, noDetail: true},
 		{name: "status syntax unsupported", err: ErrStatusSyntaxUnsupported, code: http.StatusUnprocessableEntity, noDetail: true},
 		{name: "unknown status", err: errors.Join(schema.ErrUnknownStatus, errors.New("unknown-status detail")), code: http.StatusUnprocessableEntity, wantDetail: "unknown-status detail"},
 		{name: "illegal transition", err: errors.Join(schema.ErrIllegalTransition, errors.New("transition detail")), code: http.StatusUnprocessableEntity, wantDetail: "transition detail"},
 		{name: "owner forbidden", err: errors.Join(schema.ErrOwnerForbidden, errors.New("owner detail")), code: http.StatusUnprocessableEntity, wantDetail: "owner detail"},
-		{name: "publication uncertain", err: errors.Join(ErrPublishUncertain, errors.New("disk barrier failed")), code: http.StatusInternalServerError, changed: true, noDetail: true},
-		{name: "commit failed", err: errors.Join(ErrCommitFailed, errors.New("git detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "git detail"},
-		{name: "receipt diverged", err: errors.Join(ErrReceiptDiverged, errors.New("receipt detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "receipt detail"},
-		{name: "publication stranded", err: errors.Join(ErrPublicationStranded, errors.New("stranded detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "stranded detail"},
-		{name: "receipt unreadable", err: errors.Join(ErrReceiptUnreadable, errors.New("readback detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "readback detail"},
+		{name: "install uncertain", err: errors.Join(ErrInstallUncertain, errors.New("disk barrier failed")), code: http.StatusInternalServerError, changed: true, noDetail: true},
+		{name: "install stranded", err: errors.Join(ErrInstallStranded, errors.New("stranded detail")), code: http.StatusInternalServerError, changed: true, wantDetail: "stranded detail"},
 		{name: "target removed", err: fs.ErrNotExist, code: http.StatusNotFound, noDetail: true},
 		{name: "unknown internal", err: errors.New("secret internal detail"), code: http.StatusInternalServerError, noDetail: true},
 	}
@@ -82,8 +76,6 @@ func TestOnlyPostPublicationFailuresClaimChanged(t *testing.T) {
 		ErrNonInstance,
 		ErrStale,
 		ErrConcurrentWrite,
-		ErrDirty,
-		ErrDetachedHead,
 		ErrStatusLine,
 		ErrStatusSyntaxUnsupported,
 		schema.ErrUnknownStatus,
@@ -96,7 +88,7 @@ func TestOnlyPostPublicationFailuresClaimChanged(t *testing.T) {
 			t.Errorf("recoveryFor(%v).changed = true, want false", err)
 		}
 	}
-	for _, err := range []error{ErrPublishUncertain, ErrCommitFailed, ErrReceiptDiverged, ErrPublicationStranded, ErrReceiptUnreadable} {
+	for _, err := range []error{ErrInstallUncertain, ErrInstallStranded} {
 		if got := recoveryFor(err); !got.changed {
 			t.Errorf("recoveryFor(%v).changed = false, want true", err)
 		}
@@ -214,15 +206,13 @@ func TestRecoveryNotePathAcceptsOnlyNormalizedVaultLocalPaths(t *testing.T) {
 // a space, or the delete byte, is refused as a malformed request rather than
 // carried further.
 //
-// Two different harms sit behind the one check. A zero byte cannot name a file
-// on any platform this runs on, so the request used to travel all the way to
-// the filesystem and return an error nothing recognized, which reached the
-// reader as "yomihon could not complete this" — a fault report for what was
-// only a malformed path. The others are refused for what they would reach: the
-// path is written into the subject line of the commit that records the seal, so
-// a line ending inside the path would end that subject and continue in a body
-// of the sender's choosing, forging the shape of the receipt this face exists
-// to produce.
+// A zero byte cannot name a file on any platform this runs on, so the request
+// used to travel all the way to the filesystem and return an error nothing
+// recognized, which reached the reader as "yomihon could not complete this" —
+// a fault report for what was only a malformed path. The rest of the range —
+// line endings, tabs, escapes — has the same character: no note is named with
+// one, so the request is refused up front rather than quoted onward into
+// errors and logs.
 func TestNormalizeRelPathRefusesControlBytes(t *testing.T) {
 	t.Parallel()
 	const note = "Writing/lessons/japanese/L01.md"
@@ -233,7 +223,7 @@ func TestNormalizeRelPathRefusesControlBytes(t *testing.T) {
 		{name: "trailing zero byte", rel: note + "\x00"},
 		{name: "leading zero byte", rel: "\x00" + note},
 		{name: "interior zero byte", rel: "Writing/les\x00sons/L01.md"},
-		{name: "line ending forges a commit body", rel: note + "\n\nnot the subject line"},
+		{name: "line ending", rel: note + "\n\nmore text"},
 		{name: "carriage return", rel: note + "\r"},
 		{name: "tab", rel: "Writing/les\tsons/L01.md"},
 		{name: "delete byte", rel: note + "\x7f"},

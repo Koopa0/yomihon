@@ -1,8 +1,6 @@
 package note_test
 
 import (
-	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"html"
@@ -12,7 +10,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -100,9 +97,11 @@ func newServer(t *testing.T, root string) *httptest.Server {
 // "no legal transitions" handler.go's show() selected.
 func newServerWithContract(t *testing.T, root string, contract *schema.Contract) *httptest.Server {
 	t.Helper()
-	return newServerWithProvenance(t, root, contract, func(context.Context, string, [sha256.Size]byte) (string, error) {
-		return "", nil
-	})
+	governance := schema.Ungoverned()
+	if contract != nil {
+		governance = contract.Governance()
+	}
+	return newServerWithGovernance(t, root, contract, governance)
 }
 
 // newServerWithGovernance is newServerWithContract for the cases where the
@@ -115,30 +114,6 @@ func newServerWithGovernance(
 	governance schema.Governance,
 ) *httptest.Server {
 	t.Helper()
-	return newServerWithProvenanceAndGovernance(
-		t, root, contract, governance,
-		func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-	)
-}
-
-func newServerWithProvenance(
-	t *testing.T,
-	root string,
-	contract *schema.Contract,
-	provenance func(context.Context, string, [sha256.Size]byte) (string, error),
-) *httptest.Server {
-	t.Helper()
-	return newServerWithProvenanceAndGovernance(t, root, contract, contract.Governance(), provenance)
-}
-
-func newServerWithProvenanceAndGovernance(
-	t *testing.T,
-	root string,
-	contract *schema.Contract,
-	governance schema.Governance,
-	provenance func(context.Context, string, [sha256.Size]byte) (string, error),
-) *httptest.Server {
-	t.Helper()
 	mux := http.NewServeMux()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, governance)
@@ -147,8 +122,6 @@ func newServerWithProvenanceAndGovernance(
 		Source:         source,
 		Status:         lifecycle.View,
 		Snapshot:       store.Current,
-		Provenance:     provenance,
-		WriteBlock:     lifecycle.WriteBlockReason,
 		ObservedStatus: lifecycle.ObservedStatus,
 		Log:            log,
 	})
@@ -204,11 +177,7 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 	const templateRel = "System/templates/Loud lesson.md"
 	writeLoudLessonFixture(t, root, templateRel)
 
-	provenanceCalls := 0
-	srv := newServerWithProvenance(t, root, loadContract(t), func(context.Context, string, [sha256.Size]byte) (string, error) {
-		provenanceCalls++
-		return "should-not-render", nil
-	})
+	srv := newServerWithContract(t, root, loadContract(t))
 	code, page := get(t, srv.URL+"/notes/System/templates/Loud%20lesson.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET template lesson status = %d, want 200", code)
@@ -245,9 +214,6 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 			t.Errorf("non-instance lesson page unexpectedly contains %q", absent)
 		}
 	}
-	if provenanceCalls != 0 {
-		t.Errorf("non-instance lesson provenance reads = %d, want 0", provenanceCalls)
-	}
 }
 
 func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T) {
@@ -283,7 +249,6 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 		Source:         source,
 		Status:         statusProvider,
 		Snapshot:       store.Current,
-		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:            log,
 	})
 	handler.Register(mux)
@@ -377,7 +342,6 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 				Source:         source,
 				Status:         func() status.View { return statusView },
 				Snapshot:       func() *snapshot.View { return captured },
-				Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
@@ -472,7 +436,6 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 				Source:         source,
 				Status:         func() status.View { return statusView },
 				Snapshot:       func() *snapshot.View { return captured },
-				Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
@@ -489,45 +452,6 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 			assertCauseStatedAtMostOncePerRegion(t, page, diagnostic)
 		})
-	}
-}
-
-// TestShowKeepsTheWriteFaceClosedOnAGovernedFolderThatIsNoRepository pins the
-// second producer of a closed write face. The contract here is complete and
-// valid, so the vault is governed and the status face belongs on the page — but
-// every transition is recorded as a commit, and this folder has no git working
-// tree to record one in. The page must say so and offer nothing, rather than
-// naming the operator beside a control that can only fail.
-func TestShowKeepsTheWriteFaceClosedOnAGovernedFolderThatIsNoRepository(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, page := get(t, srv.URL+"/notes/Note.md")
-	if code != http.StatusOK {
-		t.Fatalf("GET note status = %d, want 200", code)
-	}
-	page = html.UnescapeString(page)
-
-	surfaces := statusSurfaces(t, page)
-	if len(surfaces) == 0 {
-		t.Fatalf("a governed vault rendered no status face at all; page = %q", page)
-	}
-	for _, surface := range surfaces {
-		if !strings.Contains(surface.body, `data-status-state="unavailable"`) {
-			t.Errorf("%s did not mark the write face unavailable", surface.name)
-		}
-		if !strings.Contains(surface.body, status.GitBlock.Body) {
-			t.Errorf("%s does not say why the transition would be refused", surface.name)
-		}
-		for _, leaked := range []string{"操作者 · koopa", "目前沒有合法的狀態轉換", `action="/status"`} {
-			if strings.Contains(surface.body, leaked) {
-				t.Errorf("%s asserts write authority that was refused: %q", surface.name, leaked)
-			}
-		}
 	}
 }
 
@@ -644,9 +568,8 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 			statusCaptures++
 			return lifecycle.View()
 		},
-		Snapshot:   store.Current,
-		Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		Log:        log,
+		Snapshot: store.Current,
+		Log:      log,
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -678,12 +601,8 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 			const rel = "Writing/lessons/japanese/Loud lesson.md"
 			writeLoudLessonFixture(t, root, rel)
 
-			provenanceCalls := 0
 			contract := loadHomeContractWithArtifactSection(t, tt.section)
-			srv := newServerWithProvenance(t, root, contract, func(context.Context, string, [sha256.Size]byte) (string, error) {
-				provenanceCalls++
-				return "should-not-render", nil
-			})
+			srv := newServerWithContract(t, root, contract)
 			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md?sealed=1")
 			if code != http.StatusOK {
 				t.Fatalf("GET lesson with unavailable artifact policy status = %d, want 200", code)
@@ -718,9 +637,6 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 				if strings.Contains(page, absent) {
 					t.Errorf("lesson with unavailable artifact policy unexpectedly contains %q", absent)
 				}
-			}
-			if provenanceCalls != 0 {
-				t.Errorf("lesson provenance reads = %d, want 0 without artifact policy", provenanceCalls)
 			}
 		})
 	}
@@ -915,17 +831,6 @@ func loadHomeContractWithSections(t *testing.T, navigationSection, artifactSecti
 		t.Fatalf("LoadFile(%q) = %v", path, err)
 	}
 	return contract
-}
-
-func runGit(t *testing.T, root string, args ...string) string {
-	t.Helper()
-	cmdArgs := append([]string{"-C", root}, args...)
-	cmd := exec.CommandContext(t.Context(), "git", cmdArgs...) // #nosec G204 -- test-controlled arguments are passed directly, never through a shell
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, out)
-	}
-	return string(out)
 }
 
 func hiddenValue(t *testing.T, form, name string) string {
@@ -1514,11 +1419,6 @@ func TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
 	}
 }
 
-// TestHomeReportsAnUnreadableContractExactlyOnce is the other side of TestHome.
-// The same absence of a usable contract, but here the folder claimed one and
-// could not deliver it, so the page says so — once, in a node of its own,
-// rather than repeating the cause in each block it closed.
-
 // assertCauseStatedOncePerRegion pins how a capability fault reaches the reader:
 // once in the navigation rail, which every page carries, and once in Home's own
 // content column, which stays visible when the rail is collapsed behind its
@@ -1691,8 +1591,7 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 					calls++
 					return current.Swap(secondStore.Current())
 				},
-				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-				Log:        log,
+				Log: log,
 			}).Register(mux)
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
@@ -1750,8 +1649,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 					calls++
 					return store.Current()
 				},
-				Provenance: func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-				Log:        log,
+				Log: log,
 			}).Register(mux)
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
@@ -1994,7 +1892,6 @@ body
 		Source:         source,
 		Status:         requestStatus,
 		Snapshot:       store.Current,
-		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:            log,
 	})
 	handler.Register(mux)
@@ -2439,10 +2336,6 @@ func TestShowNoFrontmatter(t *testing.T) {
 func TestShowTransitions(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	runGit(t, root, "init", "--initial-branch=main")
-	runGit(t, root, "config", "user.name", "Test Vault")
-	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
-	runGit(t, root, "config", "commit.gpgsign", "false")
 	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -2451,9 +2344,6 @@ func TestShowTransitions(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	runGit(t, root, "add", "Writing/lessons/japanese/L01.md")
-	runGit(t, root, "commit", "-m", "seed lesson")
-	before := len(strings.Split(strings.TrimSpace(runGit(t, root, "log", "--oneline")), "\n"))
 	contract := loadContract(t)
 	srv := newServerWithContract(t, root, contract)
 
@@ -2528,10 +2418,6 @@ func TestShowTransitions(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("lesson after POST differs outside the one status line:\ngot:  %q\nwant: %q", got, want)
 	}
-	after := len(strings.Split(strings.TrimSpace(runGit(t, root, "log", "--oneline")), "\n"))
-	if after != before+1 {
-		t.Errorf("commit count = %d, want %d (exactly one new commit)", after, before+1)
-	}
 	if strings.Contains(body, status.CoreUnavailableDiagnostic) || strings.Contains(body, "fail-closed") || strings.Contains(body, "沒有 frontmatter") {
 		t.Errorf("page shows the wrong status-panel branch; body = %q", body)
 	}
@@ -2562,7 +2448,6 @@ func TestNewCopiesDependencies(t *testing.T) {
 		Source:         source,
 		Status:         lifecycle.View,
 		Snapshot:       store.Current,
-		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:            log,
 	}
 	handler := note.New(&deps)
@@ -2596,7 +2481,6 @@ func TestNewPanicsOnNilSource(t *testing.T) {
 		Source:         nil,
 		Status:         lifecycle.View,
 		Snapshot:       store.Current,
-		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:            log,
 	})
 }
@@ -2618,11 +2502,10 @@ func TestNewPanicsOnNilStatusProvider(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	note.New(&note.Dependencies{
-		ObservedStatus: func(context.Context, string) (status.Observed, error) { return status.Observed{}, nil },
+		ObservedStatus: func(string) (string, error) { return "", nil },
 		Source:         source,
 		Status:         nil, // the nil under test
 		Snapshot:       store.Current,
-		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:            log,
 	})
 }
@@ -2646,7 +2529,6 @@ func TestNewPanicsOnNilSnapshot(t *testing.T) {
 		Source:         source,
 		Status:         lifecycle.View,
 		Snapshot:       nil, // the nil under test
-		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
 		Log:            log,
 	})
 }
@@ -2744,194 +2626,6 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	}
 }
 
-// TestWriteBlockShownBeforeThePress locks the wiring that makes the reading
-// page state a refusal the write path would otherwise only reveal after the
-// operator commits to the action. The transition controls are derived from the
-// contract, which cannot see the working tree, so a note carrying an
-// uncommitted edit used to render a fully live seal button that then failed.
-// Both directions are asserted: a committed note must stay quiet, or the notice
-// is permanent furniture rather than a signal.
-func TestWriteBlockShownBeforeThePress(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	runGit(t, root, "init", "--initial-branch=main")
-	runGit(t, root, "config", "user.name", "Test Vault")
-	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
-	runGit(t, root, "config", "commit.gpgsign", "false")
-	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
-	rel := "Writing/lessons/japanese/L01.md"
-	dir := filepath.Join(root, "Writing", "lessons", "japanese")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	notePath := filepath.Join(dir, "L01.md")
-	if err := os.WriteFile(notePath, []byte(lessonMD), 0o600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	runGit(t, root, "add", rel)
-	runGit(t, root, "commit", "-m", "seed lesson")
-	srv := newServerWithContract(t, root, loadContract(t))
-
-	code, clean := get(t, srv.URL+"/notes/"+rel)
-	if code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", code)
-	}
-	if !strings.Contains(clean, `name="to" value="`+schema.SealStatus+`"`) {
-		t.Fatalf("committed note is missing the seal control this test depends on; body = %q", clean)
-	}
-	if strings.Contains(clean, status.DirtyBlock.Body) {
-		t.Errorf("committed note shows the uncommitted-changes notice; it would then never mean anything")
-	}
-
-	if err := os.WriteFile(notePath, []byte(lessonMD+"an edit nobody committed\n"), 0o600); err != nil {
-		t.Fatalf("dirty the note: %v", err)
-	}
-
-	code, dirty := get(t, srv.URL+"/notes/"+rel)
-	if code != http.StatusOK {
-		t.Fatalf("status after the edit = %d, want 200", code)
-	}
-	if !strings.Contains(dirty, status.DirtyBlock.Body) {
-		t.Errorf("note with an uncommitted edit does not state why a transition would be refused; body = %q", dirty)
-	}
-	if !strings.Contains(dirty, `name="to" value="`+schema.SealStatus+`"`) {
-		t.Errorf("the notice removed the transition control; it is advisory and the operator may clear the edit and retry")
-	}
-}
-
-// statusFormButtons returns the opening tag of every button inside a form that
-// posts to the write endpoint, across every status face in the document. The
-// count is part of what callers assert: a face that quietly stops rendering its
-// controls would otherwise satisfy any claim made about "every" button.
-func statusFormButtons(t *testing.T, body string) []string {
-	t.Helper()
-	var buttons []string
-	rest := body
-	for {
-		start := strings.Index(rest, `<form class="y-statusform"`)
-		if start < 0 {
-			return buttons
-		}
-		rest = rest[start:]
-		end := strings.Index(rest, "</form>")
-		if end < 0 {
-			t.Fatalf("a status form is never closed; body = %q", body)
-		}
-		form := rest[:end]
-		rest = rest[end+len("</form>"):]
-		if !strings.Contains(form, `action="/status"`) {
-			continue
-		}
-		open := strings.Index(form, "<button")
-		if open < 0 {
-			t.Fatalf("a status form carries no button; form = %q", form)
-		}
-		tagEnd := strings.Index(form[open:], ">")
-		if tagEnd < 0 {
-			t.Fatalf("a status form's button tag is never closed; form = %q", form)
-		}
-		buttons = append(buttons, form[open:open+tagEnd+1])
-	}
-}
-
-// TestRefusedTransitionsRenderInert is the second half of the notice that says
-// a transition would be refused. The page knows at render time, and used to
-// print the reason and then offer live controls under it: pressing one cost a
-// full-page navigation to a conflict page and a click back, on a note whose
-// only fault was an edit the reader had not committed yet.
-//
-// Both status faces are asserted together and by count, because the controls
-// are rendered by shared templates at two call sites and a fix applied to one
-// of them is the mistake this test exists to catch. The reason travels in each
-// refused control's accessible name: the paragraph above it is one element and
-// the faces are two, so there is no identifier a reference could share.
-func TestRefusedTransitionsRenderInert(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	runGit(t, root, "init", "--initial-branch=main")
-	runGit(t, root, "config", "user.name", "Test Vault")
-	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
-	runGit(t, root, "config", "commit.gpgsign", "false")
-	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
-	rel := "Writing/lessons/japanese/L01.md"
-	dir := filepath.Join(root, "Writing", "lessons", "japanese")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	notePath := filepath.Join(dir, "L01.md")
-	if err := os.WriteFile(notePath, []byte(lessonMD), 0o600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	runGit(t, root, "add", rel)
-	runGit(t, root, "commit", "-m", "seed lesson")
-	srv := newServerWithContract(t, root, loadContract(t))
-
-	// A draft lesson may be sealed or archived, and the note carries a status
-	// panel and a seal bar, so the page offers exactly four controls. The number
-	// is asserted rather than assumed: it is what makes "every one of them" a
-	// claim about both faces.
-	const wantButtons = 4
-
-	code, clean := get(t, srv.URL+"/notes/"+rel)
-	if code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", code)
-	}
-	cleanButtons := statusFormButtons(t, clean)
-	if len(cleanButtons) != wantButtons {
-		t.Fatalf("committed note offers %d transition controls, want %d; body = %q", len(cleanButtons), wantButtons, clean)
-	}
-	for _, button := range cleanButtons {
-		if strings.Contains(button, "disabled") {
-			t.Errorf("committed note renders a refused control %q; nothing refuses it", button)
-		}
-	}
-	if !strings.Contains(clean, "y-sealbtn__hint") {
-		t.Error("committed note drops the hold hint; the ceremony it names is available")
-	}
-	if !strings.Contains(clean, "y-sealpoem") {
-		t.Error("committed note drops the line about the seal; the act it describes is available")
-	}
-
-	if err := os.WriteFile(notePath, []byte(lessonMD+"an edit nobody committed\n"), 0o600); err != nil {
-		t.Fatalf("dirty the note: %v", err)
-	}
-
-	code, dirty := get(t, srv.URL+"/notes/"+rel)
-	if code != http.StatusOK {
-		t.Fatalf("status after the edit = %d, want 200", code)
-	}
-	dirtyButtons := statusFormButtons(t, dirty)
-	if len(dirtyButtons) != wantButtons {
-		t.Fatalf("note with an uncommitted edit offers %d transition controls, want %d; body = %q",
-			len(dirtyButtons), wantButtons, dirty)
-	}
-	// The control's accessible name carries the headline, not the paragraph: a
-	// reader arriving at the button hears which refusal this is before the
-	// button's own purpose, and the full text is in the notice beside it.
-	escapedHeadline := html.EscapeString(status.DirtyBlock.Headline)
-	escapedBody := html.EscapeString(status.DirtyBlock.Body)
-	for _, button := range dirtyButtons {
-		if !strings.Contains(button, " disabled") {
-			t.Errorf("a transition the write path would refuse is still pressable: %q", button)
-		}
-		if !strings.Contains(button, escapedHeadline) {
-			t.Errorf("a refused control does not name its reason: %q", button)
-		}
-		if strings.Contains(button, escapedBody) {
-			t.Errorf("a refused control reads the whole explanation as its name: %q", button)
-		}
-	}
-	if !strings.Contains(dirty, escapedBody) || !strings.Contains(dirty, html.EscapeString(status.DirtyBlock.NextStep)) {
-		t.Errorf("the page states the refusal only in the control names; the notice beside them lost the reason or the step: %q", dirty)
-	}
-	if strings.Contains(dirty, "y-sealbtn__hint") {
-		t.Error("a refused seal still advertises the R shortcut, which would do nothing")
-	}
-	if strings.Contains(dirty, "y-sealpoem") {
-		t.Error("a refused seal still describes an act that cannot happen right now")
-	}
-}
-
 // TestStatusPanelPrecedesOutline locks the right rail's order. The rail is its
 // own scroll container, so whatever renders first decides what the reader sees
 // without scrolling — and an outline of any length used to push the transition
@@ -2940,10 +2634,6 @@ func TestRefusedTransitionsRenderInert(t *testing.T) {
 func TestStatusPanelPrecedesOutline(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	runGit(t, root, "init", "--initial-branch=main")
-	runGit(t, root, "config", "user.name", "Test Vault")
-	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
-	runGit(t, root, "config", "commit.gpgsign", "false")
 	// A long outline is the case that used to bury the panel.
 	var body strings.Builder
 	for i := range 30 {
@@ -2958,8 +2648,6 @@ func TestStatusPanelPrecedesOutline(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	runGit(t, root, "add", rel)
-	runGit(t, root, "commit", "-m", "seed lesson")
 	srv := newServerWithContract(t, root, loadContract(t))
 
 	code, page := get(t, srv.URL+"/notes/"+rel)
@@ -2990,36 +2678,6 @@ func TestStatusPanelPrecedesOutline(t *testing.T) {
 	}
 }
 
-// TestFolderWithoutGitOffersNoTransition locks the fail-closed treatment of a
-// folder that is no git repository. Every accepted transition is recorded as a
-// commit, so a control offered there could only ever fail — and unlike an
-// uncommitted edit, the reader cannot clear this from inside yomihon.
-func TestFolderWithoutGitOffersNoTransition(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir() // deliberately not a git repository
-	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
-	rel := "Writing/lessons/japanese/L01.md"
-	dir := filepath.Join(root, "Writing", "lessons", "japanese")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	srv := newServerWithContract(t, root, loadContract(t))
-
-	code, page := get(t, srv.URL+"/notes/"+rel)
-	if code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 — reading must keep working without git", code)
-	}
-	if n := strings.Count(page, `action="/status"`); n != 0 {
-		t.Errorf("page offers %d transition control(s) in a folder with no git repository; each one can only fail", n)
-	}
-	if !strings.Contains(page, status.GitBlock.Body) {
-		t.Errorf("page does not say why the write face is closed; body = %q", page)
-	}
-}
-
 // TestReadingPageShowsTheStatusTheFileCarriesNow covers the moment the write
 // face exists for: the reader presses a transition and lands on the note. The
 // scan behind every other part of the page is up to a couple of seconds old, so
@@ -3030,9 +2688,6 @@ func TestFolderWithoutGitOffersNoTransition(t *testing.T) {
 func TestReadingPageShowsTheStatusTheFileCarriesNow(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	runGit(t, root, "init", "--quiet")
-	runGit(t, root, "config", "user.name", "Test")
-	runGit(t, root, "config", "user.email", "test@example.invalid")
 	rel := "Writing/lessons/japanese/L01.md"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -3044,8 +2699,6 @@ func TestReadingPageShowsTheStatusTheFileCarriesNow(t *testing.T) {
 	if err := os.WriteFile(notePath, []byte(header+"draft"+footer), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
-	runGit(t, root, "add", "-A")
-	runGit(t, root, "commit", "--quiet", "-m", "fixture")
 	srv := newServerWithContract(t, root, loadContract(t))
 
 	if code, page := get(t, srv.URL+"/notes/"+rel); code != http.StatusOK {
@@ -3122,8 +2775,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 		Source:         source,
 		Status:         func() status.View { return status.View{} },
 		Snapshot:       store.Current,
-		Provenance:     func(context.Context, string, [sha256.Size]byte) (string, error) { return "", nil },
-		ObservedStatus: func(context.Context, string) (status.Observed, error) { return status.Observed{}, nil },
+		ObservedStatus: func(string) (string, error) { return "", nil },
 		Log:            slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
@@ -3150,74 +2802,6 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 					f.rel, shown, found)
 			}
 		})
-	}
-}
-
-// TestTheSealReceiptIsOnThePageTheWriteLandsOn covers the only page load anyone
-// will look at. A write lands and redirects inside the scan interval, so the
-// captured bytes are the ones from before it; the receipt is checked against
-// the file and declined when they disagree, which is correct and which meant
-// the check never once passed on arrival. The reader saw a stamp saying the
-// note was sealed by koopa with nothing to check it against, and nobody reloads
-// a page that already looks finished.
-func TestTheSealReceiptIsOnThePageTheWriteLandsOn(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	runGit(t, root, "init", "--quiet", "--initial-branch=main")
-	runGit(t, root, "config", "user.name", "Test Vault")
-	runGit(t, root, "config", "user.email", "test-vault@example.invalid")
-	runGit(t, root, "config", "commit.gpgsign", "false")
-	dir := filepath.Join(root, "Writing", "lessons", "japanese")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
-	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
-		t.Fatalf("write lesson: %v", err)
-	}
-	runGit(t, root, "add", "-A")
-	runGit(t, root, "commit", "--quiet", "-m", "fixture")
-
-	contract := loadContract(t)
-	source := openReadingVault(t, root)
-	lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
-	srv := newServerWithProvenance(t, root, contract, lifecycle.LastCommitHash)
-
-	const rel = "Writing/lessons/japanese/L01.md"
-	form := url.Values{"path": {rel}, "from": {"draft"}, "to": {schema.SealStatus}}
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(form.Encode()))
-	if err != nil {
-		t.Fatalf("new status request: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("POST /status: %v", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			t.Errorf("close response body: %v", closeErr)
-		}
-	}()
-	if resp.StatusCode != http.StatusSeeOther {
-		b, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			t.Fatalf("read failed status response: %v", readErr)
-		}
-		t.Fatalf("POST /status = %d, want %d; body = %q", resp.StatusCode, http.StatusSeeOther, b)
-	}
-
-	head := strings.TrimSpace(runGit(t, root, "rev-parse", "--short", "HEAD"))
-	if head == "" {
-		t.Fatal("the fixture repository has no HEAD after the write")
-	}
-	code, landed := get(t, srv.URL+resp.Header.Get("Location"))
-	if code != http.StatusOK {
-		t.Fatalf("GET the redirect target = %d, want 200", code)
-	}
-	if !strings.Contains(landed, head) {
-		t.Errorf("the page the write landed on carries no commit for the write it just made; want %q", head)
 	}
 }
 
@@ -3552,4 +3136,34 @@ owner = ["koopa"]
 		t.Fatalf("LoadFile(%q) = %v", path, err)
 	}
 	return contract
+}
+
+// TestFolderWithoutARepositoryStillOffersTransitions locks the reading page to
+// the same rule as the write path: a governed folder that is no git repository
+// offers its legal transitions like any other, because a flip is a plain file
+// rewrite and needs no repository.
+func TestFolderWithoutARepositoryStillOffersTransitions(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir() // deliberately not a git repository
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, page := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if n := strings.Count(page, `action="/status"`); n == 0 {
+		t.Errorf("page offers no transition control in a plain folder; a flip needs no repository")
+	}
+	if !strings.Contains(page, `name="to" value="`+schema.SealStatus+`"`) {
+		t.Errorf("page is missing the draft note's onward transition; body = %q", page)
+	}
 }

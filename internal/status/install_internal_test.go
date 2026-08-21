@@ -19,7 +19,7 @@ import (
 
 const installRel = "Writing/lessons/japanese/L05.md"
 
-// seedInstallNote lays down a committed lesson and returns its absolute path.
+// seedInstallNote lays down a lesson note and returns its absolute path.
 func seedInstallNote(t *testing.T, root string) string {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(installRel))
@@ -29,14 +29,12 @@ func seedInstallNote(t *testing.T, root string) string {
 	if err := os.WriteFile(path, []byte(internalLesson()), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
-	internalRunGit(t, root, "add", "-A")
-	internalRunGit(t, root, "commit", "-m", "seed lesson")
 	return path
 }
 
 // externalWriters are the two ways a cooperating local editor replaces a
 // note's bytes. Both must be survivable: whichever one lands inside the
-// publication window, its bytes have to be the ones on disk afterwards.
+// install window, its bytes have to be the ones on disk afterwards.
 var externalWriters = []struct {
 	name  string
 	write func(t *testing.T, path string, data []byte)
@@ -74,18 +72,17 @@ func TestFlipPreservesAnExternalEditRacingTheInstall(t *testing.T) {
 
 			root, lifecycle := internalVault(t)
 			path := seedInstallNote(t, root)
-			commitsBefore := internalCommitCount(t, root)
 			external := strings.Replace(internalLesson(), "body", "external edit", 1)
 			if external == internalLesson() {
 				t.Fatal("the external edit is identical to the note, so this proves nothing")
 			}
 
-			err := lifecycle.flip(t.Context(), installRel, "draft", schema.SealStatus, flipHooks{
+			err := lifecycle.flip(installRel, "draft", schema.SealStatus, flipHooks{
 				beforeInstall: func() { writer.write(t, path, []byte(external)) },
 			})
 
 			if !errors.Is(err, ErrConcurrentWrite) {
-				t.Errorf("Flip() with an external edit in the publication window = %v, want %v", err, ErrConcurrentWrite)
+				t.Errorf("Flip() with an external edit in the install window = %v, want %v", err, ErrConcurrentWrite)
 			}
 			got, readErr := os.ReadFile(path) // #nosec G304 -- a fixed relative note under this test's TempDir
 			if readErr != nil {
@@ -94,21 +91,18 @@ func TestFlipPreservesAnExternalEditRacingTheInstall(t *testing.T) {
 			if string(got) != external {
 				t.Errorf("note after the raced flip =\n%q\nwant the external edit:\n%q", got, external)
 			}
-			if commitsAfter := internalCommitCount(t, root); commitsAfter != commitsBefore {
-				t.Errorf("commit count = %d, want %d: a refused flip records no receipt", commitsAfter, commitsBefore)
-			}
 			assertNoStatusTemps(t, filepath.Dir(path))
 		})
 	}
 }
 
-// statusEntries lists the publication residue in dir: the temporary names a
+// statusEntries lists the install residue in dir: the temporary names a
 // flip creates, and the names an abandoned one is moved aside to.
 func statusEntries(t *testing.T, dir string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		t.Fatalf("read publication directory: %v", err)
+		t.Fatalf("read install directory: %v", err)
 	}
 	var found []string
 	for _, entry := range entries {
@@ -240,7 +234,7 @@ func TestStrandedPublicationDeletesNothing(t *testing.T) {
 	}
 
 	swaps := 0
-	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), publishHooks{
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
 		rung: func() installRung { return rungExchange },
 		beforeInstall: func() {
 			if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {
@@ -260,8 +254,8 @@ func TestStrandedPublicationDeletesNothing(t *testing.T) {
 		},
 	}, func() error { return nil })
 
-	if !errors.Is(err, ErrPublicationStranded) {
-		t.Fatalf("replaceRegularFile() = %v, want %v", err, ErrPublicationStranded)
+	if !errors.Is(err, ErrInstallStranded) {
+		t.Fatalf("replaceRegularFile() = %v, want %v", err, ErrInstallStranded)
 	}
 	residue := statusEntries(t, dir)
 	if len(residue) != 1 {
@@ -302,7 +296,7 @@ func TestRetainedHardlinkInstallPutsBackAnInPlaceEdit(t *testing.T) {
 		t.Fatalf("readRegularFile() error = %v", err)
 	}
 
-	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), publishHooks{
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
 		rung: func() installRung { return rungHardlink },
 		beforeInstall: func() {
 			if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {

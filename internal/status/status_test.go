@@ -1,7 +1,6 @@
 package status_test
 
 import (
-	"crypto/sha256"
 	"errors"
 	"io/fs"
 	"os"
@@ -18,15 +17,6 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-func removeOnCleanup(t *testing.T, path string) {
-	t.Helper()
-	t.Cleanup(func() {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("remove test artifact %s: %v", path, err)
-		}
-	})
-}
 
 // testRel is the vault-relative path every fixture note in this package
 // uses. Fixing it keeps the git assertions (commit message, dirty-file
@@ -215,61 +205,6 @@ func lessonContent(noteStatus string) string {
 		"\nbody\n"
 }
 
-func TestFlipHappyPath(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	original := "---\n" +
-		"title: L05 助詞の使い方\n" +
-		"type: lesson\n" +
-		"domain: japanese\n" +
-		"status: draft\n" +
-		"based_on: \"[[大家的日本語 第5課]]\"\n" +
-		"# hand-written note, must survive verbatim\n" +
-		"created: 2026-06-01\n" +
-		"updated: 2026-06-15\n" +
-		"---\n" +
-		"\n" +
-		"<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
-	writeNote(t, root, original)
-	commitAll(t, root)
-	before := commitCount(t, root)
-
-	if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
-		t.Fatalf("Flip() = %v, want nil", err)
-	}
-
-	// The single highest-stakes assertion in this feature: everything but
-	// the status line's content must be byte-identical.
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	got := readNote(t, root)
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("file mismatch after flip (-want +got):\n%s", diff)
-	}
-
-	if after := commitCount(t, root); after != before+1 {
-		t.Fatalf("commit count = %d, want %d (exactly one new commit)", after, before+1)
-	}
-
-	wantSubject := "status(" + testRel + "): draft → " + schema.SealStatus + " (via yomihon)"
-	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != wantSubject {
-		t.Errorf("commit subject = %q, want %q", got, wantSubject)
-	}
-
-	wantName := strings.TrimSpace(runGit(t, root, "config", "user.name"))
-	wantEmail := strings.TrimSpace(runGit(t, root, "config", "user.email"))
-	gotName := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%an"))
-	gotEmail := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%ae"))
-	if gotName != wantName || gotEmail != wantEmail {
-		t.Errorf("commit author = %q <%s>, want the vault's own git config %q <%s>", gotName, gotEmail, wantName, wantEmail)
-	}
-
-	if porcelain := strings.TrimSpace(runGit(t, root, "status", "--porcelain")); porcelain != "" {
-		t.Errorf("git status --porcelain not empty after flip: %q", porcelain)
-	}
-}
-
 func TestOpenRejectsAReplacementOfTheReadersRoot(t *testing.T) {
 	t.Parallel()
 
@@ -309,334 +244,9 @@ func TestOpenRejectsAReplacementOfTheReadersRoot(t *testing.T) {
 	}
 }
 
-func TestFlipKeepsFileAndGitCommitInTheSelectedRootAfterPathReplacement(t *testing.T) {
-	t.Parallel()
-
-	root := newVault(t)
-	original := lessonContent("draft")
-	writeNote(t, root, original)
-	commitAll(t, root)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	moved := root + "-selected"
-	if err := os.Rename(root, moved); err != nil {
-		t.Fatalf("rename selected vault: %v", err)
-	}
-	t.Cleanup(func() {
-		if removeErr := os.RemoveAll(moved); removeErr != nil {
-			t.Errorf("remove moved vault: %v", removeErr)
-		}
-	})
-	if err := os.Mkdir(root, 0o750); err != nil {
-		t.Fatalf("create replacement vault: %v", err)
-	}
-	initVault(t, root)
-	writeNote(t, root, original)
-	commitAll(t, root)
-
-	if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
-		t.Fatalf("Flip() after top-level replacement = %v, want nil", err)
-	}
-	wantSelected := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	selected, err := os.ReadFile(filepath.Join(moved, filepath.FromSlash(testRel))) // #nosec G304 -- moved is a test-owned temporary directory
-	if err != nil {
-		t.Fatalf("read selected note: %v", err)
-	}
-	if string(selected) != wantSelected {
-		t.Errorf("selected note = %q, want %q", selected, wantSelected)
-	}
-	replacement, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(testRel))) // #nosec G304 -- root is a test-owned temporary directory
-	if err != nil {
-		t.Fatalf("read replacement note: %v", err)
-	}
-	if string(replacement) != original {
-		t.Errorf("replacement note = %q, want untouched %q", replacement, original)
-	}
-	if got := commitCount(t, moved); got != 2 {
-		t.Errorf("selected commit count = %d, want 2", got)
-	}
-	if got := commitCount(t, root); got != 1 {
-		t.Errorf("replacement commit count = %d, want 1", got)
-	}
-}
-
-func TestLastCommitHashReadsSelectedHistoryAfterPathReplacement(t *testing.T) {
-	t.Parallel()
-
-	root := newVault(t)
-	content := lessonContent("draft")
-	writeNote(t, root, content)
-	commitAll(t, root)
-	want := strings.TrimSpace(runGit(t, root, "rev-parse", "--short", "HEAD"))
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	moved := root + "-selected"
-	if err := os.Rename(root, moved); err != nil {
-		t.Fatalf("rename selected vault: %v", err)
-	}
-	t.Cleanup(func() {
-		if removeErr := os.RemoveAll(moved); removeErr != nil {
-			t.Errorf("remove moved vault: %v", removeErr)
-		}
-	})
-	if err := os.Mkdir(root, 0o750); err != nil {
-		t.Fatalf("create replacement vault: %v", err)
-	}
-	initVault(t, root)
-	writeNote(t, root, content)
-	runGit(t, root, "add", "-A")
-	runGit(t, root, "commit", "-m", "replacement history")
-	replacementHash := strings.TrimSpace(runGit(t, root, "rev-parse", "--short", "HEAD"))
-	if replacementHash == want {
-		t.Fatal("replacement history accidentally has the selected commit hash")
-	}
-
-	got, err := lifecycle.LastCommitHash(t.Context(), testRel, sha256.Sum256([]byte(content)))
-	if err != nil {
-		t.Fatalf("LastCommitHash() after top-level replacement = %v", err)
-	}
-	if got != want {
-		t.Errorf("LastCommitHash() = %q, want selected history %q, not replacement %q", got, want, replacementHash)
-	}
-}
-
-func TestFlipStripsGitRepositoryRedirectionEnvironment(t *testing.T) {
-	root := newVault(t)
-	original := lessonContent("draft")
-	writeNote(t, root, original)
-	commitAll(t, root)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "redirected.git"))
-	t.Setenv("GIT_WORK_TREE", t.TempDir())
-
-	if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
-		t.Fatalf("Flip() with repository-redirection environment = %v, want nil", err)
-	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	if got := readNote(t, root); got != want {
-		t.Errorf("note after Flip() = %q, want %q", got, want)
-	}
-}
-
-func TestFlipDoesNotExposeApplicationEnvironmentToGitHooks(t *testing.T) {
-	root := newVault(t)
-	original := lessonContent("draft")
-	writeNote(t, root, original)
-	commitAll(t, root)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	hook := filepath.Join(root, ".git", "hooks", "pre-commit")
-	const script = `#!/bin/sh
-if env | grep -q '^YOMIHON_'; then
-	exit 91
-fi
-`
-	if err := os.WriteFile(hook, []byte(script), 0o700); err != nil { // #nosec G306 -- git executes this test-owned pre-commit fixture, so it must have an execute bit
-		t.Fatalf("write pre-commit hook: %v", err)
-	}
-	t.Setenv("YOMIHON_EMBED_KEY", "must-not-reach-git")
-	t.Setenv("YOMIHON_ROOT", "/must/not/reach/git")
-	t.Setenv("YOMIHON_PORT", "65535")
-	t.Setenv("YOMIHON_FUTURE_SECRET", "must-also-stay-private")
-
-	if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
-		t.Fatalf("Flip() with application secrets in the parent environment = %v, want nil", err)
-	}
-}
-
-func TestGitChildFailureBeforePublicationLeavesSourceUntouched(t *testing.T) {
-	root := newVault(t)
-	original := lessonContent("draft")
-	writeNote(t, root, original)
-	commitAll(t, root)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	t.Setenv("PATH", t.TempDir())
-
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
-	if err == nil || errors.Is(err, status.ErrCommitFailed) {
-		t.Fatalf("Flip() without git executable = %v, want pre-publication failure not wrapping ErrCommitFailed", err)
-	}
-	if got := readNote(t, root); got != original {
-		t.Errorf("note after pre-publication child failure = %q, want untouched %q", got, original)
-	}
-}
-
-func TestFlipCommitsOnlyTarget(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	original := lessonContent("draft")
-	writeNote(t, root, original)
-	otherRel := "Writing/notes/Unrelated.md"
-	otherPath := filepath.Join(root, filepath.FromSlash(otherRel))
-	if err := os.MkdirAll(filepath.Dir(otherPath), 0o750); err != nil {
-		t.Fatalf("mkdir unrelated parent: %v", err)
-	}
-	if err := os.WriteFile(otherPath, []byte("original\n"), 0o600); err != nil {
-		t.Fatalf("write unrelated seed: %v", err)
-	}
-	commitAll(t, root)
-
-	wantStaged := "staged but unrelated\n"
-	if err := os.WriteFile(otherPath, []byte(wantStaged), 0o600); err != nil {
-		t.Fatalf("write unrelated change: %v", err)
-	}
-	runGit(t, root, "add", "--", otherRel)
-	stagedBefore := runGit(t, root, "show", ":"+otherRel)
-
-	if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
-		t.Fatalf("Flip() = %v, want nil", err)
-	}
-
-	changed := strings.Fields(runGit(t, root, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"))
-	if diff := cmp.Diff([]string{testRel}, changed); diff != "" {
-		t.Errorf("HEAD changed paths mismatch (-want +got):\n%s", diff)
-	}
-	staged := strings.Fields(runGit(t, root, "diff", "--cached", "--name-only"))
-	if diff := cmp.Diff([]string{otherRel}, staged); diff != "" {
-		t.Errorf("staged paths mismatch (-want +got):\n%s", diff)
-	}
-	stagedAfter := runGit(t, root, "show", ":"+otherRel)
-	if diff := cmp.Diff(stagedBefore, stagedAfter); diff != "" {
-		t.Errorf("unrelated staged bytes changed (-want +got):\n%s", diff)
-	}
-	if got := stagedAfter; got != wantStaged {
-		t.Errorf("unrelated staged bytes = %q, want %q", got, wantStaged)
-	}
-
-	wantNote := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	if got := readNote(t, root); got != wantNote {
-		t.Errorf("note after flip = %q, want %q", got, wantNote)
-	}
-	wantSubject := "status(" + testRel + "): draft → " + schema.SealStatus + " (via yomihon)"
-	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != wantSubject {
-		t.Errorf("commit subject = %q, want %q", got, wantSubject)
-	}
-}
-
-func TestFlipTreatsGitPathspecMetacharactersLiterally(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	targetRel := "Writing/lessons/japanese/L*.md"
-	stagedRel := "Writing/lessons/japanese/L05.md"
-	unstagedRel := "Writing/lessons/japanese/L06.md"
-	original := lessonContent("draft")
-	writeVaultFile(t, root, targetRel, original)
-	writeVaultFile(t, root, stagedRel, "staged seed\n")
-	writeVaultFile(t, root, unstagedRel, "unstaged seed\n")
-	commitAll(t, root)
-
-	wantStaged := "staged sibling change\n"
-	writeVaultFile(t, root, stagedRel, wantStaged)
-	runGit(t, root, "add", "--", stagedRel)
-	stagedBefore := runGit(t, root, "show", ":"+stagedRel)
-	wantUnstaged := "unstaged sibling change\n"
-	writeVaultFile(t, root, unstagedRel, wantUnstaged)
-
-	if err := lifecycle.Flip(t.Context(), targetRel, "draft", schema.SealStatus); err != nil {
-		t.Fatalf("Flip(%q) = %v, want nil", targetRel, err)
-	}
-
-	changed := strings.Fields(runGit(t, root, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"))
-	if diff := cmp.Diff([]string{targetRel}, changed); diff != "" {
-		t.Errorf("HEAD changed paths mismatch (-want +got):\n%s", diff)
-	}
-	staged := strings.Fields(runGit(t, root, "diff", "--cached", "--name-only"))
-	if diff := cmp.Diff([]string{stagedRel}, staged); diff != "" {
-		t.Errorf("staged paths mismatch (-want +got):\n%s", diff)
-	}
-	stagedAfter := runGit(t, root, "show", ":"+stagedRel)
-	if diff := cmp.Diff(stagedBefore, stagedAfter); diff != "" {
-		t.Errorf("sibling staged bytes changed (-want +got):\n%s", diff)
-	}
-	if got := stagedAfter; got != wantStaged {
-		t.Errorf("sibling staged bytes = %q, want %q", got, wantStaged)
-	}
-	unstaged := strings.Fields(runGit(t, root, "diff", "--name-only"))
-	if diff := cmp.Diff([]string{unstagedRel}, unstaged); diff != "" {
-		t.Errorf("unstaged paths mismatch (-want +got):\n%s", diff)
-	}
-	unstagedBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(unstagedRel))) // #nosec G304 -- path is test-owned under t.TempDir
-	if err != nil {
-		t.Fatalf("read unstaged sibling: %v", err)
-	}
-	if got := string(unstagedBytes); got != wantUnstaged {
-		t.Errorf("unstaged sibling bytes = %q, want %q", got, wantUnstaged)
-	}
-
-	wantNote := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	targetBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(targetRel))) // #nosec G304 -- path is test-owned under t.TempDir
-	if err != nil {
-		t.Fatalf("read target: %v", err)
-	}
-	if got := string(targetBytes); got != wantNote {
-		t.Errorf("target after flip = %q, want %q", got, wantNote)
-	}
-	targetCommit := strings.TrimSpace(runGit(t, root, "rev-parse", "--short", "HEAD"))
-	wantSubject := "status(" + targetRel + "): draft → " + schema.SealStatus + " (via yomihon)"
-	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != wantSubject {
-		t.Errorf("commit subject = %q, want %q", got, wantSubject)
-	}
-
-	runGit(t, root, "commit", "--only", "-m", "update sibling", "--", stagedRel)
-	gotCommit, err := lifecycle.LastCommitHash(t.Context(), targetRel, sha256.Sum256(targetBytes))
-	if err != nil {
-		t.Fatalf("LastCommitHash(%q) = %v", targetRel, err)
-	}
-	if gotCommit != targetCommit {
-		t.Errorf("LastCommitHash(%q) = %q, want %q", targetRel, gotCommit, targetCommit)
-	}
-}
-
-func TestLastCommitHashOmitsUncommittedState(t *testing.T) {
-	t.Parallel()
-
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-
-	writeNote(t, root, lessonContent(schema.SealStatus))
-	got, err := lifecycle.LastCommitHash(
-		t.Context(),
-		testRel,
-		sha256.Sum256([]byte(lessonContent(schema.SealStatus))),
-	)
-	if err != nil {
-		t.Fatalf("LastCommitHash(%q) = %v", testRel, err)
-	}
-	if got != "" {
-		t.Errorf("LastCommitHash(%q) = %q for uncommitted bytes, want empty", testRel, got)
-	}
-}
-
-func TestLastCommitHashBindsToTheReadBytes(t *testing.T) {
-	t.Parallel()
-
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	readBytes := []byte(lessonContent(schema.SealStatus))
-	writeNote(t, root, string(readBytes))
-	commitAll(t, root)
-
-	writeNote(t, root, lessonContent(schema.SealStatus)+"\nnewer body\n")
-	commitAll(t, root)
-
-	got, err := lifecycle.LastCommitHash(t.Context(), testRel, sha256.Sum256(readBytes))
-	if err != nil {
-		t.Fatalf("LastCommitHash(%q) = %v", testRel, err)
-	}
-	if got != "" {
-		t.Errorf("LastCommitHash(%q) = %q for bytes from an older reading snapshot, want empty", testRel, got)
-	}
-}
-
 func TestFlipRefusesSymlinkTarget(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	outside := filepath.Join(t.TempDir(), "outside.md")
@@ -651,10 +261,8 @@ func TestFlipRefusesSymlinkTarget(t *testing.T) {
 	if err := os.Symlink(outside, notePath); err != nil {
 		t.Fatalf("symlink note: %v", err)
 	}
-	commitAll(t, root)
-	beforeCommits := commitCount(t, root)
 
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(testRel, "draft", schema.SealStatus)
 	if err == nil {
 		t.Fatal("Flip(symlink) = nil, want refusal")
 	}
@@ -672,14 +280,11 @@ func TestFlipRefusesSymlinkTarget(t *testing.T) {
 	if info.Mode()&os.ModeSymlink == 0 {
 		t.Errorf("note mode = %v, want symlink preserved", info.Mode())
 	}
-	if after := commitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
-	}
 }
 
 func TestFlipRefusesSymlinkDirectory(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	outsideWriting := filepath.Join(t.TempDir(), "Writing")
@@ -694,10 +299,8 @@ func TestFlipRefusesSymlinkDirectory(t *testing.T) {
 	if err := os.Symlink(outsideWriting, filepath.Join(root, "Writing")); err != nil {
 		t.Fatalf("symlink Writing: %v", err)
 	}
-	commitAll(t, root)
-	beforeCommits := commitCount(t, root)
 
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(testRel, "draft", schema.SealStatus)
 	if err == nil {
 		t.Fatal("Flip(path through symlink directory) = nil, want refusal")
 	}
@@ -708,14 +311,11 @@ func TestFlipRefusesSymlinkDirectory(t *testing.T) {
 	if diff := cmp.Diff(original, string(got)); diff != "" {
 		t.Errorf("outside target changed (-want +got):\n%s", diff)
 	}
-	if after := commitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
-	}
 }
 
 func TestFlipRefusesNonRegularTarget(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 	notePath := filepath.Join(root, filepath.FromSlash(testRel))
 	if err := os.MkdirAll(notePath, 0o750); err != nil {
@@ -725,10 +325,8 @@ func TestFlipRefusesNonRegularTarget(t *testing.T) {
 	if err := os.WriteFile(markerPath, []byte("unchanged"), 0o600); err != nil {
 		t.Fatalf("write directory marker: %v", err)
 	}
-	commitAll(t, root)
-	beforeCommits := commitCount(t, root)
 
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(testRel, "draft", schema.SealStatus)
 	if err == nil {
 		t.Fatal("Flip(directory) = nil, want refusal")
 	}
@@ -746,14 +344,11 @@ func TestFlipRefusesNonRegularTarget(t *testing.T) {
 	if got, want := string(marker), "unchanged"; got != want {
 		t.Errorf("marker bytes = %q, want %q", got, want)
 	}
-	if after := commitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
-	}
 }
 
 func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	contract := loadContract(t)
 	lifecycle := newLifecycle(t, root, contract)
 
@@ -766,10 +361,8 @@ func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatalf("write template note: %v", err)
 	}
-	commitAll(t, root)
-	beforeCommits := commitCount(t, root)
 
-	err := lifecycle.Flip(t.Context(), nonInstanceRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(nonInstanceRel, "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Fatalf("Flip(non-instance) = %v, want %v", err, status.ErrNonInstance)
 	}
@@ -780,20 +373,17 @@ func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
 	if diff := cmp.Diff(original, string(got)); diff != "" {
 		t.Errorf("non-instance bytes changed (-want +got):\n%s", diff)
 	}
-	if after := commitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
-	}
 
-	err = lifecycle.Flip(t.Context(), "System/templates/Missing.md", "draft", schema.SealStatus)
+	err = lifecycle.Flip("System/templates/Missing.md", "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Errorf("Flip(nonexistent non-instance) = %v, want %v before stat", err, status.ErrNonInstance)
 	}
-	err = lifecycle.Flip(t.Context(), "System/temporary/../templates/Normalized.md", "draft", schema.SealStatus)
+	err = lifecycle.Flip("System/temporary/../templates/Normalized.md", "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Errorf("Flip(normalized non-instance) = %v, want %v before stat", err, status.ErrNonInstance)
 	}
 
-	err = lifecycle.Flip(t.Context(), "System/templates-old/Missing.md", "draft", schema.SealStatus)
+	err = lifecycle.Flip("System/templates-old/Missing.md", "draft", schema.SealStatus)
 	if errors.Is(err, status.ErrNonInstance) {
 		t.Errorf("Flip(component-boundary sibling) = %v, must reach filesystem instead of non-instance gate", err)
 	}
@@ -807,17 +397,15 @@ func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
 // access, leave the canonical file byte-identical, and record no commit.
 func TestFlipRefusesCaseVariantNonInstancePath(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	const canonicalRel = "System/templates/Card.md"
 	original := lessonContent("draft")
 	writeVaultFile(t, root, canonicalRel, original)
-	commitAll(t, root)
-	beforeCommits := commitCount(t, root)
 
 	for _, rel := range []string{"system/templates/Card.md", "SYSTEM/Templates/Card.md"} {
-		err := lifecycle.Flip(t.Context(), rel, "draft", schema.SealStatus)
+		err := lifecycle.Flip(rel, "draft", schema.SealStatus)
 		if !errors.Is(err, status.ErrNonInstance) {
 			t.Errorf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
 		}
@@ -829,12 +417,6 @@ func TestFlipRefusesCaseVariantNonInstancePath(t *testing.T) {
 	if diff := cmp.Diff(original, string(got)); diff != "" {
 		t.Errorf("canonical template bytes changed (-want +got):\n%s", diff)
 	}
-	if after := commitCount(t, root); after != beforeCommits {
-		t.Errorf("commit count = %d, want unchanged %d", after, beforeCommits)
-	}
-	if porcelain := strings.TrimSpace(runGit(t, root, "status", "--porcelain")); porcelain != "" {
-		t.Errorf("working tree dirty after refused flip:\n%s", porcelain)
-	}
 }
 
 // TestFlipRefusesNonMarkdownTarget locks the write face to the same note
@@ -845,16 +427,14 @@ func TestFlipRefusesCaseVariantNonInstancePath(t *testing.T) {
 // face itself refuses to offer a write form for.
 func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	const txtRel = "Writing/lessons/japanese/L05.txt"
 	original := lessonContent("draft")
 	writeVaultFile(t, root, txtRel, original)
-	commitAll(t, root)
-	before := commitCount(t, root)
 
-	err := lifecycle.Flip(t.Context(), txtRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(txtRel, "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Fatalf("Flip(%q) = %v, want %v", txtRel, err, status.ErrNonInstance)
 	}
@@ -864,9 +444,6 @@ func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
 	}
 	if diff := cmp.Diff(original, string(got)); diff != "" {
 		t.Errorf("resource bytes changed (-want +got):\n%s", diff)
-	}
-	if after := commitCount(t, root); after != before {
-		t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
 	}
 }
 
@@ -878,22 +455,20 @@ func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
 // have under that spelling.
 func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	const onDiskRel = "Writing/lessons/japanese/L06.MD"
 	const requestedRel = "Writing/lessons/japanese/L06.md"
 	original := lessonContent("draft")
 	writeVaultFile(t, root, onDiskRel, original)
-	commitAll(t, root)
-	before := commitCount(t, root)
 
 	onDisk := filepath.Join(root, filepath.FromSlash(onDiskRel))
 	if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(requestedRel))); err != nil {
 		t.Skipf("this filesystem keeps the two spellings apart, so the bypass cannot arise here: %v", err)
 	}
 
-	err := lifecycle.Flip(t.Context(), requestedRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(requestedRel, "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, status.ErrNonInstance)
 	}
@@ -904,12 +479,6 @@ func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 	if diff := cmp.Diff(original, string(got)); diff != "" {
 		t.Errorf("bytes rewritten before the refusal (-want +got):\n%s", diff)
 	}
-	if after := commitCount(t, root); after != before {
-		t.Errorf("commit count = %d, want unchanged %d", after, before)
-	}
-	if porcelain := strings.TrimSpace(runGit(t, root, "status", "--porcelain")); porcelain != "" {
-		t.Errorf("working tree dirty after refused flip:\n%s", porcelain)
-	}
 }
 
 // TestFlipReportsAMissingNoteAsMissing guards the boundary the on-disk name
@@ -918,13 +487,12 @@ func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 // somehow ungovernable.
 func TestFlipReportsAMissingNoteAsMissing(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
 
-	err := lifecycle.Flip(t.Context(), "Writing/lessons/japanese/Absent.md", "draft", schema.SealStatus)
+	err := lifecycle.Flip("Writing/lessons/japanese/Absent.md", "draft", schema.SealStatus)
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Flip(missing note) = %v, want an error wrapping %v", err, fs.ErrNotExist)
 	}
@@ -949,15 +517,13 @@ func TestFlipRefusesHiddenTarget(t *testing.T) {
 	} {
 		t.Run(rel, func(t *testing.T) {
 			t.Parallel()
-			root := newVault(t)
+			root := t.TempDir()
 			lifecycle := newLifecycle(t, root, loadContract(t))
 
 			original := lessonContent("draft")
 			writeVaultFile(t, root, rel, original)
-			commitAll(t, root)
-			before := commitCount(t, root)
 
-			err := lifecycle.Flip(t.Context(), rel, "draft", schema.SealStatus)
+			err := lifecycle.Flip(rel, "draft", schema.SealStatus)
 			if !errors.Is(err, status.ErrNonInstance) {
 				t.Fatalf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
 			}
@@ -968,9 +534,6 @@ func TestFlipRefusesHiddenTarget(t *testing.T) {
 			if diff := cmp.Diff(original, string(got)); diff != "" {
 				t.Errorf("hidden file bytes changed (-want +got):\n%s", diff)
 			}
-			if after := commitCount(t, root); after != before {
-				t.Errorf("commit count = %d, want unchanged %d (no receipt for a file the scan never serves)", after, before)
-			}
 		})
 	}
 }
@@ -979,7 +542,7 @@ func TestFlipValidatesPathBeforeClosure(t *testing.T) {
 	t.Parallel()
 	lifecycle := newLifecycle(t, t.TempDir(), nil)
 	for _, rel := range []string{"", ".", "..", "../outside.md", "/absolute.md", `System\templates\T.md`} {
-		err := lifecycle.Flip(t.Context(), rel, "draft", schema.SealStatus)
+		err := lifecycle.Flip(rel, "draft", schema.SealStatus)
 		if !errors.Is(err, status.ErrInvalidPath) {
 			t.Errorf("Flip(%q on closed service) = %v, want %v", rel, err, status.ErrInvalidPath)
 		}
@@ -1016,7 +579,7 @@ func TestArtifactPolicyClosureIsDistinct(t *testing.T) {
 			if lifecycle.View().Advanceable("lesson", "draft") {
 				t.Error("Advanceable() = true while artifact policy closes writes")
 			}
-			err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+			err := lifecycle.Flip(testRel, "draft", schema.SealStatus)
 			if !errors.Is(err, status.ErrArtifactPolicyUnavailable) {
 				t.Errorf("Flip() = %v, want %v", err, status.ErrArtifactPolicyUnavailable)
 			}
@@ -1032,9 +595,8 @@ func TestFlipRefusals(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		onDiskStatus string // status committed into the note before flipping
+		onDiskStatus string // status written into the note before flipping
 		from, to     string
-		dirtyEdit    bool
 		wantErr      error
 	}{
 		{
@@ -1051,154 +613,25 @@ func TestFlipRefusals(t *testing.T) {
 			to:           schema.SealStatus,
 			wantErr:      schema.ErrIllegalTransition,
 		},
-		{
-			name:         "dirty file: unrelated uncommitted edit already present",
-			onDiskStatus: "draft",
-			from:         "draft",
-			to:           schema.SealStatus,
-			dirtyEdit:    true,
-			wantErr:      status.ErrDirty,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := newVault(t)
+			root := t.TempDir()
 			lifecycle := newLifecycle(t, root, loadContract(t))
 
-			committed := lessonContent(tt.onDiskStatus)
-			writeNote(t, root, committed)
-			commitAll(t, root)
-			before := commitCount(t, root)
+			onDisk := lessonContent(tt.onDiskStatus)
+			writeNote(t, root, onDisk)
 
-			onDisk := committed
-			if tt.dirtyEdit {
-				onDisk = committed + "<!-- an unrelated, uncommitted edit -->\n"
-				writeNote(t, root, onDisk)
-			}
-
-			err := lifecycle.Flip(t.Context(), testRel, tt.from, tt.to)
+			err := lifecycle.Flip(testRel, tt.from, tt.to)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Flip() = %v, want %v", err, tt.wantErr)
 			}
 			if got := readNote(t, root); got != onDisk {
 				t.Errorf("file was touched:\ngot:  %q\nwant: %q", got, onDisk)
 			}
-			if after := commitCount(t, root); after != before {
-				t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
-			}
 		})
-	}
-}
-
-// writeHook installs an executable repo-local git hook in the fixture vault.
-// Hooks are how a vault owner's own tooling participates in commits; these
-// tests use them to make the created commit diverge from the intended change.
-func writeHook(t *testing.T, root, name, script string) {
-	t.Helper()
-	hook := filepath.Join(root, ".git", "hooks", name)
-	if err := os.WriteFile(hook, []byte(script), 0o700); err != nil { // #nosec G306 -- git executes this test-owned hook fixture, so it must keep an execute bit
-		t.Fatalf("write %s hook: %v", name, err)
-	}
-}
-
-// TestFlipReportsReceiptDivergenceWhenHookEditsTheNote covers a pre-commit
-// hook that edits the note and restages it: the hook writes into the partial
-// commit's temporary index, so the created commit carries bytes the flip
-// never published while its subject still claims a clean status transition.
-func TestFlipReportsReceiptDivergenceWhenHookEditsTheNote(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	writeHook(t, root, "pre-commit",
-		"#!/bin/sh\nprintf 'INJECTED-BY-HOOK\\n' >> '"+testRel+"'\ngit add -- '"+testRel+"'\n")
-
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
-	if !errors.Is(err, status.ErrReceiptDiverged) {
-		t.Fatalf("Flip() with a note-editing pre-commit hook = %v, want %v", err, status.ErrReceiptDiverged)
-	}
-	// No rollback: the diverged commit stays, and its blob shows what the
-	// hook actually committed.
-	if blob := runGit(t, root, "cat-file", "blob", "HEAD:"+testRel); !strings.Contains(blob, "INJECTED-BY-HOOK") {
-		t.Errorf("committed blob = %q, want it to carry the hook's injected line", blob)
-	}
-}
-
-// TestFlipReportsReceiptDivergenceWhenHookStagesAnotherFile covers a
-// pre-commit hook that creates and stages an unrelated file: the --only
-// pathspec confines what the flip stages, but a hook staging into the
-// partial commit's temporary index widens the commit anyway.
-func TestFlipReportsReceiptDivergenceWhenHookStagesAnotherFile(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	writeHook(t, root, "pre-commit",
-		"#!/bin/sh\nprintf 'planted by hook\\n' > Writing/hook-planted.md\ngit add -- Writing/hook-planted.md\n")
-
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
-	if !errors.Is(err, status.ErrReceiptDiverged) {
-		t.Fatalf("Flip() with an unrelated-file-staging pre-commit hook = %v, want %v", err, status.ErrReceiptDiverged)
-	}
-	changed := strings.Fields(runGit(t, root, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"))
-	if len(changed) != 2 {
-		t.Errorf("HEAD changed paths = %v, want the note plus the hook's file (the divergence being reported)", changed)
-	}
-}
-
-// TestFlipReportsReceiptDivergenceWhenHookRewritesTheMessage covers a
-// commit-msg hook replacing the subject line wholesale: the note's bytes are
-// committed as intended, but the transition is recorded nowhere.
-func TestFlipReportsReceiptDivergenceWhenHookRewritesTheMessage(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	writeHook(t, root, "commit-msg",
-		"#!/bin/sh\nprintf 'chore: routine maintenance\\n' > \"$1\"\n")
-
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
-	if !errors.Is(err, status.ErrReceiptDiverged) {
-		t.Fatalf("Flip() with a message-rewriting commit-msg hook = %v, want %v", err, status.ErrReceiptDiverged)
-	}
-	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != "chore: routine maintenance" {
-		t.Errorf("commit subject = %q, want the hook's replacement (the divergence being reported)", got)
-	}
-}
-
-// TestFlipRefusesDetachedHead locks the write face's refusal to commit while
-// the vault's HEAD names no branch. git itself accepts such a commit, but it
-// lands on no ref: the moment the operator checks a branch out again, the
-// note reverts and the receipt is reachable only through the reflog — a
-// success report whose evidence quietly evaporates.
-func TestFlipRefusesDetachedHead(t *testing.T) {
-	t.Parallel()
-	root := newVault(t)
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	original := lessonContent("draft")
-	writeNote(t, root, original)
-	commitAll(t, root)
-	runGit(t, root, "checkout", "--detach")
-	before := commitCount(t, root)
-
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
-	if !errors.Is(err, status.ErrDetachedHead) {
-		t.Fatalf("Flip() on a detached HEAD = %v, want %v", err, status.ErrDetachedHead)
-	}
-	if got := readNote(t, root); got != original {
-		t.Errorf("note after detached-HEAD refusal = %q, want untouched %q", got, original)
-	}
-	if after := commitCount(t, root); after != before {
-		t.Errorf("commit count = %d, want unchanged %d (no commit on a detached HEAD)", after, before)
-	}
-	if porcelain := strings.TrimSpace(runGit(t, root, "status", "--porcelain")); porcelain != "" {
-		t.Errorf("git status --porcelain not empty after refusal: %q", porcelain)
 	}
 }
 
@@ -1236,27 +669,22 @@ func TestFlipMalformedStatusLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := newVault(t)
+			root := t.TempDir()
 			lifecycle := newLifecycle(t, root, loadContract(t))
 
 			writeNote(t, root, tt.content)
-			commitAll(t, root)
-			before := commitCount(t, root)
 
 			// A missing status retains the declared note type, so the wildcard
 			// archived transition reaches the surgical rewrite and reports the
 			// malformed line count. Duplicate YAML keys invalidate the parsed
 			// frontmatter, including its type. Lifecycle validation therefore
 			// fails closed before the surgical rewrite.
-			err := lifecycle.Flip(t.Context(), testRel, "", "archived")
+			err := lifecycle.Flip(testRel, "", "archived")
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Flip() = %v, want %v", err, tt.wantErr)
 			}
 			if got := readNote(t, root); got != tt.content {
 				t.Errorf("file was touched:\ngot:  %q\nwant: %q", got, tt.content)
-			}
-			if after := commitCount(t, root); after != before {
-				t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
 			}
 		})
 	}
@@ -1270,7 +698,7 @@ func TestFlipMalformedStatusLine(t *testing.T) {
 // The flip must refuse before writing anything.
 func TestFlipRefusesStatusAnchorThatRewritingWouldSever(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	content := "---\n" +
@@ -1283,23 +711,18 @@ func TestFlipRefusesStatusAnchorThatRewritingWouldSever(t *testing.T) {
 		"---\n" +
 		"\nbody\n"
 	writeNote(t, root, content)
-	commitAll(t, root)
-	before := commitCount(t, root)
 
-	observed, err := lifecycle.ObservedStatus(t.Context(), testRel)
-	if err != nil || observed.Status != "draft" {
-		t.Fatalf("ObservedStatus() = (%+v, %v), want the reader to see draft", observed, err)
+	observed, err := lifecycle.ObservedStatus(testRel)
+	if err != nil || observed != "draft" {
+		t.Fatalf("ObservedStatus() = (%q, %v), want the reader to see draft", observed, err)
 	}
 
-	err = lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+	err = lifecycle.Flip(testRel, "draft", schema.SealStatus)
 	if !errors.Is(err, status.ErrStatusSyntaxUnsupported) {
 		t.Fatalf("Flip(status carrying an aliased anchor) = %v, want %v", err, status.ErrStatusSyntaxUnsupported)
 	}
 	if got := readNote(t, root); got != content {
 		t.Errorf("note after refusal = %q, want untouched %q", got, content)
-	}
-	if after := commitCount(t, root); after != before {
-		t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
 	}
 }
 
@@ -1342,26 +765,21 @@ func TestFlipRefusesUnsupportedStatusSyntax(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := newVault(t)
+			root := t.TempDir()
 			lifecycle := newLifecycle(t, root, loadContract(t))
 			writeNote(t, root, tt.content)
-			commitAll(t, root)
-			before := commitCount(t, root)
 
-			observed, err := lifecycle.ObservedStatus(t.Context(), testRel)
-			if err != nil || observed.Status != "draft" {
-				t.Fatalf("ObservedStatus() = (%+v, %v), want the reader to see draft", observed, err)
+			observed, err := lifecycle.ObservedStatus(testRel)
+			if err != nil || observed != "draft" {
+				t.Fatalf("ObservedStatus() = (%q, %v), want the reader to see draft", observed, err)
 			}
 
-			err = lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
+			err = lifecycle.Flip(testRel, "draft", schema.SealStatus)
 			if !errors.Is(err, status.ErrStatusSyntaxUnsupported) {
 				t.Fatalf("Flip() = %v, want %v", err, status.ErrStatusSyntaxUnsupported)
 			}
 			if got := readNote(t, root); got != tt.content {
 				t.Errorf("note after refusal = %q, want untouched %q", got, tt.content)
-			}
-			if after := commitCount(t, root); after != before {
-				t.Errorf("commit count = %d, want unchanged %d (no commit created)", after, before)
 			}
 		})
 	}
@@ -1369,7 +787,7 @@ func TestFlipRefusesUnsupportedStatusSyntax(t *testing.T) {
 
 func TestFlipFailClosed(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, nil)
 
 	if !lifecycle.View().Closed() {
@@ -1389,7 +807,7 @@ func TestFlipFailClosed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if err := lifecycle.Flip(t.Context(), tt.rel, tt.from, tt.to); !errors.Is(err, status.ErrClosed) {
+			if err := lifecycle.Flip(tt.rel, tt.from, tt.to); !errors.Is(err, status.ErrClosed) {
 				t.Errorf("Flip(%q, %q, %q) = %v, want %v", tt.rel, tt.from, tt.to, err, status.ErrClosed)
 			}
 		})
@@ -1563,13 +981,12 @@ func TestFlipByteIdentical(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			root := newVault(t)
+			root := t.TempDir()
 			lifecycle := newLifecycle(t, root, loadContract(t))
 
 			writeNote(t, root, tt.content)
-			commitAll(t, root)
 
-			if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
+			if err := lifecycle.Flip(testRel, "draft", schema.SealStatus); err != nil {
 				t.Fatalf("Flip() = %v, want nil", err)
 			}
 
@@ -1593,12 +1010,11 @@ func TestFlipByteIdentical(t *testing.T) {
 // shape was never yomihon's, and neither was any other file kind.
 func TestFlipQuarantinesAbandonedTempFiles(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	original := lessonContent("draft")
 	writeNote(t, root, original)
-	commitAll(t, root)
 
 	// The middles are the 26 base32 characters crypto/rand's Text produces;
 	// a name outside that shape is a decoy, not a temp.
@@ -1640,7 +1056,7 @@ func TestFlipQuarantinesAbandonedTempFiles(t *testing.T) {
 		}
 	}
 
-	if err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus); err != nil {
+	if err := lifecycle.Flip(testRel, "draft", schema.SealStatus); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
 
@@ -1664,67 +1080,104 @@ func TestFlipQuarantinesAbandonedTempFiles(t *testing.T) {
 	}
 }
 
-// TestFlipGitAddFailureWrapsErrCommitFailed guards against the file being
-// rewritten on disk while a failing `git add` (staging, not just the final
-// `git commit`) is reported as a plain error instead of ErrCommitFailed —
-// which would route callers to a generic 500 instead of the
-// "file already changed, here is the git error" presentation. A held
-// `.git/index.lock` is a realistic, deterministic stand-in for the
-// concurrent-git-process contention this guards against (another Flip, an
-// Obsidian git-sync plugin, a cron script).
-func TestFlipGitAddFailureWrapsErrCommitFailed(t *testing.T) {
+// TestFlipHappyPath is the byte-identity lock: a legal flip rewrites exactly
+// the status line and leaves every other byte of the file alone.
+func TestFlipHappyPath(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
+	original := "---\n" +
+		"title: L05 助詞の使い方\n" +
+		"type: lesson\n" +
+		"domain: japanese\n" +
+		"status: draft\n" +
+		"based_on: \"[[大家的日本語 第5課]]\"\n" +
+		"# hand-written note, must survive verbatim\n" +
+		"created: 2026-06-01\n" +
+		"updated: 2026-06-15\n" +
+		"---\n" +
+		"\n" +
+		"<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
+	writeNote(t, root, original)
 
-	lockPath := filepath.Join(root, ".git", "index.lock")
-	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
-		t.Fatalf("create index.lock: %v", err)
+	if err := lifecycle.Flip(testRel, "draft", schema.SealStatus); err != nil {
+		t.Fatalf("Flip() = %v, want nil", err)
 	}
-	removeOnCleanup(t, lockPath)
 
-	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
-	if !errors.Is(err, status.ErrCommitFailed) {
-		t.Fatalf("Flip() = %v, want an error wrapping %v", err, status.ErrCommitFailed)
-	}
-
-	// replaceRegularFile already ran before commit() ever touched git: the file on
-	// disk must show the rewritten status even though no commit exists —
-	// exactly the dangerous, silently-diverged state ErrCommitFailed exists
-	// to make unmistakable.
-	if got := readNote(t, root); !strings.Contains(got, "status: ready") {
-		t.Errorf("file after failed git add = %q, want it already rewritten to ready despite the failed commit", got)
+	// The single highest-stakes assertion in this feature: everything but
+	// the status line's content must be byte-identical.
+	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	got := readNote(t, root)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("file mismatch after flip (-want +got):\n%s", diff)
 	}
 }
 
-// TestFlipConcurrentNeverLiesInTheCommitMessage reproduces the double-tab /
-// double-click race (the UI offers every legal transition as its own
-// pressable key, so two can be in flight at once): two goroutines flip
-// the SAME note to two different target statuses concurrently. Without the
-// Lifecycle serializing Flip, the loser's
-// atomic replacement can be silently overwritten by the winner and the loser's
-// commit() then stages and commits whatever the winner left on disk under
-// the loser's own from→to commit message — a false audit-trail entry that
-// still returns err == nil to the loser. With Flip holding the Lifecycle's
-// lock for its whole duration, exactly one of the two must succeed, and
-// the loser must get a real, actionable error (ErrStale — the winner
-// already moved the file out from under it) rather than a false success.
-func TestFlipConcurrentNeverLiesInTheCommitMessage(t *testing.T) {
+// TestFlipWritesTheSelectedRootAfterPathReplacement locks the write to the
+// pinned root capability rather than the pathname: after the vault directory
+// is renamed away and another directory takes its path, the flip still lands
+// in the originally selected folder and the newcomer stays untouched.
+func TestFlipWritesTheSelectedRootAfterPathReplacement(t *testing.T) {
 	t.Parallel()
-	root := newVault(t)
+
+	root := t.TempDir()
+	original := lessonContent("draft")
+	writeNote(t, root, original)
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	moved := root + "-selected"
+	if err := os.Rename(root, moved); err != nil {
+		t.Fatalf("rename selected vault: %v", err)
+	}
+	t.Cleanup(func() {
+		if removeErr := os.RemoveAll(moved); removeErr != nil {
+			t.Errorf("remove moved vault: %v", removeErr)
+		}
+	})
+	if err := os.Mkdir(root, 0o750); err != nil {
+		t.Fatalf("create replacement vault: %v", err)
+	}
+	writeNote(t, root, original)
+
+	if err := lifecycle.Flip(testRel, "draft", schema.SealStatus); err != nil {
+		t.Fatalf("Flip() after top-level replacement = %v, want nil", err)
+	}
+	wantSelected := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	selected, err := os.ReadFile(filepath.Join(moved, filepath.FromSlash(testRel))) // #nosec G304 -- moved is a test-owned temporary directory
+	if err != nil {
+		t.Fatalf("read selected note: %v", err)
+	}
+	if string(selected) != wantSelected {
+		t.Errorf("selected note = %q, want %q", selected, wantSelected)
+	}
+	replacement, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(testRel))) // #nosec G304 -- root is a test-owned temporary directory
+	if err != nil {
+		t.Fatalf("read replacement note: %v", err)
+	}
+	if string(replacement) != original {
+		t.Errorf("replacement note = %q, want untouched %q", replacement, original)
+	}
+}
+
+// TestFlipSerializesConcurrentFlips reproduces the double-tab / double-click
+// race (the UI offers every legal transition as its own pressable key, so two
+// can be in flight at once): two goroutines flip the same note to two
+// different target statuses concurrently. Flip holds the Lifecycle's lock for
+// its whole duration, so exactly one of the two must succeed and the loser
+// must get a real, actionable refusal (ErrStale — the winner already moved
+// the file) rather than a false success or an interleaved write.
+func TestFlipSerializesConcurrentFlips(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
 	lifecycle := newLifecycle(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	before := commitCount(t, root)
 
 	var errReady, errArchived error
 	var wg sync.WaitGroup
-	wg.Go(func() { errReady = lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus) })
-	wg.Go(func() { errArchived = lifecycle.Flip(t.Context(), testRel, "draft", "archived") })
+	wg.Go(func() { errReady = lifecycle.Flip(testRel, "draft", schema.SealStatus) })
+	wg.Go(func() { errArchived = lifecycle.Flip(testRel, "draft", "archived") })
 	wg.Wait()
 
 	succeeded := 0
@@ -1745,69 +1198,86 @@ func TestFlipConcurrentNeverLiesInTheCommitMessage(t *testing.T) {
 	if !errors.Is(loser, status.ErrStale) {
 		t.Errorf("losing Flip() = %v, want it to report %v (the winner already moved the file), not a false success", loser, status.ErrStale)
 	}
-
-	// The file and the commit message must agree on which transition
-	// actually happened — never the false-audit-trail state the race
-	// produces without serialization.
 	final := readNote(t, root)
 	if want := "status: " + wantStatus; !strings.Contains(final, want) {
 		t.Errorf("file after concurrent flips = %q, want it to contain %q", final, want)
 	}
-	wantSubject := "status(" + testRel + "): draft → " + wantStatus + " (via yomihon)"
-	if got := strings.TrimSpace(runGit(t, root, "log", "-1", "--format=%s")); got != wantSubject {
-		t.Errorf("commit subject = %q, want %q (must match what was actually committed)", got, wantSubject)
+}
+
+// TestFlipSucceedsWithoutARepository locks the write face to plain files: a
+// governed folder that is no git repository accepts a legal transition and the
+// note is rewritten in place.
+func TestFlipSucceedsWithoutARepository(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir() // deliberately not a git repository
+	lifecycle := newLifecycle(t, root, loadContract(t))
+
+	original := lessonContent("draft")
+	writeNote(t, root, original)
+
+	if err := lifecycle.Flip(testRel, "draft", schema.SealStatus); err != nil {
+		t.Fatalf("Flip() in a plain folder = %v, want nil", err)
 	}
-	if after := commitCount(t, root); after != before+1 {
-		t.Errorf("commit count = %d, want %d (exactly one new commit; the loser must not also commit)", after, before+1)
+	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	if got := readNote(t, root); got != want {
+		t.Errorf("note after flip = %q, want %q", got, want)
 	}
 }
 
-func TestWriteBlockReasonReportsUncommittedChanges(t *testing.T) {
+// TestFlipSucceedsOnAnUncommittedNote locks the other half of the same rule: a
+// note that exists only in the working tree — freshly produced, never
+// committed — is as writable as any other. The flip's own concurrency checks
+// still guard the write; version control state does not.
+func TestFlipSucceedsOnAnUncommittedNote(t *testing.T) {
 	t.Parallel()
-
 	root := newVault(t)
 	lifecycle := newLifecycle(t, root, loadContract(t))
-	writeNote(t, root, lessonContent("draft"))
+
+	committed := lessonContent("draft")
+	writeNote(t, root, committed)
 	commitAll(t, root)
+	edited := committed + "<!-- an uncommitted edit -->\n"
+	writeNote(t, root, edited)
 
-	clean, err := lifecycle.WriteBlockReason(t.Context(), testRel)
-	if err != nil {
-		t.Fatalf("WriteBlockReason(%q) on a committed note = %v", testRel, err)
+	if err := lifecycle.Flip(testRel, "draft", schema.SealStatus); err != nil {
+		t.Fatalf("Flip() on an uncommitted note = %v, want nil", err)
 	}
-	if clean.Blocked() {
-		t.Fatalf("WriteBlockReason(%q) on a committed note = %+v, want no refusal", testRel, clean)
-	}
-
-	writeNote(t, root, lessonContent("draft")+"\nan edit nobody committed\n")
-
-	dirty, err := lifecycle.WriteBlockReason(t.Context(), testRel)
-	if err != nil {
-		t.Fatalf("WriteBlockReason(%q) after an uncommitted edit = %v", testRel, err)
-	}
-	if dirty != status.DirtyBlock {
-		t.Errorf("WriteBlockReason(%q) after an uncommitted edit = %+v, want %+v",
-			testRel, dirty, status.DirtyBlock)
+	want := strings.Replace(edited, "status: draft", "status: "+schema.SealStatus, 1)
+	if got := readNote(t, root); got != want {
+		t.Errorf("note after flip = %q, want the uncommitted edit kept and only the status line changed (want %q)", got, want)
 	}
 }
 
-func TestWriteBlockReasonAgreesWithFlip(t *testing.T) {
+// TestFlipLeavesAnExistingRepositoryUntouched pins what the write face no
+// longer does: when the vault happens to be a git repository, a flip changes
+// the file and nothing else — no commit, no staging. The vault's history is
+// whatever its owner's own practice produces.
+func TestFlipLeavesAnExistingRepositoryUntouched(t *testing.T) {
 	t.Parallel()
-
 	root := newVault(t)
 	lifecycle := newLifecycle(t, root, loadContract(t))
-	writeNote(t, root, lessonContent("draft"))
-	commitAll(t, root)
-	writeNote(t, root, lessonContent("draft")+"\nan edit nobody committed\n")
 
-	reason, err := lifecycle.WriteBlockReason(t.Context(), testRel)
-	if err != nil {
-		t.Fatalf("WriteBlockReason(%q) = %v", testRel, err)
+	original := lessonContent("draft")
+	writeNote(t, root, original)
+	commitAll(t, root)
+	before := commitCount(t, root)
+
+	if err := lifecycle.Flip(testRel, "draft", schema.SealStatus); err != nil {
+		t.Fatalf("Flip() = %v, want nil", err)
 	}
-	flipErr := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)
-	if !errors.Is(flipErr, status.ErrDirty) {
-		t.Fatalf("Flip(%q) = %v, want ErrDirty so the two faces describe one rule", testRel, flipErr)
+	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	if got := readNote(t, root); got != want {
+		t.Errorf("note after flip = %q, want %q", got, want)
 	}
-	if !reason.Blocked() {
-		t.Error("WriteBlockReason gave no reason for a note Flip refuses; the page would offer a control that cannot work")
+	if after := commitCount(t, root); after != before {
+		t.Errorf("commit count = %d, want unchanged %d (the flip records nothing)", after, before)
+	}
+	porcelain := runGit(t, root, "status", "--porcelain")
+	if !strings.Contains(porcelain, "L05.md") {
+		t.Errorf("git status --porcelain = %q, want the rewritten note left uncommitted", porcelain)
+	}
+	staged := strings.TrimSpace(runGit(t, root, "diff", "--cached", "--name-only"))
+	if staged != "" {
+		t.Errorf("staged paths = %q, want nothing staged", staged)
 	}
 }
