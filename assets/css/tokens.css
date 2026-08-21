@@ -50,7 +50,7 @@
   --gold:          oklch(0.660 0.098 82);   /* kintsugi seam thread */
   --gold-ink:      oklch(0.480 0.100 82);   /* corrections (訂正) carry this, never 朱 */
 
-  /* ---- Growth track — muted sage (never out-shouts the seal) ---- */
+  /* ---- Growth track — muted sage (never out-shouts the accent) ---- */
   --sage:          oklch(0.450 0.060 145);
   --sage-bg:       oklch(0.560 0.055 145 / 0.11);
 
@@ -61,8 +61,8 @@
      element reads --c; the .y-slot-<token> class only assigns it, so one token
      tints a slot's select border, its surface, and its ruby together. Muted so
      a card full of coloured words never out-shouts the reading, and hues avoid
-     the accent's red-orange (reserved for `ready` / the seal and echoed only
-     by the official mark's fixed publication obi). ---- */
+     the accent's red-orange (reserved for `ready` and echoed only by the
+     official mark's fixed publication obi). ---- */
   --slot-topic: oklch(0.500 0.125 250);
   --slot-pred:  oklch(0.560 0.120 65);
   --slot-poss:  oklch(0.615 0.070 250);
@@ -168,7 +168,7 @@
   --lh-tight: 1.15;
   --lh-snug: 1.35;
   --lh-normal: 1.5;
-  --lh-read: 1.8;   /* CJK prose floor (spec: ≥1.8) */
+  --lh-read: 1.8;   /* CJK prose floor (≥1.8) */
   --lh-cjk: 2;      /* ruby-safe reading measure */
 
   /* Tracking */

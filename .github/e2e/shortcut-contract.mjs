@@ -1,10 +1,10 @@
-// Behavior lock for the global shortcut boundary. The three printable-key
+// Behavior lock for the global shortcut boundary. The two printable-key
 // actions are deliberately available without modifiers, while browser and OS
 // chords remain untouched. Escape and the command-palette chord are outside
 // that printable-key guard and keep their native roles.
 //
-// Env: YOMIHON_BASE, PAGE_PATH (a note with a drawer filter and seal form), and
-// MUTATE. MUTATE=list prints every watched regression.
+// Env: YOMIHON_BASE, PAGE_PATH (a note with a drawer filter), and MUTATE.
+// MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -13,7 +13,6 @@ const MUTATE = process.env.MUTATE || '';
 const FILTER = '[data-nav-filter]';
 const NAV_TOGGLE = '[data-nav-toggle]';
 const DIALOG = '[data-search]';
-const FILLS = '.y-sealfill';
 const SHORTCUT_CONTROL = '[data-single-key-shortcuts-toggle]';
 const SHORTCUT_LABEL = '.y-shortcutpref';
 const SHORTCUT_ON = '.y-shortcutpref__on';
@@ -25,13 +24,10 @@ const SITES = [
   'modified-printables-stay-native',
   'plain-filter-opens',
   'plain-drawer-toggles',
-  'plain-r-holds',
-  'shift-r-holds',
   'escape-dismisses',
   'command-palette-chord',
   'default-on',
   'disabled-printables-stay-native',
-  'disable-cancels-held-r',
   'disabled-command-and-escape',
   'disabled-persists',
   'reenable-restores',
@@ -120,20 +116,6 @@ const MUTATIONS = {
     target: 'plain-drawer-toggles',
     apply: rewriteScript("    if (event.key === '[') {", '    if (false) {'),
   },
-  'disable-lowercase-r': {
-    target: 'plain-r-holds',
-    apply: rewriteScript(
-      "    if ((event.key === 'r' || event.key === 'R') && !event.repeat && status.canStartShortcutHold()) {",
-      "    if (event.key === 'R' && !event.repeat && status.canStartShortcutHold()) {",
-    ),
-  },
-  'disable-uppercase-r': {
-    target: 'shift-r-holds',
-    apply: rewriteScript(
-      "    if ((event.key === 'r' || event.key === 'R') && !event.repeat && status.canStartShortcutHold()) {",
-      "    if (event.key === 'r' && !event.repeat && status.canStartShortcutHold()) {",
-    ),
-  },
   'disable-global-escape': {
     target: 'escape-dismisses',
     apply: rewriteScript("    if (event.key === 'Escape') {", '    if (false) {'),
@@ -152,27 +134,6 @@ const MUTATIONS = {
   'ignore-disabled-preference': {
     target: 'disabled-printables-stay-native',
     apply: rewriteScript("    if (root.dataset.singleKeyShortcuts === 'off') return;\n", ''),
-  },
-  'disable-does-not-cancel-hold': {
-    target: 'disable-cancels-held-r',
-    apply: async (page) => {
-      let requests = 0;
-      let matches = 0;
-      await page.route('**/preferences.js', async (route) => {
-        requests += 1;
-        const response = await route.fetch();
-        const original = await response.text();
-        const needle = '    if (!enabled) onSingleKeyShortcutsDisabled();\n';
-        const count = original.split(needle).length - 1;
-        matches += count;
-        await route.fulfill({ response, body: count === 1 ? original.replace(needle, '') : original });
-      });
-      return () => {
-        if (requests !== 1) return `preferences runtime was requested ${requests} times, want exactly 1`;
-        if (matches !== 1) return `preferences cancellation needle matched ${matches} times, want exactly 1`;
-        return '';
-      };
-    },
   },
   'disable-command-and-escape-with-printables': {
     target: 'disabled-command-and-escape',
@@ -280,19 +241,17 @@ const dispatch = (page, type, key, modifiers = {}) => page.evaluate(({ type, key
   return { defaultPrevented: event.defaultPrevented || !accepted };
 }, { type, key, modifiers });
 
-const state = (page) => page.evaluate(({ dialog, filter, fills, shortcutControl, shortcutOn, shortcutOff }) => ({
+const state = (page) => page.evaluate(({ dialog, filter, shortcutControl, shortcutOn, shortcutOff }) => ({
   nav: document.documentElement.dataset.nav,
   shortcuts: document.documentElement.dataset.singleKeyShortcuts,
   dialogOpen: Boolean(document.querySelector(dialog)?.open),
   filterFocused: document.activeElement === document.querySelector(filter),
-  fillWidths: [...document.querySelectorAll(fills)].map((element) => element.style.width),
   shortcutChecked: document.querySelector(shortcutControl)?.checked,
   shortcutOnDisplay: document.querySelector(shortcutOn) ? getComputedStyle(document.querySelector(shortcutOn)).display : null,
   shortcutOffDisplay: document.querySelector(shortcutOff) ? getComputedStyle(document.querySelector(shortcutOff)).display : null,
 }), {
   dialog: DIALOG,
   filter: FILTER,
-  fills: FILLS,
   shortcutControl: SHORTCUT_CONTROL,
   shortcutOn: SHORTCUT_ON,
   shortcutOff: SHORTCUT_OFF,
@@ -318,7 +277,6 @@ try {
   }
 
   const initial = await state(page);
-  if (initial.fillWidths.length === 0) broken('the fixture has no seal fill to observe');
   if (await page.locator(FILTER).count() !== 1) broken('the fixture has no single drawer filter');
   if (await page.locator(DIALOG).count() !== 1) broken('the fixture has no single search dialog');
   if (await page.locator(SHORTCUT_CONTROL).count() !== 1) broken('the page has no single-key-shortcut preference control');
@@ -357,12 +315,11 @@ try {
     { name: 'Alt', values: { altKey: true } },
   ];
   for (const { name, values } of modified) {
-    for (const key of ['/', '[', 'r', 'R']) {
-      const modifiers = key === 'R' ? { ...values, shiftKey: true } : values;
-      const result = await dispatch(page, 'keydown', key, modifiers);
+    for (const key of ['/', '[']) {
+      const result = await dispatch(page, 'keydown', key, values);
       const during = await state(page);
-      await dispatch(page, 'keyup', key, modifiers);
-      if (result.defaultPrevented || during.nav !== 'closed' || during.filterFocused || during.fillWidths.some((width) => width === '100%')) {
+      await dispatch(page, 'keyup', key, values);
+      if (result.defaultPrevented || during.nav !== 'closed' || during.filterFocused) {
         fail('modified-printables-stay-native', `${name}+${key} was captured by a printable shortcut`);
       }
     }
@@ -384,23 +341,6 @@ try {
   await press(page, '[');
   if ((await state(page)).nav !== 'closed') fail('plain-drawer-toggles', 'the second plain [ did not close the drawer');
 
-  const plainR = await dispatch(page, 'keydown', 'r');
-  after = await state(page);
-  if (!plainR.defaultPrevented || !after.fillWidths.every((width) => width === '100%')) {
-    fail('plain-r-holds', `plain R produced fills ${JSON.stringify(after.fillWidths)} and prevented=${plainR.defaultPrevented}`);
-  }
-  await press(page, 'Escape');
-  after = await state(page);
-  if (!after.fillWidths.every((width) => width === '0px')) fail('escape-dismisses', 'Escape did not cancel an active seal hold');
-  await dispatch(page, 'keyup', 'r');
-
-  const shiftedR = await dispatch(page, 'keydown', 'R', { shiftKey: true });
-  after = await state(page);
-  if (!shiftedR.defaultPrevented || !after.fillWidths.every((width) => width === '100%')) {
-    fail('shift-r-holds', `Shift+R produced fills ${JSON.stringify(after.fillWidths)} and prevented=${shiftedR.defaultPrevented}`);
-  }
-  await dispatch(page, 'keyup', 'R', { shiftKey: true });
-
   for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
     for (const key of ['k', 'K']) {
       const chordModifiers = key === 'K' ? { ...modifiers, shiftKey: true } : modifiers;
@@ -416,18 +356,9 @@ try {
     }
   }
 
-  const heldBeforeDisable = await dispatch(page, 'keydown', 'r');
-  after = await state(page);
-  if (!heldBeforeDisable.defaultPrevented || !after.fillWidths.every((width) => width === '100%')) {
-    fail('plain-r-holds', 'plain R did not start the hold used by the disable transition');
-  }
   await openHelp();
   await page.locator(SHORTCUT_CONTROL).uncheck();
   after = await state(page);
-  if (!after.fillWidths.every((width) => width === '0px')) {
-    fail('disable-cancels-held-r', `turning shortcuts off left fills ${JSON.stringify(after.fillWidths)}`);
-  }
-  await dispatch(page, 'keyup', 'r');
   if (after.shortcuts !== 'off' || after.shortcutChecked !== false) {
     fail('disabled-printables-stay-native', `disabled state rendered shortcuts=${after.shortcuts}, checked=${after.shortcutChecked}`);
   }
@@ -435,17 +366,11 @@ try {
     fail('visible-shortcut-state', `disabled state displays on=${after.shortcutOnDisplay}, off=${after.shortcutOffDisplay}`);
   }
 
-  for (const key of ['/', '[', 'r', 'R']) {
-    const modifiers = key === 'R' ? { shiftKey: true } : {};
-    const result = await dispatch(page, 'keydown', key, modifiers);
+  for (const key of ['/', '[']) {
+    const result = await dispatch(page, 'keydown', key);
     const during = await state(page);
-    await dispatch(page, 'keyup', key, modifiers);
-    if (
-      result.defaultPrevented
-      || during.nav !== 'closed'
-      || during.filterFocused
-      || during.fillWidths.some((width) => width === '100%')
-    ) {
+    await dispatch(page, 'keyup', key);
+    if (result.defaultPrevented || during.nav !== 'closed' || during.filterFocused) {
       fail('disabled-printables-stay-native', `disabled ${key} was captured`);
     }
   }

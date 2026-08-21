@@ -171,7 +171,7 @@ func TestBaseNeverEmitsAnUnnoncedExecutableScript(t *testing.T) {
 func TestHeaderCarriesNoBareCount(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := header(Chrome{Governed: true}).Render(t.Context(), &buf); err != nil {
+	if err := header(Chrome{}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
@@ -218,45 +218,32 @@ func elementSubtree(t *testing.T, html, attr string) string {
 
 // TestShortcutPreferenceLivesWithTheKeysItGoverns checks the preference is
 // reachable where a reader asks what the keys do, and that the panel answers
-// the three questions a switch has to answer: which keys, which way it is set,
-// and where to change it. Held R is named only where a status face exists.
+// the three questions a switch has to answer: which keys, which way it is
+// set, and where to change it. The write face has no keyboard shortcut, so
+// the panel names no status key on any folder.
 func TestShortcutPreferenceLivesWithTheKeysItGoverns(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name     string
-		governed bool
-		wantNote string
-	}{
-		{name: "governed", governed: true, wantNote: "關掉之後，/、[ 和按住 R 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"},
-		{name: "ungoverned", wantNote: "關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"},
+	var buf bytes.Buffer
+	if err := header(Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render header: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var buf bytes.Buffer
-			if err := header(Chrome{Governed: tt.governed}).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render header: %v", err)
-			}
-			html := buf.String()
-			panel := elementSubtree(t, html, `id="kbd-help"`)
-			if !strings.Contains(panel, "data-single-key-shortcuts-toggle") {
-				t.Errorf("the preference is not inside the keyboard help panel; panel = %q", panel)
-			}
-			if !strings.Contains(panel, tt.wantNote) {
-				t.Errorf("panel does not say what turning it off costs; want %q; panel = %q", tt.wantNote, panel)
-			}
-			for _, want := range []string{">目前開啟<", ">目前關閉<"} {
-				if !strings.Contains(panel, want) {
-					t.Errorf("panel does not state which way the preference is set (%q); panel = %q", want, panel)
-				}
-			}
-			if tt.governed && !strings.Contains(panel, "按住 R") {
-				t.Errorf("governed panel does not name held R; panel = %q", panel)
-			}
-			if !tt.governed && strings.Contains(panel, "按住 R") {
-				t.Errorf("ungoverned panel names a key this folder has no face for; panel = %q", panel)
-			}
-		})
+	html := buf.String()
+	panel := elementSubtree(t, html, `id="kbd-help"`)
+	if !strings.Contains(panel, "data-single-key-shortcuts-toggle") {
+		t.Errorf("the preference is not inside the keyboard help panel; panel = %q", panel)
+	}
+	if want := "關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"; !strings.Contains(panel, want) {
+		t.Errorf("panel does not say what turning it off costs; want %q; panel = %q", want, panel)
+	}
+	for _, want := range []string{">目前開啟<", ">目前關閉<"} {
+		if !strings.Contains(panel, want) {
+			t.Errorf("panel does not state which way the preference is set (%q); panel = %q", want, panel)
+		}
+	}
+	for _, gone := range []string{"按住", "認證"} {
+		if strings.Contains(panel, gone) {
+			t.Errorf("panel still documents a retired status key (%q); panel = %q", gone, panel)
+		}
 	}
 }
 

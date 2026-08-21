@@ -47,17 +47,14 @@ func articleLanguage(tag string) string {
 // what it found, and a human edits the file.
 //
 // Transitions, WriteDiagnostic, NonInstance, and NoFrontmatter drive the rail
-// status panel and responsive seal bar, the reading page's two status faces.
-// SealTarget and Sealed carry the schema-owned seal semantics into both.
-// JustSealed is meaningful only when Sealed is true.
+// status panel and the fixed-bottom status bar, the reading page's two status
+// faces.
 type NoteView struct {
 	Title      string
 	RelPath    string
 	Language   string
 	Type       string
 	Status     string
-	SealTarget string
-	Sealed     bool
 	Diagnostic string
 	// Unsearchable is set for a note too large to hold in the index. It renders
 	// like any other; a reader who later searches for a phrase in it would be
@@ -119,10 +116,6 @@ type NoteView struct {
 	WriteDiagnostic string
 	NoFrontmatter   bool
 
-	// JustSealed is set from a one-shot ?sealed=1 PRG signal and applies only
-	// to a sealed note.
-	JustSealed bool
-
 	// Concepts are the grammar-concept notes this lesson links to, each
 	// pre-rendered for the in-app concept sheet. Empty for a non-lesson note or a
 	// lesson that references none.
@@ -142,7 +135,7 @@ func (v NoteView) diagCount() int {
 // hasAids reports whether this note carries reading aids — a table of
 // contents or any diagnostic. The right rail exists to hold reading aids:
 // when a note has none, the rail's column is dropped entirely and the write
-// face appears in the fixed-bottom seal bar instead, so the reader never
+// face appears in the fixed-bottom status bar instead, so the reader never
 // sits beside a tall gutter holding a lone status card.
 func (v NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown()
@@ -177,21 +170,8 @@ templ Note(v NoteView, c layouts.Chrome) {
 			</main>
 			@rightRail(v)
 		</div>
-		@sealBar(v)
-		@sealToast(v)
+		@statusBar(v)
 		@conceptSheet(v.Concepts)
-	}
-}
-
-// sealToast is the one-shot seal confirmation: server-rendered from the same
-// redirect signal that plays the chip's settle pulse, it enters from its
-// first-frame style and fades itself away — pure CSS, so it plays with or
-// without the enhancement script (the script's only role is stripping the
-// query parameter so a manual refresh does not replay it; a reload of the
-// sealed URL replaying it is accepted for a single-operator local tool).
-templ sealToast(v NoteView) {
-	if v.JustSealed {
-		<div class="y-toast" role="status">済 · 已鈐印 { v.SealTarget }</div>
 	}
 }
 
@@ -789,27 +769,20 @@ templ inlineAids(v NoteView) {
 	}
 }
 
-// statusPanel is the rail status face: one plain form per legal transition (the
-// PRG pattern, no JS dependency). The responsive seal bar is the second status
-// face. The schema-owned seal target is the only primary, with the
-// press-and-hold ceremony layered on by JS; every other legal transition is a
-// quiet one-click form. The legal set is only what the schema contract returns —
-// never a fabricated key.
+// statusPanel is the rail status face: one plain one-click form per legal
+// transition (the PRG pattern, no JS dependency). The fixed-bottom status bar
+// is the second status face. The legal set is only what the schema contract
+// returns — never a fabricated key.
 templ statusPanel(v NoteView) {
-	<section class={ "y-statuspanel", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel data-status-state={ statusState(v) }>
+	<section class="y-statuspanel" data-status-state={ statusState(v) }>
 		if v.NonInstance {
 			<p class="y-statuspanel__notice">{ nonInstanceReason }</p>
 		} else {
 			<div class="y-statuspanel__head">
 				<div class="y-statuspanel__row">
 					<span class="ui-side__label">狀態</span>
-					if v.WriteDiagnostic == "" {
-						<span class="y-actor">操作者 · koopa</span>
-					}
 				</div>
-				if v.Sealed {
-					@sealedBadge(v)
-				} else if v.Status != "" {
+				if v.Status != "" {
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 				}
 			</div>
@@ -821,9 +794,7 @@ templ statusPanel(v NoteView) {
 				case v.NoFrontmatter:
 					<p class="y-statuspanel__notice">沒有 frontmatter（合法）。</p>
 				case len(v.Transitions) == 0:
-					if !v.Sealed {
-						<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
-					}
+					<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
 				default:
 					<div class="y-statuspanel__forms">
 						@legalTransitionForms(v)
@@ -833,44 +804,8 @@ templ statusPanel(v NoteView) {
 	</section>
 }
 
-// sealedBadge is the 済 display for a sealed note: the stamp, the kintsugi
-// hairline, and the certification line. Its one-shot animation fires from
-// y-justsealed (added when ?sealed=1) via CSS.
-templ sealedBadge(v NoteView) {
-	<div class="y-sealed">
-		<span class="y-sealed__stamp" lang="ja" aria-hidden="true">済</span>
-		<span class="y-sealed__label">{ v.SealTarget }</span>
-	</div>
-	<div class="y-sealline" aria-hidden="true"></div>
-	<div class="y-sealby">
-		<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>
-		鈐印 · koopa
-		if v.JustSealed {
-			· 剛剛
-		}
-	</div>
-}
-
-// sealForm is the seal transition: a plain POST form (no-JS: one press
-// submits) that JS upgrades into a press-and-hold. requestSubmit on
-// completion, never fetch — the server sees exactly the no-JS request.
-templ sealForm(v NoteView) {
-	<form class="y-statusform" method="post" action="/status" data-seal>
-		<input type="hidden" name="path" value={ v.RelPath }/>
-		<input type="hidden" name="from" value={ v.Status }/>
-		<input type="hidden" name="to" value={ v.SealTarget }/>
-		<button class="y-sealbtn" type="submit" data-seal-btn aria-label={ "按住以認證 " + v.SealTarget }>
-			<span class="y-sealfill" aria-hidden="true"></span>
-			<span class="y-sealbtn__stamp" lang="ja" aria-hidden="true">印</span>
-			<span>認證 { v.SealTarget }</span>
-			<span class="y-sealbtn__hint" aria-hidden="true">按住 R</span>
-		</button>
-	</form>
-	<p class="y-sealpoem">最後一步只由 koopa 完成。按住一次，不撤回。</p>
-}
-
-// transitionForm is a quiet, one-click secondary transition (everything that is
-// not the seal): a plain POST form, no ceremony.
+// transitionForm is one quiet, one-click transition: a plain POST form whose
+// re-rendered status chip after the redirect is the whole confirmation.
 templ transitionForm(v NoteView, to string) {
 	<form class="y-statusform" method="post" action="/status">
 		<input type="hidden" name="path" value={ v.RelPath }/>
@@ -881,15 +816,10 @@ templ transitionForm(v NoteView, to string) {
 }
 
 // legalTransitionForms renders the complete schema-provided set for either
-// status face. The seal target alone gets the hold ceremony; every other
-// target remains a quiet one-click form.
+// status face, every target an identical plain control.
 templ legalTransitionForms(v NoteView) {
 	for _, to := range v.Transitions {
-		if to == v.SealTarget {
-			@sealForm(v)
-		} else {
-			@transitionForm(v, to)
-		}
+		@transitionForm(v, to)
 	}
 }
 
@@ -931,20 +861,20 @@ templ diagnostics(v NoteView) {
 	}
 }
 
-// ============================ SEAL BAR (≤1280) ============================
+// ============================ STATUS BAR (≤1280) ============================
 
-// sealBar is the status face at every width where the right rail is absent:
+// statusBar is the status face at every width where the right rail is absent:
 // narrow viewports hide the rail, and a note with no reading aids drops its
-// column entirely. It mirrors the status panel's states — the sealed badge,
-// the current chip with every legal transition (shared data-seal hook, so the
-// hold ceremony behaves identically), and the closed-face notices — so the
-// write face's state always has somewhere to appear. A frontmatter
-// diagnostic suppresses governance state because no status was parsed; a
-// non-instance remains named because that classification comes from its path,
-// independent of frontmatter.
-templ sealBar(v NoteView) {
+// column entirely. It mirrors the status panel's states — the current chip
+// with every legal transition and the closed-face notices — so the write
+// face's state always has somewhere to appear. A frontmatter diagnostic
+// suppresses governance state because no status was parsed; a non-instance
+// remains named because that classification comes from its path, independent
+// of frontmatter. The y-sealbar class names are kept: the layout they carry
+// predates this bar being a plain control surface.
+templ statusBar(v NoteView) {
 	if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
-		<div class={ "y-sealbar", templ.KV("y-justsealed", v.JustSealed) } data-seal-panel data-status-state={ statusState(v) }>
+		<div class="y-sealbar" data-status-state={ statusState(v) }>
 			switch  {
 				case v.NonInstance:
 					<p class="y-sealbar__notice">{ nonInstanceReason }</p>
@@ -954,16 +884,6 @@ templ sealBar(v NoteView) {
 					</p>
 				case v.NoFrontmatter:
 					<p class="y-sealbar__notice">沒有 frontmatter（合法）。</p>
-				case v.Sealed:
-					<div class="y-sealed">
-						<span class="y-sealed__stamp" lang="ja" aria-hidden="true">済</span>
-						<span class="y-sealed__label">{ v.SealTarget }</span>
-					</div>
-					<span class="y-actor">鈐印 · 已認證</span>
-					if len(v.Transitions) > 0 {
-						<span class="y-sealbar__spacer"></span>
-						@legalTransitionForms(v)
-					}
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>

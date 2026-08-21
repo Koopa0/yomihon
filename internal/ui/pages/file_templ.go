@@ -13,8 +13,8 @@ import "github.com/koopa0/yomihon/internal/ui/layouts"
 // File is the reading page for a vault file that is not a note: the shared
 // header and navigation, the file's own name as the title, and one of four
 // bodies. It carries no right rail — a file has no table of contents and no
-// diagnostics — and no seal bar, because the write face reaches only a note's
-// status.
+// diagnostics — and no status bar, because the write face reaches only a
+// note's status.
 func File(v FileView, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

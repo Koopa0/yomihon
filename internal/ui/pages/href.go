@@ -182,6 +182,5 @@ func chromeFromRequest(r *http.Request, title string, s Shell) layouts.Chrome {
 		Ruby:                      ruby,
 		TextSize:                  textSize,
 		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
-		Governed:                  s.Governed,
 	}
 }

@@ -237,10 +237,9 @@ func (r *Pipeline) tryOpenFence(st *preprocessState) bool {
 // digits, "-_.~%+" — never needs further HTML-attribute escaping, so no
 // double-encoding risk). assets/js/diagrams.js reads that attribute,
 // URL-decodes it, and replaces the element's content with mermaid's
-// rendered SVG client-side — mirroring koopa0.dev's markdown.service.ts
-// processMermaidDiagrams/renderMermaid DOM shape exactly (see that file's
-// doc comments); the loading mechanism differs only because yomihon has no
-// bundler.
+// rendered SVG client-side; the two encodings exist so the same source
+// survives both as readable fallback text and as a byte-exact attribute
+// round-trip.
 func (r *Pipeline) consumeMermaid(st *preprocessState, marker byte) {
 	st.i++
 	start := st.i

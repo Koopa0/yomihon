@@ -85,9 +85,9 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 	source, view := rootedReportView(t, root)
 	for _, tt := range []struct {
 		name, path string
-		wantChip   bool
+		wantShell  bool
 	}{
-		{name: "shell", path: "/reports/" + briefingName, wantChip: true},
+		{name: "shell", path: "/reports/" + briefingName, wantShell: true},
 		{name: "raw", path: "/reports/" + briefingName + "/raw"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,9 +112,10 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 			if calls != 1 {
 				t.Errorf("shell snapshot reads = %d, want 1", calls)
 			}
-			// The governed flag rides on the shell this route was handed, so
-			// the keyboard panel naming held R witnesses that shell.
-			if tt.wantChip && !strings.Contains(rr.Body.String(), "按住 R") {
+			// The navigation model rides on the shell this route was handed,
+			// so the rail's reports group witnesses that shell rather than
+			// one the renderer derived for itself.
+			if tt.wantShell && !strings.Contains(rr.Body.String(), `data-sidebar-group="reports"`) {
 				t.Errorf("response did not render the shell it was handed; body = %q", rr.Body.String())
 			}
 		})

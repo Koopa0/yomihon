@@ -36,7 +36,6 @@ probes=(
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
   "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
-  "seal-select-guard.mjs|/notes/Writing/lessons/japanese/L01.md"
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"

@@ -34,7 +34,7 @@ go version -m "$$path" | awk '$$1 == "mod" && $$2 == "$(2)" && $$3 == "$(3)" { f
 }
 endef
 
-.PHONY: build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check status-activation-mutations css css-check verify verify-spec clean
+.PHONY: build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -264,7 +264,7 @@ tools-check-mattn: tools-check-prepare
 
 frontend-check:
 	npm ci --prefix .github --ignore-scripts --no-audit --fund=false
-	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs .github/*.mjs
+	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs
 	@$(MAKE) --no-print-directory stylelint-check
 
 e2e-http-check:
@@ -305,16 +305,14 @@ browser-check: frontend-check
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-browser.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19734 -- bash .github/e2e/probes.sh; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19736 -- node .github/status-activation-contract.mjs
+	bash .github/e2e/serve.sh "$$tmp/yomihon" 19734 -- bash .github/e2e/probes.sh
 
 mutation-check: frontend-check
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-mutations.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19735 -- bash .github/e2e/probes.sh --mutate; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19737 -- make --no-print-directory status-activation-mutations
+	bash .github/e2e/serve.sh "$$tmp/yomihon" 19735 -- bash .github/e2e/probes.sh --mutate
 
 portable-build-check:
 	@set -eu; \
@@ -343,24 +341,6 @@ stylelint-check:
 	set --; \
 	while IFS= read -r file; do set -- "$$@" "$$file"; done < "$$tmp/files"; \
 	npm exec --prefix .github -- stylelint --config .stylelintrc.json --config-basedir .github "$$@"
-
-# The standalone status activation contract is wired directly by CI. Keep the
-# same mutation proof as the browser-probe registry: each listed mode must exit
-# 1 for its named assertion, never merely non-zero because its rewrite failed.
-status-activation-mutations:
-	@set -eu; \
-	modes=$$(MUTATE=list node .github/status-activation-contract.mjs); \
-	[ -n "$$modes" ] || { echo 'status activation contract names no mutation modes' >&2; exit 1; }; \
-	for mode in $$modes; do \
-		status=0; \
-		out=$$(MUTATE="$$mode" node .github/status-activation-contract.mjs 2>&1) || status=$$?; \
-		printf '%s\n' "$$out"; \
-		[ "$$status" -eq 1 ] || { echo "status activation MUTATE=$$mode exited $$status, want 1" >&2; exit 1; }; \
-		printf '%s\n' "$$out" | grep -qxF "MUTATE-RESULT: caught $$mode" || { \
-			echo "status activation MUTATE=$$mode exited 1 without its exact caught marker" >&2; \
-			exit 1; \
-		}; \
-	done
 
 verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check tools-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
 

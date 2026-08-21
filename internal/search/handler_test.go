@@ -122,7 +122,7 @@ func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 
 func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	t.Parallel()
-	idx := NewIndex([]Document{{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"}}, validArtifactPolicy(t))
+	idx := NewIndex([]Document{{RelPath: "Concepts/One.md", Title: "One", Status: "draft", PlainText: "needle"}}, validArtifactPolicy(t))
 	calls := 0
 	h := NewHandler(func() RequestSnapshot {
 		calls++
@@ -137,10 +137,10 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("request snapshot reads = %d, want 1", calls)
 	}
-	// The governed flag rides on the shell this handler was handed, so the
-	// keyboard panel naming held R witnesses that shell rather than one the
-	// renderer derived for itself.
-	for _, want := range []string{"One", "按住 R"} {
+	// The governed flag rides on the shell this handler was handed and gates
+	// the result row's status, so that word witnesses the shell rather than
+	// one the renderer derived for itself.
+	for _, want := range []string{"One", "draft"} {
 		if !strings.Contains(rr.Body.String(), want) {
 			t.Errorf("search response missing %q; body = %q", want, rr.Body.String())
 		}

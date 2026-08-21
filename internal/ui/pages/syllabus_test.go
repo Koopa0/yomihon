@@ -56,7 +56,7 @@ func TestSyllabusUsesTheBranchTreeAsItsHeadingOutline(t *testing.T) {
 }
 
 // TestBuildPathView pins the pure transform's contract: a branch's total counts
-// linked and warning rows, Ready counts only sealed resolved entries, and
+// linked and warning rows, Ready counts only resolved entries at ready, and
 // document order is preserved at every level. The fixture is two parts, one
 // with a module and one with entries attached directly (no module), so the
 // tallies and the modules count are hand-derivable and non-tautological.
@@ -94,7 +94,7 @@ func TestBuildPathView(t *testing.T) {
 		Parts:   2,
 		Modules: 2, // the "Text" module under Data, and the side branch under GC
 		Entries: 5,
-		Ready:   2, // Slices + GC sit at the seal; Arrays is draft
+		Ready:   2, // Slices + GC sit at ready; Arrays is draft
 		Branches: []PathBranchView{
 			{
 				Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Data", Depth: 0,

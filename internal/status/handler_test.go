@@ -68,9 +68,10 @@ func TestHandlerSuccess(t *testing.T) {
 	if code != http.StatusSeeOther {
 		t.Errorf("status = %d, want %d", code, http.StatusSeeOther)
 	}
-	// The seal (→ ready) redirects with the one-shot ?sealed=1 the reading page
-	// plays its settle animation from; a non-seal transition would omit it.
-	if want := "/notes/" + testRel + "?sealed=1"; location != want {
+	// Every successful flip lands back on the plain note page; the re-rendered
+	// status chip is the whole confirmation, so no target carries a signal
+	// parameter.
+	if want := "/notes/" + testRel; location != want {
 		t.Errorf("Location = %q, want %q", location, want)
 	}
 }

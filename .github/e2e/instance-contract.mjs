@@ -166,10 +166,10 @@ try {
     fail('lesson-note-readable', 'the template lesson note is not directly readable with its sentinel');
   }
   const noninstanceFaces = page.locator('[data-status-state="non-instance"]');
-  if (await noninstanceFaces.count() !== 2 || await noninstanceFaces.getByText(QUIET_REASON, { exact: true }).count() !== 2 || await page.locator('.y-actor, .y-sealgit, .y-sealed').count() !== 0) {
-    fail('noninstance-quiet-marker', 'the template lesson lacks the quiet non-instance marker or exposes governance provenance');
+  if (await noninstanceFaces.count() !== 2 || await noninstanceFaces.getByText(QUIET_REASON, { exact: true }).count() !== 2 || await page.locator('.ui-status').count() !== 0) {
+    fail('noninstance-quiet-marker', 'the template lesson lacks the quiet non-instance marker or exposes a status decoration');
   }
-  if (await page.locator('form.y-statusform, form[action="/status"], [data-seal]').count() !== 0) {
+  if (await page.locator('form.y-statusform, form[action="/status"]').count() !== 0) {
     fail('noninstance-no-status-form', 'the template lesson exposes a status form');
   }
   response = await page.goto(BASE + LESSON_RAW, { waitUntil: 'domcontentloaded' });

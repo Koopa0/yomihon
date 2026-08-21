@@ -9,7 +9,6 @@ import { initPreferences } from './preferences.js';
 import { initSearch } from './search.js';
 import { initShortcuts } from './shortcuts.js';
 import { initSidebar } from './sidebar.js';
-import { initStatus } from './status.js';
 
 function init() {
   const root = document.documentElement;
@@ -18,11 +17,10 @@ function init() {
 
   const drawer = initDrawer();
   const sidebar = initSidebar();
-  const status = initStatus();
-  initPreferences({ onSingleKeyShortcutsDisabled: status.cancelHold });
+  initPreferences();
   initContents();
   const search = initSearch();
-  initShortcuts({ drawer, sidebar, status, search });
+  initShortcuts({ drawer, sidebar, search });
   initLesson();
   initDiagrams().catch((error) => {
     root.setAttribute('data-mermaid-error', '');

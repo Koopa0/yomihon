@@ -81,8 +81,8 @@ type Model struct {
 	// artifact-lifecycle order (see lifecycleOrder), each holding its notes
 	// and subfolders recursively.
 	folders []Folder
-	// rootNotes are files that live at the vault root itself (README.md,
-	// CLAUDE.md, ...), which belong to no top-level folder.
+	// rootNotes are files that live at the vault root itself (README.md and
+	// its siblings), which belong to no top-level folder.
 	rootNotes []NoteRef
 	// paths are study paths in vault path order, read once through the
 	// declared-sequence grammar (internal/sequence) at snapshot build.

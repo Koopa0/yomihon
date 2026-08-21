@@ -53,14 +53,14 @@ func TestInlineReadingAidsUseChromeLanguage(t *testing.T) {
 // TestWriteFaceReachableInEveryLayoutState is the write-face safety lock over
 // the layout matrix. The right rail exists to hold reading aids; a note with
 // none drops the rail's column, and narrow viewports hide the rail outright —
-// so the fixed-bottom seal bar must carry the status face, including the
+// so the fixed-bottom status bar must carry the status face, including the
 // fail-closed notice, whenever the rail is absent. The status panel is the
 // one surface the vault is written through: no combination of aids and
 // contract state may leave its state with nowhere to appear.
 //
 // Each case constructs the view directly and asserts the collapse predicate
 // plus the rendered page. The closed-contract, no-aid note is the pinned
-// worst case: before the seal bar carried the notices, that combination
+// worst case: before the status bar carried the notices, that combination
 // rendered the write face's state nowhere at all.
 func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 	t.Parallel()
@@ -74,19 +74,18 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		wantCounts  map[string]int
 	}{
 		{
-			name:     "no aids, open contract: the seal bar carries the seal form",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}},
+			name:     "no aids, open contract: the status bar carries the transition forms",
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{schema.SealStatus}},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
 				"y-sealbar",
-				"data-seal",
-				"操作者 · koopa",
+				`action="/status"`,
 			},
 		},
 		{
-			name:     "no aids, closed contract: the seal bar carries the fail-closed notice",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus, "archived"}, WriteDiagnostic: "contract unavailable"},
+			name:     "no aids, closed contract: the status bar carries the fail-closed notice",
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{schema.SealStatus, "archived"}, WriteDiagnostic: "contract unavailable"},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
@@ -94,7 +93,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"ui-status--draft",
 				"生命週期寫入目前無法使用",
 			},
-			wantAbsent: []string{`action="/status"`, "操作者 · koopa"},
+			wantAbsent: []string{`action="/status"`},
 			wantCounts: map[string]int{
 				`data-status-state="unavailable"`: 2,
 				"生命週期寫入目前無法使用":                    2,
@@ -107,7 +106,6 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				Title:       "Template",
 				RelPath:     "System/templates/T.md",
 				Status:      "draft",
-				SealTarget:  schema.SealStatus,
 				Transitions: []string{schema.SealStatus, "archived"},
 				NonInstance: true,
 				Diagnostic:  "bad yaml",
@@ -118,14 +116,14 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"y-sealbar",
 				"筆記狀況",
 			},
-			wantAbsent: []string{`action="/status"`, "操作者 · koopa", "ui-status--draft"},
+			wantAbsent: []string{`action="/status"`, "ui-status--draft"},
 			wantCounts: map[string]int{
 				`data-status-state="non-instance"`: 2,
 				"不屬於生命週期治理範圍":                      2,
 			},
 		},
 		{
-			name:     "no aids, no frontmatter: the seal bar says so",
+			name:     "no aids, no frontmatter: the status bar says so",
 			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", NoFrontmatter: true},
 			wantAids: false,
 			wantPresent: []string{
@@ -136,7 +134,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "headings keep the rail and add the inline disclosure",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{schema.SealStatus}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
 			wantAids: true,
 			wantPresent: []string{
 				"y-statuspanel",
@@ -151,7 +149,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			// nothing onward. Owner lists gate nothing, so there is no second
 			// owner-boundary sentence for the panel to reach for.
 			name:     "empty transition set states the schema fact",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft"},
 			wantAids: false,
 			wantPresent: []string{
 				"y-statuspanel",
@@ -160,7 +158,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAbsent: []string{"接下來的狀態轉換由其他 owner 持有"},
 		},
 		{
-			name:     "broken frontmatter: the diagnostics face owns the page, no seal bar",
+			name:     "broken frontmatter: the diagnostics face owns the page, no status bar",
 			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Diagnostic: "unterminated string"},
 			wantAids: true,
 			wantPresent: []string{
@@ -174,7 +172,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			// lifecycle at all, so neither status face belongs on the page —
 			// not even to apologise for a contract that was never promised.
 			name:     "ungoverned folder: neither status face appears",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus},
+			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft"},
 			wantAids: false,
 			wantPresent: []string{
 				"y-shell--rail-empty",
@@ -183,7 +181,6 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAbsent: []string{
 				"y-statuspanel",
 				"y-sealbar",
-				"操作者 · koopa",
 				"目前沒有合法的狀態轉換",
 				"生命週期寫入目前無法使用",
 				`action="/status"`,
@@ -191,7 +188,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 		},
 		{
 			name:     "render diagnostics alone keep the rail",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []string{schema.SealStatus}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
 			wantAids: true,
 			wantPresent: []string{
 				"筆記狀況",
@@ -233,83 +230,29 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 	}
 }
 
-func TestSealFormUsesViewTarget(t *testing.T) {
-	t.Parallel()
-
-	v := NoteView{
-		Governed:    true,
-		Title:       "T",
-		RelPath:     "a.md",
-		Status:      "draft",
-		SealTarget:  "candidate",
-		Transitions: []string{"candidate"},
-	}
-	var buf bytes.Buffer
-	if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	if !strings.Contains(html, "data-seal") {
-		t.Fatalf("rendered page has no seal form: %q", html)
-	}
-	if want := `name="to" value="candidate"`; !strings.Contains(html, want) {
-		t.Errorf("seal form is missing %q", want)
-	}
-}
-
-// TestSealToastRidesTheRedirectSignal locks the toast's one-shot contract:
-// it renders exactly when the page carries the seal redirect's signal, so
-// the confirmation is server-rendered CSS that plays with or without the
-// enhancement script.
-func TestSealToastRidesTheRedirectSignal(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name       string
-		justSealed bool
-	}{
-		{name: "just sealed renders the toast", justSealed: true},
-		{name: "an ordinary view does not", justSealed: false},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			v := NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true, JustSealed: tt.justSealed}
-			var buf bytes.Buffer
-			if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render: %v", err)
-			}
-			if got := strings.Contains(buf.String(), "y-toast"); got != tt.justSealed {
-				t.Errorf("toast rendered = %v, want %v", got, tt.justSealed)
-			}
-		})
-	}
-}
-
-// TestSealBarMirrorsTheStatusPanelGuard records the seal bar's render
+// TestStatusBarMirrorsTheStatusPanelGuard records the status bar's render
 // condition as the invariant it is: the bar renders exactly when the status
 // panel does. A frontmatter diagnostic ordinarily suppresses both because no
 // status was parsed; a path-classified non-instance is the exception and keeps
 // both quiet notices visible beside the frontmatter diagnostic.
-func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
+func TestStatusBarMirrorsTheStatusPanelGuard(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		view        NoteView
-		wantSealBar bool
+		name          string
+		view          NoteView
+		wantStatusBar bool
 	}{
-		{name: "open contract", view: NoteView{Governed: true, Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: true},
-		{name: "closed contract", view: NoteView{Governed: true, Status: "draft", WriteDiagnostic: "contract unavailable"}, wantSealBar: true},
-		{name: "no frontmatter", view: NoteView{Governed: true, NoFrontmatter: true}, wantSealBar: true},
-		{name: "sealed note", view: NoteView{Governed: true, Status: schema.SealStatus, SealTarget: schema.SealStatus, Sealed: true}, wantSealBar: true},
-		{name: "frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml"}, wantSealBar: false},
-		{name: "non-instance remains named beside frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml", NonInstance: true}, wantSealBar: true},
+		{name: "open contract", view: NoteView{Governed: true, Status: "draft", Transitions: []string{schema.SealStatus}}, wantStatusBar: true},
+		{name: "closed contract", view: NoteView{Governed: true, Status: "draft", WriteDiagnostic: "contract unavailable"}, wantStatusBar: true},
+		{name: "no frontmatter", view: NoteView{Governed: true, NoFrontmatter: true}, wantStatusBar: true},
+		{name: "frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml"}, wantStatusBar: false},
+		{name: "non-instance remains named beside frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml", NonInstance: true}, wantStatusBar: true},
 		// The same views on a folder nothing governs: the bar has no lifecycle
 		// to mirror, so it is absent in every one of them.
-		{name: "ungoverned open-looking view", view: NoteView{Status: "draft", SealTarget: schema.SealStatus, Transitions: []string{schema.SealStatus}}, wantSealBar: false},
-		{name: "ungoverned no frontmatter", view: NoteView{NoFrontmatter: true}, wantSealBar: false},
-		{name: "ungoverned non-instance", view: NoteView{Diagnostic: "bad yaml", NonInstance: true}, wantSealBar: false},
+		{name: "ungoverned open-looking view", view: NoteView{Status: "draft", Transitions: []string{schema.SealStatus}}, wantStatusBar: false},
+		{name: "ungoverned no frontmatter", view: NoteView{NoFrontmatter: true}, wantStatusBar: false},
+		{name: "ungoverned non-instance", view: NoteView{Diagnostic: "bad yaml", NonInstance: true}, wantStatusBar: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -319,68 +262,37 @@ func TestSealBarMirrorsTheStatusPanelGuard(t *testing.T) {
 			if err := Note(tt.view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render: %v", err)
 			}
-			if got := strings.Contains(buf.String(), "y-sealbar"); got != tt.wantSealBar {
-				t.Errorf("seal bar rendered = %v, want %v", got, tt.wantSealBar)
+			if got := strings.Contains(buf.String(), "y-sealbar"); got != tt.wantStatusBar {
+				t.Errorf("status bar rendered = %v, want %v", got, tt.wantStatusBar)
 			}
 		})
 	}
 
-	t.Run("unsealed note carries every legal transition", func(t *testing.T) {
+	t.Run("note carries every legal transition as a plain form", func(t *testing.T) {
 		t.Parallel()
 
 		v := NoteView{
 			Governed:    true,
 			RelPath:     "a.md",
 			Status:      "draft",
-			SealTarget:  schema.SealStatus,
 			Transitions: []string{schema.SealStatus, "archived"},
 		}
 		var buf bytes.Buffer
-		if err := sealBar(v).Render(t.Context(), &buf); err != nil {
-			t.Fatalf("render seal bar: %v", err)
+		if err := statusBar(v).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render status bar: %v", err)
 		}
 		html := buf.String()
 		for _, want := range []string{
 			`name="to" value="ready"`,
 			`name="to" value="archived"`,
+			"ui-status--draft",
 		} {
 			if !strings.Contains(html, want) {
-				t.Errorf("seal bar is missing %q", want)
+				t.Errorf("status bar is missing %q", want)
 			}
 		}
 		if got, want := strings.Count(html, `name="to"`), 2; got != want {
-			t.Errorf("seal bar transition form count = %d, want %d", got, want)
-		}
-	})
-
-	t.Run("sealed note carries onward transition after badge", func(t *testing.T) {
-		t.Parallel()
-
-		v := NoteView{
-			Governed:    true,
-			RelPath:     "a.md",
-			Status:      schema.SealStatus,
-			SealTarget:  schema.SealStatus,
-			Sealed:      true,
-			Transitions: []string{"archived"},
-		}
-		var buf bytes.Buffer
-		if err := sealBar(v).Render(t.Context(), &buf); err != nil {
-			t.Fatalf("render seal bar: %v", err)
-		}
-		html := buf.String()
-		badgeIndex := strings.Index(html, "y-sealed")
-		if badgeIndex < 0 {
-			t.Fatal("seal bar is missing the sealed badge")
-		}
-		toIndex := strings.Index(html, `name="to" value="archived"`)
-		if toIndex < 0 {
-			t.Error(`seal bar is missing name="to" value="archived"`)
-		} else if toIndex < badgeIndex {
-			t.Error("seal bar renders the onward transition before the sealed badge")
-		}
-		if got, want := strings.Count(html, `name="to"`), 1; got != want {
-			t.Errorf("seal bar transition form count = %d, want %d", got, want)
+			t.Errorf("status bar transition form count = %d, want %d", got, want)
 		}
 	})
 }

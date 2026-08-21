@@ -227,9 +227,10 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("shell snapshot reads = %d, want 1", calls)
 	}
-	// The governed flag rides on the shell this route was handed, so the
-	// keyboard panel naming held R witnesses that shell.
-	if !strings.Contains(rr.Body.String(), "按住 R") {
+	// The navigation model rides on the shell this route was handed, so the
+	// path title it resolves witnesses that shell rather than one the
+	// renderer derived for itself.
+	if !strings.Contains(rr.Body.String(), `<h1 class="y-title">Go path</h1>`) {
 		t.Errorf("response did not render the shell it was handed; body = %q", rr.Body.String())
 	}
 }

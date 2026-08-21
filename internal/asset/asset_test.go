@@ -41,7 +41,6 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 		{name: "drawer.js", path: "/static/drawer.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "sidebar.js", path: "/static/sidebar.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "contents.js", path: "/static/contents.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
-		{name: "status.js", path: "/static/status.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "search.js", path: "/static/search.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "shortcuts.js", path: "/static/shortcuts.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "diagrams.js", path: "/static/diagrams.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},

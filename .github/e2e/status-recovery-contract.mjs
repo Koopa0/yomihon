@@ -273,8 +273,8 @@ try {
     fail('safe-get-navigation', `recovery actions are ${JSON.stringify(recoveryActions)}, want ${JSON.stringify(wantActions)}`);
   }
 
-  const retryControls = await page.locator('form[method="post"], form[action="/status"], button[formaction="/status"], [data-seal]').count();
-  if (retryControls !== 0) fail('no-post-retry', `recovery page exposes ${retryControls} POST or seal controls, want 0`);
+  const retryControls = await page.locator('form[method="post"], form[action="/status"], button[formaction="/status"]').count();
+  if (retryControls !== 0) fail('no-post-retry', `recovery page exposes ${retryControls} POST controls, want 0`);
 
   const cacheControl = postResponse.headers()['cache-control'] ?? null;
   if (cacheControl !== 'no-store') {

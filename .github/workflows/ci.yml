@@ -376,11 +376,8 @@ jobs:
   # stays a plain GET form; /search and ⌘K debounce input without weakening
   # native GET; the command palette opens centered and opaque; the sidebar filter is revealed
   # by the document's own inline script rather than the deferred one, and stays
-  # hidden with JavaScript off; content-derived Paths, Maps, and Journal preserve
-  # grouping and wayfinding; and a held R inside a focused select never starts
-  # the seal hold, with the picker closed or open. A standalone activation contract
-  # additionally proves programmatic native activation remains available while
-  # pointer and keyboard ceremony clicks stay suppressed.
+  # hidden with JavaScript off; and content-derived Paths, Maps, and Journal
+  # preserve grouping and wayfinding.
   e2e-behavior:
     runs-on: ubuntu-latest
     timeout-minutes: 10

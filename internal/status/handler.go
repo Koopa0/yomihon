@@ -79,13 +79,9 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 
 	err := h.lifecycle.Flip(path, from, to)
 	if err == nil {
-		target := notesHref(path)
-		if to == schema.SealStatus {
-			target += "?sealed=1"
-		}
 		// #nosec G710 -- Flip succeeded only after its vault-local path check;
-		// the prefix and query are fixed same-origin literals.
-		http.Redirect(w, r, target, http.StatusSeeOther)
+		// the prefix is a fixed same-origin literal.
+		http.Redirect(w, r, notesHref(path), http.StatusSeeOther)
 		return
 	}
 	h.respondRecovery(w, r, path, from, to, recoveryFor(err))
@@ -167,7 +163,7 @@ func recoveryFor(err error) *recovery {
 		return &recovery{
 			code:       http.StatusUnprocessableEntity,
 			summary:    "published 記錄的是一次已完成的發布；沒有任何發布器能為這次寫入作證，yomihon 不會設定這個值。",
-			nextAction: "筆記沒有任何變更。若發布確實已完成，請直接編輯筆記的 frontmatter 記下這個事實。",
+			nextAction: "若發布確實已完成，請直接編輯筆記的 frontmatter 記下這個事實。",
 		}
 	case errors.Is(err, schema.ErrUnknownStatus),
 		errors.Is(err, schema.ErrIllegalTransition):

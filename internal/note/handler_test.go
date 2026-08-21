@@ -205,9 +205,6 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 		"y-slotmachine",
 		`data-concept=`,
 		`data-concept-sheet`,
-		"操作者 · koopa",
-		"sealed by koopa",
-		"git · commit",
 		"ui-status--ready",
 	} {
 		if strings.Contains(page, absent) {
@@ -364,7 +361,6 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 				`data-concept=`,
 				`data-concept-sheet`,
 				"y-slotmachine",
-				"操作者 · koopa",
 			} {
 				if strings.Contains(page, leaked) {
 					t.Errorf("reading page retained %q across torn authority captures", leaked)
@@ -549,7 +545,7 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 
 			contract := loadHomeContractWithArtifactSection(t, tt.section)
 			srv := newServerWithContract(t, root, contract)
-			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md?sealed=1")
+			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
 			if code != http.StatusOK {
 				t.Fatalf("GET lesson with unavailable artifact policy status = %d, want 200", code)
 			}
@@ -571,14 +567,10 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 			}
 			for _, absent := range []string{
 				`action="/status"`,
-				"操作者 · koopa",
 				`data-tts=`,
 				"y-slotmachine",
 				`data-concept=`,
 				`data-concept-sheet`,
-				"sealed by koopa",
-				"git · commit",
-				"y-toast",
 			} {
 				if strings.Contains(page, absent) {
 					t.Errorf("lesson with unavailable artifact policy unexpectedly contains %q", absent)
@@ -965,7 +957,6 @@ func TestShow(t *testing.T) {
 	for _, absent := range []string{
 		"y-statuspanel",
 		"y-sealbar",
-		"操作者 · koopa",
 		"生命週期寫入目前無法使用",
 		"fail-closed",
 		`action="/status"`,
@@ -2489,16 +2480,15 @@ func TestShowTransitions(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	// draft -> [ready, archived] for actor "koopa" per
-	// testdata/contract.toml's lifecycle table (cross-checked by hand,
-	// mirroring internal/status/status_test.go's TestTransitions).
+	// draft -> [ready, archived] per testdata/contract.toml's lifecycle table
+	// (cross-checked by hand, mirroring the status package's TestTransitions).
 	transitionSource := openReadingVault(t, root)
 	transitions := openStatusLifecycle(t, transitionSource, contract, contract.Governance()).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
 	if !slices.Contains(transitions, schema.SealStatus) {
-		t.Fatalf("Transitions() = %v; fixture must keep a draft→seal edge to %q for this test", transitions, schema.SealStatus)
+		t.Fatalf("Transitions() = %v; fixture must keep a draft edge to %q for this test", transitions, schema.SealStatus)
 	}
 	for _, target := range transitions {
 		want := `value="` + target + `"`
@@ -2506,22 +2496,26 @@ func TestShowTransitions(t *testing.T) {
 			t.Errorf("page missing transition key %s; body = %q", want, body)
 		}
 	}
-	start := strings.Index(body, "<form class=\"y-statusform\" method=\"post\" action=\"/status\" data-seal>")
+	// Drive the page's own ready-target form: the transition POSTed below
+	// carries exactly the hidden fields the page rendered, so a drift between
+	// the two would fail here rather than on a hand-built request.
+	beforeTarget, _, found := strings.Cut(body, `name="to" value="`+schema.SealStatus+`"`)
+	if !found {
+		t.Fatalf("page missing a transition form for contract target %q", schema.SealStatus)
+	}
+	start := strings.LastIndex(beforeTarget, "<form")
 	if start < 0 {
-		t.Fatalf("page missing the primary seal form for contract target %q", schema.SealStatus)
+		t.Fatalf("transition target %q is not inside a form; body = %q", schema.SealStatus, body)
 	}
 	end := strings.Index(body[start:], "</form>")
 	if end < 0 {
-		t.Fatalf("primary seal form is unterminated; body = %q", body[start:])
+		t.Fatalf("transition form is unterminated; body = %q", body[start:])
 	}
-	sealForm := body[start : start+end]
-	if want := `name="to" value="` + schema.SealStatus + `"`; !strings.Contains(sealForm, want) {
-		t.Errorf("primary seal form is missing the schema seal target %q; form = %q", want, sealForm)
-	}
+	readyForm := body[start : start+end]
 	form := url.Values{
-		"path": {hiddenValue(t, sealForm, "path")},
-		"from": {hiddenValue(t, sealForm, "from")},
-		"to":   {hiddenValue(t, sealForm, "to")},
+		"path": {hiddenValue(t, readyForm, "path")},
+		"from": {hiddenValue(t, readyForm, "from")},
+		"to":   {hiddenValue(t, readyForm, "to")},
 	}
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(form.Encode()))
@@ -2545,7 +2539,7 @@ func TestShowTransitions(t *testing.T) {
 		}
 		t.Fatalf("POST /status = %d, want %d; body = %q", resp.StatusCode, http.StatusSeeOther, b)
 	}
-	if got, want := resp.Header.Get("Location"), "/notes/Writing/lessons/japanese/L01.md?sealed=1"; got != want {
+	if got, want := resp.Header.Get("Location"), "/notes/Writing/lessons/japanese/L01.md"; got != want {
 		t.Errorf("POST /status Location = %q, want %q", got, want)
 	}
 	got, err := os.ReadFile(filepath.Join(dir, "L01.md")) // #nosec G304 -- dir is under t.TempDir and the filename is fixed by this test
@@ -3122,6 +3116,79 @@ func TestFolderWithoutARepositoryStillOffersTransitions(t *testing.T) {
 	}
 	if !strings.Contains(page, `name="to" value="`+schema.SealStatus+`"`) {
 		t.Errorf("page is missing the draft note's onward transition; body = %q", page)
+	}
+}
+
+// TestTransitionsArePlainControls locks the write face's plain shape: every
+// legal transition renders as an ordinary one-click form with no hold
+// affordance, no operator line, and no confirmation toast, and a note at the
+// accented ready status shows the same plain chip as any other value rather
+// than a stamp or a certification line.
+func TestTransitionsArePlainControls(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		status string
+		want   []string
+	}{
+		{
+			name:   "draft note offers one-click forms",
+			status: "draft",
+			want: []string{
+				`name="to" value="` + schema.SealStatus + `"`,
+				`name="to" value="archived"`,
+				"ui-status--draft",
+			},
+		},
+		{
+			name:   "ready note keeps the plain chip and its onward form",
+			status: schema.SealStatus,
+			want: []string{
+				"ui-status--" + schema.SealStatus,
+				`name="to" value="archived"`,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: " + tt.status + "\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+			dir := filepath.Join(root, "Writing", "lessons", "japanese")
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			srv := newServerWithContract(t, root, loadContract(t))
+			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(page, want) {
+					t.Errorf("page is missing %q", want)
+				}
+			}
+			for _, absent := range []string{
+				"data-seal",
+				"y-sealbtn",
+				"y-sealfill",
+				"y-sealpoem",
+				"按住",
+				"操作者",
+				"y-sealed",
+				"鈐印",
+				"済",
+				"y-toast",
+				"y-justsealed",
+			} {
+				if strings.Contains(page, absent) {
+					t.Errorf("page still carries retired markup %q", absent)
+				}
+			}
+		})
 	}
 }
 

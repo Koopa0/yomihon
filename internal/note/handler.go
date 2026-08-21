@@ -444,8 +444,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Language:          n.Language,
 		Type:              n.Type,
 		Status:            noteStatus,
-		SealTarget:        schema.SealStatus,
-		Sealed:            governance.instance && noteStatus == schema.SealStatus,
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,
@@ -467,10 +465,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Transitions:       governance.transitions,
 		NoFrontmatter:     governance.noFrontmatter,
 	}
-
-	// The redirect after a seal carries a one-shot signal; only a sealed note
-	// plays it.
-	view.JustSealed = view.Sealed && r.URL.Query().Get("sealed") == "1"
 
 	pageChrome := governance.shell.Chrome(r, n.Title)
 	// The furigana control switches readings off. A page with none has nothing

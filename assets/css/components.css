@@ -4,8 +4,8 @@
    The DS component classes this page actually uses (ui-navitem,
    ui-side__label, ui-status, ui-type, ui-kbd, ui-scrim, ui-dialog),
    the y-* product classes that translate the mock's inline styles
-   into named classes (shell / rails / header / article / seal /
-   diagnostics), ruby zero-reflow, the seal ceremony, and the reading
+   into named classes (shell / rails / header / article / status /
+   diagnostics), ruby zero-reflow, and the reading
    prose that styles the renderer's REAL emitted classes (.callout /
    .wikilink / .chroma / <mark> / <ruby> — never reshaped, only dressed).
    Everything is scoped under .yomihon so nothing leaks to other surfaces.
@@ -205,7 +205,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-shell { display: grid; grid-template-columns: 264px minmax(0, 1fr) 316px; flex: 1; align-items: start; }
 /* The right rail exists to hold reading aids — the table of contents and the
    diagnostics list. A note with neither drops the rail's column entirely: the
-   reading column takes the width, and the fixed-bottom seal bar carries the
+   reading column takes the width, and the fixed-bottom status bar carries the
    status face at every viewport width, not only narrow ones. */
 .y-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
 .y-shell--rail-empty .y-rail-right { display: none; }
@@ -489,41 +489,13 @@ html, body { margin: 0; background: var(--bg); }
 .y-statuspanel { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); overflow: hidden; }
 .y-statuspanel__head { padding: 15px 16px 16px; }
 .y-statuspanel__row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.y-actor { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-statuspanel__forms { border-top: 1px solid var(--border); padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 9px; }
 .y-statuspanel__notice { padding: 15px 16px; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); margin: 0; }
 .y-statusform { margin: 0; }
-.y-statusform--inline { display: contents; }
 
-/* seal button (the one primary, `ready`) */
-.y-sealbtn {
-  position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 10px;
-  width: 100%; height: 42px; background: var(--fg); color: var(--bg); border: none; border-radius: var(--r-sm);
-  font-family: var(--font-sans); font-size: var(--fs-14); font-weight: var(--fw-semibold); letter-spacing: 0.01em;
-  cursor: pointer; box-shadow: var(--shadow-1); user-select: none; touch-action: none;
-}
-.y-sealbtn > * { position: relative; }
-.y-sealfill { position: absolute; inset: 0 auto 0 0; width: 0; background: color-mix(in oklch, var(--accent) 30%, transparent); border-right: 1.5px solid var(--accent); pointer-events: none; }
-.y-sealbtn__stamp { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; border: 1.4px solid var(--accent); border-radius: 3px; color: var(--accent); font-family: var(--font-kai); font-size: 12px; line-height: 1; padding-top: 1px; }
-.y-sealbtn__hint { font-family: var(--font-mono); font-size: 10px; color: color-mix(in oklch, var(--bg) 72%, transparent); border: 1px solid color-mix(in oklch, var(--bg) 34%, transparent); border-radius: 3px; padding: 0 5px; }
-.y-sealpoem { margin: 0; font-family: var(--font-serif); font-size: 12.5px; line-height: 1.6; color: var(--fg-faint); text-align: center; }
-
-/* quiet secondary transition (Archive style — all non-seal transitions) */
+/* one plain transition control; every legal target renders identically */
 .y-xbtn { width: 100%; height: 34px; background: transparent; color: var(--fg-subtle); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--font-sans); font-size: var(--fs-13); cursor: pointer; }
 .y-xbtn:hover { background: var(--overlay); color: var(--fg); }
-
-/* sealed state (status == ready) */
-.y-sealed { display: inline-flex; align-items: center; gap: 9px; padding: 6px 13px 6px 8px; border: 1.5px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-muted); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, transparent); }
-.y-sealed__stamp { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 1.5px solid var(--accent); border-radius: 4px; color: var(--accent); font-family: var(--font-kai); font-size: 16px; line-height: 1; padding-top: 1px; }
-.y-sealed__label { font-family: var(--font-sans); font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--accent); letter-spacing: 0.01em; }
-.y-sealline { margin-top: 12px; height: 1.5px; background: linear-gradient(90deg, var(--accent), var(--gold)); transform-origin: left; }
-.y-sealby { margin-top: 10px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); display: flex; align-items: center; gap: 7px; }
-.y-sealby svg { width: 12px; height: 12px; }
-/* one-shot ceremony (activated by status.js when ?sealed=1) */
-.y-justsealed .y-sealed { animation: y-sealBed .5s var(--ease-standard) both; }
-.y-justsealed .y-sealed__stamp { animation: y-inkBloom .65s ease-out both; }
-.y-justsealed .y-sealline { animation: y-hairline .55s .1s var(--ease-standard) both; }
-.y-justsealed .y-sealby { animation: y-fadeup .4s .3s both; }
 
 /* diagnostics rail */
 .y-diaghead { display: flex; align-items: center; gap: 8px; }
@@ -538,17 +510,17 @@ html, body { margin: 0; background: var(--bg); }
 .y-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 12px; line-height: 1.6; color: var(--fg-faint); }
 
 /* ============================================================
-   Seal bar — the status face wherever the right rail is absent: narrow
+   Status bar — the status face wherever the right rail is absent: narrow
    viewports (the rail is hidden) and no-aid notes (the rail's column is
    dropped, the sibling rule under .y-shell--rail-empty reveals this bar).
+   The y-sealbar class names are kept; the layout predates the bar being a
+   plain control surface.
    ============================================================ */
 .y-sealbar { display: none; align-items: center; flex-wrap: wrap; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
   padding: 10px 16px; border-top: 1px solid var(--border);
   background: color-mix(in oklch, var(--panel) 92%, transparent); backdrop-filter: blur(10px); }
 .y-sealbar__spacer { flex: 1; }
-.y-sealbar .y-sealbtn { width: auto; height: 40px; padding: 0 16px; flex: none; }
 .y-sealbar .y-xbtn { width: auto; padding-inline: 14px; }
-.y-sealbar .y-sealpoem { display: none; }
 .y-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
 
 /* ============================================================
@@ -744,41 +716,11 @@ html, body { margin: 0; background: var(--bg); }
   .y-conceptsheet { width: 100vw; height: auto; max-height: 82dvh; margin: auto 0 0; border-left: none; border-top: 1px solid var(--border); border-radius: var(--r-lg) var(--r-lg) 0 0; }
 }
 
-/* ============================================================
-   Seal toast — server-rendered on the one-shot redirect signal; enters
-   from its first-frame style and fades itself away. Pure CSS, so it
-   plays with or without the enhancement script.
-   ============================================================ */
-.y-toast {
-  position: fixed; left: 50%; bottom: 84px; translate: -50% 0; z-index: 60;
-  display: flex; align-items: center; gap: 8px; padding: 9px 16px;
-  background: var(--panel); border: 1px solid var(--accent); border-radius: var(--r-md);
-  box-shadow: var(--shadow-2); color: var(--accent);
-  font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium);
-  pointer-events: none;
-  transition: opacity var(--dur-slow) var(--ease-standard), translate var(--dur-slow) var(--ease-standard);
-  animation: y-toastfade 0.6s var(--ease-standard) 2.6s both;
-}
-@starting-style { .y-toast { opacity: 0; translate: -50% 8px; } }
-@keyframes y-toastfade { to { opacity: 0; visibility: hidden; } }
-
-/* ============================================================
-   Seal ceremony keyframes (落款／鈐印)
-   ============================================================ */
-@keyframes y-sealBed  { 0% { transform: scale(1.18); opacity: 0; } 55% { transform: scale(.965); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-@keyframes y-inkBloom { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 7px oklch(0.55 0.18 33 / 0); } }
-@keyframes y-hairline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes y-fadeup   { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-/* Reduced motion kills decorative animation/transition — but not the two
-   essential state displays. The seal hold-fill's width transition is the
-   ~430ms press-and-hold misclick guard made visible (a reduced-motion
-   reader must still see the hold advancing, or the guard is half-blind —
-   WCAG exempts motion that conveys essential state), and the reading-
-   position hairline is scroll state, not decoration (its scroll timeline
-   is not driven by durations anyway, but the exemption is explicit).
-   Neither may be folded back into the blanket kill. The post-seal
-   ceremony (y-sealBed/inkBloom/hairline animations) stays killed. */
-@media (prefers-reduced-motion: reduce) { .yomihon *:not(.y-sealfill):not(.y-readline), .yomihon *::before, .yomihon *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+/* Reduced motion kills decorative animation/transition — but not the
+   reading-position hairline: it is scroll state, not decoration (its
+   scroll timeline is not driven by durations anyway, but the exemption
+   is explicit — WCAG exempts motion that conveys essential state). */
+@media (prefers-reduced-motion: reduce) { .yomihon *:not(.y-readline), .yomihon *::before, .yomihon *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ============================================================
    Syllabus page (study-path) — a full-page render of nav.Map.
@@ -1025,16 +967,17 @@ html {
    ------------------------------------------------------------
    Naming a region makes it an independent transition group, not a
    stable one: a named group whose pixels differ cross-fades into a
-   double exposure. So the chrome — header, left rail, seal bar —
+   double exposure. So the chrome — header, left rail, status bar —
    hard-cuts (its old/new snapshot animations turned off; near-identical
    pixels read as perfect stillness, per-note differences as a crisp
    update, never a ghost), while the reading column keeps the default
    group morph so the width change between a railed and a rail-less page
    glides instead of double-exposing two reflowed text blocks. The title
    carries its own name, so moving between pages reads as the title
-   travelling. Form POSTs never fire navigation transitions, so the
-   seal's redirect lands plainly — that is the write path's contract,
-   not a gap. Reduced motion turns navigation transitions off entirely.
+   travelling. Form POSTs never fire navigation transitions, so a
+   status flip's redirect lands plainly — that is the write path's
+   contract, not a gap. Reduced motion turns navigation transitions off
+   entirely.
    ============================================================ */
 @view-transition { navigation: auto; }
 

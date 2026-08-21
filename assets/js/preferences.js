@@ -1,7 +1,7 @@
 // Persisted presentation preferences. The server renders the cookie-backed
 // state on first byte; this enhancement only changes the root attributes and
 // keeps the controls' pressed state current.
-export function initPreferences({ onSingleKeyShortcutsDisabled = () => {} } = {}) {
+export function initPreferences() {
   const root = document.documentElement;
 
   function setPreference(name, value) {
@@ -28,8 +28,6 @@ export function initPreferences({ onSingleKeyShortcutsDisabled = () => {} } = {}
   });
   document.querySelector('[data-single-key-shortcuts-toggle]')?.addEventListener('change', (event) => {
     const value = event.currentTarget.checked ? 'on' : 'off';
-    const enabled = value === 'on';
     setSingleKeyShortcuts(value);
-    if (!enabled) onSingleKeyShortcutsDisabled();
   });
 }

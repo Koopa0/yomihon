@@ -67,7 +67,6 @@ func buildRegistry() map[string]entry {
 		"drawer.js",
 		"sidebar.js",
 		"contents.js",
-		"status.js",
 		"search.js",
 		"shortcuts.js",
 		"diagrams.js",

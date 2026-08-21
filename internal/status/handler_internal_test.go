@@ -242,7 +242,7 @@ func TestNormalizeRelPathRefusesControlBytes(t *testing.T) {
 
 // TestNormalizeRelPathKeepsOrdinaryNames asserts the refusal above reaches only
 // the bytes it names: a note whose name carries a space, a wide character or
-// punctuation is still a note this face can seal.
+// punctuation is still a note this face can write.
 func TestNormalizeRelPathKeepsOrdinaryNames(t *testing.T) {
 	t.Parallel()
 	for _, rel := range []string{

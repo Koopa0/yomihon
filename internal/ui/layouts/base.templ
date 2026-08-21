@@ -25,12 +25,7 @@ type Chrome struct {
 	// button for a capability the page does not have is the tool's provenance
 	// showing through its chrome.
 	HasRuby                   bool
-	SingleKeyShortcutsEnabled bool // plain /, [, and held R are enabled
-	// Governed says whether anything claimed authority over this vault. The
-	// keyboard help names the certification key only under it: a folder that
-	// carries no vault contract has no status to certify, so a panel offering
-	// that key would describe a tool this reader does not have.
-	Governed bool
+	SingleKeyShortcutsEnabled bool // plain / and [ are enabled
 }
 
 func singleKeyShortcutsState(enabled bool) string {
@@ -38,18 +33,6 @@ func singleKeyShortcutsState(enabled bool) string {
 		return "on"
 	}
 	return "off"
-}
-
-// shortcutPrefNote says what turning the preference off costs. Held R belongs
-// to the status face, so it is named only where a status face exists; the
-// other two are reading affordances every folder has. The two keys that keep
-// working either way are named as well, because "off" reads as "no keyboard"
-// unless the sentence says otherwise.
-func shortcutPrefNote(governed bool) string {
-	if governed {
-		return "關掉之後，/、[ 和按住 R 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"
-	}
-	return "關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"
 }
 
 templ Base(c Chrome) {
@@ -123,21 +106,7 @@ templ header(c Chrome) {
 				<dd>跳到導覽篩選（單鍵開啟時）</dd>
 				<dt><span class="ui-kbd">[</span></dt>
 				<dd>收合或展開側欄（單鍵開啟時）</dd>
-				if c.Governed {
-					<dt><span class="ui-kbd">R</span>（按住）</dt>
-					<dd>認證目前筆記的狀態——只在可認證的筆記上有效，放開前不會寫入，寫入的只有 status 一個欄位</dd>
-				}
 			</dl>
-			// The reader who opens this panel is asking what the keys do, and on
-			// a folder that carries no vault contract one of them is missing.
-			// Saying why belongs here rather than on a page the reader did not
-			// ask for: it answers a question that was actually put, it states
-			// what this folder can do before what it cannot, and it is not an
-			// errand — yomihon never writes a contract, so there is nothing here
-			// for the reader to go and do.
-			if !c.Governed {
-				<p class="y-kbdhelp__note">這個資料夾沒有 vault contract：閱讀與搜尋完整可用，狀態認證這一面則不存在。</p>
-			}
 			// The preference belongs beside the keys it governs. In the header
 			// it was a permanent two-character control that named neither the
 			// keys it turns on nor what "on" applied to; here the reader is
@@ -150,7 +119,10 @@ templ header(c Chrome) {
 					<span class="y-shortcutpref__on" aria-hidden="true">目前開啟</span>
 					<span class="y-shortcutpref__off" aria-hidden="true">目前關閉</span>
 				</label>
-				<p class="y-kbdpref__note" id="kbd-pref-note">{ shortcutPrefNote(c.Governed) }</p>
+				// The two keys that keep working either way are named as well,
+				// because "off" reads as "no keyboard" unless the sentence says
+				// otherwise.
+				<p class="y-kbdpref__note" id="kbd-pref-note">關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。</p>
 			</div>
 		</div>
 		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label="切換主題" aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>

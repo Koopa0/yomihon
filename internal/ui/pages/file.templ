@@ -5,8 +5,8 @@ import "github.com/koopa0/yomihon/internal/ui/layouts"
 // File is the reading page for a vault file that is not a note: the shared
 // header and navigation, the file's own name as the title, and one of four
 // bodies. It carries no right rail — a file has no table of contents and no
-// diagnostics — and no seal bar, because the write face reaches only a note's
-// status.
+// diagnostics — and no status bar, because the write face reaches only a
+// note's status.
 templ File(v FileView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>

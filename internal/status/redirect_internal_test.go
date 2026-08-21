@@ -45,17 +45,3 @@ func TestNotesHref(t *testing.T) {
 		})
 	}
 }
-
-// TestNotesHrefSealSuffix pins the seal redirect: the "?sealed=1" the handler
-// appends is a real query suffix on the escaped path, so a name that itself
-// contains "?" is escaped inside the path while the sealed flag stays the only
-// query. Without per-segment escaping the name's "?" would swallow the flag.
-func TestNotesHrefSealSuffix(t *testing.T) {
-	t.Parallel()
-
-	got := notesHref("Notes/why?.md") + "?sealed=1"
-	want := "/notes/Notes/why%3F.md?sealed=1"
-	if got != want {
-		t.Errorf("sealed redirect = %q, want %q", got, want)
-	}
-}

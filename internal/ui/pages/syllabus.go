@@ -14,8 +14,9 @@ import (
 // and anchors precomputed), the switcher across every study-path in
 // the vault, and the path-level figures the header metarow reads.
 //
-// The seal target comes from schema. nav has already classified every entry as
-// resolved, unresolved, or ambiguous, so the page never resolves a wikilink.
+// SealTarget is the schema-pinned ready value the header's queue figure
+// names. nav has already classified every entry as resolved, unresolved, or
+// ambiguous, so the page never resolves a wikilink.
 type PathView struct {
 	Title      string
 	RelPath    string
@@ -26,8 +27,8 @@ type PathView struct {
 
 	// Path-level figures, precomputed so the header metarow is a dumb read.
 	// Entries is the course's planned lesson total — the main line only, a
-	// planned-but-unwritten lesson included. Ready is the subset waiting at the
-	// seal for a human to rule on it — a queue, never a measure of progress:
+	// planned-but-unwritten lesson included. Ready is the subset waiting at
+	// ready for a human to rule on it — a queue, never a measure of progress:
 	// a lesson finished and published leaves it.
 	Parts   int
 	Modules int
@@ -63,8 +64,9 @@ type PathItemView struct {
 	Branch *PathBranchView
 }
 
-// PathEntryView is one linked or warning row. Only resolved rows have an href,
-// status, or sealed state. Number is copied from navigation's own walk — the
+// PathEntryView is one linked or warning row. Only resolved rows have an
+// href, a status, or the ready accent. Number is copied from navigation's own
+// walk — the
 // single owner of sequence position — and keeps its meaning: zero says the
 // walk never reaches the row's branch, and the page must not print an ordinal
 // no walk can match.
@@ -252,7 +254,7 @@ func countModules(sv *PathBranchView) int {
 	return n
 }
 
-// countReady is the queue waiting at the seal for a human to rule on it — never
+// countReady is the queue waiting at ready for a human to rule on it — never
 // a measure of progress, because a lesson finished and published leaves it.
 func countReady(branches []PathBranchView) int {
 	n := 0

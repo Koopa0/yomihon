@@ -14,7 +14,7 @@ import "embed"
 // Files holds:
 //
 //   - js/*.js — yomihon's hand-written native client modules. yomihon.js is
-//     the sole entry; the other nine files each own one product concept.
+//     the sole entry; the other eight files each own one product concept.
 //
 //   - js/mermaid/ — the vendored mermaid@11.15.0 ES-module runtime.
 //     mermaid's published ESM build is itself code-split: dist/mermaid.esm.min.mjs
@@ -22,9 +22,9 @@ import "embed"
 //     dist/chunks/mermaid.esm.min/*.mjs (one file per diagram type plus
 //     shared chunks, ~3.1MB total) on demand. Vendoring only the facade
 //     would leave every real diagram broken at runtime (a 404 on its
-//     first dynamic import) — a bug the research phase's "few-MB
-//     ballpark" size expectation actually anticipates once you account
-//     for the full chunk tree, not just the entry file. The whole tree
+//     first dynamic import) — a "few-MB ballpark" size expectation
+//     actually anticipates this once you account for the full chunk
+//     tree, not just the entry file. The whole tree
 //     (js/mermaid/mermaid.esm.min.mjs + js/mermaid/chunks/mermaid.esm.min/*.mjs,
 //     source maps excluded — dev-only, no runtime benefit) is vendored
 //     here, directory structure preserved exactly, so the entry module's
@@ -48,5 +48,5 @@ import "embed"
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine (D-brief: zero external requests).
 //
-//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/status.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
+//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
 var Files embed.FS
