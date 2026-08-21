@@ -160,7 +160,7 @@ func recoveryFor(err error) *recovery {
 	case errors.Is(err, ErrDurabilityUnsupported):
 		return &recovery{
 			code:       http.StatusServiceUnavailable,
-			summary:    DurablePublicationUnavailableDiagnostic,
+			summary:    DurableInstallUnavailableDiagnostic,
 			nextAction: "改用目前支援 status 寫入的 macOS 或 Linux；閱讀與搜尋仍可在此平台使用。",
 		}
 	case errors.Is(err, schema.ErrUnknownStatus),

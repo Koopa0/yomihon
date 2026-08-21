@@ -2,4 +2,4 @@
 
 package status
 
-const durablePublicationSupported = false
+const durableInstallSupported = false

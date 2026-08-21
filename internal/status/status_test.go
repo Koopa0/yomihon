@@ -19,8 +19,8 @@ import (
 )
 
 // testRel is the vault-relative path every fixture note in this package
-// uses. Fixing it keeps the git assertions (commit message, dirty-file
-// targeting) simple; the path itself is never what's under test.
+// uses. Fixing it keeps the fixtures and their assertions simple; the path
+// itself is never what's under test.
 const testRel = "Writing/lessons/japanese/L05.md"
 
 // The testdata contract is a loader fixture, not a second schema: runtime
@@ -120,12 +120,12 @@ func newLifecycle(t *testing.T, root string, contract *schema.Contract) *status.
 	return lifecycle
 }
 
-// newVault creates a temp git repo standing in for the vault, with a fake
-// local git identity scoped to that repo only. The flip's commit author
-// must come from this config — never anything yomihon hardcodes —
-// so tests exercise the real git behavior instead of mocking it.
-// commit.gpgsign is forced off so the test does not depend on whatever the
-// host's global git config or GPG agent happens to be set up to do.
+// newVault creates a temp directory that is also a git repository, for the
+// tests proving a flip leaves version-control state untouched: the write
+// face must change the note file and nothing else, whether or not the vault
+// happens to be under git. The identity config is scoped to the repo and
+// commit.gpgsign is forced off so seeding commits never depend on the host's
+// global git config or GPG agent.
 func newVault(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -346,7 +346,7 @@ func TestFlipRefusesNonRegularTarget(t *testing.T) {
 	}
 }
 
-func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
+func TestFlipClassifiesNonInstanceBeforeFilesystem(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	contract := loadContract(t)
@@ -366,7 +366,7 @@ func TestFlipClassifiesNonInstanceBeforeFilesystemAndGit(t *testing.T) {
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Fatalf("Flip(non-instance) = %v, want %v", err, status.ErrNonInstance)
 	}
-	got, readErr := os.ReadFile(path) // #nosec G304 -- path is a fixed test-relative file under newVault's TempDir
+	got, readErr := os.ReadFile(path) // #nosec G304 -- path is a fixed test-relative file under this test's TempDir
 	if readErr != nil {
 		t.Fatalf("read template note: %v", readErr)
 	}
@@ -410,7 +410,7 @@ func TestFlipRefusesCaseVariantNonInstancePath(t *testing.T) {
 			t.Errorf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
 		}
 	}
-	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(canonicalRel))) // #nosec G304 -- canonicalRel is a fixed in-test constant under newVault's TempDir
+	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(canonicalRel))) // #nosec G304 -- canonicalRel is a fixed in-test constant under this test's TempDir
 	if readErr != nil {
 		t.Fatalf("read template note: %v", readErr)
 	}
@@ -438,7 +438,7 @@ func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Fatalf("Flip(%q) = %v, want %v", txtRel, err, status.ErrNonInstance)
 	}
-	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(txtRel))) // #nosec G304 -- txtRel is a fixed in-test constant under newVault's TempDir
+	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(txtRel))) // #nosec G304 -- txtRel is a fixed in-test constant under this test's TempDir
 	if readErr != nil {
 		t.Fatalf("read resource: %v", readErr)
 	}
@@ -451,8 +451,8 @@ func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
 // name the directory actually holds rather than the one the request typed. On
 // a case-insensitive filesystem a request for "L06.md" opens the entry spelled
 // "L06.MD", which the scan reads as a resource; the flip has to refuse before
-// it rewrites those bytes, not after git declines a path its index does not
-// have under that spelling.
+// it rewrites bytes the reading side classifies as something other than the
+// requested note.
 func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -472,7 +472,7 @@ func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, status.ErrNonInstance)
 	}
-	got, readErr := os.ReadFile(onDisk) // #nosec G304 -- a fixed in-test path under newVault's TempDir
+	got, readErr := os.ReadFile(onDisk) // #nosec G304 -- a fixed in-test path under this test's TempDir
 	if readErr != nil {
 		t.Fatalf("read the on-disk file: %v", readErr)
 	}
@@ -527,7 +527,7 @@ func TestFlipRefusesHiddenTarget(t *testing.T) {
 			if !errors.Is(err, status.ErrNonInstance) {
 				t.Fatalf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
 			}
-			got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a fixed in-test path under newVault's TempDir
+			got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a fixed in-test path under this test's TempDir
 			if readErr != nil {
 				t.Fatalf("read hidden file: %v", readErr)
 			}
@@ -950,7 +950,7 @@ func TestFlipByteIdentical(t *testing.T) {
 }
 
 // TestFlipQuarantinesAbandonedTempFiles covers the one residue a crash inside
-// the publication window leaves behind: a dot-prefixed temp file, invisible to
+// the install window leaves behind: a dot-prefixed temp file, invisible to
 // the reading scan and reclaimed by nothing. Its bytes cannot be identified
 // from the outside — a flip that died after the atomic exchange parks the
 // version another program wrote under exactly this name — so a later flip in

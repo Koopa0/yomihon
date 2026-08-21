@@ -66,7 +66,7 @@ func TestRecoveryClassification(t *testing.T) {
 	}
 }
 
-func TestOnlyPostPublicationFailuresClaimChanged(t *testing.T) {
+func TestOnlyPostInstallFailuresClaimChanged(t *testing.T) {
 	t.Parallel()
 	for _, err := range []error{
 		ErrInvalidPath,

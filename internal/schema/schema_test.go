@@ -1582,9 +1582,6 @@ func TestTransition(t *testing.T) {
 	}{
 		{"lesson imported→draft", "lesson", "imported", "draft", nil},
 		{"lesson draft→ready", "lesson", "draft", "ready", nil},
-		// Owner lists are declarative data: an edge whose owner list would
-		// have excluded a caller under the retired enforcement stays legal.
-		{"owner list does not gate", "lesson", "draft", "ready", nil},
 		{"skip an intermediate status", "lesson", "imported", "ready", schema.ErrIllegalTransition},
 		{"archived from anywhere", "concept", "seedling", "archived", nil},
 		{"initial captured", "transcript", "", "captured", nil},

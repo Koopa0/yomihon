@@ -161,7 +161,7 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 		}
 	}
 
-	firstAtPublish := make(chan struct{})
+	firstAtAuthority := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	firstErr := make(chan error, 1)
 	secondAtLock := make(chan struct{})
@@ -173,12 +173,12 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 			"draft",
 			schema.SealStatus,
 			flipHooks{beforeAuthority: func() {
-				close(firstAtPublish)
+				close(firstAtAuthority)
 				<-releaseFirst
 			}},
 		)
 	})
-	<-firstAtPublish
+	<-firstAtAuthority
 	wg.Go(func() {
 		secondErr <- lifecycle.flip(
 			secondRel,
@@ -342,7 +342,7 @@ func internalOpenLifecycle(t *testing.T, root string, contract *schema.Contract)
 	return lifecycle
 }
 
-func TestFlipRejectsContractChangeBeforePublish(t *testing.T) {
+func TestFlipRejectsContractChangeBeforeInstall(t *testing.T) {
 	t.Parallel()
 
 	root, contractPath, lifecycle := internalVaultWithMutableContract(t)
@@ -557,7 +557,7 @@ func TestReplaceRegularFileTempSyncFailureLeavesSource(t *testing.T) {
 	assertNoStatusTemps(t, root)
 }
 
-func TestReplaceRegularFileDirectorySyncFailureMarksPublished(t *testing.T) {
+func TestReplaceRegularFileDirectorySyncFailureMarksInstalled(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	openedRoot := internalRoot(t, root)

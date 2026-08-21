@@ -1,6 +1,6 @@
 package status
 
-// The publication window — between the byte-for-byte confirmation that the
+// The install window — between the byte-for-byte confirmation that the
 // note is unchanged and the moment the rewritten bytes take its name — is the
 // one interval a flip cannot revalidate. These tests drive an external writer
 // into exactly that interval through the beforeInstall seam, in the two shapes
@@ -210,13 +210,13 @@ func TestProbeRefusesAFilesystemThatOnlyReportsSuccess(t *testing.T) {
 	}
 }
 
-// TestStrandedPublicationDeletesNothing covers the outcome that has no clean
+// TestStrandedInstallDeletesNothing covers the outcome that has no clean
 // ending: another program edits the note inside the window and putting that
 // edit back fails too. Both versions have to survive — one under the note's
 // name and one beside it — because the write face cannot tell which of them
 // the operator wants, and the entry beside the note is the only copy of the
 // other one.
-func TestStrandedPublicationDeletesNothing(t *testing.T) {
+func TestStrandedInstallDeletesNothing(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -259,7 +259,7 @@ func TestStrandedPublicationDeletesNothing(t *testing.T) {
 	}
 	residue := statusEntries(t, dir)
 	if len(residue) != 1 {
-		t.Fatalf("publication residue = %v, want exactly the entry holding the other version", residue)
+		t.Fatalf("install residue = %v, want exactly the entry holding the other version", residue)
 	}
 	if !strings.Contains(err.Error(), residue[0]) {
 		t.Errorf("error %q does not name %q, and nothing else tells the operator where the other version is", err, residue[0])
@@ -327,7 +327,7 @@ func TestRetainedHardlinkInstallPutsBackAnInPlaceEdit(t *testing.T) {
 // argument for the raw directory-relative swap. The descriptor comes from a
 // directory the per-component walk already validated, so the swap stays inside
 // that directory exactly as long as neither name can reach out of it. Nothing
-// else in the publication re-checks that, which is why the check is asserted
+// else in the install re-checks that, which is why the check is asserted
 // here rather than trusted.
 func TestExchangeRefusesANameThatIsNotOneEntry(t *testing.T) {
 	t.Parallel()

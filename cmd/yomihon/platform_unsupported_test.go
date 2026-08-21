@@ -44,7 +44,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	if readResult.StatusCode != http.StatusOK {
 		t.Fatalf("GET /notes/Maps/study.md = %d, want %d", readResult.StatusCode, http.StatusOK)
 	}
-	for _, want := range []string{"Study Path", status.DurablePublicationUnavailableDiagnostic} {
+	for _, want := range []string{"Study Path", status.DurableInstallUnavailableDiagnostic} {
 		if !strings.Contains(readBody, want) {
 			t.Errorf("reading page is missing %q; body = %q", want, readBody)
 		}
@@ -81,7 +81,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	if location := writeResult.Header.Get("Location"); location != "" {
 		t.Errorf("POST /status Location = %q, want empty", location)
 	}
-	for _, want := range []string{status.DurablePublicationUnavailableDiagnostic, "這次操作沒有變更筆記檔案"} {
+	for _, want := range []string{status.DurableInstallUnavailableDiagnostic, "這次操作沒有變更筆記檔案"} {
 		if !strings.Contains(writeBody, want) {
 			t.Errorf("status refusal is missing %q; body = %q", want, writeBody)
 		}

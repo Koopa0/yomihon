@@ -26,14 +26,14 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 	if got := view.Diagnostic(); got != "" {
 		t.Errorf("View().Diagnostic() = %q, want empty read-authority diagnostic", got)
 	}
-	if got := view.WriteDiagnostic(); got != status.DurablePublicationUnavailableDiagnostic {
-		t.Errorf("View().WriteDiagnostic() = %q, want %q", got, status.DurablePublicationUnavailableDiagnostic)
+	if got := view.WriteDiagnostic(); got != status.DurableInstallUnavailableDiagnostic {
+		t.Errorf("View().WriteDiagnostic() = %q, want %q", got, status.DurableInstallUnavailableDiagnostic)
 	}
 	if got := view.Order(); len(got) == 0 {
 		t.Error("View().Order() is empty, want read-only lifecycle projection preserved")
 	}
 	if got := view.Transitions(testRel, "lesson", "draft"); got != nil {
-		t.Errorf("View().Transitions() = %v, want none on a platform without durable publication", got)
+		t.Errorf("View().Transitions() = %v, want none on a platform without a durable install", got)
 	}
 
 	err := lifecycle.Flip(t.Context(), testRel, "draft", schema.SealStatus)

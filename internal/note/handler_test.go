@@ -1476,10 +1476,10 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 // rendered: Home links to the folder's introduction instead of reprinting it,
 // so there is no image on Home to route. A note's own images are locked by
 // TestHTMLResolvesImagesAgainstTheNotesOwnDirectory and by the note page.
-// TestReadingRoutesKeepCapturedViewWhenCurrentSwaps is the coherence guard for
-// publication during a request. The provider atomically installs a different
-// current View while returning the previously current one; every projection in
-// the response must still come from that one captured value.
+// TestReadingRoutesKeepCapturedViewWhenCurrentSwaps is the coherence guard
+// for a snapshot swap during a request. The provider atomically installs a
+// different current View while returning the previously current one; every
+// projection in the response must still come from that one captured value.
 func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 	t.Parallel()
 	firstRoot := t.TempDir()

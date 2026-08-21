@@ -67,10 +67,10 @@ var (
 	// ErrDurabilityUnsupported means the running platform cannot prove that an
 	// atomic rename's directory entry reached durable storage. The write face
 	// refuses before reading or creating any vault path rather than changing a
-	// note and presenting an unconfirmed publication as success.
-	ErrDurabilityUnsupported = errors.New("status: durable publication is unsupported on this platform")
+	// note whose new bytes a crash could silently discard.
+	ErrDurabilityUnsupported = errors.New("status: durable install is unsupported on this platform")
 	// ErrInstallStranded means another program edited the note inside the
-	// replacement window and the write face could not finish putting that edit
+	// install window and the write face could not finish putting that edit
 	// back under the note's own name. Both versions are on disk — one under the
 	// note's name and one beside it, named in the error — and nothing was
 	// removed. It is deliberately distinct from ErrConcurrentWrite: that
@@ -87,10 +87,10 @@ const (
 	// CoreUnavailableDiagnostic is the reading page's stable explanation for a
 	// write face closed by an unavailable core contract.
 	CoreUnavailableDiagnostic = "vault contract 無法使用；生命週期寫入已關閉（fail-closed）。"
-	// DurablePublicationUnavailableDiagnostic is the stable reading-page
+	// DurableInstallUnavailableDiagnostic is the stable reading-page
 	// explanation for a platform on which the status write face cannot prove
-	// durable publication.
-	DurablePublicationUnavailableDiagnostic = "此平台無法確認狀態檔案的耐久發布；生命週期寫入已關閉（fail-closed）。"
+	// a durable install.
+	DurableInstallUnavailableDiagnostic = "此平台無法確認狀態檔案的耐久寫入；生命週期寫入已關閉（fail-closed）。"
 	// NoteUnreadableDiagnostic is shown when the note's own status line could
 	// not be read for this request. The page will not offer a transition from
 	// a value it could not confirm: whatever blocked the read blocks the write
@@ -288,8 +288,8 @@ func (v View) WriteDiagnostic() string {
 	if v.Closed() {
 		return ""
 	}
-	if !durablePublicationSupported {
-		return DurablePublicationUnavailableDiagnostic
+	if !durableInstallSupported {
+		return DurableInstallUnavailableDiagnostic
 	}
 	return ""
 }
@@ -464,7 +464,7 @@ func (lc *Lifecycle) install(
 }
 
 func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
-	if !durablePublicationSupported {
+	if !durableInstallSupported {
 		return ErrDurabilityUnsupported
 	}
 	if lc.contract == nil {
