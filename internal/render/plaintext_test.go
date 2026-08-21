@@ -63,6 +63,12 @@ func TestPlainText(t *testing.T) {
 			body:    "- [ ] buy milk\n- [x] write tests\n",
 			present: []string{"buy milk", "write tests"},
 		},
+		{
+			name:    "wikilink with no display alias contributes its name once",
+			body:    "See [[Same Note]].\n",
+			present: []string{"Same Note"},
+			absent:  []string{"Same Note Same Note"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -79,6 +85,88 @@ func TestPlainText(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestAWikilinkInsideAFenceStaysLiteralInTheCorpus pins the fence guard of
+// the plain-text preprocessing: a wikilink written inside a fenced code block
+// is code content, indexed byte-for-byte as written, never rewritten to its
+// target and display words.
+func TestAWikilinkInsideAFenceStaysLiteralInTheCorpus(t *testing.T) {
+	t.Parallel()
+
+	got := render.PlainText("```\n[[Target Note|the alias]]\n```\n")
+	if !strings.Contains(got, "[[Target Note|the alias]]") {
+		t.Errorf("PlainText() = %q, missing the literal fenced wikilink", got)
+	}
+	if strings.Contains(got, "Target Note the alias") {
+		t.Errorf("PlainText() = %q, rewrote a fenced wikilink", got)
+	}
+}
+
+// TestCorpusRewritesInsideCodeSpansAndIgnoresTheEscape pins the two
+// boundaries the plain-text pass deliberately does not honor, unlike the
+// reading page: a wikilink inside an inline code span is rewritten anyway
+// (the pass is line-based, and fences alone protect their contents), and a
+// backslash escape ahead of the brackets is not consulted, so a shown link's
+// words are indexed like a followed link's. Changing either boundary changes
+// what a search can find, so it is a corpus decision rather than a cleanup.
+func TestCorpusRewritesInsideCodeSpansAndIgnoresTheEscape(t *testing.T) {
+	t.Parallel()
+
+	got := render.PlainText("a `[[Span Note|span label]]` span\n\nshown \\[[Escaped Note|escape label]] link\n")
+	for _, want := range []string{"Span Note span label", "Escaped Note escape label"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("PlainText() = %q, missing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "[[") {
+		t.Errorf("PlainText() = %q, kept a literal wikilink token", got)
+	}
+}
+
+// TestAdjacentBlocksAreSeparatedByOneNewline pins the block separator:
+// exactly one newline between adjacent blocks' text, never a blank line, so
+// the corpus bytes for a body are deterministic.
+func TestAdjacentBlocksAreSeparatedByOneNewline(t *testing.T) {
+	t.Parallel()
+
+	got := render.PlainText("# Title\n\nfirst paragraph\n\nsecond paragraph\n")
+	want := "Title\nfirst paragraph\nsecond paragraph"
+	if got != want {
+		t.Errorf("PlainText() = %q, want %q", got, want)
+	}
+}
+
+// TestBareURLsAreIndexedVerbatim pins the deliberate absence of
+// linkification in the plain-text parser: a bare URL contributes exactly the
+// bytes in the file (what a grep of the vault would see), and is never
+// synthesized into a link — linkification would invent an http:// prefix for
+// a www name. An angle-bracket autolink contributes its URL; a markdown link
+// contributes its label only, never its destination.
+func TestBareURLsAreIndexedVerbatim(t *testing.T) {
+	t.Parallel()
+
+	got := render.PlainText(strings.Join([]string{
+		"bare https://example.com/bare?q=1 stays",
+		"plain www.example.com/plain stays",
+		"angle <https://example.com/angle> stays",
+		"labeled [the docs](https://example.com/dropped-path) stays",
+	}, "\n\n"))
+	for _, want := range []string{
+		"https://example.com/bare?q=1",
+		"www.example.com/plain",
+		"https://example.com/angle",
+		"the docs",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("PlainText() = %q, missing %q", got, want)
+		}
+	}
+	for _, absent := range []string{"http://www.example.com", "dropped-path"} {
+		if strings.Contains(got, absent) {
+			t.Errorf("PlainText() = %q, must not contain %q", got, absent)
+		}
 	}
 }
 

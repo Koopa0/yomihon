@@ -267,6 +267,30 @@ func TestWikilinkBareAnchorIsPlainText(t *testing.T) {
 	}
 }
 
+// TestBracketedOrEmptyInnerTextIsNotALink pins the wikilink token boundary:
+// the inner text is one or more characters, none of them a square bracket. An
+// inner bracket or an empty inner leaves the whole run as plain text — no
+// link markup, no resolution, no diagnostic — matching how Obsidian refuses
+// to open a link there.
+func TestBracketedOrEmptyInnerTextIsNotALink(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "a.md"}}, nil, nil)
+
+	for _, body := range []string{"before [[a[b]]] after\n", "before [[]] after\n", "before ![[]] after\n"} {
+		got := r.HTML("note.md", "", body)
+		if strings.Contains(got.HTML, "wikilink") {
+			t.Errorf("HTML(%q) produced wikilink markup:\n%s", body, got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("HTML(%q) diagnostics = %+v, want none — text that is not a link resolves nothing", body, got.Diagnostics)
+		}
+	}
+
+	if got := r.HTML("note.md", "", "before [[a[b]]] after\n"); !strings.Contains(got.HTML, "[[a[b]]]") {
+		t.Errorf("HTML() dropped the literal bracketed text:\n%s", got.HTML)
+	}
+}
+
 // headingID reads the id the renderer actually stamped on the heading whose
 // text is want, so a test can ask where a link has to land instead of writing
 // the answer down a second time.

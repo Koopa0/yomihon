@@ -129,6 +129,62 @@ func TestNewOwnsAliasExtractionFromParsedNotes(t *testing.T) {
 	}
 }
 
+// TestAliasesContributeOnlyFromAStringList pins the tolerant reading of the
+// frontmatter aliases field: a plain list is the one shape that contributes
+// resolution keys, and inside it the string members. Any other shape — a bare
+// scalar, a mapping — silently costs the note its alias keys and nothing else;
+// the note's own filename keys survive whatever the field holds.
+func TestAliasesContributeOnlyFromAStringList(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		aliases    any
+		resolved   []string
+		unresolved []string
+	}{
+		{
+			name:       "a bare scalar contributes nothing",
+			aliases:    "solo name",
+			unresolved: []string{"solo name"},
+		},
+		{
+			name:       "a mapping contributes nothing",
+			aliases:    map[string]any{"alias": "mapped name"},
+			unresolved: []string{"alias", "mapped name"},
+		},
+		{
+			name:       "string members of a mixed list contribute and the rest are skipped",
+			aliases:    []any{"kept name", 42, true, []any{"nested name"}},
+			resolved:   []string{"kept name"},
+			unresolved: []string{"42", "true", "nested name"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			idx := graph.New([]*vault.Note{{
+				RelPath:     "Concepts/Aliased.md",
+				Frontmatter: map[string]any{"aliases": tt.aliases},
+			}}, nil)
+
+			if got := idx.Resolve("Aliased"); got.Kind != graph.Unique {
+				t.Fatalf("Resolve(filename) = %+v, want Unique — a malformed aliases field costs alias keys, never the note's own keys", got)
+			}
+			for _, name := range tt.resolved {
+				if got := idx.Resolve(name); got.Kind != graph.Unique {
+					t.Errorf("Resolve(%q) = %+v, want Unique", name, got)
+				}
+			}
+			for _, name := range tt.unresolved {
+				if got := idx.Resolve(name); got.Kind != graph.Unresolved {
+					t.Errorf("Resolve(%q) = %+v, want Unresolved", name, got)
+				}
+			}
+		})
+	}
+}
+
 func TestResolveAliasSameAsFilename(t *testing.T) {
 	t.Parallel()
 	idx := graph.BuildFromNotes([]graph.NoteInput{
@@ -344,6 +400,19 @@ func TestParseWikilink(t *testing.T) {
 			name:  "an escaped table-cell pipe still separates the display text",
 			inner: `Go Slice#Internals\|see`, ok: true,
 			want: graph.Wikilink{Target: "Go Slice", Display: "see", Heading: "Internals"},
+		},
+		{
+			name:  "the display separator is the first pipe, so a second pipe belongs to the display text",
+			inner: "Note|a|b", ok: true,
+			want: graph.Wikilink{Target: "Note", Display: "a|b"},
+		},
+		{
+			// A cell can stack escapes; every trailing backslash comes off the
+			// name, not just the last one, so the deepest escape still yields
+			// the same target as no escape at all.
+			name:  "every trailing backslash ahead of the pipe is stripped",
+			inner: `Go Slice\\\|see`, ok: true,
+			want: graph.Wikilink{Target: "Go Slice", Display: "see"},
 		},
 		{
 			name:  "surrounding space belongs to neither the name nor the heading",
