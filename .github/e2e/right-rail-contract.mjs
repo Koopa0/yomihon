@@ -161,7 +161,12 @@ try {
     }
 
     const tocLinks = rail.locator('.y-toc__list a');
-    const statusControls = rail.locator('.y-statuspanel button');
+    // The panel's reachable controls in its resting state: plain transition
+    // buttons plus the summary of a terminal target's closed confirm. The
+    // confirm's inner submit is deliberately unreachable until the disclosure
+    // is opened — that second step is the point — so only visible controls
+    // belong in the keyboard walk.
+    const statusControls = rail.locator('.y-statuspanel button:visible, .y-statuspanel summary:visible');
     const diagnostics = rail.locator('.y-diag');
     // The cited-by block never leaves the rail: it says "nothing cites this"
     // when nothing does, so a missing block is the answer going missing rather

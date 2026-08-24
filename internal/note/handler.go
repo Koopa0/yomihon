@@ -507,7 +507,7 @@ type governanceState struct {
 	// the scan's value, which is the only answer available when nothing may be
 	// written and is then never contradicted by anything.
 	status          string
-	transitions     []string
+	transitions     []pages.Transition
 	writeDiagnostic string
 	instance        bool
 	nonInstance     bool
@@ -549,12 +549,27 @@ func (h *Handler) governance(
 		default:
 			state.status, state.writeDiagnostic = h.observedStatus(n.RelPath)
 			if state.writeDiagnostic == "" {
-				state.transitions = statusView.Transitions(n.RelPath, n.Type, state.status)
+				state.transitions = offeredTransitions(statusView, n.RelPath, n.Type, state.status)
 				state.statusUnknown = state.status != "" && !statusView.KnownStatus(n.Type, state.status)
 			}
 		}
 	}
 	return state
+}
+
+// offeredTransitions pairs each legal target with whether it is terminal —
+// nothing leads onward from it here — which is what decides between the
+// single-press control and the two-step confirm.
+func offeredTransitions(statusView status.View, relPath, noteType, current string) []pages.Transition {
+	targets := statusView.Transitions(relPath, noteType, current)
+	if len(targets) == 0 {
+		return nil
+	}
+	offered := make([]pages.Transition, 0, len(targets))
+	for _, to := range targets {
+		offered = append(offered, pages.Transition{To: to, Terminal: statusView.Terminal(noteType, to)})
+	}
+	return offered
 }
 
 // observedStatus asks the write package what the note's status line says right

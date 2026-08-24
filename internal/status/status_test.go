@@ -883,6 +883,81 @@ func TestTransitions(t *testing.T) {
 // out-of-enum flag rests on: a value in the type's list is known, everything
 // else — an unlisted value, an undeclared type, an empty value, a closed
 // view — is not.
+func TestTerminal(t *testing.T) {
+	t.Parallel()
+	view := newLifecycle(t, t.TempDir(), loadContract(t)).View()
+
+	tests := []struct {
+		name     string
+		noteType string
+		status   string
+		want     bool
+	}{
+		{name: "archived has no way onward", noteType: "lesson", status: "archived", want: true},
+		{name: "ready still has the archived edge out", noteType: "lesson", status: "ready", want: false},
+		{name: "draft moves on to ready", noteType: "lesson", status: "draft", want: false},
+		{name: "an empty status claims nothing", noteType: "lesson", status: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := view.Terminal(tt.noteType, tt.status); got != tt.want {
+				t.Errorf("Terminal(%q, %q) = %t, want %t", tt.noteType, tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTerminalExcludesPublishedAsAWayOnward pins the one subtlety in the
+// derivation: an edge to published is not a way onward the write face could
+// ever offer, so a status whose only onward edge is published is terminal.
+func TestTerminalExcludesPublishedAsAWayOnward(t *testing.T) {
+	t.Parallel()
+	const contractText = `schema_version = "1"
+
+[enums]
+type = ["doc"]
+
+[enums.status]
+note = ["ready", "published"]
+
+[artifacts]
+non_instance_dirs = []
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["doc"]
+from = []
+owner = ["agent"]
+
+[[lifecycle]]
+status = "published"
+applies_to = ["doc"]
+from = ["ready"]
+owner = ["agent"]
+`
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err := os.WriteFile(path, []byte(contractText), 0o600); err != nil { // #nosec G703 -- fixed basename under t.TempDir
+		t.Fatalf("write test contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	view := newLifecycle(t, t.TempDir(), contract).View()
+	if !view.Terminal("doc", "ready") {
+		t.Error(`Terminal("doc", "ready") = false, want true: its only onward edge is published, which no control can attest`)
+	}
+}
+
+func TestTerminalOnClosedViewClaimsNothing(t *testing.T) {
+	t.Parallel()
+	view := newLifecycle(t, t.TempDir(), nil).View()
+	if view.Terminal("lesson", "archived") {
+		t.Error(`Terminal("lesson", "archived") on a closed view = true, want false`)
+	}
+}
+
 func TestKnownStatus(t *testing.T) {
 	t.Parallel()
 

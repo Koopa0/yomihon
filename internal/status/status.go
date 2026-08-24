@@ -331,6 +331,28 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 	return legal
 }
 
+// Terminal reports whether status is a final interactive stop for noteType:
+// the captured contract legalizes no onward transition the write face could
+// offer from it. It is derived from the same transition rules Transitions
+// reads, never configured on its own. The published status does not count as
+// a way onward — it records a completed publication no interactive control
+// can attest — so a status whose only onward edge is published is terminal
+// here. A closed view claims nothing and reports false.
+func (v View) Terminal(noteType, status string) bool {
+	if !v.available() || status == "" {
+		return false
+	}
+	for _, to := range v.contract.Statuses(noteType) {
+		if to == schema.PublishedStatus {
+			continue
+		}
+		if v.contract.Transition(noteType, status, to) == nil {
+			return false
+		}
+	}
+	return true
+}
+
 // KnownStatus reports whether status is among the contract's declared values
 // for the given note type. A closed view knows no values, and an undeclared
 // type declares none. The reading page uses it to flag a status the schema
