@@ -1031,7 +1031,7 @@ func TestParseEntryItem(t *testing.T) {
 // structure (to whatever depth it has), strips only .md for display,
 // surfaces a vault-root file as a RootNote, and orders the top level by
 // lifecycle (Inbox before Concepts before Writing before Views), leaving
-// deeper levels lexical.
+// deeper levels in the captured reading order.
 func TestBuildFolderTree(t *testing.T) {
 	t.Parallel()
 
@@ -1170,7 +1170,7 @@ func TestPlacements(t *testing.T) {
 }
 
 // TestSiblings checks the "here" lookup returns a note's whole directory (itself
-// included, for the caller to mark) in the folder tree's lexical order, reports
+// included, for the caller to mark) in the captured reading order, reports
 // the empty directory for a vault-root note, and yields nothing for an unknown
 // directory.
 func TestSiblings(t *testing.T) {

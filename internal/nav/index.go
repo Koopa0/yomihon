@@ -36,8 +36,8 @@ func (m *Model) Placements(relPath string) []Placement {
 // Siblings returns the files sharing a directory with the note at relPath — the
 // "here" list the sidebar shows — together with that directory's vault-relative
 // path (empty for a vault-root note). The note at relPath is itself in the list,
-// for the caller to mark; the order matches the captured generation's lexical
-// path order. The notes slice is nil when the directory holds nothing.
+// for the caller to mark; the order matches the captured generation's reading
+// order. The notes slice is nil when the directory holds nothing.
 func (m *Model) Siblings(relPath string) (dir string, notes []NoteRef) {
 	dir, _ = splitDir(relPath)
 	if m == nil {
@@ -49,7 +49,7 @@ func (m *Model) Siblings(relPath string) (dir string, notes []NoteRef) {
 // buildDirNotes groups every listed file by its directory, so the sidebar can
 // show a note's same-directory siblings in one lookup rather than descending the
 // folder tree per request. It mirrors the folder tree's contents and order:
-// paths arrive lexically sorted, and each directory keeps that order.
+// paths arrive in the captured reading order, and each directory keeps it.
 func buildDirNotes(paths []string) map[string][]NoteRef {
 	byDir := make(map[string][]NoteRef)
 	for _, p := range paths {
