@@ -158,7 +158,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 								</details>
 							}
 						}
-						@healthSection("狀態值不在允許清單的筆記", v.StatusOutsideEnum, "這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁和首頁的狀態分布會標出它們；要修正請直接編輯 frontmatter。")
+						@healthSection("狀態值不在允許清單的筆記", v.StatusOutsideEnum, "這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁會標出它們；要修正請直接編輯 frontmatter。")
 						@healthSection("兩個檔案共用的名字", len(v.Collisions), "連到這些名字的連結不會生效，因為無法判斷指的是哪一個，而這裡不猜。") {
 							<ul class="y-healthlist">
 								for _, collision := range v.Collisions {

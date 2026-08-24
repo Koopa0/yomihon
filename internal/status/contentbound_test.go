@@ -108,6 +108,50 @@ func TestFlipStaleStatusOutranksChangedContent(t *testing.T) {
 	}
 }
 
+// TestFlipKeepsTheRenderedIdentityValidForTheNextFlip locks the excision at
+// the product seam: a successful flip rewrites the status line and nothing
+// else, and the identity excludes exactly that line, so the identity a page
+// rendered before the flip still names the bytes on disk after it. The next
+// transition posted with that same identity — the reader pressing on from the
+// page the redirect re-rendered, whose hidden field the rewrite left equal —
+// must succeed, not be refused as a content change. The identity here is the
+// product's own (formIdentity); the definitional oracle lives in the
+// renderedIdentity tests above, while this lock is relational: whatever the
+// page embeds, the flip must not invalidate it.
+func TestFlipKeepsTheRenderedIdentityValidForTheNextFlip(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	rendered := lessonContent("draft")
+	writeNote(t, root, rendered)
+	srv := newHandlerServer(t, lifecycle)
+
+	identity := formIdentity(rendered)
+
+	code, _, body := postStatus(t, srv, url.Values{
+		"path":             {testRel},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {identity},
+	})
+	if code != http.StatusSeeOther {
+		t.Fatalf("first flip status = %d, want %d; body = %q", code, http.StatusSeeOther, body)
+	}
+
+	code, _, body = postStatus(t, srv, url.Values{
+		"path":             {testRel},
+		"from":             {schema.SealStatus},
+		"to":               {"archived"},
+		"content_identity": {identity},
+	})
+	if code != http.StatusSeeOther {
+		t.Errorf("second flip with the pre-flip identity status = %d, want %d: the rewrite invalidated the identity the page rendered; body = %q", code, http.StatusSeeOther, body)
+	}
+	if got, want := readNote(t, root), lessonContent("archived"); got != want {
+		t.Errorf("note after both flips = %q, want %q", got, want)
+	}
+}
+
 // TestHandlerContentIdentityRequired locks the form contract: a caller that
 // does not state which version of the note it read — the field absent, blank,
 // or not a hex identity — is a malformed request, refused before any note is

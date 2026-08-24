@@ -82,7 +82,9 @@ func TestUnwrittenLinkWithSectionFragmentExplainsTheSplit(t *testing.T) {
 
 // The clause explains a fragment that was actually parsed; a link that
 // carried none keeps the original sentence, and a fragment that parsed to
-// nothing was not read as a section name.
+// nothing was not read as a section name. A block address is not a section
+// name either — "#^blk" and "^blk" both address a block — so an unwritten
+// target behind one keeps the plain sentence too.
 func TestUnwrittenLinkWithoutSectionFragmentKeepsThePlainExplanation(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
@@ -93,6 +95,8 @@ func TestUnwrittenLinkWithoutSectionFragmentKeepsThePlainExplanation(t *testing.
 	}{
 		{name: "no fragment", body: "見 [[井號]]\n"},
 		{name: "an empty fragment", body: "見 [[井號#]]\n"},
+		{name: "a block fragment", body: "見 [[井號#^b1k]]\n"},
+		{name: "a bare block fragment", body: "見 [[井號^b1k]]\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

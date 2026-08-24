@@ -496,7 +496,7 @@ func Health(v HealthView, c layouts.Chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = healthSection("狀態值不在允許清單的筆記", v.StatusOutsideEnum, "這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁和首頁的狀態分布會標出它們；要修正請直接編輯 frontmatter。").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = healthSection("狀態值不在允許清單的筆記", v.StatusOutsideEnum, "這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁會標出它們；要修正請直接編輯 frontmatter。").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
