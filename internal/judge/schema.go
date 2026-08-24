@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"regexp"
@@ -35,7 +36,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 		inScope := slices.Contains(definition.Scan.KnowledgeDirs, seg[0])
 		skipped := slices.Contains(definition.Scan.SkipBasenames, seg[len(seg)-1])
 		if inScope && !skipped {
-			out = append(out, lintNote(n, &definition, policy, seg, slug)...)
+			out = append(out, lintNote(n, contract, &definition, policy, seg, slug)...)
 		}
 	}
 	return out, nil
@@ -57,7 +58,7 @@ type contractPolicy struct {
 // language, the lesson-only rules, then either the light system-document rules or the full
 // knowledge-note rules. That order is the tiebreak the stable sort preserves
 // among findings that share a path and rule id.
-func lintNote(n *note, definition *schema.Definition, policy contractPolicy, seg []string, slug *regexp.Regexp) []Finding {
+func lintNote(n *note, contract *schema.Contract, definition *schema.Definition, policy contractPolicy, seg []string, slug *regexp.Regexp) []Finding {
 	if n.noFrontmatter {
 		if policy.requiresFrontmatter {
 			return []Finding{schemaFinding(n, "schema.frontmatter", "", false, "", "is missing")}
@@ -83,10 +84,10 @@ func lintNote(n *note, definition *schema.Definition, policy contractPolicy, seg
 
 	// System documents (system / template / guide) carry only the light
 	// status rule; the full knowledge-note rules below do not apply to them.
-	if hasType && slices.Contains(definition.Fields.StatusGroup["system"], ty) {
+	if hasType && contract.StatusGroup(ty) == "system" {
 		return append(out, lintSystemStatus(n, definition)...)
 	}
-	return append(out, lintKnowledge(n, definition, policy, seg)...)
+	return append(out, lintKnowledge(n, contract, definition, policy, seg)...)
 }
 
 func lintArticleLanguage(n *note, definition *schema.Definition) []Finding {
@@ -146,10 +147,15 @@ func lintSystemStatus(n *note, definition *schema.Definition) []Finding {
 // lintKnowledge reports the full knowledge-note rules, in reading order:
 // required fields, the note status enum, the remaining value enums, then the
 // structural rules.
-func lintKnowledge(n *note, definition *schema.Definition, policy contractPolicy, seg []string) []Finding {
+func lintKnowledge(n *note, contract *schema.Contract, definition *schema.Definition, policy contractPolicy, seg []string) []Finding {
 	var out []Finding
 	out = append(out, lintRequired(n, definition, policy)...)
-	group := configuredStatusGroup(definition, n.noteType)
+	// The contract resolves a declared type's group; a type outside the
+	// contract resolves to none, and its status still reads against the
+	// general note group — the type already carries its own finding, and a
+	// group that does not exist could neither name the enum to check nor
+	// the group to blame in the reason.
+	group := cmp.Or(contract.StatusGroup(n.noteType), "note")
 	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(definition.Enums.Status[group], st) {
 		reason := "is not a valid status"
 		if group != "note" {
@@ -160,15 +166,6 @@ func lintKnowledge(n *note, definition *schema.Definition, policy contractPolicy
 	out = append(out, lintEnumFields(n, definition)...)
 	out = append(out, lintStructural(n, definition, seg)...)
 	return out
-}
-
-func configuredStatusGroup(definition *schema.Definition, noteType string) string {
-	for group, noteTypes := range definition.Fields.StatusGroup {
-		if slices.Contains(noteTypes, noteType) {
-			return group
-		}
-	}
-	return "note"
 }
 
 // lintRequired reports each required field that is absent or blank. A capture

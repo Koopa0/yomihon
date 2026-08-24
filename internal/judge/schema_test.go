@@ -86,6 +86,50 @@ slug: invalid
 	}
 }
 
+// TestSystemDocumentsTakeTheLightStatusRule pins the routing the contract's
+// status groups decide: a type the contract places in the system group gets
+// the light rule — its status reads against the system enum, and the full
+// knowledge-note requirements never fire for it.
+func TestSystemDocumentsTakeTheLightStatusRule(t *testing.T) {
+	t.Parallel()
+
+	contract, err := schema.Load("testdata/vault-schema")
+	if err != nil {
+		t.Fatalf("schema.Load() error = %v", err)
+	}
+	n := parseNote("Sources/Guide.md", []byte(`---
+title: Guide
+type: guide
+status: bogus
+---
+`))
+	findings, err := checkSchema([]note{n}, contract)
+	if err != nil {
+		t.Fatalf("checkSchema() error = %v", err)
+	}
+
+	var statusFindings []Finding
+	for i := range findings {
+		if findings[i].RuleID != "schema.enum" || findings[i].Field == nil {
+			continue
+		}
+		if *findings[i].Field == "status" {
+			statusFindings = append(statusFindings, findings[i])
+		}
+	}
+	if len(statusFindings) != 1 {
+		t.Fatalf("status findings = %v, want exactly one system-group finding", statusFindings)
+	}
+	if got, want := statusFindings[0].Message, `status "bogus" is not a valid system status`; got != want {
+		t.Errorf("status message = %q, want %q", got, want)
+	}
+	for i := range findings {
+		if findings[i].RuleID == "schema.required" {
+			t.Errorf("a system document drew a knowledge-note requirement: %+v", findings[i])
+		}
+	}
+}
+
 func TestLintArticleLanguage(t *testing.T) {
 	t.Parallel()
 	definition := schema.Definition{Fields: schema.Fields{Known: []string{"title", "lang"}}}
