@@ -796,10 +796,11 @@ templ inlineAids(v NoteView) {
 	}
 }
 
-// statusPanel is the rail status face: one plain one-click form per legal
-// transition (the PRG pattern, no JS dependency). The fixed-bottom status bar
-// is the second status face. The legal set is only what the schema contract
-// returns — never a fabricated key.
+// statusPanel is the rail status face: one plain POST form per legal
+// transition (the PRG pattern, no JS dependency) — a single press for a
+// reversible target, a two-step confirm for a terminal one. The fixed-bottom
+// status bar is the second status face. The legal set is only what the schema
+// contract returns — never a fabricated key.
 templ statusPanel(v NoteView) {
 	<section class="y-statuspanel" data-status-state={ statusState(v) }>
 		if v.NonInstance {
