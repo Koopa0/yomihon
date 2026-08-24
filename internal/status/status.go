@@ -551,7 +551,7 @@ func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
 	// whole of that definition before touching the file, so a resource
 	// carrying note-shaped frontmatter cannot acquire a note-lifecycle
 	// transition for something the reading face never shows.
-	if !strings.HasSuffix(relSlash, ".md") || vault.OutsideScan(relSlash) {
+	if !vault.IsMarkdown(relSlash) || vault.OutsideScan(relSlash) {
 		return ErrNonInstance
 	}
 	return lc.targetSpelledAsRequested(rel, relSlash)

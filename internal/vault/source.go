@@ -910,3 +910,12 @@ func OutsideScan(relPath string) bool {
 	}
 	return false
 }
+
+// IsMarkdown reports whether relPath names a Markdown note: the path ends in
+// the exact extension ".md". The match is case-sensitive, so "Note.MD" names
+// a resource rather than a note. Every reader splits note from resource
+// through this one test; a reader folding case on its own would quietly widen
+// what it alone treats as a note.
+func IsMarkdown(relPath string) bool {
+	return strings.HasSuffix(relPath, ".md")
+}

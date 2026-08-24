@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -120,7 +119,7 @@ func (c *corpusCollector) readChunks(ctx context.Context) ([]CorpusChunk, error)
 			return nil, contextErr
 		}
 		relPath := entry.Path()
-		if !strings.HasSuffix(relPath, ".md") || c.artifact.IsNonInstance(relPath) || !c.privacy.EgressAllowed(relPath) {
+		if !vault.IsMarkdown(relPath) || c.artifact.IsNonInstance(relPath) || !c.privacy.EgressAllowed(relPath) {
 			continue
 		}
 		collected, readErr := c.readNoteChunks(ctx, entry)

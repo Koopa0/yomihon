@@ -13,6 +13,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 var (
@@ -303,5 +305,5 @@ func IsSyntheticPath(relPath string) bool {
 		return false
 	}
 	base := path.Base(relPath)
-	return strings.HasPrefix(base, "__synthetic_eval_") && strings.HasSuffix(base, ".md")
+	return strings.HasPrefix(base, "__synthetic_eval_") && vault.IsMarkdown(base)
 }

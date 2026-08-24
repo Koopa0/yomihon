@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/search/evalset/recording"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // errInvalidSuite means the committed synthetic corpus/query contract is not
@@ -91,7 +92,7 @@ func loadSuite() (evalSuite, error) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || !strings.HasSuffix(name, ".md") {
+		if entry.IsDir() || !vault.IsMarkdown(name) {
 			return nil
 		}
 		data, err := corpusFS.ReadFile(name)

@@ -3,7 +3,6 @@ package judge
 import (
 	"context"
 	"errors"
-	"path"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -46,7 +45,7 @@ func openAction(root string, hooks actionHooks) (*action, error) {
 	}
 	for _, entry := range a.scan.Files() {
 		relPath := entry.Path()
-		if path.Ext(relPath) != ".md" {
+		if !vault.IsMarkdown(relPath) {
 			a.resources = append(a.resources, relPath)
 			continue
 		}

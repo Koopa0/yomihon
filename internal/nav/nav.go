@@ -431,7 +431,7 @@ func collectNavigationNotes(
 	var knowledgeNotes []NoteSummary
 	for _, file := range files {
 		p := file.path
-		if !strings.HasSuffix(p, ".md") || policy.IsNonInstance(p) {
+		if !vault.IsMarkdown(p) || policy.IsNonInstance(p) {
 			continue
 		}
 		n := file.note
@@ -487,7 +487,7 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 	const limit = 5
 	entries := make([]JournalEntry, 0, limit)
 	for _, p := range paths {
-		if !InJournal(p) || !strings.HasSuffix(p, ".md") {
+		if !InJournal(p) || !vault.IsMarkdown(p) {
 			continue
 		}
 		_, base := splitDir(p)
@@ -522,7 +522,7 @@ func buildReports(paths []string) []Report {
 			continue
 		}
 		if !strings.Contains(rest, "/") {
-			if strings.HasSuffix(rest, ".md") {
+			if vault.IsMarkdown(rest) {
 				reports = append(reports, Report{Name: rest, RelPath: p})
 			}
 			continue

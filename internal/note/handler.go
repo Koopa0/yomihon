@@ -407,7 +407,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 	statusView := h.deps.Status()
 	snap := h.deps.Snapshot().Capture()
-	if !strings.HasSuffix(rel, ".md") {
+	if !vault.IsMarkdown(rel) {
 		h.showFile(w, r, rel, statusView, snap)
 		return
 	}

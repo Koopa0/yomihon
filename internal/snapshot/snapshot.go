@@ -14,7 +14,6 @@ import (
 	"iter"
 	"log/slog"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -675,7 +674,7 @@ func buildView(
 			return nil, nil, err
 		}
 		relPath := entry.Path()
-		note := strings.HasSuffix(relPath, ".md")
+		note := vault.IsMarkdown(relPath)
 		want := wantedBytes(entry, note)
 		if !note {
 			// A wikilink may point at any vault file, so the resolver is told

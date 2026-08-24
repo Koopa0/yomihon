@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Placement records one appearance of a note as a map entry: the map that lists
@@ -146,9 +148,9 @@ func (m *Model) Adjacent(relPath string) (prev, next NoteRef) {
 	if at < 0 {
 		return NoteRef{}, NoteRef{}
 	}
-	notesOnly := strings.HasSuffix(relPath, ".md")
+	notesOnly := vault.IsMarkdown(relPath)
 	steppable := func(n NoteRef) bool {
-		return !notesOnly || strings.HasSuffix(n.RelPath, ".md")
+		return !notesOnly || vault.IsMarkdown(n.RelPath)
 	}
 	for i := at - 1; i >= 0; i-- {
 		if steppable(siblings[i]) {

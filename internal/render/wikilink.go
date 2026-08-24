@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // unwrittenTarget renders a link whose target does not exist yet. The styling
@@ -488,7 +489,7 @@ func rawHref(p string) string {
 // worked.
 func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collector) string {
 	href := notesHref(relPath)
-	if !strings.HasSuffix(relPath, ".md") {
+	if !vault.IsMarkdown(relPath) {
 		return href
 	}
 	switch {
@@ -591,7 +592,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 			return fmt.Sprintf(`<img src="%s" alt="%s">`,
 				rawHref(res.Path), html.EscapeString(path.Base(res.Path)))
 		}
-		if !strings.HasSuffix(res.Path, ".md") {
+		if !vault.IsMarkdown(res.Path) {
 			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; notesHref percent-escapes the path and the name is html.EscapeString'd
 			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <a href="%s">%s</a> — inline display not yet supported]</div>`,
 				notesHref(res.Path), html.EscapeString(path.Base(res.Path)))

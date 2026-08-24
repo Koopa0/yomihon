@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/schema"
@@ -220,7 +219,7 @@ func readSnapshotNotes(
 			return nil, contextErr
 		}
 		relPath := entry.Path()
-		if !strings.HasSuffix(relPath, ".md") || !privacy.EgressAllowed(relPath) {
+		if !vault.IsMarkdown(relPath) || !privacy.EgressAllowed(relPath) {
 			continue
 		}
 		if !filepath.IsLocal(filepath.FromSlash(relPath)) {

@@ -344,3 +344,33 @@ func TestSplitFrontmatterStepsOverAByteOrderMark(t *testing.T) {
 		})
 	}
 }
+
+// TestIsMarkdownAcceptsOnlyTheExactLowercaseFinalExtension pins the one test
+// every reader splits note from resource on: the path ends in ".md", those
+// exact bytes. Any case variant, a missing dot, or a longer final extension
+// names a resource.
+func TestIsMarkdownAcceptsOnlyTheExactLowercaseFinalExtension(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"note.md", true},
+		{"Concepts/golang/slices.md", true},
+		{"note.ja.md", true},
+		{"Note.MD", false},
+		{"note.Md", false},
+		{"note.mD", false},
+		{"note", false},
+		{"notemd", false},
+		{"note.mdx", false},
+		{"note.md.bak", false},
+		{"diagram.canvas", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := vault.IsMarkdown(tt.path); got != tt.want {
+			t.Errorf("IsMarkdown(%q) = %v, want %v", tt.path, got, tt.want)
+		}
+	}
+}

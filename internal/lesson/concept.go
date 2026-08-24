@@ -73,7 +73,7 @@ func NewConceptIndex(notes []*vault.Note) (ConceptIndex, error) {
 // grammar concept and must not become a sheet.
 func isConceptPath(relPath string) bool {
 	sub, ok := strings.CutPrefix(relPath, conceptSubdir+"/")
-	if !ok || !strings.HasSuffix(sub, ".md") {
+	if !ok || !vault.IsMarkdown(sub) {
 		return false
 	}
 	sub = strings.TrimSuffix(sub, ".md")
