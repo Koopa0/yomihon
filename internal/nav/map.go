@@ -315,6 +315,12 @@ func makeEntry(inner string, idx Resolver, statusByPath map[string]string, polic
 	case graph.Unresolved:
 		return Entry{Text: display, Target: target, Kind: EntryUnresolved}, true
 	default:
+		// The resolver's kind set is closed — unresolved, unique, ambiguous —
+		// so a value outside it is a programming error in the resolver, not a
+		// state a vault can produce. Panicking is the deliberate response:
+		// dropping the row would quietly break the promise that a map loses
+		// no entry, and misfiling it would present a guess as a fact. A new
+		// kind has to be met here by name.
 		panic(fmt.Sprintf("nav: unknown graph.Kind %d", res.Kind))
 	}
 }

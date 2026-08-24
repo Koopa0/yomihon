@@ -1035,7 +1035,8 @@ func TestParseEntryItem(t *testing.T) {
 func TestBuildFolderTree(t *testing.T) {
 	t.Parallel()
 
-	// Captured generation paths are lexical; provide the paths that way.
+	// Captured generation paths arrive in reading order; provide the paths
+	// that way (for these unnumbered names it coincides with lexical order).
 	paths := []string{
 		"CLAUDE.md",
 		"Concepts/golang/Foo.md",
@@ -1066,6 +1067,36 @@ func TestBuildFolderTree(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantRoot, rootNotes); diff != "" {
 		t.Errorf("buildFolderTree rootNotes mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAnUnlistedTopLevelFolderSortsAfterTheLifecycle pins both halves of the
+// top-level order: folders the lifecycle names come first in that order, and a
+// folder it does not name sorts after all of them in the reading order the
+// captured paths arrived in — 9 before 10, where a lexical comparison would
+// put 10 first. The stable rank sort reorders nothing it ranks equal.
+func TestAnUnlistedTopLevelFolderSortsAfterTheLifecycle(t *testing.T) {
+	t.Parallel()
+
+	// Reading order of the captured generation: a run of digits compares as
+	// the number it spells, so 9-歸檔 arrives before 10-草稿.
+	paths := []string{
+		"9-歸檔/x.md",
+		"10-草稿/y.md",
+		"Writing/w.md",
+	}
+
+	folders, rootNotes := buildFolderTree(paths)
+	if len(rootNotes) != 0 {
+		t.Fatalf("buildFolderTree rootNotes = %v, want none", rootNotes)
+	}
+	names := make([]string, 0, len(folders))
+	for _, f := range folders {
+		names = append(names, f.Name)
+	}
+	want := []string{"Writing", "9-歸檔", "10-草稿"}
+	if diff := cmp.Diff(want, names); diff != "" {
+		t.Errorf("top-level folder order mismatch (-want +got):\n%s", diff)
 	}
 }
 

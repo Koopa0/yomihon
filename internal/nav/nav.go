@@ -293,8 +293,9 @@ type Report struct {
 // System/Views/Diagrams), so there is nothing to read it from: this list is
 // not a forbidden second copy of a vault-schema.toml enum. A top-level
 // folder not in this list (a future Diary/, the current Drafts/) sorts
-// after all known ones, in lexical order, so it stays reachable rather than
-// silently vanishing from the sidebar.
+// after all known ones, keeping the reading order the captured path list
+// arrived in — the stable sort below reorders nothing it ranks equal — so
+// it stays reachable rather than silently vanishing from the sidebar.
 var lifecycleOrder = []string{
 	"Inbox", "Sources", "Concepts", "Maps", "Synthesis", "Writing",
 	"System", "Views", "Diagrams",
@@ -550,8 +551,9 @@ type folderBuilder struct {
 	subIdx  map[string]*folderBuilder
 }
 
-// buildFolderTree turns a flat, lexically ordered path list into
-// the top-level folder tree plus the vault-root notes. It mirrors the real
+// buildFolderTree turns a flat path list, already in the captured
+// generation's reading order, into the top-level folder tree plus the
+// vault-root notes. It mirrors the real
 // directory structure exactly, to whatever depth the vault actually has
 // (Concepts is one domain level deep, Writing/lessons/<domain> is two) —
 // it never invents levels the vault does not have, and never caps them, so
@@ -578,8 +580,8 @@ func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 }
 
 // ensureFolder walks dir ("Concepts/golang") from root, creating each
-// missing segment in the input's lexical order, and returns the deepest
-// folder. dir == "" returns root itself.
+// missing segment in the order the input list first names it, and returns
+// the deepest folder. dir == "" returns root itself.
 func ensureFolder(root *folderBuilder, dir string) *folderBuilder {
 	if dir == "" {
 		return root
