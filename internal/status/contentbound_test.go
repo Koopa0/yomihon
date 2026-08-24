@@ -74,6 +74,40 @@ func TestFlipRefusesRulingAgainstChangedContent(t *testing.T) {
 	}
 }
 
+// TestFlipStaleStatusOutranksChangedContent pins the precedence between the
+// two divergence refusals when an external edit moved both the status line
+// and the body: the stale-status page answers, because the state having
+// moved on is the fact that decides what the reader does next, and the
+// content check cannot see a status move at all — its identity spans
+// everything but that line.
+func TestFlipStaleStatusOutranksChangedContent(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	rendered := lessonContent("draft")
+	writeNote(t, root, rendered)
+	srv := newHandlerServer(t, lifecycle)
+
+	moved := strings.Replace(lessonContent("archived"), "body", "body rewritten too", 1)
+	writeNote(t, root, moved)
+
+	code, _, body := postStatus(t, srv, url.Values{
+		"path":             {testRel},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {renderedIdentity(rendered, "status: draft")},
+	})
+	if code != http.StatusConflict {
+		t.Errorf("status = %d, want %d", code, http.StatusConflict)
+	}
+	if !strings.Contains(body, staleStatusSummary) {
+		t.Errorf("body = %q, want the stale-status statement first when both axes diverged", body)
+	}
+	if strings.Contains(body, changedContentSummary) {
+		t.Errorf("body carries the changed-content copy; the moved status is the deciding fact")
+	}
+}
+
 // TestHandlerContentIdentityRequired locks the form contract: a caller that
 // does not state which version of the note it read — the field absent, blank,
 // or not a hex identity — is a malformed request, refused before any note is
