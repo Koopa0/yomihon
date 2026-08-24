@@ -165,3 +165,31 @@ func SplitFrontmatter(data []byte) (Frontmatter, bool) {
 	}
 	return block, false
 }
+
+// StatusLineSpan locates the single line beginning with "status:" inside
+// data's frontmatter block and returns the byte range of the line's text in
+// data — its trailing newline excluded, a carriage return before that newline
+// included. It reports false when data has no frontmatter block or when the
+// block holds any number of such lines other than one. The span is the one
+// definition of where a note's status lives: the content identity excises
+// exactly these bytes, and the surgical status write replaces exactly these
+// bytes, so the two cannot disagree about which line the status is.
+func StatusLineSpan(data []byte) (start, end int, ok bool) {
+	block, found := SplitFrontmatter(data)
+	if !found {
+		return 0, 0, false
+	}
+	offset := 0
+	for line := range bytes.SplitSeq(block.Content, []byte("\n")) {
+		if bytes.HasPrefix(line, []byte("status:")) {
+			if ok {
+				return 0, 0, false
+			}
+			start = block.ContentStart + offset
+			end = start + len(line)
+			ok = true
+		}
+		offset += len(line) + 1
+	}
+	return start, end, ok
+}

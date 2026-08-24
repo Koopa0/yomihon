@@ -784,38 +784,20 @@ func rewriteStatusChecked(relSlash string, data []byte, readable bool, to string
 // rewriteStatusLine replaces the single "status:" line inside data's
 // frontmatter block with "status: <to>", leaving every other byte —
 // including the block's own delimiters, quoted values, comments, and the
-// body — byte-identical to the original. It never re-serializes YAML.
+// body — byte-identical to the original. It never re-serializes YAML. The
+// line it replaces is the span vault.StatusLineSpan reports — the same
+// bytes the content identity excises, so a write can never move a line the
+// identity still covers.
 func rewriteStatusLine(data []byte, to string) ([]byte, error) {
-	block, found := vault.SplitFrontmatter(data)
-	if !found {
+	start, end, ok := vault.StatusLineSpan(data)
+	if !ok {
 		return nil, ErrStatusLine
 	}
-
-	lines := bytes.Split(block.Content, []byte("\n"))
-	target := -1
-	targetOffset := 0
-	offset := 0
-	for i, line := range lines {
-		if bytes.HasPrefix(line, []byte("status:")) {
-			if target != -1 {
-				return nil, ErrStatusLine
-			}
-			target = i
-			targetOffset = offset
-		}
-		offset += len(line) + 1
-	}
-	if target == -1 {
-		return nil, ErrStatusLine
-	}
-
 	replacement := "status: " + to
-	if bytes.HasSuffix(lines[target], []byte("\r")) {
+	if bytes.HasSuffix(data[start:end], []byte("\r")) {
 		replacement += "\r"
 	}
-	start := block.ContentStart + targetOffset
-	end := start + len(lines[target])
-	out := make([]byte, 0, len(data)-len(lines[target])+len(replacement))
+	out := make([]byte, 0, len(data)-(end-start)+len(replacement))
 	out = append(out, data[:start]...)
 	out = append(out, replacement...)
 	out = append(out, data[end:]...)
