@@ -187,23 +187,49 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 // it is already computed for the single-note pages; nobody opens every note, so
 // gathering them is the only way they are ever seen.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	statusView := h.deps.Status()
 	snap := h.deps.Snapshot().Capture()
-	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
+	pageShell := shell.Project(statusView, snap.ArtifactPolicy(), snap)
 	health := snap.Health()
 	fresh := snap.Freshness()
 	view := pages.HealthView{
-		Unwritten:    healthLinks(health.Unwritten),
-		TitleOnly:    healthTitleLinks(health.TitleOnly),
-		Islands:      healthIslands(health.Islands),
-		IslandCount:  healthIslandCount(health.Islands),
-		Collisions:   healthCollisions(health.Collisions),
-		Blocked:      healthBlocked(fresh.Blocked),
-		LastComplete: lastCompleteBuild(&fresh),
-		Sidebar:      pages.NewSidebar(pageShell.Nav, ""),
+		Unwritten:         healthLinks(health.Unwritten),
+		TitleOnly:         healthTitleLinks(health.TitleOnly),
+		Islands:           healthIslands(health.Islands),
+		IslandCount:       healthIslandCount(health.Islands),
+		Collisions:        healthCollisions(health.Collisions),
+		Blocked:           healthBlocked(fresh.Blocked),
+		StatusOutsideEnum: statusesOutsideEnum(statusView, snap),
+		LastComplete:      lastCompleteBuild(&fresh),
+		Sidebar:           pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, pageShell.Chrome(r, "整體狀況")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
 	}
+}
+
+// statusesOutsideEnum counts the notes whose status value is outside their
+// type's declared list — the whole-folder gathering of the flag each note
+// page and distribution chip already shows one at a time. It counts over the
+// same tally the distribution uses, so the two faces cannot disagree about
+// which notes exist. When the authority is closed or the tally unavailable
+// it reports zero and the page carries no line: an unknowable count must not
+// pose as a finding.
+func statusesOutsideEnum(statusView status.View, snap *snapshot.View) int {
+	if !statusView.Governed() || statusView.Closed() {
+		return 0
+	}
+	counts, err := snap.Search().CountByTypeStatus()
+	if err != nil {
+		return 0
+	}
+	total := 0
+	for ts, n := range counts {
+		if ts.Status != "" && !statusView.KnownStatus(ts.Type, ts.Status) {
+			total += n
+		}
+	}
+	return total
 }
 
 // healthLinks and healthCollisions carry the snapshot's findings across to the
@@ -672,19 +698,27 @@ func (h *Handler) lifecycle(
 	// disagree with its own total. A note carrying no status value sits in no
 	// bucket and is not a row.
 	byStatus := make(map[string]int, len(counts))
+	// declared records whether some type carrying the status declares it. A
+	// status no carrier declares is outside every relevant enum, and its chip
+	// says so with the note page's own flag instead of passing as vocabulary.
+	declared := make(map[string]bool, len(counts))
 	for ts, n := range counts {
 		if ts.Status == "" {
 			continue
 		}
 		byStatus[ts.Status] += n
+		if statusView.KnownStatus(ts.Type, ts.Status) {
+			declared[ts.Status] = true
+		}
 	}
 	items = make([]pages.LifecycleItem, 0, len(byStatus))
 	add := func(s string) {
 		items = append(items, pages.LifecycleItem{
-			Name:   s,
-			Count:  byStatus[s],
-			Active: s == current,
-			Sealed: s == schema.SealStatus,
+			Name:    s,
+			Count:   byStatus[s],
+			Active:  s == current,
+			Sealed:  s == schema.SealStatus,
+			Unknown: !declared[s],
 		})
 	}
 	for _, s := range statusView.Order() {

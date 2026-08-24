@@ -169,6 +169,11 @@ type LifecycleItem struct {
 	Count  int
 	Active bool
 	Sealed bool
+	// Unknown is set when no type carrying this status declares it: the
+	// value is outside every relevant enum, so the chip carries the same
+	// amber flag the note page shows, and stays a link — flagged, not
+	// hidden.
+	Unknown bool
 }
 
 // chromeFromRequest builds the shell Chrome from the request: the page title

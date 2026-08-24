@@ -773,6 +773,8 @@ html, body { margin: 0; background: var(--bg); }
 .y-homechips { display: flex; flex-wrap: wrap; gap: 8px; }
 .y-homechip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--border-faint); border-radius: var(--r-sm); background: var(--elevated); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); }
 .y-homechip:hover { border-color: var(--border-strong); color: var(--fg); }
+/* a status no carrying type declares — the note page's amber flag family */
+.y-homechip--unknown { border-left: 2.5px solid var(--warn); }
 .y-homechip__count { min-width: 1.35em; color: var(--fg-faint); text-align: right; }
 .y-homepath { display: flex; align-items: baseline; gap: 14px; padding: 11px 2px; border-top: 1px solid var(--border-faint); }
 .y-homepath:first-child { border-top: 0; }

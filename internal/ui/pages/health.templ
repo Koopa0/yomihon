@@ -28,6 +28,10 @@ type HealthView struct {
 	// Blocked are vault sources the latest snapshot build could not read, so
 	// the pages either lack them or hold their older captured content.
 	Blocked []HealthBlockedSource
+	// StatusOutsideEnum counts the notes whose status value is outside their
+	// type's declared list. Zero renders nothing — including when the count
+	// is unknowable because the contract could not be read.
+	StatusOutsideEnum int
 	// LastComplete is when the folder was last read whole, which is not always
 	// when the generation behind this page was built: a page can be built from
 	// a reading that lost some sources and carried the last copy of each.
@@ -74,7 +78,7 @@ type HealthCollision struct {
 // clean reports whether the folder has nothing to answer for.
 func (v HealthView) clean() bool {
 	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
-		len(v.Collisions) == 0 && len(v.Blocked) == 0
+		len(v.Collisions) == 0 && len(v.Blocked) == 0 && v.StatusOutsideEnum == 0
 }
 
 // blockedLede states what the blocked list means for the reader, and how
@@ -154,6 +158,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 								</details>
 							}
 						}
+						@healthSection("狀態值不在允許清單的筆記", v.StatusOutsideEnum, "這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁和首頁的狀態分布會標出它們；要修正請直接編輯 frontmatter。")
 						@healthSection("兩個檔案共用的名字", len(v.Collisions), "連到這些名字的連結不會生效，因為無法判斷指的是哪一個，而這裡不猜。") {
 							<ul class="y-healthlist">
 								for _, collision := range v.Collisions {

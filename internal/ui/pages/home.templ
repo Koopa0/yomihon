@@ -166,9 +166,12 @@ templ Home(v HomeView, c layouts.Chrome) {
 								@homeBlockHead("home-lifecycle-title", "依狀態分組", "書庫中每個狀態的筆記數")
 								<div class="y-homechips">
 									for _, it := range v.Lifecycle {
-										<a class="y-homechip" href={ templ.URL(statusHref(it.Name)) }>
+										<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
 											<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
 											<span>{ statusChipLabel(it.Name) }</span>
+											if it.Unknown {
+												<span class="y-offscreen">（不在 schema 允許清單中）</span>
+											}
 											<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " 篇筆記" }>{ strconv.Itoa(it.Count) }</span>
 										</a>
 									}
