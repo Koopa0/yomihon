@@ -23,10 +23,20 @@ import (
 // words are carried out of sight rather than dropped: read aloud, the passage
 // says the name is unwritten right where the name occurs, which is what the
 // cursor promises to anyone who can point at it.
-func unwrittenTarget(target, display string) string {
-	reason := html.EscapeString(fmt.Sprintf("還沒有「%s」這篇筆記", target))
-	return `<span class="wikilink-broken" title="` + reason + `">` +
-		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">（` + reason + `）</span></span>`
+// heading is the section name the link's fragment parsed to, empty when the
+// author wrote none. When present, the explanation also states that the text
+// after "#" was read as a section name: a file whose own name contains the
+// mark can never be linked whole, and without this sentence the reader is
+// told a shorter name than the one they typed failed, with nothing saying
+// where the rest of it went.
+func unwrittenTarget(target, display, heading string) string {
+	reason := fmt.Sprintf("還沒有「%s」這篇筆記", target)
+	if heading != "" {
+		reason += fmt.Sprintf("；「#」之後的「%s」被讀成章節名稱", heading)
+	}
+	escaped := html.EscapeString(reason)
+	return `<span class="wikilink-broken" title="` + escaped + `">` +
+		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">（` + escaped + `）</span></span>`
 }
 
 // offscreenNoteClass names the element the explanation above is carried out of
@@ -531,7 +541,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 			Kind: DiagWikilinkBroken, Target: link.Target,
 			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", link.Target),
 		})
-		return unwrittenTarget(link.Target, link.Display)
+		return unwrittenTarget(link.Target, link.Display, link.Heading)
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -566,7 +576,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 			Kind: DiagWikilinkBroken, Target: target,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
-		return unwrittenTarget(target, "![["+target+"]]")
+		return unwrittenTarget(target, "![["+target+"]]", link.Heading)
 	case graph.Ambiguous:
 		col.report(Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: target,

@@ -48,6 +48,66 @@ func TestUnwrittenLinkCarriesItsExplanation(t *testing.T) {
 	}
 }
 
+// A file whose own name contains "#" can never be addressed whole by a
+// wikilink: the parse reads everything after the mark as a section name, so
+// the link resolves the shorter name in front of it — and when that name is
+// unwritten, the explanation used to state only the half the reader did not
+// type. The explanation now also says how the link was read, so the reader
+// can see the split instead of hunting for a note they can watch existing.
+func TestUnwrittenLinkWithSectionFragmentExplainsTheSplit(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "井號#筆記.md"}}, nil, nil)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "a plain link", body: "見 [[井號#筆記]]\n"},
+		{name: "an embed", body: "![[井號#筆記]]\n"},
+	}
+	const reason = "還沒有「井號」這篇筆記；「#」之後的「筆記」被讀成章節名稱"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("a.md", "A", tt.body)
+			if !strings.Contains(got.HTML, `title="`+reason+`"`) {
+				t.Errorf("HTML(%q) = %s\nwant the explanation to state the fragment split: %q", tt.body, got.HTML, reason)
+			}
+			if !strings.Contains(got.HTML, "（"+reason+"）") {
+				t.Errorf("HTML(%q) does not carry the split explanation out of sight for readers who cannot hover:\n%s", tt.body, got.HTML)
+			}
+		})
+	}
+}
+
+// The clause explains a fragment that was actually parsed; a link that
+// carried none keeps the original sentence, and a fragment that parsed to
+// nothing was not read as a section name.
+func TestUnwrittenLinkWithoutSectionFragmentKeepsThePlainExplanation(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "no fragment", body: "見 [[井號]]\n"},
+		{name: "an empty fragment", body: "見 [[井號#]]\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("a.md", "A", tt.body)
+			if !strings.Contains(got.HTML, `title="還沒有「井號」這篇筆記"`) {
+				t.Errorf("HTML(%q) lost the plain unwritten explanation:\n%s", tt.body, got.HTML)
+			}
+			if strings.Contains(got.HTML, "章節名稱") {
+				t.Errorf("HTML(%q) explains a section split no link wrote:\n%s", tt.body, got.HTML)
+			}
+		})
+	}
+}
+
 // The sentence an unwritten link carries is an explanation of that link, not
 // part of what the section around it is called. Rendered inside a heading it
 // became the heading's anchor, its table-of-contents entry, and the fragment of
