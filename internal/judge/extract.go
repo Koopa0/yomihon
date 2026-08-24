@@ -9,6 +9,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The diagnostics extract [[wikilinks]] and file references from a note body
@@ -521,11 +522,14 @@ func backtickPath(token string) (string, bool) {
 }
 
 // isRelativeMdRef reports whether path is a plain relative .md file reference
-// worth stat-ing: it ends in .md and is not a URL, a site-absolute or home
-// path, a glob or placeholder, or percent-encoded.
+// worth stat-ing: it names a Markdown note by the vault's one extension test
+// and is not a URL, a site-absolute or home path, a glob or placeholder, or
+// percent-encoded. An uppercase spelling such as "Note.MD" names a resource
+// here as it does to every other reader; a private fold on this one path made
+// the judge count references no other face called notes.
 func isRelativeMdRef(path string) bool {
 	return path != "" &&
-		extensionIsMd(path) &&
+		vault.IsMarkdown(path) &&
 		!strings.HasPrefix(path, "/") &&
 		!strings.HasPrefix(path, "~") &&
 		!strings.Contains(path, "://") &&
@@ -533,21 +537,6 @@ func isRelativeMdRef(path string) bool {
 		!strings.Contains(path, "*") &&
 		!strings.Contains(path, "<") &&
 		!strings.Contains(path, ">")
-}
-
-// extensionIsMd reports whether the final path component's extension is "md",
-// case-insensitively. A component with no dot, or only a leading dot, has no
-// extension.
-func extensionIsMd(path string) bool {
-	base := path
-	if i := strings.LastIndexByte(path, '/'); i >= 0 {
-		base = path[i+1:]
-	}
-	dot := strings.LastIndexByte(base, '.')
-	if dot <= 0 {
-		return false
-	}
-	return strings.EqualFold(base[dot+1:], "md")
 }
 
 // inAnyZone reports whether off falls in any of the ranges.

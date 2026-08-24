@@ -241,3 +241,37 @@ func TestGapMarkInsideACodeSpanOpensNothing(t *testing.T) {
 		})
 	}
 }
+
+// TestPathRefsSplitNoteFromResourceOnTheExactExtension holds the judge to the
+// one Markdown test every other reader uses: the path ends in ".md", those
+// exact bytes. An uppercase spelling names a resource, and a resource is not a
+// checkable note reference — the resolver and the reading page already read it
+// that way, so a judge that counted it would report on a file no other face
+// calls a note.
+func TestPathRefsSplitNoteFromResourceOnTheExactExtension(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{name: "a lowercase link ref is checkable", body: "[doc](Concepts/a.md)", want: []string{"Concepts/a.md"}},
+		{name: "an uppercase spelling is a resource, not a ref", body: "[doc](Concepts/a.MD)", want: nil},
+		{name: "a mixed-case spelling is not a ref either", body: "[doc](Concepts/a.Md)", want: nil},
+		{name: "a backticked lowercase path is checkable", body: "see `Concepts/a.md`", want: []string{"Concepts/a.md"}},
+		{name: "a backticked uppercase spelling is not", body: "see `Concepts/a.MD`", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var got []string
+			for _, ref := range extractPathRefs(tt.body, 1) {
+				got = append(got, ref.target)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("extractPathRefs(%q) targets (-want +got):\n%s", tt.body, diff)
+			}
+		})
+	}
+}
