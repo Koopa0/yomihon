@@ -39,9 +39,12 @@ type Sidebar struct {
 	// Steps holds, per study path teaching the current note, the readable
 	// lessons on either side of it — the course order the paths drawer walks.
 	Steps []nav.Neighbors
-	// Prev and Next are the files on either side of this one inside its own
-	// folder. A folder of dated entries is a line, and the reader walking it
-	// wants the next one — not a scroll through everything the folder holds.
+	// Prev and Next are the neighbors on either side of this one inside its
+	// own folder: from a note, the nearest notes — assets between them belong
+	// to the folder, not the reading line — and from any other file, the
+	// nearest files. A folder of dated entries is a line, and the reader
+	// walking it wants the next one — not a scroll through everything the
+	// folder holds.
 	Prev nav.NoteRef
 	Next nav.NoteRef
 	// FooterPrev, FooterNext and FooterLabel are the sequence the foot of the

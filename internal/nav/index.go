@@ -124,14 +124,18 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
 }
 
-// Adjacent returns the files on either side of relPath inside its own folder,
-// in the folder's captured order. A folder of dated entries is a line, and a
-// reader walking it wants the next one — which the rail can only offer as a
-// scroll through everything the folder holds.
+// Adjacent returns the neighbors on either side of relPath inside its own
+// folder, in the folder's captured order. A folder of dated entries is a line,
+// and a reader walking it wants the next one — which the rail can only offer
+// as a scroll through everything the folder holds.
 //
-// It answers for any folder, because "the file after this one" is a question
-// about a directory rather than about a kind of note: a course's lessons, a
-// month of entries, and a book's chapters are all the same shape on disk.
+// What the line holds depends on what is being read. From a note, prev and
+// next are the folder's notes: an image or a PDF stored between two entries
+// belongs to the folder, not to the rhythm of reading it, so the step passes
+// over assets — they stay reachable in the sibling rail and on the folder's
+// own page. From a file that is not a note, the walk is the whole folder,
+// because a run of scans or figures is its own line. A course's lessons, a
+// month of entries, and a book's chapters remain the same shape on disk.
 func (m *Model) Adjacent(relPath string) (prev, next NoteRef) {
 	if m == nil || relPath == "" {
 		return NoteRef{}, NoteRef{}
@@ -142,11 +146,21 @@ func (m *Model) Adjacent(relPath string) (prev, next NoteRef) {
 	if at < 0 {
 		return NoteRef{}, NoteRef{}
 	}
-	if at > 0 {
-		prev = siblings[at-1]
+	notesOnly := strings.HasSuffix(relPath, ".md")
+	steppable := func(n NoteRef) bool {
+		return !notesOnly || strings.HasSuffix(n.RelPath, ".md")
 	}
-	if at+1 < len(siblings) {
-		next = siblings[at+1]
+	for i := at - 1; i >= 0; i-- {
+		if steppable(siblings[i]) {
+			prev = siblings[i]
+			break
+		}
+	}
+	for i := at + 1; i < len(siblings); i++ {
+		if steppable(siblings[i]) {
+			next = siblings[i]
+			break
+		}
 	}
 	return prev, next
 }

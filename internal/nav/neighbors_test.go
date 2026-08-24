@@ -173,6 +173,68 @@ func TestAdjacent(t *testing.T) {
 	}
 }
 
+// A folder mixes what a reader reads with what merely sits beside it: an image
+// stored between two dated entries is part of the folder, not part of the line
+// being read. From a note, prev and next step over assets so the reading walk
+// stays note to note; the assets keep their place in the sibling rail and on
+// the folder page, and reading an asset itself still walks the whole folder.
+func TestAdjacentFromANoteStepsOverAssets(t *testing.T) {
+	t.Parallel()
+
+	m := &Model{dirNotes: map[string][]NoteRef{
+		"Diary": {
+			{Name: "2025-08-04", RelPath: "Diary/2025-08-04.md"},
+			{Name: "scan.png", RelPath: "Diary/scan.png"},
+			{Name: "2025-08-05", RelPath: "Diary/2025-08-05.md"},
+		},
+		"Album": {
+			{Name: "cover.png", RelPath: "Album/cover.png"},
+			{Name: "notes", RelPath: "Album/notes.md"},
+			{Name: "back.png", RelPath: "Album/back.png"},
+		},
+	}}
+
+	tests := []struct {
+		name     string
+		relPath  string
+		wantPrev NoteRef
+		wantNext NoteRef
+	}{
+		{
+			name:     "a note steps over the asset to the next note",
+			relPath:  "Diary/2025-08-04.md",
+			wantNext: NoteRef{Name: "2025-08-05", RelPath: "Diary/2025-08-05.md"},
+		},
+		{
+			name:     "a note steps over the asset to the previous note",
+			relPath:  "Diary/2025-08-05.md",
+			wantPrev: NoteRef{Name: "2025-08-04", RelPath: "Diary/2025-08-04.md"},
+		},
+		{
+			name:    "a note fenced by assets alone has neither",
+			relPath: "Album/notes.md",
+		},
+		{
+			name:     "reading an asset itself walks the whole folder",
+			relPath:  "Diary/scan.png",
+			wantPrev: NoteRef{Name: "2025-08-04", RelPath: "Diary/2025-08-04.md"},
+			wantNext: NoteRef{Name: "2025-08-05", RelPath: "Diary/2025-08-05.md"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			prev, next := m.Adjacent(tt.relPath)
+			if diff := cmp.Diff(tt.wantPrev, prev); diff != "" {
+				t.Errorf("Adjacent(%q) prev mismatch (-want +got):\n%s", tt.relPath, diff)
+			}
+			if diff := cmp.Diff(tt.wantNext, next); diff != "" {
+				t.Errorf("Adjacent(%q) next mismatch (-want +got):\n%s", tt.relPath, diff)
+			}
+		})
+	}
+}
+
 // The journal drawer is the one projection that had not moved off file times,
 // and it is the one where they mean least: a clone stamps every entry with one
 // moment, and an entry edited today is not today's entry. It orders by the
