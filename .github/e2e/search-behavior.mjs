@@ -1,7 +1,8 @@
 // Behavior lock: Home starts at the top and stays a plain GET form; /search and
-// the command palette update in place from the lexical-results endpoint; stale
-// responses cannot replace the newest query; every GET form still works with
-// and without JS.
+// the command palette update in place from the lexical-results endpoint, and
+// /search's own address follows its settled results in place; stale responses
+// cannot replace the newest query; every GET form still works with and without
+// JS.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (Home), and
 // MUTATE. MUTATE=list prints every self-test mode.
@@ -19,6 +20,7 @@ const SITES = [
   'home-does-not-take-focus',
   'home-remains-plain-get',
   'page-live-results',
+  'page-url-follows-results',
   'dialog-live-results',
   'trailing-debounce',
   'ime-waits-for-composition',
@@ -203,6 +205,24 @@ const MUTATIONS = {
         expected: 1,
       },
     ], 'dialog result surfaces'),
+  },
+  'drop-url-sync': {
+    target: 'page-url-follows-results',
+    before: rewriteScript([
+      {
+        needle: "          history.replaceState(history.state, '', address);",
+        replacement: '          void address;',
+      },
+    ], 'live-search URL sync'),
+  },
+  'push-url-instead': {
+    target: 'page-url-follows-results',
+    before: rewriteScript([
+      {
+        needle: "          history.replaceState(history.state, '', address);",
+        replacement: "          history.pushState(history.state, '', address);",
+      },
+    ], 'live-search URL replace'),
   },
   'drop-debounce-cancel': {
     target: 'trailing-debounce',
@@ -428,7 +448,7 @@ const assertPainted = async (site, locator, label) => {
   if (!painted.visible) fail(site, `${label} was in the DOM but not visibly painted: ${painted.reason}`);
 };
 
-const exerciseScope = async (browser, site, { path = PAGE, scope, openDialog = false }) => {
+const exerciseScope = async (browser, site, { path = PAGE, scope, openDialog = false, syncsURL = false }) => {
   const { context, page } = await start(browser, site, { path });
   try {
     if (openDialog) {
@@ -441,7 +461,15 @@ const exerciseScope = async (browser, site, { path = PAGE, scope, openDialog = f
     await input.fill(QUERY);
     await waitForCount(page, site, scope, 1);
     assertResultRequest(site, requests, QUERY);
-    if (page.url() !== initialURL) fail(site, `${scope} navigated while producing live results`);
+    if (syncsURL) {
+      // The search page rewrites its own address after a live refresh; the
+      // settled URL is exactly what submitting the form would have produced.
+      const settled = new URL(initialURL);
+      settled.searchParams.set('q', QUERY);
+      if (page.url() !== settled.href) fail(site, `${scope} settled at ${page.url()}, want ${settled.href}`);
+    } else if (page.url() !== initialURL) {
+      fail(site, `${scope} navigated while producing live results`);
+    }
     if (await input.inputValue() !== QUERY) fail(site, `${scope} replaced the active input`);
     const resultLink = page.locator(`${scope} a[href="/notes/Notes/alpha.md"]`);
     if (await resultLink.count() !== 1) {
@@ -518,11 +546,51 @@ try {
   await exerciseScope(browser, 'page-live-results', {
     path: '/search',
     scope: '.y-searchpage[data-live-search]',
+    syncsURL: true,
   });
   await exerciseScope(browser, 'dialog-live-results', {
     scope: 'dialog[data-search][data-live-search]',
     openDialog: true,
   });
+
+  // A copied address must reproduce the results on screen, so the page's URL
+  // follows each settled live refresh — rewritten in place, never pushed, and
+  // never by navigating. The dialog's exercise above locks the other half:
+  // typing into the palette leaves the page it floats over untouched.
+  {
+    const site = 'page-url-follows-results';
+    const scope = '.y-searchpage[data-live-search]';
+    const { context, page } = await start(browser, site, { path: '/search' });
+    try {
+      const depthBefore = await page.evaluate(() => {
+        window.__urlSyncDocumentMarker = true;
+        return history.length;
+      });
+      await page.locator(`${scope} [data-live-search-input]`).fill(QUERY);
+      await waitForCount(page, site, scope, 1);
+      await waitFor(
+        page,
+        site,
+        (query) => new URL(location.href).searchParams.get('q') === query,
+        QUERY,
+        'the address bar never received the settled live query',
+      );
+      const url = new URL(page.url());
+      if (url.pathname !== '/search' || url.search !== `?q=${QUERY}`) {
+        fail(site, `live URL settled at ${url.pathname}${url.search}, want /search?q=${QUERY}`);
+      }
+      const after = await page.evaluate(() => ({
+        depth: history.length,
+        sameDocument: window.__urlSyncDocumentMarker === true,
+      }));
+      if (!after.sameDocument) fail(site, 'the URL sync navigated to a new document instead of rewriting in place');
+      if (after.depth !== depthBefore) {
+        fail(site, `history depth ${depthBefore} -> ${after.depth}: the live query was pushed, not replaced`);
+      }
+    } finally {
+      await context.close();
+    }
+  }
 
   // The eight input events share one trailing timer. Advancing to one
   // millisecond before the literal contract must issue nothing; the last
@@ -791,7 +859,7 @@ try {
     }
   }
 
-  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; debounce; abort/stale guards; count/error status; native and no-JS GET');
+  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync; debounce; abort/stale guards; count/error status; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

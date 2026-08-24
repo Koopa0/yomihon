@@ -99,7 +99,13 @@ templ Search(v SearchView, c layouts.Chrome) {
 		<div class="y-shell2">
 			@sidebar(NewSidebar(v.Nav, ""), c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
-				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results">
+				// data-live-search-sync-url marks the one live region whose results
+				// the address bar describes: this page is the form's own target, so
+				// after a live refresh the URL is rewritten to what submitting the
+				// form would produce, and a copied address reproduces the results on
+				// screen. The command-palette dialog floats over pages it does not
+				// own and never carries the marker.
+				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results" data-live-search-sync-url>
 					// The page opens by saying which page it is. Arriving here by
 					// ear there was nothing to land on: the first thing announced
 					// was a text field, with no word for where it sat. The count

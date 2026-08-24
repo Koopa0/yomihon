@@ -14,6 +14,14 @@ export function initSearch() {
     const endpointURL = new URL(endpoint, location.href);
     if (endpointURL.origin !== location.origin) return;
 
+    // The search page marks itself as the one region whose results the
+    // address bar describes; the dialog never does, because it floats over
+    // pages whose address it does not own. form.action is the no-JS truth,
+    // so the synced URL is exactly what submitting the form would produce.
+    const formURL = new URL(form.action, location.href);
+    const syncsAddress =
+      region.hasAttribute('data-live-search-sync-url') && formURL.origin === location.origin;
+
     let timer = null;
     let activeController = null;
     let latestRequest = 0;
@@ -59,6 +67,14 @@ export function initSearch() {
         results.replaceChildren(...imported.childNodes);
         results.dataset.resultCount = String(count);
         status.textContent = `「${query}」有 ${count} 筆結果。`;
+        if (syncsAddress) {
+          // The results on screen just changed, so the address follows and a
+          // copied URL reproduces them. Replaced, not pushed: typing is one
+          // continuing search, not a trail of history entries.
+          const address = new URL(formURL);
+          address.searchParams.set('q', query);
+          history.replaceState(history.state, '', address);
+        }
       } catch (error) {
         if (error.name === 'AbortError' || requestID !== latestRequest) return;
         status.textContent = '即時結果目前無法使用；按 Enter 執行完整搜尋。';
