@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -442,9 +443,9 @@ func TestSearchTokens(t *testing.T) {
 	}
 }
 
-// TestSearchOrdering pins the two-bucket order: title hits (rel_path-ordered)
-// before body hits (rel_path-ordered). a.md and c.md match in the title; b.md
-// only in the body.
+// TestSearchOrdering pins the opening of the six-group order: a note's title
+// hits (rel_path-ordered) before a note's body hits (rel_path-ordered). a.md
+// and c.md match in the title; b.md only in the body.
 func TestSearchOrdering(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
@@ -471,6 +472,71 @@ func TestSearchNFDContent(t *testing.T) {
 	got := paths(searchResults(t, idx, Parse("\u304c")))
 	if diff := cmp.Diff([]string{"n.md"}, got); diff != "" {
 		t.Errorf("NFC query against NFD content mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestFoldIsSimpleLowercaseNotFullCaseFold pins what fold is: NFC then simple
+// lowercase, nothing wider. NFC leaves character width alone, so fullwidth \uff21
+// folds to fullwidth \uff41 and never meets an ASCII a, and halfwidth \uff76 never
+// meets \u30ab \u2014 a compatibility normalization would merge both. The lowercase is
+// the simple per-character mapping, so \u00df stays \u00df rather than expanding to ss
+// (\u1e9e still lowers to \u00df; that much is the simple mapping). What a reader
+// feels: an ASCII query does not find fullwidth text, and ss does not find \u00df.
+func TestFoldIsSimpleLowercaseNotFullCaseFold(t *testing.T) {
+	t.Parallel()
+	folds := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"fullwidth capital lowers within its width", "\uff21", "\uff41"},
+		{"halfwidth katakana stays halfwidth", "\uff76", "\uff76"},
+		{"sharp s does not expand", "\u00df", "\u00df"},
+		{"capital sharp s lowers to sharp s", "\u1e9e", "\u00df"},
+	}
+	for _, tt := range folds {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := fold(tt.in); got != tt.want {
+				t.Errorf("fold(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: "wide.md", Title: "wide", PlainText: "\uff21\uff22\uff23 \u5927\u5beb"},
+		{RelPath: "river.md", Title: "river", PlainText: "der Flu\u00df heute"},
+	}, validArtifactPolicy(t))
+	for _, query := range []string{"abc", "ss"} {
+		if got := paths(searchResults(t, idx, Parse(query))); len(got) != 0 {
+			t.Errorf("Search(%q) = %v, want no hits under a simple fold", query, got)
+		}
+	}
+	// The zeroes above prove nothing if the fixture text is unreachable, so
+	// reach each note by the form the fold does preserve.
+	if got := paths(searchResults(t, idx, Parse("\uff42\uff43"))); !slices.Equal(got, []string{"wide.md"}) {
+		t.Errorf("Search(\uff42\uff43) = %v, want the fullwidth text found by a fullwidth query", got)
+	}
+	if got := paths(searchResults(t, idx, Parse("Flu\u00df"))); !slices.Equal(got, []string{"river.md"}) {
+		t.Errorf("Search(Flu\u00df) = %v, want the sharp-s text found by a sharp-s query", got)
+	}
+}
+
+// TestCJKQueryMatchesInsideALongerWord pins substring semantics for CJK text:
+// a match is a literal substring with no word segmentation, so \u4eac\u90fd is found
+// inside \u6771\u4eac\u90fd even though a reader parsing the words would cut \u6771\u4eac | \u90fd.
+// CJK prose carries no delimiter to segment by, and a substring answer the
+// reader can see on the page beats a guessed segmentation they cannot argue
+// with.
+func TestCJKQueryMatchesInsideALongerWord(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "tokyo.md", Title: "\u9996\u90fd", PlainText: "\u6771\u4eac\u90fd\u306e\u4eba\u53e3"},
+		{RelPath: "kyoto.md", Title: "\u53e4\u90fd", PlainText: "\u4eac\u90fd\u306e\u5bfa"},
+	}, validArtifactPolicy(t))
+	got := paths(searchResults(t, idx, Parse("\u4eac\u90fd")))
+	if diff := cmp.Diff([]string{"kyoto.md", "tokyo.md"}, got); diff != "" {
+		t.Errorf("Search(\u4eac\u90fd) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -569,27 +635,66 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	}
 }
 
-// TestNewIndexDeterministic pins that building the same input twice yields
-// byte-identical indexes (input order does not leak into the result — entries
-// are sorted by RelPath).
-func TestNewIndexDeterministic(t *testing.T) {
+// TestNewIndexDeterministicUnderAnyInputOrder pins that input order does not
+// leak into the built index: every permutation of the same documents yields an
+// identical index, with entries in strictly increasing RelPath order. Strict
+// increase is the invariant the determinism rests on — the build sorts with an
+// unstable sort, which is total only because real inputs never repeat a path
+// (the scanner refuses canonical-path collisions before a document is made).
+// Building one slice twice cannot catch any of this; permuting can.
+func TestNewIndexDeterministicUnderAnyInputOrder(t *testing.T) {
 	t.Parallel()
 	docs := []Document{
 		{RelPath: "b.md", Title: "B", PlainText: "beta"},
 		{RelPath: "a.md", Title: "A", Topics: []string{"x"}, PlainText: "alpha"},
+		{RelPath: "d.txt", Title: "d.txt", PlainText: "delta", File: true},
 		{RelPath: "c.md", Title: "C", PlainText: "gamma"},
 	}
 	policy := validArtifactPolicy(t)
 	first := NewIndex(docs, policy)
-	second := NewIndex(docs, policy)
-	if diff := cmp.Diff(
-		first,
-		second,
-		cmp.AllowUnexported(Index{}, entry{}),
-		cmpopts.IgnoreFields(Index{}, "policy"),
-	); diff != "" {
-		t.Errorf("NewIndex is not deterministic (-first +second):\n%s", diff)
+	for i := 1; i < len(first.entries); i++ {
+		if first.entries[i-1].RelPath >= first.entries[i].RelPath {
+			t.Fatalf("entries[%d..%d] = %q, %q: not strictly increasing by RelPath",
+				i-1, i, first.entries[i-1].RelPath, first.entries[i].RelPath)
+		}
 	}
+	for _, perm := range permutations(len(docs)) {
+		shuffled := make([]Document, 0, len(docs))
+		for _, at := range perm {
+			shuffled = append(shuffled, docs[at])
+		}
+		got := NewIndex(shuffled, policy)
+		if diff := cmp.Diff(
+			first,
+			got,
+			cmp.AllowUnexported(Index{}, entry{}),
+			cmpopts.IgnoreFields(Index{}, "policy"),
+		); diff != "" {
+			t.Fatalf("NewIndex over input order %v differs (-first +permuted):\n%s", perm, diff)
+		}
+	}
+}
+
+// permutations returns every ordering of the indexes 0..n-1.
+func permutations(n int) [][]int {
+	var out [][]int
+	var build func(rest, chosen []int)
+	build = func(rest, chosen []int) {
+		if len(rest) == 0 {
+			out = append(out, slices.Clone(chosen))
+			return
+		}
+		for i, v := range rest {
+			remaining := slices.Concat(rest[:i], rest[i+1:])
+			build(remaining, slices.Concat(chosen, []int{v}))
+		}
+	}
+	all := make([]int, n)
+	for i := range all {
+		all[i] = i
+	}
+	build(all, nil)
+	return out
 }
 
 func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
@@ -915,6 +1020,30 @@ func TestQuotedPhraseCrossesALineBreak(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, markHits(wrapped.Snippet, query.Tokens())); diff != "" {
 		t.Errorf("markHits over the wrapped hit mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestQuotedPhraseCrossesABlockBoundary pins the admitted cost of the phrase
+// rule through the real corpus text. render.PlainText separates one block from
+// the next with a single break — the same separator a hard-wrapped line leaves
+// inside a paragraph — so nothing in the stored text tells a wrapped sentence
+// apart from a paragraph boundary, and a quoted phrase can join the last words
+// of one paragraph to the first words of the next. Answering the wrapped
+// sentence is worth the pair of blocks it also joins.
+func TestQuotedPhraseCrossesABlockBoundary(t *testing.T) {
+	t.Parallel()
+	plain := render.PlainText("intro semantic\n\nretrieval outro\n")
+	// The pin below is about a block boundary; prove the fixture produced one —
+	// two paragraphs joined by exactly one break — before asking search about it.
+	if !strings.Contains(plain, "semantic\nretrieval") {
+		t.Fatalf("render.PlainText joined the paragraphs as %q, want the two words on either side of one break", plain)
+	}
+	idx := NewIndex([]Document{
+		{RelPath: "blocks.md", Title: "Blocks", PlainText: plain},
+	}, validArtifactPolicy(t))
+	got := paths(searchResults(t, idx, Parse(`"semantic retrieval"`)))
+	if diff := cmp.Diff([]string{"blocks.md"}, got); diff != "" {
+		t.Errorf("Search(%q) mismatch (-want +got):\n%s", `"semantic retrieval"`, diff)
 	}
 }
 

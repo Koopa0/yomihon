@@ -35,15 +35,20 @@ const (
 )
 
 // Search runs a parsed query against the index and returns results in the final
-// deterministic order: a note's title hits (every token in TitleFold) first,
-// then a note's body hits (every token in PlainFold, not already a title hit),
-// then the same two buckets over vault files that are not notes. Because entries
-// are kept sorted by RelPath, each bucket is already rel_path-ordered, so
-// concatenation is the whole order — no sort call.
+// deterministic order, six groups concatenated: a note's title hits (every
+// token in TitleFold) first, then a note's body hits (every token in PlainFold,
+// not already a title hit), then the same two groups over vault files that are
+// not notes, and last the path-only hits — entries whose tokens matched nothing
+// but where they live — notes again before files. Because entries are kept
+// sorted by RelPath, each group is already rel_path-ordered, so concatenation
+// is the whole order — no sort call.
 //
-// Notes come before files in both buckets, so the list a vault of notes alone
-// produces is the opening of the list this returns and files are appended to it.
-// Widening what can be found must never move what could already be found.
+// Notes come before files under each kind of evidence, and every text hit
+// outranks every path-only hit: matched words are a better answer than a
+// matching address. So the text hits a vault of notes alone produces open the
+// list this returns, with files appended to them and path-only hits trailing
+// everything found by content. Widening what can be found must never move what
+// could already be found.
 //
 // An empty query (no tokens and no filters) returns nothing. A pure-filter
 // query is legal: with no tokens the title-bucket token test is vacuously true,
@@ -103,7 +108,7 @@ type hit struct {
 	bodyEvidence bool
 }
 
-// resultBuckets keeps the four answer groups apart while one pass over the
+// resultBuckets keeps the six answer groups apart while one pass over the
 // entries fills them, so the final order is a concatenation rather than a sort:
 // entries are already kept in rel-path order, and each group inherits it.
 type resultBuckets struct {
@@ -156,7 +161,8 @@ func (b *resultBuckets) add(h hit, titleMatch bool) {
 }
 
 // ordered flattens the groups into the answer: a note's title hits, a note's
-// body hits, then the same two over files.
+// body hits, the same two over files, then the path-only hits, notes before
+// files.
 func (b *resultBuckets) ordered() []hit {
 	out := make([]hit, 0,
 		len(b.titleNotes)+len(b.bodyNotes)+len(b.titleFiles)+len(b.bodyFiles)+len(b.pathNotes)+len(b.pathFiles))

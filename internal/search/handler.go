@@ -237,13 +237,17 @@ func markHits(snippet string, tokens []string) []pages.SnippetRun {
 	return runs
 }
 
-// foldWithSourceOffsets lowercases s the way the index folds text, and maps
-// every byte position of the folded copy — including one past its end — back
-// to the byte offset in s of the character it came from. Lowercasing does not
-// preserve length: Ⱥ grows from two bytes to three, a byte that is not valid
-// UTF-8 becomes the three-byte replacement character, and Turkish İ shrinks
-// from two bytes to one. An offset found in the folded copy therefore cannot
-// index s directly; it has to come back through this mapping.
+// foldWithSourceOffsets lowercases s, and maps every byte position of the
+// folded copy — including one past its end — back to the byte offset in s of
+// the character it came from. The index's fold is NFC then lowercase; this
+// applies the lowercase half alone, which reproduces the index's fold under
+// one precondition: s is already NFC. Every snippet satisfies it, because a
+// snippet is cut from the entry's stored text and the entry stored that text
+// normalized. Lowercasing does not preserve length: Ⱥ grows from two bytes to
+// three, a byte that is not valid UTF-8 becomes the three-byte replacement
+// character, and Turkish İ shrinks from two bytes to one. An offset found in
+// the folded copy therefore cannot index s directly; it has to come back
+// through this mapping.
 func foldWithSourceOffsets(s string) (fold string, src []int) {
 	var folded strings.Builder
 	folded.Grow(len(s))
