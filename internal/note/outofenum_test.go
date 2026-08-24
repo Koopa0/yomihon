@@ -81,6 +81,48 @@ func TestHomeFlagsAStatusOutsideEveryCarriersEnum(t *testing.T) {
 	}
 }
 
+// TestMixedCarriersSplitTheChipAndTheCount pins the one value on which the
+// two faces deliberately disagree: a status some carrying type declares and
+// another does not. The chip speaks for the aggregated value — one carrier
+// declares it, so it stays plain vocabulary — while health counts per note,
+// and the carrier whose own type does not declare it is a finding.
+func TestMixedCarriersSplitTheChipAndTheCount(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	// The guide type sits in the system status group, which declares active;
+	// the concept type sits in the default group, which does not.
+	write("Concepts/handbook.md", "---\ntitle: Handbook\ntype: guide\ndomain: meta\nstatus: active\n---\n\nbody\n")
+	write("Concepts/misfiled.md", "---\ntitle: Misfiled\ntype: concept\ndomain: golang\nstatus: active\n---\n\nbody\n")
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+
+	code, home := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("home status = %d, want 200", code)
+	}
+	if chip := homeChip(t, home, "active"); strings.Contains(chip, "y-homechip--unknown") {
+		t.Errorf("a status one carrier declares is flagged as outside every enum; chip = %q", chip)
+	}
+
+	code, health := get(t, srv.URL+"/health")
+	if code != http.StatusOK {
+		t.Fatalf("health status = %d, want 200", code)
+	}
+	section := healthSectionBody(t, health, "狀態值不在允許清單的筆記")
+	if !strings.Contains(section, ">1</span>") {
+		t.Errorf("health does not count the one carrier whose type never declared the value; section = %q", section)
+	}
+}
+
 // TestHealthCountsStatusesOutsideTheEnum locks the whole-folder line: the
 // count of notes whose status is outside their type's declared list, and
 // nothing at all when there are none.
