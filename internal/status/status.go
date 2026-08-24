@@ -10,6 +10,7 @@ package status
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -51,6 +52,13 @@ var (
 	// itself. Distinct from ErrStale: the two cases carry different user-facing
 	// presentations and this sentinel must not satisfy errors.Is(err, ErrStale).
 	ErrConcurrentWrite = errors.New("status: note changed while flipping")
+	// ErrContentChanged means the note's bytes on disk no longer carry the
+	// content identity the caller read: something outside the status line was
+	// edited between the page render and the flip, so the ruling was made
+	// against content the disk no longer holds. The status line itself is
+	// bound through "from" and its divergence reports as ErrStale; this
+	// sentinel covers every other byte, which the stale check cannot see.
+	ErrContentChanged = errors.New("status: note content changed after it was read")
 	// ErrStatusLine means the frontmatter block does not contain exactly
 	// one line beginning with "status:" — a schema violation yomihon does
 	// not repair. yomihon only reports faults; fixing the file belongs to
@@ -389,14 +397,16 @@ func (lc *Lifecycle) ObservedStatus(rel string) (string, error) {
 }
 
 // Flip moves the note at rel from status "from" to status "to": it validates
-// the transition against the contract, rewrites exactly the frontmatter
-// status line, and atomically installs the rewritten bytes under the note's
-// own name. Every refusal before the install leaves the file untouched.
+// the transition against the contract, confirms the note's bytes still carry
+// contentIdentity — the vault.ContentIdentity of the source the caller read
+// before ruling — rewrites exactly the frontmatter status line, and
+// atomically installs the rewritten bytes under the note's own name. Every
+// refusal before the install leaves the file untouched.
 //
 // Flip holds the Lifecycle's lock for its entire duration (see the mu field
 // doc): concurrent callers are serialized, never interleaved.
-func (lc *Lifecycle) Flip(rel, from, to string) error {
-	return lc.flip(rel, from, to, flipHooks{})
+func (lc *Lifecycle) Flip(rel, from, to string, contentIdentity [sha256.Size]byte) error {
+	return lc.flip(rel, from, to, contentIdentity, flipHooks{})
 }
 
 type flipHooks struct {
@@ -412,7 +422,7 @@ type flipHooks struct {
 	afterInstall func()
 }
 
-func (lc *Lifecycle) flip(rel, from, to string, hooks flipHooks) error {
+func (lc *Lifecycle) flip(rel, from, to string, contentIdentity [sha256.Size]byte, hooks flipHooks) error {
 	relSlash, rel, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
@@ -446,6 +456,12 @@ func (lc *Lifecycle) flip(rel, from, to string, hooks flipHooks) error {
 	n := vault.Parse(relSlash, data)
 	if current := n.Status(); current != from {
 		return fmt.Errorf("%w: status is %q, page said %q", ErrStale, current, from)
+	}
+	// The stale check above compares one parsed value; this one binds the
+	// ruling to every other byte the caller read. The order matters: when the
+	// status line itself moved on, the stale page names the actual repair.
+	if vault.ContentIdentity(data) != contentIdentity {
+		return fmt.Errorf("%w: %s", ErrContentChanged, relSlash)
 	}
 
 	if err = lc.contract.Transition(n.Type(), from, to); err != nil {

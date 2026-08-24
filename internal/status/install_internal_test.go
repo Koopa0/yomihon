@@ -77,7 +77,7 @@ func TestFlipPreservesAnExternalEditRacingTheInstall(t *testing.T) {
 				t.Fatal("the external edit is identical to the note, so this proves nothing")
 			}
 
-			err := lifecycle.flip(installRel, "draft", schema.SealStatus, flipHooks{
+			err := lifecycle.flip(installRel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
 				beforeInstall: func() { writer.write(t, path, []byte(external)) },
 			})
 

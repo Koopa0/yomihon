@@ -32,9 +32,11 @@ func TestCaptureNoteDetachesPublishedReadingData(t *testing.T) {
 	if !got.HasFrontmatter || got.Language != "und" || got.LanguageDiagnostic != "" {
 		t.Fatalf("captured note authority = frontmatter %t language %q diagnostic %q", got.HasFrontmatter, got.Language, got.LanguageDiagnostic)
 	}
-	wantHash := sha256.Sum256([]byte("---\ntitle: Original\ntype: concept\nstatus: draft\nslug: original\n---\nbody\n"))
-	if got.ContentHash != wantHash {
-		t.Errorf("ContentHash = %x, want %x", got.ContentHash, wantHash)
+	// The status line's text is outside the identity — the page binds the
+	// status separately — so the expectation splices it out by hand.
+	wantIdentity := sha256.Sum256([]byte("---\ntitle: Original\ntype: concept\n\nslug: original\n---\nbody\n"))
+	if got.ContentIdentity != wantIdentity {
+		t.Errorf("ContentIdentity = %x, want %x", got.ContentIdentity, wantIdentity)
 	}
 }
 

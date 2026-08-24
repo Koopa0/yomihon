@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"encoding/hex"
 	"html"
 	"io"
 	"log/slog"
@@ -15,7 +16,19 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 )
+
+// formIdentity is the hex content_identity form value for fixture bytes as
+// written — what the page's hidden field carries for that render.
+func formIdentity(content string) string {
+	identity := vault.ContentIdentity([]byte(content))
+	return hex.EncodeToString(identity[:])
+}
+
+// wellFormedIdentity is a syntactically valid identity for requests refused
+// before any note is read, where no rendered content exists to identify.
+const wellFormedIdentity = "0000000000000000000000000000000000000000000000000000000000000000"
 
 func newHandlerServer(t *testing.T, lifecycle *status.Lifecycle) *httptest.Server {
 	t.Helper()
@@ -64,7 +77,7 @@ func TestHandlerSuccess(t *testing.T) {
 	writeNote(t, root, lessonContent("draft"))
 	srv := newHandlerServer(t, lifecycle)
 
-	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
+	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("draft"))}})
 	if code != http.StatusSeeOther {
 		t.Errorf("status = %d, want %d", code, http.StatusSeeOther)
 	}
@@ -131,7 +144,7 @@ func TestHandlerClosed(t *testing.T) {
 	lifecycle := newLifecycle(t, root, nil) // no contract: fail-closed
 	srv := newHandlerServer(t, lifecycle)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {schema.SealStatus}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {wellFormedIdentity}})
 	if code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
 	}
@@ -144,9 +157,10 @@ func TestHandlerPathValidationPrecedesClosure(t *testing.T) {
 	t.Parallel()
 	srv := newHandlerServer(t, newLifecycle(t, t.TempDir(), nil))
 	code, _, body := postStatus(t, srv, url.Values{
-		"path": {"../outside.md"},
-		"from": {"draft"},
-		"to":   {schema.SealStatus},
+		"path":             {"../outside.md"},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("POST path escape on closed service status = %d, want %d", code, http.StatusUnprocessableEntity)
@@ -165,9 +179,10 @@ func TestHandlerNonInstance(t *testing.T) {
 	srv := newHandlerServer(t, newLifecycle(t, root, loadContract(t)))
 
 	code, _, body := postStatus(t, srv, url.Values{
-		"path": {"System/templates/Missing.md"},
-		"from": {"draft"},
-		"to":   {schema.SealStatus},
+		"path":             {"System/templates/Missing.md"},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("POST non-instance status = %d, want %d", code, http.StatusUnprocessableEntity)
@@ -194,9 +209,10 @@ func TestHandlerArtifactPolicyUnavailable(t *testing.T) {
 			lifecycle := newLifecycle(t, t.TempDir(), tt.contract)
 			srv := newHandlerServer(t, lifecycle)
 			code, _, body := postStatus(t, srv, url.Values{
-				"path": {testRel},
-				"from": {"draft"},
-				"to":   {schema.SealStatus},
+				"path":             {testRel},
+				"from":             {"draft"},
+				"to":               {schema.SealStatus},
+				"content_identity": {wellFormedIdentity},
 			})
 			if code != http.StatusServiceUnavailable {
 				t.Errorf("POST with unavailable artifact policy status = %d, want %d", code, http.StatusServiceUnavailable)
@@ -239,9 +255,10 @@ func TestHandlerRejectsChangedContractSource(t *testing.T) {
 
 	srv := newHandlerServer(t, newLifecycle(t, t.TempDir(), contract))
 	code, _, body := postStatus(t, srv, url.Values{
-		"path": {testRel},
-		"from": {"draft"},
-		"to":   {schema.SealStatus},
+		"path":             {testRel},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
@@ -261,7 +278,7 @@ func TestHandlerStale(t *testing.T) {
 	srv := newHandlerServer(t, lifecycle)
 
 	// The page claims "imported"; the file actually says "draft".
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("draft"))}})
 	if code != http.StatusConflict {
 		t.Errorf("status = %d, want %d", code, http.StatusConflict)
 	}
@@ -289,7 +306,7 @@ func TestHandlerTargetRemovedAfterPageLoad(t *testing.T) {
 	}
 	srv := newHandlerServer(t, lifecycle)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {wellFormedIdentity}})
 	if code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", code, http.StatusNotFound)
 	}
@@ -324,7 +341,7 @@ func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 	writeNote(t, root, content)
 	srv := newHandlerServer(t, lifecycle)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(content)}})
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
 	}
@@ -347,7 +364,7 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	srv := newHandlerServer(t, lifecycle)
 
 	// imported -> ready skips the required "draft" stage.
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("imported"))}})
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
 	}

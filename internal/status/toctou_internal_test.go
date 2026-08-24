@@ -7,6 +7,7 @@ package status
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"io/fs"
 	"os"
@@ -74,6 +75,12 @@ func readNoteFixture(t *testing.T, root string) []byte {
 	return data
 }
 
+// internalLessonIdentity is the content identity a page rendered from
+// internalLesson's bytes would embed with its transition forms.
+func internalLessonIdentity() [sha256.Size]byte {
+	return vault.ContentIdentity([]byte(internalLesson()))
+}
+
 func internalLesson() string {
 	return "---\n" +
 		"title: L05\n" +
@@ -131,7 +138,7 @@ func TestFlipRejectsChangedContractBeforeFilesystem(t *testing.T) {
 		t.Fatalf("write reclassified contract: %v", err)
 	}
 
-	err = lifecycle.Flip("Writing/missing.md", "draft", schema.SealStatus)
+	err = lifecycle.Flip("Writing/missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
 	if !errors.Is(err, ErrArtifactPolicyUnavailable) {
 		t.Fatalf("Flip() after contract change = %v, want %v before target access", err, ErrArtifactPolicyUnavailable)
 	}
@@ -172,6 +179,7 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 			firstRel,
 			"draft",
 			schema.SealStatus,
+			internalLessonIdentity(),
 			flipHooks{beforeAuthority: func() {
 				close(firstAtAuthority)
 				<-releaseFirst
@@ -184,6 +192,7 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 			secondRel,
 			"draft",
 			schema.SealStatus,
+			internalLessonIdentity(),
 			flipHooks{beforeLock: func() { close(secondAtLock) }},
 		)
 	})
@@ -353,7 +362,7 @@ func TestFlipRejectsContractChangeBeforeInstall(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 
-	err := lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{beforeAuthority: func() {
+	err := lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		data, readErr := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
 		if readErr != nil {
 			t.Fatalf("read mutable contract: %v", readErr)
@@ -406,7 +415,7 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	closeResult := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		flipResult <- lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{
+		flipResult <- lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
 			afterLock: func() {
 				close(flipLocked)
 				<-releaseFlip
@@ -439,7 +448,7 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	default:
 		t.Fatal("Close never acquired Lifecycle.mu after Flip returned")
 	}
-	if err := lifecycle.Flip(rel, schema.SealStatus, "archived"); !errors.Is(err, ErrClosed) {
+	if err := lifecycle.Flip(rel, schema.SealStatus, "archived", [sha256.Size]byte{}); !errors.Is(err, ErrClosed) {
 		t.Errorf("Flip() after Close = %v, want %v", err, ErrClosed)
 	}
 	if !lifecycle.View().Closed() {
@@ -737,7 +746,7 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 		t.Fatalf("replacement length = %d, want same as original %d", len(replacement), len(original))
 	}
 
-	err = lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{beforeAuthority: func() {
+	err = lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		if writeErr := os.WriteFile(path, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("replace note bytes: %v", writeErr)
 		}
@@ -775,7 +784,7 @@ func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
 	}
 	replacement := strings.Replace(original, "\nbody\n", "\nreplacement\n", 1)
 
-	err = lifecycle.flip(rel, "draft", schema.SealStatus, flipHooks{beforeAuthority: func() {
+	err = lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		tmp := filepath.Join(filepath.Dir(path), ".external-replacement.tmp")
 		if writeErr := os.WriteFile(tmp, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("write replacement: %v", writeErr)

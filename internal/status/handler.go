@@ -3,6 +3,8 @@ package status
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -18,7 +20,7 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
-// maxFormBytes bounds the POST /status body: three short form fields never
+// maxFormBytes bounds the POST /status body: four short form fields never
 // need more than this.
 const maxFormBytes = 4096
 
@@ -76,8 +78,17 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	contentIdentity, ok := decodeContentIdentity(r.PostFormValue("content_identity"))
+	if !ok {
+		h.respondRecovery(w, r, path, from, to, &recovery{
+			code:       http.StatusUnprocessableEntity,
+			summary:    "content_identity 是必填欄位：頁面表單附帶的內容識別值，寫入會綁定送出者讀到的版本。",
+			nextAction: "返回筆記並重新載入，從目前頁面的表單重新開始這次操作。",
+		})
+		return
+	}
 
-	err := h.lifecycle.Flip(path, from, to)
+	err := h.lifecycle.Flip(path, from, to, contentIdentity)
 	if err == nil {
 		// #nosec G710 -- Flip succeeded only after its vault-local path check;
 		// the prefix is a fixed same-origin literal.
@@ -140,6 +151,12 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusConflict,
 			summary:    "這個頁面已過期；磁碟上的狀態已經不同。",
 			nextAction: "返回筆記並重新載入目前狀態，確認後再選擇一次轉換。",
+		}
+	case errors.Is(err, ErrContentChanged):
+		return &recovery{
+			code:       http.StatusConflict,
+			summary:    "筆記內容在這個頁面載入之後被改過；這次操作綁定的是當時讀到的版本。",
+			nextAction: "重新載入筆記，確認目前的內容後再選擇一次轉換。",
 		}
 	case errors.Is(err, ErrConcurrentWrite):
 		return &recovery{
@@ -331,6 +348,20 @@ func writeRecovery(
 }
 
 const nonInstanceReason = "不屬於生命週期治理範圍"
+
+// decodeContentIdentity reads the form's hex-encoded content identity. The
+// field is required — a caller must state which version of the note its
+// ruling was read against — so an absent, blank, or malformed value reports
+// false rather than standing in for any real identity.
+func decodeContentIdentity(field string) ([sha256.Size]byte, bool) {
+	var identity [sha256.Size]byte
+	decoded, err := hex.DecodeString(strings.TrimSpace(field))
+	if err != nil || len(decoded) != sha256.Size {
+		return identity, false
+	}
+	copy(identity[:], decoded)
+	return identity, true
+}
 
 // notesHref percent-escapes each path segment while preserving slash
 // separators. The successful redirect remains local and byte-identical to the

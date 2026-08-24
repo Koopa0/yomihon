@@ -21,7 +21,12 @@ type Note struct {
 	Language           string
 	LanguageDiagnostic string
 	HasFrontmatter     bool
-	ContentHash        [sha256.Size]byte
+	// ContentIdentity is vault.ContentIdentity over the source bytes this
+	// projection was captured from: everything but the status line, which the
+	// reading page reads live and binds separately. The page embeds it in each
+	// transition form so the write face can refuse a ruling read against
+	// content the disk no longer carries.
+	ContentIdentity [sha256.Size]byte
 	// Searchable is false for a note too large to hold in the index. It still
 	// renders — every file in the folder stays readable — but a search that
 	// cannot reach it must say so, or the answer "no results" is a false
@@ -55,7 +60,7 @@ func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLangua
 		Language:           language,
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.Frontmatter != nil,
-		ContentHash:        sha256.Sum256(data),
+		ContentIdentity:    vault.ContentIdentity(data),
 		Searchable:         searchable,
 	}
 }

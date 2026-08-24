@@ -3,6 +3,7 @@
 package status_test
 
 import (
+	"crypto/sha256"
 	"errors"
 	"net/http"
 	"net/url"
@@ -36,7 +37,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 		t.Errorf("View().Transitions() = %v, want none on a platform without a durable install", got)
 	}
 
-	err := lifecycle.Flip(testRel, "draft", schema.SealStatus)
+	err := lifecycle.Flip(testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrDurabilityUnsupported) {
 		t.Fatalf("Flip() = %v, want %v before opening the target", err, status.ErrDurabilityUnsupported)
 	}
@@ -55,9 +56,10 @@ func TestUnsupportedPlatformPOSTIsAnUnchangedServiceRefusal(t *testing.T) {
 	srv := newHandlerServer(t, newLifecycle(t, root, loadContract(t)))
 
 	code, location, body := postStatus(t, srv, url.Values{
-		"path": {testRel},
-		"from": {"draft"},
-		"to":   {schema.SealStatus},
+		"path":             {testRel},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusServiceUnavailable {
 		t.Errorf("POST /status status = %d, want %d", code, http.StatusServiceUnavailable)

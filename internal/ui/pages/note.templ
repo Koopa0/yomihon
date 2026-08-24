@@ -114,7 +114,11 @@ type NoteView struct {
 	// not exist. Every other field below is meaningful only under it.
 	Governed bool
 
-	Transitions     []string
+	Transitions []string
+	// ContentIdentity is the hex identity of the source bytes this page
+	// rendered, carried in every transition form so the write face can refuse
+	// a ruling that was read against content the disk no longer holds.
+	ContentIdentity string
 	NonInstance     bool
 	WriteDiagnostic string
 	NoFrontmatter   bool
@@ -831,12 +835,15 @@ templ statusUnknownFlag(v NoteView, noticeClass string) {
 }
 
 // transitionForm is one quiet, one-click transition: a plain POST form whose
-// re-rendered status chip after the redirect is the whole confirmation.
+// re-rendered status chip after the redirect is the whole confirmation. The
+// hidden content identity states which version of the note the reader saw,
+// so the write face can refuse a press that outlived the content.
 templ transitionForm(v NoteView, to string) {
 	<form class="y-statusform" method="post" action="/status">
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
 		<input type="hidden" name="to" value={ to }/>
+		<input type="hidden" name="content_identity" value={ v.ContentIdentity }/>
 		<button class="y-xbtn" type="submit">{ to }</button>
 	</form>
 }

@@ -126,5 +126,12 @@ func FuzzRewriteStatusLine(f *testing.F) {
 		if againErr != nil || !bytes.Equal(again, got) {
 			t.Errorf("rewriteStatusLine result is not idempotent: second = %q, %v; first = %q", again, againErr, got)
 		}
+
+		// The content identity spans everything but the one status line, so a
+		// successful rewrite must never move it: a page rendered before a flip
+		// keeps binding the flips that follow it.
+		if vault.ContentIdentity(got) != vault.ContentIdentity(data) {
+			t.Errorf("rewriteStatusLine(%q, %q) moved the content identity", data, to)
+		}
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/hex"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -464,6 +465,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		WriteDiagnostic:   governance.writeDiagnostic,
 		Concepts:          concepts,
 		Transitions:       governance.transitions,
+		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		NoFrontmatter:     governance.noFrontmatter,
 		StatusUnknown:     governance.statusUnknown,
 	}

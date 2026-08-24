@@ -65,9 +65,10 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	}
 
 	form := url.Values{
-		"path": {"Maps/study.md"},
-		"from": {"draft"},
-		"to":   {schema.SealStatus},
+		"path":             {"Maps/study.md"},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {strings.Repeat("0", 64)},
 	}
 	write := httptest.NewRecorder()
 	req := siteRequest(t, http.MethodPost, "/status", strings.NewReader(form.Encode()))

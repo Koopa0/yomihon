@@ -2521,9 +2521,10 @@ func TestShowTransitions(t *testing.T) {
 	}
 	readyForm := body[start : start+end]
 	form := url.Values{
-		"path": {hiddenValue(t, readyForm, "path")},
-		"from": {hiddenValue(t, readyForm, "from")},
-		"to":   {hiddenValue(t, readyForm, "to")},
+		"path":             {hiddenValue(t, readyForm, "path")},
+		"from":             {hiddenValue(t, readyForm, "from")},
+		"to":               {hiddenValue(t, readyForm, "to")},
+		"content_identity": {hiddenValue(t, readyForm, "content_identity")},
 	}
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(form.Encode()))
