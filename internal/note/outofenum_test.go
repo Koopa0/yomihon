@@ -290,16 +290,21 @@ func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	if !strings.Contains(visibleOnly(outside), "不在 schema 允許清單中") {
 		t.Errorf("the row shows a value the schema disallows as ordinary vocabulary; row = %q", outside)
 	}
-	if !strings.Contains(outside, "reviewing") {
-		t.Errorf("the flagged row lost the value it is flagging; row = %q", outside)
+	// Anchored on the rendered value, not on the row's bytes: the chip carries
+	// the value in its class as well as its text, so a plain search for the
+	// word is answered by "ui-status--reviewing" whether or not anything is
+	// printed — and a row that accuses a value it does not name is precisely
+	// the row this test exists to prevent.
+	if !strings.Contains(visibleOnly(outside), ">reviewing</span>") {
+		t.Errorf("the flagged row does not print the value it is flagging; row = %q", outside)
 	}
 
 	legal := homeRecentRow(t, body, "Legal")
 	if strings.Contains(legal, "不在 schema 允許清單中") {
 		t.Errorf("a declared status is flagged; row = %q", legal)
 	}
-	if !strings.Contains(legal, "draft") {
-		t.Errorf("the declared row lost its status; row = %q", legal)
+	if !strings.Contains(visibleOnly(legal), ">draft</span>") {
+		t.Errorf("the declared row does not print its status; row = %q", legal)
 	}
 }
 

@@ -15,10 +15,22 @@ templ browserDiagnostic(summary, detail string) {
 }
 
 // statusOutsideEnumMark is the compact form of the note page's out-of-enum
-// notice: the same fact in the same words, sized for a row or a chip rather
-// than for a panel. Every surface that names a status in passing renders this
-// one component, so a reader meets one sentence for one fault wherever they
-// meet it, and no surface can quietly drift into a colour with no words.
+// notice, for the places that name a status in passing and have room for a
+// phrase rather than a sentence: a search hit, and the landing page's recent
+// rows and distribution chips. Those three render this one component, so the
+// fault reads as one thing across them and none can drift into a colour with
+// no words without a test going red.
+//
+// Two surfaces state the same fault in their own register rather than through
+// this component, because they have the room to be more useful than a phrase.
+// The reading page carries the whole sentence, naming the offending value and
+// saying who repairs it. The whole-folder page lists each note beside its value
+// and the type that never declared it, which is what makes that page reachable
+// rather than merely true.
+//
+// A course's lesson rows carry no mark at all. A course lists its lessons in
+// their taught order, and a contract fault belongs to the note rather than to
+// the shape of the course; the whole-folder page is where those are gathered.
 //
 // The words are the element's own text rather than a label or a title, so what
 // is printed and what is announced are the same thing, and what a reader sees
