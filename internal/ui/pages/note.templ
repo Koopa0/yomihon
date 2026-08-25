@@ -891,6 +891,21 @@ templ legalTransitionForms(v NoteView) {
 	}
 }
 
+// fragmentSplit states how a link that named a section was read, for a link
+// whose base name resolved to nothing. Without it the panel names the shorter
+// half and stops, and a reader looking at a file whose own name carries "#" —
+// sitting in the sidebar, spelled exactly as they typed it — has no way to
+// learn that the mark is an address into a note rather than part of its name.
+// The words are the panel's own: the mark beside the link in the prose says
+// the same thing in the shape a sentence there can take, and neither is the
+// other's only copy.
+templ fragmentSplit(target, section string) {
+	<p class="y-diag__split">
+		連結被讀成兩段：筆記目標 <code>{ target }</code>、章節 <code>{ section }</code>。
+		缺的是筆記目標「{ target }」，不是章節；「#」是章節的分隔符號，所以檔名裡真的帶「#」的檔案，wikilink 指不到。
+	</p>
+}
+
 // diagnostics is the read-only diagnostics rail: the frontmatter
 // diagnostic and every render diagnostic, amber, stated but never repaired.
 templ diagnostics(v NoteView) {
@@ -921,6 +936,9 @@ templ diagnostics(v NoteView) {
 								<code lang="en">{ d.Message }</code>
 							}
 						</p>
+						if d.Section != "" {
+							@fragmentSplit(d.Target, d.Section)
+						}
 					</div>
 				}
 			</div>

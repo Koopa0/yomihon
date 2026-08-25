@@ -39,6 +39,7 @@ probes=(
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
 )
 
 fail() {

@@ -480,7 +480,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	searchProvider := func() search.RequestSnapshot {
 		statusView := lifecycle.View()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: projectShell(statusView, snap)}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: projectShell(statusView, snap), Status: statusView}
 	}
 
 	mux := http.NewServeMux()

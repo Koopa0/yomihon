@@ -16,6 +16,13 @@ type Result struct {
 	Status  string
 	Snippet string
 
+	// NoteType is the note's own declared type, carried beside Status because
+	// which values a status may take is declared per type: a value one type
+	// allows is a fault on another, and the pair is the only form of the
+	// question the contract can answer. It is blanked with Status whenever the
+	// entry may not answer metadata projections.
+	NoteType string
+
 	// File marks a hit that is not a note but a vault file read as characters.
 	// It carries no lifecycle state and never will, so a surface that dresses a
 	// hit in note furniture can tell the two apart.
@@ -350,20 +357,21 @@ func (e *entry) matchesFilter(f Filter) bool {
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
 func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Result {
-	status := e.Status
+	status, noteType := e.Status, e.NoteType
 	if !metadataAvailable || !e.metadataCapable {
-		status = ""
+		status, noteType = "", ""
 	}
 	var bodySnippet string
 	if bodyEvidence {
 		bodySnippet = snippet(e.PlainText, e.PlainFold, tokens)
 	}
 	return Result{
-		RelPath: e.RelPath,
-		Title:   e.Title,
-		Status:  status,
-		Snippet: bodySnippet,
-		File:    e.isFile,
+		RelPath:  e.RelPath,
+		Title:    e.Title,
+		Status:   status,
+		Snippet:  bodySnippet,
+		NoteType: noteType,
+		File:     e.isFile,
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -160,5 +161,55 @@ func TestHealthStaysSilentWhenEveryStatusIsDeclared(t *testing.T) {
 	}
 	if strings.Contains(body, "狀態值不在允許清單的筆記") {
 		t.Errorf("zero out-of-enum notes still render a line; body = %q", body)
+	}
+}
+
+// TestHealthReachesEveryOutOfEnumNote locks the page's usefulness, not just
+// its arithmetic. The section used to state a number and stop there, so the
+// one reader who could act on it had to guess a query to find out which files
+// it meant, while every other section on the same page named its findings and
+// linked to them. The heading's number is the length of that list, so the two
+// can never drift.
+func TestHealthReachesEveryOutOfEnumNote(t *testing.T) {
+	t.Parallel()
+	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
+	code, body := get(t, srv.URL+"/health")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	section := healthSectionBody(t, body, "狀態值不在允許清單的筆記")
+
+	for _, want := range []string{
+		`href="/notes/Concepts/outside.md"`,
+		`href="/notes/Concepts/outside-too.md"`,
+	} {
+		if !strings.Contains(section, want) {
+			t.Errorf("the section does not reach the offending note %q; section = %q", want, section)
+		}
+	}
+	// The control: the folder's declared note must not be dragged in with them.
+	if strings.Contains(section, `href="/notes/Concepts/legal.md"`) {
+		t.Errorf("a note whose status is declared is listed as a finding; section = %q", section)
+	}
+	// The offending value is named beside each row: the reader has to know
+	// which word to edit, and the list is the only place that says it.
+	if got := strings.Count(section, "reviewing"); got != 2 {
+		t.Errorf("the section names the offending value %d times, want once per row (2); section = %q", got, section)
+	}
+	// One note, one name: these rows name notes exactly as every other section
+	// of this page does — by file name — so the same note cannot appear here
+	// as "Outside" and in the island list below as "outside". A title is not a
+	// name this vault resolves links by, and the section above this one exists
+	// to report readers who believed otherwise.
+	for _, want := range []string{">outside</a>", ">outside-too</a>"} {
+		if !strings.Contains(section, want) {
+			t.Errorf("the row does not name the note the way the rest of the page does (%q missing); section = %q", want, section)
+		}
+	}
+
+	// One derivation: the heading counts the rows it renders.
+	rows := strings.Count(section, "<li>")
+	if !strings.Contains(section, ">"+strconv.Itoa(rows)+"</span>") {
+		t.Errorf("the heading's number is not the %d rows below it; section = %q", rows, section)
 	}
 }

@@ -25,6 +25,31 @@ const maxRenderedResults = 200
 type RequestSnapshot struct {
 	Index *Index
 	Shell pages.Shell
+
+	// Status is the read-only lifecycle the row rules against. A result row
+	// states a note's status, and a status is a value drawn from a declared
+	// list; without the contract that declared it the row can print the word
+	// but cannot say whether the vault allows it, which is the one thing a
+	// reader scanning the list needs. It may be absent, and a search face
+	// then names statuses without ruling on them.
+	Status Lifecycle
+}
+
+// Lifecycle is the minimal status-vocabulary capability the search face needs,
+// declared here in the consumer so the concrete lifecycle satisfies it without
+// this package importing it. That direction is load-bearing rather than
+// stylistic: the offline retrieval commands are built from this package and
+// are the only part of yomihon allowed to reach a network, and their
+// dependency closure is held to a reviewed list. Naming the write face here
+// would put the one component that edits the vault inside the closure of the
+// one component that can leave the machine.
+type Lifecycle interface {
+	// Closed reports whether this view can classify a governed instance at
+	// all. A folder that declared no contract and one whose contract cannot be
+	// honoured are both closed: neither holds a vocabulary to measure against.
+	Closed() bool
+	// KnownStatus reports whether the contract declares status for noteType.
+	KnownStatus(noteType, status string) bool
 }
 
 // Handler serves the search face: the full GET /search page and its read-only
@@ -70,7 +95,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 
 	view := pages.SearchView{
 		Query:      q,
-		Results:    viewResults(results, snap.Shell.Governed, tokens),
+		Results:    viewResults(results, snap.Shell.Governed, snap.Status, tokens),
 		Total:      total,
 		Diagnostic: diagnostic,
 		Governed:   snap.Shell.Governed,
@@ -96,7 +121,7 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	stepBacks := stepBackViews(snap.Index, q, results, diagnostic)
-	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, tokens), total, diagnostic, snap.Shell.Governed, stepBacks).Render(r.Context(), w); err != nil {
+	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, snap.Status, tokens), total, diagnostic, snap.Shell.Governed, stepBacks).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }
@@ -170,7 +195,14 @@ func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 // happily match and return raw frontmatter for an ungoverned folder — that is a
 // text field like any other — but a status chip presents it as a value drawn
 // from a declared vocabulary, which is a claim no contract backs there.
-func viewResults(results []Result, governed bool, tokens []string) []pages.SearchResult {
+func viewResults(results []Result, governed bool, lifecycle Lifecycle, tokens []string) []pages.SearchResult {
+	// One question decides it, asked of the lifecycle itself rather than
+	// inferred from the shell beside it: can this view classify a governed
+	// instance at all. A folder that declared no contract and one whose
+	// contract cannot be honoured both answer no, and both would otherwise
+	// answer "not declared" to every value — marking every governed row in the
+	// vault as a fault. Knowing no vocabulary, the row accuses nothing.
+	rules := lifecycle != nil && !lifecycle.Closed()
 	out := make([]pages.SearchResult, len(results))
 	for i, r := range results {
 		out[i] = pages.SearchResult{
@@ -180,8 +212,14 @@ func viewResults(results []Result, governed bool, tokens []string) []pages.Searc
 			SnippetRuns: markHits(r.Snippet, tokens),
 			File:        r.File,
 		}
+		// The warning is a property of the status the row shows, so it is
+		// decided where that status is set: a row that names no status can
+		// never carry a verdict about one.
 		if governed {
 			out[i].Status = r.Status
+			if rules && r.Status != "" {
+				out[i].StatusOutsideEnum = !lifecycle.KnownStatus(r.NoteType, r.Status)
+			}
 		}
 	}
 	return out

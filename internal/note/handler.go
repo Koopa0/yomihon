@@ -208,28 +208,47 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// statusesOutsideEnum counts the notes whose status value is outside their
+// statusesOutsideEnum names the notes whose status value is outside their
 // type's declared list — the whole-folder gathering of the flag each note
-// page and distribution chip already shows one at a time. It counts over the
-// same tally the distribution uses, so the two faces cannot disagree about
-// which notes exist. When the authority is closed or the tally unavailable
-// it reports zero and the page carries no line: an unknowable count must not
-// pose as a finding.
-func statusesOutsideEnum(statusView status.View, snap *snapshot.View) int {
+// page and distribution chip already shows one at a time. It reads the same
+// entries the distribution counts, so the two faces cannot disagree about
+// which notes exist, and the page states its number by counting what this
+// returns rather than by adding a second sum nothing reconciles against it.
+// When the authority is closed or the entries are unavailable it names none
+// and the page carries no line: an unknowable finding must not pose as one.
+//
+// The rows arrive in the index's own path order, which is the order the rest
+// of the page lists findings in.
+func statusesOutsideEnum(statusView status.View, snap *snapshot.View) []pages.HealthStatusNote {
 	if !statusView.Governed() || statusView.Closed() {
-		return 0
+		return nil
 	}
-	counts, err := snap.Search().CountByTypeStatus()
+	holders, err := snap.Search().StatusHolders()
 	if err != nil {
-		return 0
+		return nil
 	}
-	total := 0
-	for ts, n := range counts {
-		if ts.Status != "" && !statusView.KnownStatus(ts.Type, ts.Status) {
-			total += n
+	out := make([]pages.HealthStatusNote, 0, len(holders))
+	for _, h := range holders {
+		if statusView.KnownStatus(h.Type, h.Status) {
+			continue
 		}
+		out = append(out, pages.HealthStatusNote{
+			Note:   nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath},
+			Type:   h.Type,
+			Status: h.Status,
+		})
 	}
-	return total
+	return out
+}
+
+// healthNoteName is the words a health row shows for a note, derived the way
+// navigation derives them: the file name without its extension. Every other
+// section of this page names notes that way, so one note cannot appear as two
+// different things on one screen. It is also the honest identifier here — a
+// frontmatter title is not a name this vault resolves links by, which is a
+// confusion the section above this one exists to report.
+func healthNoteName(relPath string) string {
+	return strings.TrimSuffix(path.Base(relPath), ".md")
 }
 
 // healthLinks and healthCollisions carry the snapshot's findings across to the

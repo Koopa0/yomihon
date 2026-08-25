@@ -193,3 +193,49 @@ func TestResolvedButUnavailableEmbedSaysWhatActuallyHappened(t *testing.T) {
 		t.Errorf("HTML() did not say what actually failed:\n%s", got.HTML)
 	}
 }
+
+// The prose mark explains the split where the link sits, but the diagnostic
+// list beside the note is where a reader goes to find out what is wrong with
+// the file — and there the same link arrived indistinguishable from one that
+// simply named nothing. The section the author addressed travels with the
+// diagnostic so the panel can state it, while the target stays the bare
+// resolution key every other reader of that field looks names up by.
+func TestUnresolvedLinkDiagnosticCarriesTheSectionItAddressed(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{Path: "井號#筆記.md"}}, nil, nil)
+
+	tests := []struct {
+		name        string
+		body        string
+		wantSection string
+	}{
+		{name: "a plain link", body: "見 [[井號#筆記]]\n", wantSection: "筆記"},
+		{name: "an embed", body: "![[井號#筆記]]\n", wantSection: "筆記"},
+		{name: "a link with display text", body: "見 [[井號#筆記|那一段]]\n", wantSection: "筆記"},
+		// The controls: a link that addressed no section must not gain one,
+		// and a block address is not a section name in this dialect.
+		{name: "no fragment", body: "見 [[井號]]\n"},
+		{name: "a block fragment", body: "見 [[井號#^b1k]]\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("a.md", "A", tt.body)
+			if len(got.Diagnostics) != 1 {
+				t.Fatalf("HTML(%q) produced %d diagnostics, want 1", tt.body, len(got.Diagnostics))
+			}
+			d := got.Diagnostics[0]
+			if d.Kind != render.DiagWikilinkBroken {
+				t.Fatalf("HTML(%q) diagnostic kind = %q, want %q", tt.body, d.Kind, render.DiagWikilinkBroken)
+			}
+			// The target is the name resolution failed on, and other readers
+			// of this field look planned names up by it, so it stays bare.
+			if d.Target != "井號" {
+				t.Errorf("HTML(%q) diagnostic target = %q, want %q", tt.body, d.Target, "井號")
+			}
+			if d.Section != tt.wantSection {
+				t.Errorf("HTML(%q) diagnostic section = %q, want %q", tt.body, d.Section, tt.wantSection)
+			}
+		})
+	}
+}

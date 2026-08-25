@@ -517,6 +517,12 @@ html, body { margin: 0; background: var(--bg); }
 .y-diag__label svg { width: 13px; height: 13px; flex: none; }
 .y-diag__body { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
 .y-diag__body code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
+/* how a link naming a section was read, stated under the diagnostic it
+   belongs to. It is a second paragraph rather than more of the first because
+   the first says what failed and this says how the words were split, and a
+   reader scanning for one should not have to read past the other. */
+.y-diag__split { margin: 7px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
+.y-diag__split code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
 .y-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 12px; line-height: 1.6; color: var(--fg-faint); }
 /* out-of-enum status flag — the diagnostics rail's amber accent applied to a
    status-face notice, so the flag reads as a finding rather than as copy */
@@ -581,6 +587,11 @@ html, body { margin: 0; background: var(--bg); }
 .y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-result__sep { margin: 0 6px; }
 .y-result__kind { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+/* a hit whose status the contract does not declare for its type — the same
+   ochre family the note page and the distribution chip flag it in. The words
+   inside carry the meaning; the tint only makes them findable while a reader
+   scans a list of paths that otherwise all look alike. */
+.y-result__flag { display: inline-block; margin-left: 8px; padding: 0 5px; border: 1px solid var(--warn); border-radius: 3px; color: var(--warn); background: var(--warn-bg); }
 .y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; }
 
 /* ============================================================
@@ -836,10 +847,23 @@ html, body { margin: 0; background: var(--bg); }
 .y-recovery__detail code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); }
 .y-recovery__next p { margin: 0; font-family: var(--font-serif); color: var(--fg-subtle); }
 .y-recovery__actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 30px 0 0; }
-.y-recovery__action { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); color: var(--on-accent); text-decoration: none; }
-.y-recovery__action:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
-.y-recovery__action--quiet { border-color: var(--border); background: var(--panel); color: var(--fg); }
-.y-recovery__action--quiet:hover { border-color: var(--border-strong); background: var(--elevated); }
+/* The seal ink is scarce on purpose: everywhere else it is a hairline, a
+   7px square, or ten-pixel type. Poured into a 38px slab on the two pages a
+   reader only ever reaches by accident, it stopped reading as the reserved
+   mark and started reading as an alarm — and on the dark ground it was a
+   bright salmon block, the loudest thing on the page. The button keeps the
+   colour and gives up the fill, which is the weight every other control here
+   carries.
+
+   The selector names the element as well as the class: the shell resets every
+   link inside it to the surrounding ink, and that reset is one step more
+   specific than a class alone. The colour written here before was therefore
+   never painted — the label took the article's ink onto the seal-ink fill and
+   sat there at 2.3:1, which is the real reason the slab read as wrong. */
+a.y-recovery__action { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-faint); font-family: var(--font-sans); font-size: var(--fs-13); color: var(--accent); text-decoration: none; transition: background var(--dur-base), border-color var(--dur-base); }
+a.y-recovery__action:hover { background: var(--accent-muted); border-color: var(--accent-strong); color: var(--accent-strong); }
+a.y-recovery__action--quiet { border-color: var(--border); background: var(--panel); color: var(--fg); }
+a.y-recovery__action--quiet:hover { border-color: var(--border-strong); background: var(--elevated); }
 
 .y-syl { max-width: 800px; margin: 0 auto; padding: 44px 56px 120px; }
 .y-syl-kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }

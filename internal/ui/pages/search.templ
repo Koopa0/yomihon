@@ -62,6 +62,13 @@ type SearchResult struct {
 	// scanning a list of results does not read its missing status as a note
 	// whose status went missing.
 	File bool
+
+	// StatusOutsideEnum marks a hit whose status value is not one the vault
+	// contract declares for this note's type. The row printed the value as
+	// plain text beside the path, which made a value nothing allows look
+	// exactly like one everything does — and a reader filtering by that value
+	// is precisely the reader who needs to be told.
+	StatusOutsideEnum bool
 }
 
 // resultCount names how many hits a search returned, in the reader's
@@ -159,6 +166,13 @@ templ SearchResults(query string, results []SearchResult, total int, diagnostic 
 								if r.Status != "" {
 									<span class="y-result__sep" aria-hidden="true">·</span>
 									{ r.Status }
+									if r.StatusOutsideEnum {
+										// Words, not a colour: the row is read
+										// by people who cannot see the amber,
+										// and it is the link's own text, so
+										// what is spoken is what is printed.
+										<span class="y-result__flag">不在 schema 允許清單中</span>
+									}
 								}
 								if r.File {
 									<span class="y-result__sep" aria-hidden="true">·</span>

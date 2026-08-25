@@ -104,6 +104,17 @@ type Diagnostic struct {
 	Kind    DiagnosticKind
 	Target  string // the offending wikilink target / callout type / etc.
 	Message string // human-readable
+
+	// Section is the section name a link wrote after "#", carried on the
+	// diagnostic for an unresolved target so a panel listing the note's faults
+	// can say how the link was read. Target stays the bare name resolution
+	// failed on — other readers of that field look planned names up by it, so
+	// folding the two together would quietly change what they match.
+	//
+	// It is empty unless the author wrote a section address that was split off
+	// a name nothing answered to. A block address ("#^name") is not a section
+	// name in this dialect and leaves this empty.
+	Section string
 }
 
 // TOCEntry is one heading in document order, with the id assigned to it

@@ -262,6 +262,40 @@ func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
 	return counts, nil
 }
 
+// StatusHolder is one indexed note's identity beside the lifecycle fields a
+// contract rules on. It is the row form of CountByTypeStatus: the same notes,
+// named rather than tallied, for a caller that has to reach them and not only
+// count them.
+type StatusHolder struct {
+	RelPath string
+	Type    string
+	Status  string
+}
+
+// StatusHolders lists every metadata-capable note carrying a status, in the
+// index's own RelPath order, so a caller can rule on each one against the
+// contract and reach the file it found. It applies exactly the tests
+// CountByTypeStatus applies, and returns the same notes that tally counts —
+// a page deriving both a number and a list from one call cannot state a
+// number the list below it does not fill.
+func (idx *Index) StatusHolders() ([]StatusHolder, error) {
+	if !idx.policy.Trustworthy() {
+		return nil, idx.metadataUnavailableError()
+	}
+	out := make([]StatusHolder, 0, len(idx.entries))
+	for _, e := range idx.entries {
+		if !e.metadataCapable || e.Status == "" {
+			continue
+		}
+		out = append(out, StatusHolder{
+			RelPath: e.RelPath,
+			Type:    e.NoteType,
+			Status:  e.Status,
+		})
+	}
+	return out, nil
+}
+
 // stringField reads a string frontmatter value, empty when absent or not a
 // string (a malformed field costs that field, never the build).
 func stringField(n *vault.Note, key string) string {

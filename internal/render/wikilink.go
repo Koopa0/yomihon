@@ -539,7 +539,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(link.Display))
 	case graph.Unresolved:
 		col.report(Diagnostic{
-			Kind: DiagWikilinkBroken, Target: link.Target,
+			Kind: DiagWikilinkBroken, Target: link.Target, Section: link.Heading,
 			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", link.Target),
 		})
 		return unwrittenTarget(link.Target, link.Display, link.Heading)
@@ -574,7 +574,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 	switch res.Kind {
 	case graph.Unresolved:
 		col.report(Diagnostic{
-			Kind: DiagWikilinkBroken, Target: target,
+			Kind: DiagWikilinkBroken, Target: target, Section: link.Heading,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
 		return unwrittenTarget(target, "![["+target+"]]", link.Heading)
