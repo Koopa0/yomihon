@@ -2,8 +2,12 @@ package judge
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // writeCheckableVault builds a vault a check can actually run on: the contract
@@ -107,4 +111,95 @@ func TestCheckStillAcceptsTheVaultRootAsItsOwnScope(t *testing.T) {
 	if exit != 0 {
 		t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
 	}
+}
+
+// TestCheckRefusesAScopeTheContractWithholds holds the one answer a targeted
+// check must never give about a directory it may report nothing from. Findings
+// are dropped for egress before the scope filter runs, so a path inside a
+// never-egress directory reached exactly the outcome filterByPaths already
+// refuses for a mistyped path: an empty result that reads as a verdict over
+// ground the command did not report on.
+//
+// The --deny half is the load-bearing one. The vault's own cron wrappers run
+// targeted checks with --deny error, so exit 0 there is a PASS certificate
+// issued for a scope whose genuine error was withheld.
+func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeWithheldScopeContract(t, root)
+	const broken = "---\ntitle: T\ntype: lesson\ndomain: meta\nstatus: not-a-declared-status\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\nbody\n"
+	writeJudgeNote(t, root, "Writing/Public.md", broken)
+	writeJudgeNote(t, root, "Private/Secret.md", broken)
+
+	t.Run("the public control proves the finding is real and gated", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		exit := RunCommand("check", []string{"--root", root, "--deny", "error", "Writing/Public.md"}, &stdout, &stderr, false)
+		if exit != 1 {
+			t.Fatalf("exit = %d, want 1; the fixture does not produce the error this test is about\nstdout:\n%s\nstderr:\n%s", exit, stdout.String(), stderr.String())
+		}
+	})
+
+	t.Run("a withheld scope is refused rather than answered", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		exit := RunCommand("check", []string{"--root", root, "Private/Secret.md"}, &stdout, &stderr, false)
+		if exit != 2 {
+			t.Errorf("exit = %d, want 2; an empty answer certifies a scope the command withheld\nstdout:\n%s", exit, stdout.String())
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("stdout = %q, want empty", stdout.String())
+		}
+		if !strings.Contains(stderr.String(), "withholds") {
+			t.Errorf("the refusal never says the scope is withheld:\n%s", stderr.String())
+		}
+	})
+
+	t.Run("the deny gate cannot pass on a withheld scope", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		exit := RunCommand("check", []string{"--root", root, "--deny", "error", "Private/Secret.md"}, &stdout, &stderr, false)
+		if exit == 0 {
+			t.Errorf("exit = 0: the gate passed a scope holding an error it withheld\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+		}
+	})
+
+	t.Run("the directory itself is refused the same way", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		exit := RunCommand("check", []string{"--root", root, "Private"}, &stdout, &stderr, false)
+		if exit != 2 {
+			t.Errorf("exit = %d, want 2; naming the directory answers as cleanly as naming the file\nstdout:\n%s", exit, stdout.String())
+		}
+	})
+
+	t.Run("a public scope is unaffected", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		exit := RunCommand("check", []string{"--root", root, "Writing"}, &stdout, &stderr, false)
+		if exit != 0 {
+			t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
+		}
+	})
+}
+
+// writeWithheldScopeContract writes a contract whose knowledge directories
+// include both a public and a never-egress directory, so the same fault
+// authored in each produces a finding in one and a withheld finding in the
+// other. writeTestContract cannot serve here: it empties knowledge_dirs, and a
+// schema rule that never fires would leave the gate subtest passing on a scope
+// that held nothing to withhold.
+func writeWithheldScopeContract(t *testing.T, root string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema fixture: %v", err)
+	}
+	const knowledgeDirs = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	text := strings.Replace(string(data), knowledgeDirs, `knowledge_dirs = ["Writing", "Private"]`, 1)
+	if text == string(data) {
+		t.Fatalf("schema fixture does not declare %s", knowledgeDirs)
+	}
+	text += "\n[privacy]\nnever_egress_dirs = [\"Private\"]\n"
+	writeJudgeNote(t, root, schema.ContractRelPath, text)
 }

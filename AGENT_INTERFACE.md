@@ -136,6 +136,27 @@ recovery fields plus `detail` under `internal_error`.
 alone. On exit 3 the search family writes the reason's human line to stderr;
 with `--json` the machine envelope on stdout carries the same reason token.
 
+## What a withheld scope answers
+
+The contract's `[privacy]` never-egress directories are scanned but never
+reported from, so every agent-facing command has ground it cannot speak about.
+Two commands say so and one cannot:
+
+- `check` refuses a `[path...]` that lies inside such a directory, exit 2, and
+  names the reason on stderr. It does not answer 0 findings, because an empty
+  result for a scope the caller named would certify ground the command withheld
+  — and a `--deny` gate would then issue a PASS over a genuine error. Every path
+  under a withheld directory gets that same refusal whether or not a note is
+  there, so the pair of refusals is not an existence oracle over it.
+- A whole-vault run makes no claim about any one directory, so it reports what
+  it may and stays exit 0.
+- `exists` takes a name rather than a path, so it has no scope to refuse: a
+  withheld note is simply not matched. In a vault declaring never-egress
+  directories, `exists` exit 1 therefore means *no reportable note carries this
+  name*, and a write-if-absent gated on it alone can still create a duplicate of
+  a withheld note. Callers that must not do that have to exclude those
+  directories by their own reading of the contract.
+
 ## Corpus: this CLI versus browser search
 
 The two search faces deliberately differ; results are not interchangeable.

@@ -65,7 +65,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 		findings = dropSystemScoped(findings)
 	}
 	if len(paths) > 0 {
-		filtered, ferr := filterByPaths(findings, paths, a.scan)
+		filtered, ferr := filterByPaths(findings, paths, a.scan, a.authority)
 		if ferr != nil {
 			return nil, ferr
 		}
@@ -142,17 +142,29 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 //
 // A prefix that cannot match anything is refused rather than filtered with. An
 // argument that is empty or only slashes names no path at all; one that names
-// something the scan never observed is a scope this command cannot see. Both
-// would otherwise return no findings and exit as though the scope were clean,
-// which is the one answer an adjudication face must never give about ground it
-// did not cover — a typo would read as a verdict. The vault root is the
-// exception it looks like: it names everything, so it filters nothing out.
-func filterByPaths(findings []Finding, paths []string, scan vault.Scan) ([]Finding, error) {
+// something the scan never observed is a scope this command cannot see; and one
+// the contract withholds from agent-facing output is a scope this command may
+// see but may report nothing from. All three would otherwise return no findings
+// and exit as though the scope were clean, which is the one answer an
+// adjudication face must never give about ground it did not cover — a typo, or
+// a private directory, would read as a verdict. The vault root is the exception
+// it looks like: it names everything, so it filters nothing out, and a whole
+// folder read carries no claim about any one directory inside it.
+//
+// The withheld check runs before the observation check on purpose. Answering
+// "names nothing in this vault" for a path inside a private directory would
+// make the pair of refusals an existence oracle over exactly the directory the
+// contract closed; one uniform answer for every path under it tells the caller
+// only what their own contract already says.
+func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authority scanAuthority) ([]Finding, error) {
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
 		prefixes[i] = canonicalPathFilter(p)
 		if prefixes[i] == "" {
 			return nil, fmt.Errorf("path filter %q resolves to no path; give a vault-relative path", p)
+		}
+		if prefixes[i] != vaultRoot && !authority.egressAllowed(prefixes[i]) {
+			return nil, fmt.Errorf("path filter %q lies under a directory this vault's contract withholds from agent-facing output; the scope was scanned but nothing from it can be reported, and an empty answer would read as a clean verdict", p)
 		}
 		if !scan.Contains(prefixes[i]) {
 			return nil, fmt.Errorf("path filter %q names nothing in this vault; give a vault-relative path such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)

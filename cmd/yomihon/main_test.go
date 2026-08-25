@@ -105,6 +105,10 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"  yomihon check --root ~/vault              the whole vault\n" +
 			"  yomihon check --root ~/vault Notes        one folder of it\n" +
 			"\n" +
+			"A path inside a directory the contract withholds from agent-facing output\n" +
+			"is refused rather than judged: that ground is scanned, but nothing from it\n" +
+			"can be reported, and an empty answer would read as a clean verdict.\n" +
+			"\n" +
 			"Writes one JSON object per line when the output is not a terminal, and a\n" +
 			"human summary when it is. --format decides instead of the terminal.\n" +
 			"\n" +
@@ -127,7 +131,13 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"\n" +
 			"Exits 0 when a note for the name exists and 1 when none does, so a\n" +
 			"caller can gate a write-if-absent on the exit code alone; 2 when the\n" +
-			"command itself could not run.\n",
+			"command itself could not run.\n" +
+			"\n" +
+			"A note inside a directory the contract withholds from agent-facing output\n" +
+			"is never matched and never named. In a vault that declares one, exit 1\n" +
+			"therefore means no reportable note carries the name — not that the vault\n" +
+			"holds none — so a write-if-absent gated on it can still write a duplicate\n" +
+			"of a withheld note.\n",
 	}
 
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {
