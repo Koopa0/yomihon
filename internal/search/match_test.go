@@ -523,20 +523,20 @@ func TestFoldIsSimpleLowercaseNotFullCaseFold(t *testing.T) {
 }
 
 // TestCJKQueryMatchesInsideALongerWord pins substring semantics for CJK text:
-// a match is a literal substring with no word segmentation, so \u4eac\u90fd is found
-// inside \u6771\u4eac\u90fd even though a reader parsing the words would cut \u6771\u4eac | \u90fd.
+// a match is a literal substring with no word segmentation, so 京都 is found
+// inside 東京都 even though a reader parsing the words would cut 東京 | 都.
 // CJK prose carries no delimiter to segment by, and a substring answer the
 // reader can see on the page beats a guessed segmentation they cannot argue
 // with.
 func TestCJKQueryMatchesInsideALongerWord(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
-		{RelPath: "tokyo.md", Title: "\u9996\u90fd", PlainText: "\u6771\u4eac\u90fd\u306e\u4eba\u53e3"},
-		{RelPath: "kyoto.md", Title: "\u53e4\u90fd", PlainText: "\u4eac\u90fd\u306e\u5bfa"},
+		{RelPath: "tokyo.md", Title: "首都", PlainText: "東京都の人口"},
+		{RelPath: "kyoto.md", Title: "古都", PlainText: "京都の寺"},
 	}, validArtifactPolicy(t))
-	got := paths(searchResults(t, idx, Parse("\u4eac\u90fd")))
+	got := paths(searchResults(t, idx, Parse("京都")))
 	if diff := cmp.Diff([]string{"kyoto.md", "tokyo.md"}, got); diff != "" {
-		t.Errorf("Search(\u4eac\u90fd) mismatch (-want +got):\n%s", diff)
+		t.Errorf("Search(京都) mismatch (-want +got):\n%s", diff)
 	}
 }
 

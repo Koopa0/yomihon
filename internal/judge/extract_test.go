@@ -257,6 +257,11 @@ func TestPathRefsSplitNoteFromResourceOnTheExactExtension(t *testing.T) {
 		want []string
 	}{
 		{name: "a lowercase link ref is checkable", body: "[doc](Concepts/a.md)", want: []string{"Concepts/a.md"}},
+		// A dotfile whose whole name is the extension ends in ".md" like any
+		// other note path, and the one shared predicate every face uses asks
+		// nothing more of a name — so the judge accepts it as a note ref
+		// rather than keeping a private stricter test of its own.
+		{name: "a dotfile named exactly .md is a note ref, by the shared predicate", body: "[doc](Concepts/.md)", want: []string{"Concepts/.md"}},
 		{name: "an uppercase spelling is a resource, not a ref", body: "[doc](Concepts/a.MD)", want: nil},
 		{name: "a mixed-case spelling is not a ref either", body: "[doc](Concepts/a.Md)", want: nil},
 		{name: "a backticked lowercase path is checkable", body: "see `Concepts/a.md`", want: []string{"Concepts/a.md"}},

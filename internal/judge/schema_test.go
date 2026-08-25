@@ -130,6 +130,89 @@ status: bogus
 	}
 }
 
+// undeclaredTypeContract declares a single note type and no status groups, so
+// a note written with any other type resolves to no status group at all. Its
+// note statuses are draft and ready.
+const undeclaredTypeContract = `schema_version = "1"
+
+[enums]
+type = ["article"]
+
+[enums.status]
+note = ["draft", "ready"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status"]
+
+[scan]
+knowledge_dirs = ["Concepts"]
+skip_basenames = []
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["curator"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["*"]
+from = ["draft"]
+owner = ["curator"]
+`
+
+// TestUndeclaredTypeStatusReadsAgainstTheNoteGroup pins the fallback for an
+// in-scope note whose type the contract never declared: such a type resolves
+// to no status group at all, yet its status still reads against the general
+// note group. The type already carries its own finding, and a group that does
+// not exist could neither name the enum to check nor the group to blame in
+// the reason — so a status the note group allows draws no finding, and one it
+// rejects is blamed in the note group's own words.
+func TestUndeclaredTypeStatusReadsAgainstTheNoteGroup(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, undeclaredTypeContract)
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Fatalf("schema.Load() error = %v", err)
+	}
+
+	valid := parseNote("Concepts/Valid.md", []byte("---\ntitle: Valid\ntype: mystery\nstatus: ready\n---\n"))
+	invalid := parseNote("Concepts/Invalid.md", []byte("---\ntitle: Invalid\ntype: mystery\nstatus: bogus\n---\n"))
+	findings, err := checkSchema([]note{valid, invalid}, contract)
+	if err != nil {
+		t.Fatalf("checkSchema() error = %v", err)
+	}
+
+	var statusFindings []Finding
+	for i := range findings {
+		if findings[i].RuleID == "schema.enum" && findings[i].Field != nil && *findings[i].Field == "status" {
+			statusFindings = append(statusFindings, findings[i])
+		}
+	}
+	if len(statusFindings) != 1 {
+		t.Fatalf("status findings = %+v, want exactly one, on the note whose status the note group rejects", statusFindings)
+	}
+	if got, want := statusFindings[0].Path, "Concepts/Invalid.md"; got != want {
+		t.Errorf("status finding path = %q, want %q", got, want)
+	}
+	if got, want := statusFindings[0].Message, `status "bogus" is not a valid status`; got != want {
+		t.Errorf("status message = %q, want %q", got, want)
+	}
+}
+
 func TestLintArticleLanguage(t *testing.T) {
 	t.Parallel()
 	definition := schema.Definition{Fields: schema.Fields{Known: []string{"title", "lang"}}}
