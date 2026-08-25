@@ -213,3 +213,112 @@ func TestHealthReachesEveryOutOfEnumNote(t *testing.T) {
 		t.Errorf("the heading's number is not the %d rows below it; section = %q", rows, section)
 	}
 }
+
+// homeRecentRow cuts the recent-changes row for one note title out of a
+// rendered Home body, so an assertion about one row cannot be answered by
+// another row on the same page.
+func homeRecentRow(t *testing.T, body, title string) string {
+	t.Helper()
+	for _, chunk := range strings.Split(body, `<a class="y-homenote"`)[1:] {
+		row, _, terminated := strings.Cut(chunk, "</a>")
+		if !terminated {
+			t.Fatalf("unterminated recent row: %q", chunk)
+		}
+		if strings.Contains(row, ">"+title+"</span>") {
+			return row
+		}
+	}
+	t.Fatalf("the recent list has no row for %q; body = %q", title, body)
+	return ""
+}
+
+// visibleOnly strips the stretches carried out of sight, so an assertion about
+// what a reader sees cannot be satisfied by text placed where only a screen
+// reader reaches it.
+func visibleOnly(markup string) string {
+	var b strings.Builder
+	rest := markup
+	for {
+		before, after, found := strings.Cut(rest, `<span class="y-offscreen">`)
+		b.WriteString(before)
+		if !found {
+			return b.String()
+		}
+		_, rest, found = strings.Cut(after, "</span>")
+		if !found {
+			return b.String()
+		}
+	}
+}
+
+// The distribution chip flagged a value no carrier declares with an amber
+// edge and carried the words explaining it out of sight, so a reader looking
+// straight at it saw a colour and nothing else — and a colour is not a
+// statement. The words are on the page now, in the same form the search row
+// and the note page use.
+func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
+	t.Parallel()
+	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	reviewing := homeChip(t, body, "reviewing")
+	if !strings.Contains(visibleOnly(reviewing), "不在 schema 允許清單中") {
+		t.Errorf("the flagged chip says nothing a reader can see; chip = %q", reviewing)
+	}
+	// The control: a declared status gains no such words, so the assertion
+	// above cannot be satisfied by a line the page prints beside every chip.
+	if strings.Contains(visibleOnly(homeChip(t, body, "draft")), "不在 schema 允許清單中") {
+		t.Errorf("a declared status is accused; chip = %q", homeChip(t, body, "draft"))
+	}
+}
+
+// The recent list showed a note's status as an ordinary chip whatever the
+// contract said about it, so the value the whole-folder page counts as a fault
+// sat on the landing page looking exactly like every legal one beside it.
+func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
+	t.Parallel()
+	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+
+	outside := homeRecentRow(t, body, "Outside")
+	if !strings.Contains(visibleOnly(outside), "不在 schema 允許清單中") {
+		t.Errorf("the row shows a value the schema disallows as ordinary vocabulary; row = %q", outside)
+	}
+	if !strings.Contains(outside, "reviewing") {
+		t.Errorf("the flagged row lost the value it is flagging; row = %q", outside)
+	}
+
+	legal := homeRecentRow(t, body, "Legal")
+	if strings.Contains(legal, "不在 schema 允許清單中") {
+		t.Errorf("a declared status is flagged; row = %q", legal)
+	}
+	if !strings.Contains(legal, "draft") {
+		t.Errorf("the declared row lost its status; row = %q", legal)
+	}
+}
+
+// A folder with no contract has no vocabulary to measure against, so the
+// landing page names statuses there without ruling on any of them — the same
+// restraint the search row and the whole-folder page keep.
+func TestHomeRecentRowAccusesNothingWithoutAContract(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, outOfEnumVault(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if strings.Contains(body, "不在 schema 允許清單中") {
+		t.Errorf("an ungoverned folder ruled on a status value; body = %q", body)
+	}
+	// The control: the rows are on the page, so the assertion above is not
+	// passing over a landing page that rendered nothing at all.
+	if !strings.Contains(body, `data-home-recent-note`) {
+		t.Errorf("the recent list is missing, so the assertion above proves nothing; body = %q", body)
+	}
+}

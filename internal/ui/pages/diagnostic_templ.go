@@ -75,6 +75,44 @@ func browserDiagnostic(summary, detail string) templ.Component {
 	})
 }
 
+// statusOutsideEnumMark is the compact form of the note page's out-of-enum
+// notice: the same fact in the same words, sized for a row or a chip rather
+// than for a panel. Every surface that names a status in passing renders this
+// one component, so a reader meets one sentence for one fault wherever they
+// meet it, and no surface can quietly drift into a colour with no words.
+//
+// The words are the element's own text rather than a label or a title, so what
+// is printed and what is announced are the same thing, and what a reader sees
+// does not depend on their pointing at it.
+func statusOutsideEnumMark() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var4 == nil {
+			templ_7745c5c3_Var4 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"y-outofenum\">不在 schema 允許清單中</span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
 func renderDiagnosticSummary(kind render.DiagnosticKind) string {
 	switch kind {
 	case render.DiagWikilinkBroken:

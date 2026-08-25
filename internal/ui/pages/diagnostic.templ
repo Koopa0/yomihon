@@ -14,6 +14,19 @@ templ browserDiagnostic(summary, detail string) {
 	}
 }
 
+// statusOutsideEnumMark is the compact form of the note page's out-of-enum
+// notice: the same fact in the same words, sized for a row or a chip rather
+// than for a panel. Every surface that names a status in passing renders this
+// one component, so a reader meets one sentence for one fault wherever they
+// meet it, and no surface can quietly drift into a colour with no words.
+//
+// The words are the element's own text rather than a label or a title, so what
+// is printed and what is announced are the same thing, and what a reader sees
+// does not depend on their pointing at it.
+templ statusOutsideEnumMark() {
+	<span class="y-outofenum">不在 schema 允許清單中</span>
+}
+
 func renderDiagnosticSummary(kind render.DiagnosticKind) string {
 	switch kind {
 	case render.DiagWikilinkBroken:

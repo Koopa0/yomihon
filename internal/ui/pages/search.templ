@@ -167,11 +167,7 @@ templ SearchResults(query string, results []SearchResult, total int, diagnostic 
 									<span class="y-result__sep" aria-hidden="true">·</span>
 									{ r.Status }
 									if r.StatusOutsideEnum {
-										// Words, not a colour: the row is read
-										// by people who cannot see the amber,
-										// and it is the link's own text, so
-										// what is spoken is what is printed.
-										<span class="y-result__flag">不在 schema 允許清單中</span>
+										@statusOutsideEnumMark()
 									}
 								}
 								if r.File {

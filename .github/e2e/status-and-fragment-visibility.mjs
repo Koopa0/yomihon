@@ -61,10 +61,15 @@ const hideVia = (path, selector, label) => rewritePath(
   label,
 );
 
+// The out-of-enum mark is one component and one class wherever it is worn — a
+// search hit, a landing-page row, a distribution chip. These mutations suppress
+// the class itself, so they answer for every surface that renders it, and the
+// search page is simply where the assertion is made. Which surfaces render it
+// at all is settled in Go, where a fixture can be built for each.
 const MUTATIONS = {
   'hide-search-flag': {
     target: 'search-flag-painted',
-    apply: hideVia(PAGE, '.y-result__flag', 'search-flag hide style'),
+    apply: hideVia(PAGE, '.y-outofenum', 'search-flag hide style'),
   },
   // The warning used to live in text carried out of sight. Reinstating exactly
   // that treatment must be caught, or this probe would bless the state the
@@ -74,7 +79,7 @@ const MUTATIONS = {
     apply: rewritePath(
       PAGE,
       '</head>',
-      '<style>.y-result__flag{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
+      '<style>.y-outofenum{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
       1,
       'search-flag clip style',
     ),
@@ -150,7 +155,7 @@ try {
   const rows = page.locator('ol.y-results > li');
   const rowCount = await rows.count();
   if (rowCount < 2) broken(`the fixture search returned ${rowCount} rows, want at least one flagged and one declared`);
-  const flags = page.locator('.y-result__flag');
+  const flags = page.locator('.y-outofenum');
   if (await flags.count() !== 1) {
     fail('search-flag-painted', `the results carry ${await flags.count()} out-of-enum warnings, want exactly 1 over ${rowCount} rows`);
   }

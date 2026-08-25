@@ -355,7 +355,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	var recent []pages.HomeNote
 	recentOrdered := false
 	if !recentClosed {
-		recent, recentOrdered = recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed)
+		recent, recentOrdered = recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed, statusView)
 	}
 	pathsClosed := visibleNav.NavigationClosure().Closed() || visibleNav.ArtifactClosure().Closed()
 	var paths []pages.HomePath
@@ -885,7 +885,12 @@ func statedOnce(causes ...string) string {
 // deciding, and a heading that says "recently changed" leads with whatever name
 // sorts first. The reader has no way to see that from the page, which is the
 // kind of quiet wrong answer this interface is not allowed to give.
-func recentHomeNotes(notes []nav.NoteSummary, governed bool) (recent []pages.HomeNote, ordered bool) {
+func recentHomeNotes(
+	notes []nav.NoteSummary,
+	governed bool,
+	statusView status.View,
+) (recent []pages.HomeNote, ordered bool) {
+	rules := !statusView.Closed()
 	notes = slices.Clone(notes)
 	slices.SortStableFunc(notes, func(a, b nav.NoteSummary) int {
 		switch {
@@ -909,9 +914,13 @@ func recentHomeNotes(notes []nav.NoteSummary, governed bool) (recent []pages.Hom
 		item := pages.HomeNote{Title: n.Title, RelPath: n.RelPath, Type: n.Type}
 		// A status chip names a value from a declared vocabulary. Without a
 		// contract there is no vocabulary, so raw frontmatter text is not
-		// dressed up as a lifecycle state.
+		// dressed up as a lifecycle state — and a view that holds no
+		// vocabulary rules on nothing rather than calling every value a fault.
 		if governed {
 			item.Status = n.Status
+			if rules && n.Status != "" {
+				item.StatusOutsideEnum = !statusView.KnownStatus(n.Type, n.Status)
+			}
 		}
 		if !n.Modified.IsZero() {
 			item.Modified = n.Modified.Format("2006-01-02")

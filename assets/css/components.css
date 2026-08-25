@@ -587,11 +587,13 @@ html, body { margin: 0; background: var(--bg); }
 .y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-result__sep { margin: 0 6px; }
 .y-result__kind { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
-/* a hit whose status the contract does not declare for its type — the same
-   ochre family the note page and the distribution chip flag it in. The words
-   inside carry the meaning; the tint only makes them findable while a reader
-   scans a list of paths that otherwise all look alike. */
-.y-result__flag { display: inline-block; margin-left: 8px; padding: 0 5px; border: 1px solid var(--warn); border-radius: 3px; color: var(--warn); background: var(--warn-bg); }
+/* a status the contract does not declare — worn by a search hit, a landing-page
+   row, and the distribution chip alike, so one fault reads as one thing
+   wherever it is met. The words inside carry the meaning; the tint only makes
+   them findable while a reader scans a list that otherwise looks uniform. It
+   sits inline so it wraps with the line it belongs to rather than pushing the
+   row wider than its neighbours. */
+.y-outofenum { display: inline-block; margin-left: 8px; padding: 0 6px; border-radius: 3px; font-family: var(--font-sans); font-size: var(--fs-11); line-height: 1.75; color: var(--warn); background: var(--warn-bg); white-space: nowrap; }
 .y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; }
 
 /* ============================================================
