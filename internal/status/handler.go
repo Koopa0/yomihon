@@ -90,9 +90,16 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 
 	err := h.lifecycle.Flip(path, from, to, contentIdentity)
 	if err == nil {
+		// The target names the status this note just left. The reading page
+		// states the change once, in a live region, and states it only when
+		// that value differs from the status the note now carries — so this
+		// parameter can report a transition and cannot invent one. Without it
+		// the whole confirmation was the re-rendered chip, which reads the
+		// same whether the press worked or somebody else's did, and which a
+		// reader who cannot see it never receives at all.
 		// #nosec G710 -- Flip succeeded only after its vault-local path check;
-		// the prefix is a fixed same-origin literal.
-		http.Redirect(w, r, notesHref(path), http.StatusSeeOther)
+		// the prefix is a fixed same-origin literal and the value is escaped.
+		http.Redirect(w, r, notesHref(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
 		return
 	}
 	h.respondRecovery(w, r, path, from, to, recoveryFor(err))

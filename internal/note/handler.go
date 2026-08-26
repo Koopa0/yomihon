@@ -513,6 +513,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		NoFrontmatter:     governance.noFrontmatter,
 		StatusUnknown:     governance.statusUnknown,
+		FlippedFrom:       r.URL.Query().Get("from"),
 	}
 
 	pageChrome := governance.shell.Chrome(r, n.Title)

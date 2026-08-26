@@ -122,6 +122,13 @@ type NoteView struct {
 	NonInstance     bool
 	WriteDiagnostic string
 	NoFrontmatter   bool
+	// FlippedFrom is the status the transition form said it was leaving, when
+	// this reading is the one a successful flip redirected to. It is the only
+	// thing the write face carries across that redirect, and the page states a
+	// change only when it and the current status differ — so an address typed
+	// by hand can assert nothing the note does not already show.
+	FlippedFrom string
+
 	// StatusUnknown is set when the note's non-empty status value is not in
 	// the contract's declared list for its type. Both status faces then flag
 	// the value instead of implying the schema defines nothing onward.
@@ -178,6 +185,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
+				@flipReceipt(v)
 				<article class="y-article" lang={ articleLanguage(v.Language) }>
 					@articleHead(v)
 					@inlineAids(v)
@@ -1020,4 +1028,29 @@ func statusState(v NoteView) string {
 	default:
 		return "instance"
 	}
+}
+
+// flipReceipt states the transition this reading arrived from. The redirect
+// after a successful write used to land on the note carrying nothing but the
+// new chip, so the whole confirmation was a coloured word that reads the same
+// whether the press worked, changed nothing, or was somebody else's — and a
+// reader who cannot see the chip was told nothing at all.
+//
+// It is a live region so it reaches a reader on arrival rather than waiting to
+// be found, and it is the first thing in the main column for the same reason.
+// The claim is bounded by what the page can stand behind: the status the note
+// carries now, and the status the submitted form said it was leaving. Where
+// those agree there was no change to state, which is also what makes a hand
+// typed address unable to manufacture one.
+templ flipReceipt(v NoteView) {
+	if v.showsFlipReceipt() {
+		<p class="y-flipreceipt" role="status">
+			狀態已從 <code lang="en">{ v.FlippedFrom }</code> 改為 <code lang="en">{ v.Status }</code>。
+		</p>
+	}
+}
+
+// showsFlipReceipt reports whether this reading has a change to state.
+func (v NoteView) showsFlipReceipt() bool {
+	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status
 }

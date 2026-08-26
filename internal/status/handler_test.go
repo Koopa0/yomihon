@@ -81,10 +81,12 @@ func TestHandlerSuccess(t *testing.T) {
 	if code != http.StatusSeeOther {
 		t.Errorf("status = %d, want %d", code, http.StatusSeeOther)
 	}
-	// Every successful flip lands back on the plain note page; the re-rendered
-	// status chip is the whole confirmation, so no target carries a signal
-	// parameter.
-	if want := "/notes/" + testRel; location != want {
+	// Every successful flip lands back on the note page, and the target names
+	// the status the note just left. That is what lets the page state the
+	// change once instead of leaving a re-rendered chip to imply it — a chip
+	// reads the same whether this press worked or another did, and a reader
+	// who cannot see it receives nothing.
+	if want := "/notes/" + testRel + "?from=draft"; location != want {
 		t.Errorf("Location = %q, want %q", location, want)
 	}
 }

@@ -420,6 +420,7 @@ html, body { margin: 0; background: var(--bg); }
    edge, which is the one word the reader needed. Breaking anywhere also lets
    the column reach its own min-content width instead of being held open. */
 .y-diagdetail { overflow-wrap: anywhere; }
+.y-flipreceipt { color: var(--fg-muted); font-size: var(--fs-13); margin: 0 0 12px; }
 .y-syl-nocourse { color: var(--fg-muted); max-width: 60ch; margin: 18px 0 0; }
 .y-prose .embed--widened { border-left-color: var(--warn); }
 .y-prose .embed__widened { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }

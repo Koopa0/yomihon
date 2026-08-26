@@ -386,3 +386,59 @@ func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
 		t.Errorf("the count is not stated on the closed disclosure:\n%s", got)
 	}
 }
+
+// TestFlipReceiptStatesTheChangeItCanVouchFor holds what a reader is told
+// after a transition installs. The redirect used to land on the note with the
+// new chip and nothing else, so the whole confirmation was a coloured word
+// that looks the same whether the press worked, did nothing, or was somebody
+// else's. A reader who cannot see the chip got no answer at all.
+//
+// The line is a live region so it reaches a reader on arrival, and it states
+// only what the page can stand behind: the note's status now, and what the
+// form said it was leaving. It is not rendered when those agree, so a hand
+// typed address cannot manufacture a change that did not happen.
+func TestFlipReceiptStatesTheChangeItCanVouchFor(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		view        NoteView
+		wantPresent []string
+		wantAbsent  []string
+	}{
+		{
+			name:        "a real transition is stated once, in a live region",
+			view:        NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "ready", FlippedFrom: "draft"},
+			wantPresent: []string{`role="status"`, "已從", "draft", "ready"},
+		},
+		{
+			name:       "an ordinary reading carries no receipt",
+			view:       NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "ready"},
+			wantAbsent: []string{"已從"},
+		},
+		{
+			name:       "a hand typed origin equal to the current status states nothing",
+			view:       NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "ready", FlippedFrom: "ready"},
+			wantAbsent: []string{"已從"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Note(tt.view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := buf.String()
+			for _, want := range tt.wantPresent {
+				if !strings.Contains(html, want) {
+					t.Errorf("the receipt is missing %q", want)
+				}
+			}
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(html, absent) {
+					t.Errorf("a receipt appeared where none is true (%q)", absent)
+				}
+			}
+		})
+	}
+}

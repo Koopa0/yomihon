@@ -2548,9 +2548,29 @@ func TestShowTransitions(t *testing.T) {
 		}
 		t.Fatalf("POST /status = %d, want %d; body = %q", resp.StatusCode, http.StatusSeeOther, b)
 	}
-	if got, want := resp.Header.Get("Location"), "/notes/Writing/lessons/japanese/L01.md"; got != want {
+	// The target names the status the note just left, which is what the
+	// reading page states the change from.
+	if got, want := resp.Header.Get("Location"), "/notes/Writing/lessons/japanese/L01.md?from=draft"; got != want {
 		t.Errorf("POST /status Location = %q, want %q", got, want)
 	}
+	// Follow the redirect the way a browser does and read what the reader is
+	// actually told. Asserting the receipt on a hand-built NoteView proves the
+	// template can render it; only this proves the page is handed the value.
+	landingCode, landing := get(t, srv.URL+resp.Header.Get("Location"))
+	if landingCode != http.StatusOK {
+		t.Fatalf("GET the redirect target = %d, want 200", landingCode)
+	}
+	for _, want := range []string{`role="status"`, "狀態已從", ">draft<", ">" + schema.SealStatus + "<"} {
+		if !strings.Contains(landing, want) {
+			t.Errorf("the page a successful flip lands on does not state the change (%q missing)", want)
+		}
+	}
+	// A plain reading of the same note states nothing.
+	_, plain := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if strings.Contains(plain, "狀態已從") {
+		t.Errorf("an ordinary reading carries a transition receipt")
+	}
+
 	got, err := os.ReadFile(filepath.Join(dir, "L01.md")) // #nosec G304 -- dir is under t.TempDir and the filename is fixed by this test
 	if err != nil {
 		t.Fatalf("read flipped lesson: %v", err)
