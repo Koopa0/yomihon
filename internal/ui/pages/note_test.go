@@ -153,9 +153,15 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAids: false,
 			wantPresent: []string{
 				"y-statuspanel",
+				"y-sealbar",
 				"目前沒有合法的狀態轉換。",
 			},
 			wantAbsent: []string{"接下來的狀態轉換由其他 owner 持有"},
+			// Counted, not merely present: the two faces carry the same
+			// sentence, so a Contains satisfied by the panel alone would leave
+			// the bar's branch — the only status face at the widths that drop
+			// the rail — locked by nothing.
+			wantCounts: map[string]int{"目前沒有合法的狀態轉換。": 2},
 		},
 		{
 			// The corner the invariant missed. The frontmatter parses, so the

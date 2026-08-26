@@ -113,11 +113,35 @@ func TestExistsSkipsDiary(t *testing.T) {
 	if !r.Withheld || !r.found() {
 		t.Errorf("exists(%q) answered absent for a note that exists; a write-if-absent gate would create a duplicate of it", "Private Session Note")
 	}
+	// The two answers a caller actually receives, asserted as the bytes they
+	// are: the machine field AGENT_INTERFACE.md documents, and the sentence a
+	// person reads. Checking only the struct would leave both free to be
+	// deleted with the suite green.
+	wire, err := marshalWire(r)
+	if err != nil {
+		t.Fatalf("marshalWire: %v", err)
+	}
+	if got, want := string(wire), "{\"query\":\"Private Session Note\",\"matches\":[],\"withheld\":true}\n"; got != want {
+		t.Errorf("exists JSON = %q, want %q", got, want)
+	}
 	rendered := renderExists(r)
+	if !strings.Contains(rendered, "withholds") {
+		t.Errorf("the human answer does not say the name is answered by something it may not describe:\n%s", rendered)
+	}
 	for _, leaked := range []string{"Diary/", "Private Session Note.md", "title"} {
 		if strings.Contains(rendered, leaked) {
 			t.Errorf("the human answer leaks %q about a withheld note:\n%s", leaked, rendered)
 		}
+	}
+
+	// And the ordinary answer's bytes are unchanged, which is what lets the
+	// new field ship without moving a frozen contract.
+	plain, err := marshalWire(existsLookup(notes, "keep", authority))
+	if err != nil {
+		t.Fatalf("marshalWire: %v", err)
+	}
+	if strings.Contains(string(plain), "withheld") {
+		t.Errorf("an ordinary answer carries the withheld field: %s", plain)
 	}
 
 	if r := existsLookup(notes, "keep", authority); !r.found() || r.Withheld {
