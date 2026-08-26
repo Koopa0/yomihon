@@ -65,9 +65,9 @@ func openStatusLifecycle(
 	governance schema.Governance,
 ) *status.Lifecycle {
 	t.Helper()
-	lifecycle, err := status.Open(source, contract, governance)
+	lifecycle, err := status.Open(source, contract, governance, slog.New(slog.DiscardHandler))
 	if err != nil {
-		t.Fatalf("status.Open() error = %v", err)
+		t.Fatalf("status.Open(, slog.New(slog.DiscardHandler)) error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := lifecycle.Close(); err != nil {

@@ -135,7 +135,7 @@ func openStatusView(t *testing.T, contract *schema.Contract, governance schema.G
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := status.Open(reader, contract, governance)
+	lifecycle, err := status.Open(reader, contract, governance, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open: %v", err)
 	}

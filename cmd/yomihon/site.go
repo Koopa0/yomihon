@@ -76,7 +76,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		governance = contract.Governance()
 	}
 
-	lifecycle, err := status.Open(source, contract, governance)
+	lifecycle, err := status.Open(source, contract, governance, log)
 	if err != nil {
 		return nil, fmt.Errorf("open status lifecycle: %w", err)
 	}

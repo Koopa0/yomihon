@@ -87,7 +87,7 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	if err != nil {
 		t.Fatalf("schema.LoadReader() error = %v", err)
 	}
-	lifecycle, err := status.Open(source, contract, contract.Governance())
+	lifecycle, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open() error = %v", err)
 	}
@@ -141,7 +141,7 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	if err != nil {
 		t.Fatalf("schema.LoadReader() error = %v", err)
 	}
-	lifecycle, err := status.Open(source, contract, contract.Governance())
+	lifecycle, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open() error = %v", err)
 	}

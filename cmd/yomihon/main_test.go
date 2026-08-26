@@ -467,7 +467,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 
 	// The lifecycle shares the fixture's contract authority with the snapshot,
 	// but its writing endpoint is deliberately not registered below.
-	lifecycle, err := status.Open(reader, contract, contract.Governance())
+	lifecycle, err := status.Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open: %v", err)
 	}

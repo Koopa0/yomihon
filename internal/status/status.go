@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	pathpkg "path"
 	"path/filepath"
@@ -138,6 +139,11 @@ type Lifecycle struct {
 	contract   *schema.Contract
 	governance schema.Governance
 	policy     schema.ArtifactPolicy
+	// log carries the one thing this package has to say that no caller asked
+	// for: that a flip killed mid-write left a file behind, and the sweep has
+	// set it aside rather than deleting it. Nothing else here reports, because
+	// everything else has a caller waiting for an answer.
+	log *slog.Logger
 	// mu serializes View, Flip, ObservedStatus, and Close: the pinned root
 	// capability is a shared resource, two flips must never interleave their
 	// read-check-replace windows, and Close cannot release the root under an
@@ -169,7 +175,7 @@ type fileSnapshot struct {
 // contract could not be read both arrive here with no contract, and only the
 // second one is a fault. When contract is non-nil, governance must be
 // contract.Governance().
-func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance) (*Lifecycle, error) {
+func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Lifecycle, error) {
 	if source == nil {
 		return nil, errors.New("status: open lifecycle: vault reader is nil")
 	}
@@ -188,7 +194,10 @@ func Open(source *vault.Reader, contract *schema.Contract, governance schema.Gov
 	if contract != nil {
 		policy = contract.ArtifactPolicy()
 	}
-	return &Lifecycle{root: root, contract: contract, governance: governance, policy: policy}, nil
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	return &Lifecycle{root: root, contract: contract, governance: governance, policy: policy, log: log}, nil
 }
 
 // Close waits for an in-progress Flip or status read, then releases the
@@ -513,7 +522,7 @@ func (lc *Lifecycle) install(
 		relSlash,
 		source,
 		rewritten,
-		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall},
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, log: lc.log},
 		func() error {
 			_, authorityErr := lc.validatedArtifactPolicy()
 			return authorityErr
@@ -816,6 +825,9 @@ type installHooks struct {
 	beforeInstall func()
 	syncTemp      func(*os.File) error
 	syncParent    func(*os.Root) error
+	// log receives the sweep's account of a file it set aside. Nil is legal:
+	// an install with no logger simply says nothing.
+	log *slog.Logger
 	// rung, when set, replaces the per-filesystem probe for this install.
 	// The probe's answer is cached for the whole process, so a test that needs
 	// a particular rung says so for its own call instead of deciding for every
@@ -844,7 +856,7 @@ func replaceRegularFile(
 	if err != nil {
 		return err
 	}
-	quarantineStaleTemps(preparedParent)
+	quarantineStaleTemps(preparedParent, relSlash, hooks.log)
 	rung := selectRung(preparedParent, hooks)
 	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp)
 	if err != nil {
@@ -1013,7 +1025,7 @@ const staleTempAge = time.Hour
 // left where they are. Nothing is deleted, and an entry already sitting under
 // the destination name is left alone rather than overwritten. Best-effort
 // throughout — the flip about to run does not depend on it.
-func quarantineStaleTemps(parent *os.Root) {
+func quarantineStaleTemps(parent *os.Root, relSlash string, log *slog.Logger) {
 	dir, err := parent.Open(".")
 	if err != nil {
 		return
@@ -1036,7 +1048,18 @@ func quarantineStaleTemps(parent *os.Root) {
 		if _, exists := parent.Lstat(orphan); exists == nil {
 			continue
 		}
-		_ = parent.Rename(name, orphan) //nolint:errcheck // moving an abandoned temp aside is best-effort
+		if parent.Rename(name, orphan) != nil {
+			continue
+		}
+		// The file stays because deleting it could destroy the only copy of a
+		// note a crash caught mid-write, and it is dot-prefixed, so nothing
+		// the reader ever opens will show it. Saying so once is what keeps it
+		// from being kept forever and known to nobody: it is the operator's to
+		// read and to remove.
+		if log != nil {
+			log.Warn("a status write left a file behind and it has been set aside; remove it once you are satisfied the note is intact",
+				"note", relSlash, "kept", orphan)
+		}
 	}
 }
 

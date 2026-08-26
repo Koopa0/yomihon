@@ -1,9 +1,11 @@
 package status_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -109,7 +111,7 @@ func newLifecycle(t *testing.T, root string, contract *schema.Contract) *status.
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := status.Open(reader, contract, contract.Governance())
+	lifecycle, err := status.Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open(%q) error = %v", root, err)
 	}
@@ -239,7 +241,7 @@ func TestOpenRejectsAReplacementOfTheReadersRoot(t *testing.T) {
 		t.Fatalf("create replacement vault: %v", err)
 	}
 
-	lifecycle, err := status.Open(reader, nil, schema.Ungoverned())
+	lifecycle, err := status.Open(reader, nil, schema.Ungoverned(), slog.New(slog.DiscardHandler))
 	if lifecycle != nil {
 		t.Cleanup(func() {
 			if closeErr := lifecycle.Close(); closeErr != nil {
@@ -248,7 +250,7 @@ func TestOpenRejectsAReplacementOfTheReadersRoot(t *testing.T) {
 		})
 	}
 	if err == nil || !strings.Contains(err.Error(), "vault root changed") {
-		t.Fatalf("status.Open(replaced root) = (%v, %v), want nil and root-changed error", lifecycle, err)
+		t.Fatalf("status.Open(replaced root, slog.New(slog.DiscardHandler)) = (%v, %v), want nil and root-changed error", lifecycle, err)
 	}
 }
 
@@ -1466,5 +1468,76 @@ func TestFlipRefusesPublishedTarget(t *testing.T) {
 	}
 	if string(got) != original {
 		t.Errorf("note after refused flip = %q, want untouched %q", got, original)
+	}
+}
+
+// TestTheSweepSaysWhatItSetAside holds the one thing this package reports
+// without being asked. A flip killed mid-write leaves a file beside the note;
+// an hour later the next flip in that directory moves it aside rather than
+// deleting it, because deleting could destroy the only copy of a note the
+// crash caught in the middle. Kept means kept forever, and the name is
+// dot-prefixed, so nothing a reader opens will ever show it.
+//
+// So the sweep says so, once, naming both the note and the file it kept.
+// Without that the design's honest half — we will not delete your bytes —
+// arrived as a file nobody knew was there.
+func TestTheSweepSaysWhatItSetAside(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	var logged bytes.Buffer
+	contract := loadContract(t)
+	lifecycle, err := status.Open(reader, contract, contract.Governance(),
+		slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	if err != nil {
+		t.Fatalf("status.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := lifecycle.Close(); closeErr != nil {
+			t.Errorf("Lifecycle.Close() error = %v", closeErr)
+		}
+	})
+
+	original := lessonContent("draft")
+	writeNote(t, root, original)
+	dir := filepath.Dir(filepath.Join(root, filepath.FromSlash(testRel)))
+	const middle = "AAAAABBBBBCCCCCDDDDDEEEEEF"
+	abandoned := filepath.Join(dir, ".yomihon-status-"+middle+".tmp")
+	if err := os.WriteFile(abandoned, []byte("bytes only a person can identify"), 0o600); err != nil {
+		t.Fatalf("plant the abandoned temp: %v", err)
+	}
+	aged := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(abandoned, aged, aged); err != nil {
+		t.Fatalf("age the abandoned temp: %v", err)
+	}
+
+	if err := lifecycle.Flip(testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+		t.Fatalf("Flip() = %v, want nil", err)
+	}
+
+	said := logged.String()
+	for _, want := range []string{testRel, ".yomihon-orphaned-" + middle + ".keep"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the sweep kept a file without naming %q; it said:\n%s", want, said)
+		}
+	}
+
+	// The control: an ordinary flip with nothing to set aside says nothing at
+	// all, or the line above would be noise on every write.
+	logged.Reset()
+	after := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	if err := lifecycle.Flip(testRel, schema.SealStatus, "archived", diskIdentity(after)); err != nil {
+		t.Fatalf("second Flip() = %v, want nil", err)
+	}
+	if logged.Len() != 0 {
+		t.Errorf("a flip with nothing abandoned still reported:\n%s", logged.String())
 	}
 }
