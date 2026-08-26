@@ -163,7 +163,7 @@ func Health(v HealthView, c layouts.Chrome) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.clean() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"y-homeempty\">這個書庫目前沒有需要處理的事：每個連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用。</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"y-homeempty\">這個書庫目前沒有需要處理的事：每個 [[…]] 連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用。</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

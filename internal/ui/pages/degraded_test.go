@@ -86,3 +86,25 @@ func TestHealthSaysHowOldTheWholePictureIs(t *testing.T) {
 		})
 	}
 }
+
+// TestHealthAllClearClaimsOnlyTheLinksItRead holds the scope of the sentence
+// this page shows when it has nothing to report. Its link answers come from
+// one extractor that reads [[…]] and nothing else, so an ordinary Markdown
+// link to a file that is not there is invisible here — it is live navigation
+// to a 404 on the reading page and a warning from the command line, and this
+// page said every link had a target. A reader who trusts the all-clear cannot
+// be told a wider thing than was checked.
+func TestHealthAllClearClaimsOnlyTheLinksItRead(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := Health(HealthView{}, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, "每個 [[…]] 連結都有目標") {
+		t.Errorf("the all-clear does not name which links it read:\n%s", html)
+	}
+	if strings.Contains(html, "每個連結都有目標") {
+		t.Errorf("the all-clear still claims every link, including the ones this page never reads")
+	}
+}

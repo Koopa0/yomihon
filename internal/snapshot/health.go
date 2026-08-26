@@ -24,6 +24,13 @@ const vaultRootLabel = "書庫根目錄"
 // Read per note, none of it answers "what should I fix"; gathered, it does.
 //
 // It reports and never repairs, the same rule the note panel follows.
+//
+// Every link answer here comes from one extractor, and that extractor reads
+// [[…]] citations and nothing else. An ordinary Markdown link to a file that
+// is not there is therefore outside this whole picture — the reading page
+// navigates it to a 404 and the command line warns about it, while nothing
+// below counts it. The page says which links it read for that reason: an
+// all-clear is only worth what it covers.
 type Health struct {
 	// Unwritten are citations to names no file carries and no ledger declared.
 	// A name the vault has planned is not here: it is on the page because it is

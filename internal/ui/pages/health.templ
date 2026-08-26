@@ -119,7 +119,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 					<h1 class="y-title">整體狀況</h1>
 					<div class="y-seam" aria-hidden="true"></div>
 					if v.clean() {
-						<p class="y-homeempty">這個書庫目前沒有需要處理的事：每個連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用。</p>
+						<p class="y-homeempty">這個書庫目前沒有需要處理的事：每個 [[…]] 連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用。</p>
 					} else {
 						<p class="y-healthlede">這裡只陳述狀況，不會動你的檔案。要修改請在編輯器裡改那個檔案。</p>
 						@healthSection("讀不進來的檔案", len(v.Blocked), v.blockedLede()) {
