@@ -254,13 +254,19 @@ if [ -z "$ready" ]; then
   exit 1
 fi
 
-if ! reason="$(contract_log_error "$(<"$log")")"; then
-  echo "serve.sh: fixture contract preflight failed: ${reason}" >&2
+# Ownership is asked first because it explains the other answer. A foreign
+# process already holding the port answers Home's 200 while the child this
+# script started never binds and logs nothing, and an empty log reads to the
+# contract check as zero successful loads — a port conflict reported as a
+# broken fixture schema. Neither ordering can turn a foreign 200 into a pass;
+# this one names the fault the operator has to fix.
+if ! reason="$(serving_log_error "$(<"$log")" "127.0.0.1:${port}")"; then
+  echo "serve.sh: listener ownership preflight failed: ${reason}" >&2
   dump_log
   exit 1
 fi
-if ! reason="$(serving_log_error "$(<"$log")" "127.0.0.1:${port}")"; then
-  echo "serve.sh: listener ownership preflight failed: ${reason}" >&2
+if ! reason="$(contract_log_error "$(<"$log")")"; then
+  echo "serve.sh: fixture contract preflight failed: ${reason}" >&2
   dump_log
   exit 1
 fi
