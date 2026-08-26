@@ -362,10 +362,19 @@ func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
 		case row.Owner == nil:
 			return nil, fmt.Errorf(`lifecycle row %d: missing required key "owner"`, ordinal)
 		}
+		// Every status word this row names is folded here, once, so nothing
+		// downstream has to remember to. The wildcard passes through: it is
+		// grammar, not a status.
+		from := slices.Clone(*row.From)
+		for j, predecessor := range from {
+			if predecessor != "*" {
+				from[j] = NormalizeStatus(predecessor)
+			}
+		}
 		stages[i] = Stage{
-			Status:    *row.Status,
+			Status:    NormalizeStatus(*row.Status),
 			AppliesTo: slices.Clone(*row.AppliesTo),
-			From:      slices.Clone(*row.From),
+			From:      from,
 			Owner:     slices.Clone(*row.Owner),
 		}
 	}
@@ -830,8 +839,12 @@ func compileLifecycleStatusLookups(contract *Contract) map[string]map[string]str
 	contract.statusesByGroup = make(map[string][]string, len(contract.definition.Enums.Status))
 	statusSets := make(map[string]map[string]struct{}, len(contract.definition.Enums.Status))
 	for group, statuses := range contract.definition.Enums.Status {
-		contract.statusesByGroup[group] = slices.Clone(statuses)
-		statusSets[group] = stringSet(statuses)
+		declared := make([]string, len(statuses))
+		for i, st := range statuses {
+			declared[i] = NormalizeStatus(st)
+		}
+		contract.statusesByGroup[group] = declared
+		statusSets[group] = stringSet(declared)
 	}
 	return statusSets
 }
@@ -1251,6 +1264,25 @@ func (c *Contract) Statuses(noteType string) []string {
 	return slices.Clone(c.statusesByGroup[c.StatusGroup(noteType)])
 }
 
+// NormalizeStatus is the one spelling rule for a status word, and every
+// comparison against a declared status goes through it — the declared values
+// when the contract is read, and the note's own value when it is judged
+// against them.
+//
+// A status arrives from two places that disagree about bytes without
+// disagreeing about the word: a note's line as the filesystem hands it over,
+// which on macOS is decomposed, and the same value after the search index
+// stored it, which composes. Comparing raw bytes therefore had one page call a
+// note's status legal while another called it outside the schema, and a note
+// whose word reached the disk decomposed was offered no transition at all —
+// its write face closed with nothing on screen saying why. This is the fold
+// the resolver already applies to a name for the same reason; a status is not
+// case-folded with it, because two statuses differing only in case are two
+// declarations and the contract's author meant them.
+func NormalizeStatus(s string) string {
+	return vault.NormalizeNFC(s)
+}
+
 // Stage returns the lifecycle entry for setting status on a note of the
 // given type, or false when the contract defines none.
 func (c *Contract) Stage(noteType, status string) (Stage, bool) {
@@ -1262,7 +1294,7 @@ func (c *Contract) Stage(noteType, status string) (Stage, bool) {
 }
 
 func (c *Contract) stage(noteType, status string) (Stage, bool) {
-	stage, ok := c.stageByTypeStatus[lifecycleKey{noteType: noteType, status: status}]
+	stage, ok := c.stageByTypeStatus[lifecycleKey{noteType: noteType, status: NormalizeStatus(status)}]
 	return stage, ok
 }
 
@@ -1271,6 +1303,11 @@ func (c *Contract) stage(noteType, status string) (Stage, bool) {
 // status. Lifecycle owner lists are declarative data and play no part in the
 // answer. The returned error wraps one of the package sentinels.
 func (c *Contract) Transition(noteType, from, to string) error {
+	// Both ends are folded before anything is compared: one arrives from a
+	// note's own line as the filesystem spelled it, the other from a form or
+	// from this contract, and the three sources agree about the word without
+	// agreeing about its bytes.
+	from, to = NormalizeStatus(from), NormalizeStatus(to)
 	st, ok := c.stage(noteType, to)
 	if !ok {
 		return fmt.Errorf("%w: %q for type %q", ErrUnknownStatus, to, noteType)

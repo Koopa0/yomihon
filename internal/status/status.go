@@ -359,7 +359,7 @@ func (v View) Terminal(noteType, status string) bool {
 // never listed, instead of implying the schema defines no onward transitions
 // from a value it never defined.
 func (v View) KnownStatus(noteType, status string) bool {
-	return v.available() && slices.Contains(v.contract.Statuses(noteType), status)
+	return v.available() && slices.Contains(v.contract.Statuses(noteType), schema.NormalizeStatus(status))
 }
 
 // Order returns the default note group's statuses in declared order. A nil
