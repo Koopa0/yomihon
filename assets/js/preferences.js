@@ -14,9 +14,14 @@ export function initPreferences() {
     document.cookie = `yomihon_shortcuts=${value};path=/;max-age=31536000;samesite=lax`;
   }
 
-  document.querySelector('[data-textsize-toggle]')?.addEventListener('click', () => {
+  document.querySelector('[data-textsize-toggle]')?.addEventListener('click', (event) => {
     const next = { m: 'l', l: 'xl', xl: 'm' }[root.dataset.textsize] || 'l';
     setPreference('textsize', next);
+    // The control cycles three sizes, so its state lives in its accessible
+    // name rather than in aria-pressed. Rewriting the name on the focused
+    // button is what tells a reader who cannot see the type what the press
+    // just did; the server renders the same three strings on load.
+    event.currentTarget.setAttribute('aria-label', { m: '字級：中', l: '字級：大', xl: '字級：特大' }[next]);
   });
   document.querySelector('[data-theme-toggle]')?.addEventListener('click', (event) => {
     setPreference('theme', root.dataset.theme === 'dark' ? 'light' : 'dark');

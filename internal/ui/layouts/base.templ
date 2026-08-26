@@ -89,7 +89,7 @@ templ header(c Chrome) {
 			</button>
 		}
 		<a class="y-healthlinkbtn" href="/health" title="整體狀況：連結、孤島、名字衝突">整體狀況</a>
-		<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label="切換字級" title="字級：中 → 大 → 特大">
+		<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize) } title="字級：中 → 大 → 特大">
 			<span aria-hidden="true">字</span>
 		</button>
 		<button class="y-iconbtn y-helpbtn" type="button" popovertarget="kbd-help" aria-label="鍵盤快捷鍵說明">
@@ -151,4 +151,21 @@ templ searchDialog() {
 			<span>esc 關閉</span>
 		</div>
 	</dialog>
+}
+
+// textSizeLabel is the text-size control's accessible name, which carries the
+// size the reader is at rather than the action the press performs. Its two
+// neighbours in the header are two-state and say where they stand through
+// aria-pressed; this one cycles through three, which no boolean carries, so
+// the name is where its state has to live. The script keeps it current on
+// every press, and a reader arriving on a reload finds the same answer.
+func textSizeLabel(size string) string {
+	switch size {
+	case "l":
+		return "字級：大"
+	case "xl":
+		return "字級：特大"
+	default:
+		return "字級：中"
+	}
 }

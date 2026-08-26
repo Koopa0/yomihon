@@ -299,3 +299,53 @@ func TestBaseStampsTextSizeOnTheRoot(t *testing.T) {
 		t.Error(`Base() root is missing data-textsize="xl"`)
 	}
 }
+
+// TestTextSizeControlNamesTheSizeItIsAt holds the state the cycling control
+// never exposed. Its two neighbours in the same header — the theme and
+// furigana toggles — carry aria-pressed and keep it current on every press, so
+// a reader who cannot see the page can tell what they are at and what a press
+// did. The text-size button is a three-state cycle, which no boolean can
+// carry, and it was left with a fixed name: the type on screen changed and
+// nothing said so, at any of the three sizes or after a reload.
+func TestTextSizeControlNamesTheSizeItIsAt(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		size string
+		want string
+	}{
+		{size: "m", want: "字級：中"},
+		{size: "l", want: "字級：大"},
+		{size: "xl", want: "字級：特大"},
+		{size: "", want: "字級：中"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.size, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Base(Chrome{TextSize: tt.size}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("Base().Render() error = %v", err)
+			}
+			html := buf.String()
+			if !strings.Contains(html, `aria-label="`+tt.want+`"`) {
+				t.Errorf("the text-size control does not name its size %q:\n%s", tt.want, textSizeButton(html))
+			}
+			for _, other := range []string{"字級：中", "字級：大", "字級：特大"} {
+				if other != tt.want && strings.Contains(html, `aria-label="`+other+`"`) {
+					t.Errorf("the control also claims to be at %q", other)
+				}
+			}
+		})
+	}
+}
+
+// textSizeButton extracts the control's own markup so a failure shows the tag
+// under test rather than the whole document.
+func textSizeButton(html string) string {
+	at := strings.Index(html, "data-textsize-toggle")
+	if at < 0 {
+		return "the page carries no text-size control at all"
+	}
+	start := strings.LastIndex(html[:at], "<")
+	end := strings.Index(html[at:], ">")
+	return html[start : at+end+1]
+}
