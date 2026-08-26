@@ -22,11 +22,24 @@ const staleStatusSummary = "這個頁面已過期；磁碟上的狀態已經不�
 
 // renderedIdentity is the content identity the reading page embeds for a
 // note, spelled out independently of the product: the SHA-256 of the note's
-// bytes with the status line's text removed (its newline stays). Pinning the
+// bytes with the status value removed. Everything else on that line — the
+// key, its separating space, a trailing comment, the newline — stays, because
+// the write leaves all of it alone and a ruling is bound by it. Pinning the
 // definition here keeps the test an oracle rather than an echo of the
 // implementation.
 func renderedIdentity(content, statusLine string) string {
-	spliced := strings.Replace(content, statusLine, "", 1)
+	// The value is read off the line by hand: drop any trailing comment, then
+	// the key and its separator, and what is left is the value's own text.
+	value, _, _ := strings.Cut(statusLine, " #")
+	value = strings.TrimSpace(strings.TrimPrefix(value, "status:"))
+	if value == "" {
+		panic("renderedIdentity: the status line carries no value")
+	}
+	withoutValue := strings.Replace(statusLine, value, "", 1)
+	spliced := strings.Replace(content, statusLine, withoutValue, 1)
+	if spliced == content {
+		panic("renderedIdentity: the content does not carry that status line")
+	}
 	sum := sha256.Sum256([]byte(spliced))
 	return hex.EncodeToString(sum[:])
 }
@@ -79,7 +92,7 @@ func TestFlipRefusesRulingAgainstChangedContent(t *testing.T) {
 // and the body: the stale-status page answers, because the state having
 // moved on is the fact that decides what the reader does next, and the
 // content check cannot see a status move at all — its identity spans
-// everything but that line.
+// everything but that value.
 func TestFlipStaleStatusOutranksChangedContent(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -219,5 +232,82 @@ func TestFlipStaleStatusKeepsItsOwnCopy(t *testing.T) {
 	}
 	if strings.Contains(body, changedContentSummary) {
 		t.Errorf("body carries the changed-content copy; the stale status is the fact to state")
+	}
+}
+
+// commentedLesson is the fixture this file's last pair needs: a note whose
+// author wrote a reason beside the status value. It is the ordinary shape of a
+// note somebody is deciding about, and it is the shape the whole-line write and
+// the whole-line identity both mishandled.
+func commentedLesson(noteStatus, reason string) string {
+	return strings.Replace(lessonContent(noteStatus), "status: "+noteStatus, "status: "+noteStatus+" # "+reason, 1)
+}
+
+// TestFlipKeepsTheReasonWrittenBesideTheStatus is the success control for the
+// refusal below, and a lock in its own right. Without it the refusal proves
+// nothing: an identity helper that disagreed with the product would refuse
+// every flip, and both halves of the pair would pass while the write face was
+// entirely broken.
+func TestFlipKeepsTheReasonWrittenBesideTheStatus(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	rendered := commentedLesson("draft", "等原始資料")
+	writeNote(t, root, rendered)
+	srv := newHandlerServer(t, lifecycle)
+
+	code, location, body := postStatus(t, srv, url.Values{
+		"path":             {testRel},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {renderedIdentity(rendered, "status: draft # 等原始資料")},
+	})
+	if code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d: an unchanged note did not flip; body:\n%s", code, http.StatusSeeOther, body)
+	}
+	if location == "" {
+		t.Error("a successful flip wrote no redirect")
+	}
+	want := commentedLesson(schema.SealStatus, "等原始資料")
+	if got := readNote(t, root); got != want {
+		t.Errorf("note after the flip =\n%q\nwant\n%q", got, want)
+	}
+}
+
+// TestFlipRefusesWhenOnlyTheReasonBesideTheStatusChanged closes the lost
+// update the whole-line identity allowed. The excised span was the whole
+// status line, so a program that rewrote only the reason on it changed nothing
+// the identity could see: a form rendered before that edit still validated,
+// and installing it replaced the new reason with the old page's silence. The
+// status value is the only thing a flip may move, so it is the only thing the
+// identity may leave out.
+func TestFlipRefusesWhenOnlyTheReasonBesideTheStatusChanged(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lifecycle := newLifecycle(t, root, loadContract(t))
+	rendered := commentedLesson("draft", "等原始資料")
+	writeNote(t, root, rendered)
+	srv := newHandlerServer(t, lifecycle)
+
+	edited := commentedLesson("draft", "來源已到，改等 Koopa 讀")
+	if edited == rendered {
+		t.Fatal("fixture edit did not change the reason")
+	}
+	writeNote(t, root, edited)
+
+	code, _, body := postStatus(t, srv, url.Values{
+		"path":             {testRel},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {renderedIdentity(rendered, "status: draft # 等原始資料")},
+	})
+	if code != http.StatusConflict {
+		t.Errorf("status = %d, want %d: a ruling installed over a reason the reader never saw", code, http.StatusConflict)
+	}
+	if !strings.Contains(body, changedContentSummary) {
+		t.Errorf("body = %q, want the changed-content statement %q", body, changedContentSummary)
+	}
+	if got := readNote(t, root); got != edited {
+		t.Errorf("note after the refused POST =\n%q\nwant the external edit untouched\n%q", got, edited)
 	}
 }

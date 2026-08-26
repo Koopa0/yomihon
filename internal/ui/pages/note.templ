@@ -823,6 +823,8 @@ templ statusPanel(v NoteView) {
 					<p class="y-statuspanel__notice">沒有 frontmatter（合法）。</p>
 				case v.StatusUnknown:
 					@statusUnknownFlag(v, "y-statuspanel__notice")
+				case v.Status == "":
+					@statusUnreadableFlag(v, "y-statuspanel__notice")
 				case len(v.Transitions) == 0:
 					<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
 					<p class="y-statuspanel__notice">{ frontmatterDoorLine(v) }</p>
@@ -853,6 +855,17 @@ func frontmatterDoorLine(v NoteView) string {
 // defined.
 templ statusUnknownFlag(v NoteView, noticeClass string) {
 	<p class={ noticeClass, "y-statusflag" }>狀態值 <code>{ v.Status }</code> 不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。</p>
+}
+
+// statusUnreadableFlag states that this note's frontmatter yielded no status
+// to govern by. The frontmatter parsed and carries keys, so the diagnostics
+// face has nothing to report and stays away; the status is either absent or
+// written as a shape no single value can be read out of, and the repair is the
+// same either way. The panel used to fall through to the empty-transition
+// notice here, which says the contract defines nothing onward from the note's
+// status — a claim about a status nobody could read.
+templ statusUnreadableFlag(v NoteView, noticeClass string) {
+	<p class={ noticeClass, "y-statusflag" }>frontmatter 裡讀不出 status 值（缺少，或不是單一值）。yomihon 只陳述，不修復；{ frontmatterDoorLine(v) }</p>
 }
 
 // transitionForm is one transition control: a plain POST form whose
@@ -974,6 +987,12 @@ templ statusBar(v NoteView) {
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
 					@statusUnknownFlag(v, "y-sealbar__notice")
+				case v.Status == "":
+					@statusUnreadableFlag(v, "y-sealbar__notice")
+				case len(v.Transitions) == 0:
+					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					<span class="y-sealbar__spacer"></span>
+					<p class="y-sealbar__notice">目前沒有合法的狀態轉換。{ frontmatterDoorLine(v) }</p>
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>

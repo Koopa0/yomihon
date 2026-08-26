@@ -781,25 +781,27 @@ func rewriteStatusChecked(relSlash string, data []byte, readable bool, to string
 	return rewritten, nil
 }
 
-// rewriteStatusLine replaces the single "status:" line inside data's
-// frontmatter block with "status: <to>", leaving every other byte —
-// including the block's own delimiters, quoted values, comments, and the
-// body — byte-identical to the original. It never re-serializes YAML. The
-// line it replaces is the span vault.StatusLineSpan reports — the same
-// bytes the content identity excises, so a write can never move a line the
-// identity still covers.
+// rewriteStatusLine replaces the frontmatter status value inside data with
+// to, leaving every other byte — the block's own delimiters, the rest of the
+// status line, the body — byte-identical to the original. It never
+// re-serializes YAML. The bytes it replaces are the span
+// vault.StatusValueSpan reports, the same bytes the content identity excises,
+// so a write can never move something the identity still covers.
+//
+// Writing the whole line instead would deletes the author's own words on it:
+// a reason recorded in a trailing comment, the quoting they chose. Worse, it
+// could not tell those apart from a value whose shape no replacement fits —
+// a sequence, an anchor, a scalar continuing onto the next line — and rewrote
+// those into something never written, because the result still read back as
+// the target status. Where the span reports nothing, the note keeps its bytes.
 func rewriteStatusLine(data []byte, to string) ([]byte, error) {
-	start, end, ok := vault.StatusLineSpan(data)
+	start, end, ok := vault.StatusValueSpan(data)
 	if !ok {
 		return nil, ErrStatusLine
 	}
-	replacement := "status: " + to
-	if bytes.HasSuffix(data[start:end], []byte("\r")) {
-		replacement += "\r"
-	}
-	out := make([]byte, 0, len(data)-(end-start)+len(replacement))
+	out := make([]byte, 0, len(data)-(end-start)+len(to))
 	out = append(out, data[:start]...)
-	out = append(out, replacement...)
+	out = append(out, to...)
 	out = append(out, data[end:]...)
 	return out, nil
 }

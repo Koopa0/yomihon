@@ -158,6 +158,29 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantAbsent: []string{"接下來的狀態轉換由其他 owner 持有"},
 		},
 		{
+			// The corner the invariant missed. The frontmatter parses, so the
+			// diagnostics face stays away; its status is a shape no single
+			// value can be read out of, so nothing reaches the chip; and with
+			// no transitions the bar printed a spacer and nothing else. At
+			// every width that drops the rail, that empty bar was the whole
+			// write face. Saying "no legal transition" here would be the wrong
+			// sentence too: the schema was never consulted, because there was
+			// no status to consult it about.
+			name:     "unreadable status: both faces say the status could not be read",
+			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md"},
+			wantAids: false,
+			wantPresent: []string{
+				"y-shell--rail-empty",
+				"y-sealbar",
+				"y-statuspanel",
+				"讀不出 status 值",
+			},
+			wantAbsent: []string{"目前沒有合法的狀態轉換。", `action="/status"`},
+			wantCounts: map[string]int{
+				"讀不出 status 值": 2,
+			},
+		},
+		{
 			name:     "broken frontmatter: the diagnostics face owns the page, no status bar",
 			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Diagnostic: "unterminated string"},
 			wantAids: true,

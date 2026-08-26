@@ -193,3 +193,105 @@ func StatusLineSpan(data []byte) (start, end int, ok bool) {
 	}
 	return start, end, ok
 }
+
+// StatusValueSpan locates the scalar value inside the frontmatter status line
+// and returns the byte range of the value's own text in data — the quotes
+// around a quoted value excluded, so the quoting style is not part of it. It
+// reports false when data has no single status line, or when the value is any
+// shape whose meaning a byte replacement cannot preserve: absent, a sequence
+// or mapping, an anchor, an alias, a tag, a block scalar that continues onto
+// following lines, or a quoted value with no closing quote.
+//
+// This narrower span, not the whole line, is the one definition of where a
+// note's status lives. The line also carries whatever else its author put
+// there — a reason in a trailing comment, a chosen quoting, alignment — and
+// that is content like any other byte of the note. Excising the whole line
+// from the content identity left all of it outside the check a ruling is bound
+// by, and replacing the whole line deleted it; both follow from the same
+// span being one byte wider than the value it stands for.
+func StatusValueSpan(data []byte) (start, end int, ok bool) {
+	lineStart, lineEnd, ok := StatusLineSpan(data)
+	if !ok {
+		return 0, 0, false
+	}
+	line := bytes.TrimSuffix(data[lineStart:lineEnd], []byte("\r"))
+	rest := line[len("status:"):]
+
+	spaces := 0
+	for spaces < len(rest) && rest[spaces] == ' ' {
+		spaces++
+	}
+	// A colon with no space after it does not open a mapping at all, and a
+	// separator written with a tab is not one YAML accepts here. Either way
+	// the reader and this scan disagree about what the line says, so it is not
+	// a line to rewrite.
+	if spaces == 0 || spaces == len(rest) {
+		return 0, 0, false
+	}
+	offset, width, ok := scalarValue(rest[spaces:])
+	if !ok {
+		return 0, 0, false
+	}
+	valueStart := lineStart + len("status:") + spaces + offset
+	return valueStart, valueStart + width, true
+}
+
+// scalarValue reports where a status value's own text starts within value —
+// the bytes following the separator — and how long it is, or false when the
+// value is a shape no byte replacement can preserve.
+func scalarValue(value []byte) (offset, width int, ok bool) {
+	if quote := value[0]; quote == '"' || quote == '\'' {
+		return quotedScalar(value, quote)
+	}
+	if isYAMLIndicator(value[0]) {
+		return 0, 0, false
+	}
+	return plainScalar(value)
+}
+
+// quotedScalar measures the text between a value's quotes. An escape inside
+// them means those bytes are not the value, so the line is left to a human
+// rather than spliced into.
+func quotedScalar(value []byte, quote byte) (offset, width int, ok bool) {
+	closing := bytes.IndexByte(value[1:], quote)
+	if closing < 0 || !onlyCommentFollows(value[1+closing+1:]) {
+		return 0, 0, false
+	}
+	if bytes.ContainsRune(value[1:1+closing], '\\') {
+		return 0, 0, false
+	}
+	return 1, closing, true
+}
+
+// plainScalar measures an unquoted value: everything up to a comment or the
+// end of the line, with trailing spaces left outside it.
+func plainScalar(value []byte) (offset, width int, ok bool) {
+	plain := value
+	if at := bytes.Index(plain, []byte(" #")); at >= 0 {
+		plain = plain[:at]
+	}
+	plain = bytes.TrimRight(plain, " ")
+	if len(plain) == 0 || bytes.ContainsAny(plain, "\t") || bytes.Contains(plain, []byte(": ")) {
+		return 0, 0, false
+	}
+	return 0, len(plain), true
+}
+
+// onlyCommentFollows reports whether the tail after a closing quote is what a
+// value may legally be followed by: nothing, spaces, or spaces then a comment.
+func onlyCommentFollows(tail []byte) bool {
+	trimmed := bytes.TrimLeft(tail, " ")
+	if len(trimmed) == 0 {
+		return true
+	}
+	return len(trimmed) < len(tail) && trimmed[0] == '#'
+}
+
+// isYAMLIndicator reports whether c opens something other than a plain scalar:
+// a collection, an anchor, an alias, a tag, a block scalar, a comment, or one
+// of the characters YAML reserves. A status word never begins with one, so
+// refusing them all costs nothing and keeps the scan from splicing into a
+// value whose text is not the whole of its meaning.
+func isYAMLIndicator(c byte) bool {
+	return bytes.IndexByte([]byte("-?:,[]{}#&*!|>%@`\"'"), c) >= 0
+}
