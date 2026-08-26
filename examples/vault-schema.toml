@@ -23,6 +23,21 @@ lesson = ["lesson"]
 
 [rules]
 slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+# One type name is coupled to a rule, in two steps. Name a type "concept" in
+# the enum above and this key becomes required, listing the frontmatter fields
+# a concept note must cite its source through — and every field it names has to
+# be listed in fields.known as well, or the contract is rejected a second time
+# for the field rather than for the rule. All three edits go together:
+#
+#   [enums]  type = [..., "concept"]
+#   [fields] known = [..., "based_on", "source_locator"]
+#   [rules]  concept_requires_provenance = ["based_on", "source_locator"]
+#
+# Miss any of them and the whole contract fails to load, which closes the write
+# face and stops the agent-facing commands. They will not print the reason,
+# because it quotes the contract: run "yomihon serve --root <dir>" and read the
+# cause on the page or in the startup log.
+# concept_requires_provenance = ["based_on", "source_locator"]
 
 [scan]
 knowledge_dirs = ["Notes", "Lessons"]
