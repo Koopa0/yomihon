@@ -27,11 +27,22 @@ type existsMatch struct {
 type existsReport struct {
 	Query   string        `json:"query"`
 	Matches []existsMatch `json:"matches"`
+	// Withheld says a note the contract keeps out of agent-facing output
+	// answers to the name. It carries nothing else — no path, no field, no
+	// count — because the caller supplied the name and needs only to be told
+	// not to create a second note under it. The field is omitted when nothing
+	// was withheld, so an ordinary answer's bytes are unchanged.
+	Withheld bool `json:"withheld,omitempty"`
 }
 
-// found reports whether any note exposes the queried name.
+// found reports whether any note answers to the queried name, including one
+// this command may not describe. A withheld note is a note: the oracle exists
+// so a caller can gate a write-if-absent on the exit code, and answering
+// "absent" for a note that is merely unreportable would have that caller
+// create a duplicate of it — putting a second, describable note under a
+// private note's own name.
 func (r existsReport) found() bool {
-	return len(r.Matches) > 0
+	return len(r.Matches) > 0 || r.Withheld
 }
 
 // existsLookup looks query up across every note's filename, title, aliases, and
@@ -41,11 +52,17 @@ func (r existsReport) found() bool {
 func existsLookup(notes []note, query string, authority scanAuthority) existsReport {
 	key := normalizeKey(query)
 	matches := []existsMatch{}
+	withheld := false
 	for i := range notes {
 		n := &notes[i]
 		if !authority.egressAllowed(n.path) {
-			// A contract-private note never surfaces through the existence
-			// oracle: a dedup query must not learn its name, path, or alias.
+			// A contract-private note never describes itself through the
+			// existence oracle: no path, no field, no value. That it answers
+			// to the name is reported, because the alternative is telling the
+			// caller the name is free.
+			if len(noteMatches(n, key)) > 0 {
+				withheld = true
+			}
 			continue
 		}
 		matches = append(matches, noteMatches(n, key)...)
@@ -56,7 +73,7 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 		}
 		return strings.Compare(a.Field, b.Field)
 	})
-	return existsReport{Query: query, Matches: matches}
+	return existsReport{Query: query, Matches: matches, Withheld: withheld}
 }
 
 // noteMatches returns every field of n that exposes the normalized key: its
@@ -109,9 +126,14 @@ func renderExists(r existsReport) string {
 		return "\"" + r.Query + "\" does not exist\n"
 	}
 	var s strings.Builder
-	fmt.Fprintf(&s, "\"%s\" exists in %d note(s):\n", r.Query, len(r.Matches))
-	for _, m := range r.Matches {
-		fmt.Fprintf(&s, "  %s (matched %s)\n", m.Path, m.Field)
+	if len(r.Matches) > 0 {
+		fmt.Fprintf(&s, "\"%s\" exists in %d note(s):\n", r.Query, len(r.Matches))
+		for _, m := range r.Matches {
+			fmt.Fprintf(&s, "  %s (matched %s)\n", m.Path, m.Field)
+		}
+	}
+	if r.Withheld {
+		fmt.Fprintf(&s, "\"%s\" also answers to a note in a directory this vault withholds; it cannot be named here\n", r.Query)
 	}
 	return s.String()
 }

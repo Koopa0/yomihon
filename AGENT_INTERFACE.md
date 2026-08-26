@@ -128,7 +128,7 @@ recovery fields plus `detail` under `internal_error`.
 |---|---|---|---|---|
 | `check` | nothing named by `--deny` found | a `--deny` gate hit | could not run | — |
 | `coverage` | always: it reports, never gates | — | could not run | — |
-| `exists` | a match exists | no match exists | could not run | — |
+| `exists` | a match exists, describable or withheld | no match exists | could not run | — |
 | `search` | answer written | internal error | could not run | refused, or semantic retrieval degraded (a lexical answer may still be written) |
 | `search-index build` | index current or built | internal error | could not run | refused or could not complete |
 
@@ -150,12 +150,14 @@ Two commands say so and one cannot:
   there, so the pair of refusals is not an existence oracle over it.
 - A whole-vault run makes no claim about any one directory, so it reports what
   it may and stays exit 0.
-- `exists` takes a name rather than a path, so it has no scope to refuse: a
-  withheld note is simply not matched. In a vault declaring never-egress
-  directories, `exists` exit 1 therefore means *no reportable note carries this
-  name*, and a write-if-absent gated on it alone can still create a duplicate of
-  a withheld note. Callers that must not do that have to exclude those
-  directories by their own reading of the contract.
+- `exists` takes a name rather than a path, so it has no scope to refuse. A
+  withheld note describes nothing about itself — it contributes no entry to
+  `matches`, so no path, field, or value leaves — but it does answer: the
+  report carries `"withheld": true` and the exit stays 0. The exit code is the
+  documented write-if-absent gate, and the caller supplied the name, so telling
+  them the name is free is the one answer that causes harm: a second,
+  describable note created under a private note's own name. The field is absent
+  from an ordinary answer, whose bytes are unchanged.
 
 ## Corpus: this CLI versus browser search
 

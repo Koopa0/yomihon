@@ -92,6 +92,11 @@ func TestRunExistsGolden(t *testing.T) {
 // note's name, path, or alias, so a query that would match only a journal note
 // returns no match, while a public note still matches — the skip is scoped, not
 // a blanket empty.
+// TestExistsSkipsDiary holds both halves of what a private note owes this
+// oracle. It describes nothing about itself — no path, no matched field, no
+// value — and it still answers, because the exit code is documented as a
+// write-if-absent gate and a caller told the name is free creates a second
+// note under a private note's own name.
 func TestExistsSkipsDiary(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
@@ -100,11 +105,29 @@ func TestExistsSkipsDiary(t *testing.T) {
 		t.Fatalf("collectNotes: %v", err)
 	}
 	authority := loadTestAuthority(t, root)
-	if r := existsLookup(notes, "Private Session Note", authority); r.found() {
-		t.Errorf("exists(%q) = %d match(es), want 0 — a journal note's title must not surface", "Private Session Note", len(r.Matches))
+
+	r := existsLookup(notes, "Private Session Note", authority)
+	if len(r.Matches) != 0 {
+		t.Errorf("exists(%q) described %d match(es); a journal note must name nothing about itself: %+v", "Private Session Note", len(r.Matches), r.Matches)
 	}
-	if r := existsLookup(notes, "keep", authority); !r.found() {
-		t.Errorf("exists(%q) found nothing, want the public note matched by filename", "keep")
+	if !r.Withheld || !r.found() {
+		t.Errorf("exists(%q) answered absent for a note that exists; a write-if-absent gate would create a duplicate of it", "Private Session Note")
+	}
+	rendered := renderExists(r)
+	for _, leaked := range []string{"Diary/", "Private Session Note.md", "title"} {
+		if strings.Contains(rendered, leaked) {
+			t.Errorf("the human answer leaks %q about a withheld note:\n%s", leaked, rendered)
+		}
+	}
+
+	if r := existsLookup(notes, "keep", authority); !r.found() || r.Withheld {
+		t.Errorf("exists(%q) = found %t withheld %t, want the public note matched plainly", "keep", r.found(), r.Withheld)
+	}
+
+	// A name nothing carries stays absent, or the gate would refuse every
+	// write in a vault that merely declares a private directory.
+	if r := existsLookup(notes, "No Note Anywhere Carries This", authority); r.found() || r.Withheld {
+		t.Errorf("a name nothing carries was reported present (found %t withheld %t)", r.found(), r.Withheld)
 	}
 }
 
@@ -164,15 +187,31 @@ func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
 			t.Errorf("RunCoverage(%d) dropped public output with private output:\n%s", format, coverageOutput)
 		}
 
+		// A private-only match answers present and describes nothing. Exit 1
+		// here would be the answer that matters most to get wrong: the exit
+		// code is the documented write-if-absent gate, so "absent" sends the
+		// caller to create a second note under this one's name.
 		existsOutput, exit, err := RunExists(&ExistsOptions{Root: root, Name: "Hidden", Format: format})
 		if err != nil {
 			t.Fatalf("RunExists(%d) error = %v", format, err)
 		}
-		if exit != 1 {
-			t.Errorf("RunExists(%d) exit = %d, want 1 for a private-only match", format, exit)
+		if exit != 0 {
+			t.Errorf("RunExists(%d) exit = %d, want 0 for a private-only match", format, exit)
 		}
-		if bytes.Contains(existsOutput, []byte("Private/")) {
-			t.Errorf("RunExists(%d) exposed configured private output:\n%s", format, existsOutput)
+		for _, leaked := range []string{"Private/", "Hidden.md", "\"path\"", "\"field\"", "\"value\""} {
+			if bytes.Contains(existsOutput, []byte(leaked)) {
+				t.Errorf("RunExists(%d) exposed %q about a withheld note:\n%s", format, leaked, existsOutput)
+			}
+		}
+
+		// The gate still opens for a name nothing carries, or a vault that
+		// merely declares a private directory could never create anything.
+		_, absentExit, err := RunExists(&ExistsOptions{Root: root, Name: "No Note Carries This Name", Format: format})
+		if err != nil {
+			t.Fatalf("RunExists(%d, absent) error = %v", format, err)
+		}
+		if absentExit != 1 {
+			t.Errorf("RunExists(%d, absent) exit = %d, want 1", format, absentExit)
 		}
 	}
 }

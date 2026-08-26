@@ -134,10 +134,9 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"command itself could not run.\n" +
 			"\n" +
 			"A note inside a directory the contract withholds from agent-facing output\n" +
-			"is never matched and never named. In a vault that declares one, exit 1\n" +
-			"therefore means no reportable note carries the name — not that the vault\n" +
-			"holds none — so a write-if-absent gated on it can still write a duplicate\n" +
-			"of a withheld note.\n",
+			"is never described here — no path, no matched field. It still answers:\n" +
+			"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
+			"second note under a withheld note's own name.\n",
 	}
 
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {
