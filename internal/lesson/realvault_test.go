@@ -5,9 +5,10 @@ package lesson
 import (
 	"maps"
 	"os"
-	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -76,8 +77,10 @@ func TestRealVaultSlotsLoadAndValidate(t *testing.T) {
 			t.Errorf("sidecar[%d] has %d validation problems", ordinal, len(problems))
 		}
 		got, ok := idx.Lookup(key)
-		if !ok || !reflect.DeepEqual(got, sidecar) {
+		if !ok {
 			t.Errorf("sidecar[%d] does not round-trip through Lookup", ordinal)
+		} else if diff := cmp.Diff(sidecar, got); diff != "" {
+			t.Errorf("sidecar[%d] round-trips through Lookup changed (-want +got):\n%s", ordinal, diff)
 		}
 		if got == sidecar {
 			t.Errorf("sidecar[%d] Lookup exposed index-owned storage", ordinal)
