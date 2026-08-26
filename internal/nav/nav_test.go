@@ -35,7 +35,7 @@ func capturedModel(
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
-	resolver Resolver,
+	resolver *graph.Index,
 ) *Model {
 	t.Helper()
 	reader, err := vault.Open(root)

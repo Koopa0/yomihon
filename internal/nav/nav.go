@@ -35,16 +35,6 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Resolver is the minimal wikilink-resolution capability nav needs to turn
-// an entry's [[wikilink]] into a note path (and to distinguish unique /
-// ambiguous / unresolved). Defined here, in the consumer, as the subset of
-// the producer's surface nav actually uses — the same shape as
-// render.Resolver; internal/graph's concrete *Index satisfies it with no
-// explicit binding.
-type Resolver interface {
-	Resolve(name string) graph.Resolution
-}
-
 // Closure records why a projection carries nothing. It is a reason, not a
 // message: a projection can be withheld while a broader fault owns the only
 // sentence worth printing, and a projection that is simply empty must stay
@@ -318,13 +308,13 @@ func lifecycleRank(name string) int {
 func New(
 	entries []vault.Entry,
 	notes map[string]*vault.Note,
-	resolver Resolver,
+	resolver *graph.Index,
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 ) *Model {
 	if resolver == nil {
-		panic("nav: New requires a non-nil Resolver")
+		panic("nav: New requires a non-nil *graph.Index")
 	}
 
 	observed := slices.Clone(entries)
@@ -359,7 +349,7 @@ type capturedFile struct {
 
 func newModel(
 	files []capturedFile,
-	resolver Resolver,
+	resolver *graph.Index,
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,

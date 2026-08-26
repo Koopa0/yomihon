@@ -143,7 +143,7 @@ func (e *PathEntry) Openable() bool {
 // surface downstream reads the result.
 func buildPath(
 	n *vault.Note,
-	idx Resolver,
+	idx *graph.Index,
 	statusByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) Path {
@@ -174,7 +174,7 @@ func buildPath(
 // accepted entry against the vault.
 func buildPathGroup(
 	g *sequence.Group,
-	idx Resolver,
+	idx *graph.Index,
 	statusByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) *PathGroup {
@@ -235,7 +235,7 @@ func buildPathGroup(
 // there is nothing to resolve.
 func buildPathEntry(
 	c *sequence.Candidate,
-	idx Resolver,
+	idx *graph.Index,
 	statusByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) *PathEntry {

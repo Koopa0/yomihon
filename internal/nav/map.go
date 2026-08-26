@@ -91,7 +91,7 @@ func cloneBranches(source []Branch) []Branch {
 // parser keeps only the general-map behavior: uniquely resolved governed rows.
 func parseMap(
 	n *vault.Note,
-	idx Resolver,
+	idx *graph.Index,
 	statusByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) Map {
@@ -141,7 +141,7 @@ type branchNode struct {
 // non-instance targets as warnings in their original position.
 func parseBranches(
 	body string,
-	idx Resolver,
+	idx *graph.Index,
 	statusByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) []Branch {
@@ -298,7 +298,7 @@ func firstWikilink(s string) (inner string, ok bool) {
 // (a same-file anchor such as [[#heading]]). Unresolved, ambiguous, and unique
 // non-instance targets return distinct warning kinds so the caller can preserve
 // or omit them according to map role.
-func makeEntry(inner string, idx Resolver, statusByPath map[string]string, policy schema.ArtifactPolicy) (Entry, bool) {
+func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, policy schema.ArtifactPolicy) (Entry, bool) {
 	target, display, ok := graph.SplitWikilink(inner)
 	if !ok {
 		return Entry{}, false

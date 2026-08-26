@@ -139,7 +139,7 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 
 	tests := []struct {
 		name      string
-		lifecycle Lifecycle
+		lifecycle status.View
 		snap      *snapshot.View
 	}{
 		{name: "lifecycle", lifecycle: unreadable, snap: openSnapshot},

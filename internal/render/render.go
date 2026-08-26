@@ -39,13 +39,6 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-// Resolver is the minimal wikilink-resolution capability render needs.
-// Defined here, in the consumer: internal/graph's concrete *Index
-// satisfies this structurally, with no explicit binding needed.
-type Resolver interface {
-	Resolve(name string) graph.Resolution
-}
-
 // Transclusions is the captured note-body set used by embed expansion. The
 // concrete reading snapshot implements this narrow consumer-owned capability,
 // so link resolution and transclusion bodies can come from one generation.
@@ -156,7 +149,7 @@ const (
 // Pipeline is a configured, reusable markdown pipeline for one captured vault
 // generation.
 type Pipeline struct {
-	idx           Resolver
+	idx           *graph.Index
 	transclusions Transclusions
 	md            goldmark.Markdown
 }
@@ -175,9 +168,9 @@ type Pipeline struct {
 // does not exist, and the note's own text was swallowed as the link's
 // destination. With the extension, the reference and its definition are two
 // ends of one anchor pair inside the page, which needs no script to work.
-func New(idx Resolver, transclusions Transclusions) *Pipeline {
+func New(idx *graph.Index, transclusions Transclusions) *Pipeline {
 	if idx == nil {
-		panic("render: New requires a non-nil Resolver")
+		panic("render: New requires a non-nil *graph.Index")
 	}
 	if transclusions == nil {
 		panic("render: New requires non-nil Transclusions")

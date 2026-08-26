@@ -6,16 +6,9 @@ package shell
 import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
-
-// Lifecycle is the read-only status knowledge needed by the shared shell.
-// Implementations are request-scoped views; the projector performs no contract
-// reads of its own.
-type Lifecycle interface {
-	Governed() bool
-	Claim() schema.Claim
-}
 
 // Project derives one shell from one vault snapshot and the two immutable
 // request authorities captured by the composition point. The projector performs
@@ -24,7 +17,7 @@ type Lifecycle interface {
 // is absent, because a folder that declared nothing excluded nothing and its
 // projections are answerable.
 func Project(
-	lifecycle Lifecycle,
+	lifecycle status.View,
 	policy schema.ArtifactPolicy,
 	snap *snapshot.View,
 ) pages.Shell {

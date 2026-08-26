@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -38,17 +37,18 @@ func TestNeighbors(t *testing.T) {
 		"- [[L01 て形]]\n" +
 		"- [[L01 Slices]]\n"
 
-	idx := stubResolver{
-		"L01 Slices":  {Kind: graph.Unique, Path: "Writing/lessons/golang/Slices.md"},
-		"L03 Maps":    {Kind: graph.Unique, Path: "Writing/lessons/golang/Maps.md"},
-		"L04 Strings": {Kind: graph.Unique, Path: "Writing/lessons/golang/Strings.md"},
-		"S01 Side":    {Kind: graph.Unique, Path: "Writing/lessons/golang/Side1.md"},
-		"S02 Side":    {Kind: graph.Unique, Path: "Writing/lessons/golang/Side2.md"},
-		"L01 て形":      {Kind: graph.Unique, Path: "Writing/lessons/japanese/Te.md"},
-		// A planned lesson resolves to nothing, and a template resolves to a
-		// file the artifact policy keeps out of the lifecycle.
-		"Template-only": {Kind: graph.Unique, Path: "System/templates/Card.md"},
-	}
+	// A planned lesson is simply absent from the index, which is what makes it
+	// resolve to nothing; the template is present but sits where the artifact
+	// policy keeps it out of the lifecycle.
+	idx := resolver(t,
+		"Writing/lessons/golang/L01 Slices.md",
+		"Writing/lessons/golang/L03 Maps.md",
+		"Writing/lessons/golang/L04 Strings.md",
+		"Writing/lessons/golang/S01 Side.md",
+		"Writing/lessons/golang/S02 Side.md",
+		"Writing/lessons/japanese/L01 て形.md",
+		"System/templates/Template-only.md",
+	)
 	policy := testArtifactPolicy(t)
 	goPath := buildPath(pathNote("Maps/go.md", "Go 課綱", goBody), idx, nil, policy)
 	jpPath := buildPath(pathNote("Maps/jp.md", "日本語 學習路徑", jpBody), idx, nil, policy)
@@ -61,43 +61,43 @@ func TestNeighbors(t *testing.T) {
 	}{
 		{
 			name:    "a planned lesson between two written ones is not a stop",
-			relPath: "Writing/lessons/golang/Maps.md",
+			relPath: "Writing/lessons/golang/L03 Maps.md",
 			want: []Neighbors{{
 				PathTitle: "Go 課綱", PathRelPath: "Maps/go.md",
 				// L02 is unresolved, so the step back lands on L01, and the
 				// step forward crosses into the subbranch, skipping the
 				// template row the same way.
-				Prev: ref("L01 Slices", "Writing/lessons/golang/Slices.md"),
-				Next: ref("L04 Strings", "Writing/lessons/golang/Strings.md"),
+				Prev: ref("L01 Slices", "Writing/lessons/golang/L01 Slices.md"),
+				Next: ref("L04 Strings", "Writing/lessons/golang/L04 Strings.md"),
 			}},
 		},
 		{
 			name:    "the opening lesson of a path has no previous",
-			relPath: "Writing/lessons/japanese/Te.md",
+			relPath: "Writing/lessons/japanese/L01 て形.md",
 			want: []Neighbors{{
 				PathTitle: "日本語 學習路徑", PathRelPath: "Maps/jp.md",
-				Next: ref("L01 Slices", "Writing/lessons/golang/Slices.md"),
+				Next: ref("L01 Slices", "Writing/lessons/golang/L01 Slices.md"),
 			}},
 		},
 		{
 			name:    "the closing lesson of a path has no next",
-			relPath: "Writing/lessons/golang/Strings.md",
+			relPath: "Writing/lessons/golang/L04 Strings.md",
 			want: []Neighbors{{
 				PathTitle: "Go 課綱", PathRelPath: "Maps/go.md",
-				Prev: ref("L03 Maps", "Writing/lessons/golang/Maps.md"),
+				Prev: ref("L03 Maps", "Writing/lessons/golang/L03 Maps.md"),
 			}},
 		},
 		{
 			name:    "a lesson two paths teach answers once per path",
-			relPath: "Writing/lessons/golang/Slices.md",
+			relPath: "Writing/lessons/golang/L01 Slices.md",
 			want: []Neighbors{
 				{
 					PathTitle: "Go 課綱", PathRelPath: "Maps/go.md",
-					Next: ref("L03 Maps", "Writing/lessons/golang/Maps.md"),
+					Next: ref("L03 Maps", "Writing/lessons/golang/L03 Maps.md"),
 				},
 				{
 					PathTitle: "日本語 學習路徑", PathRelPath: "Maps/jp.md",
-					Prev: ref("L01 て形", "Writing/lessons/japanese/Te.md"),
+					Prev: ref("L01 て形", "Writing/lessons/japanese/L01 て形.md"),
 				},
 			},
 		},
@@ -267,17 +267,6 @@ func TestJournalOrdersByTheEntriesOwnNames(t *testing.T) {
 	if diff := cmp.Diff(want, gotPaths); diff != "" {
 		t.Errorf("buildJournal ordering mismatch (-want +got):\n%s", diff)
 	}
-}
-
-// stubResolver answers the wikilinks these courses name and reports every other
-// name as unresolved, which is what a planned lesson is.
-type stubResolver map[string]graph.Resolution
-
-func (r stubResolver) Resolve(name string) graph.Resolution {
-	if res, ok := r[name]; ok {
-		return res
-	}
-	return graph.Resolution{Kind: graph.Unresolved}
 }
 
 // vaultNote parses a whole note the way the scanner does, so a fixture read
