@@ -159,6 +159,25 @@ Two commands say so and one cannot:
   describable note created under a private note's own name. The field is absent
   from an ordinary answer, whose bytes are unchanged.
 
+## What each count counts
+
+Several surfaces show a number over "the notes", and they are not the same
+notes. Nothing here is a defect; the sets differ because the rules that build
+them differ, and a reader comparing two of them is owed the reason rather than
+left to infer one.
+
+| Surface | Its set | What it leaves out |
+|---|---|---|
+| The browser's status distribution and its per-status rows | Every indexed governed instance that carries a status | Files that are not notes; anything the contract's `[artifacts]` calls a non-instance; a note whose status is absent or not a single value |
+| The whole-folder page's out-of-enum list | The same set, narrowed to statuses the contract does not declare for that note's type | Everything the row above leaves out, so a note missing a status entirely is in neither |
+| `check` findings | Every scanned note, minus findings withheld for egress, minus `System/` unless `--all` | Findings under `[privacy].never_egress_dirs`, unconditionally; a targeted scope inside one is refused rather than counted |
+| `coverage` | The contract's coverage routes over scanned notes | The same never-egress paths |
+| `exists` matches | Every note exposing the name on its filename — with or without the `.md` — or on its title, any alias, or its English title. A note exposing it on two of those yields two matches | The path, field, and value of a withheld note, which is reported only as `withheld` |
+
+The one rule they share: a never-egress directory is scanned so links resolve
+consistently, and never described. A count is therefore a count of what may be
+described, not of what is on disk.
+
 ## Corpus: this CLI versus browser search
 
 The two search faces deliberately differ; results are not interchangeable.
