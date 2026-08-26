@@ -240,13 +240,27 @@ func StatusValueSpan(data []byte) (start, end int, ok bool) {
 // the bytes following the separator — and how long it is, or false when the
 // value is a shape no byte replacement can preserve.
 func scalarValue(value []byte) (offset, width int, ok bool) {
-	if quote := value[0]; quote == '"' || quote == '\'' {
-		return quotedScalar(value, quote)
+	switch quote := value[0]; {
+	case quote == '"' || quote == '\'':
+		offset, width, ok = quotedScalar(value, quote)
+	case isYAMLIndicator(quote):
+		return 0, 0, false
+	default:
+		width, ok = plainScalar(value)
 	}
-	if isYAMLIndicator(value[0]) {
+	if !ok {
 		return 0, 0, false
 	}
-	return plainScalar(value)
+	// A control byte inside the run is a line break the reader honours and
+	// this line scan does not, so the two disagree about where the value even
+	// ends. A carriage return ending the line is the ordinary Windows note and
+	// was taken off before any of this; one in the middle is not that.
+	for _, b := range value[offset : offset+width] {
+		if b < 0x20 {
+			return 0, 0, false
+		}
+	}
+	return offset, width, true
 }
 
 // quotedScalar measures the text between a value's quotes. An escape inside
@@ -263,18 +277,19 @@ func quotedScalar(value []byte, quote byte) (offset, width int, ok bool) {
 	return 1, closing, true
 }
 
-// plainScalar measures an unquoted value: everything up to a comment or the
-// end of the line, with trailing spaces left outside it.
-func plainScalar(value []byte) (offset, width int, ok bool) {
+// plainScalar measures an unquoted value: it starts where the separator left
+// off, and runs up to a comment or the end of the line, with trailing spaces
+// left outside it.
+func plainScalar(value []byte) (width int, ok bool) {
 	plain := value
 	if at := bytes.Index(plain, []byte(" #")); at >= 0 {
 		plain = plain[:at]
 	}
 	plain = bytes.TrimRight(plain, " ")
 	if len(plain) == 0 || bytes.ContainsAny(plain, "\t") || bytes.Contains(plain, []byte(": ")) {
-		return 0, 0, false
+		return 0, false
 	}
-	return 0, len(plain), true
+	return len(plain), true
 }
 
 // onlyCommentFollows reports whether the tail after a closing quote is what a

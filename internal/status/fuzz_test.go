@@ -101,13 +101,7 @@ func FuzzRewriteStatusLine(f *testing.F) {
 		for i := range beforeLines {
 			if bytes.HasPrefix(beforeLines[i], []byte("status:")) {
 				statusLines++
-				want := []byte("status: " + to)
-				if bytes.HasSuffix(beforeLines[i], []byte("\r")) {
-					want = append(want, '\r')
-				}
-				if !bytes.Equal(afterLines[i], want) {
-					t.Errorf("rewriteStatusLine(%q, %q) status line = %q, want %q", data, to, afterLines[i], want)
-				}
+				checkOneRunBecame(t, data, to, beforeLines[i], afterLines[i])
 			} else if !bytes.Equal(afterLines[i], beforeLines[i]) {
 				t.Errorf("rewriteStatusLine(%q, %q) changed non-status line %d from %q to %q", data, to, i, beforeLines[i], afterLines[i])
 			}
@@ -134,4 +128,87 @@ func FuzzRewriteStatusLine(f *testing.F) {
 			t.Errorf("rewriteStatusLine(%q, %q) moved the content identity", data, to)
 		}
 	})
+}
+
+// checkOneRunBecame states what a surgical status write does to the one line
+// it touches: the line after is the line before with a single contiguous run
+// replaced by the target value, and the run that was replaced was a value and
+// nothing else. Everything the author put either side of it — the key, the
+// spacing they chose, a reason in a trailing comment, the quotes around the
+// value, a carriage return — is outside the run and so must survive unchanged.
+//
+// It is derived from the two lines rather than from the span the writer used,
+// so it is an oracle and not an echo: a writer that moved the wrong bytes
+// fails here even if it moved them consistently. The earlier form asserted the
+// line became "status: <to>" exactly, which was the whole-line rewrite written
+// down as a law and could not tell that rewrite from a correct one.
+//
+// Every split is tried rather than the longest common prefix and suffix being
+// trusted, because those are ambiguous exactly where this line is interesting:
+// replacing "y" with "ready" leaves a "y" at the end of both lines, and a
+// greedy suffix claims it for the surroundings and reports the value as
+// "read". The lines are a few dozen bytes, so the exhaustive answer is free
+// and it is the one that is actually true.
+func checkOneRunBecame(t *testing.T, data []byte, to string, before, after []byte) {
+	t.Helper()
+	var firstReplaced []byte
+	found := false
+	for i := 0; i <= len(before); i++ {
+		for j := i; j <= len(before); j++ {
+			candidate := make([]byte, 0, i+len(to)+len(before)-j)
+			candidate = append(candidate, before[:i]...)
+			candidate = append(candidate, to...)
+			candidate = append(candidate, before[j:]...)
+			if !bytes.Equal(candidate, after) {
+				continue
+			}
+			replaced := before[i:j]
+			if !found {
+				firstReplaced, found = replaced, true
+			}
+			if valueRunIsClean(before, i, j) {
+				return
+			}
+		}
+	}
+	if !found {
+		t.Errorf("rewriteStatusLine(%q, %q) turned %q into %q, which is not that line with one run replaced by the target", data, to, before, after)
+		return
+	}
+	// A split exists but every one of them reaches past the value: the write
+	// swallowed spacing or a comment that was not its to move.
+	t.Errorf("rewriteStatusLine(%q, %q) replaced %q in %q, which reaches past the value", data, to, firstReplaced, before)
+}
+
+// valueRunIsClean reports whether line[i:j] could have been a status value's
+// own text, judged with the bytes around it rather than the run alone —
+// because what counts as the value depends on them.
+//
+// Quotes settle it: between a matching pair, the value is whatever they hold,
+// spaces and "#" included, and "status: \' \'" really does carry one space. A
+// run with no quotes around it is a plain scalar, and then spacing at its
+// edges, a comment inside it, or a leading quote all mean the write reached
+// past the value and took bytes the author chose. Only the leading position
+// counts: a quote opens a quoted value there and is an ordinary character
+// anywhere else, so "0000\"" is one plain token. A comment is likewise a "#"
+// that follows whitespace, the only "#" YAML reads as one, which leaves
+// "0#00" a single token that is right to replace whole.
+func valueRunIsClean(line []byte, i, j int) bool {
+	run := line[i:j]
+	if bytes.Contains(run, []byte("\r")) {
+		return false
+	}
+	if i > 0 && j < len(line) && (line[i-1] == '"' || line[i-1] == '\'') && line[j] == line[i-1] {
+		return true
+	}
+	// Space and tab, which is all YAML counts as white space here. Trimming by
+	// the Unicode definition instead would call a no-break space a blank and
+	// reject a correct write of the one-character value "\u00a0".
+	if !bytes.Equal(bytes.Trim(run, " \t"), run) {
+		return false
+	}
+	if len(run) > 0 && (run[0] == '"' || run[0] == '\'') {
+		return false
+	}
+	return !bytes.Contains(run, []byte(" #")) && !bytes.Contains(run, []byte("\t#"))
 }
