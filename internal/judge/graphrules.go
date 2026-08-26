@@ -150,7 +150,7 @@ func titleNotAlias(n *note, link wikiLink, targetNotes []string) Finding {
 		Message:         "[[" + link.target + "]] resolves to no filename or alias",
 		Evidence:        "the target is the title of " + targetNote + " but not one of its aliases",
 		SuggestedAction: "add the title to " + targetNote + "'s aliases, or link an existing filename/alias",
-		SourceRule:      "Note-Schema.md#aliases",
+		SourceRule:      sourceNoteSchema,
 		Target:          new(link.target),
 		Fingerprint:     fingerprint("link.title_not_alias", n.path, link.target),
 	}
@@ -177,7 +177,7 @@ func brokenLink(n *note, link wikiLink, planned Planned) Finding {
 		Message:         "[[" + link.target + "]] resolves to no note",
 		Evidence:        evidence,
 		SuggestedAction: action,
-		SourceRule:      "Note-Schema.md#aliases",
+		SourceRule:      sourceNoteSchema,
 		Target:          new(link.target),
 		Fingerprint:     fingerprint("link.broken", n.path, link.target),
 	}
@@ -236,7 +236,7 @@ func collisionFinding(alias string, members []string) Finding {
 		Message:          "alias \"" + alias + "\" is declared by " + strconv.Itoa(len(members)) + " notes, so [[" + alias + "]] cannot resolve deterministically",
 		Evidence:         "shared alias across: " + strings.Join(members, ", "),
 		SuggestedAction:  "give the alias a single owner note, or qualify the duplicates",
-		SourceRule:       "vault-schema.toml#rules",
+		SourceRule:       sourceContractRules,
 		Target:           new(alias),
 		CollisionMembers: members,
 		Fingerprint:      fingerprint("collision.alias", "", alias),
@@ -263,8 +263,8 @@ func provenanceUnresolved(
 	for i := range notes {
 		n := &notes[i]
 		fields := []referenceField{
-			{name: "based_on", values: n.basedOn, sourceRule: "vault-schema.toml#provenance"},
-			{name: "related", values: n.related, sourceRule: "vault-schema.toml#provenance"},
+			{name: "based_on", values: n.basedOn, sourceRule: sourceContractRules},
+			{name: "related", values: n.related, sourceRule: sourceContractRules},
 		}
 		if vocabulary, ok := supersessionForNote(contract, n); ok {
 			fields = appendConfiguredReferences(fields, n, vocabulary)
@@ -303,7 +303,7 @@ func appendConfiguredReferences(
 		fields = append(fields, referenceField{
 			name:       field,
 			values:     frontmatterStringValues(n, field),
-			sourceRule: "vault-schema.toml#supersession",
+			sourceRule: sourceContractSupersession,
 		})
 	}
 	return fields
@@ -436,7 +436,7 @@ func syllabusListsMissing(syllabus *note, link wikiLink) Finding {
 		Message:         "syllabus links [[" + link.target + "]] but it resolves to nothing",
 		Evidence:        "a study-path entry that resolves to no note on disk",
 		SuggestedAction: "create the note, fix the entry, or mark it a planned gap",
-		SourceRule:      "vault-schema.toml#rules",
+		SourceRule:      sourceContractRules,
 		Target:          new(link.target),
 		Fingerprint:     fingerprint("map.disk_mismatch", syllabus.path, link.target),
 	}
@@ -453,7 +453,7 @@ func diskUnlisted(syllabus, lesson *note) Finding {
 		Message:         "lesson is on disk but not listed in syllabus " + syllabus.path,
 		Evidence:        "the lesson exists but the study-path for its domain does not list it",
 		SuggestedAction: "add the lesson to the syllabus, or confirm it is intentionally excluded",
-		SourceRule:      "vault-schema.toml#rules",
+		SourceRule:      sourceContractRules,
 		Target:          new(lesson.path),
 		ResolvedTo:      new(syllabus.path),
 		Fingerprint:     fingerprint("map.disk_unlisted", lesson.path, syllabus.path),

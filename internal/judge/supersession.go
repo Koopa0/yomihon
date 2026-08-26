@@ -64,7 +64,7 @@ func predecessorStatusFinding(n *note, vocabulary schema.Supersession) Finding {
 		Message:         field + ` is populated while status is "` + n.status + `", not "` + vocabulary.ArchivedStatus + `"`,
 		Evidence:        "the configured successor ledger marks this lesson as superseded",
 		SuggestedAction: "archive the predecessor, or clear the successor field until the replacement is authoritative",
-		SourceRule:      "vault-schema.toml#supersession",
+		SourceRule:      sourceContractSupersession,
 		Fingerprint:     fingerprint(predecessorNotArchivedRule, n.path, field),
 	}
 }
@@ -127,7 +127,7 @@ func archivedNavigationFinding(
 		Message:         "[[" + link.target + "]] resolves to an archived note",
 		Evidence:        `the live path or map links ` + target.path + `, whose status is "` + vocabulary.ArchivedStatus + `"`,
 		SuggestedAction: "replace or remove the link, or restore the target if it is current again",
-		SourceRule:      "vault-schema.toml#supersession",
+		SourceRule:      sourceContractSupersession,
 		Target:          new(link.target),
 		ResolvedTo:      new(target.path),
 		Fingerprint:     fingerprint(archivedNavigationRule, source.path, link.target),

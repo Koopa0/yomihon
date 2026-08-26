@@ -65,7 +65,7 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 		Message:         d.Message,
 		Evidence:        evidence,
 		SuggestedAction: action,
-		SourceRule:      "AUTHORING.md",
+		SourceRule:      sourceAuthoring,
 		Fingerprint:     fingerprint(d.Rule, n.path, evidence),
 	}
 }

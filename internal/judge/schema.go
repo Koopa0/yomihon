@@ -293,7 +293,7 @@ func schemaFinding(n *note, ruleID, field string, hasField bool, value, reason s
 		Message:         message,
 		Evidence:        "frontmatter validated against vault-schema.toml",
 		SuggestedAction: "fix the frontmatter to match the schema",
-		SourceRule:      "vault-schema.toml",
+		SourceRule:      sourceContract,
 		Fingerprint:     fingerprint(ruleID, n.path, field+"\x1f"+value),
 	}
 	if hasField {

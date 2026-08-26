@@ -102,6 +102,32 @@ type Finding struct {
 	Fingerprint string `json:"fingerprint"`
 }
 
+// The complete set of values SourceRule may carry. A finding points a reader
+// at where its rule is written down, so each of these has to name a thing that
+// can actually be opened: the vault artifacts are spelled the way the vault
+// spells them, and an anchor is a table the contract really declares. Two were
+// invented — an "#aliases" heading Note-Schema.md does not have, and a
+// "#provenance" table nothing declares, the rule being
+// concept_requires_provenance under [rules] — which left the field reading as
+// authority while resolving to nothing. Declaring the set in one place is what
+// makes adding a third an edit somebody has to make deliberately.
+const (
+	// sourceContract is the vault's machine contract, for a rule it declares
+	// directly.
+	sourceContract = "vault-schema.toml"
+	// sourceContractRules is its [rules] table, where reference resolution,
+	// provenance, and the disk-reference rules all live.
+	sourceContractRules = "vault-schema.toml#rules"
+	// sourceContractSupersession is its [supersession] table.
+	sourceContractSupersession = "vault-schema.toml#supersession"
+	// sourceNoteSchema is the vault's human note schema, where a reader finds
+	// what aliases are for and why a title is not one of them.
+	sourceNoteSchema = "Note-Schema.md"
+	// sourceAuthoring is this repository's authoring contract, which ships
+	// with the parser that reads it.
+	sourceAuthoring = "AUTHORING.md"
+)
+
 // WriteJSONL writes findings to w, one compact JSON object and a
 // trailing newline per finding. It is the only serialization path for
 // findings in this repository, because the frozen format differs from
