@@ -466,15 +466,18 @@ func rawHref(p string) string {
 // It emits Unicode letters, digits, and hyphens only, so it needs no escaping.
 //
 // A block address takes precedence over a section name when the author wrote
-// both, the same order the excerpt scan resolves that conflict in, and is
-// written only when the destination carries the block: it is an address to an
-// anchor, and the reader who is told they are going to one paragraph and lands
-// at the top of the note is worse served than the one who was told nothing.
-// The check reads the destination through the same scan an embed of that block
-// would, so a link and an excerpt accept exactly the same addresses. Where the
-// destination's body was not captured nothing is claimed either way — yomihon
-// cannot tell a block that is absent from one it did not read, and reporting
-// either would be a statement about a note it never saw.
+// both, the same order the excerpt scan resolves that conflict in. Either kind
+// is written only when the destination carries what it names: an address is a
+// promise about where the reader lands, and one who is told they are going to
+// a named part and arrives at the top of the note is worse served than one who
+// was told nothing. Both checks read the destination through the same scans an
+// embed of it would, so a link and an excerpt accept exactly the same
+// addresses, and a heading the page stamps an id for is a heading the scan
+// finds: the only markup that survives authored HTML here is inline, so no
+// element outside those scans can carry an anchor. Where the destination's
+// body was not captured nothing is claimed either way — yomihon cannot tell a
+// name that is absent from one it did not read, and reporting either would be
+// a statement about a note it never saw.
 //
 // A block fragment is percent-escaped, because a block name is whatever the
 // author typed and can carry a quote or a space, and the caret it opens with is
@@ -509,7 +512,20 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		}
 		return href + "#" + url.PathEscape(blockAnchorID(address))
 	case link.Heading != "":
-		return href + "#" + slugify(link.Heading)
+		addressed := href + "#" + slugify(link.Heading)
+		body, ok := r.transclusions.Transclusion(relPath)
+		if !ok {
+			return addressed
+		}
+		if _, found := headingSlice(stripObsidianComments(body), link.Heading); !found {
+			col.report(Diagnostic{
+				Kind:    DiagLinkFragmentMissing,
+				Target:  link.Target + "#" + link.Heading,
+				Message: fmt.Sprintf("no heading in %q matched %q; the link leads to the note itself", relPath, link.Heading),
+			})
+			return href
+		}
+		return addressed
 	}
 	return href
 }
@@ -606,14 +622,14 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 			return fmt.Sprintf(`<span class="wikilink-broken" title="這篇筆記存在，但這次讀取時拿不到它的內容">![[%s]]</span>`,
 				html.EscapeString(target))
 		}
-		body = embedScope(link, res.Path, body, col)
+		body, unmatched := embedScope(link, res.Path, body, col)
 		inner := r.render(body, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		// An image inside a transcluded body was written relative to the
 		// note it came from, which is rarely the note being read, so it is
 		// resolved here — where that note's own path is still known —
 		// rather than later against the host's directory.
-		return `<div class="embed">` + resolveAssetHrefs(inner.HTML, res.Path) + `</div>`
+		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched) + resolveAssetHrefs(inner.HTML, res.Path) + `</div>`
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -634,30 +650,32 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 // hidden inside an Obsidian %% comment cannot anchor a visible excerpt; the
 // later render pass strips comments again, which leaves an already-stripped
 // body unchanged.
-func embedScope(link graph.Wikilink, resPath, body string, col *collector) string {
+func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped, unmatched string) {
 	switch {
 	case link.Block != "":
 		stripped := stripObsidianComments(body)
 		if slice, ok := blockSlice(stripped, link.Block); ok {
-			return slice
+			return slice, ""
 		}
 		col.report(Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
 			Target:  link.Target + "#^" + link.Block,
 			Message: fmt.Sprintf("no block in %q matched %q; the whole note is shown", resPath, "^"+link.Block),
 		})
+		return body, "#^" + link.Block
 	case link.Heading != "":
 		stripped := stripObsidianComments(body)
 		if slice, ok := headingSlice(stripped, link.Heading); ok {
-			return slice
+			return slice, ""
 		}
 		col.report(Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
 			Target:  link.Target + "#" + link.Heading,
 			Message: fmt.Sprintf("no heading in %q matched %q; the whole note is shown", resPath, link.Heading),
 		})
+		return body, "#" + link.Heading
 	}
-	return body
+	return body, ""
 }
 
 // atxHeadingLine matches an ATX heading the way goldmark will read it: up to
@@ -935,4 +953,26 @@ func blockMarkerLine(lines []string, block string) int {
 		}
 	}
 	return -1
+}
+
+// embedClass marks an excerpt whose fragment matched nothing, so the widening
+// is visible in the article rather than only in the diagnostics face.
+func embedClass(unmatched string) string {
+	if unmatched == "" {
+		return "embed"
+	}
+	return "embed embed--widened"
+}
+
+// widenedNotice states, inside the excerpt itself, that the author's fragment
+// found nothing and the whole source note stands in its place. The reading
+// page's diagnostics face already reports it, but that face lives in the right
+// rail: narrow viewports collapse it and the widest ones put it beside the
+// article rather than in it. The words the author scoped out are on the page
+// either way, so the account of why has to be on the page too.
+func widenedNotice(unmatched string) string {
+	if unmatched == "" {
+		return ""
+	}
+	return `<p class="embed__widened">找不到 <code>` + html.EscapeString(unmatched) + `</code>，以下顯示整篇筆記。</p>`
 }
