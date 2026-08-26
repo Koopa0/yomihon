@@ -379,3 +379,48 @@ func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Pa
 	}
 	return paths[0]
 }
+
+// TestSyllabusSaysWhyItFoundNoCourse holds the page's answer for a study-path
+// note whose ordered links declare no structure this reader recognises. The
+// header counted them honestly — nought parts, nought lessons — and the body
+// below it was blank, so the page read as a course that exists and is empty
+// rather than as prose the parser was never given a course in. The two need
+// opposite repairs, and the second is the common one: the structure is
+// declared by a marker on a heading, and a note written without one places
+// nothing no matter how many lessons it lists.
+//
+// The page still states nothing about what the note should have said. It names
+// where the structure comes from and stops; a human edits the file.
+func TestSyllabusSaysWhyItFoundNoCourse(t *testing.T) {
+	t.Parallel()
+
+	render := func(t *testing.T, view PathView) string {
+		t.Helper()
+		var out bytes.Buffer
+		if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &out); err != nil {
+			t.Fatalf("render syllabus: %v", err)
+		}
+		return out.String()
+	}
+
+	empty := render(t, PathView{Title: "Path", RelPath: "Maps/Path.md"})
+	if !strings.Contains(empty, "沒有讀到任何課程結構") {
+		t.Errorf("a path with no recognised structure says nothing about why:\n%s", empty)
+	}
+	if !strings.Contains(empty, "{sequence=") {
+		t.Errorf("the empty state does not name what declares the structure:\n%s", empty)
+	}
+
+	// The control: a page that did find a course must not carry the notice,
+	// or the check above would pass on every study path in the vault.
+	found := render(t, PathView{
+		Title:    "Path",
+		RelPath:  "Maps/Path.md",
+		Parts:    1,
+		Entries:  1,
+		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}},
+	})
+	if strings.Contains(found, "沒有讀到任何課程結構") {
+		t.Errorf("a path that found its course still claims it found none:\n%s", found)
+	}
+}

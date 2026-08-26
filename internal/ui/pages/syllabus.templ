@@ -20,6 +20,9 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 			<main id="main-content" tabindex="-1" class="y-main">
 				<div class="y-syl">
 					@syllabusHead(v)
+					if len(v.Branches) == 0 {
+						@syllabusNoCourse()
+					}
 					for _, sec := range v.Branches {
 						@partBlock(sec)
 					}
@@ -225,4 +228,21 @@ templ pathSwitch(p PathLink) {
 
 templ pathIcon() {
 	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path></svg>
+}
+
+// syllabusNoCourse is what the page says when it read the note and found no
+// course in it. Without it the header's honest nought-parts-nought-lessons sat
+// over an empty body, which reads as a course that exists and is empty — and
+// the repair for that is nothing like the repair for the ordinary case, a note
+// that lists its lessons in prose and never declares them.
+//
+// It states where structure comes from and stops there. Naming which of this
+// note's headings a marker belongs on would be yomihon deciding what the
+// author meant; the file is the author's to edit.
+templ syllabusNoCourse() {
+	<p class="y-syl-nocourse">
+		這條路徑沒有讀到任何課程結構。分部與課次是由標題後面的
+		<code>{ "{sequence=…}" }</code>
+		標記宣告的，沒有標記的標題不會被讀成分部，底下的連結也不會被讀成課。yomihon 只陳述，不修復；請直接編輯這篇筆記。
+	</p>
 }
