@@ -349,3 +349,83 @@ func TestSnippetSurvivesAFoldThatMovesABoundary(t *testing.T) {
 		t.Errorf("Snippet = %q, which carries a replacement character — a boundary broke", got)
 	}
 }
+
+// TestSnippetKeepsTheWordsThatGovernTheMatch holds the one truncation a
+// reader cannot recover from. A window placed by byte count opens wherever it
+// lands, and where the sentence began with the word that reverses it —
+// 不得, "not recommended", a leading 本段僅限 — the reader is shown the
+// predicate on its own and reads it as the instruction. The leading ellipsis
+// says bytes were cut; it does not say the cut ones inverted the sentence, and
+// nobody scanning a result list can tell the difference.
+//
+// Each case puts the governing words further from the match than the plain
+// window reaches, which is the only arrangement that can fail: a qualifier
+// inside the window was never at risk. The window therefore opens at the start
+// of the sentence it landed in, when that start is within reach.
+func TestSnippetKeepsTheWordsThatGovernTheMatch(t *testing.T) {
+	t.Parallel()
+	// Longer than snippetBefore, so the plain window opens after the words
+	// under test rather than before them.
+	longClause := strings.Repeat("在某些特定情況下", 8)
+	longEnglish := strings.Repeat("under a number of particular circumstances, ", 2)
+	tests := []struct {
+		name    string
+		plain   string
+		query   string
+		wantHas string
+	}{
+		{
+			name:    "a negation before the match survives",
+			plain:   "前面一段無關的敘述。不得" + longClause + "在正式環境使用這個設定。",
+			query:   "正式環境",
+			wantHas: "不得",
+		},
+		{
+			name:    "an english qualifier before the match survives",
+			plain:   "An earlier sentence sits here. This is not recommended " + longEnglish + "for production clusters.",
+			query:   "production",
+			wantHas: "not recommended",
+		},
+		{
+			name:    "a scope limiter before the match survives",
+			plain:   "前面一段無關的敘述。本段僅限" + longClause + "舊版設定使用。",
+			query:   "舊版設定",
+			wantHas: "本段僅限",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := snippet(tt.plain, strings.ToLower(tt.plain), []string{strings.ToLower(tt.query)})
+			if !strings.Contains(got, tt.wantHas) {
+				t.Errorf("snippet() = %q, dropped the words that govern the match (%q)", got, tt.wantHas)
+			}
+			// The control: the sentence before it is not dragged in as well.
+			if strings.Contains(got, "前面一段無關") || strings.Contains(got, "An earlier sentence") {
+				t.Errorf("snippet() = %q, reached back past the sentence the match is in", got)
+			}
+		})
+	}
+}
+
+// TestSnippetWillNotWalkBackThroughAWholeParagraph is the ceiling on the rule
+// above, and it needs a sentence break that is genuinely out of reach — not an
+// absent one. With no terminator anywhere the boundary cannot move whatever
+// the ceiling says, so a page of unbroken filler tests nothing: the first
+// version of this check passed with the ceiling raised to a hundred thousand.
+// The break here sits hundreds of runes back, so only the ceiling stops the
+// window opening there and dragging the paragraph into one result row.
+func TestSnippetWillNotWalkBackThroughAWholeParagraph(t *testing.T) {
+	t.Parallel()
+	plain := "開頭的一句話。" + strings.Repeat("甲乙丙丁戊己庚辛壬癸", 40) + "目標詞在這裡"
+	got := snippet(plain, strings.ToLower(plain), []string{"目標詞"})
+	if strings.Contains(got, "開頭的一句話") {
+		t.Errorf("snippet() reached back past the ceiling to a sentence hundreds of runes away:\n%s", got)
+	}
+	if n := len([]rune(got)); n > 320 {
+		t.Errorf("snippet() ran to %d runes; the opening side is unbounded", n)
+	}
+	if !strings.HasPrefix(got, "…") {
+		t.Errorf("snippet() = %q, want it to still open with an ellipsis", got)
+	}
+}

@@ -429,6 +429,7 @@ func snippet(plain, plainFold string, tokens []string) string {
 	// below reversed. A few hundred letters with no break in them is all it
 	// takes: one long identifier, or a hash pasted into a note.
 	start := min(wholeWordStart(plain, runesBefore(plain, off, snippetBefore)), off)
+	start = sentenceStart(plain, start, off)
 	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), off)
 
 	s := strings.Join(strings.Fields(plain[start:end]), " ")
@@ -533,6 +534,58 @@ func clampRuneEnd(s string, i int) int {
 	}
 	for i > 0 && !utf8.RuneStart(s[i]) {
 		i--
+	}
+	return i
+}
+
+// sentenceTerminators end a sentence in the scripts this corpus is written in.
+// A comma of either width is not one of them: it separates clauses inside the
+// sentence the window is trying to keep whole.
+const sentenceTerminators = "。！？；.!?;\n"
+
+// snippetBeforeMax bounds the whole opening side of the window: the boundary
+// may travel back this far from the match, and no further, to reach the start
+// of its sentence. It is the plain window several times over because a real
+// sentence of technical prose runs about a hundred characters and the words
+// that govern it sit at the front — but it is a ceiling, so a note written
+// without terminators cannot turn one result row into the whole note.
+const snippetBeforeMax = 120
+
+// sentenceStart moves a snippet's opening boundary back to the beginning of
+// the sentence it landed inside, when that beginning is within reach.
+//
+// A window placed by counting bytes opens wherever the count falls, and the
+// words a sentence opens with are the ones that decide what it means: 不得,
+// 本段僅限, "this is not recommended". Cut, the predicate stands alone and reads
+// as the instruction — the reader is not merely told less, they are told the
+// opposite. The leading ellipsis is no defence: it says bytes were removed, not
+// that the removed ones reversed the sentence, and nobody scanning a list of
+// results can tell one case from the other.
+//
+// Where no terminator is within reach the window is left exactly where it was,
+// so the cost is bounded by snippetBeforeMax and a page of unbroken prose
+// behaves as it always did.
+func sentenceStart(plain string, start, off int) int {
+	if start <= 0 {
+		return start
+	}
+	limit := runesBefore(plain, off, snippetBeforeMax)
+	if limit >= start {
+		return start
+	}
+	at := strings.LastIndexAny(plain[limit:start], sentenceTerminators)
+	if at < 0 {
+		return start
+	}
+	i := limit + at
+	_, size := utf8.DecodeRuneInString(plain[i:])
+	i += size
+	for i < start {
+		r, width := utf8.DecodeRuneInString(plain[i:])
+		if !unicode.IsSpace(r) {
+			break
+		}
+		i += width
 	}
 	return i
 }
