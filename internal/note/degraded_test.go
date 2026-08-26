@@ -232,9 +232,16 @@ func degradedDetail(t *testing.T, page string) string {
 	if !ok {
 		t.Fatal("home page carries no degraded notice")
 	}
-	_, detail, ok := strings.Cut(afterNotice, `<code lang="en">`)
+	// The opening tag is matched by its name, not by the exact attributes it
+	// happens to carry: what this reads is the notice's machine detail, and a
+	// styling hook added to that element is not a change in what it holds.
+	_, afterOpen, ok := strings.Cut(afterNotice, "<code")
 	if !ok {
 		t.Fatal("the home page's degraded notice carries no detail naming what could not be read")
+	}
+	_, detail, ok := strings.Cut(afterOpen, ">")
+	if !ok {
+		t.Fatal("the home page's degraded detail has an unclosed opening tag")
 	}
 	detail, _, ok = strings.Cut(detail, "</code>")
 	if !ok {

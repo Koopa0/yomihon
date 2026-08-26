@@ -10,7 +10,7 @@ templ browserDiagnostic(summary, detail string) {
 	<span>{ summary }</span>
 	if detail != "" {
 		<span aria-hidden="true">— </span>
-		<code lang="en">{ detail }</code>
+		<code class="y-diagdetail" lang="en">{ detail }</code>
 	}
 }
 
