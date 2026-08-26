@@ -259,7 +259,7 @@ func healthBlockedSection(t *testing.T, page string) string {
 	if !ok {
 		t.Fatal("health page has no blocked-sources section")
 	}
-	if before, _, found := strings.Cut(section, "連到還沒寫的筆記"); found {
+	if before, _, found := strings.Cut(section, "連到不存在的目標"); found {
 		section = before
 	}
 	return section

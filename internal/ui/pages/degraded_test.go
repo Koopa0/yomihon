@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -117,5 +118,36 @@ func TestHealthAllClearClaimsOnlyTheLinksItRead(t *testing.T) {
 	}
 	if !strings.Contains(html, "yomihon check") {
 		t.Errorf("the all-clear does not say where the checks it skips are answered:\n%s", html)
+	}
+}
+
+// TestHealthDoesNotCallEveryMissingTargetANote holds the heading over the
+// list of citations that land nowhere. The list is built from targets nothing
+// answers to, and a target is whatever its author wrote — a note they have not
+// written yet, and equally a picture or a PDF that is not in the folder. Under
+// a heading naming notes, the second kind arrived as a note the reader is owed
+// and would go looking to write; the two need opposite repairs.
+func TestHealthDoesNotCallEveryMissingTargetANote(t *testing.T) {
+	t.Parallel()
+	view := HealthView{Unwritten: []HealthLink{
+		{From: nav.NoteRef{Name: "A", RelPath: "Concepts/A.md"}, Target: "還沒寫的概念"},
+		{From: nav.NoteRef{Name: "A", RelPath: "Concepts/A.md"}, Target: "diagram.png"},
+	}}
+	var buf bytes.Buffer
+	if err := Health(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	if strings.Contains(html, "連到還沒寫的筆記") {
+		t.Errorf("the heading calls every missing target a note the reader has yet to write")
+	}
+	if !strings.Contains(html, "連到不存在的目標") {
+		t.Errorf("the heading does not name what the list actually holds:\n%s", html)
+	}
+	// Both kinds still appear; narrowing the claim must not narrow the list.
+	for _, target := range []string{"還沒寫的概念", "diagram.png"} {
+		if !strings.Contains(html, target) {
+			t.Errorf("the list dropped %q", target)
+		}
 	}
 }

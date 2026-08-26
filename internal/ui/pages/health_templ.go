@@ -311,7 +311,7 @@ func Health(v HealthView, c layouts.Chrome) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = healthSection("連到還沒寫的筆記", len(v.Unwritten), "這些連結的目標不存在，而且沒有任何缺口帳列出它們。").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = healthSection("連到不存在的目標", len(v.Unwritten), "這些連結的目標不存在，而且沒有任何缺口帳列出它們。目標是作者寫下的名字：可能是一篇還沒寫的筆記，也可能是一個不在書庫裡的檔案——兩者要修的東西不一樣。").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

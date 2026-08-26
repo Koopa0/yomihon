@@ -231,7 +231,7 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 	if !strings.Contains(body, "連結寫的是筆記的標題") || !strings.Contains(body, `href="/notes/Concepts/written.md"`) {
 		t.Errorf("the health page does not separate a title-named citation from an unwritten one; body = %q", body)
 	}
-	unwritten := healthSectionBody(t, body, "連到還沒寫的筆記")
+	unwritten := healthSectionBody(t, body, "連到不存在的目標")
 	if strings.Contains(unwritten, "A Written Note") {
 		t.Errorf("a written note is listed as unwritten; section = %q", unwritten)
 	}
