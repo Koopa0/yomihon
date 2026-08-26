@@ -574,6 +574,13 @@ templ pathGroupItems(sb Sidebar, pathRel string, chain []string, g *nav.PathGrou
 // pathEntryLink renders one lesson row: a lesson that resolves links and may
 // mark the current note; a planned or ambiguous one stays non-interactive and
 // keeps its place in the course.
+//
+// Neither this row nor a map's carries a status badge for the note being read.
+// Every other row's badge comes from the captured generation and is the only
+// answer on offer there, but on the current one the page already states the
+// status twice from a live read of the note's own line — and the generation
+// republishes on its own cadence, so right after a transition the badge is a
+// third copy that disagrees with both.
 templ pathEntryLink(sb Sidebar, entry *nav.PathEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a
@@ -583,7 +590,7 @@ templ pathEntryLink(sb Sidebar, entry *nav.PathEntry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			{ entry.Text }
-			if entry.Status != "" {
+			if entry.Status != "" && !sb.current(entry.RelPath) {
 				<span class="ui-navitem__count">{ entry.Status }</span>
 			}
 		</a>
@@ -630,7 +637,7 @@ templ entryLink(sb Sidebar, entry nav.Entry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			{ entry.Text }
-			if entry.Status != "" {
+			if entry.Status != "" && !sb.current(entry.RelPath) {
 				<span class="ui-navitem__count">{ entry.Status }</span>
 			}
 		</a>

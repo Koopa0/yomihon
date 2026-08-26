@@ -610,3 +610,63 @@ func TestNewSidebarNoCurrentNote(t *testing.T) {
 		t.Errorf("Here = %v with no current note, want empty", sb.Here)
 	}
 }
+
+// TestSidebarLeavesTheCurrentNotesStatusToThePage holds which of a page's
+// status faces is allowed to speak. The panel and the bottom bar read the
+// note's status line from disk when the page is built; the rail's per-lesson
+// badge comes from the captured generation, which the scanner republishes on
+// its own cadence. Right after a transition the redirect is served inside that
+// window, so the same response printed the new status twice and the old one
+// once, for one note, with nothing to say which was current.
+//
+// The repair is to drop the third copy rather than to synchronise it. A reader
+// standing on a note is already told its status by the faces that read it
+// live; a rail badge repeating an older answer beside them adds no fact and
+// can only disagree. Every other row keeps its badge — there the generation's
+// answer is the only one on offer and contradicts nothing.
+func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
+	t.Parallel()
+	const current = "Writing/lessons/japanese/L01.md"
+	const other = "Writing/lessons/japanese/L02.md"
+	sb := Sidebar{CurrentPath: current}
+
+	// Both row renderers, because the rail draws the same badge twice: study
+	// path rows and map branch rows are separate templates over separate
+	// types, and fixing one leaves the other saying the thing this test forbids.
+	rows := map[string]func(string) string{
+		"study path row": func(rel string) string {
+			t.Helper()
+			var buf bytes.Buffer
+			entry := nav.PathEntry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
+			if err := pathEntryLink(sb, &entry).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render %s: %v", rel, err)
+			}
+			return buf.String()
+		},
+		"map branch row": func(rel string) string {
+			t.Helper()
+			var buf bytes.Buffer
+			entry := nav.Entry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
+			if err := entryLink(sb, entry).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render %s: %v", rel, err)
+			}
+			return buf.String()
+		},
+	}
+
+	for name, render := range rows {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got := render(current); strings.Contains(got, "draft") {
+				t.Errorf("the rail repeats the current note's status beside the faces that read it live:\n%s", got)
+			}
+			otherRow := render(other)
+			if !strings.Contains(otherRow, "draft") {
+				t.Errorf("a row that is not the current note lost the only status answer it had:\n%s", otherRow)
+			}
+			if !strings.Contains(render(current), "ui-navitem") {
+				t.Error("the current note's row stopped rendering entirely")
+			}
+		})
+	}
+}
