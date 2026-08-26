@@ -428,8 +428,13 @@ func snippet(plain, plainFold string, tokens []string) string {
 	// both at once, which leaves the opening after the close and the slice
 	// below reversed. A few hundred letters with no break in them is all it
 	// takes: one long identifier, or a hash pasted into a note.
-	start := min(wholeWordStart(plain, runesBefore(plain, off, snippetBefore)), off)
-	start = sentenceStart(plain, start, off)
+	// The reach for a sentence start runs first and the whole-word adjustment
+	// last, because the second has to hold whatever the first leaves. Reaching
+	// back after that adjustment silently undid it where no sentence start was
+	// in range, and the window opened on the tail of a decimal or a filename
+	// as though it began the sentence.
+	opening := sentenceStart(plain, runesBefore(plain, off, snippetBefore), off)
+	start := min(wholeWordStart(plain, opening), off)
 	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), off)
 
 	s := strings.Join(strings.Fields(plain[start:end]), " ")
@@ -541,7 +546,21 @@ func clampRuneEnd(s string, i int) int {
 // sentenceTerminators end a sentence in the scripts this corpus is written in.
 // A comma of either width is not one of them: it separates clauses inside the
 // sentence the window is trying to keep whole.
-const sentenceTerminators = "。！？；.!?;\n"
+//
+// The two halves are treated differently because only one of them is
+// unambiguous. A full-width stop appears in no token and is written with no
+// space after it, so it ends a sentence wherever it stands. An ASCII stop is
+// the same character as the one inside vault-schema.toml, go1.26.4 and
+// 3.14159 — and since the scan takes the last terminator before the window,
+// one of those beat the real sentence end and dropped the very words this
+// reach exists to keep, on exactly the sentences this vault's prose is full
+// of. It therefore ends a sentence only where something other than more of
+// the same word follows it.
+const (
+	sentenceTerminators      = "。！？；.!?;\n"
+	unambiguousTerminators   = "。！？；\n"
+	needsFollowingWhitespace = ".!?;"
+)
 
 // snippetBeforeMax bounds the whole opening side of the window: the boundary
 // may travel back this far from the match, and no further, to reach the start
@@ -573,13 +592,10 @@ func sentenceStart(plain string, start, off int) int {
 	if limit >= start {
 		return start
 	}
-	at := strings.LastIndexAny(plain[limit:start], sentenceTerminators)
-	if at < 0 {
+	i, ok := lastSentenceEnd(plain, limit, start)
+	if !ok {
 		return start
 	}
-	i := limit + at
-	_, size := utf8.DecodeRuneInString(plain[i:])
-	i += size
 	for i < start {
 		r, width := utf8.DecodeRuneInString(plain[i:])
 		if !unicode.IsSpace(r) {
@@ -588,4 +604,32 @@ func sentenceStart(plain string, start, off int) int {
 		i += width
 	}
 	return i
+}
+
+// lastSentenceEnd reports the byte just past the last sentence-ending
+// punctuation in plain[limit:start], and whether there was one. An ASCII stop
+// counts only when what follows it is white space or the end of the text,
+// which is what tells a sentence end from the dot inside a filename, a version
+// or a decimal.
+func lastSentenceEnd(plain string, limit, start int) (int, bool) {
+	for at := start; at > limit; {
+		j := strings.LastIndexAny(plain[limit:at], sentenceTerminators)
+		if j < 0 {
+			return 0, false
+		}
+		i := limit + j
+		r, size := utf8.DecodeRuneInString(plain[i:])
+		after := i + size
+		if strings.ContainsRune(unambiguousTerminators, r) {
+			return after, true
+		}
+		if after >= len(plain) {
+			return after, true
+		}
+		if next, _ := utf8.DecodeRuneInString(plain[after:]); unicode.IsSpace(next) {
+			return after, true
+		}
+		at = i
+	}
+	return 0, false
 }

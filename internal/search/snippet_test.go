@@ -429,3 +429,89 @@ func TestSnippetWillNotWalkBackThroughAWholeParagraph(t *testing.T) {
 		t.Errorf("snippet() = %q, want it to still open with an ellipsis", got)
 	}
 }
+
+// TestSnippetDoesNotTreatADecimalPointAsTheEndOfASentence holds the reach-back
+// off the punctuation that is not punctuation. A full stop ends a sentence
+// only when something follows it that is not more of the same word: inside
+// 3.14159 or vault-schema.toml it is part of the token, and a reach that
+// stopped there opened the window in the middle of a number and presented the
+// tail of it as the start of a sentence — worse than the plain byte window it
+// replaced, which at least stepped clear of the run.
+func TestSnippetDoesNotTreatADecimalPointAsTheEndOfASentence(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		plain     string
+		query     string
+		forbidden string
+		wantHas   string
+	}{
+		{
+			name:      "a decimal point is not a sentence end",
+			plain:     "An earlier sentence. Some filler words that pad this out a little 3.14159265358979 TARGETWORD tail",
+			query:     "targetword",
+			forbidden: "…14159265358979",
+			wantHas:   "Some filler words",
+		},
+		{
+			name:      "a dot inside a filename is not a sentence end",
+			plain:     "An earlier sentence. Some filler words that pad this out a little vault-schema.toml TARGETWORD tail",
+			query:     "targetword",
+			forbidden: "…toml",
+			wantHas:   "Some filler words",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := snippet(tt.plain, strings.ToLower(tt.plain), []string{tt.query})
+			if strings.HasPrefix(got, tt.forbidden) {
+				t.Errorf("snippet() opened inside a token at a dot that ends no sentence: %q", got)
+			}
+			if !strings.Contains(got, tt.wantHas) {
+				t.Errorf("snippet() = %q, want it to reach back to the real sentence start (%q)", got, tt.wantHas)
+			}
+		})
+	}
+}
+
+// TestADotInsideATokenEndsNoSentence holds the reach-back off the punctuation
+// that only looks like punctuation. The scan takes the LAST terminator before
+// the window, so a full stop inside vault-schema.toml or go1.26.4 beat the
+// real 。 further back — and the words that govern the sentence, which this
+// reach exists to keep, were dropped on exactly the sentences this vault's
+// technical prose is full of. The window then opened inside the token: "…4 這
+// 個版本" presents the tail of a version number as the start of a thought.
+//
+// A full-width terminator is never inside a token and is not followed by a
+// space in Chinese, so it counts wherever it stands; an ASCII one counts only
+// where something other than more of the same word follows it.
+func TestADotInsideATokenEndsNoSentence(t *testing.T) {
+	t.Parallel()
+	filler := strings.Repeat("接著這一段說明文字", 6)
+	tests := []struct {
+		name  string
+		plain string
+	}{
+		{name: "a filename", plain: "前面一句。不得使用 vault-schema.toml 這個檔案" + filler + "目標詞在這裡"},
+		{name: "a version number", plain: "前面一句。不得升級到 go1.26.4 這個版本" + filler + "目標詞在這裡"},
+		{name: "a decimal", plain: "前面一句。不得超過 3.14159265358979 這個數字" + filler + "目標詞在這裡"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := snippet(tt.plain, strings.ToLower(tt.plain), []string{"目標詞"})
+			if !strings.Contains(got, "不得") {
+				t.Errorf("snippet() = %q, dropped the word that governs the sentence because a dot inside a token beat the real sentence end", got)
+			}
+		})
+	}
+
+	// The control: a sentence with no token-internal dot already worked, so
+	// the cases above must fail for the reason named and not because the
+	// reach-back is broken outright.
+	clean := "前面一句。不得使用這個設定檔" + filler + "目標詞在這裡"
+	if got := snippet(clean, strings.ToLower(clean), []string{"目標詞"}); !strings.Contains(got, "不得") {
+		t.Errorf("the control lost 不得 too; the fixture proves nothing about dots: %q", got)
+	}
+}
