@@ -399,64 +399,6 @@ func TestFlipClassifiesNonInstanceBeforeFilesystem(t *testing.T) {
 	}
 }
 
-// TestFlipRefusesCaseVariantNonInstancePath locks the non-instance refusal to
-// the directory's identity rather than its spelling. On a case-insensitive
-// filesystem a lowercase spelling of a declared artifact directory opens the
-// same protected file, so a flip addressed to "system/templates" reaches the
-// bytes of "System/templates" — the refusal must fire before any filesystem
-// access, leave the canonical file byte-identical, and record no commit.
-func TestFlipRefusesCaseVariantNonInstancePath(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	const canonicalRel = "System/templates/Card.md"
-	original := lessonContent("draft")
-	writeVaultFile(t, root, canonicalRel, original)
-
-	for _, rel := range []string{"system/templates/Card.md", "SYSTEM/Templates/Card.md"} {
-		err := lifecycle.Flip(rel, "draft", schema.SealStatus, [sha256.Size]byte{})
-		if !errors.Is(err, status.ErrNonInstance) {
-			t.Errorf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
-		}
-	}
-	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(canonicalRel))) // #nosec G304 -- canonicalRel is a fixed in-test constant under this test's TempDir
-	if readErr != nil {
-		t.Fatalf("read template note: %v", readErr)
-	}
-	if diff := cmp.Diff(original, string(got)); diff != "" {
-		t.Errorf("canonical template bytes changed (-want +got):\n%s", diff)
-	}
-}
-
-// TestFlipRefusesNonMarkdownTarget locks the write face to the same note
-// definition the reading scan uses: a note is a file whose path ends in
-// ".md", and everything else is a resource. A resource carrying note-shaped
-// frontmatter and a legal transition must not receive a committed status
-// flip — that would mint a note-lifecycle receipt for a file the reading
-// face itself refuses to offer a write form for.
-func TestFlipRefusesNonMarkdownTarget(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	const txtRel = "Writing/lessons/japanese/L05.txt"
-	original := lessonContent("draft")
-	writeVaultFile(t, root, txtRel, original)
-
-	err := lifecycle.Flip(txtRel, "draft", schema.SealStatus, [sha256.Size]byte{})
-	if !errors.Is(err, status.ErrNonInstance) {
-		t.Fatalf("Flip(%q) = %v, want %v", txtRel, err, status.ErrNonInstance)
-	}
-	got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(txtRel))) // #nosec G304 -- txtRel is a fixed in-test constant under this test's TempDir
-	if readErr != nil {
-		t.Fatalf("read resource: %v", readErr)
-	}
-	if diff := cmp.Diff(original, string(got)); diff != "" {
-		t.Errorf("resource bytes changed (-want +got):\n%s", diff)
-	}
-}
-
 // TestFlipRefusesADifferentlySpelledOnDiskName locks the write face to the
 // name the directory actually holds rather than the one the request typed. On
 // a case-insensitive filesystem a request for "L06.md" opens the entry spelled
@@ -511,38 +453,63 @@ func TestFlipReportsAMissingNoteAsMissing(t *testing.T) {
 	}
 }
 
-// TestFlipRefusesHiddenTarget locks the write face to the whole of the
-// reading scan's note definition, not half of it. The scan never descends
-// into a dot-prefixed name and never serves a dot-prefixed file, so such a
-// file is a resource however note-shaped its frontmatter is. Committing a
-// status transition on one would mint a note-lifecycle receipt for a file no
-// reading page can ever show.
-func TestFlipRefusesHiddenTarget(t *testing.T) {
+// TestFlipRefusesNonInstancePaths locks the write face to the same note
+// definition the reading scan uses: a note is a file whose path ends in
+// ".md" and carries no dot-prefixed component, and it is the file the vault
+// holds under exactly the requested spelling. Everything else is a resource.
+// A resource carrying note-shaped frontmatter and a legal transition must not
+// receive a committed status flip — that would mint a note-lifecycle receipt
+// for a file the reading face itself refuses to offer a write form for. The
+// classification folds case, because on a case-insensitive filesystem every
+// spelling of a path opens the same file and a rule that read the spelling
+// literally would let one of them through.
+func TestFlipRefusesNonInstancePaths(t *testing.T) {
 	t.Parallel()
 
-	for _, rel := range []string{
-		"Writing/lessons/japanese/.hidden-lesson.md",
-		"Writing/.drafts/japanese/L05.md",
-		".obsidian/plugins/note.md",
-	} {
-		t.Run(rel, func(t *testing.T) {
+	tests := []struct {
+		name    string
+		onDisk  string // where the bytes are written
+		request string // the path handed to Flip; empty means onDisk
+	}{
+		{name: "hidden note", onDisk: "Writing/lessons/japanese/.hidden-lesson.md"},
+		{name: "hidden directory", onDisk: "Writing/.drafts/japanese/L05.md"},
+		{name: "vault configuration directory", onDisk: ".obsidian/plugins/note.md"},
+		{name: "not markdown", onDisk: "Writing/lessons/japanese/L05.txt"},
+		{
+			name:    "lower-case spelling of an excluded directory",
+			onDisk:  "System/templates/Card.md",
+			request: "system/templates/Card.md",
+		},
+		{
+			name:    "mixed-case spelling of an excluded directory",
+			onDisk:  "System/templates/Card.md",
+			request: "SYSTEM/Templates/Card.md",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			lifecycle := newLifecycle(t, root, loadContract(t))
 
 			original := lessonContent("draft")
-			writeVaultFile(t, root, rel, original)
+			writeVaultFile(t, root, tt.onDisk, original)
 
-			err := lifecycle.Flip(rel, "draft", schema.SealStatus, [sha256.Size]byte{})
-			if !errors.Is(err, status.ErrNonInstance) {
-				t.Fatalf("Flip(%q) = %v, want %v", rel, err, status.ErrNonInstance)
+			request := tt.onDisk
+			if tt.request != "" {
+				request = tt.request
 			}
-			got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a fixed in-test path under this test's TempDir
+			err := lifecycle.Flip(request, "draft", schema.SealStatus, [sha256.Size]byte{})
+			if !errors.Is(err, status.ErrNonInstance) {
+				t.Fatalf("Flip(%q) = %v, want %v", request, err, status.ErrNonInstance)
+			}
+			got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(tt.onDisk))) // #nosec G304 -- a fixed in-test path under this test's TempDir
 			if readErr != nil {
-				t.Fatalf("read hidden file: %v", readErr)
+				t.Fatalf("read %s: %v", tt.onDisk, readErr)
 			}
 			if diff := cmp.Diff(original, string(got)); diff != "" {
-				t.Errorf("hidden file bytes changed (-want +got):\n%s", diff)
+				t.Errorf("bytes changed before the refusal (-want +got):\n%s", diff)
 			}
 		})
 	}
