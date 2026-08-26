@@ -80,8 +80,8 @@ func evaluateSemantic(suite *evalSuite, vectors *recording.Vectors) ([]retrieval
 	results := make([]retrievalResult, 0, len(suite.Cases))
 	for position := range suite.Cases {
 		testCase := &suite.Cases[position]
-		query := &queries[position]
-		ranked, rankErr := index.TopNotes(query.Vector, allowedSet(testCase.AllowedPaths), recallDepth)
+		recorded := &queries[position]
+		ranked, rankErr := index.TopNotes(recorded.Vector, allowedSet(testCase.AllowedPaths), recallDepth)
 		if rankErr != nil {
 			return nil, fmt.Errorf("%w: rank case %s: %w", recording.ErrInvalid, testCase.ID, rankErr)
 		}

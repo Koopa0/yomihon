@@ -206,7 +206,7 @@ func runTestSearch(
 	semanticSearch *hybridFakeSemanticSearch,
 	rawQuery string,
 	limit int,
-) ([]Result, error) {
+) ([]FusedHit, error) {
 	t.Helper()
 	snapshot, query := newTestSnapshot(t, lexical, semanticSearch, rawQuery)
 	searchAction, err := NewSearch(snapshot, semanticSearch)

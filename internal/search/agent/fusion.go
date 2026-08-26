@@ -24,8 +24,8 @@ type semanticHit struct {
 	Heading string
 }
 
-// Result is the channel-neutral result shape projected onto the CLI wire.
-type Result struct {
+// FusedHit is the channel-neutral result shape projected onto the CLI wire.
+type FusedHit struct {
 	Rank         int
 	RelPath      string
 	Title        string
@@ -37,21 +37,21 @@ type Result struct {
 }
 
 type fusionCandidate struct {
-	result Result
+	result FusedHit
 	score  float64
 }
 
 // fuse applies RRF k=60 to each channel's first 50 notes, then appends every
 // lexical match outside that fused block in its shipped order. limit is a final
 // presentation bound, never the channel depth.
-func fuse(lexical []search.Result, semanticHits []semanticHit, limit int) []Result {
+func fuse(lexical []search.Result, semanticHits []semanticHit, limit int) []FusedHit {
 	if limit <= 0 {
 		return nil
 	}
 	candidates := make(map[string]*fusionCandidate, min(len(lexical), channelDepth)+min(len(semanticHits), channelDepth))
 	for i, result := range lexical[:min(len(lexical), channelDepth)] {
 		candidate := &fusionCandidate{
-			result: Result{
+			result: FusedHit{
 				RelPath:     result.RelPath,
 				Title:       result.Title,
 				Status:      result.Status,
@@ -65,7 +65,7 @@ func fuse(lexical []search.Result, semanticHits []semanticHit, limit int) []Resu
 	for i, hit := range semanticHits[:min(len(semanticHits), channelDepth)] {
 		candidate, found := candidates[hit.RelPath]
 		if !found {
-			candidate = &fusionCandidate{result: Result{
+			candidate = &fusionCandidate{result: FusedHit{
 				RelPath: hit.RelPath,
 				Title:   hit.Title,
 				Status:  hit.Status,
@@ -91,7 +91,7 @@ func fuse(lexical []search.Result, semanticHits []semanticHit, limit int) []Resu
 		return cmp.Compare(a.result.RelPath, b.result.RelPath)
 	})
 
-	ordered := make([]Result, 0, len(fused)+max(0, len(lexical)-channelDepth))
+	ordered := make([]FusedHit, 0, len(fused)+max(0, len(lexical)-channelDepth))
 	included := make(map[string]int, len(fused))
 	for i := range fused {
 		ordered = append(ordered, fused[i].result)
@@ -104,7 +104,7 @@ func fuse(lexical []search.Result, semanticHits []semanticHit, limit int) []Resu
 				ordered[position].LexicalRank = lexicalRank
 				continue
 			}
-			ordered = append(ordered, Result{
+			ordered = append(ordered, FusedHit{
 				RelPath:     result.RelPath,
 				Title:       result.Title,
 				Status:      result.Status,

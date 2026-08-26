@@ -52,7 +52,7 @@ func NewSearch(snapshot *Snapshot, semanticSearch SemanticSearch) (*Search, erro
 // Run performs the action's one query send, applies the snapshot's hard path
 // filters before semantic scoring, joins local evidence, and fuses both ranked
 // channels.
-func (s *Search) Run(ctx context.Context, query search.Query, limit int) ([]Result, error) {
+func (s *Search) Run(ctx context.Context, query search.Query, limit int) ([]FusedHit, error) {
 	if s == nil || s.snapshot == nil || s.snapshot.lexical == nil || s.semantic == nil ||
 		query.BareText() == "" || limit <= 0 {
 		return nil, ErrInvalidSearch

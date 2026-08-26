@@ -280,7 +280,7 @@ func TestScoreFinalCaseRejectsFilterViolationOutsideTopFive(t *testing.T) {
 		ContrastiveSiblings: []string{contrastive},
 		RecallDenominator:   1,
 	}
-	fused := []agent.Result{
+	fused := []agent.FusedHit{
 		{RelPath: required},
 		{RelPath: contrastive},
 		{RelPath: "third.md"},

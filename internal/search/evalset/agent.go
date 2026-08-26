@@ -80,7 +80,7 @@ func evaluateCases(
 	suite *evalSuite,
 	snapshot *agent.Snapshot,
 	ready *recordedSearch,
-	queries []recording.Query,
+	queryVectors []recording.Query,
 	lexicalIndex *search.Index,
 ) (evaluationReport, error) {
 	outcome := evaluationReport{Hybrid: make([]hybridResult, 0, len(suite.Cases)), Passed: true}
@@ -89,25 +89,25 @@ func evaluateCases(
 			return evaluationReport{}, contextErr
 		}
 		testCase := &suite.Cases[position]
-		query := search.Parse(testCase.Query)
-		lexical, searchErr := lexicalIndex.Search(query)
+		parsed := search.Parse(testCase.Query)
+		lexical, searchErr := lexicalIndex.Search(parsed)
 		if searchErr != nil {
 			return evaluationReport{}, fmt.Errorf("evaluate lexical case %s: %w", testCase.ID, searchErr)
 		}
-		allowed, allowedErr := lexicalIndex.AllowedPaths(query)
+		allowed, allowedErr := lexicalIndex.AllowedPaths(parsed)
 		if allowedErr != nil {
 			return evaluationReport{}, fmt.Errorf("evaluate filters case %s: %w", testCase.ID, allowedErr)
 		}
 		if testCase.Class == classFilterMixed && !samePaths(testCase.AllowedPaths, allowed) {
 			return evaluationReport{}, fmt.Errorf("%w: filter projection changed for case %s", errInvalidSuite, testCase.ID)
 		}
-		ready.query = queries[position].Vector
-		ready.expectedText = query.BareText()
+		ready.query = queryVectors[position].Vector
+		ready.expectedText = parsed.BareText()
 		searchAction, bindErr := agent.NewSearch(snapshot, ready)
 		if bindErr != nil {
 			return evaluationReport{}, fmt.Errorf("evaluate hybrid case %s: %w", testCase.ID, bindErr)
 		}
-		fused, runErr := searchAction.Run(ctx, query, len(suite.Corpus))
+		fused, runErr := searchAction.Run(ctx, parsed, len(suite.Corpus))
 		if runErr != nil {
 			return evaluationReport{}, fmt.Errorf("evaluate hybrid case %s: %w", testCase.ID, runErr)
 		}
@@ -221,7 +221,7 @@ func lexicalDocs(suite *evalSuite) []search.Document {
 
 func scoreFinalCase(
 	testCase *evalCase,
-	fused []agent.Result,
+	fused []agent.FusedHit,
 	lexical []search.Result,
 	allowed map[string]struct{},
 ) hybridResult {

@@ -203,7 +203,7 @@ func lexicalWireResults(results []search.Result, limit int) []searchWireResult {
 	return wire
 }
 
-func hybridWireResults(results []Result) []searchWireResult {
+func hybridWireResults(results []FusedHit) []searchWireResult {
 	wire := make([]searchWireResult, len(results))
 	for i := range results {
 		channels := make([]searchChannel, 0, 2)

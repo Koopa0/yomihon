@@ -91,7 +91,7 @@ func TestFuseCarriesLexicalRankBeyondFusionDepthOnSemanticHeadHit(t *testing.T) 
 	if len(got) != len(lexical) {
 		t.Fatalf("Fuse result count = %d, want %d unique lexical notes", len(got), len(lexical))
 	}
-	var joined Result
+	var joined FusedHit
 	for _, result := range got {
 		if result.RelPath == lexical[50].RelPath {
 			joined = result
