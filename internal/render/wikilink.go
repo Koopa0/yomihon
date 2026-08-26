@@ -466,18 +466,25 @@ func rawHref(p string) string {
 // It emits Unicode letters, digits, and hyphens only, so it needs no escaping.
 //
 // A block address takes precedence over a section name when the author wrote
-// both, the same order the excerpt scan resolves that conflict in. Either kind
-// is written only when the destination carries what it names: an address is a
-// promise about where the reader lands, and one who is told they are going to
-// a named part and arrives at the top of the note is worse served than one who
-// was told nothing. Both checks read the destination through the same scans an
-// embed of it would, so a link and an excerpt accept exactly the same
-// addresses, and a heading the page stamps an id for is a heading the scan
-// finds: the only markup that survives authored HTML here is inline, so no
-// element outside those scans can carry an anchor. Where the destination's
-// body was not captured nothing is claimed either way — yomihon cannot tell a
-// name that is absent from one it did not read, and reporting either would be
-// a statement about a note it never saw.
+// both, the same order the excerpt scan resolves that conflict in.
+//
+// The two kinds are then checked differently, because only one of the scans is
+// authoritative about what the destination answers to. A block anchor is
+// stamped by the same excerpt scan that validates it, so a block the scan
+// cannot find is a block the page does not carry, and the address is withdrawn
+// rather than sending a reader who was promised one paragraph to the top of a
+// note. A heading id is stamped by a later pass over the rendered HTML, and
+// that pass sees headings this line scan does not — inside a blockquote,
+// inside a list item — so the scan can report that it found nothing and cannot
+// rule that nothing is there. A section address therefore always survives, and
+// a miss is reported only when a second, deliberately generous scan agrees the
+// name is nowhere: under-reporting a broken fragment costs a diagnostic, while
+// over-reporting one withdraws a working link and tells the reader a section
+// they can see does not exist.
+//
+// Where the destination's body was not captured nothing is claimed either
+// way — yomihon cannot tell a name that is absent from one it did not read,
+// and reporting either would be a statement about a note it never saw.
 //
 // A block fragment is percent-escaped, because a block name is whatever the
 // author typed and can carry a quote or a space, and the caret it opens with is
@@ -517,14 +524,18 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		if !ok {
 			return addressed
 		}
-		if _, found := headingSlice(stripObsidianComments(body), link.Heading); !found {
-			col.report(Diagnostic{
-				Kind:    DiagLinkFragmentMissing,
-				Target:  link.Target + "#" + link.Heading,
-				Message: fmt.Sprintf("no heading in %q matched %q; the link leads to the note itself", relPath, link.Heading),
-			})
-			return href
+		stripped := stripObsidianComments(body)
+		if _, found := headingSlice(stripped, link.Heading); found {
+			return addressed
 		}
+		if headingAnchorMayExist(stripped, link.Heading) {
+			return addressed
+		}
+		col.report(Diagnostic{
+			Kind:    DiagLinkFragmentMissing,
+			Target:  link.Target + "#" + link.Heading,
+			Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
+		})
 		return addressed
 	}
 	return href
@@ -975,4 +986,32 @@ func widenedNotice(unmatched string) string {
 		return ""
 	}
 	return `<p class="embed__widened">找不到 <code>` + html.EscapeString(unmatched) + `</code>，以下顯示整篇筆記。</p>`
+}
+
+// headingAnchorMayExist reports whether any line of body could stamp the id a
+// section address names. It is deliberately generous where headingSlice is
+// exact: it strips blockquote markers and list markers before looking, and it
+// does not track fenced code, because its only job is to stop a miss being
+// reported about a heading the rendered page really carries. A false yes costs
+// one unreported broken fragment; a false no withdraws nothing but tells a
+// reader a section they are looking at is not there.
+func headingAnchorMayExist(body, heading string) bool {
+	want := slugify(heading)
+	for line := range strings.SplitSeq(body, "\n") {
+		candidate := strings.TrimSpace(line)
+		for quotedLine.MatchString(candidate) {
+			candidate = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(candidate), ">"))
+		}
+		if loc := listItemLine.FindString(candidate); loc != "" {
+			candidate = strings.TrimSpace(candidate[len(loc):])
+		}
+		m := atxHeadingLine.FindStringSubmatch(candidate)
+		if m == nil {
+			continue
+		}
+		if slugify(headingSourceText(m[2])) == want {
+			return true
+		}
+	}
+	return false
 }
