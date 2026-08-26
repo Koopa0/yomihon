@@ -144,12 +144,25 @@ type queryField struct {
 var quotePairs = map[rune]rune{'"': '"', '「': '」', '『': '』'}
 
 // quoteFields splits q into fields the way strings.FieldsSeq does, except
-// that a span enclosed in a matched quote pair keeps its whitespace inside
-// one field and the quote characters themselves are stripped. A quote with no
-// closing partner — and a closing bracket no opener claimed — is dropped
-// where it stands, so an unclosed quote degrades to the plain whitespace
-// split rather than swallowing the rest of the query. A field that is empty
-// or whitespace-only is not emitted: an empty token would match everything.
+// that a span enclosed in a matched quote pair keeps its whitespace inside one
+// field and the quote characters themselves are stripped. A field that is
+// empty or whitespace-only is not emitted: an empty token would match
+// everything.
+//
+// A quote does that only where it is grouping something: at the start of a
+// field, or straight after one of the recognised filter keys and its colon.
+// Everywhere else it is a character in the text like any other, and so is a
+// closer with no opener and an opener with no closer.
+//
+// The rule exists because the alternative silently answered the wrong
+// question. Stripping a quote wherever it stood spliced together the two spans
+// it separated: `cause="lease epoch mismatch"` was searched for as
+// `cause=lease epoch mismatch`, which is not what the note holds, so a reader
+// pasting a line out of their own vault was told it was not there — and the
+// page echoed their query back with the quotes it had already discarded. This
+// vault's prose is mostly Chinese, where 「」 sit flush against the words they
+// quote with no space anywhere near them, so every quoted phrase pasted
+// verbatim hit that splice.
 func quoteFields(q string) []queryField {
 	var fields []queryField
 	var b strings.Builder
@@ -163,22 +176,15 @@ func quoteFields(q string) []queryField {
 	}
 	for i := 0; i < len(q); {
 		r, size := utf8.DecodeRuneInString(q[i:])
-		if closer, ok := quotePairs[r]; ok {
-			rest := q[i+size:]
-			if j := strings.IndexRune(rest, closer); j >= 0 {
+		if closer, ok := quotePairs[r]; ok && quoteMayGroup(b.String()) {
+			if j := groupCloser(q[i+size:], closer); j >= 0 {
 				if quotedFrom < 0 {
 					quotedFrom = b.Len()
 				}
-				b.WriteString(rest[:j])
+				b.WriteString(q[i+size : i+size+j])
 				i += size + j + utf8.RuneLen(closer)
 				continue
 			}
-			i += size
-			continue
-		}
-		if r == '」' || r == '』' {
-			i += size
-			continue
 		}
 		if unicode.IsSpace(r) {
 			flush()
@@ -193,6 +199,47 @@ func quoteFields(q string) []queryField {
 	}
 	flush()
 	return fields
+}
+
+// quoteMayGroup reports whether a quote appearing after the field text so far
+// is opening a group rather than standing in the text. Nothing before it means
+// the field starts here; a recognised filter key and its colon before it is
+// the one other place a phrase is written, and it is why the check is on the
+// key rather than simply on "some punctuation".
+func quoteMayGroup(fieldSoFar string) bool {
+	if fieldSoFar == "" {
+		return true
+	}
+	key, rest, found := strings.Cut(fieldSoFar, ":")
+	if !found || rest != "" {
+		return false
+	}
+	return isFilterKey(key)
+}
+
+// groupCloser returns the byte offset in rest of the closer that ends a
+// group — the first one standing at a field boundary, meaning end of query or
+// followed by whitespace — or -1 when the group is never closed there. A
+// closer with a word pressed against it is closing nothing; it is the
+// punctuation inside somebody's sentence.
+func groupCloser(rest string, closer rune) int {
+	for at := 0; at < len(rest); {
+		j := strings.IndexRune(rest[at:], closer)
+		if j < 0 {
+			return -1
+		}
+		j += at
+		after := j + utf8.RuneLen(closer)
+		if after == len(rest) {
+			return j
+		}
+		next, _ := utf8.DecodeRuneInString(rest[after:])
+		if unicode.IsSpace(next) {
+			return j
+		}
+		at = after
+	}
+	return -1
 }
 
 // splitFilter classifies one raw token: on the first colon it splits

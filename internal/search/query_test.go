@@ -83,18 +83,45 @@ func TestParseQuotedPhrase(t *testing.T) {
 		{name: "quoted phrase still folds", input: `"Semantic Retrieval"`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "Semantic Retrieval"}},
 		{name: "corner brackets quote the same way", input: "「深度 工作」", want: Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
 		{name: "white corner brackets too", input: "『深度 工作』", want: Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
-		{name: "unclosed quote degrades to plain terms", input: `"semantic retrieval`, want: Query{tokens: []string{"semantic", "retrieval"}, bareText: "semantic retrieval"}},
+		{name: "an unclosed quote is a character, not a swallowed rest-of-query", input: `"semantic retrieval`, want: Query{tokens: []string{`"semantic`, "retrieval"}, bareText: `"semantic retrieval`}},
 		{name: "empty quotes ask nothing", input: `""`, want: Query{}},
 		{name: "whitespace-only quotes ask nothing", input: `" "`, want: Query{}},
-		{name: "a lone quote inside a word is dropped", input: `don"t`, want: Query{tokens: []string{"dont"}, bareText: "dont"}},
-		{name: "a stray closing bracket is dropped", input: "読本」", want: Query{tokens: []string{"読本"}, bareText: "読本"}},
+		{name: "a quote inside a word is part of the word", input: `don"t`, want: Query{tokens: []string{`don"t`}, bareText: `don"t`}},
+		{name: "a closing bracket with no opener is text", input: "読本」", want: Query{tokens: []string{"読本」"}, bareText: "読本」"}},
 		{name: "quoting keeps filter-shaped text literal", input: `"type:lesson"`, want: Query{tokens: []string{"type:lesson"}, bareText: "type:lesson"}},
+		{
+			// The shape a reader produces by pasting a line out of their own
+			// note. Stripping the quotes spliced the span onto "cause=", and
+			// the vault was searched for bytes it does not hold, so the answer
+			// was that the reader's own sentence is not there.
+			name:  "a quoted span pressed against a word stays literal",
+			input: `cause="lease epoch mismatch"`,
+			want:  Query{tokens: []string{`cause="lease`, "epoch", `mismatch"`}, bareText: `cause="lease epoch mismatch"`},
+		},
+		{
+			// The same shape in the prose this vault is mostly written in,
+			// where corner brackets sit flush against the words they quote and
+			// there is no whitespace anywhere near them.
+			name:  "corner brackets inside chinese prose stay literal",
+			input: "他說「不得使用」的時候",
+			want:  Query{tokens: []string{"他說「不得使用」的時候"}, bareText: "他說「不得使用」的時候"},
+		},
+		{
+			// The opener stands at a field boundary here, so only the closing
+			// side can decide: a bracket with a word pressed against it is
+			// closing nothing, it is punctuation inside somebody's sentence.
+			// Reading it as a closer spliced the tail on and searched for
+			// 深度 工作的時候, which the note does not contain.
+			name:  "a closing bracket with a word against it closes nothing",
+			input: "「深度 工作」的時候",
+			want:  Query{tokens: []string{"「深度", "工作」的時候"}, bareText: "「深度 工作」的時候"},
+		},
 		{
 			name:  "a filter beside a phrase stays a filter",
 			input: `type:lesson "semantic retrieval"`,
 			want:  Query{tokens: []string{"semantic retrieval"}, filters: []Filter{{Key: "type", Value: "lesson"}}, bareText: "semantic retrieval"},
 		},
-		{name: "paired quotes splice their span into the word around them", input: `sem"antic ret"rieval`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "semantic retrieval"}},
+		{name: "quotes pressed against words group nothing and splice nothing", input: `sem"antic ret"rieval`, want: Query{tokens: []string{`sem"antic`, `ret"rieval`}, bareText: `sem"antic ret"rieval`}},
 		{
 			name:  "quoting a value keeps the filter and carries the space",
 			input: `topic:"functional programming"`,
