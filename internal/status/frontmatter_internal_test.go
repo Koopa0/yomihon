@@ -128,3 +128,46 @@ func TestRewriteStatusLineRefusesAShapeItCannotPreserve(t *testing.T) {
 		})
 	}
 }
+
+// TestRewriteStatusLineAcceptsTheSeparatorsYAMLAccepts holds the write face
+// open on lines the reader already reads. A tab is separation space in YAML,
+// so a note written with one parses, shows its status, and offers its
+// transitions — and refusing it closed the write face on a note nothing else
+// on the page said was wrong, with a recovery notice naming quoting, flow
+// mappings and anchors, none of which such a line has.
+func TestRewriteStatusLineAcceptsTheSeparatorsYAMLAccepts(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "a tab after the colon separates the value",
+			in:   "---\nstatus:\tdraft\n---\nbody\n",
+			want: "---\nstatus:\tready\n---\nbody\n",
+		},
+		{
+			name: "a tab before a comment ends the value",
+			in:   "---\nstatus: draft\t# 已校對\n---\nbody\n",
+			want: "---\nstatus: ready\t# 已校對\n---\nbody\n",
+		},
+		{
+			name: "mixed spacing survives",
+			in:   "---\nstatus: \t draft \t\n---\nbody\n",
+			want: "---\nstatus: \t ready \t\n---\nbody\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := rewriteStatusLine([]byte(tt.in), "ready")
+			if err != nil {
+				t.Fatalf("rewriteStatusLine() = %v; the reader parses this line and offers its transitions", err)
+			}
+			if diff := cmp.Diff(tt.want, string(got)); diff != "" {
+				t.Errorf("rewrite mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

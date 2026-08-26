@@ -217,14 +217,15 @@ func StatusValueSpan(data []byte) (start, end int, ok bool) {
 	line := bytes.TrimSuffix(data[lineStart:lineEnd], []byte("\r"))
 	rest := line[len("status:"):]
 
+	// Space and tab both separate a key from its value in YAML, so both
+	// separate one here: the reader parses a tab-separated line, shows its
+	// status and offers its transitions, and a writer that refused it closed
+	// the write face on a note nothing else called wrong. A colon with nothing
+	// after it does not open a mapping at all.
 	spaces := 0
-	for spaces < len(rest) && rest[spaces] == ' ' {
+	for spaces < len(rest) && (rest[spaces] == ' ' || rest[spaces] == '\t') {
 		spaces++
 	}
-	// A colon with no space after it does not open a mapping at all, and a
-	// separator written with a tab is not one YAML accepts here. Either way
-	// the reader and this scan disagree about what the line says, so it is not
-	// a line to rewrite.
 	if spaces == 0 || spaces == len(rest) {
 		return 0, 0, false
 	}
@@ -282,20 +283,28 @@ func quotedScalar(value []byte, quote byte) (offset, width int, ok bool) {
 // left outside it.
 func plainScalar(value []byte) (width int, ok bool) {
 	plain := value
-	if at := bytes.Index(plain, []byte(" #")); at >= 0 {
-		plain = plain[:at]
+	// A comment opens at a "#" that follows white space, and YAML counts a tab
+	// as white space as readily as a space.
+	if at := bytes.IndexAny(plain, " \t"); at >= 0 {
+		for i := at; i < len(plain)-1; i++ {
+			if (plain[i] == ' ' || plain[i] == '\t') && plain[i+1] == '#' {
+				plain = plain[:i]
+				break
+			}
+		}
 	}
-	plain = bytes.TrimRight(plain, " ")
-	if len(plain) == 0 || bytes.ContainsAny(plain, "\t") || bytes.Contains(plain, []byte(": ")) {
+	plain = bytes.TrimRight(plain, " \t")
+	if len(plain) == 0 || bytes.Contains(plain, []byte(": ")) {
 		return 0, false
 	}
 	return len(plain), true
 }
 
 // onlyCommentFollows reports whether the tail after a closing quote is what a
-// value may legally be followed by: nothing, spaces, or spaces then a comment.
+// value may legally be followed by: nothing, white space, or white space then
+// a comment.
 func onlyCommentFollows(tail []byte) bool {
-	trimmed := bytes.TrimLeft(tail, " ")
+	trimmed := bytes.TrimLeft(tail, " \t")
 	if len(trimmed) == 0 {
 		return true
 	}
