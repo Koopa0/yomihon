@@ -163,7 +163,7 @@ func Health(v HealthView, c layouts.Chrome) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.clean() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"y-homeempty\">這個書庫目前沒有需要處理的事：每個 [[…]] 連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用。</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"y-homeempty\">這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——這裡的 status 名單是從「有寫 status 的筆記」來的，沒寫的不會出現在任何一區；那些請跑 <code lang=\"en\">yomihon check</code>。</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

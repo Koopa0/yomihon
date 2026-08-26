@@ -107,4 +107,15 @@ func TestHealthAllClearClaimsOnlyTheLinksItRead(t *testing.T) {
 	if strings.Contains(html, "每個連結都有目標") {
 		t.Errorf("the all-clear still claims every link, including the ones this page never reads")
 	}
+	// The same limit applies to the sentence's opening. A note whose
+	// frontmatter is missing a field the contract requires never reaches this
+	// page at all — the status list here is built from the notes that hold a
+	// status, so one that holds none is in no section — and a verdict over the
+	// whole folder would certify it clean.
+	if strings.Contains(html, "這個書庫目前沒有需要處理的事") {
+		t.Errorf("the all-clear passes a verdict on the whole folder rather than on what it checked:\n%s", html)
+	}
+	if !strings.Contains(html, "yomihon check") {
+		t.Errorf("the all-clear does not say where the checks it skips are answered:\n%s", html)
+	}
 }
