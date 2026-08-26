@@ -2571,6 +2571,20 @@ func TestShowTransitions(t *testing.T) {
 		t.Errorf("an ordinary reading carries a transition receipt")
 	}
 
+	// A hand-typed origin cannot manufacture one. The value arrives in the URL
+	// where anything can put anything, so the page checks it against the same
+	// contract the write face obeys before repeating it: a status the contract
+	// never declared, and one it declares but legalises no move from, each buy
+	// nothing. Without this the address bar could announce a transition that
+	// never happened — including to published, which this write face refuses
+	// to perform at all.
+	for _, forged := range []string{"?from=nonsense", "?from=" + schema.PublishedStatus, "?from=archived"} {
+		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md"+forged)
+		if strings.Contains(page, "狀態已從") {
+			t.Errorf("%s made the page announce a transition that never happened", forged)
+		}
+	}
+
 	got, err := os.ReadFile(filepath.Join(dir, "L01.md")) // #nosec G304 -- dir is under t.TempDir and the filename is fixed by this test
 	if err != nil {
 		t.Fatalf("read flipped lesson: %v", err)

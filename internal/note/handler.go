@@ -513,7 +513,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		NoFrontmatter:     governance.noFrontmatter,
 		StatusUnknown:     governance.statusUnknown,
-		FlippedFrom:       r.URL.Query().Get("from"),
+		FlippedFrom:       vouchedOrigin(statusView, n.Type, noteStatus, r.URL.Query().Get("from")),
 	}
 
 	pageChrome := governance.shell.Chrome(r, n.Title)
@@ -601,6 +601,30 @@ func (h *Handler) governance(
 		}
 	}
 	return state
+}
+
+// vouchedOrigin is the status a transition receipt may name, or empty. The
+// value arrives in the URL, so anything can put anything there: a hand-typed
+// address could otherwise have the page announce a transition that never
+// happened, from a status the contract does not declare, or to one this write
+// face refuses to perform at all.
+//
+// The page may state only what it can stand behind, so the claim is checked
+// against the same contract the write face obeys: the named origin has to be a
+// declared status for this note's type, and the move from it to the status the
+// note now carries has to be one the contract legalises. A value that fails
+// either is dropped and the page says nothing, which is what it knows.
+func vouchedOrigin(statusView status.View, noteType, current, claimed string) string {
+	if claimed == "" || current == "" || claimed == current {
+		return ""
+	}
+	if !statusView.KnownStatus(noteType, claimed) {
+		return ""
+	}
+	if !statusView.LegalTransition(noteType, claimed, current) {
+		return ""
+	}
+	return claimed
 }
 
 // offeredTransitions pairs each legal target with whether it is terminal —

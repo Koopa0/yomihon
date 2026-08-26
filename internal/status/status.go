@@ -362,6 +362,18 @@ func (v View) Terminal(noteType, status string) bool {
 	return true
 }
 
+// LegalTransition reports whether the contract legalises moving a note of this
+// type from one status to another. It answers the reading page's question
+// about a transition that has already happened — whether the move a redirect
+// claims to have made is one this contract admits — and never authorises a
+// write, which Flip settles for itself against the note's own bytes.
+func (v View) LegalTransition(noteType, from, to string) bool {
+	if !v.available() || from == "" || to == "" {
+		return false
+	}
+	return v.contract.Transition(noteType, from, to) == nil
+}
+
 // KnownStatus reports whether status is among the contract's declared values
 // for the given note type. A closed view knows no values, and an undeclared
 // type declares none. The reading page uses it to flag a status the schema
