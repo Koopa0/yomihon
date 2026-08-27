@@ -6,14 +6,22 @@ export function initDrawer() {
   const rail = document.querySelector('#nav-rail');
   const toggleButton = document.querySelector('[data-nav-toggle]');
   // What leaves the accessibility tree while the drawer acts as a modal. The
-  // header is deliberately absent: the button that opened the drawer sits above
-  // the scrim and is the visible way back out, so it has to stay reachable. The
-  // skip link is here for the opposite reason — it also paints above the scrim,
-  // but its destination is in this list, so an open drawer would leave it
-  // offering a jump to somewhere nobody can go.
+  // test is whether the region paints under the scrim: anything covered is
+  // unreachable by sight and by pointer, so leaving it reachable by keyboard
+  // and by screen reader is the mismatch. The header fails that test on
+  // purpose — the button that opened the drawer sits above the scrim and is
+  // the visible way back out, so it stays reachable. The skip link is here for
+  // the opposite reason: it also paints above the scrim, but its destination is
+  // in this list, so an open drawer would leave it offering a jump to somewhere
+  // nobody can go. The status bar is under the scrim and is a control surface,
+  // and it is a sibling of the shell rather than part of the article, so it is
+  // named here rather than covered by the main region. The right rail needs no
+  // entry: it is display:none at every width the drawer exists, which is
+  // already out of the tree.
   const background = [
     document.querySelector('#main-content'),
     document.querySelector('.y-skiplink'),
+    document.querySelector('.y-sealbar'),
   ].filter(Boolean);
 
   function isOpen() {
