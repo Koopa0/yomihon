@@ -554,6 +554,15 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 			wantLine: 3,
 		},
 		{
+			// The type's own comment names a quote among the blocks a stray
+			// marker is reported in, and the contract promises a misplaced
+			// declaration never fails silently.
+			name:     "a marker in a quote",
+			body:     "## Part {sequence=primary}\n\n> 引用裡的 {sequence=local} 宣告不了任何東西。\n\n- [[A]]\n",
+			wantRule: RuleRoleMisplaced,
+			wantLine: 3,
+		},
+		{
 			name:     "a marker on a level-1 heading",
 			body:     "# Course {sequence=primary}\n\n## Part {sequence=primary}\n\n- [[A]]\n",
 			wantRule: RuleRoleMisplaced,

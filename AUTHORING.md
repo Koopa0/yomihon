@@ -67,6 +67,15 @@ Applies only to notes whose type the vault contract lists under
 `[navigation] path_types`. Maps, reports and ordinary notes do not read this
 syntax; the same marker in one of those is plain text.
 
+That gate is silent, and it is upstream of everything on this page: a document
+whose type is not listed reads as ordinary prose no matter how well its body
+is written, and nothing reports the omission, because nothing was claimed. A
+note yomihon reads as a course answers at `/syllabus/<its vault-relative
+path>` and enters the course count on the home page. A 404 there means the
+type is not one the contract lists, and every marker below is plain text.
+Check that before reading further, because a page that cannot answer 404 or
+200 for a document has not been told whether the rest of this applies.
+
 ### The marker
 
 Three values, closed:

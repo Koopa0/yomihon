@@ -917,6 +917,16 @@ func (p *parser) visibleMarkerSpans(raw string, abs int) []Span {
 func (p *parser) reportStrayMarker(n ast.Node) {
 	rng, ok := linesRange(n)
 	if !ok {
+		// A container such as a quote holds no lines of its own; its children
+		// do. Descending is what lets the promise above hold for a marker
+		// written inside one. Only on this branch, and only into blocks: a
+		// node that does carry lines has already reported them, and walking
+		// into a paragraph's inlines would report the same line a second time.
+		if n.Type() == ast.TypeBlock {
+			for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+				p.reportStrayMarker(c)
+			}
+		}
 		return
 	}
 	for _, raw := range splitLines(p.body[rng.Start:rng.Stop]) {
