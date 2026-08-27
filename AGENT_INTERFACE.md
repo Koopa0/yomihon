@@ -157,7 +157,16 @@ Two commands say so and one cannot:
   documented write-if-absent gate, and the caller supplied the name, so telling
   them the name is free is the one answer that causes harm: a second,
   describable note created under a private note's own name. The field is absent
-  from an ordinary answer, whose bytes are unchanged.
+  from an ordinary answer, whose bytes are unchanged. It does appear beside
+  describable matches when a withheld note shares the queried name: the reading
+  page resolves names with no privacy filter, so the withheld twin renders
+  every link to that name ambiguous, and without the flag a caller would write
+  links believing the name resolves cleanly. The flag still names nothing.
+- A file the scan cannot read stops every command at exit 2 with the file's
+  vault-relative path and the operating system's reason — unless the file lies
+  under a withheld directory, in which case the refusal is one fixed sentence
+  carrying neither, because naming the file or its failure would describe
+  ground the contract closed.
 
 ## What each count counts
 

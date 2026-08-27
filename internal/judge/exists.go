@@ -29,9 +29,13 @@ type existsReport struct {
 	Matches []existsMatch `json:"matches"`
 	// Withheld says a note the contract keeps out of agent-facing output
 	// answers to the name. It carries nothing else — no path, no field, no
-	// count — because the caller supplied the name and needs only to be told
-	// not to create a second note under it. The field is omitted when nothing
-	// was withheld, so an ordinary answer's bytes are unchanged.
+	// count — because the caller supplied the name and needs only two
+	// warnings: do not create a second note under it, and do not assume a
+	// link to it resolves cleanly. The second is why the flag stays beside
+	// describable matches — the reading page resolves names with no privacy
+	// filter, so a withheld note sharing a name renders that name's links
+	// ambiguous. The field is omitted when nothing was withheld, so an
+	// ordinary answer's bytes are unchanged.
 	Withheld bool `json:"withheld,omitempty"`
 }
 
