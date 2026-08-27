@@ -781,6 +781,11 @@ html, body { margin: 0; background: var(--bg); }
 .y-homeblock { min-width: 0; padding: 20px 22px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
 .y-homeblock--recent, .y-homeblock--paths { grid-column: span 7; }
 .y-homeblock--lifecycle, .y-homeblock--search { grid-column: span 5; }
+/* A fault the whole page is subject to is full-width news, and it reads as a
+   sentence rather than a column of items. Without a track of its own it auto-
+   places into a single twelfth and the message renders as an unreadable
+   one-character-wide tower. */
+.y-homeblock--faults { grid-column: 1 / -1; }
 .y-homeblock__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
 .y-homeblock__head h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--fg); }
 .y-homeblock__head p { margin: 0 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); text-align: right; }
@@ -1044,6 +1049,19 @@ html {
 ::view-transition-old(y-rail-left), ::view-transition-new(y-rail-left),
 ::view-transition-old(y-sealbar), ::view-transition-new(y-sealbar) {
   animation: none;
+}
+
+/* Every group still animated runs on the house motion tokens instead of the
+   engine's 250ms default, which reads as sluggish between pages the reader
+   moves through constantly. The tokens have to stay on :root — a custom
+   property reaches this pseudo tree by inheriting from the document root, so
+   scoping them to a class would leave var() invalid here and collapse the
+   duration to zero, turning every morph into a cut. The hard-cuts above are
+   unaffected: they set the animation name to none, and a duration declared
+   later cannot revive a name that is not there. */
+::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
 }
 
 @media (prefers-reduced-motion: reduce) {

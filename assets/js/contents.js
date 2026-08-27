@@ -2,9 +2,8 @@
 // The jump itself is the browser's, and lands at once.
 export function initContents() {
   const root = document.documentElement;
-  const main = document.querySelector('.y-main');
   const links = [...document.querySelectorAll('.y-toc__list a[href^="#"]')];
-  if (!main || links.length === 0) return;
+  if (links.length === 0) return;
 
   const targetID = (link) => decodeURIComponent(link.getAttribute('href').slice(1));
   const headings = [...new Set(links.map(targetID))]
@@ -26,17 +25,20 @@ export function initContents() {
 
   function recompute() {
     if (locked) return;
-    const top = main.getBoundingClientRect().top;
-    const readingLine = main.clientHeight * 0.25;
+    // The document scrolls, so the reading line is a quarter of the way down
+    // the viewport and a heading's own viewport coordinate answers directly.
+    // Measuring against the article box instead made the comparison move with
+    // the page, which is why the mark used to stay on the first entry.
+    const readingLine = window.innerHeight * 0.25;
     let current = headings[0].id;
     for (const heading of headings) {
-      if (heading.getBoundingClientRect().top - top <= readingLine) current = heading.id;
+      if (heading.getBoundingClientRect().top <= readingLine) current = heading.id;
       else break;
     }
     mark(current);
   }
 
-  const observer = new IntersectionObserver(recompute, { root: main, rootMargin: '0px 0px -75% 0px' });
+  const observer = new IntersectionObserver(recompute, { rootMargin: '0px 0px -75% 0px' });
   headings.forEach((heading) => { observer.observe(heading); });
   recompute();
 
@@ -53,7 +55,7 @@ export function initContents() {
       mark(locked);
       root.dataset.traveling = 'on';
       clearTimeout(settleTimer);
-      main.addEventListener('scrollend', settle, { once: true });
+      document.addEventListener('scrollend', settle, { once: true });
       settleTimer = setTimeout(settle, 900);
     });
   });
