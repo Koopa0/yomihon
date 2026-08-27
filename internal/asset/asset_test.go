@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	projectassets "github.com/koopa0/yomihon/assets"
@@ -253,4 +254,109 @@ func TestUnknownAssetsAre404(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestConditionalRequestAnswers304 locks the revalidation contract: a stored
+// copy is confirmed with a bodiless 304, and a copy that does not match is
+// replaced with the real bytes. The mismatch case is the load-bearing one —
+// without it a handler that answered 304 unconditionally would pass, and so
+// would one whose tag is unquoted, since http.ServeContent ignores a tag it
+// cannot parse and falls through to 200 for every request.
+func TestConditionalRequestAnswers304(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "embedded stylesheet", path: "/static/app.css"},
+		{name: "computed stylesheet", path: "/static/chroma.css"},
+		{name: "embedded module", path: "/static/yomihon.js"},
+		{name: "embedded font", path: "/static/fonts/Geist-Variable.woff2"},
+		{name: "vendored module", path: "/static/mermaid.esm.min.mjs"},
+		{name: "brand mark", path: "/static/yomihon-mark.svg"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			first := get(t, srv.URL+tt.path, "")
+			if first.status != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want %d", tt.path, first.status, http.StatusOK)
+			}
+			tag := first.header.Get("ETag")
+			if tag == "" {
+				t.Fatalf("GET %s served no ETag, so no stored copy can ever be revalidated", tt.path)
+			}
+			if !strings.HasPrefix(tag, `"`) || !strings.HasSuffix(tag, `"`) {
+				t.Fatalf("GET %s ETag = %s, want a quoted strong tag; an unquoted tag is ignored and never answers a conditional request", tt.path, tag)
+			}
+			if got := first.header.Get("Cache-Control"); got != "no-cache" {
+				t.Errorf("GET %s Cache-Control = %q, want %q", tt.path, got, "no-cache")
+			}
+			if len(first.body) == 0 {
+				t.Fatalf("GET %s served an empty body", tt.path)
+			}
+
+			// The tag a browser would quote back confirms the stored copy.
+			match := get(t, srv.URL+tt.path, tag)
+			if match.status != http.StatusNotModified {
+				t.Errorf("GET %s with If-None-Match %s status = %d, want %d", tt.path, tag, match.status, http.StatusNotModified)
+			}
+			if len(match.body) != 0 {
+				t.Errorf("GET %s answered %d with a %d-byte body, want none", tt.path, match.status, len(match.body))
+			}
+
+			// A copy of different bytes is replaced, not confirmed.
+			stale := get(t, srv.URL+tt.path, `"not-the-bytes-you-have"`)
+			if stale.status != http.StatusOK {
+				t.Errorf("GET %s with a non-matching If-None-Match status = %d, want %d", tt.path, stale.status, http.StatusOK)
+			}
+			if !bytes.Equal(stale.body, first.body) {
+				t.Errorf("GET %s with a non-matching If-None-Match served %d bytes, want the same %d as the unconditional request", tt.path, len(stale.body), len(first.body))
+			}
+
+			// The validator names the bytes, so it does not drift between
+			// requests; a tag that changed every time would revalidate to a
+			// 200 forever and cache nothing.
+			if again := first.header.Get("ETag"); again != get(t, srv.URL+tt.path, "").header.Get("ETag") {
+				t.Errorf("GET %s served two different ETags for the same bytes", tt.path)
+			}
+		})
+	}
+}
+
+// response is the part of an HTTP answer these tests judge.
+type response struct {
+	status int
+	header http.Header
+	body   []byte
+}
+
+// get issues one request, optionally quoting a stored validator back at the
+// server, and reads the answer to completion.
+func get(t *testing.T, url, ifNoneMatch string) response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
+	if err != nil {
+		t.Fatalf("building request for %s: %v", url, err)
+	}
+	if ifNoneMatch != "" {
+		req.Header.Set("If-None-Match", ifNoneMatch)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading body of %s: %v", url, err)
+	}
+	return response{status: resp.StatusCode, header: resp.Header, body: body}
 }

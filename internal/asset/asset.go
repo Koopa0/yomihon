@@ -22,10 +22,15 @@
 package asset
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/koopa0/yomihon/assets"
 	"github.com/koopa0/yomihon/internal/render"
@@ -38,13 +43,36 @@ const (
 	woff2ContentType = "font/woff2"
 )
 
-// entry is one servable asset: its Content-Type and its body. body is a
-// func rather than a plain []byte so registry can hold both
+// entry is one servable asset: its Content-Type, its body, and the validator
+// a browser may quote back to ask whether its stored copy is still good. body
+// and etag are funcs rather than plain values so registry can hold both
 // already-resolved embedded bytes and render.ChromaCSS's lazily-computed
-// (but internally memoized, via sync.OnceValue) stylesheet uniformly.
+// stylesheet uniformly; each lazy one is memoized so the work happens once
+// rather than per request.
 type entry struct {
 	contentType string
 	body        func() []byte
+	etag        func() string
+}
+
+// etagOf is the strong validator for one asset's bytes. The quotes are
+// load-bearing: http.ServeContent ignores a tag that is not quoted, which
+// would leave every response looking cacheable while never once answering a
+// conditional request with 304.
+func etagOf(body []byte) string {
+	sum := sha256.Sum256(body)
+	return `"` + hex.EncodeToString(sum[:]) + `"`
+}
+
+// fixed builds an entry over bytes already known — every embedded asset — so
+// both the body and its validator are resolved before the first request.
+func fixed(contentType string, body []byte) entry {
+	tag := etagOf(body)
+	return entry{
+		contentType: contentType,
+		body:        func() []byte { return body },
+		etag:        func() string { return tag },
+	}
 }
 
 // registry is yomihon's entire static-asset name space, built once at
@@ -57,10 +85,12 @@ var registry = buildRegistry()
 // more than one file), plus render.ChromaCSS's computed stylesheet, which has
 // no embedded file backing it at all.
 func buildRegistry() map[string]entry {
+	chroma := sync.OnceValue(func() []byte { return []byte(render.ChromaCSS()) })
 	reg := map[string]entry{
 		"chroma.css": {
 			contentType: cssContentType,
-			body:        func() []byte { return []byte(render.ChromaCSS()) },
+			body:        chroma,
+			etag:        sync.OnceValue(func() string { return etagOf(chroma()) }),
 		},
 	}
 	for _, name := range []string{
@@ -94,7 +124,7 @@ func embedFile(reg map[string]entry, name, embeddedPath, contentType string) {
 	if err != nil {
 		panic(fmt.Sprintf("asset: embedded file missing: %s: %v", embeddedPath, err))
 	}
-	reg[name] = entry{contentType: contentType, body: func() []byte { return b }}
+	reg[name] = fixed(contentType, b)
 }
 
 // embedFonts registers every .woff2 under dir (self-hosted, vendored under
@@ -115,7 +145,7 @@ func embedFonts(reg map[string]entry, dir string) {
 		if rerr != nil {
 			return rerr
 		}
-		reg[p] = entry{contentType: woff2ContentType, body: func() []byte { return b }}
+		reg[p] = fixed(woff2ContentType, b)
 		return nil
 	})
 	if err != nil {
@@ -149,7 +179,7 @@ func embedTree(reg map[string]entry, dir string) {
 			return rerr
 		}
 		name := strings.TrimPrefix(p, dir+"/")
-		reg[name] = entry{contentType: jsContentType, body: func() []byte { return b }}
+		reg[name] = fixed(jsContentType, b)
 		return nil
 	})
 	if err != nil {
@@ -175,5 +205,17 @@ func serve(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", e.contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(e.body()) //nolint:errcheck // response is committed and Handler has no later recovery channel
+	// These names carry no build fingerprint, so a stored copy has to be asked
+	// about rather than trusted for a period: no-cache keeps the copy and
+	// revalidates every time, and the strong tag turns that question into a
+	// bodiless 304. Without this the reader re-downloads every stylesheet,
+	// module and font on each navigation, and two of those block painting.
+	// The modification time is deliberately zero — bytes baked into the binary
+	// have none, and inventing one would put a second, weaker validator beside
+	// the tag. http.ServeContent owns the conditional request, the byte range
+	// and the content length from here; hand-rolling that comparison gets the
+	// multi-tag and weak-tag forms wrong.
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("ETag", e.etag())
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(e.body()))
 }
