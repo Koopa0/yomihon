@@ -1,7 +1,8 @@
 // Behavior lock for the authored-language boundary. The fixture and contract
 // must supply the authority; the document chrome stays Traditional Chinese,
-// while each note article carries its own exact language or the honest `und`
-// fallback.
+// while each note article carries its own exact language or, where nothing
+// was declared, no lang attribute at all — inheriting the page's language
+// instead of stamping one nobody chose.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the L01 fixture), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -103,7 +104,7 @@ const MUTATIONS = {
   },
   'change-missing-article-lang': {
     target: 'missing-article-language',
-    apply: rewritePath(MISSING_PAGE, '<article class="y-article" lang="und">', '<article class="y-article" lang="ja">', 'missing note article language'),
+    apply: rewritePath(MISSING_PAGE, '<article class="y-article">', '<article class="y-article" lang="ja">', 'missing note article language'),
   },
 };
 
@@ -208,8 +209,8 @@ try {
   if (missingDOM.shellLanguage !== 'zh-Hant') {
     fail('missing-shell-language', `note-without-lang document lang is ${JSON.stringify(missingDOM.shellLanguage)}, want "zh-Hant"`);
   }
-  if (missingDOM.articleLanguages.length !== 1 || missingDOM.articleLanguages[0] !== 'und') {
-    fail('missing-article-language', `note-without-lang article langs are ${JSON.stringify(missingDOM.articleLanguages)}, want exactly ["und"]`);
+  if (missingDOM.articleLanguages.length !== 1 || missingDOM.articleLanguages[0] !== null) {
+    fail('missing-article-language', `note-without-lang article langs are ${JSON.stringify(missingDOM.articleLanguages)}, want exactly [null]: no attribute, so the page language is inherited`);
   }
 
   console.log('PASS article-language-contract: article, chrome islands, read-aloud, and slot output keep their ruled language boundaries');

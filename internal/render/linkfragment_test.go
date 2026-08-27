@@ -22,7 +22,7 @@ func sectionRenderer(t *testing.T) *render.Pipeline {
 func fragmentDiagnostics(page *render.Result) []string {
 	var messages []string
 	for _, d := range page.Diagnostics {
-		if d.Kind == render.DiagLinkFragmentMissing {
+		if d.Kind == render.DiagLinkSectionMissing {
 			messages = append(messages, d.Message)
 		}
 	}
@@ -142,28 +142,108 @@ func TestWidenedEmbedSaysSoInTheBody(t *testing.T) {
 // really does answer to those names. Withdrawing the address and reporting it
 // missing was therefore wrong twice over: a link that worked stopped working,
 // and the page said the destination has no such section while displaying it.
+// The underlined half was the same mistake caught a second time. Marker
+// stripping was added so a heading written inside a quote or a list item would
+// be seen, but only the '#' form was ever looked for afterwards, so an
+// underlined heading in those same places stayed invisible to the scan — and a
+// link to one was reported broken while the reader was looking at the section
+// it named. Every shape below is one the page stamps an id for.
 func TestSectionLinkKeepsAnAnchorTheSourceScanCannotSee(t *testing.T) {
 	t.Parallel()
-	const dest = "# Top\n\nTOPTEXT\n\n> ## Quoted Heading\n>\n> QUOTEDTEXT\n\n- ## Listed Heading\n\n  LISTEDTEXT\n"
+	const dest = "# Top\n\nTOPTEXT\n\n> ## Quoted Heading\n>\n> QUOTEDTEXT\n\n" +
+		"- ## Listed Heading\n\n  LISTEDTEXT\n\n" +
+		"> Quoted Setext\n> ===\n>\n> QUOTEDSETEXTTEXT\n\n" +
+		"> > Nested Setext\n> > ===\n\n" +
+		"- Listed Setext\n  ===\n\n  LISTEDSETEXTTEXT\n"
 	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": dest})
 
-	for _, heading := range []string{"Quoted Heading", "Listed Heading"} {
+	headings := []string{
+		"Quoted Heading", "Listed Heading",
+		"Quoted Setext", "Nested Setext", "Listed Setext",
+	}
+
+	// The destination genuinely stamps those ids, which is the fact the whole
+	// test rests on. Read it off the destination's own rendering rather than
+	// assuming it, and read it first — a fixture whose premise is wrong would
+	// otherwise look like a passing test of the scan.
+	page := r.HTML("B.md", "", dest)
+	for _, heading := range headings {
+		id := `id="` + strings.ToLower(strings.ReplaceAll(heading, " ", "-")) + `"`
+		if !strings.Contains(page.HTML, id) {
+			t.Fatalf("the fixture's premise is wrong: the destination does not stamp %s:\n%s", id, page.HTML)
+		}
+	}
+
+	for _, heading := range headings {
 		got := r.HTML("note.md", "", "[[B#"+heading+"]]\n")
 		if !strings.Contains(got.HTML, "#"+strings.ToLower(strings.ReplaceAll(heading, " ", "-"))) {
 			t.Errorf("the link to %q lost its fragment; the destination stamps that id:\n%s", heading, got.HTML)
 		}
 		if messages := fragmentDiagnostics(&got); len(messages) != 0 {
-			t.Errorf("a section the destination really carries was reported missing: %q", messages)
+			t.Errorf("a section %q the destination really carries was reported missing: %q", heading, messages)
 		}
 	}
+}
 
-	// The destination genuinely stamps those ids, which is the fact the whole
-	// test rests on. Read it off the destination's own rendering rather than
-	// assuming it.
+// TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother is the conservative
+// close on the one gap generosity cannot reach. Both scans read this note's own
+// source, and a heading that arrives through an embed is written in a different
+// file — so no amount of marker stripping will find it, while the page stamps
+// its id all the same. Where the destination embeds anything, a name the scans
+// missed is left unreported.
+//
+// The control beside it is what keeps that from becoming blanket silence: a
+// destination that embeds nothing still gets its genuinely absent section
+// reported, so the close costs exactly the notes it is aimed at.
+func TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother(t *testing.T) {
+	t.Parallel()
+
+	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}, {Path: "C.md"}}, nil, transclusions{
+		"B.md": "# Top\n\nTOPTEXT\n\n![[C]]\n",
+		"C.md": "## Brought In\n\nBROUGHTTEXT\n",
+	})
+
+	embedding := r.HTML("note.md", "", "[[B#Brought In]]\n")
+	if !strings.Contains(embedding.HTML, `href="/notes/B.md#brought-in"`) {
+		t.Errorf("the link lost the address its author wrote:\n%s", embedding.HTML)
+	}
+	if messages := fragmentDiagnostics(&embedding); len(messages) != 0 {
+		t.Errorf("a section an embed brings into the destination was called missing: %q", messages)
+	}
+
+	// The premise: the destination really does stamp that id, because the
+	// embed really is expanded into it.
+	page := r.HTML("B.md", "", "# Top\n\nTOPTEXT\n\n![[C]]\n")
+	if !strings.Contains(page.HTML, `id="brought-in"`) {
+		t.Fatalf("the fixture's premise is wrong: the embed does not bring the heading in:\n%s", page.HTML)
+	}
+
+	plain := r.HTML("note.md", "", "[[C#Nowhere]]\n")
+	if messages := fragmentDiagnostics(&plain); len(messages) != 1 {
+		t.Errorf("a destination that embeds nothing stopped reporting a section it really lacks: %q", messages)
+	}
+}
+
+// TestSectionLinkStillMissesAHeadingInsideAFence records a known limit rather
+// than a behaviour worth having. The generous scan does not track fenced code,
+// so a heading written inside a code sample counts as a heading it might be,
+// and a link naming it is left alone instead of being reported. That is the
+// safe direction — the cost is one unreported dead link, against telling a
+// reader a section they can see is not there — but it is a gap, and a silent
+// gap is one nobody remembers is there.
+func TestSectionLinkStillMissesAHeadingInsideAFence(t *testing.T) {
+	t.Parallel()
+
+	const dest = "# Top\n\nTOPTEXT\n\n```markdown\n## Only In A Sample\n```\n"
+	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": dest})
+
 	page := r.HTML("B.md", "", dest)
-	for _, id := range []string{`id="quoted-heading"`, `id="listed-heading"`} {
-		if !strings.Contains(page.HTML, id) {
-			t.Fatalf("the fixture's premise is wrong: the destination does not stamp %s:\n%s", id, page.HTML)
-		}
+	if strings.Contains(page.HTML, `id="only-in-a-sample"`) {
+		t.Fatalf("the fixture's premise is wrong: the fenced heading really is an anchor:\n%s", page.HTML)
+	}
+
+	got := r.HTML("note.md", "", "[[B#Only In A Sample]]\n")
+	if messages := fragmentDiagnostics(&got); len(messages) != 0 {
+		t.Errorf("the fenced-heading gap has closed; this test now records the wrong limit: %q", messages)
 	}
 }

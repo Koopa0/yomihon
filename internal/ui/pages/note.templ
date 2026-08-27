@@ -30,16 +30,31 @@ func diagKindLabel(kind render.DiagnosticKind) string {
 		return "找不到嵌入指定的段落"
 	case render.DiagLinkFragmentMissing:
 		return "找不到連結指定的區塊"
+	case render.DiagLinkSectionMissing:
+		return "找不到連結指定的小節"
+	case render.DiagCommentUnclosed:
+		return "沒有配對的註解記號"
 	default:
 		return string(kind)
 	}
 }
 
-func articleLanguage(tag string) string {
+// articleLanguageAttrs states an article's language only where the note
+// declared one and the vault contract gave that declaration authority. A note
+// that declared nothing contributes no attribute, so the article inherits the
+// language the surrounding page is written in.
+//
+// Naming a language yomihon does not know would be worse than saying nothing:
+// the undetermined tag is a positive claim that halts inheritance for
+// everything beneath it, and no reader, voice, or font picker is any better
+// off for it. Inheriting is the truthful default for a vault whose prose is
+// Traditional Chinese, and a note written in another language names that
+// language in its own frontmatter.
+func articleLanguageAttrs(tag string) templ.Attributes {
 	if tag == "" {
-		return "und"
+		return nil
 	}
-	return tag
+	return templ.Attributes{"lang": tag}
 }
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
@@ -186,7 +201,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
 				@flipReceipt(v)
-				<article class="y-article" lang={ articleLanguage(v.Language) }>
+				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
 					@articleHead(v)
 					@inlineAids(v)
 					<div class="y-prose">

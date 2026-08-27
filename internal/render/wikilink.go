@@ -478,9 +478,11 @@ func rawHref(p string) string {
 // inside a list item — so the scan can report that it found nothing and cannot
 // rule that nothing is there. A section address therefore always survives, and
 // a miss is reported only when a second, deliberately generous scan agrees the
-// name is nowhere: under-reporting a broken fragment costs a diagnostic, while
-// over-reporting one withdraws a working link and tells the reader a section
-// they can see does not exist.
+// name is nowhere, and not at all where the destination transcludes another
+// note — a heading arriving through an embed is written in a file neither scan
+// reads, so silence there is the only honest answer. Under-reporting a broken
+// fragment costs a diagnostic, while over-reporting one withdraws a working
+// link and tells the reader a section they can see does not exist.
 //
 // Where the destination's body was not captured nothing is claimed either
 // way — yomihon cannot tell a name that is absent from one it did not read,
@@ -509,7 +511,10 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		if !ok {
 			return href
 		}
-		if _, found := blockSlice(stripObsidianComments(body), link.Block); !found {
+		// A probe into another note reports only on the address it came to
+		// check. Whatever that note's own markers do is its own page's news.
+		strippedTarget, _ := stripObsidianComments(body)
+		if _, found := blockSlice(strippedTarget, link.Block); !found {
 			col.report(Diagnostic{
 				Kind:    DiagLinkFragmentMissing,
 				Target:  link.Target + "#" + address,
@@ -524,15 +529,18 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		if !ok {
 			return addressed
 		}
-		stripped := stripObsidianComments(body)
+		stripped, _ := stripObsidianComments(body)
 		if _, found := headingSlice(stripped, link.Heading); found {
 			return addressed
 		}
 		if headingAnchorMayExist(stripped, link.Heading) {
 			return addressed
 		}
+		if mayCarryTranscludedHeadings(stripped) {
+			return addressed
+		}
 		col.report(Diagnostic{
-			Kind:    DiagLinkFragmentMissing,
+			Kind:    DiagLinkSectionMissing,
 			Target:  link.Target + "#" + link.Heading,
 			Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
 		})
@@ -657,14 +665,26 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 // precedence over a heading when both parsed, mirroring how the plain-link
 // fragment rule already resolves that conflict.
 //
-// The scan runs over the comment-stripped source so a heading or marker
-// hidden inside an Obsidian %% comment cannot anchor a visible excerpt; the
-// later render pass strips comments again, which leaves an already-stripped
-// body unchanged.
+// This is where a transcluded body's Obsidian %% comments come off, and the
+// only place they do: a heading or marker hidden inside a comment cannot
+// anchor a visible excerpt, and every branch below — the one that takes the
+// whole note included — hands back source the scan has already been over, so
+// the render that follows has nothing left to remove. Reading the same text
+// twice is what has to be avoided: the second pass would be free to reopen a
+// marker the first had ruled to be literal text, and would hide words the
+// first one kept.
+//
+// A marker left open in the transcluded note is reported here too, onto the
+// page doing the citing. An excerpt that stops mid-sentence looks exactly like
+// one that ended, and the reader is looking at this page rather than at the
+// note the words came from.
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped, unmatched string) {
+	stripped, unclosed := stripObsidianComments(body)
+	if unclosed != 0 {
+		col.report(unclosedCommentDiagnostic(unclosed))
+	}
 	switch {
 	case link.Block != "":
-		stripped := stripObsidianComments(body)
 		if slice, ok := blockSlice(stripped, link.Block); ok {
 			return slice, ""
 		}
@@ -673,9 +693,8 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scop
 			Target:  link.Target + "#^" + link.Block,
 			Message: fmt.Sprintf("no block in %q matched %q; the whole note is shown", resPath, "^"+link.Block),
 		})
-		return body, "#^" + link.Block
+		return stripped, "#^" + link.Block
 	case link.Heading != "":
-		stripped := stripObsidianComments(body)
 		if slice, ok := headingSlice(stripped, link.Heading); ok {
 			return slice, ""
 		}
@@ -684,9 +703,9 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scop
 			Target:  link.Target + "#" + link.Heading,
 			Message: fmt.Sprintf("no heading in %q matched %q; the whole note is shown", resPath, link.Heading),
 		})
-		return body, "#" + link.Heading
+		return stripped, "#" + link.Heading
 	}
-	return body, ""
+	return stripped, ""
 }
 
 // atxHeadingLine matches an ATX heading the way goldmark will read it: up to
@@ -995,23 +1014,66 @@ func widenedNotice(unmatched string) string {
 // reported about a heading the rendered page really carries. A false yes costs
 // one unreported broken fragment; a false no withdraws nothing but tells a
 // reader a section they are looking at is not there.
+// Both ways of writing a heading count here, because the page renders both. An
+// underline makes a heading out of the paragraph above it, so this carries the
+// lines of the paragraph it is inside and offers them up when an underline
+// arrives. Reading only the '#' form was the same mistake as reading only
+// unquoted lines, one step further in: the page stamped an id for a heading
+// underlined inside a quote, and a link to it was reported broken while the
+// reader was looking straight at the section it named.
 func headingAnchorMayExist(body, heading string) bool {
 	want := slugify(heading)
+	var paragraph []string
 	for line := range strings.SplitSeq(body, "\n") {
-		candidate := strings.TrimSpace(line)
-		for quotedLine.MatchString(candidate) {
-			candidate = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(candidate), ">"))
-		}
-		if loc := listItemLine.FindString(candidate); loc != "" {
-			candidate = strings.TrimSpace(candidate[len(loc):])
-		}
-		m := atxHeadingLine.FindStringSubmatch(candidate)
-		if m == nil {
+		candidate := withoutQuoteAndListMarkers(line)
+		if m := atxHeadingLine.FindStringSubmatch(candidate); m != nil {
+			if slugify(headingSourceText(m[2])) == want {
+				return true
+			}
+			paragraph = nil
 			continue
 		}
-		if slugify(headingSourceText(m[2])) == want {
-			return true
+		// An underline is offered the paragraph before anything else can claim
+		// the same characters: a row of dashes closing a paragraph underlines
+		// it rather than drawing a rule, which is the order the page reads
+		// them in too.
+		if len(paragraph) > 0 && setextUnderline.MatchString(candidate) {
+			if slugify(headingSourceText(strings.Join(paragraph, "\n"))) == want {
+				return true
+			}
+			paragraph = nil
+			continue
 		}
+		if candidate == "" {
+			paragraph = nil
+			continue
+		}
+		paragraph = append(paragraph, candidate)
 	}
 	return false
+}
+
+// withoutQuoteAndListMarkers reduces a line to the text a heading could have
+// been written as, by removing however many quote markers are nested around it
+// and one list marker. The page keeps a heading inside both, so a scan that
+// stopped at either would miss ids that page really stamps.
+func withoutQuoteAndListMarkers(line string) string {
+	candidate := strings.TrimSpace(line)
+	for quotedLine.MatchString(candidate) {
+		candidate = strings.TrimSpace(strings.TrimPrefix(candidate, ">"))
+	}
+	if loc := listItemLine.FindString(candidate); loc != "" {
+		candidate = strings.TrimSpace(candidate[len(loc):])
+	}
+	return candidate
+}
+
+// mayCarryTranscludedHeadings reports whether a body pulls another note's
+// content into itself. The scans that validate a section address read this
+// note's own source and nothing else, so a heading that arrives inside an
+// embed is one they cannot see at any level of generosity — and the page
+// stamps its id all the same. Where a body embeds anything, a name neither
+// scan found is left unreported rather than called broken.
+func mayCarryTranscludedHeadings(body string) bool {
+	return strings.Contains(body, "![[")
 }

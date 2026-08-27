@@ -154,7 +154,9 @@ func plainNode(node ast.Node, source []byte) string {
 // a [[link]] written inside a code sample stays literal and is indexed as code
 // content, not resolved.
 func plainPreprocess(body string) string {
-	body = stripObsidianComments(body)
+	// The retrieval projections report nothing: a corpus entry is not a page,
+	// and a fault in a note is the reading page's news to break.
+	body, _ = stripObsidianComments(body)
 	lines := strings.Split(body, "\n")
 	inFence := false
 	var fenceByte byte

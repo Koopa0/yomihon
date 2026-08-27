@@ -29,7 +29,7 @@ func TestCaptureNoteDetachesPublishedReadingData(t *testing.T) {
 	if got.Type != "concept" || got.Status != "draft" || got.Slug != "original" {
 		t.Fatalf("captured note metadata changed with its inputs: %+v", got)
 	}
-	if !got.HasFrontmatter || got.Language != "und" || got.LanguageDiagnostic != "" {
+	if !got.HasFrontmatter || got.Language != "" || got.LanguageDiagnostic != "" {
 		t.Fatalf("captured note authority = frontmatter %t language %q diagnostic %q", got.HasFrontmatter, got.Language, got.LanguageDiagnostic)
 	}
 	// The status value is outside the identity — the page binds the status

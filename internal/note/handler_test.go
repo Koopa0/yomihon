@@ -808,6 +808,18 @@ func get(t *testing.T, urlStr string) (code int, body string) {
 	return resp.StatusCode, string(b)
 }
 
+// TestShowUsesContractDeclaredArticleLanguage holds the whole path from a
+// note's frontmatter to the language its article is served with. Only a value
+// the contract gave authority to and the tag grammar accepts reaches the
+// element; every other case leaves the article with no language of its own and
+// the page's own language answering for it.
+//
+// So each case asserts two things at once, and the second is what makes the
+// first mean anything: the article's opening tag in full, and that the page
+// still declares the language the article is now leaning on. An article that
+// states nothing inside a page that states nothing either would satisfy a
+// check written only against the article, while reading as a note with no
+// language anywhere.
 func TestShowUsesContractDeclaredArticleLanguage(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -816,10 +828,10 @@ func TestShowUsesContractDeclaredArticleLanguage(t *testing.T) {
 		contract    func(*testing.T) *schema.Contract
 		wantArticle string
 	}{
-		{name: "canonicalizes declared tag", langLine: "lang: zh-hant\n", contract: loadContract, wantArticle: `lang="zh-Hant"`},
-		{name: "invalid tag is undetermined", langLine: "lang: not_a_tag\n", contract: loadContract, wantArticle: `lang="und"`},
-		{name: "missing value is undetermined", contract: loadContract, wantArticle: `lang="und"`},
-		{name: "undeclared field has no authority", langLine: "lang: ja\n", contract: loadContractWithoutArticleLanguage, wantArticle: `lang="und"`},
+		{name: "canonicalizes declared tag", langLine: "lang: zh-hant\n", contract: loadContract, wantArticle: `<article class="y-article" lang="zh-Hant">`},
+		{name: "invalid tag states no language", langLine: "lang: not_a_tag\n", contract: loadContract, wantArticle: `<article class="y-article">`},
+		{name: "missing value states no language", contract: loadContract, wantArticle: `<article class="y-article">`},
+		{name: "undeclared field has no authority", langLine: "lang: ja\n", contract: loadContractWithoutArticleLanguage, wantArticle: `<article class="y-article">`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -839,9 +851,12 @@ func TestShowUsesContractDeclaredArticleLanguage(t *testing.T) {
 			if code != http.StatusOK {
 				t.Fatalf("GET note = %d, want 200; body = %q", code, page)
 			}
-			want := `<article class="y-article" ` + tt.wantArticle + `>`
-			if !strings.Contains(page, want) {
-				t.Errorf("article language = %q, want markup %q", page, want)
+			if !strings.Contains(page, tt.wantArticle) {
+				t.Errorf("article opening tag = missing %q in %q", tt.wantArticle, page)
+			}
+			const chrome = `<html lang="zh-Hant"`
+			if !strings.Contains(page, chrome) {
+				t.Errorf("the page no longer declares the language an article without one falls back to: want %q in %q", chrome, page)
 			}
 		})
 	}

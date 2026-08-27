@@ -9,8 +9,8 @@ func TestArticleLanguageRequiresContractAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if got != "und" {
-		t.Errorf("Resolve() = %q, want und without a contract declaration", got)
+	if got != "" {
+		t.Errorf("Resolve() = %q, want no tag without a contract declaration", got)
 	}
 }
 
@@ -21,8 +21,8 @@ func TestArticleLanguageRejectsLessonOnlyAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if got != "und" {
-		t.Errorf("Resolve() = %q, want und when only lesson fields declare lang", got)
+	if got != "" {
+		t.Errorf("Resolve() = %q, want no tag when only lesson fields declare lang", got)
 	}
 }
 
@@ -36,18 +36,23 @@ func TestArticleLanguageResolve(t *testing.T) {
 		want        string
 		wantErr     bool
 	}{
-		{name: "missing", frontmatter: nil, want: "und"},
+		{name: "missing", frontmatter: nil, want: ""},
 		{name: "Japanese", frontmatter: map[string]any{"lang": "ja"}, want: "ja"},
 		{name: "canonicalized", frontmatter: map[string]any{"lang": "zh-hant"}, want: "zh-Hant"},
+		// An author who writes the undetermined tag by hand gets it back: it
+		// is a value the grammar accepts and the contract gave authority to,
+		// and refusing to carry one the author chose would be the resolver
+		// overruling the note. It is the resolver's own silence that no longer
+		// spells itself that way.
 		{name: "explicit undetermined", frontmatter: map[string]any{"lang": "und"}, want: "und"},
-		{name: "empty", frontmatter: map[string]any{"lang": ""}, want: "und", wantErr: true},
-		{name: "wrong type", frontmatter: map[string]any{"lang": []string{"ja"}}, want: "und", wantErr: true},
-		{name: "invalid", frontmatter: map[string]any{"lang": "not_a_tag"}, want: "und", wantErr: true},
-		{name: "leading separator", frontmatter: map[string]any{"lang": "-ja"}, want: "und", wantErr: true},
-		{name: "trailing separator", frontmatter: map[string]any{"lang": "ja-"}, want: "und", wantErr: true},
-		{name: "repeated separator", frontmatter: map[string]any{"lang": "ja--JP"}, want: "und", wantErr: true},
-		{name: "non ASCII", frontmatter: map[string]any{"lang": "日本語"}, want: "und", wantErr: true},
-		{name: "control", frontmatter: map[string]any{"lang": "ja\nJP"}, want: "und", wantErr: true},
+		{name: "empty", frontmatter: map[string]any{"lang": ""}, want: "", wantErr: true},
+		{name: "wrong type", frontmatter: map[string]any{"lang": []string{"ja"}}, want: "", wantErr: true},
+		{name: "invalid", frontmatter: map[string]any{"lang": "not_a_tag"}, want: "", wantErr: true},
+		{name: "leading separator", frontmatter: map[string]any{"lang": "-ja"}, want: "", wantErr: true},
+		{name: "trailing separator", frontmatter: map[string]any{"lang": "ja-"}, want: "", wantErr: true},
+		{name: "repeated separator", frontmatter: map[string]any{"lang": "ja--JP"}, want: "", wantErr: true},
+		{name: "non ASCII", frontmatter: map[string]any{"lang": "日本語"}, want: "", wantErr: true},
+		{name: "control", frontmatter: map[string]any{"lang": "ja\nJP"}, want: "", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -474,7 +474,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		concepts = h.loadConcepts(snap, refs)
 	}
 	if n.LanguageDiagnostic != "" {
-		h.deps.Log.Warn("invalid article language; using und", "path", rel, "error", n.LanguageDiagnostic)
+		h.deps.Log.Warn("invalid article language; the article carries no language of its own", "path", rel, "error", n.LanguageDiagnostic)
 	}
 
 	// The status face and the status shown beside the title are the same

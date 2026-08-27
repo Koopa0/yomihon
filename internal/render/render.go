@@ -4,7 +4,11 @@
 //
 // Fault-tolerant by contract: it renders what it can and reports
 // what it can't via Diagnostics — it never fixes a note, never fails the
-// whole render, and never returns a blank page. Authored HTML is inert display
+// whole render, and never goes quiet without saying why. A note can still
+// render to nothing, because an unclosed %% comment hides everything after it
+// and Obsidian hides it too; what the reader then receives is an account of
+// which marker did it, rather than an empty page and no explanation.
+// Authored HTML is inert display
 // input: the Japanese lesson dialect's ruby/rt/rp/br subset survives, while
 // executable or automatically loading markup is shown as text.
 //
@@ -79,6 +83,26 @@ const (
 	// anchor for would tell the reader they are going to a block and land them
 	// somewhere else.
 	DiagLinkFragmentMissing DiagnosticKind = "link-fragment-missing"
+	// DiagLinkSectionMissing means a plain link named a section inside its
+	// target ("[[note#heading]]") that neither scan of the captured body could
+	// find. Unlike a block address, the address is kept exactly as written: a
+	// heading id is stamped by a pass over rendered HTML that sees headings
+	// these scans do not, so a miss here is a name they failed to find rather
+	// than one the page is certain to lack. The link therefore still works
+	// wherever the scans were merely blind, and lands at the top of the note
+	// only where the section genuinely is not there.
+	//
+	// It is a separate kind from a missing block for exactly that reason: one
+	// withdraws the author's address and the other leaves it standing, so a
+	// panel that named them alike would tell the reader the wrong thing about
+	// one of them.
+	DiagLinkSectionMissing DiagnosticKind = "link-section-missing"
+	// DiagCommentUnclosed means a "%%" comment marker never met a second one,
+	// so everything written after it is hidden from the page. Obsidian hides it
+	// too, which is why the words are not simply restored here: the note reads
+	// the same in both, and the reader is told where the silence begins instead
+	// of being left to work out why a page they wrote is blank.
+	DiagCommentUnclosed DiagnosticKind = "comment-unclosed"
 	// DiagRenderFailed means goldmark's own renderer returned an error —
 	// normally unreachable (see render's fallback), kept only so a
 	// future extension that breaks that assumption still produces a
@@ -233,9 +257,10 @@ func (r *Pipeline) HTML(relPath, title, body string) Result {
 // lesson receive the same bytes.
 func (r *Pipeline) HTMLIn(region, relPath, title, body string) Result {
 	page := &composition{base: region}
-	body = stripObsidianComments(body)
+	body, unclosedComment := stripObsidianComments(body)
 	body, titleAnchor := removeBodyFirstH1(title, body)
 	res := r.renderBody(body, embedsAllowed, page, region)
+	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
 	// one that has to move aside.
@@ -350,8 +375,16 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 // itself given. One render therefore keeps its footnote ids distinct — and a
 // caller composing several renders onto one page says where each of them sits
 // (see HTMLIn), because this package cannot see the others.
+//
+// The body arrives with its Obsidian %% comments already removed, and this
+// does not remove them again. A callout's lines are part of the host note's
+// own source and came off the scan HTMLIn ran; a transcluded body is scanned
+// by embedScope, which is where it is first read. Scanning either a second
+// time would let this pass reopen a marker the first had ruled to be literal
+// text — a percent sign an author displayed inside a code span — and hide
+// words that were meant to stay.
 func (r *Pipeline) render(body string, allowEmbed embedPolicy, page *composition) Result {
-	return r.renderBody(stripObsidianComments(body), allowEmbed, page, page.nextRegion())
+	return r.renderBody(body, allowEmbed, page, page.nextRegion())
 }
 
 func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composition, region string) Result {

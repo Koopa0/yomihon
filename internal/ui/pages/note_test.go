@@ -10,16 +10,28 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
-func TestNoteArticleLanguageIsExplicit(t *testing.T) {
+// TestNoteArticleLanguageComesOnlyFromAuthority holds what the article element
+// is allowed to say about the language a note is written in. A tag that
+// reached the view is rendered as the note declared it; a view carrying none
+// leaves the element with no language of its own, so the language the page is
+// written in stands for the article too.
+//
+// Each expectation is the whole opening tag rather than the attribute alone.
+// The absent case differs from the present ones by the space before the
+// attribute as much as by the attribute, so an expectation that named only
+// `lang="…"` would have no way to state the absent case at all, and one that
+// named only the absence would be satisfied by an article that had lost its
+// class as readily as by the right one.
+func TestNoteArticleLanguageComesOnlyFromAuthority(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
 		lang string
 		want string
 	}{
-		{name: "missing authority is undetermined", want: `lang="und"`},
-		{name: "Japanese", lang: "ja", want: `lang="ja"`},
-		{name: "Traditional Chinese", lang: "zh-Hant", want: `lang="zh-Hant"`},
+		{name: "no authority states no language", want: `<article class="y-article">`},
+		{name: "Japanese", lang: "ja", want: `<article class="y-article" lang="ja">`},
+		{name: "Traditional Chinese", lang: "zh-Hant", want: `<article class="y-article" lang="zh-Hant">`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -28,8 +40,8 @@ func TestNoteArticleLanguageIsExplicit(t *testing.T) {
 			if err := Note(NoteView{Language: tt.lang}, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render: %v", err)
 			}
-			if html := buf.String(); !strings.Contains(html, `<article class="y-article" `+tt.want+`>`) {
-				t.Errorf("article language missing: want %q in %q", tt.want, html)
+			if html := buf.String(); !strings.Contains(html, tt.want) {
+				t.Errorf("article opening tag = missing %q in %q", tt.want, html)
 			}
 		})
 	}

@@ -53,6 +53,10 @@ func renderDiagnosticSummary(kind render.DiagnosticKind) string {
 		return "找不到嵌入指定的段落或區塊；已改顯示整篇筆記。"
 	case render.DiagLinkFragmentMissing:
 		return "目標筆記沒有這個區塊；連結已改為指向整篇筆記。"
+	case render.DiagLinkSectionMissing:
+		return "目標筆記沒有這個小節；連結位址照原樣保留，點下去會落在筆記最上方。"
+	case render.DiagCommentUnclosed:
+		return "這個註解記號沒有找到配對，它後面的內容全被藏了起來。"
 	case render.DiagRenderFailed:
 		return "Markdown 轉譯失敗；已顯示原始內容。"
 	default:
