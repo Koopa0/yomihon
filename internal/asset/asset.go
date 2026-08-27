@@ -3,20 +3,22 @@
 // client-module graph, the canonical brand mark, and the generated chroma
 // stylesheet.
 //
-// This is the FIRST route in this repo that serves something other than
-// rendered vault content, and its entire security property rests on one
-// invariant: registry (built once, at package init, from what is
-// compiled into the binary via github.com/koopa0/yomihon/assets'
-// embed.FS, or computed in memory by render.ChromaCSS) is a fixed, closed
-// map. serve does exactly one thing with request input — an exact lookup
-// of r.PathValue("path") against that map — and nothing else. There is no
-// filepath.Join, no os.Open, no directory listing, and no way for a
-// request to add, remove, or address anything outside the set decided at
-// build time. That is deliberately narrower than the deferred
-// vault-media-embed route (images/PDFs for the embed feature — still not
-// built, and this package must never grow into that): serving arbitrary
-// vault content is a separate, larger design question this package does
-// not answer.
+// Its entire security property rests on one invariant: registry (built
+// once, at package init, from what is compiled into the binary via
+// github.com/koopa0/yomihon/assets' embed.FS, or computed in memory by
+// render.ChromaCSS) is a fixed, closed map. serve does exactly one thing
+// with request input — an exact lookup of r.PathValue("path") against that
+// map — and nothing else. There is no filepath.Join, no os.Open, no
+// directory listing, and no way for a request to add, remove, or address
+// anything outside the set decided at build time.
+//
+// Handing a reader arbitrary bytes out of the vault is a different problem
+// with a different answer, and this package is not where it was answered.
+// The route that serves a vault image or PDF lives in internal/note, and it
+// admits a path by rule and by membership of the current scan rather than by
+// lookup in a closed set. An audit of how vault files reach a browser has to
+// read that route; nothing about this one constrains it. This package is
+// narrower on purpose and must not grow into it.
 package asset
 
 import (
