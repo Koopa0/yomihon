@@ -2598,14 +2598,81 @@ func TestShowTransitions(t *testing.T) {
 	}
 }
 
-func TestNewPanicsOnNilDependencies(t *testing.T) {
+// TestNewPanicsOnAMissingDependency covers every guard New has, one row per
+// guard. A wiring bug has to fail at construction with the field named, not
+// three calls deep inside the first request, so each row asserts the exact
+// diagnostic rather than merely that something panicked. A guard added to New
+// without a row here is a guard nothing has watched fail.
+func TestNewPanicsOnAMissingDependency(t *testing.T) {
 	t.Parallel()
-	defer func() {
-		if got := recover(); got != "note: New requires non-nil Dependencies" {
-			t.Fatalf("New(nil Dependencies) panic = %v, want explicit wiring diagnostic", got)
-		}
-	}()
-	note.New(nil)
+
+	tests := []struct {
+		name string
+		// nilDeps passes a nil *Dependencies instead of clearing one field.
+		nilDeps bool
+		clear   func(*note.Dependencies)
+		want    string
+	}{
+		{
+			name:    "no dependencies at all",
+			nilDeps: true,
+			want:    "note: New requires non-nil Dependencies",
+		},
+		{
+			name:  "source",
+			clear: func(d *note.Dependencies) { d.Source = nil },
+			want:  "note: New requires a non-nil Source",
+		},
+		{
+			name:  "status view",
+			clear: func(d *note.Dependencies) { d.Status = nil },
+			want:  "note: New requires a non-nil Status",
+		},
+		{
+			name:  "snapshot provider",
+			clear: func(d *note.Dependencies) { d.Snapshot = nil },
+			want:  "note: New requires a non-nil Snapshot provider",
+		},
+		{
+			name:  "observed status provider",
+			clear: func(d *note.Dependencies) { d.ObservedStatus = nil },
+			want:  "note: New requires a non-nil ObservedStatus provider",
+		},
+		{
+			name:  "log",
+			clear: func(d *note.Dependencies) { d.Log = nil },
+			want:  "note: New requires a non-nil Log",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			defer func() {
+				got := recover()
+				if got != tt.want {
+					t.Fatalf("New() panic = %v, want %q", got, tt.want)
+				}
+			}()
+			if tt.nilDeps {
+				note.New(nil)
+				return
+			}
+			root := t.TempDir()
+			log := slog.New(slog.DiscardHandler)
+			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+			lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
+			deps := note.Dependencies{
+				ObservedStatus: lifecycle.ObservedStatus,
+				Source:         source,
+				Status:         lifecycle.View,
+				Snapshot:       store.Current,
+				Log:            log,
+			}
+			tt.clear(&deps)
+			note.New(&deps)
+		})
+	}
 }
 
 func TestNewCopiesDependencies(t *testing.T) {
@@ -2638,74 +2705,6 @@ func TestNewCopiesDependencies(t *testing.T) {
 	if got := recorder.Body.String(); got != body {
 		t.Errorf("GET /raw/plain.txt body = %q, want %q", got, body)
 	}
-}
-
-func TestNewPanicsOnNilSource(t *testing.T) {
-	t.Parallel()
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("New(nil Source) did not panic")
-		}
-	}()
-	root := t.TempDir()
-	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
-	note.New(&note.Dependencies{
-		ObservedStatus: lifecycle.ObservedStatus,
-		Source:         nil,
-		Status:         lifecycle.View,
-		Snapshot:       store.Current,
-		Log:            log,
-	})
-}
-
-// TestNewPanicsOnNilStatusProvider mirrors
-// internal/status/handler_test.go's coverage of status.NewHandler's own
-// nil-dependency panic: a fail-closed lifecycle still has a valid View method,
-// but a literal nil provider is not — a
-// future caller passing one must fail at wiring time, not three calls deep
-// inside the first GET /notes/... request.
-func TestNewPanicsOnNilStatusProvider(t *testing.T) {
-	t.Parallel()
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("New(nil Status provider) did not panic")
-		}
-	}()
-	root := t.TempDir()
-	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	note.New(&note.Dependencies{
-		ObservedStatus: func(string) (string, error) { return "", nil },
-		Source:         source,
-		Status:         nil, // the nil under test
-		Snapshot:       store.Current,
-		Log:            log,
-	})
-}
-
-// TestNewPanicsOnNilSnapshot mirrors the Status provider check: a provider
-// returning an empty-but-valid snapshot is legal, but a nil provider is a
-// wiring bug that must fail at construction rather than inside the first read.
-func TestNewPanicsOnNilSnapshot(t *testing.T) {
-	t.Parallel()
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("New(nil Snapshot provider) did not panic")
-		}
-	}()
-	root := t.TempDir()
-	log := slog.New(slog.DiscardHandler)
-	_, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
-	note.New(&note.Dependencies{
-		ObservedStatus: lifecycle.ObservedStatus,
-		Source:         source,
-		Status:         lifecycle.View,
-		Snapshot:       nil, // the nil under test
-		Log:            log,
-	})
 }
 
 // TestShowIncludesSidebar is the navigation-face regression: the reading

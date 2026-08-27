@@ -664,48 +664,6 @@ func TestFlipMalformedStatusLine(t *testing.T) {
 	}
 }
 
-// TestFlipRefusesStatusAnchorThatRewritingWouldSever covers the one
-// frontmatter shape where the byte-level rewrite used to corrupt a readable
-// note: a status value carrying a YAML anchor that another field aliases.
-// Replacing the whole status line deletes the anchor definition, the alias
-// dangles, and the note stops parsing — committed as a clean transition.
-// The flip must refuse before writing anything.
-func TestFlipRefusesStatusAnchorThatRewritingWouldSever(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
-
-	content := "---\n" +
-		"title: L05\n" +
-		"type: lesson\n" +
-		"status: &s draft\n" +
-		"domain: *s\n" +
-		"created: 2026-06-01\n" +
-		"updated: 2026-06-01\n" +
-		"---\n" +
-		"\nbody\n"
-	writeNote(t, root, content)
-
-	observed, err := lifecycle.ObservedStatus(testRel)
-	if err != nil || observed != "draft" {
-		t.Fatalf("ObservedStatus() = (%q, %v), want the reader to see draft", observed, err)
-	}
-
-	err = lifecycle.Flip(testRel, "draft", schema.SealStatus, diskIdentity(content))
-	if !errors.Is(err, status.ErrStatusSyntaxUnsupported) {
-		t.Fatalf("Flip(status carrying an aliased anchor) = %v, want %v", err, status.ErrStatusSyntaxUnsupported)
-	}
-	if got := readNote(t, root); got != content {
-		t.Errorf("note after refusal = %q, want untouched %q", got, content)
-	}
-}
-
-// TestFlipRefusesUnsupportedStatusSyntax covers frontmatter the reader parses
-// fine but the surgical rewriter cannot locate: the status key written in
-// explicit-key, quoted-key, space-before-colon, or flow-mapping form. These
-// always failed closed, but were reported as a schema violation — a fault
-// report for a note that is not at fault, pointing the human at the wrong
-// thing. The refusal must name the unsupported syntax instead.
 func TestFlipRefusesUnsupportedStatusSyntax(t *testing.T) {
 	t.Parallel()
 
@@ -732,6 +690,26 @@ func TestFlipRefusesUnsupportedStatusSyntax(t *testing.T) {
 			name: "flow mapping",
 			content: "---\n" +
 				"{title: L05, type: lesson, domain: japanese, status: draft, created: 2026-06-01, updated: 2026-06-01}\n" +
+				"---\n" +
+				"\nbody\n",
+		},
+		{
+			// An anchor on the status value that another field aliases. Two
+			// separate things refuse it, and removing either one on its own
+			// leaves this row passing: the value span treats "&" as a YAML
+			// indicator and reports no span, and the rewritten bytes are
+			// parsed again before anything is written, where the severed
+			// anchor shows up as a dangling alias. The alias has to follow
+			// the anchor, so this row spells its frontmatter out rather than
+			// using block().
+			name: "status value carrying an aliased anchor",
+			content: "---\n" +
+				"title: L05\n" +
+				"type: lesson\n" +
+				"status: &s draft\n" +
+				"domain: *s\n" +
+				"created: 2026-06-01\n" +
+				"updated: 2026-06-01\n" +
 				"---\n" +
 				"\nbody\n",
 		},
@@ -854,10 +832,9 @@ func TestTransitions(t *testing.T) {
 // view — is not.
 func TestTerminal(t *testing.T) {
 	t.Parallel()
-	view := newLifecycle(t, t.TempDir(), loadContract(t)).View()
-
 	tests := []struct {
 		name     string
+		closed   bool // a view opened with no contract answers nothing at all
 		noteType string
 		status   string
 		want     bool
@@ -866,10 +843,16 @@ func TestTerminal(t *testing.T) {
 		{name: "ready still has the archived edge out", noteType: "lesson", status: "ready", want: false},
 		{name: "draft moves on to ready", noteType: "lesson", status: "draft", want: false},
 		{name: "an empty status claims nothing", noteType: "lesson", status: "", want: false},
+		{name: "a closed view claims nothing", closed: true, noteType: "lesson", status: "archived", want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			contract := loadContract(t)
+			if tt.closed {
+				contract = nil
+			}
+			view := newLifecycle(t, t.TempDir(), contract).View()
 			if got := view.Terminal(tt.noteType, tt.status); got != tt.want {
 				t.Errorf("Terminal(%q, %q) = %t, want %t", tt.noteType, tt.status, got, tt.want)
 			}
@@ -916,14 +899,6 @@ owner = ["agent"]
 	view := newLifecycle(t, t.TempDir(), contract).View()
 	if !view.Terminal("doc", "ready") {
 		t.Error(`Terminal("doc", "ready") = false, want true: its only onward edge is published, which no control can attest`)
-	}
-}
-
-func TestTerminalOnClosedViewClaimsNothing(t *testing.T) {
-	t.Parallel()
-	view := newLifecycle(t, t.TempDir(), nil).View()
-	if view.Terminal("lesson", "archived") {
-		t.Error(`Terminal("lesson", "archived") on a closed view = true, want false`)
 	}
 }
 

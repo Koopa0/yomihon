@@ -312,110 +312,120 @@ func TestReadReportRejectsFileAddedAfterSnapshot(t *testing.T) {
 	}
 }
 
-func TestRawRejectsSymlinkOutsideReportRoot(t *testing.T) {
+// TestRawRefusesAnEntryThatIsNotThePlainReport covers the ways the final
+// report entry can stop being a plain regular file inside the reports
+// directory. Whichever way it happens the answer is the same: not found, and
+// no bytes reach the reader — neither the ones the swap planted nor the
+// briefing the snapshot captured before it. The rows differ only in how the
+// entry is replaced.
+func TestRawRefusesAnEntryThatIsNotThePlainReport(t *testing.T) {
 	t.Parallel()
-	root := vaultWithBriefing(t)
-	h := newHandler(t, root)
-	sentinelDir := t.TempDir()
-	const sentinel = "outside report root\n"
-	sentinelPath := filepath.Join(sentinelDir, "sentinel.html")
-	if err := os.WriteFile(sentinelPath, []byte(sentinel), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	reportPath := filepath.Join(root, "System", "reports", "daily-briefing", briefingName)
-	if err := os.Remove(reportPath); err != nil {
-		t.Fatal(err)
-	}
-	target, err := filepath.Rel(filepath.Dir(reportPath), sentinelPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(target, reportPath); err != nil {
-		t.Fatal(err)
+
+	tests := []struct {
+		name string
+		// setup performs the replacement and returns the bytes it planted,
+		// or "" when the row plants none.
+		setup func(t *testing.T, root string) string
+	}{
+		{
+			name: "final entry symlinked outside the reports directory",
+			setup: func(t *testing.T, root string) string {
+				t.Helper()
+				const sentinel = "outside report root\n"
+				sentinelPath := filepath.Join(t.TempDir(), "sentinel.html")
+				if err := os.WriteFile(sentinelPath, []byte(sentinel), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				reportPath := filepath.Join(root, "System", "reports", "daily-briefing", briefingName)
+				if err := os.Remove(reportPath); err != nil {
+					t.Fatal(err)
+				}
+				target, err := filepath.Rel(filepath.Dir(reportPath), sentinelPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(target, reportPath); err != nil {
+					t.Fatal(err)
+				}
+				return sentinel
+			},
+		},
+		{
+			name: "final entry symlinked to a sibling inside it",
+			setup: func(t *testing.T, root string) string {
+				t.Helper()
+				const sentinel = "symlinked report bytes\n"
+				reportsDir := filepath.Join(root, "System", "reports", "daily-briefing")
+				if err := os.WriteFile(filepath.Join(reportsDir, "sentinel.html"), []byte(sentinel), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				reportPath := filepath.Join(reportsDir, briefingName)
+				if err := os.Remove(reportPath); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("sentinel.html", reportPath); err != nil {
+					t.Fatal(err)
+				}
+				return sentinel
+			},
+		},
+		{
+			name: "observed parent replaced by a symlink after capture",
+			setup: func(t *testing.T, root string) string {
+				t.Helper()
+				const sentinel = "relocated report capability\n"
+				outsideReports := filepath.Join(root, "OutsideReports", "daily-briefing")
+				if err := os.MkdirAll(outsideReports, 0o750); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(outsideReports, briefingName), []byte(sentinel), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				reportsDir := filepath.Join(root, "System", "reports")
+				if err := os.Rename(reportsDir, reportsDir+"-observed"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join("..", "OutsideReports"), reportsDir); err != nil {
+					t.Fatal(err)
+				}
+				return sentinel
+			},
+		},
+		{
+			name: "final entry replaced by a directory",
+			setup: func(t *testing.T, root string) string {
+				t.Helper()
+				entry := filepath.Join(root, "System", "reports", "daily-briefing", briefingName)
+				if err := os.Remove(entry); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(entry, 0o750); err != nil {
+					t.Fatal(err)
+				}
+				return ""
+			},
+		},
 	}
 
-	rr := get(t, h, "/reports/"+briefingName+"/raw")
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("GET report symlink status = %d, want %d; body = %q", rr.Code, http.StatusNotFound, rr.Body.String())
-	}
-	if strings.Contains(rr.Body.String(), sentinel) {
-		t.Errorf("GET report symlink body = %q, want no sentinel bytes", rr.Body.String())
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := vaultWithBriefing(t)
+			h := newHandler(t, root)
+			sentinel := tt.setup(t, root)
 
-func TestRawRejectsFinalSymlinkWithinReportRoot(t *testing.T) {
-	t.Parallel()
-	root := vaultWithBriefing(t)
-	h := newHandler(t, root)
-	reportsDir := filepath.Join(root, "System", "reports", "daily-briefing")
-	const sentinel = "symlinked report bytes\n"
-	if err := os.WriteFile(filepath.Join(reportsDir, "sentinel.html"), []byte(sentinel), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	reportPath := filepath.Join(reportsDir, briefingName)
-	if err := os.Remove(reportPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink("sentinel.html", reportPath); err != nil {
-		t.Fatal(err)
-	}
-
-	rr := get(t, h, "/reports/"+briefingName+"/raw")
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("GET final report symlink status = %d, want %d; body = %q", rr.Code, http.StatusNotFound, rr.Body.String())
-	}
-	if strings.Contains(rr.Body.String(), sentinel) {
-		t.Errorf("GET final report symlink body = %q, want no sentinel bytes", rr.Body.String())
-	}
-}
-
-// TestRawSourceChangeReturnsNoReportBytes replaces an observed parent with a
-// symlink after snapshot capture. The rooted refresh rejects the changed
-// source before any old or replacement report bytes reach the response.
-func TestRawSourceChangeReturnsNoReportBytes(t *testing.T) {
-	t.Parallel()
-	root := vaultWithBriefing(t)
-	h := newHandler(t, root)
-	outsideReports := filepath.Join(root, "OutsideReports", "daily-briefing")
-	if err := os.MkdirAll(outsideReports, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	const sentinel = "relocated report capability\n"
-	if err := os.WriteFile(filepath.Join(outsideReports, briefingName), []byte(sentinel), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	reportsDir := filepath.Join(root, "System", "reports")
-	if err := os.Rename(reportsDir, reportsDir+"-observed"); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(filepath.Join("..", "OutsideReports"), reportsDir); err != nil {
-		t.Fatal(err)
-	}
-
-	rr := get(t, h, "/reports/"+briefingName+"/raw")
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("GET through directory symlink status = %d, want %d; body = %q", rr.Code, http.StatusNotFound, rr.Body.String())
-	}
-	if strings.Contains(rr.Body.String(), sentinel) || strings.Contains(rr.Body.String(), briefingFixture) {
-		t.Errorf("GET through changed directory body = %q, want no report bytes", rr.Body.String())
-	}
-}
-
-func TestRawRejectsNonRegularFinalEntry(t *testing.T) {
-	t.Parallel()
-	root := vaultWithBriefing(t)
-	h := newHandler(t, root)
-	entry := filepath.Join(root, "System", "reports", "daily-briefing", briefingName)
-	if err := os.Remove(entry); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(entry, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	rr := get(t, h, "/reports/"+briefingName+"/raw")
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("GET report replaced by directory status = %d, want %d", rr.Code, http.StatusNotFound)
+			rr := get(t, h, "/reports/"+briefingName+"/raw")
+			if rr.Code != http.StatusNotFound {
+				t.Errorf("GET /raw status = %d, want %d; body = %q", rr.Code, http.StatusNotFound, rr.Body.String())
+			}
+			body := rr.Body.String()
+			if sentinel != "" && strings.Contains(body, sentinel) {
+				t.Errorf("body = %q, want none of the planted bytes", body)
+			}
+			if strings.Contains(body, briefingFixture) {
+				t.Errorf("body = %q, want none of the captured briefing", body)
+			}
+		})
 	}
 }
 
