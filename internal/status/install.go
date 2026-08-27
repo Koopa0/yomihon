@@ -134,7 +134,15 @@ func selectRung(parent *os.Root, hooks installHooks) installRung {
 		}
 	}
 	rung := probeRung(parent, rootOps(parent))
-	exchangeProbes.Store(key, rung)
+	// A rung reached by a failure is not a measurement. Every path that ends at
+	// rungRename got there because the probe could not write its own throwaway
+	// file or could not take a second name for one, which says nothing about
+	// what the driver supports — a full disk or a momentarily unwritable
+	// directory would otherwise pin this filesystem to the weakest rung for the
+	// rest of the process. That outcome serves this install and is forgotten.
+	if rung != rungRename {
+		exchangeProbes.Store(key, rung)
+	}
 	return rung
 }
 

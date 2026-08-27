@@ -360,3 +360,60 @@ func TestExchangeRefusesANameThatIsNotOneEntry(t *testing.T) {
 		t.Errorf("first.md = %q after the swap, want the other entry's bytes", got)
 	}
 }
+
+// TestProbeFailureDoesNotPinTheFilesystem locks the rule that a rung reached
+// by a failure is not remembered. A directory that cannot be written to for a
+// moment — a full disk, a permission the owner is in the middle of changing —
+// would otherwise teach the whole filesystem that it is only good enough for a
+// plain rename, and every later flip on that volume, on any note, would take
+// the weakest install for the life of the process.
+func TestProbeFailureDoesNotPinTheFilesystem(t *testing.T) {
+	dir := t.TempDir()
+	parent, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatalf("opening %s: %v", dir, err)
+	}
+	defer func() {
+		if closeErr := parent.Close(); closeErr != nil {
+			t.Errorf("closing root: %v", closeErr)
+		}
+	}()
+
+	key, ok := deviceKey(parent)
+	if !ok {
+		t.Skip("this platform does not identify the filesystem, so nothing is remembered to begin with")
+	}
+	// Any earlier probe in this process already answered for this device, and a
+	// warm entry would make every assertion below pass without running a probe
+	// at all.
+	exchangeProbes.Delete(key)
+
+	// Establish what this filesystem can really do, then forget it again, so a
+	// failure to reproduce the strong rung later is about the cache and not
+	// about the volume.
+	earned := selectRung(parent, installHooks{})
+	if earned == rungRename {
+		t.Skip("this filesystem earns only a plain rename, so there is no stronger answer for a failure to hide")
+	}
+	exchangeProbes.Delete(key)
+
+	// Take away the probe's ability to write its own throwaway files. The
+	// directory is otherwise untouched.
+	//nolint:gosec // a directory mode is not a file mode: 0500 keeps the traverse
+	// bit the probe needs to look inside while taking away the write bit it needs
+	// to create its throwaway files, which is exactly the failure under test.
+	if chmodErr := os.Chmod(dir, 0o500); chmodErr != nil {
+		t.Fatalf("making %s unwritable: %v", dir, chmodErr)
+	}
+	if failed := selectRung(parent, installHooks{}); failed != rungRename {
+		t.Fatalf("selectRung on an unwritable directory = %v, want %v; the probe was expected to fail here", failed, rungRename)
+	}
+	//nolint:gosec // restoring the owner-only directory mode t.TempDir created.
+	if chmodErr := os.Chmod(dir, 0o700); chmodErr != nil {
+		t.Fatalf("restoring %s: %v", dir, chmodErr)
+	}
+
+	if got := selectRung(parent, installHooks{}); got != earned {
+		t.Errorf("selectRung after the directory became writable again = %v, want %v; the momentary failure was remembered and pinned the filesystem to the weakest install", got, earned)
+	}
+}
