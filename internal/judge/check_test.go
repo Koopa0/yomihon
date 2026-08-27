@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // TestCheckGolden drives the whole check engine — extraction, resolution, the
@@ -39,6 +41,13 @@ func TestCheckGolden(t *testing.T) {
 		// nothing in it is named "study-path".
 		{name: "a vault that renames its courses", fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
 		{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
+		// One vault covering all three answers the knowledge-scope question
+		// has: a directory the contract spells in another case, one holding a
+		// file that is not a note, and one that is not there at all.
+		{name: "knowledge scope", fixture: "testdata/vault-knowledge-scope", golden: "testdata/golden/knowledge-scope.jsonl"},
+		// Two files answering to one name, and an alias two notes declare —
+		// the second reported by its own rule and never by both.
+		{name: "name collisions", fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
 		{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
 		// This fixture covers the local vault contract's configured fields.
 		{name: "configured supersession", fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
@@ -88,6 +97,73 @@ func TestCheckSkipsFileReferencesInComments(t *testing.T) {
 	}
 	if !bytes.Contains(got, []byte("out-of-comment.md")) {
 		t.Error("a file reference outside a comment must still be reported")
+	}
+}
+
+// TestNameCollisionLeavesTheAliasRuleItsOwnRepairs pins the boundary between
+// the two collision rules. Both answer "this name resolves to no single file",
+// and an alias two notes declare satisfies both descriptions, so without the
+// exclusion the operator would be told to fix one thing under two rule ids.
+// The citation is the other half: the link to the shared name is reported by
+// nothing else, because a name two files answer to resolves ambiguously rather
+// than not at all, which is exactly why the run used to come back clean.
+func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
+	t.Parallel()
+
+	findings, err := Check(judgeFixtureRoot(t, "testdata/vault-namecollision"))
+	if err != nil {
+		t.Fatalf("Check(): %v", err)
+	}
+	byRule := make(map[string][]string)
+	for i := range findings {
+		byRule[findings[i].RuleID] = append(byRule[findings[i].RuleID], *findings[i].Target)
+	}
+	if diff := cmp.Diff(map[string][]string{
+		"collision.name":  {"dup"},
+		"collision.alias": {"shared"},
+	}, byRule); diff != "" {
+		t.Errorf("Check() findings by rule mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestNameCollisionCountsOnlyDescribableFiles pins the privacy order: members
+// are filtered before the count, not censored after it. A name one public file
+// shares with a withheld one is no collision this face knows about — reporting
+// it would state that something else out there answers to the name, which is a
+// description of the withheld file — while a name two public files share is
+// reported with those two named and the withheld third absent from every field.
+//
+// The withheld notes claim the shared name under different forms on purpose —
+// one as a filename, one as an alias — because that is what makes the index's
+// answer for "pair" and for "pair.md" differ while the describable answer for
+// both is the same pair of files. Deciding which of the two names restates the
+// other before the withheld claimants are removed splits one repair into two
+// rows, each naming the same two files.
+func TestNameCollisionCountsOnlyDescribableFiles(t *testing.T) {
+	t.Parallel()
+
+	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-namecollision-privacy", "Private")
+	got := runCheck(t, root)
+	want, err := os.ReadFile("testdata/golden/namecollision-privacy.jsonl")
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("name-collision findings differ from golden\ngot:\n%s\nwant:\n%s", got, want)
+	}
+	if bytes.Contains(got, []byte("Private/")) {
+		t.Error("a withheld member must not appear in a collision finding")
+	}
+	if bytes.Contains(got, []byte(`"hidden"`)) {
+		t.Error("a name only one public file answers to must not be reported as a collision")
+	}
+	if !bytes.Contains(got, []byte(`"pair"`)) {
+		t.Error("a name two public files answer to must still be reported")
+	}
+	// The count is the public one: a third member would say the withheld file
+	// exists without naming it.
+	if !bytes.Contains(got, []byte("is the name of 2 files")) {
+		t.Error("the collision must be counted over describable files alone")
 	}
 }
 

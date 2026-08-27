@@ -3,9 +3,12 @@ package judge
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -99,6 +102,179 @@ func TestJudgeActionReadsNFDEntryThroughCapturedRawSpelling(t *testing.T) {
 	}
 }
 
+// unreadable makes path unreadable for the rest of the test and reports
+// whether the filesystem honoured it. A container running as root, and a
+// filesystem that does not carry permissions, both ignore the request; a test
+// that assumed otherwise would assert against a vault it never broke.
+func unreadable(tb testing.TB, path string) bool {
+	tb.Helper()
+	if err := os.Chmod(path, 0); err != nil {
+		tb.Fatalf("Chmod(%q, 0) error = %v", path, err)
+	}
+	tb.Cleanup(func() {
+		if err := os.Chmod(path, 0o700); err != nil && !os.IsNotExist(err) { // #nosec G302 -- a directory needs owner execute permission so TempDir cleanup can traverse it
+			tb.Errorf("restore %q: %v", path, err)
+		}
+	})
+	info, err := os.Stat(path)
+	if err != nil {
+		tb.Fatalf("Stat(%q) error = %v", path, err)
+	}
+	if info.IsDir() {
+		_, err = os.ReadDir(path)
+	} else {
+		_, err = os.ReadFile(path) // #nosec G304 -- the path is this test's own temporary file
+	}
+	return err != nil
+}
+
+// TestScanStoppedNamesOnlyAPathItCanAskAbout covers the failures a walk reports
+// without naming one file inside the vault. The refusal for a withheld file and
+// the refusal for a path the contract cannot be asked about are different
+// sentences on purpose: answering the withheld one for an unreadable vault root
+// would tell an operator whose contract withholds nothing that his own folder
+// is private, and send him to a privacy policy to fix a permission.
+func TestScanStoppedNamesOnlyAPathItCanAskAbout(t *testing.T) {
+	t.Parallel()
+
+	authority := testScanAuthority(t, "Diary")
+	tests := []struct {
+		name string
+		path string
+		want error
+	}{
+		{name: "the folder itself", path: ".", want: errVaultScan},
+		{name: "outside the vault", path: "/etc/passwd", want: errVaultScan},
+		{name: "climbing out", path: "../elsewhere", want: errVaultScan},
+		{name: "nothing at all", path: "", want: errVaultScan},
+		{name: "a withheld directory", path: "Diary/2026-08-27.md", want: errWithheldUnreadable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cause := fmt.Errorf("list pinned vault: %w", &fs.PathError{
+				Op: "openat", Path: tt.path, Err: fs.ErrPermission,
+			})
+			if got := scanStopped(cause, authority); !errors.Is(got, tt.want) {
+				t.Errorf("scanStopped(path %q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+
+	// The control: a describable path is named, so an empty answer above cannot
+	// pass by refusing everything.
+	cause := fmt.Errorf("list pinned vault: %w", &fs.PathError{
+		Op: "openat", Path: "Concepts/blocked", Err: fs.ErrPermission,
+	})
+	got := scanStopped(cause, authority)
+	if errors.Is(got, errVaultScan) || errors.Is(got, errWithheldUnreadable) {
+		t.Fatalf("scanStopped(describable path) = %v, want the path named", got)
+	}
+	for _, part := range []string{"Concepts/blocked", "permission denied"} {
+		if !strings.Contains(got.Error(), part) {
+			t.Errorf("scanStopped(describable path) = %v, want it to name %q", got, part)
+		}
+	}
+}
+
+// TestJudgeNamesTheFileItCouldNotRead holds the diagnostic the reading face has
+// always given and this one withheld. One file yomihon cannot read ends the
+// judgement, correctly — a report over a partial corpus would answer about
+// ground it never read — but the operator was told only that a scan failed, so
+// on a folder of any size there was nowhere to start looking.
+func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+	write(t, root, "Notes/bad.md", "---\ntitle: Unreadable\n---\n")
+	if !unreadable(t, filepath.Join(root, "Notes", "bad.md")) {
+		t.Skip("filesystem permissions do not make the note unreadable for this process")
+	}
+
+	var stdout, stderr bytes.Buffer
+	if exit := RunCommand("check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
+		t.Errorf("RunCommand(check) exit = %d, want 2", exit)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("RunCommand(check) stdout = %q, want empty", stdout.String())
+	}
+	got := stderr.String()
+	if !strings.HasPrefix(got, "yomihon: vault scan failed: ") {
+		t.Errorf("RunCommand(check) stderr = %q, want the scan refusal", got)
+	}
+	for _, part := range []string{"Notes/bad.md", "permission denied"} {
+		if !strings.Contains(got, part) {
+			t.Errorf("RunCommand(check) stderr = %q, want it to name %q", got, part)
+		}
+	}
+}
+
+// TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory is the other side of
+// the same repair. The refusal has to be said, since the command is exiting
+// without an answer, but the file's name and the reason it could not be read
+// are description of ground the contract closed, and a refusal that varied with
+// either would answer questions about what is in there. The sentence is fixed,
+// so every such file and every cause produce the same line.
+func TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory(t *testing.T) {
+	root := t.TempDir()
+	writeTestContract(t, root, []string{"Diary"})
+	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+	write(t, root, "Diary/2026-08-27.md", "---\ntitle: Private\n---\n")
+	if !unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md")) {
+		t.Skip("filesystem permissions do not make the note unreadable for this process")
+	}
+
+	var stdout, stderr bytes.Buffer
+	if exit := RunCommand("check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
+		t.Errorf("RunCommand(check) exit = %d, want 2", exit)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("RunCommand(check) stdout = %q, want empty", stdout.String())
+	}
+	got := stderr.String()
+	if want := "yomihon: " + errWithheldUnreadable.Error() + "\n"; got != want {
+		t.Errorf("RunCommand(check) stderr = %q, want %q", got, want)
+	}
+	for _, leaked := range []string{"Diary", "2026-08-27", "permission denied"} {
+		if strings.Contains(got, leaked) {
+			t.Errorf("RunCommand(check) stderr = %q, which describes withheld ground with %q", got, leaked)
+		}
+	}
+}
+
+// TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter carries the same
+// refusal to the other place a read stops, where the path has to be recovered
+// from the failure rather than taken from a scan entry. The directory is
+// spelled on disk in the decomposed form a Mac keyboard produces and in the
+// contract in the composed form, which is the same directory under a different
+// string: asking the contract about the spelling the walk reported, without
+// composing it first, would answer about a directory nobody declared and hand
+// the private name to the caller.
+func TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter(t *testing.T) {
+	root := t.TempDir()
+	writeTestContract(t, root, []string{"だ体"})
+	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+	decomposed := norm.NFD.String("だ体")
+	write(t, root, decomposed+"/private.md", "---\ntitle: Private\n---\n")
+	if !unreadable(t, filepath.Join(root, decomposed)) {
+		t.Skip("filesystem permissions do not make the directory unreadable for this process")
+	}
+
+	var stdout, stderr bytes.Buffer
+	if exit := RunCommand("check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
+		t.Errorf("RunCommand(check) exit = %d, want 2", exit)
+	}
+	got := stderr.String()
+	if want := "yomihon: " + errWithheldUnreadable.Error() + "\n"; got != want {
+		t.Errorf("RunCommand(check) stderr = %q, want %q", got, want)
+	}
+	for _, leaked := range []string{decomposed, "だ体", "private.md", "permission denied"} {
+		if strings.Contains(got, leaked) {
+			t.Errorf("RunCommand(check) stderr = %q, which describes withheld ground with %q", got, leaked)
+		}
+	}
+}
+
 func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 	swaps := []struct {
 		name string
@@ -158,7 +334,11 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 					if stdout.Len() != 0 {
 						t.Errorf("runCommand(%q) stdout = %q, want empty", command.name, stdout.String())
 					}
-					if want := "yomihon: vault scan failed\n"; stderr.String() != want {
+					// The refusal names the file it stopped on. An operator
+					// told only that a scan failed, on a folder of any size,
+					// has nowhere to start looking.
+					want := "yomihon: vault scan failed: Notes/Target.md: vault entry no longer names the observed file\n"
+					if stderr.String() != want {
 						t.Errorf("runCommand(%q) stderr = %q, want %q", command.name, stderr.String(), want)
 					}
 				})

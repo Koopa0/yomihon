@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,15 +27,17 @@ func normalizeKey(name string) string {
 }
 
 // runGraphRules runs the graph rules over the notes and the resolver, in the
-// order the wire format ties break on: link health, alias collisions,
-// provenance, then map-vs-disk.
+// order the wire format ties break on: link health, alias collisions, name
+// collisions, provenance, then map-vs-disk.
 func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Finding {
 	titles := titleIndex(notes, authority)
 	slugs := slugIndex(notes, authority)
 	planned := plannedNamesSet(notes, authority)
+	aliases := aliasCollisions(notes, authority)
 	return slices.Concat(
 		linkHealth(notes, idx, titles, planned, authority.roles),
-		collisionAlias(notes, authority),
+		collisionAlias(aliases),
+		collisionName(idx, aliases, authority),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),
 		mapDiskMismatch(notes, idx, authority.roles),
 		pathFindings(notes, authority.roles),
@@ -183,11 +186,16 @@ func brokenLink(n *note, link wikiLink, planned Planned) Finding {
 	}
 }
 
-// collisionAlias reports each alias more than one note declares in frontmatter.
-// [[alias]] then resolves to only one of them and the others silently lose
-// inbound links. Matching is case-insensitive and NFC, across all note kinds;
-// only the aliases field counts, not prose mentions.
-func collisionAlias(notes []note, authority scanAuthority) []Finding {
+// aliasCollisions maps each alias more than one note declares in frontmatter to
+// the paths declaring it, sorted. Matching is case-insensitive and NFC, across
+// all note kinds; only the aliases field counts, not prose mentions.
+//
+// A contract-private note is filtered out before the count, not after, so a
+// pair whose second member is private is not a collision this face knows about:
+// counting it first and censoring the member afterwards would report a
+// collision whose other half the caller could not be told about, which describes
+// the withheld note by arithmetic.
+func aliasCollisions(notes []note, authority scanAuthority) map[string][]string {
 	byAlias := make(map[string][]string)
 	for i := range notes {
 		n := &notes[i]
@@ -204,20 +212,86 @@ func collisionAlias(notes []note, authority scanAuthority) []Finding {
 			}
 		}
 	}
-	aliasKeys := make([]string, 0, len(byAlias))
+	out := make(map[string][]string, len(byAlias))
 	for key, members := range byAlias {
 		if len(members) > 1 {
-			aliasKeys = append(aliasKeys, key)
+			out[key] = slices.Sorted(slices.Values(members))
 		}
 	}
-	slices.Sort(aliasKeys)
-	out := make([]Finding, 0, len(aliasKeys))
-	for _, key := range aliasKeys {
-		members := slices.Clone(byAlias[key])
-		slices.Sort(members)
-		out = append(out, collisionFinding(key, members))
+	return out
+}
+
+// collisionAlias reports each alias more than one note declares. [[alias]] then
+// resolves to only one of them and the others silently lose inbound links.
+func collisionAlias(byAlias map[string][]string) []Finding {
+	out := make([]Finding, 0, len(byAlias))
+	for _, key := range slices.Sorted(maps.Keys(byAlias)) {
+		out = append(out, collisionFinding(key, byAlias[key]))
 	}
 	return out
+}
+
+// collisionName reports each resolvable name more than one file answers to,
+// which the resolver refuses to choose between: every [[name]] written against
+// it fails, whether or not anyone has written one yet. The alias rule owns the
+// names it already reported — an alias two notes declare is one repair, and
+// stating it twice under two rule ids would have the operator fix it twice —
+// but only those: a name shared by a file and someone else's alias, or by two
+// files in different folders, reaches no other rule.
+//
+// It warns rather than errors. Every vault that upgrades into this rule has
+// whatever name collisions it already had, and turning a standing condition
+// into a red gate at the moment the rule lands fails runs over notes nobody
+// touched; an operator who wants the gate asks for it with --deny warn.
+//
+// Privacy filters the members before anything is counted or compared, the way
+// the alias rule does: a name one public file and one private file share is not
+// reported, since the report would be a statement about the private file, and a
+// name two public files share is reported with those two named and no others.
+// The restatement question is asked afterwards, over the members that survived,
+// so a private file claiming a name under one of its forms and not the other
+// cannot split one repair into two rows.
+func collisionName(idx *graph.Index, byAlias map[string][]string, authority scanAuthority) []Finding {
+	describable := make(map[string][]string)
+	for name, members := range idx.Collisions() {
+		// The index sorts each name's members, so the kept order is theirs.
+		kept := make([]string, 0, len(members))
+		for _, member := range members {
+			if authority.egressAllowed(member) {
+				kept = append(kept, member)
+			}
+		}
+		if len(kept) > 1 {
+			describable[name] = kept
+		}
+	}
+	distinct := graph.WithoutRestatedNames(describable)
+	out := make([]Finding, 0, len(distinct))
+	for _, name := range slices.Sorted(maps.Keys(distinct)) {
+		if _, reported := byAlias[name]; reported {
+			continue
+		}
+		out = append(out, nameCollisionFinding(name, distinct[name]))
+	}
+	return out
+}
+
+// nameCollisionFinding builds one name-collision finding. Like the alias rule's,
+// the citing path is the smallest member and the fingerprint keys on the name
+// alone, so a third file joining the collision does not read as a new finding.
+func nameCollisionFinding(name string, members []string) Finding {
+	return Finding{
+		RuleID:           "collision.name",
+		Severity:         SeverityWarn,
+		Path:             members[0],
+		Message:          "\"" + name + "\" is the name of " + strconv.Itoa(len(members)) + " files, so [[" + name + "]] cannot resolve deterministically",
+		Evidence:         "shared resolution name across: " + strings.Join(members, ", "),
+		SuggestedAction:  "rename one of the files, or link each one by its full vault-relative path",
+		SourceRule:       sourceNoteSchema,
+		Target:           new(name),
+		CollisionMembers: members,
+		Fingerprint:      fingerprint("collision.name", "", name),
+	}
 }
 
 // collisionFinding builds one alias-collision finding. The citing path is the

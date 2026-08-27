@@ -482,6 +482,35 @@ func TestCollisionsAreEveryNameMoreThanOneFileClaims(t *testing.T) {
 	}
 }
 
+// TestDistinctCollisionsDropsOnlyRestatedNames pins the difference between the
+// two answers. Every surface that counts collisions counts one repair once —
+// two files sharing "Foo.md" necessarily share "Foo", and a page or a gate
+// reporting both would have the reader fix one thing twice — but a name that
+// carries the extension and is claimed by a different set of files is its own
+// repair and survives.
+func TestDistinctCollisionsDropsOnlyRestatedNames(t *testing.T) {
+	t.Parallel()
+
+	idx := graph.BuildFromNotes([]graph.NoteInput{
+		{Path: "golang/Foo.md"},
+		{Path: "rust/Foo.md"},
+		{Path: "a/Bar.md"},
+		{Path: "b/Bar.md"},
+	}, []string{"legacy/Bar"})
+
+	// "foo.md" is absent because its claimants are exactly "foo"'s. "bar.md"
+	// stays because the extension-less name is also claimed by a file that
+	// does not carry the extension, so the two name different repairs.
+	want := map[string][]string{
+		"foo":    {"golang/Foo.md", "rust/Foo.md"},
+		"bar":    {"a/Bar.md", "b/Bar.md", "legacy/Bar"},
+		"bar.md": {"a/Bar.md", "b/Bar.md"},
+	}
+	if diff := cmp.Diff(want, idx.DistinctCollisions()); diff != "" {
+		t.Errorf("DistinctCollisions() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // The answer belongs to whoever asked for it: a caller sorting or trimming the
 // paths it was handed must not reach back into the resolver everyone shares.
 func TestCollisionsReturnsIndependentCandidates(t *testing.T) {

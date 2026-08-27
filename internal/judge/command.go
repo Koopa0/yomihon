@@ -41,6 +41,8 @@ var ruleIDs = []string{
 	"schema.legacy_tag",
 	"schema.provenance",
 	"schema.frontmatter",
+	"schema.unmatched_knowledge_dir",
+	"collision.name",
 	predecessorNotArchivedRule,
 	archivedNavigationRule,
 	// The authoring contract's own rules. schema.language is emitted but was

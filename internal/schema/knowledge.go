@@ -33,12 +33,18 @@ func (s KnowledgeScope) Available() bool {
 // It answers true for everything when no scope was declared: an undeclared set
 // excludes nothing, and a reading surface that hid files on a folder which
 // never claimed a layout would be inventing a rule its owner did not write.
+//
+// Only the first path segment is consulted, and it is compared with the same
+// fold every other vault directory scope uses: on a case-insensitive
+// filesystem one directory answers to every case spelling of its name, so a
+// membership that turned on the spelling would place the same note inside the
+// layer or outside it by coincidence.
 func (s KnowledgeScope) Includes(relPath string) bool {
 	if !s.Available() {
 		return true
 	}
 	top, _, _ := strings.Cut(relPath, "/")
-	return slices.Contains(s.dirs, top)
+	return slices.ContainsFunc(s.dirs, func(dir string) bool { return SameDirName(top, dir) })
 }
 
 // deriveKnowledgeScope reads the declared knowledge layer. A contract that

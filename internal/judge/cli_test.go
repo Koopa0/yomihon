@@ -308,9 +308,20 @@ func TestRunCommandFailsClosedWhenNestedVaultEntryCannotBeRead(t *testing.T) {
 			if stdout.Len() != 0 {
 				t.Errorf("RunCommand(%q) stdout = %q, want empty", tt.command, stdout.String())
 			}
-			want := "yomihon: vault scan failed\n"
-			if diff := cmp.Diff(want, stderr.String()); diff != "" {
-				t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", tt.command, diff)
+			// The directory the walk stopped on is named, with the reason the
+			// machine gave. The operating system's word for the operation
+			// varies by platform, so the assertion holds the three parts that
+			// carry the meaning rather than the whole line: the refusal, the
+			// path to look at, and why it could not be read.
+			got := stderr.String()
+			const prefix = "yomihon: vault scan failed: "
+			if !strings.HasPrefix(got, prefix) {
+				t.Errorf("RunCommand(%q) stderr = %q, want prefix %q", tt.command, got, prefix)
+			}
+			for _, part := range []string{"Concepts/blocked", "permission denied"} {
+				if !strings.Contains(got, part) {
+					t.Errorf("RunCommand(%q) stderr = %q, want it to name %q", tt.command, got, part)
+				}
 			}
 		})
 	}

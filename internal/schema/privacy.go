@@ -87,14 +87,32 @@ func (p PrivacyPolicy) EgressAllowed(rel string) bool {
 	return true
 }
 
+// SameDirName reports whether two path components name the same directory.
+// It is the one comparison every vault directory scope makes — the privacy
+// policy's never-egress set, the artifact policy's non-instance set, and the
+// knowledge layer's first-segment membership — so no scope can drift from
+// another on how a directory name is spelled.
+//
+// Case folds because a case-insensitive filesystem opens the same file under
+// any case spelling, which makes a scope that depended on the spelling depend
+// on a coincidence: the same note would be governed or ungoverned according to
+// which case its owner happened to type into the contract. strings.EqualFold
+// applies Unicode simple case folding per rune, so ß matches ẞ but never "ss".
+//
+// Composition is a separate dimension and is deliberately not folded here: the
+// decomposed and composed spellings of one name stay different components. A
+// scan reports composed paths, so a contract that spells a directory in
+// decomposed form matches nothing — which the knowledge layer now reports
+// rather than silently applying to no file.
+func SameDirName(a, b string) bool {
+	return strings.EqualFold(a, b)
+}
+
 // pathHasFoldedPrefix reports whether rel is dir itself or a path below it,
-// comparing whole components case-insensitively. It is the single directory
+// comparing whole components with SameDirName. It is the single directory
 // membership identity for both vault directory policies — the privacy policy's
 // never-egress set and the artifact policy's non-instance set — so the two
-// cannot drift apart on any normalization dimension. Case folds because a
-// case-insensitive filesystem opens the same file under any case spelling;
-// strings.EqualFold applies Unicode simple case folding per rune (ß matches ẞ
-// but never "ss"), and both policies share exactly these semantics.
+// cannot drift apart on any normalization dimension.
 //
 // The fold is unconditional, which costs something on a case-sensitive
 // filesystem: two genuinely distinct sibling directories differing only in
@@ -111,7 +129,7 @@ func pathHasFoldedPrefix(rel, dir string) bool {
 		return false
 	}
 	for index, component := range dirComponents {
-		if !strings.EqualFold(relComponents[index], component) {
+		if !SameDirName(relComponents[index], component) {
 			return false
 		}
 	}

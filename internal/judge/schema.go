@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // checkSchema validates every knowledge note's frontmatter against the
@@ -17,6 +18,14 @@ import (
 // is a knowledge directory, and never a skipped basename. The findings are in
 // per-note emission order; the deterministic total order is applied before
 // they are written.
+//
+// A contract that declares no knowledge directory lints nothing here. That is
+// the opposite of what the reading surfaces answer for the same silence, and
+// deliberately so: a surface that hid every file would show an empty vault,
+// while a judge that linted every file would hold notes to rules their author
+// never claimed covered them. Which spelling of a directory counts is not
+// deliberate in the same way, so the membership test folds case the way the
+// privacy and artifact scopes do.
 //
 // The only failure is a slug pattern in the contract that is not a valid
 // regular expression, which is a fault in the contract file rather than in
@@ -33,13 +42,78 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 	for i := range notes {
 		n := &notes[i]
 		seg := strings.Split(n.path, "/")
-		inScope := slices.Contains(definition.Scan.KnowledgeDirs, seg[0])
+		inScope := slices.ContainsFunc(definition.Scan.KnowledgeDirs, func(dir string) bool {
+			return schema.SameDirName(seg[0], dir)
+		})
 		skipped := slices.Contains(definition.Scan.SkipBasenames, seg[len(seg)-1])
 		if inScope && !skipped {
 			out = append(out, lintNote(n, contract, &definition, policy, seg, slug)...)
 		}
 	}
 	return out, nil
+}
+
+// checkKnowledgeScope reports each knowledge directory the contract declares
+// that nothing in this vault answers to. Such an entry turns the frontmatter
+// rules off for the ground its author meant to govern — a misspelling, a folder
+// that was renamed, a contract copied from another vault — and every gate stays
+// green while it does, because the notes the rules were written for are simply
+// never examined. It is the configuration that speaks here rather than each
+// note, and at error severity: a whole set of rules reaching nothing outweighs
+// any single note breaking one.
+//
+// A directory the scan saw answers whether or not anything is in it: an inbox
+// its owner has emptied is the folder the contract named, waiting for the next
+// capture, and telling him to fix his contract over it would be advice to
+// break a vault that is correct. So a declaration is answered either by the
+// directory itself or by a file below it — the scan's files, not its notes,
+// since a folder holding only pictures is governed ground with no frontmatter
+// to judge yet, and since the directory is only observable under the exact
+// spelling that was declared while a file below it is matched under any.
+func checkKnowledgeScope(scan vault.Scan, contract *schema.Contract) []Finding {
+	declared := contract.Definition().Scan.KnowledgeDirs
+	if len(declared) == 0 {
+		return nil
+	}
+	files := scan.Files()
+	occupied := make([]string, 0, len(files))
+	for _, entry := range files {
+		top, _, _ := strings.Cut(entry.Path(), "/")
+		if !slices.Contains(occupied, top) {
+			occupied = append(occupied, top)
+		}
+	}
+	var out []Finding
+	for _, dir := range declared {
+		if scan.Contains(dir) ||
+			slices.ContainsFunc(occupied, func(top string) bool { return schema.SameDirName(top, dir) }) {
+			continue
+		}
+		out = append(out, unmatchedKnowledgeDir(dir))
+	}
+	return out
+}
+
+// unmatchedKnowledgeDir builds one finding for a declared knowledge directory
+// nothing on disk answers to. The declared value is the path the finding
+// carries: it is the ground the contract claims, it is a single safe component
+// by the contract's own validation, and it is what the contract's privacy
+// policy is asked about, so a directory declared both private and knowledge
+// drops out of agent-facing output through the ordinary filter. The fingerprint
+// keys on the declared value alone, since the fault is one line of the contract
+// rather than anything in the vault's files.
+func unmatchedKnowledgeDir(dir string) Finding {
+	return Finding{
+		RuleID:          "schema.unmatched_knowledge_dir",
+		Severity:        SeverityError,
+		Path:            dir,
+		Message:         "knowledge directory \"" + dir + "\" matches nothing in this vault, so the frontmatter rules reach nothing there",
+		Evidence:        "the vault contract declares this directory under scan.knowledge_dirs and the scan observed neither that directory nor any file below one of that name",
+		SuggestedAction: "correct the spelling in the vault contract, or drop the entry if the directory is gone",
+		SourceRule:      sourceContract,
+		Target:          new(dir),
+		Fingerprint:     fingerprint("schema.unmatched_knowledge_dir", "", dir),
+	}
 }
 
 // contractPolicy is the part of the contract the frontmatter rules ask for by

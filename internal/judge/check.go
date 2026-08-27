@@ -59,6 +59,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 		return nil, err
 	}
 	findings = append(findings, schemaFindings...)
+	findings = append(findings, checkKnowledgeScope(a.scan, a.authority.contract)...)
 
 	findings = dropEgressDenied(findings, a.authority)
 	if !all {

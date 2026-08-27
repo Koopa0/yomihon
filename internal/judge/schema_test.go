@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"encoding/hex"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -50,6 +54,87 @@ func TestCheckSchemaGolden(t *testing.T) {
 					tt.golden, got, want, hex.Dump(got), hex.Dump(want))
 			}
 		})
+	}
+}
+
+// TestKnowledgeScopeFoldsTheDeclaredSpelling pins the repair for the quietest
+// failure this face had: a contract naming "notes" where the folder is "Notes"
+// turned every frontmatter rule off for that folder, and the run stayed exit 0
+// with no diagnostic anywhere, because the notes the rules were written for
+// were simply never examined. On a case-insensitive filesystem both spellings
+// open the same folder, so the scope now folds the way the privacy and
+// artifact scopes always have.
+func TestKnowledgeScopeFoldsTheDeclaredSpelling(t *testing.T) {
+	t.Parallel()
+
+	got := runCheck(t, "testdata/vault-knowledge-scope")
+	if !bytes.Contains(got, []byte(`"path":"Notes/bad.md"`)) {
+		t.Errorf("check output = %s, want the note under the differently-spelled directory linted", got)
+	}
+}
+
+// TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope holds the finding on the
+// surface a caller actually reads. Folding the spelling repairs one way a
+// declaration can reach nothing; a directory that was renamed, or a contract
+// copied from another vault, reaches nothing in a way no fold can recover, and
+// the finding announcing it would be invisible if it were filed against the
+// contract file, since System/ paths are dropped from every run that did not
+// ask for them.
+func TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope(t *testing.T) {
+	t.Parallel()
+
+	root := judgeFixtureRoot(t, "testdata/vault-knowledge-scope")
+	for _, all := range []bool{false, true} {
+		findings, err := check(root, nil, all)
+		if err != nil {
+			t.Fatalf("check(all=%v): %v", all, err)
+		}
+		var reported []string
+		for i := range findings {
+			if findings[i].RuleID == "schema.unmatched_knowledge_dir" {
+				reported = append(reported, findings[i].Path)
+			}
+		}
+		if diff := cmp.Diff([]string{"Sources"}, reported); diff != "" {
+			t.Errorf("check(all=%v) unmatched directories mismatch (-want +got):\n%s", all, diff)
+		}
+	}
+}
+
+// TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne holds the line between a
+// declaration that reaches nothing and one whose folder is simply empty. The
+// live vault this was first run against declares an inbox and had processed
+// everything in it, so an emptiness test would have told its owner to correct a
+// contract that is right, and failed a gate over a vault with nothing wrong
+// with it. A fixture cannot carry an empty directory — nothing records one —
+// so this builds the vault it needs.
+func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
+	t.Parallel()
+
+	contract, err := os.ReadFile(filepath.Join("testdata", "vault-knowledge-scope", filepath.FromSlash(schema.ContractRelPath)))
+	if err != nil {
+		t.Fatalf("ReadFile(contract) error = %v", err)
+	}
+	const declared = `knowledge_dirs = ["notes", "archive", "Sources"]`
+	text := strings.Replace(string(contract), declared, `knowledge_dirs = ["Notes", "Inbox"]`, 1)
+	if text == string(contract) {
+		t.Fatalf("fixture drift: the contract no longer declares %s", declared)
+	}
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, text)
+	write(t, root, "Notes/kept.md", "---\ntitle: Kept\ntype: note\nstatus: draft\n---\n")
+	if mkdirErr := os.MkdirAll(filepath.Join(root, "Inbox"), 0o750); mkdirErr != nil {
+		t.Fatalf("MkdirAll(Inbox) error = %v", mkdirErr)
+	}
+
+	findings, err := check(root, nil, false)
+	if err != nil {
+		t.Fatalf("check(): %v", err)
+	}
+	for i := range findings {
+		if findings[i].RuleID == "schema.unmatched_knowledge_dir" {
+			t.Errorf("check() reported %q as unmatched; its directory is there and empty", findings[i].Path)
+		}
 	}
 }
 

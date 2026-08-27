@@ -144,17 +144,13 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 // failing is the moment this page exists to prevent; reading the answer off
 // the links instead found the pair only after the damage.
 //
-// A filename drops out when its extension-less form claims the same files: two
-// files sharing "Foo.md" necessarily share "Foo", and listing both states one
-// repair twice. A name ending in the extension whose claimants differ from the
-// stem's is a separate collision and stays.
+// Which of the index's collisions count is the resolver's own answer, shared
+// with the judge that gates on the same folder: one repair belongs on this page
+// once, and the two faces must not report different totals for it.
 func collisions(idx *graph.Index) []HealthCollision {
-	byName := idx.Collisions()
+	byName := idx.DistinctCollisions()
 	out := make([]HealthCollision, 0, len(byName))
 	for name, members := range byName {
-		if stem, ok := strings.CutSuffix(name, ".md"); ok && slices.Equal(byName[stem], members) {
-			continue
-		}
 		out = append(out, HealthCollision{Name: name, Candidates: members})
 	}
 	return out

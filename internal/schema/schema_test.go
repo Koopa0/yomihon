@@ -1318,13 +1318,19 @@ never_egress_dirs = ["Private", "Straße"]
 	}
 }
 
-// TestKnowledgeScopeMatchesOnlyTheFirstSegmentByExactBytes pins how narrow
-// knowledge-layer membership deliberately is, in contrast with the two
-// directory policies: the first path segment alone is consulted, and it is
-// compared byte for byte — no case folding, no Unicode normalization. The
-// scan hands this predicate canonical NFC paths, so the narrow compare
-// suffices there; widening it is a product decision, not a cleanup.
-func TestKnowledgeScopeMatchesOnlyTheFirstSegmentByExactBytes(t *testing.T) {
+// TestKnowledgeScopeFoldsOnlyTheFirstSegment pins how narrow knowledge-layer
+// membership is and where it deliberately stops being narrow. The first path
+// segment alone is consulted — never a deeper one, never a prefix of one — and
+// it is compared with the fold every vault directory scope shares: a
+// case-insensitive filesystem opens one folder under every case spelling of its
+// name, so a membership that turned on the spelling would govern a note or
+// leave it ungoverned by coincidence.
+//
+// Composition stays a separate dimension. A scan reports composed paths, so a
+// contract spelling a directory in decomposed form matches no file — which the
+// judge now reports as a directory reaching nothing rather than applying its
+// rules to nothing in silence.
+func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 	t.Parallel()
 
 	const declared = `knowledge_dirs = ["Writing"]`
@@ -1352,14 +1358,17 @@ func TestKnowledgeScopeMatchesOnlyTheFirstSegmentByExactBytes(t *testing.T) {
 	}{
 		{path: "Writing/lessons/L05.md", want: true},
 		{path: "Writing", want: true},
-		// A different case spelling is a different byte string.
-		{path: "writing/lessons/L05.md", want: false},
+		// One folder, whichever case its owner typed into the contract.
+		{path: "writing/lessons/L05.md", want: true},
+		{path: "WRITING/lessons/L05.md", want: true},
 		// The whole first segment, never a prefix of it.
 		{path: "Writings/L05.md", want: false},
 		// Deeper segments are not consulted.
 		{path: "Other/Writing/L05.md", want: false},
 		{path: "だ体/note.md", want: true},
-		// The decomposed spelling of the same name is a different byte string.
+		// The decomposed spelling of the same name stays a different string:
+		// the fold is over case, and composition is the scan's business, which
+		// reports one composed spelling for every path it observed.
 		{path: "た\u3099体/note.md", want: false},
 	}
 	for _, tt := range tests {

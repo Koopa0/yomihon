@@ -20,7 +20,7 @@ concept_requires_provenance = ["lineage"]
 slug_pattern = "^[a-z]+$"
 
 [scan]
-knowledge_dirs = ["Concepts", "Maps", "Writing"]
+knowledge_dirs = ["Maps", "Writing"]
 skip_basenames = []
 
 [navigation]

@@ -1,0 +1,46 @@
+schema_version = "1"
+
+[enums]
+type = ["note"]
+
+[enums.status]
+note = ["draft", "ready"]
+
+[fields]
+required = ["title", "type", "status"]
+known = ["title", "type", "status", "based_on"]
+lesson_only = []
+
+[rules]
+concept_requires_provenance = ["based_on"]
+slug_pattern = "^[a-z]+$"
+
+# Every entry is spelled in a case the folder does not use, so the directory
+# itself is never observable under the declared spelling and only a file below
+# it can answer: "notes" holds a note, "archive" holds a file that is not one,
+# and "Sources" is a folder this vault does not have at all.
+[scan]
+knowledge_dirs = ["notes", "archive", "Sources"]
+skip_basenames = []
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["*"]
+from = ["draft"]
+owner = ["koopa"]

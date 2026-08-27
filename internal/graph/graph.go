@@ -148,6 +148,38 @@ func (idx *Index) Collisions() map[string][]string {
 	return out
 }
 
+// DistinctCollisions reports the index's collisions with the restated ones
+// dropped, for a caller that describes every file it found.
+func (idx *Index) DistinctCollisions() map[string][]string {
+	return WithoutRestatedNames(idx.Collisions())
+}
+
+// WithoutRestatedNames drops from a collision map every name that only restates
+// another: a filename goes when its extension-less form claims exactly the same
+// files, since two files sharing "Foo.md" necessarily share "Foo", and one
+// repair stated twice reads as two. A name ending in the extension whose
+// claimants differ from the stem's is a separate collision and stays.
+//
+// It takes the map rather than reading the index so that a caller which may not
+// describe every claimant asks over the files it may describe. Deciding on the
+// index's own membership and narrowing afterwards would split one repair into
+// two rows whenever the narrowing is what made the two sets equal.
+//
+// One function serves both, because every surface that counts collisions has to
+// count the same ones: a reader looking at the diagnostics page and a pipeline
+// gated on the judge's findings comparing two different totals for the same
+// folder would have no way to tell which of them was wrong.
+func WithoutRestatedNames(byName map[string][]string) map[string][]string {
+	out := make(map[string][]string, len(byName))
+	for name, members := range byName {
+		if stem, ok := strings.CutSuffix(name, ".md"); ok && slices.Equal(byName[stem], members) {
+			continue
+		}
+		out[name] = members
+	}
+	return out
+}
+
 // add inserts key (normalized) -> path, skipping an empty key and
 // deduplicating per path. Extra keys only ever add resolutions, never
 // remove one — the index deliberately prefers false positives over false

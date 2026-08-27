@@ -1,0 +1,2 @@
+A knowledge directory that holds a file which is not a note is still ground the
+contract found; there is simply no frontmatter here to judge.
