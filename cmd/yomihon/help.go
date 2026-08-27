@@ -4,7 +4,7 @@ import "fmt"
 
 const topLevelHelp = `Usage:
   yomihon [<dir>]                       read a folder (default: this one)
-  yomihon serve [<dir>]
+  yomihon serve [<dir>]                 read a folder (or --root <dir>)
   yomihon search [options] <query...>
   yomihon search-index build [options]
   yomihon check [options] [path...]      judge a vault (--root <vault>; path narrows)
@@ -18,6 +18,7 @@ var commandHelp = map[string]string{
 	"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
 		"\n" +
 		"Reads the folder named on the line, or the one you are standing in.\n" +
+		"yomihon serve --root <dir> reads the same folder as yomihon serve <dir>.\n" +
 		"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
 		"\n" +
 		"The folder is fixed for the life of the process: reading another one\n" +

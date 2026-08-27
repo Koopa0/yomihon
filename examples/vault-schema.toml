@@ -15,8 +15,11 @@ lesson = ["draft", "ready", "archived"]
 
 [fields]
 required = ["title", "type", "status"]
-known = ["title", "aliases", "type", "status", "created", "updated"]
+known = ["title", "aliases", "type", "status", "created", "updated", "lang"]
 lesson_only = ["slug"]
+# lang declares one note's own BCP 47 language tag, e.g. "zh-Hant" or "ja".
+# A note that leaves it out has its content inherit the page's language;
+# writing it marks that one note's content on its own, overriding the page.
 
 [fields.status_group]
 lesson = ["lesson"]

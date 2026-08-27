@@ -56,7 +56,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 
 	top := "Usage:\n" +
 		"  yomihon [<dir>]                       read a folder (default: this one)\n" +
-		"  yomihon serve [<dir>]\n" +
+		"  yomihon serve [<dir>]                 read a folder (or --root <dir>)\n" +
 		"  yomihon search [options] <query...>\n" +
 		"  yomihon search-index build [options]\n" +
 		"  yomihon check [options] [path...]      judge a vault (--root <vault>; path narrows)\n" +
@@ -67,6 +67,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
 			"\n" +
 			"Reads the folder named on the line, or the one you are standing in.\n" +
+			"yomihon serve --root <dir> reads the same folder as yomihon serve <dir>.\n" +
 			"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
 			"\n" +
 			"The folder is fixed for the life of the process: reading another one\n" +
@@ -206,7 +207,7 @@ func TestServeRejectsArgumentsBeforeLoadingConfiguration(t *testing.T) {
 	exit, stdout, stderr := runYomihonBinary(t, binary, []string{"serve", "one", "two"}, append(isolatedUserEnv(home),
 		"YOMIHON_PORT=not-a-port",
 	))
-	const wantUsage = "yomihon: usage: yomihon [dir] — or yomihon serve [dir]\n"
+	const wantUsage = "yomihon: usage: yomihon [dir] — or yomihon serve [dir] — or yomihon serve --root <dir>\n"
 	if exit != 2 || stdout != "" || stderr != wantUsage {
 		t.Errorf("yomihon serve unexpected = exit %d, stdout %q, stderr %q; want 2, empty, %q", exit, stdout, stderr, wantUsage)
 	}

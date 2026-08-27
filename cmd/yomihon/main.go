@@ -108,7 +108,7 @@ func serveRoot(args []string) (string, error) {
 		}
 		return args[1], nil
 	default:
-		return "", errors.New("usage: yomihon [dir] — or yomihon serve [dir]")
+		return "", errors.New("usage: yomihon [dir] — or yomihon serve [dir] — or yomihon serve --root <dir>")
 	}
 }
 

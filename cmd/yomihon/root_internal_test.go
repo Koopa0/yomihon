@@ -67,7 +67,7 @@ func TestServeHelpNamesEveryWayToChooseTheFolder(t *testing.T) {
 	if err != nil || !handled {
 		t.Fatalf("helpRequest(serve --help) = handled %t, err %v", handled, err)
 	}
-	for _, want := range []string{"<dir>", "standing in"} {
+	for _, want := range []string{"<dir>", "standing in", "--root"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("serve help does not name %q; text = %q", want, text)
 		}
