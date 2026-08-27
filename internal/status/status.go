@@ -911,10 +911,7 @@ func replaceRegularFile(
 	// starts, that name can hold the version another program wrote, so only
 	// the install — which reads the bytes before it decides — may remove it.
 	removeTemp = false
-	ops := rootOps(installParent)
-	if hooks.ops != nil {
-		ops = hooks.ops(ops)
-	}
+	ops := installOpsFor(installParent, hooks)
 	if err = installRewritten(ops, relSlash, tmpName, rung, source, data); err != nil {
 		closeRoot(installParent)
 		return err

@@ -124,26 +124,47 @@ func selectRung(parent *os.Root, hooks installHooks) installRung {
 	if hooks.rung != nil {
 		return hooks.rung()
 	}
+	ops := installOpsFor(parent, hooks)
 	key, ok := deviceKey(parent)
 	if !ok {
-		return probeRung(parent, rootOps(parent))
+		return probeRung(parent, ops)
 	}
 	if cached, hit := exchangeProbes.Load(key); hit {
 		if rung, is := cached.(installRung); is {
 			return rung
 		}
 	}
-	rung := probeRung(parent, rootOps(parent))
-	// A rung reached by a failure is not a measurement. Every path that ends at
-	// rungRename got there because the probe could not write its own throwaway
-	// file or could not take a second name for one, which says nothing about
-	// what the driver supports — a full disk or a momentarily unwritable
-	// directory would otherwise pin this filesystem to the weakest rung for the
-	// rest of the process. That outcome serves this install and is forgotten.
-	if rung != rungRename {
+	rung := probeRung(parent, ops)
+	// Only a rung the probe positively established is remembered, and the swap
+	// is the one it establishes: it performs the exchange and reads both
+	// entries back carrying each other's bytes. Every other answer is reached
+	// by something going wrong — a throwaway file that could not be written, a
+	// swap the driver refused, a second name it would not take — and a failure
+	// measures nothing about what the driver supports. A full disk, a directory
+	// briefly unwritable, or one interrupted syscall would otherwise pin this
+	// filesystem for the life of the process to a weaker install: the plain
+	// rename, which notices nothing, or the hard link, which cannot see a
+	// replacement arriving in the moment between taking the second name and
+	// using it. Those answers serve the install that found them and are
+	// forgotten, so the next flip asks again — a cost paid only on volumes that
+	// have not shown they can swap, and only once per flip, which is a thing a
+	// person does one at a time.
+	if rung == rungExchange {
 		exchangeProbes.Store(key, rung)
 	}
 	return rung
+}
+
+// installOpsFor is the set of operations an install performs on parent, with
+// any caller-supplied wrapping applied. Selecting a rung and performing the
+// install have to see the same operations, or the probe measures one thing and
+// the install does another.
+func installOpsFor(parent *os.Root, hooks installHooks) installOps {
+	ops := rootOps(parent)
+	if hooks.ops != nil {
+		ops = hooks.ops(ops)
+	}
+	return ops
 }
 
 // deviceKey identifies the filesystem parent lives on.

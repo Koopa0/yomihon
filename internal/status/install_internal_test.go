@@ -534,3 +534,52 @@ func TestInstallRungMatrix(t *testing.T) {
 		})
 	}
 }
+
+// TestOnlyAMeasuredRungIsRemembered covers the other half of the same rule. A
+// swap can fail for reasons that say nothing about the driver — an interrupted
+// syscall, a moment of I/O trouble — and the probe then falls through to the
+// hard link, which succeeds. Remembering that answer pins a volume that can
+// swap to the rung that cannot see a replacement arriving mid-install, for the
+// rest of the process and for every note on it.
+func TestOnlyAMeasuredRungIsRemembered(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	parent, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatalf("opening %s: %v", dir, err)
+	}
+	defer func() {
+		if closeErr := parent.Close(); closeErr != nil {
+			t.Errorf("closing root: %v", closeErr)
+		}
+	}()
+
+	key, ok := deviceKey(parent)
+	if !ok {
+		t.Skip("this platform does not identify the filesystem, so nothing is remembered to begin with")
+	}
+	exchangeProbes.Delete(key)
+	earned := selectRung(parent, installHooks{})
+	if earned != rungExchange {
+		t.Skipf("this filesystem earns %v, so there is no swap for a passing failure to hide", earned)
+	}
+	exchangeProbes.Delete(key)
+
+	// One refusal the driver did not mean: everything else about the volume is
+	// untouched, so the probe falls through to the hard link and answers with
+	// the weaker rung.
+	degraded := selectRung(parent, installHooks{
+		ops: func(base installOps) installOps {
+			base.swap = func(string, string) error { return errors.New("interrupted") }
+			return base
+		},
+	})
+	if degraded != rungHardlink {
+		t.Fatalf("selectRung with a refused swap = %v, want %v; the probe was expected to fall through to the second name", degraded, rungHardlink)
+	}
+
+	if got := selectRung(parent, installHooks{}); got != earned {
+		t.Errorf("selectRung after a passing swap failure = %v, want %v; the weaker answer was remembered, so every later flip on this volume takes an install that cannot see a concurrent replacement", got, earned)
+	}
+}
