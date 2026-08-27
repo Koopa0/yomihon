@@ -1,6 +1,7 @@
 package sequence
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -814,22 +815,29 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		body        string
-		wantEntry   string
+		name string
+		body string
+		// wantEntries is the target of every entry the branch holds, in order.
+		// The three shapes are distinct and each says something: a name is a
+		// row that became a lesson, an empty string is a row the grammar
+		// considered and refused, and nothing at all is a row it never saw as
+		// a candidate. Asserting the shape is what makes each case say
+		// anything; without it they pass on a parser that ignores the escape.
+		wantEntries []string
 		wantRule    string
 		wantFinding bool
 	}{
 		{
-			name:      "an escaped second link leaves the row an entry",
-			body:      "## Part {sequence=primary}\n\n- [[A]] 寫成 \\[[B]] 的時候只是文字\n",
-			wantEntry: "A",
+			name:        "an escaped second link leaves the row an entry",
+			body:        "## Part {sequence=primary}\n\n- [[A]] 寫成 \\[[B]] 的時候只是文字\n",
+			wantEntries: []string{"A"},
 		},
 		{
 			name:        "an unescaped second link still disqualifies the row",
 			body:        "## Part {sequence=primary}\n\n- [[A]] 也提到 [[B]]\n",
 			wantRule:    RuleEntryMultiTarget,
 			wantFinding: true,
+			wantEntries: []string{""},
 		},
 		{
 			name:        "an escaped first link leaves the row naming nothing",
@@ -848,17 +856,14 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 			if !tt.wantFinding && hasRule(doc, RuleEntryMultiTarget) {
 				t.Fatalf("Parse() reported a second target for a row that names one: %v", doc.Diagnostics)
 			}
-			if tt.wantEntry == "" {
-				return
-			}
 			var got []string
 			for _, g := range doc.Groups {
 				for _, e := range g.Entries() {
 					got = append(got, e.Target)
 				}
 			}
-			if len(got) != 1 || got[0] != tt.wantEntry {
-				t.Errorf("accepted entries = %v, want exactly [%s]", got, tt.wantEntry)
+			if !slices.Equal(got, tt.wantEntries) {
+				t.Errorf("accepted entries = %v, want %v", got, tt.wantEntries)
 			}
 		})
 	}

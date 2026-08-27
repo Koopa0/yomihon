@@ -71,10 +71,11 @@ That gate is silent, and it is upstream of everything on this page: a document
 whose type is not listed reads as ordinary prose no matter how well its body
 is written, and nothing reports the omission, because nothing was claimed. A
 note yomihon reads as a course answers at `/syllabus/<its vault-relative
-path>` and enters the course count on the home page. A 404 there means the
-type is not one the contract lists, and every marker below is plain text.
-Check that before reading further, because a page that cannot answer 404 or
-200 for a document has not been told whether the rest of this applies.
+path>` and enters the course count on the home page. When it answers there,
+everything below applies to that document. When it does not, the reason is
+upstream of this page — most often a type the contract does not list for paths
+— and nothing below applies until that is settled. Check it before reading
+further.
 
 ### The marker
 

@@ -265,7 +265,14 @@ func TestShutdownDeadlineReleasesAWedgedHandler(t *testing.T) {
 
 	cancel()
 	select {
-	case <-serveResult:
+	case serveErr := <-serveResult:
+		// Without this the whole test passes on a machine whose socket buffers
+		// swallow the response: the handler finishes inside the grace period,
+		// the close under test never runs, and the assertion below is met by a
+		// handler that was never blocked.
+		if !errors.Is(serveErr, context.DeadlineExceeded) {
+			t.Fatalf("serveHTTP = %v, want the shutdown deadline to have been reached; the handler was not wedged, so this run says nothing about the close that releases it", serveErr)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("serveHTTP did not return within 5s of cancellation")
 	}

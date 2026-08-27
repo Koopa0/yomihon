@@ -398,18 +398,16 @@ func TestProbeFailureDoesNotPinTheFilesystem(t *testing.T) {
 	exchangeProbes.Delete(key)
 
 	// Take away the probe's ability to write its own throwaway files. The
-	// directory is otherwise untouched.
-	//nolint:gosec // a directory mode is not a file mode: 0500 keeps the traverse
-	// bit the probe needs to look inside while taking away the write bit it needs
-	// to create its throwaway files, which is exactly the failure under test.
-	if chmodErr := os.Chmod(dir, 0o500); chmodErr != nil {
+	// directory is otherwise untouched: 0500 keeps the traverse bit the probe
+	// needs to look inside while removing the write bit it needs to create
+	// them, which is exactly the failure under test.
+	if chmodErr := os.Chmod(dir, 0o500); chmodErr != nil { // #nosec G302 -- a directory mode, not a file mode; this test's own TempDir
 		t.Fatalf("making %s unwritable: %v", dir, chmodErr)
 	}
 	if failed := selectRung(parent, installHooks{}); failed != rungRename {
 		t.Fatalf("selectRung on an unwritable directory = %v, want %v; the probe was expected to fail here", failed, rungRename)
 	}
-	//nolint:gosec // restoring the owner-only directory mode t.TempDir created.
-	if chmodErr := os.Chmod(dir, 0o700); chmodErr != nil {
+	if chmodErr := os.Chmod(dir, 0o700); chmodErr != nil { // #nosec G302 -- restoring the owner-only directory mode t.TempDir created
 		t.Fatalf("restoring %s: %v", dir, chmodErr)
 	}
 
@@ -541,9 +539,10 @@ func TestInstallRungMatrix(t *testing.T) {
 // hard link, which succeeds. Remembering that answer pins a volume that can
 // swap to the rung that cannot see a replacement arriving mid-install, for the
 // rest of the process and for every note on it.
+// It cannot run in parallel, and neither can its sibling above: both own the
+// process-wide probe cache for their duration, and every flip in this package
+// writes to it under the same device key.
 func TestOnlyAMeasuredRungIsRemembered(t *testing.T) {
-	t.Parallel()
-
 	dir := t.TempDir()
 	parent, err := os.OpenRoot(dir)
 	if err != nil {

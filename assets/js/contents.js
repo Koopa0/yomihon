@@ -25,11 +25,16 @@ export function initContents() {
 
   function recompute() {
     if (locked) return;
-    // The document scrolls, so the reading line is a quarter of the way down
-    // the viewport and a heading's own viewport coordinate answers directly.
-    // Measuring against the article box instead made the comparison move with
-    // the page, which is why the mark used to stay on the first entry.
-    const readingLine = window.innerHeight * 0.25;
+    // The document scrolls, so a heading's own viewport coordinate answers
+    // directly; measuring against the article box made the comparison move
+    // with the page, which is why the mark used to stay on the first entry.
+    // The line sits where a jump to a heading actually parks it — the same
+    // clearance the anchor spends — so clicking an entry marks that entry and
+    // not the next one that happens to fit above an arbitrary fraction of the
+    // viewport. Reading the clearance rather than repeating it keeps the two
+    // in step if the offset ever changes.
+    const clearance = Number.parseFloat(getComputedStyle(headings[0]).scrollMarginTop) || 0;
+    const readingLine = clearance + 8;
     let current = headings[0].id;
     for (const heading of headings) {
       if (heading.getBoundingClientRect().top <= readingLine) current = heading.id;

@@ -23,6 +23,10 @@ const SCRIM = '[data-nav-close]';
 const FILTER = '[data-nav-filter]';
 const SKIP_LINK = '.y-skiplink';
 const MAIN = '#main-content';
+// The status write bar is a sibling of the shell, not part of the article, and it
+// is visible at exactly the widths where the drawer exists. It paints under the
+// scrim, so it belongs in the same enumeration as the other covered regions.
+const SEALBAR = '.y-sealbar';
 
 const SITES = [
   'server-nav-state-free',
@@ -294,12 +298,18 @@ try {
     // The page behind a closed drawer is the page. Leaving it inert after the
     // drawer shuts would lock the reader out of everything with nothing on
     // screen to say why, so the live case is asserted before the modal one.
-    const shell = await page.evaluate(({ main, skip }) => {
-      const found = { main: document.querySelectorAll(main).length, skip: document.querySelectorAll(skip).length };
-      return { ...found, inert: [...document.querySelectorAll(`${main}, ${skip}`)].map((element) => element.inert) };
-    }, { main: MAIN, skip: SKIP_LINK });
-    if (shell.main !== 1 || shell.skip !== 1) {
-      broken(`the page has ${shell.main} main landmarks and ${shell.skip} skip links, want 1 of each`);
+    const shell = await page.evaluate(({ main, skip, seal }) => {
+      const found = {
+        main: document.querySelectorAll(main).length,
+        skip: document.querySelectorAll(skip).length,
+        seal: document.querySelectorAll(seal).length,
+      };
+      return { ...found, inert: [...document.querySelectorAll(`${main}, ${skip}, ${seal}`)].map((element) => element.inert) };
+    }, { main: MAIN, skip: SKIP_LINK, seal: SEALBAR });
+    // An absent region would make every check below vacuously true, so its
+    // absence is a broken probe rather than a passing page.
+    if (shell.main !== 1 || shell.skip !== 1 || shell.seal !== 1) {
+      broken(`the page has ${shell.main} main landmarks, ${shell.skip} skip links and ${shell.seal} status bars, want 1 of each`);
     }
     if (shell.inert.some(Boolean)) {
       fail('closed-background-live', `a closed drawer leaves the page inert: ${JSON.stringify(shell.inert)}`);
@@ -331,10 +341,13 @@ try {
     // The scrim dims the article; only this takes it out of the tree. Without
     // it a reading cursor walks straight into the page the curtain covers,
     // which is the one thing the curtain is there to prevent.
-    const behind = await page.evaluate(({ main, skip }) => (
-      [...document.querySelectorAll(`${main}, ${skip}`)].map((element) => element.inert)
-    ), { main: MAIN, skip: SKIP_LINK });
-    if (behind.length !== 2 || !behind.every(Boolean)) {
+    const behind = await page.evaluate(({ main, skip, seal }) => (
+      [...document.querySelectorAll(`${main}, ${skip}, ${seal}`)].map((element) => element.inert)
+    ), { main: MAIN, skip: SKIP_LINK, seal: SEALBAR });
+    // The expected count comes from the closed-state tally rather than from
+    // behind itself: comparing a length to its own length can never fail, and
+    // deriving it also catches a region that disappears between the two states.
+    if (behind.length !== shell.main + shell.skip + shell.seal || !behind.every(Boolean)) {
       fail('open-background-inert', `an open drawer leaves the page in the tree: ${JSON.stringify(behind)}`);
     }
 
