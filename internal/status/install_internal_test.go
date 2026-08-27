@@ -417,3 +417,120 @@ func TestProbeFailureDoesNotPinTheFilesystem(t *testing.T) {
 		t.Errorf("selectRung after the directory became writable again = %v, want %v; the momentary failure was remembered and pinned the filesystem to the weakest install", got, earned)
 	}
 }
+
+// TestInstallRungMatrix runs every install rung the product can select through
+// the two race timings a test can place, and states what each one is worth.
+// The ladder exists because volumes differ in what they can promise, so the
+// promise each rung makes is the thing to lock: a rung whose weakness is
+// written down but never executed is a claim nobody has checked.
+//
+// One cell in the matrix is out of reach from here and is deliberately absent
+// rather than approximated: the hardlink rung's second window, between taking
+// the extra name and the rename that installs, needs a seam inside the install
+// itself. beforeInstall fires before the install is entered, so it places a
+// writer in the first window only.
+func TestInstallRungMatrix(t *testing.T) {
+	t.Parallel()
+
+	const (
+		original    = "original"
+		replacement = "replacement"
+		external    = "another program's edit"
+	)
+
+	tests := []struct {
+		name string
+		rung installRung
+		// raced places an external in-place write inside the install window.
+		raced bool
+		// wantErr is the sentinel the install must report, or nil for success.
+		wantErr error
+		// wantContent is what the note holds afterwards.
+		wantContent string
+	}{
+		{
+			name:        "exchange installs",
+			rung:        rungExchange,
+			wantContent: replacement,
+		},
+		{
+			name:        "exchange refuses a raced install and keeps the other edit",
+			rung:        rungExchange,
+			raced:       true,
+			wantErr:     ErrConcurrentWrite,
+			wantContent: external,
+		},
+		{
+			name:        "hardlink installs",
+			rung:        rungHardlink,
+			wantContent: replacement,
+		},
+		{
+			name:        "hardlink refuses a raced install and keeps the other edit",
+			rung:        rungHardlink,
+			raced:       true,
+			wantErr:     ErrConcurrentWrite,
+			wantContent: external,
+		},
+		{
+			name:        "rename installs",
+			rung:        rungRename,
+			wantContent: replacement,
+		},
+		{
+			// The weakest rung promises nothing about this window, which is why
+			// it is last and why a volume reaches it only when the two above
+			// were refused. A plain rename replaces the note whole, so the
+			// other edit is lost rather than torn, and no syscall on this path
+			// could have reported it. Locking that here makes the cost visible
+			// and means an improvement has to be a deliberate edit to this
+			// table rather than a silent change of behaviour.
+			name:        "rename overwrites a raced install without noticing",
+			rung:        rungRename,
+			raced:       true,
+			wantContent: replacement,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			parent := internalRoot(t, dir)
+			const rel = "note.md"
+			path := filepath.Join(dir, rel)
+			if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+				t.Fatalf("write original: %v", err)
+			}
+			source, err := readRegularFile(parent, rel, rel)
+			if err != nil {
+				t.Fatalf("readRegularFile() error = %v", err)
+			}
+
+			hooks := installHooks{rung: func() installRung { return tt.rung }}
+			if tt.raced {
+				hooks.beforeInstall = func() {
+					if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {
+						t.Errorf("external write: %v", writeErr)
+					}
+				}
+			}
+
+			err = replaceRegularFile(parent, rel, rel, &source, []byte(replacement), hooks, func() error { return nil })
+			switch {
+			case tt.wantErr == nil && err != nil:
+				t.Fatalf("replaceRegularFile() = %v, want success", err)
+			case tt.wantErr != nil && !errors.Is(err, tt.wantErr):
+				t.Fatalf("replaceRegularFile() = %v, want %v", err, tt.wantErr)
+			}
+
+			got, readErr := os.ReadFile(path) // #nosec G304 -- a fixed name under t.TempDir
+			if readErr != nil {
+				t.Fatalf("read note: %v", readErr)
+			}
+			if string(got) != tt.wantContent {
+				t.Errorf("note holds %q, want %q", got, tt.wantContent)
+			}
+		})
+	}
+}
