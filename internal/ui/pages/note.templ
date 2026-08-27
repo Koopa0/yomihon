@@ -139,9 +139,11 @@ type NoteView struct {
 	NoFrontmatter   bool
 	// FlippedFrom is the status the transition form said it was leaving, when
 	// this reading is the one a successful flip redirected to. It is the only
-	// thing the write face carries across that redirect, and the page states a
-	// change only when it and the current status differ — so an address typed
-	// by hand can assert nothing the note does not already show.
+	// thing the write face carries across that redirect, and the page repeats
+	// it only when the contract declares it for this note's type and legalises
+	// the move from it to the status the note carries now. So the page states a
+	// move this contract admits, not one it witnessed: a bookmarked or
+	// back-button address naming a legal predecessor gets the same sentence.
 	FlippedFrom string
 
 	// StatusUnknown is set when the note's non-empty status value is not in
@@ -1053,10 +1055,12 @@ func statusState(v NoteView) string {
 //
 // It is a live region so it reaches a reader on arrival rather than waiting to
 // be found, and it is the first thing in the main column for the same reason.
-// The claim is bounded by what the page can stand behind: the status the note
-// carries now, and the status the submitted form said it was leaving. Where
-// those agree there was no change to state, which is also what makes a hand
-// typed address unable to manufacture one.
+// What the page vouches for is narrower than the sentence sounds: the reported
+// move is one this contract legalises from the status the note carries now, and
+// no address can manufacture a move the contract does not admit. It is not a
+// witness that the move happened. Reaching this reading again — from history,
+// from a bookmark, from the back button — repeats the sentence, because nothing
+// in a redirect target distinguishes the first arrival from a later one.
 templ flipReceipt(v NoteView) {
 	if v.showsFlipReceipt() {
 		<p class="y-flipreceipt" role="status">
