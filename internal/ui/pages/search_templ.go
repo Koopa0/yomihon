@@ -96,11 +96,6 @@ type SnippetRun struct {
 	Hit  bool
 }
 
-// Search is the results page: a GET form and a flat list of hits, rendered in
-// the shared shell — header and navigation sidebar included, mounted with no
-// current note so every branch renders closed, the same wiring the report
-// shell uses. The form remains the no-JavaScript path; the live-search data
-// hooks let the shared script refresh only the result region while typing.
 // SearchStepBack is one loosened search the empty page offers: a query the
 // index has already answered, with how many notes it found.
 type SearchStepBack struct {
@@ -108,6 +103,11 @@ type SearchStepBack struct {
 	Count int
 }
 
+// Search is the results page: a GET form and a flat list of hits, rendered in
+// the shared shell — header and navigation sidebar included, mounted with no
+// current note so every branch renders closed, the same wiring the report
+// shell uses. The form remains the no-JavaScript path; the live-search data
+// hooks let the shared script refresh only the result region while typing.
 func Search(v SearchView, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

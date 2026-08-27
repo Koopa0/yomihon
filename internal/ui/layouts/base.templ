@@ -1,6 +1,3 @@
-// Package layouts holds the outer HTML shell: the themed document, the shared
-// header chrome, and the ⌘K search dialog. Styling is the repository-owned
-// sheet at /static/app.css plus the chroma syntax sheet — no inline <style>.
 package layouts
 
 import "strconv"
@@ -35,6 +32,11 @@ func singleKeyShortcutsState(enabled bool) string {
 	return "off"
 }
 
+// Base is the document every page is rendered inside: the themed html element
+// carrying the reader's own presentation choices, the head, the shared header,
+// the search dialog, and the script that enhances all of it. A page supplies
+// its own body as children; nothing above that body varies by page, which is
+// what lets the chrome hold still while a navigation transition runs.
 templ Base(c Chrome) {
 	<!DOCTYPE html>
 	<html lang="zh-Hant" data-theme={ c.Theme } data-ruby={ c.Ruby } data-textsize={ c.TextSize } data-single-key-shortcuts={ singleKeyShortcutsState(c.SingleKeyShortcutsEnabled) }>

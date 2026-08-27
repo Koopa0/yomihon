@@ -26,6 +26,11 @@ const (
 	homeReadmeTitle   = "這個書庫的說明"
 )
 
+// HomeView is everything the landing page shows about a vault at one moment:
+// whether a contract governs it at all, what is wrong with the vault or with
+// this reading of it, and the blocks that answer "what has been happening" —
+// recent notes, the lifecycle distribution, the courses in progress, and a
+// search box. A folder that fills none of them gets a sentence instead.
 type HomeView struct {
 	Governed bool
 	Fault    string

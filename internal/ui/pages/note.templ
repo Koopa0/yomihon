@@ -194,8 +194,11 @@ func (v NoteView) citedByShown() bool {
 	return len(v.CitedBy) > 0 || v.VaultHasLinks
 }
 
-// breadcrumb is the reading crumb: the note's directory segments (the filename
-// dropped), e.g. "Writing/lessons/japanese/L20.md" → [Writing lessons japanese].
+// Note is the reading page: the article itself in the shared shell, with the
+// navigation sidebar, whatever aids the note earns on the right, and the status
+// face. It is the surface the whole product is arranged around, so everything
+// it shows is either the note's own bytes rendered faithfully or a diagnostic
+// about them — it repairs nothing.
 templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
