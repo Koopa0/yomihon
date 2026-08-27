@@ -101,6 +101,14 @@ func TestStripObsidianCommentsReportsUnclosedLine(t *testing.T) {
 			want: "a ` b  d",
 		},
 		{
+			// One typo further on: the stray run is text, so the span after
+			// it is a span, and the percent signs it holds are still the
+			// author's own characters.
+			name: "a stray run does not expose the markers in the span after it",
+			body: "``a `b%%c%%d` e",
+			want: "``a `b%%c%%d` e",
+		},
+		{
 			// Backticks are inert while a comment is open: the marker that
 			// closes it is looked for first, so a quoted span inside a comment
 			// stays hidden with everything else.

@@ -1777,6 +1777,57 @@ func TestWikilinkInsideACodeSpanIsQuotedNotResolved(t *testing.T) {
 	}
 }
 
+// TestQuotedWikilinkSurvivesAStrayBacktickRun covers the same sentence one
+// typo further on. A backtick run that meets no run of its own length is
+// ordinary text, and goldmark pairs the runs after it as usual — so the span
+// following a stray run really is drawn as code. The line scan read it the
+// other way and reported no span at all from the stray run onward, which
+// converted the syntax the author was quoting: the reader was handed a
+// rendered link inside the code they were being shown, the words of the
+// example vanished, and the note collected a broken-link report for a target
+// it never linked to.
+func TestQuotedWikilinkSurvivesAStrayBacktickRun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "one stray run before the span",
+			body: "``例 `[[概念]]` 之後，[[Real]] 仍是真的。\n",
+		},
+		{
+			name: "several stray runs before the span",
+			body: "``例 ```例 `[[概念]]` 之後，[[Real]] 仍是真的。\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, []graph.NoteInput{{Path: "Concepts/Real.md"}}, nil, nil)
+
+			got := r.HTML("Maps/MOC.md", "MOC", tt.body)
+
+			if !strings.Contains(got.HTML, "<code>[[概念]]</code>") {
+				t.Errorf("the quoted syntax after a stray backtick run was rewritten:\n%s", got.HTML)
+			}
+			if strings.Contains(got.HTML, "wikilink-broken") {
+				t.Errorf("a quoted target was rendered as an unwritten link:\n%s", got.HTML)
+			}
+			if !strings.Contains(got.HTML, `class="wikilink"`) {
+				t.Errorf("the real wikilink outside the code span stopped resolving:\n%s", got.HTML)
+			}
+			for _, d := range got.Diagnostics {
+				if strings.Contains(d.Target, "概念") {
+					t.Errorf("a quoted target was reported as a broken link: %+v", d)
+				}
+			}
+		})
+	}
+}
+
 // TestEscapedWikilinkStaysLiteral covers CommonMark's backslash escape at the
 // wikilink seam. "\[[X]]" is the author showing the syntax, not writing a
 // link; converting it anyway printed a stray backslash and — when X named

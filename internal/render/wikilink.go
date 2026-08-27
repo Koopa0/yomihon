@@ -353,55 +353,6 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 	})
 }
 
-// backtickRun reports how many backticks start at i, zero when none do.
-func backtickRun(text string, i int) int {
-	n := 0
-	for i+n < len(text) && text[i+n] == '`' {
-		n++
-	}
-	return n
-}
-
-// closingRun reports the end offset of the next backtick run of exactly width
-// at or after i, or -1 when the text has none. A run of a different width is
-// ordinary content inside the span and is stepped over.
-func closingRun(text string, i, width int) int {
-	for j := i; j < len(text); {
-		n := backtickRun(text, j)
-		switch n {
-		case 0:
-			j++
-		case width:
-			return j + n
-		default:
-			j += n
-		}
-	}
-	return -1
-}
-
-// codeSpanRanges reports the byte ranges of CommonMark code spans in text: a
-// run of backticks opens one and the next run of the same length closes it. A
-// run with no such closer is not a span, and neither is anything after it —
-// which is how the same text renders, so the two agree.
-func codeSpanRanges(text string) [][2]int {
-	var spans [][2]int
-	for i := 0; i < len(text); {
-		width := backtickRun(text, i)
-		if width == 0 {
-			i++
-			continue
-		}
-		end := closingRun(text, i+width, width)
-		if end < 0 {
-			return spans
-		}
-		spans = append(spans, [2]int{i, end})
-		i = end
-	}
-	return spans
-}
-
 // replaceOutside applies fn to every match of re that lies wholly outside the
 // given ranges, leaving everything else byte-identical. fn receives the
 // match's starting byte offset in text alongside the matched bytes, so a

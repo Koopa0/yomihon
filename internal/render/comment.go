@@ -96,33 +96,15 @@ func stripObsidianCommentLine(line string, inComment *bool) (visible string, ope
 			openedHere = true
 			line = line[mark+2:]
 		case tick >= 0:
-			b.WriteString(line[:tick])
-			span, rest := codeSpanAt(line[tick:])
-			b.WriteString(span)
-			line = rest
+			end, _ := codeSpanAt(line, tick)
+			b.WriteString(line[:end])
+			line = line[end:]
 		default:
 			b.WriteString(line)
 			line = ""
 		}
 	}
 	return b.String(), openedHere
-}
-
-// codeSpanAt reads a code span off the front of s, which begins with a run of
-// backticks. It answers with the span's own source and whatever follows it. A
-// run that a later run of the same length closes is a span and comes back
-// whole; a run that finds no match is just those backticks, so the caller
-// resumes reading the line immediately after them.
-//
-// The run-length pairing is the package's existing one rather than a second
-// reading of the same rule, so what protects a percent sign here and what the
-// wikilink pass treats as code are one answer.
-func codeSpanAt(s string) (span, rest string) {
-	width := backtickRun(s, 0)
-	if end := closingRun(s, width, width); end >= 0 {
-		return s[:end], s[end:]
-	}
-	return s[:width], s[width:]
 }
 
 // unclosedCommentDiagnostic describes a marker that never met its pair. The
