@@ -181,12 +181,15 @@ func run(log *slog.Logger, root string) (resultErr error) {
 
 	srv := newHTTPServer(site)
 	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
-	err = serveHTTP(ctx, srv, listener)
+	err = serveHTTP(ctx, srv, listener, shutdownGrace(srv))
 	// The deferred close above waits without a deadline for in-flight handlers
 	// and the scanner, deliberately, so an uncertain status write is not
-	// abandoned. While the notify handler is installed that wait also swallows
-	// a repeated interrupt; restoring default signal delivery the moment
-	// serving ends lets a second Ctrl-C terminate a stuck shutdown.
+	// abandoned. Announcing that turns the wait from an apparent hang into a
+	// visible state, which is what the reader who pressed Ctrl-C is owed.
+	// While the notify handler is installed that wait also swallows a repeated
+	// interrupt; restoring default signal delivery the moment serving ends
+	// lets a second Ctrl-C terminate a stuck shutdown.
+	log.Info("yomihon no longer serving; finishing work already accepted")
 	stop()
 	if err != nil {
 		return err
