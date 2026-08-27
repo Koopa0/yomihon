@@ -804,3 +804,62 @@ func findRule(doc Document, rule string) *Diagnostic {
 	}
 	return nil
 }
+
+// TestAnEscapedWikilinkIsNotALink locks the one reading of a backslash that
+// every reader of this vault has to share. The renderer prints the brackets and
+// the judge does not follow them; counting one here as a second target made an
+// author who escaped a link disqualify the row beside it, and the lesson left
+// the course with nothing said about it.
+func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		body        string
+		wantEntry   string
+		wantRule    string
+		wantFinding bool
+	}{
+		{
+			name:      "an escaped second link leaves the row an entry",
+			body:      "## Part {sequence=primary}\n\n- [[A]] 寫成 \\[[B]] 的時候只是文字\n",
+			wantEntry: "A",
+		},
+		{
+			name:        "an unescaped second link still disqualifies the row",
+			body:        "## Part {sequence=primary}\n\n- [[A]] 也提到 [[B]]\n",
+			wantRule:    RuleEntryMultiTarget,
+			wantFinding: true,
+		},
+		{
+			name:        "an escaped first link leaves the row naming nothing",
+			body:        "## Part {sequence=primary}\n\n- \\[[A]] 只是文字\n",
+			wantFinding: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := Parse(tt.body, 1)
+			if tt.wantFinding && !hasRule(doc, tt.wantRule) {
+				t.Fatalf("Parse() findings = %v, want one naming %v", doc.Diagnostics, tt.wantRule)
+			}
+			if !tt.wantFinding && hasRule(doc, RuleEntryMultiTarget) {
+				t.Fatalf("Parse() reported a second target for a row that names one: %v", doc.Diagnostics)
+			}
+			if tt.wantEntry == "" {
+				return
+			}
+			var got []string
+			for _, g := range doc.Groups {
+				for _, e := range g.Entries() {
+					got = append(got, e.Target)
+				}
+			}
+			if len(got) != 1 || got[0] != tt.wantEntry {
+				t.Errorf("accepted entries = %v, want exactly [%s]", got, tt.wantEntry)
+			}
+		})
+	}
+}

@@ -189,7 +189,9 @@ second. The order is fixed:
 1. parse headings, containers and role declarations;
 2. content under a declared `none` is body-only for navigation — only an
    explicitly declared child role is checked for conflict beneath it;
-3. run the candidate grammar over the remaining groups;
+3. run the candidate grammar over every group, `none` included — a declared
+   `none` settles the branch's role and takes it out of navigation, not out of
+   the grammar, so a malformed row there is still reported to its author;
 4. a candidate becomes an accepted entry only after canonical validation;
 5. an undeclared nested list is `unclassified`, whatever it holds — nesting is
    itself a claim about structure, and one nobody explained is reported;
@@ -218,7 +220,7 @@ whether or not the rows beneath it name any notes.
 | `primary` | declared | main line; consecutive primary groups join end to end in declared order | none |
 | `local` | declared | within its own group only | none |
 | `none` | declared | none | none |
-| `unclassified` | an undeclared nested list, or a heading with a direct candidate and no marker | none | yes |
+| `unclassified` | an undeclared nested list, or a heading with a direct candidate and no marker the parser could read | none | yes |
 | `structural` | a **heading** with no direct candidate and no marker | not applicable | none |
 
 ### What the states produce
@@ -329,6 +331,12 @@ is the author's call, not the parser's:
 - a relation between notes — turn the row into an ordinary paragraph;
 - one entry with commentary — keep the link-first entry and move the
   commentary to an ordinary paragraph after the item.
+
+The rows above are conditions, not a partition: one mistake can meet more than
+one, and each is reported. A marker the parser cannot read is the common case —
+it declares nothing, so the branch is still undeclared and draws
+`path.role_missing` alongside the rule naming what is wrong with the marker
+itself. Fixing the marker settles both.
 
 Every one carries the source line and is addressed to the author: these reach
 the author through the judge and never enter a reader's page. Every `path.*`

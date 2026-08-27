@@ -1046,6 +1046,14 @@ func (p *parser) linksIn(rng Span) []linkHit {
 		if open > 0 && segment[open-1] == '!' {
 			continue // an embed shows the note; it does not list it
 		}
+		if graph.EscapedWikilinkAt(p.body, absolute) {
+			// A backslash before the brackets prints them: the renderer and
+			// the judge both read it as text, and every reader of this vault
+			// has to agree about that. Counting it as a link here made an
+			// author who escaped one accidentally disqualify the row beside
+			// it, which reads as a lesson quietly leaving the course.
+			continue
+		}
 		target, display, ok := graph.SplitWikilink(inner)
 		if !ok {
 			continue
