@@ -882,6 +882,7 @@ templ statusPanel(v NoteView) {
 					<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
 					<p class="y-statuspanel__notice">{ frontmatterDoorLine(v) }</p>
 				default:
+					@transitionEffectLine("y-statuspanel__notice")
 					<div class="y-statuspanel__forms">
 						@legalTransitionForms(v)
 					</div>
@@ -906,6 +907,20 @@ func frontmatterDoorLine(v NoteView) string {
 // the file — and the flag replaces the empty-transitions notice, which would
 // otherwise imply the schema defines nothing onward from a value it never
 // defined.
+// transitionEffectLine states what pressing one of these controls does, on the
+// panel that carries them and before any of them is pressed. A reader deciding
+// whether to press is the only reader this sentence is for; a receipt after the
+// fact reaches them too late, and a control's own tooltip reaches only someone
+// already hovering the thing they have not decided to touch.
+//
+// It is written once and handed the class each status face dresses its quiet
+// notices with, so the rail and the bar cannot come to describe the same button
+// differently. It appears only beside real controls: a face with no legal
+// transition has no button whose effect there would be to state.
+templ transitionEffectLine(noticeClass string) {
+	<p class={ noticeClass }>這個按鈕只會改寫這篇筆記 frontmatter 的 status 欄位。</p>
+}
+
 templ statusUnknownFlag(v NoteView, noticeClass string) {
 	<p class={ noticeClass, "y-statusflag" }>狀態值 <code>{ v.Status }</code> 不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。</p>
 }
@@ -1051,6 +1066,7 @@ templ statusBar(v NoteView) {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
+					@transitionEffectLine("y-sealbar__notice")
 					@legalTransitionForms(v)
 			}
 		</div>
