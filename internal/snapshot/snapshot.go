@@ -72,7 +72,9 @@ type Source interface {
 // the folder on disk. It exists because both degraded states are otherwise
 // invisible: a startup view may omit a source so reading stays available, and
 // a failing rebuild retains the previous generation — in either case the
-// pages would present a partial or stale folder as current and whole.
+// pages would present a partial or stale folder as current and whole. It is
+// assembled at read time from a generation's fixed buildFacts and its owning
+// Store's live liveAttempt; see View.Freshness.
 type Freshness struct {
 	// BuiltAt is when the generation being reported finished building.
 	BuiltAt time.Time
@@ -96,6 +98,28 @@ type Freshness struct {
 	// seconds old" and "the folder was last seen whole an hour ago" are then
 	// two different facts, both of which the reader needs.
 	LastComplete time.Time
+}
+
+// buildFacts is one generation's own fixed account of itself: when it
+// finished building, whether it read every source it wanted, the sources it
+// never got, and when a whole read last happened. It is set once when a
+// generation is published and never changes afterward — unlike the owning
+// Store's liveAttempt, which keeps moving while a later build is retried.
+type buildFacts struct {
+	builtAt      time.Time
+	complete     bool
+	blocked      []BlockedSource
+	lastComplete time.Time
+}
+
+// liveAttempt is a Store's continuously updated account of its latest rebuild
+// attempt: the sources it currently cannot have, and how many attempts in a
+// row have come back incomplete. Every View published while a liveAttempt is
+// current shares a pointer to the same value, which is how a page serving a
+// retained generation can say the folder has moved on without it.
+type liveAttempt struct {
+	blocked       []BlockedSource
+	failedRetries int
 }
 
 // BlockedSource is one vault path a generation build wanted and could not
@@ -138,14 +162,14 @@ type View struct {
 	// wanted, and the sources it never got. A response renders the generation
 	// it captured, so these are the facts that belong beside that content even
 	// after a later generation has replaced it.
-	built Freshness
+	built buildFacts
 
 	// freshness points at the owning Store's live account of the latest build
 	// attempt. Unlike every other projection it is deliberately not frozen at
 	// build time: while rebuilds fail, the retained generation is the one being
 	// served, and it is exactly the view that must be able to say the folder
 	// has moved on without it.
-	freshness *atomic.Pointer[Freshness]
+	freshness *atomic.Pointer[liveAttempt]
 }
 
 // Capture returns a request-local View bound to one point-in-time artifact
@@ -193,8 +217,12 @@ func (v *View) Freshness() Freshness {
 	if v == nil {
 		return Freshness{}
 	}
-	out := v.built
-	out.Blocked = slices.Clone(v.built.Blocked)
+	out := Freshness{
+		BuiltAt:      v.built.builtAt,
+		Complete:     v.built.complete,
+		Blocked:      slices.Clone(v.built.blocked),
+		LastComplete: v.built.lastComplete,
+	}
 	if v.freshness == nil {
 		return out
 	}
@@ -202,8 +230,8 @@ func (v *View) Freshness() Freshness {
 	if attempt == nil {
 		return out
 	}
-	out.FailedRetries = attempt.FailedRetries
-	for _, source := range attempt.Blocked {
+	out.FailedRetries = attempt.failedRetries
+	for _, source := range attempt.blocked {
 		if !slices.ContainsFunc(out.Blocked, func(known BlockedSource) bool { return known.Path == source.Path }) {
 			out.Blocked = append(out.Blocked, source)
 		}
@@ -360,11 +388,11 @@ type Store struct {
 
 	// fresh is the live account of the latest build attempt: the sources it
 	// could not have and how many attempts in a row have come back incomplete.
-	// Its build fields stay zero — when a build finished and whether it read
+	// It carries no build facts — when a build finished and whether it read
 	// everything belong to a generation, and every published View carries its
 	// own. The reconciliation loop is its only writer; requests read it
 	// through View.Freshness.
-	fresh atomic.Pointer[Freshness]
+	fresh atomic.Pointer[liveAttempt]
 
 	source          Source
 	log             *slog.Logger
@@ -454,13 +482,13 @@ func New(
 		retry:           len(blocked) != 0,
 	}
 	builtAt := store.now()
-	view.built = Freshness{
-		BuiltAt:  builtAt,
-		Complete: len(blocked) == 0,
-		Blocked:  blocked,
+	view.built = buildFacts{
+		builtAt:  builtAt,
+		complete: len(blocked) == 0,
+		blocked:  blocked,
 	}
-	if view.built.Complete {
-		view.built.LastComplete = builtAt
+	if view.built.complete {
+		view.built.lastComplete = builtAt
 		store.lastComplete = builtAt
 	} else {
 		// Startup publishes an incomplete generation so reading stays
@@ -468,7 +496,7 @@ func New(
 		// whole, and the threshold counts from here.
 		store.incompleteSincePublish = 1
 	}
-	store.fresh.Store(&Freshness{Blocked: blocked})
+	store.fresh.Store(&liveAttempt{blocked: blocked})
 	view.freshness = &store.fresh
 	store.ptr.Store(view)
 	store.logBuild("vault snapshot built", view, scan)
@@ -554,9 +582,9 @@ func (s *Store) rescan(ctx context.Context) {
 	}
 	// The attempt record is cleared before the pointer swap so a reader of the
 	// new generation never sees the previous attempt's trouble beside it.
-	s.fresh.Store(&Freshness{})
+	s.fresh.Store(&liveAttempt{})
 	builtAt := s.now()
-	candidate.built = Freshness{BuiltAt: builtAt, Complete: true, LastComplete: builtAt}
+	candidate.built = buildFacts{builtAt: builtAt, complete: true, lastComplete: builtAt}
 	candidate.freshness = &s.fresh
 	s.ptr.Store(candidate)
 	s.prev = scan
@@ -587,11 +615,11 @@ func (s *Store) publishOnceDegraded(candidate *View, scan vault.Scan, blocked []
 	if s.incompleteSincePublish < degradeAfter {
 		return
 	}
-	candidate.built = Freshness{
-		BuiltAt:      s.now(),
-		Complete:     false,
-		Blocked:      blocked,
-		LastComplete: s.lastComplete,
+	candidate.built = buildFacts{
+		builtAt:      s.now(),
+		complete:     false,
+		blocked:      blocked,
+		lastComplete: s.lastComplete,
 	}
 	candidate.freshness = &s.fresh
 	s.ptr.Store(candidate)
@@ -615,7 +643,7 @@ func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
 	s.incompleteScan = scan
 	s.nextRetry = s.now().Add(retryDelay(s.consecutiveIncomplete))
 	s.retry = true
-	s.fresh.Store(&Freshness{Blocked: blocked, FailedRetries: s.consecutiveIncomplete})
+	s.fresh.Store(&liveAttempt{blocked: blocked, failedRetries: s.consecutiveIncomplete})
 	s.log.Warn("vault snapshot incomplete; retaining previous generation",
 		"scan_problems", len(scan.Problems()),
 		"consecutive_incomplete", s.consecutiveIncomplete,
