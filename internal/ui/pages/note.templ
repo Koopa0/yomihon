@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/lesson"
@@ -94,8 +95,12 @@ func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
 // status panel and the fixed-bottom status bar, the reading page's two status
 // faces.
 type NoteView struct {
-	Title    string
-	RelPath  string
+	Title   string
+	RelPath string
+	// Lang is the language the page's own words are in. Language, below, is a
+	// different question: it is what the note is written in, which the note
+	// declares and this does not touch.
+	Lang     wording.Lang
 	Language string
 	Type     string
 	Status   string
@@ -338,23 +343,23 @@ templ articleHead(v NoteView) {
 // the same navigation; a report builds it with no current note, so every branch
 // renders closed and unmarked. A nil model renders nothing.
 templ sidebar(sb Sidebar, nonce string) {
-	<aside class="y-rail-left" id="nav-rail" aria-label="書庫導覽">
+	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(sb.Lang) }>
 		<input
 			class="y-filter"
 			type="text"
-			placeholder="篩選導覽…"
-			aria-label="篩選導覽"
+			placeholder={ wording.FilterNavigation.In(sb.Lang) }
+			aria-label={ wording.FilterNavigationLabel.In(sb.Lang) }
 			autocomplete="off"
 			spellcheck="false"
 			data-nav-filter
 			hidden
 		/>
-		<p class="y-filter-empty" data-filter-empty hidden>沒有相符項目；按 Esc 清除篩選。</p>
+		<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(sb.Lang) }</p>
 		<p class="y-filter-partial" data-filter-partial hidden></p>
 		if sb.Model != nil {
 			if len(sb.Here) > 0 {
-				<nav class="y-here" aria-label="目前資料夾">
-					<a class="y-here__label" href={ templ.URL(folderHref(sb.HereDir)) }>{ hereLabel(sb.HereDir) }</a>
+				<nav class="y-here" aria-label={ wording.CurrentFolder.In(sb.Lang) }>
+					<a class="y-here__label" href={ templ.URL(folderHref(sb.HereDir)) }>{ hereLabel(sb.HereDir, sb.Lang) }</a>
 					for _, n := range sb.Here {
 						<a
 							class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
@@ -363,7 +368,7 @@ templ sidebar(sb Sidebar, nonce string) {
 						>{ n.Name }</a>
 					}
 					if sb.HereTrimmed > 0 {
-						<a class="y-here__more" href={ templ.URL(folderHref(sb.HereDir)) } data-rail-trimmed={ strconv.Itoa(sb.HereTrimmed) } data-rail-dir={ sb.HereDir }>另外 { strconv.Itoa(sb.HereTrimmed) } 篇 →</a>
+						<a class="y-here__more" href={ templ.URL(folderHref(sb.HereDir)) } data-rail-trimmed={ strconv.Itoa(sb.HereTrimmed) } data-rail-dir={ sb.HereDir }>{ fmt.Sprintf(wording.MoreInFolder.In(sb.Lang), sb.HereTrimmed) }</a>
 					}
 				</nav>
 			}
@@ -376,7 +381,7 @@ templ sidebar(sb Sidebar, nonce string) {
 			if faults := sb.CapabilityFaults(); len(faults) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
-					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">路徑與地圖</h2>
+					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(sb.Lang) }</h2>
 					for _, fault := range faults {
 						<p>
 							@browserDiagnostic(fault.Summary, fault.Detail)
@@ -389,19 +394,19 @@ templ sidebar(sb Sidebar, nonce string) {
 				<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 					<summary class="y-railsummary">
 						@chevron()
-						路徑
+						{ wording.Paths.In(sb.Lang) }
 					</summary>
 					<div class="y-railgroup">
 						for _, step := range sb.Steps {
-							<nav class="y-lessonsteps" aria-label={ step.PathTitle + " 課程順序" }>
+							<nav class="y-lessonsteps" aria-label={ fmt.Sprintf(wording.CourseOrderOf.In(sb.Lang), step.PathTitle) }>
 								if len(sb.Steps) > 1 {
 									<div class="y-lessonsteps__path">{ step.PathTitle }</div>
 								}
 								if step.Prev.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← 上一課：{ step.Prev.Name }</a>
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.PreviousLesson.In(sb.Lang) }：{ step.Prev.Name }</a>
 								}
 								if step.Next.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>下一課：{ step.Next.Name } →</a>
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.NextLesson.In(sb.Lang) }：{ step.Next.Name } →</a>
 								}
 							</nav>
 						}
@@ -416,7 +421,7 @@ templ sidebar(sb Sidebar, nonce string) {
 				<details open?={ sb.mapsChainOpen() } data-sidebar-group="maps" { disclosureAttrs("maps", sb.mapsChainOpen())... }>
 					<summary class="y-railsummary">
 						@chevron()
-						地圖
+						{ wording.Maps.In(sb.Lang) }
 					</summary>
 					<div class="y-railgroup">
 						for _, m := range sb.Model.Maps() {
@@ -430,7 +435,7 @@ templ sidebar(sb Sidebar, nonce string) {
 				<details open?={ sb.journalOpen() } data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
 					<summary class="y-railsummary">
 						@chevron()
-						日誌
+						{ wording.Journal.In(sb.Lang) }
 					</summary>
 					<div class="y-railgroup">
 						for _, entry := range sb.Model.Journal() {
@@ -444,7 +449,7 @@ templ sidebar(sb Sidebar, nonce string) {
 				<details open?={ sb.reportsOpen() } data-sidebar-group="reports" { disclosureAttrs("reports", false)... }>
 					<summary class="y-railsummary">
 						@chevron()
-						報告
+						{ wording.Reports.In(sb.Lang) }
 					</summary>
 					<div class="y-railgroup">
 						for _, rep := range sb.Model.Reports() {
@@ -452,7 +457,7 @@ templ sidebar(sb Sidebar, nonce string) {
 								<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
 									{ rep.Name }
 									if rep.Latest {
-										<span class="y-navmark">最新</span>
+										<span class="y-navmark">{ wording.Newest.In(sb.Lang) }</span>
 									}
 								</a>
 							} else {
@@ -468,7 +473,7 @@ templ sidebar(sb Sidebar, nonce string) {
 			<details open?={ sb.folderTreeOpen() } { disclosureAttrs("folders", sb.folderTreeOpen())... }>
 				<summary class="y-railsummary">
 					@chevron()
-					資料夾
+					{ wording.Folders.In(sb.Lang) }
 				</summary>
 				<div class="y-railgroup">
 					@folderList(sb)
@@ -552,7 +557,7 @@ templ folderNode(sb Sidebar, f nav.Folder) {
 					>{ n.Name }</a>
 				}
 				if trimmed > 0 {
-					<a class="y-here__more" href={ templ.URL(folderHref(f.RelPath)) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ f.RelPath }>另外 { strconv.Itoa(trimmed) } 篇 →</a>
+					<a class="y-here__more" href={ templ.URL(folderHref(f.RelPath)) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ f.RelPath }>{ fmt.Sprintf(wording.MoreInFolder.In(sb.Lang), trimmed) }</a>
 				}
 			</div>
 		</details>
@@ -571,7 +576,7 @@ templ mapTree(sb Sidebar, m nav.Map, href string) {
 			<span class="y-railitem__name">{ m.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(href) }>開啟地圖</a>
+			<a class="y-railitem__full" href={ templ.URL(href) }>{ wording.OpenMap.In(sb.Lang) }</a>
 			for _, branch := range m.Branches {
 				@branchNode(sb, m.RelPath, childChain(nil, branch.Heading), branch)
 			}
@@ -590,7 +595,7 @@ templ pathTree(sb Sidebar, p nav.Path) {
 			<span class="y-railitem__name">{ p.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>開啟課綱</a>
+			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>{ wording.OpenSyllabus.In(sb.Lang) }</a>
 			for _, g := range p.Groups {
 				@pathGroupNode(sb, p.RelPath, childChain(nil, g.Name), g)
 			}
@@ -785,13 +790,13 @@ templ sequenceSteps(v NoteView) {
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
 					<span class="y-steps__dir" aria-hidden="true">←</span>
-					<span class="y-steps__role">{ stepWordPrev(v.StepsCourse) }</span>
+					<span class="y-steps__role">{ stepWordPrev(v.StepsCourse, v.Lang) }</span>
 					<span class="y-steps__name">{ v.Prev.Name }</span>
 				</a>
 			}
 			if v.Next.RelPath != "" {
 				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
-					<span class="y-steps__role">{ stepWordNext(v.StepsCourse) }</span>
+					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, v.Lang) }</span>
 					<span class="y-steps__name">{ v.Next.Name }</span>
 					<span class="y-steps__dir" aria-hidden="true">→</span>
 				</a>

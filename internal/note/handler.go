@@ -144,7 +144,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
-		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+		Sidebar:    pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
 	}
 	title := "找不到"
 	if unreadable {
@@ -181,7 +181,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Crumbs:     pages.Breadcrumb(dir),
 		Subfolders: subfolders,
 		Notes:      notes,
-		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+		Sidebar:    pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
 	}
 	if err := pages.Folder(view, pages.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write folder page", "dir", dir, "error", err)
@@ -206,7 +206,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Blocked:           healthBlocked(fresh.Blocked),
 		StatusOutsideEnum: statusesOutsideEnum(statusView, snap),
 		LastComplete:      lastCompleteBuild(&fresh),
-		Sidebar:           pages.NewSidebar(pageShell.Nav, ""),
+		Sidebar:           pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
 	}
 	if err := pages.Health(view, pages.ChromeFromRequest(r, "整體狀況")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
@@ -405,7 +405,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		ShowLifecycle:  content.lifecycle,
 		ShowPaths:      content.paths,
 		ReadmeMissing:  !hasReadme,
-		Sidebar:        pages.NewSidebar(visibleNav, ""),
+		Sidebar:        pages.NewSidebar(visibleNav, "", pages.LanguageFromRequest(r)),
 	}
 	if err := pages.Home(view, pages.ChromeFromRequest(r, "首頁")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
@@ -488,9 +488,10 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
-	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath)
-	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(governance.shell.Nav, n.RelPath)
+	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
+	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
 	view := pages.NoteView{
+		Lang:              pages.LanguageFromRequest(r),
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,

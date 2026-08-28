@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestAncestorDirs(t *testing.T) {
@@ -51,8 +52,8 @@ func TestHereLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.dir, func(t *testing.T) {
 			t.Parallel()
-			if got := hereLabel(tt.dir); got != tt.want {
-				t.Errorf("hereLabel(%q) = %q, want %q", tt.dir, got, tt.want)
+			if got := hereLabel(tt.dir, wording.ZhHant); got != tt.want {
+				t.Errorf("hereLabel(%q, wording.ZhHant) = %q, want %q", tt.dir, got, tt.want)
 			}
 		})
 	}
@@ -169,7 +170,7 @@ func TestNewSidebarWayfinding(t *testing.T) {
 		current = "Writing/lessons/go/L01.md"
 		sibling = "Writing/lessons/go/L02.md"
 	)
-	sb := NewSidebar(model, current)
+	sb := NewSidebar(model, current, wording.ZhHant)
 
 	if !sb.mapOpen(goPath) {
 		t.Errorf("mapOpen(%q) = false, want true", goPath)
@@ -209,7 +210,7 @@ func TestNewSidebarWayfinding(t *testing.T) {
 
 	// A note listed only under Decode > Bytes must not open the Review section:
 	// the open set is per note, not per study-path.
-	sb2 := NewSidebar(model, sibling)
+	sb2 := NewSidebar(model, sibling, wording.ZhHant)
 	if sb2.branchOpen(goPath, []string{"Review"}) {
 		t.Errorf("branchOpen(%q, [Review]) = true for a note absent from Review, want false", goPath)
 	}
@@ -259,7 +260,7 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			sb := NewSidebar(model, tt.current)
+			sb := NewSidebar(model, tt.current, wording.ZhHant)
 			if sb.mapOpen("Maps/Go path.md") {
 				t.Error("mapOpen = true for a note no study-path lists, want false")
 			}
@@ -297,7 +298,7 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
-	sb := NewSidebar(model, "Writing/lessons/go/L01.md")
+	sb := NewSidebar(model, "Writing/lessons/go/L01.md", wording.ZhHant)
 
 	var buf bytes.Buffer
 	if err := sidebar(sb, "response-nonce").Render(t.Context(), &buf); err != nil {
@@ -329,7 +330,7 @@ func TestSidebarContentGrouping(t *testing.T) {
 	model := buildModel(t)
 
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(model, "", wording.ZhHant), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -411,7 +412,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
 	}
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(model, "", wording.ZhHant), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -445,7 +446,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.ArtifactPolicy{},
 	)
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(model, "", wording.ZhHant), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -521,7 +522,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 
 	model := buildModel(t)
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), "response-nonce").Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(model, "", wording.ZhHant), "response-nonce").Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -557,7 +558,7 @@ func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
 
 	model := nav.Map{Title: "Empty map", RelPath: "Maps/Empty.md"}
 	var buf bytes.Buffer
-	if err := mapTree(NewSidebar(nil, ""), model, notesHref(model.RelPath)).Render(t.Context(), &buf); err != nil {
+	if err := mapTree(NewSidebar(nil, "", wording.ZhHant), model, notesHref(model.RelPath)).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -598,7 +599,7 @@ func detailsTagByKey(t *testing.T, html, key string) string {
 func TestNewSidebarNoCurrentNote(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
-	sb := NewSidebar(model, "")
+	sb := NewSidebar(model, "", wording.ZhHant)
 
 	if sb.mapOpen("Maps/Go path.md") {
 		t.Error("mapOpen = true with no current note, want false")

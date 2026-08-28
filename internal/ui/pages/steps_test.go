@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestTheFootNamesTheOrderItWalks locks what a sighted reader is shown at the
@@ -145,7 +146,7 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			prev, next, label, course := FooterSequence(model, tt.current)
+			prev, next, label, course := FooterSequence(model, tt.current, wording.ZhHant)
 			if prev.RelPath != tt.wantPrev {
 				t.Errorf("FooterSequence(%q) prev = %q, want %q", tt.current, prev.RelPath, tt.wantPrev)
 			}

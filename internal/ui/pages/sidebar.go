@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Sidebar is the fully resolved left navigation for one request: the shared
@@ -25,6 +27,10 @@ type Sidebar struct {
 
 	// CurrentPath is the note being read, empty on a page with no note.
 	CurrentPath string
+	// Lang is the language the rail speaks. It travels on the rail rather than
+	// through every component that draws part of one, because the rail is a
+	// tree and threading a language down it would touch every branch.
+	Lang wording.Lang
 	// HereDir labels the siblings block with the current note's directory; Here
 	// lists that directory's files (the current one included, to be marked).
 	HereDir string
@@ -46,13 +52,14 @@ type Sidebar struct {
 
 // NewSidebar resolves the left navigation for one page. model is the whole-vault
 // nav model; currentPath is the note being read ("" for a page with no note).
-func NewSidebar(model *nav.Model, currentPath string) Sidebar {
+func NewSidebar(model *nav.Model, currentPath string, lang wording.Lang) Sidebar {
 	// The current path arrives from the request URL; the model's indexes are
 	// keyed by NFC paths, so fold it once here to match on either form.
 	currentPath = vault.NormalizeNFC(currentPath)
 	sb := Sidebar{
 		Model:        model,
 		CurrentPath:  currentPath,
+		Lang:         lang,
 		openMaps:     map[string]bool{},
 		openBranches: map[string]bool{},
 		openFolders:  map[string]bool{},
@@ -228,9 +235,9 @@ func Breadcrumb(relPath string) []nav.NoteRef {
 
 // hereLabel names the siblings block after the current note's directory: its
 // innermost folder, or the vault root for a file that lives at the top.
-func hereLabel(dir string) string {
+func hereLabel(dir string, lang wording.Lang) string {
 	if dir == "" {
-		return "書庫根目錄"
+		return wording.VaultRoot.In(lang)
 	}
 	if i := strings.LastIndexByte(dir, '/'); i >= 0 {
 		return dir[i+1:]
@@ -295,16 +302,16 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 	artifact := s.Model.ArtifactDiagnostic()
 	switch {
 	case navigation != "" && navigation == artifact:
-		return []CapabilityFault{{Summary: "路徑、地圖與治理項目投影目前無法使用。", Detail: navigation}}
+		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(s.Lang), Detail: navigation}}
 	case navigation != "" && artifact != "":
 		return []CapabilityFault{
-			{Summary: "路徑與地圖目前無法使用。", Detail: navigation},
-			{Summary: "治理項目投影目前無法使用。", Detail: artifact},
+			{Summary: wording.PathsAndMapsUnavailable.In(s.Lang), Detail: navigation},
+			{Summary: wording.ArtifactsUnavailable.In(s.Lang), Detail: artifact},
 		}
 	case navigation != "":
-		return []CapabilityFault{{Summary: "路徑與地圖目前無法使用。", Detail: navigation}}
+		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(s.Lang), Detail: navigation}}
 	case artifact != "":
-		return []CapabilityFault{{Summary: "治理項目投影目前無法使用。", Detail: artifact}}
+		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(s.Lang), Detail: artifact}}
 	default:
 		return nil
 	}
@@ -333,34 +340,34 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 // It is asked for by the one page that has a foot to put it in, rather than
 // resolved for every page and read by that one: the rail on a search result or
 // a folder listing carried this answer too, and nothing there ever looked at it.
-func FooterSequence(model *nav.Model, relPath string) (prev, next nav.NoteRef, label string, course bool) {
+func FooterSequence(model *nav.Model, relPath string, lang wording.Lang) (prev, next nav.NoteRef, label string, course bool) {
 	relPath = vault.NormalizeNFC(relPath)
 	if model == nil || relPath == "" {
 		return prev, next, "", false
 	}
 	if steps := model.Neighbors(relPath); len(steps) == 1 {
-		return steps[0].Prev, steps[0].Next, steps[0].PathTitle + " 課程順序", true
+		return steps[0].Prev, steps[0].Next, fmt.Sprintf(wording.CourseOrderOf.In(lang), steps[0].PathTitle), true
 	}
 	prev, next = model.Adjacent(relPath)
-	return prev, next, "同資料夾的前後檔案", false
+	return prev, next, wording.FolderAdjacency.In(lang), false
 }
 
 // stepWordPrev and stepWordNext name a footer step for the order it walks: a
 // course hands the reader the previous or next lesson, a folder merely the
 // file beside this one. A neighbouring file is not a recommended next step,
 // and the word is where the foot says so.
-func stepWordPrev(course bool) string {
+func stepWordPrev(course bool, lang wording.Lang) string {
 	if course {
-		return "上一課"
+		return wording.PreviousLesson.In(lang)
 	}
-	return "上一份"
+	return wording.PreviousFile.In(lang)
 }
 
-func stepWordNext(course bool) string {
+func stepWordNext(course bool, lang wording.Lang) string {
 	if course {
-		return "下一課"
+		return wording.NextLesson.In(lang)
 	}
-	return "下一份"
+	return wording.NextFile.In(lang)
 }
 
 // pathGroupDrawn reports whether the rail shows this branch of a study path:
