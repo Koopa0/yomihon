@@ -53,10 +53,10 @@ func renderedIdentity(content, statusLine string) string {
 func TestFlipRefusesRulingAgainstChangedContent(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 	rendered := lessonContent("draft")
 	writeNote(t, root, rendered)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	edited := strings.Replace(rendered, "body", "body rewritten after render", 1)
 	if edited == rendered {
@@ -96,10 +96,10 @@ func TestFlipRefusesRulingAgainstChangedContent(t *testing.T) {
 func TestFlipStaleStatusOutranksChangedContent(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 	rendered := lessonContent("draft")
 	writeNote(t, root, rendered)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	moved := strings.Replace(lessonContent("archived"), "body", "body rewritten too", 1)
 	writeNote(t, root, moved)
@@ -134,10 +134,10 @@ func TestFlipStaleStatusOutranksChangedContent(t *testing.T) {
 func TestFlipKeepsTheRenderedIdentityValidForTheNextFlip(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 	rendered := lessonContent("draft")
 	writeNote(t, root, rendered)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	identity := formIdentity(rendered)
 
@@ -173,10 +173,10 @@ func TestFlipKeepsTheRenderedIdentityValidForTheNextFlip(t *testing.T) {
 func TestHandlerContentIdentityRequired(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 	rendered := lessonContent("draft")
 	writeNote(t, root, rendered)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	tests := []struct {
 		name string
@@ -211,10 +211,10 @@ func TestHandlerContentIdentityRequired(t *testing.T) {
 func TestFlipStaleStatusKeepsItsOwnCopy(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 	rendered := lessonContent("draft")
 	writeNote(t, root, rendered)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	writeNote(t, root, lessonContent("archived"))
 
@@ -251,10 +251,10 @@ func commentedLesson(noteStatus, reason string) string {
 func TestFlipKeepsTheReasonWrittenBesideTheStatus(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 	rendered := commentedLesson("draft", "等原始資料")
 	writeNote(t, root, rendered)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	code, location, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
@@ -284,10 +284,10 @@ func TestFlipKeepsTheReasonWrittenBesideTheStatus(t *testing.T) {
 func TestFlipRefusesWhenOnlyTheReasonBesideTheStatusChanged(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 	rendered := commentedLesson("draft", "等原始資料")
 	writeNote(t, root, rendered)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	edited := commentedLesson("draft", "來源已到，改等 Koopa 讀")
 	if edited == rendered {

@@ -18,9 +18,9 @@ import (
 func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 
-	view := lifecycle.View()
+	view := writer.View()
 	if view.Closed() {
 		t.Fatalf("View().Closed() = true, want read authority preserved: %s", view.Diagnostic())
 	}
@@ -37,7 +37,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 		t.Errorf("View().Transitions() = %v, want none on a platform without a durable install", got)
 	}
 
-	err := lifecycle.Flip(testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrDurabilityUnsupported) {
 		t.Fatalf("Flip() = %v, want %v before opening the target", err, status.ErrDurabilityUnsupported)
 	}
@@ -53,7 +53,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 func TestUnsupportedPlatformPOSTIsAnUnchangedServiceRefusal(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	srv := newHandlerServer(t, newLifecycle(t, root, loadContract(t)))
+	srv := newHandlerServer(t, newWriter(t, root, loadContract(t)))
 
 	code, location, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},

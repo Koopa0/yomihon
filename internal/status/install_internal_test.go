@@ -66,19 +66,19 @@ var externalWriters = []struct {
 func TestFlipPreservesAnExternalEditRacingTheInstall(t *testing.T) {
 	t.Parallel()
 
-	for _, writer := range externalWriters {
-		t.Run(writer.name, func(t *testing.T) {
+	for _, editor := range externalWriters {
+		t.Run(editor.name, func(t *testing.T) {
 			t.Parallel()
 
-			root, lifecycle := internalVault(t)
+			root, writer := internalVault(t)
 			path := seedInstallNote(t, root)
 			external := strings.Replace(internalLesson(), "body", "external edit", 1)
 			if external == internalLesson() {
 				t.Fatal("the external edit is identical to the note, so this proves nothing")
 			}
 
-			err := lifecycle.flip(installRel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
-				beforeInstall: func() { writer.write(t, path, []byte(external)) },
+			err := writer.flip(installRel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+				beforeInstall: func() { editor.write(t, path, []byte(external)) },
 			})
 
 			if !errors.Is(err, ErrConcurrentWrite) {
@@ -425,8 +425,8 @@ func TestProbeFailureDoesNotPinTheFilesystem(t *testing.T) {
 // One cell in the matrix is out of reach from here and is deliberately absent
 // rather than approximated: the hardlink rung's second window, between taking
 // the extra name and the rename that installs, needs a seam inside the install
-// itself. beforeInstall fires before the install is entered, so it places a
-// writer in the first window only.
+// itself. beforeInstall fires before the install is entered, so it places an
+// external write in the first window only.
 func TestInstallRungMatrix(t *testing.T) {
 	t.Parallel()
 

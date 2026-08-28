@@ -466,38 +466,38 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		t.Fatalf("snapshot.New: %v", err)
 	}
 
-	// The lifecycle shares the fixture's contract authority with the snapshot,
+	// The writer shares the fixture's contract authority with the snapshot,
 	// but its writing endpoint is deliberately not registered below.
-	lifecycle, err := status.Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
+	writer, err := status.Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open: %v", err)
 	}
 	t.Cleanup(func() {
-		if closeErr := lifecycle.Close(); closeErr != nil {
-			t.Errorf("Lifecycle.Close() error = %v", closeErr)
+		if closeErr := writer.Close(); closeErr != nil {
+			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
 	projectShell := func(statusView status.View, snap *snapshot.View) pages.Shell {
 		return shell.Project(statusView, snap.ArtifactPolicy(), snap)
 	}
 	shellForSnapshot := func(snap *snapshot.View) pages.Shell {
-		return projectShell(lifecycle.View(), snap)
+		return projectShell(writer.View(), snap)
 	}
 	shellProvider := func() pages.Shell {
-		statusView := lifecycle.View()
+		statusView := writer.View()
 		return projectShell(statusView, store.Current().Capture())
 	}
 	searchProvider := func() search.RequestSnapshot {
-		statusView := lifecycle.View()
+		statusView := writer.View()
 		snap := store.Current().Capture()
 		return search.RequestSnapshot{Index: snap.Search(), Shell: projectShell(statusView, snap), Status: statusView}
 	}
 
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
-		ObservedStatus: lifecycle.ObservedStatus,
+		ObservedStatus: writer.ObservedStatus,
 		Source:         reader,
-		Status:         lifecycle.View,
+		Status:         writer.View,
 		Snapshot:       store.Current,
 		Log:            log,
 	}).Register(mux)

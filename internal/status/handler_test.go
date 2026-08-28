@@ -30,10 +30,10 @@ func formIdentity(content string) string {
 // before any note is read, where no rendered content exists to identify.
 const wellFormedIdentity = "0000000000000000000000000000000000000000000000000000000000000000"
 
-func newHandlerServer(t *testing.T, lifecycle *status.Lifecycle) *httptest.Server {
+func newHandlerServer(t *testing.T, writer *status.Writer) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	status.NewHandler(lifecycle, func() pages.Shell { return pages.Shell{} }, slog.New(slog.DiscardHandler)).Register(mux)
+	status.NewHandler(writer, func() pages.Shell { return pages.Shell{} }, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -72,10 +72,10 @@ func postStatus(t *testing.T, srv *httptest.Server, form url.Values) (statusCode
 func TestHandlerSuccess(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("draft"))}})
 	if code != http.StatusSeeOther {
@@ -94,8 +94,8 @@ func TestHandlerSuccess(t *testing.T) {
 func TestHandlerMissingFields(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
-	srv := newHandlerServer(t, lifecycle)
+	writer := newWriter(t, root, loadContract(t))
+	srv := newHandlerServer(t, writer)
 
 	tests := []struct {
 		name string
@@ -122,7 +122,7 @@ func TestHandlerMissingFields(t *testing.T) {
 
 func TestHandlerRejectsOversizedFormWithRecoveryPage(t *testing.T) {
 	t.Parallel()
-	srv := newHandlerServer(t, newLifecycle(t, t.TempDir(), nil))
+	srv := newHandlerServer(t, newWriter(t, t.TempDir(), nil))
 	form := url.Values{
 		"path": {strings.Repeat("x", 4097)},
 		"from": {"draft"},
@@ -143,8 +143,8 @@ func TestHandlerRejectsOversizedFormWithRecoveryPage(t *testing.T) {
 func TestHandlerClosed(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, nil) // no contract: fail-closed
-	srv := newHandlerServer(t, lifecycle)
+	writer := newWriter(t, root, nil) // no contract: fail-closed
+	srv := newHandlerServer(t, writer)
 
 	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {wellFormedIdentity}})
 	if code != http.StatusServiceUnavailable {
@@ -157,7 +157,7 @@ func TestHandlerClosed(t *testing.T) {
 
 func TestHandlerPathValidationPrecedesClosure(t *testing.T) {
 	t.Parallel()
-	srv := newHandlerServer(t, newLifecycle(t, t.TempDir(), nil))
+	srv := newHandlerServer(t, newWriter(t, t.TempDir(), nil))
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {"../outside.md"},
 		"from":             {"draft"},
@@ -178,7 +178,7 @@ func TestHandlerPathValidationPrecedesClosure(t *testing.T) {
 func TestHandlerNonInstance(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	srv := newHandlerServer(t, newLifecycle(t, root, loadContract(t)))
+	srv := newHandlerServer(t, newWriter(t, root, loadContract(t)))
 
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {"System/templates/Missing.md"},
@@ -208,8 +208,8 @@ func TestHandlerArtifactPolicyUnavailable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			lifecycle := newLifecycle(t, t.TempDir(), tt.contract)
-			srv := newHandlerServer(t, lifecycle)
+			writer := newWriter(t, t.TempDir(), tt.contract)
+			srv := newHandlerServer(t, writer)
 			code, _, body := postStatus(t, srv, url.Values{
 				"path":             {testRel},
 				"from":             {"draft"},
@@ -255,7 +255,7 @@ func TestHandlerRejectsChangedContractSource(t *testing.T) {
 		t.Fatalf("write reclassified contract: %v", err)
 	}
 
-	srv := newHandlerServer(t, newLifecycle(t, t.TempDir(), contract))
+	srv := newHandlerServer(t, newWriter(t, t.TempDir(), contract))
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
@@ -274,10 +274,10 @@ func TestHandlerRejectsChangedContractSource(t *testing.T) {
 func TestHandlerStale(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	// The page claims "imported"; the file actually says "draft".
 	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("draft"))}})
@@ -300,13 +300,13 @@ func TestHandlerStale(t *testing.T) {
 func TestHandlerTargetRemovedAfterPageLoad(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
 	if err := os.Remove(filepath.Join(root, filepath.FromSlash(testRel))); err != nil {
 		t.Fatalf("remove status target: %v", err)
 	}
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {wellFormedIdentity}})
 	if code != http.StatusNotFound {
@@ -329,7 +329,7 @@ func TestHandlerTargetRemovedAfterPageLoad(t *testing.T) {
 func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 
 	content := "---\n" +
 		"title: L05\n" +
@@ -341,7 +341,7 @@ func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 		"---\n" +
 		"\nbody\n"
 	writeNote(t, root, content)
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(content)}})
 	if code != http.StatusUnprocessableEntity {
@@ -360,10 +360,10 @@ func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 func TestHandlerIllegalTransition(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContract(t))
+	writer := newWriter(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("imported"))
-	srv := newHandlerServer(t, lifecycle)
+	srv := newHandlerServer(t, writer)
 
 	// imported -> ready skips the required "draft" stage.
 	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("imported"))}})

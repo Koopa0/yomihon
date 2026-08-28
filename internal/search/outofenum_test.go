@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// governedStatusView opens a real lifecycle over the shared test contract. It
+// governedStatusView opens a real writer over the shared test contract. It
 // is a real contract rather than a stand-in because the question under test —
 // whether a value belongs to a type's declared list — is the contract's answer
 // and nothing else's.
@@ -112,7 +112,7 @@ func TestSearchRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	}
 }
 
-// closedStatusView opens a lifecycle over a folder whose contract exists and
+// closedStatusView opens a writer over a folder whose contract exists and
 // could not be read. It is governed and shut: the state that answers "not
 // declared" to every value while a contract is genuinely in force, which is
 // the one that would paint the warning on every row in the vault.
@@ -121,7 +121,7 @@ func closedStatusView(t *testing.T) status.View {
 	return openStatusView(t, nil, schema.Unreadable(errors.New("contract unreadable")))
 }
 
-// openStatusView opens one lifecycle over an empty folder and hands back its
+// openStatusView opens one writer over an empty folder and hands back its
 // read-only view. The three cases differ only in what authority they were
 // opened under, so they differ only in these two arguments.
 func openStatusView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
@@ -135,19 +135,19 @@ func openStatusView(t *testing.T, contract *schema.Contract, governance schema.G
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := status.Open(reader, contract, governance, slog.New(slog.DiscardHandler))
+	writer, err := status.Open(reader, contract, governance, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open: %v", err)
 	}
 	t.Cleanup(func() {
-		if closeErr := lifecycle.Close(); closeErr != nil {
-			t.Errorf("Lifecycle.Close() error = %v", closeErr)
+		if closeErr := writer.Close(); closeErr != nil {
+			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
-	return lifecycle.View()
+	return writer.View()
 }
 
-// ungovernedStatusView opens a lifecycle over a folder that declared no
+// ungovernedStatusView opens a writer over a folder that declared no
 // contract. It is the ordinary shape of any directory yomihon is pointed at,
 // and it governs nothing — so it has no list to find a value missing from.
 func ungovernedStatusView(t *testing.T) status.View {
@@ -164,25 +164,25 @@ func ungovernedStatusView(t *testing.T) status.View {
 func TestSearchRowAccusesNothingWhenTheWriteFaceIsClosed(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		lifecycle func(*testing.T) status.View
+		name       string
+		statusView func(*testing.T) status.View
 	}{
-		{name: "no lifecycle was supplied at all"},
-		{name: "a contract is in force and could not be read", lifecycle: closedStatusView},
-		{name: "the folder carries no contract at all", lifecycle: ungovernedStatusView},
+		{name: "no status vocabulary was supplied at all"},
+		{name: "a contract is in force and could not be read", statusView: closedStatusView},
+		{name: "the folder carries no contract at all", statusView: ungovernedStatusView},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			idx := outOfEnumIndex(t)
 			snap := RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
-			if tt.lifecycle != nil {
-				snap.Status = tt.lifecycle(t)
+			if tt.statusView != nil {
+				snap.Status = tt.statusView(t)
 			}
 			body := searchResultsBody(t, func() RequestSnapshot { return snap }, "needle")
 
 			if strings.Contains(body, "不在 schema 允許清單中") {
-				t.Errorf("a lifecycle that declares nothing still ruled on a status value; body = %q", body)
+				t.Errorf("a status vocabulary that declares nothing still ruled on a status value; body = %q", body)
 			}
 			// The control: the rows themselves are present, so the assertion
 			// above is not passing over an empty answer.

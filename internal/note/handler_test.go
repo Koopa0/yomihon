@@ -58,32 +58,32 @@ func newSnapshotStore(
 	return store, source
 }
 
-func openStatusLifecycle(
+func openStatusWriter(
 	t *testing.T,
 	source *vault.Reader,
 	contract *schema.Contract,
 	governance schema.Governance,
-) *status.Lifecycle {
+) *status.Writer {
 	t.Helper()
-	lifecycle, err := status.Open(source, contract, governance, slog.New(slog.DiscardHandler))
+	writer, err := status.Open(source, contract, governance, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open(, slog.New(slog.DiscardHandler)) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := lifecycle.Close(); err != nil {
-			t.Errorf("Lifecycle.Close() error = %v", err)
+		if err := writer.Close(); err != nil {
+			t.Errorf("Writer.Close() error = %v", err)
 		}
 	})
-	return lifecycle
+	return writer
 }
 
 // newServer wires the reading page against a real (not faked)
-// status.Lifecycle, with a nil contract (fail-closed). Good
+// status.Writer, with a nil contract (fail-closed). Good
 // enough for tests whose point is that the page renders regardless of
 // whether the write face is available (reading stays fail-open even when
 // the write face is fail-closed) — NOT for exercising
 // handler.go's NoFrontmatter/Transitions branch selection, since a
-// fail-closed Lifecycle supplies a write diagnostic and note.templ's statusPanel
+// fail-closed Writer supplies a write diagnostic and note.templ's statusPanel
 // switches on it first, before either of those ever matters. Use
 // newServerWithContract for anything that needs to distinguish them.
 func newServer(t *testing.T, root string) *httptest.Server {
@@ -117,16 +117,16 @@ func newServerWithGovernance(
 	mux := http.NewServeMux()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, governance)
-	lifecycle := openStatusLifecycle(t, source, contract, governance)
+	writer := openStatusWriter(t, source, contract, governance)
 	h := note.New(&note.Dependencies{
 		Source:         source,
-		Status:         lifecycle.View,
+		Status:         writer.View,
 		Snapshot:       store.Current,
-		ObservedStatus: lifecycle.ObservedStatus,
+		ObservedStatus: writer.ObservedStatus,
 		Log:            log,
 	})
 	h.Register(mux)
-	status.NewHandler(lifecycle, func() pages.Shell { return pages.Shell{} }, log).Register(mux)
+	status.NewHandler(writer, func() pages.Shell { return pages.Shell{} }, log).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -233,16 +233,16 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 	}
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-	lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
+	writer := openStatusWriter(t, source, contract, contract.Governance())
 	statusCaptures := 0
 	statusProvider := func() status.View {
 		statusCaptures++
-		return lifecycle.View()
+		return writer.View()
 	}
 
 	mux := http.NewServeMux()
 	handler := note.New(&note.Dependencies{
-		ObservedStatus: lifecycle.ObservedStatus,
+		ObservedStatus: writer.ObservedStatus,
 		Source:         source,
 		Status:         statusProvider,
 		Snapshot:       store.Current,
@@ -315,27 +315,27 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 			}
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-			lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
+			writer := openStatusWriter(t, source, contract, contract.Governance())
 
 			var statusView status.View
 			var captured *snapshot.View
 			if snapshotFirst {
 				captured = store.Current().Capture()
 			} else {
-				statusView = lifecycle.View()
+				statusView = writer.View()
 			}
 			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 				t.Fatalf("change contract between captures: %v", writeErr)
 			}
 			if snapshotFirst {
-				statusView = lifecycle.View()
+				statusView = writer.View()
 			} else {
 				captured = store.Current().Capture()
 			}
 
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				ObservedStatus: lifecycle.ObservedStatus,
+				ObservedStatus: writer.ObservedStatus,
 				Source:         source,
 				Status:         func() status.View { return statusView },
 				Snapshot:       func() *snapshot.View { return captured },
@@ -408,27 +408,27 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			}
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-			lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
+			writer := openStatusWriter(t, source, contract, contract.Governance())
 
 			var statusView status.View
 			var captured *snapshot.View
 			if snapshotFirst {
 				captured = store.Current().Capture()
 			} else {
-				statusView = lifecycle.View()
+				statusView = writer.View()
 			}
 			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 				t.Fatalf("change contract between captures: %v", writeErr)
 			}
 			if snapshotFirst {
-				statusView = lifecycle.View()
+				statusView = writer.View()
 			} else {
 				captured = store.Current().Capture()
 			}
 
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				ObservedStatus: lifecycle.ObservedStatus,
+				ObservedStatus: writer.ObservedStatus,
 				Source:         source,
 				Status:         func() status.View { return statusView },
 				Snapshot:       func() *snapshot.View { return captured },
@@ -500,15 +500,15 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	}
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
+	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	statusCaptures := 0
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
-		ObservedStatus: lifecycle.ObservedStatus,
+		ObservedStatus: writer.ObservedStatus,
 		Source:         source,
 		Status: func() status.View {
 			statusCaptures++
-			return lifecycle.View()
+			return writer.View()
 		},
 		Snapshot: store.Current,
 		Log:      log,
@@ -1516,7 +1516,7 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 
 	firstStore, firstSource := newSnapshotStore(t, firstRoot, log, nil, schema.Ungoverned())
 	secondStore, _ := newSnapshotStore(t, secondRoot, log, nil, schema.Ungoverned())
-	lifecycle := openStatusLifecycle(t, firstSource, nil, schema.Ungoverned())
+	writer := openStatusWriter(t, firstSource, nil, schema.Ungoverned())
 
 	for _, tt := range []struct {
 		name string
@@ -1536,9 +1536,9 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				ObservedStatus: lifecycle.ObservedStatus,
+				ObservedStatus: writer.ObservedStatus,
 				Source:         firstSource,
-				Status:         lifecycle.View,
+				Status:         writer.View,
 				Snapshot: func() *snapshot.View {
 					calls++
 					return current.Swap(secondStore.Current())
@@ -1580,7 +1580,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
+	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 
 	for _, tt := range []struct {
 		name, path string
@@ -1594,9 +1594,9 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
-				ObservedStatus: lifecycle.ObservedStatus,
+				ObservedStatus: writer.ObservedStatus,
 				Source:         source,
-				Status:         lifecycle.View,
+				Status:         writer.View,
 				Snapshot: func() *snapshot.View {
 					calls++
 					return store.Current()
@@ -1828,14 +1828,14 @@ body
 	log := slog.New(slog.DiscardHandler)
 	statusCaptures := 0
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-	lifecycle := openStatusLifecycle(t, source, contract, contract.Governance())
+	writer := openStatusWriter(t, source, contract, contract.Governance())
 	requestStatus := func() status.View {
 		statusCaptures++
-		return lifecycle.View()
+		return writer.View()
 	}
 	mux := http.NewServeMux()
 	handler := note.New(&note.Dependencies{
-		ObservedStatus: lifecycle.ObservedStatus,
+		ObservedStatus: writer.ObservedStatus,
 		Source:         source,
 		Status:         requestStatus,
 		Snapshot:       store.Current,
@@ -2506,7 +2506,7 @@ func TestShowTransitions(t *testing.T) {
 	// draft -> [ready, archived] per testdata/contract.toml's lifecycle table
 	// (cross-checked by hand, mirroring the status package's TestTransitions).
 	transitionSource := openReadingVault(t, root)
-	transitions := openStatusLifecycle(t, transitionSource, contract, contract.Governance()).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
+	transitions := openStatusWriter(t, transitionSource, contract, contract.Governance()).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
@@ -2676,11 +2676,11 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			root := t.TempDir()
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-			lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
+			writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 			deps := note.Dependencies{
-				ObservedStatus: lifecycle.ObservedStatus,
+				ObservedStatus: writer.ObservedStatus,
 				Source:         source,
-				Status:         lifecycle.View,
+				Status:         writer.View,
 				Snapshot:       store.Current,
 				Log:            log,
 			}
@@ -2699,11 +2699,11 @@ func TestNewCopiesDependencies(t *testing.T) {
 	}
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	lifecycle := openStatusLifecycle(t, source, nil, schema.Ungoverned())
+	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	deps := note.Dependencies{
-		ObservedStatus: lifecycle.ObservedStatus,
+		ObservedStatus: writer.ObservedStatus,
 		Source:         source,
-		Status:         lifecycle.View,
+		Status:         writer.View,
 		Snapshot:       store.Current,
 		Log:            log,
 	}

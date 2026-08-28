@@ -87,21 +87,21 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	if err != nil {
 		t.Fatalf("schema.LoadReader() error = %v", err)
 	}
-	lifecycle, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
+	writer, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open() error = %v", err)
 	}
 	watchCtx, cancel := context.WithCancel(t.Context())
 	site := &readingSite{
-		lifecycle: lifecycle,
-		source:    source,
-		cancel:    cancel,
+		writer: writer,
+		source: source,
+		cancel: cancel,
 	}
 	watcherResult := make(chan error, 1)
 	site.watchers.Go(func() {
 		<-watchCtx.Done()
-		if lifecycle.View().Closed() {
-			watcherResult <- errors.New("lifecycle closed before watcher exited")
+		if writer.View().Closed() {
+			watcherResult <- errors.New("writer closed before watcher exited")
 			return
 		}
 		if _, scanErr := source.ScanComplete(context.WithoutCancel(t.Context())); scanErr != nil {
@@ -117,8 +117,8 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	if err = <-watcherResult; err != nil {
 		t.Fatal(err)
 	}
-	if !lifecycle.View().Closed() {
-		t.Error("Lifecycle remained open after readingSite.close()")
+	if !writer.View().Closed() {
+		t.Error("Writer remained open after readingSite.close()")
 	}
 	if _, err = source.ScanComplete(t.Context()); err == nil {
 		t.Error("Reader.ScanComplete() after readingSite.close() = nil, want closed-reader error")
@@ -141,7 +141,7 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	if err != nil {
 		t.Fatalf("schema.LoadReader() error = %v", err)
 	}
-	lifecycle, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
+	writer, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("status.Open() error = %v", err)
 	}
@@ -152,8 +152,8 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 		handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			close(requestStarted)
 			<-releaseRequest
-			if lifecycle.View().Closed() {
-				requestResult <- errors.New("lifecycle closed before active request exited")
+			if writer.View().Closed() {
+				requestResult <- errors.New("writer closed before active request exited")
 				return
 			}
 			if _, scanErr := source.ScanComplete(context.WithoutCancel(t.Context())); scanErr != nil {
@@ -163,8 +163,8 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 			requestResult <- nil
 			w.WriteHeader(http.StatusNoContent)
 		}),
-		lifecycle: lifecycle,
-		source:    source,
+		writer: writer,
+		source: source,
 	}
 	requestDone := make(chan struct{})
 	go func() {
@@ -208,8 +208,8 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	if err = <-closeResult; err != nil {
 		t.Fatalf("readingSite.close() error = %v", err)
 	}
-	if !lifecycle.View().Closed() {
-		t.Error("Lifecycle remained open after readingSite.close()")
+	if !writer.View().Closed() {
+		t.Error("Writer remained open after readingSite.close()")
 	}
 	if _, err = source.ScanComplete(t.Context()); err == nil {
 		t.Error("Reader.ScanComplete() after readingSite.close() = nil, want closed-reader error")

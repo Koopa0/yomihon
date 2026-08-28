@@ -26,24 +26,25 @@ type RequestSnapshot struct {
 	Index *Index
 	Shell pages.Shell
 
-	// Status is the read-only lifecycle the row rules against. A result row
-	// states a note's status, and a status is a value drawn from a declared
+	// Status is the read-only status vocabulary the row rules against. A
+	// result row states a note's status, and a status is a value drawn from a
 	// list; without the contract that declared it the row can print the word
 	// but cannot say whether the vault allows it, which is the one thing a
 	// reader scanning the list needs. It may be absent, and a search face
 	// then names statuses without ruling on them.
-	Status Lifecycle
+	Status StatusVocabulary
 }
 
-// Lifecycle is the minimal status-vocabulary capability the search face needs,
-// declared here in the consumer so the concrete lifecycle satisfies it without
-// this package importing it. That direction is load-bearing rather than
-// stylistic: the offline retrieval commands are built from this package and
-// are the only part of yomihon allowed to reach a network, and their
-// dependency closure is held to a reviewed list. Naming the write face here
+// StatusVocabulary is the minimal capability the search face needs from the
+// vault contract, declared here in the consumer so the read-only status
+// projection satisfies it without this package importing the write face.
+// That direction is load-bearing rather than stylistic: the offline
+// retrieval commands are built from this package and are the only part of
+// yomihon allowed to reach a network, and their dependency closure is held
+// to a reviewed list. Naming the write face here
 // would put the one component that edits the vault inside the closure of the
 // one component that can leave the machine.
-type Lifecycle interface {
+type StatusVocabulary interface {
 	// Closed reports whether this view can classify a governed instance at
 	// all. A folder that declared no contract and one whose contract cannot be
 	// honoured are both closed: neither holds a vocabulary to measure against.
@@ -195,14 +196,14 @@ func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 // happily match and return raw frontmatter for an ungoverned folder — that is a
 // text field like any other — but a status chip presents it as a value drawn
 // from a declared vocabulary, which is a claim no contract backs there.
-func viewResults(results []Result, governed bool, lifecycle Lifecycle, tokens []string) []pages.SearchResult {
-	// One question decides it, asked of the lifecycle itself rather than
+func viewResults(results []Result, governed bool, vocabulary StatusVocabulary, tokens []string) []pages.SearchResult {
+	// One question decides it, asked of the vocabulary itself rather than
 	// inferred from the shell beside it: can this view classify a governed
 	// instance at all. A folder that declared no contract and one whose
 	// contract cannot be honoured both answer no, and both would otherwise
 	// answer "not declared" to every value — marking every governed row in the
 	// vault as a fault. Knowing no vocabulary, the row accuses nothing.
-	rules := lifecycle != nil && !lifecycle.Closed()
+	rules := vocabulary != nil && !vocabulary.Closed()
 	out := make([]pages.SearchResult, len(results))
 	for i, r := range results {
 		out[i] = pages.SearchResult{
@@ -218,7 +219,7 @@ func viewResults(results []Result, governed bool, lifecycle Lifecycle, tokens []
 		if governed {
 			out[i].Status = r.Status
 			if rules && r.Status != "" {
-				out[i].StatusOutsideEnum = !lifecycle.KnownStatus(r.NoteType, r.Status)
+				out[i].StatusOutsideEnum = !vocabulary.KnownStatus(r.NoteType, r.Status)
 			}
 		}
 	}

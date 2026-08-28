@@ -28,7 +28,7 @@ import (
 type readingSite struct {
 	handler   http.Handler
 	snapshots *snapshot.Store
-	lifecycle *status.Lifecycle
+	writer    *status.Writer
 	source    *vault.Reader
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
@@ -76,13 +76,13 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		governance = contract.Governance()
 	}
 
-	lifecycle, err := status.Open(source, contract, governance, log)
+	writer, err := status.Open(source, contract, governance, log)
 	if err != nil {
-		return nil, fmt.Errorf("open status lifecycle: %w", err)
+		return nil, fmt.Errorf("open status writer: %w", err)
 	}
 	defer func() {
 		if resultErr != nil {
-			resultErr = errors.Join(resultErr, lifecycle.Close())
+			resultErr = errors.Join(resultErr, writer.Close())
 		}
 	}()
 	store, err := snapshot.New(ctx, source, log, contract, governance)
@@ -93,14 +93,14 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		return shell.Project(statusView, snap.ArtifactPolicy(), snap)
 	}
 	shellForSnapshot := func(snap *snapshot.View) pages.Shell {
-		return projectShell(lifecycle.View(), snap)
+		return projectShell(writer.View(), snap)
 	}
 	shellProvider := func() pages.Shell {
-		statusView := lifecycle.View()
+		statusView := writer.View()
 		return projectShell(statusView, store.Current().Capture())
 	}
 	searchProvider := func() search.RequestSnapshot {
-		statusView := lifecycle.View()
+		statusView := writer.View()
 		snap := store.Current().Capture()
 		return search.RequestSnapshot{Index: snap.Search(), Shell: projectShell(statusView, snap), Status: statusView}
 	}
@@ -108,12 +108,12 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
 		Source:         source,
-		Status:         lifecycle.View,
+		Status:         writer.View,
 		Snapshot:       store.Current,
-		ObservedStatus: lifecycle.ObservedStatus,
+		ObservedStatus: writer.ObservedStatus,
 		Log:            log,
 	}).Register(mux)
-	status.NewHandler(lifecycle, shellProvider, log).Register(mux)
+	status.NewHandler(writer, shellProvider, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(shellProvider, log).Register(mux)
 	report.New(source, store.Current, shellForSnapshot, log).Register(mux)
@@ -124,7 +124,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	site := &readingSite{
 		handler:   origin.LoopbackOnly(origin.Protect(handler)),
 		snapshots: store,
-		lifecycle: lifecycle,
+		writer:    writer,
 		source:    source,
 		cancel:    cancel,
 	}
@@ -163,8 +163,8 @@ func (site *readingSite) close() error {
 		}
 		site.watchers.Wait()
 		site.requests.Wait()
-		if site.lifecycle != nil {
-			site.closeErr = errors.Join(site.closeErr, site.lifecycle.Close())
+		if site.writer != nil {
+			site.closeErr = errors.Join(site.closeErr, site.writer.Close())
 		}
 		if site.source != nil {
 			site.closeErr = errors.Join(site.closeErr, site.source.Close())

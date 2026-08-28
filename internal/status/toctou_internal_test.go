@@ -25,13 +25,13 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-func internalVault(t *testing.T) (string, *Lifecycle) {
+func internalVault(t *testing.T) (string, *Writer) {
 	t.Helper()
-	root, _, lifecycle := internalVaultWithMutableContract(t)
-	return root, lifecycle
+	root, _, writer := internalVaultWithMutableContract(t)
+	return root, writer
 }
 
-func internalVaultWithMutableContract(t *testing.T) (root, contractPath string, lifecycle *Lifecycle) {
+func internalVaultWithMutableContract(t *testing.T) (root, contractPath string, writer *Writer) {
 	t.Helper()
 	root = t.TempDir()
 	contractBytes, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
@@ -55,16 +55,16 @@ func internalVaultWithMutableContract(t *testing.T) (root, contractPath string, 
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err = Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
+	writer, err = Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
-		if closeErr := lifecycle.Close(); closeErr != nil {
-			t.Errorf("Lifecycle.Close() error = %v", closeErr)
+		if closeErr := writer.Close(); closeErr != nil {
+			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
-	return root, contractPath, lifecycle
+	return root, contractPath, writer
 }
 
 func readNoteFixture(t *testing.T, root string) []byte {
@@ -124,7 +124,7 @@ func internalRoot(t *testing.T, path string) *os.Root {
 func TestFlipRejectsChangedContractBeforeFilesystem(t *testing.T) {
 	t.Parallel()
 
-	root, contractPath, lifecycle := internalVaultWithMutableContract(t)
+	root, contractPath, writer := internalVaultWithMutableContract(t)
 	data, err := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
 	if err != nil {
 		t.Fatalf("read mutable contract: %v", err)
@@ -139,7 +139,7 @@ func TestFlipRejectsChangedContractBeforeFilesystem(t *testing.T) {
 		t.Fatalf("write reclassified contract: %v", err)
 	}
 
-	err = lifecycle.Flip("Writing/missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
+	err = writer.Flip("Writing/missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
 	if !errors.Is(err, ErrArtifactPolicyUnavailable) {
 		t.Fatalf("Flip() after contract change = %v, want %v before target access", err, ErrArtifactPolicyUnavailable)
 	}
@@ -154,7 +154,7 @@ func TestFlipRejectsChangedContractBeforeFilesystem(t *testing.T) {
 func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	t.Parallel()
 
-	root, contractPath, lifecycle := internalVaultWithMutableContract(t)
+	root, contractPath, writer := internalVaultWithMutableContract(t)
 	const (
 		firstRel  = "Writing/lessons/japanese/First.md"
 		secondRel = "Writing/lessons/japanese/Second.md"
@@ -176,7 +176,7 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	secondErr := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		firstErr <- lifecycle.flip(
+		firstErr <- writer.flip(
 			firstRel,
 			"draft",
 			schema.SealStatus,
@@ -189,7 +189,7 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	})
 	<-firstAtAuthority
 	wg.Go(func() {
-		secondErr <- lifecycle.flip(
+		secondErr <- writer.flip(
 			secondRel,
 			"draft",
 			schema.SealStatus,
@@ -220,10 +220,10 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	}
 }
 
-func TestLifecycleProjectionsCloseWhenContractChanges(t *testing.T) {
+func TestWriterProjectionsCloseWhenContractChanges(t *testing.T) {
 	t.Parallel()
 
-	_, contractPath, lifecycle := internalVaultWithMutableContract(t)
+	_, contractPath, writer := internalVaultWithMutableContract(t)
 	data, err := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
 	if err != nil {
 		t.Fatalf("read mutable contract: %v", err)
@@ -232,23 +232,23 @@ func TestLifecycleProjectionsCloseWhenContractChanges(t *testing.T) {
 		t.Fatalf("change contract source: %v", err)
 	}
 
-	if !lifecycle.View().Closed() {
+	if !writer.View().Closed() {
 		t.Error("Closed() = false after contract source change, want true")
 	}
 	const want = "vault artifact policy source changed after startup; instance projections disabled until restart"
-	if got := lifecycle.View().Diagnostic(); got != want {
+	if got := writer.View().Diagnostic(); got != want {
 		t.Errorf("WriteDiagnostic() = %q, want %q", got, want)
 	}
-	if got := lifecycle.View().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
+	if got := writer.View().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
 		t.Errorf("Transitions() after contract source change = %v, want nil", got)
 	}
 }
 
-func TestLifecycleViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
+func TestWriterViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 	t.Parallel()
 
-	_, contractPath, lifecycle := internalVaultWithMutableContract(t)
-	view := lifecycle.View()
+	_, contractPath, writer := internalVaultWithMutableContract(t)
+	view := writer.View()
 	if diagnostic := view.Diagnostic(); diagnostic != "" {
 		t.Fatalf("initial View() diagnostic = %q, want open", diagnostic)
 	}
@@ -276,7 +276,7 @@ func TestLifecycleViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 		t.Errorf("captured View().Diagnostic() after source drift = %q, want immutable open view", diagnostic)
 	}
 
-	next := lifecycle.View()
+	next := writer.View()
 	if diagnostic := next.Diagnostic(); diagnostic == "" {
 		t.Fatal("next View() after source drift remained open")
 	}
@@ -288,10 +288,10 @@ func TestLifecycleViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 	}
 }
 
-func TestLifecycleLatchesContractChangeUntilRestart(t *testing.T) {
+func TestWriterLatchesContractChangeUntilRestart(t *testing.T) {
 	t.Parallel()
 
-	root, contractPath, lifecycle := internalVaultWithMutableContract(t)
+	root, contractPath, writer := internalVaultWithMutableContract(t)
 	original, err := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
 	if err != nil {
 		t.Fatalf("read mutable contract: %v", err)
@@ -299,21 +299,21 @@ func TestLifecycleLatchesContractChangeUntilRestart(t *testing.T) {
 	if err = os.WriteFile(contractPath, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- helper returns a fixed basename under this test's TempDir
 		t.Fatalf("change contract source: %v", err)
 	}
-	if !lifecycle.View().Closed() {
+	if !writer.View().Closed() {
 		t.Fatal("Closed() = false after contract source change, want latched closure")
 	}
 	if err = os.WriteFile(contractPath, original, 0o600); err != nil { // #nosec G703 -- helper returns a fixed basename under this test's TempDir
 		t.Fatalf("restore original contract bytes: %v", err)
 	}
 
-	if !lifecycle.View().Closed() {
+	if !writer.View().Closed() {
 		t.Error("Closed() = false after restoring contract bytes, want closure until restart")
 	}
 	const want = "vault artifact policy source changed after startup; instance projections disabled until restart"
-	if got := lifecycle.View().Diagnostic(); got != want {
+	if got := writer.View().Diagnostic(); got != want {
 		t.Errorf("WriteDiagnostic() after restore = %q, want %q", got, want)
 	}
-	if got := lifecycle.View().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
+	if got := writer.View().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
 		t.Errorf("Transitions() after restore = %v, want nil until restart", got)
 	}
 
@@ -321,12 +321,12 @@ func TestLifecycleLatchesContractChangeUntilRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile(restored contract) = %v", err)
 	}
-	if restarted := internalOpenLifecycle(t, root, reloaded); restarted.View().Closed() {
-		t.Errorf("new Lifecycle after restored contract remained closed: %s", restarted.View().Diagnostic())
+	if restarted := internalOpenWriter(t, root, reloaded); restarted.View().Closed() {
+		t.Errorf("new Writer after restored contract remained closed: %s", restarted.View().Diagnostic())
 	}
 }
 
-func internalOpenLifecycle(t *testing.T, root string, contract *schema.Contract) *Lifecycle {
+func internalOpenWriter(t *testing.T, root string, contract *schema.Contract) *Writer {
 	t.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -337,22 +337,22 @@ func internalOpenLifecycle(t *testing.T, root string, contract *schema.Contract)
 			t.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
+	writer, err := Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
-		if closeErr := lifecycle.Close(); closeErr != nil {
-			t.Errorf("Lifecycle.Close() error = %v", closeErr)
+		if closeErr := writer.Close(); closeErr != nil {
+			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
-	return lifecycle
+	return writer
 }
 
 func TestFlipRejectsContractChangeBeforeInstall(t *testing.T) {
 	t.Parallel()
 
-	root, contractPath, lifecycle := internalVaultWithMutableContract(t)
+	root, contractPath, writer := internalVaultWithMutableContract(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -363,7 +363,7 @@ func TestFlipRejectsContractChangeBeforeInstall(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 
-	err := lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
+	err := writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		data, readErr := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
 		if readErr != nil {
 			t.Fatalf("read mutable contract: %v", readErr)
@@ -395,10 +395,10 @@ func TestFlipRejectsContractChangeBeforeInstall(t *testing.T) {
 	assertNoStatusTemps(t, filepath.Dir(path))
 }
 
-func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
+func TestWriterCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	t.Parallel()
 
-	root, lifecycle := internalVault(t)
+	root, writer := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -416,7 +416,7 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	closeResult := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		flipResult <- lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+		flipResult <- writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
 			afterLock: func() {
 				close(flipLocked)
 				<-releaseFlip
@@ -425,7 +425,7 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	})
 	<-flipLocked
 	wg.Go(func() {
-		closeResult <- lifecycle.close(closeHooks{
+		closeResult <- writer.close(closeHooks{
 			beforeLock: func() { close(closeStarted) },
 			afterLock:  func() { close(closeLocked) },
 		})
@@ -433,7 +433,7 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	<-closeStarted
 	select {
 	case <-closeLocked:
-		t.Fatal("Close acquired Lifecycle.mu while Flip still held it")
+		t.Fatal("Close acquired Writer.mu while Flip still held it")
 	default:
 	}
 	close(releaseFlip)
@@ -447,12 +447,12 @@ func TestLifecycleCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	select {
 	case <-closeLocked:
 	default:
-		t.Fatal("Close never acquired Lifecycle.mu after Flip returned")
+		t.Fatal("Close never acquired Writer.mu after Flip returned")
 	}
-	if err := lifecycle.Flip(rel, schema.SealStatus, "archived", [sha256.Size]byte{}); !errors.Is(err, ErrClosed) {
+	if err := writer.Flip(rel, schema.SealStatus, "archived", [sha256.Size]byte{}); !errors.Is(err, ErrClosed) {
 		t.Errorf("Flip() after Close = %v, want %v", err, ErrClosed)
 	}
-	if !lifecycle.View().Closed() {
+	if !writer.View().Closed() {
 		t.Error("View().Closed() after Close = false, want true")
 	}
 }
@@ -727,7 +727,7 @@ func TestReadRegularFileRefusesNonRegularBeforeOpen(t *testing.T) {
 }
 
 func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
-	root, lifecycle := internalVault(t)
+	root, writer := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -747,7 +747,7 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 		t.Fatalf("replacement length = %d, want same as original %d", len(replacement), len(original))
 	}
 
-	err = lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
+	err = writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		if writeErr := os.WriteFile(path, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("replace note bytes: %v", writeErr)
 		}
@@ -769,7 +769,7 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 }
 
 func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
-	root, lifecycle := internalVault(t)
+	root, writer := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -785,7 +785,7 @@ func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
 	}
 	replacement := strings.Replace(original, "\nbody\n", "\nreplacement\n", 1)
 
-	err = lifecycle.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
+	err = writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		tmp := filepath.Join(filepath.Dir(path), ".external-replacement.tmp")
 		if writeErr := os.WriteFile(tmp, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("write replacement: %v", writeErr)
@@ -830,12 +830,12 @@ func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
 func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 	t.Parallel()
 
-	_, contractPath, lifecycle := internalVaultWithMutableContract(t)
+	_, contractPath, writer := internalVaultWithMutableContract(t)
 	before, err := os.Stat(contractPath)
 	if err != nil {
 		t.Fatalf("stat contract: %v", err)
 	}
-	if lifecycle.View().Closed() {
+	if writer.View().Closed() {
 		t.Fatal("the write face was already closed before the contract was touched")
 	}
 	original, err := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
@@ -865,7 +865,7 @@ func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 		t.Fatal("the contract's bytes changed, so this is the other test")
 	}
 
-	view := lifecycle.View()
+	view := writer.View()
 	if view.Closed() {
 		t.Errorf("the write face closed after a touch: %s", view.Diagnostic())
 	}

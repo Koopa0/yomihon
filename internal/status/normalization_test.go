@@ -77,8 +77,8 @@ owner = ["koopa"]
 func TestStatusVerdictsDoNotDependOnHowTheWordIsSpelled(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContractWithComposedStatus(t))
-	view := lifecycle.View()
+	writer := newWriter(t, root, loadContractWithComposedStatus(t))
+	view := writer.View()
 
 	if !view.KnownStatus("doc", statusNFC) {
 		t.Fatalf("the contract's own spelling is not recognised; the fixture is wrong")
@@ -118,8 +118,8 @@ func TestStatusVerdictsDoNotDependOnHowTheWordIsSpelled(t *testing.T) {
 func TestADecomposedContractAnswersAComposedNote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lifecycle := newLifecycle(t, root, loadContractDeclaring(t, statusNFD))
-	view := lifecycle.View()
+	writer := newWriter(t, root, loadContractDeclaring(t, statusNFD))
+	view := writer.View()
 
 	if !view.KnownStatus("doc", statusNFD) {
 		t.Fatalf("the contract's own spelling is not recognised; the fixture is wrong")

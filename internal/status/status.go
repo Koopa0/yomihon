@@ -131,10 +131,10 @@ func (e *ArtifactPolicyUnavailableError) Unwrap() error {
 	return ErrArtifactPolicyUnavailable
 }
 
-// Lifecycle is the write face: it flips one note's frontmatter status field.
+// Writer is the write face: it flips one note's frontmatter status field.
 // Constructed once per process with the loaded vault contract (or nil,
 // meaning fail-closed).
-type Lifecycle struct {
+type Writer struct {
 	root       *os.Root
 	contract   *schema.Contract
 	governance schema.Governance
@@ -147,9 +147,9 @@ type Lifecycle struct {
 	// mu serializes View, Flip, ObservedStatus, and Close: the pinned root
 	// capability is a shared resource, two flips must never interleave their
 	// read-check-replace windows, and Close cannot release the root under an
-	// operation. One lifecycle-wide lock is deliberately simpler than per-file
-	// locking: this is a local, single-operator tool where correctness matters
-	// far more than throughput.
+	// operation. One lock for the whole writer is deliberately simpler than
+	// per-file locking: this is a local, single-operator tool where correctness
+	// matters far more than throughput.
 	mu sync.Mutex
 }
 
@@ -175,20 +175,20 @@ type fileSnapshot struct {
 // contract could not be read both arrive here with no contract, and only the
 // second one is a fault. When contract is non-nil, governance must be
 // contract.Governance().
-func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Lifecycle, error) {
+func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
 	if source == nil {
-		return nil, errors.New("status: open lifecycle: vault reader is nil")
+		return nil, errors.New("status: open writer: vault reader is nil")
 	}
 	root, err := os.OpenRoot(source.Name())
 	if err != nil {
-		return nil, fmt.Errorf("status: open lifecycle root: %w", err)
+		return nil, fmt.Errorf("status: open writer root: %w", err)
 	}
 	same, err := source.SameRoot(root)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("status: compare lifecycle root: %w", err), root.Close())
+		return nil, errors.Join(fmt.Errorf("status: compare writer root: %w", err), root.Close())
 	}
 	if !same {
-		return nil, errors.Join(errors.New("status: vault root changed while opening lifecycle"), root.Close())
+		return nil, errors.Join(errors.New("status: vault root changed while opening writer"), root.Close())
 	}
 	var policy schema.ArtifactPolicy
 	if contract != nil {
@@ -197,13 +197,13 @@ func Open(source *vault.Reader, contract *schema.Contract, governance schema.Gov
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Lifecycle{root: root, contract: contract, governance: governance, policy: policy, log: log}, nil
+	return &Writer{root: root, contract: contract, governance: governance, policy: policy, log: log}, nil
 }
 
 // Close waits for an in-progress Flip or status read, then releases the
 // pinned write capability. Calls after Close fail closed.
-func (lc *Lifecycle) Close() error {
-	return lc.close(closeHooks{})
+func (w *Writer) Close() error {
+	return w.close(closeHooks{})
 }
 
 type closeHooks struct {
@@ -211,28 +211,28 @@ type closeHooks struct {
 	afterLock  func()
 }
 
-func (lc *Lifecycle) close(hooks closeHooks) error {
-	if lc == nil {
+func (w *Writer) close(hooks closeHooks) error {
+	if w == nil {
 		return nil
 	}
 	if hooks.beforeLock != nil {
 		hooks.beforeLock()
 	}
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if hooks.afterLock != nil {
 		hooks.afterLock()
 	}
-	if lc.root == nil {
+	if w.root == nil {
 		return nil
 	}
-	root := lc.root
-	lc.root = nil
+	root := w.root
+	w.root = nil
 	return root.Close()
 }
 
 // View is one immutable read-only lifecycle projection captured from a
-// Lifecycle. Its query methods perform no filesystem or contract-source I/O,
+// Writer. Its query methods perform no filesystem or contract-source I/O,
 // so one request can derive every status decision from the same authority
 // sample. A later request captures another View and observes a latched source
 // change.
@@ -244,31 +244,31 @@ type View struct {
 }
 
 // View captures the write face's current read-only authority. Flip does not use
-// this snapshot: writes revalidate the source under the lifecycle lock.
-func (lc *Lifecycle) View() View {
+// this snapshot: writes revalidate the source under the writer's lock.
+func (w *Writer) View() View {
 	// A released capability is a fault whichever folder it was pinned to: the
 	// process asserted a write face and then lost it.
-	if lc == nil {
+	if w == nil {
 		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
 	}
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
-	if lc.root == nil {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.root == nil {
 		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
 	}
-	governed := lc.governance.Governed()
-	if lc.contract == nil {
+	governed := w.governance.Governed()
+	if w.contract == nil {
 		// Either nothing ever claimed authority here, in which case the closed
 		// write face is the ordinary shape of a folder and says nothing, or the
 		// contract claimed it and could not be read, in which case the vault
 		// level carries the one sentence.
-		return View{governed: governed, claim: lc.governance.Claim()}
+		return View{governed: governed, claim: w.governance.Claim()}
 	}
-	policy := lc.policy.Capture()
+	policy := w.policy.Capture()
 	if !policy.Available() {
 		return View{governed: governed, claim: policy.Claim()}
 	}
-	return View{contract: lc.contract, policy: policy, governed: governed, claim: lc.governance.Claim()}
+	return View{contract: w.contract, policy: policy, governed: governed, claim: w.governance.Claim()}
 }
 
 // Governed reports whether anything claimed authority over this vault. A false
@@ -318,10 +318,10 @@ func (v View) WriteDiagnostic() string {
 }
 
 // Transitions returns the from-list-legal target statuses from current in
-// contract order. Lifecycle owner lists are declarative data and never
-// subtract from the answer. The published status is never among the results:
-// it records a completed publication, which no interactive control can
-// attest, so Flip would refuse it. It is pure over the captured view.
+// contract order. The lifecycle rows' owner lists are declarative data and
+// never subtract from the answer. The published status is never among the
+// results: it records a completed publication, which no interactive control
+// can attest, so Flip would refuse it. It is pure over the captured view.
 func (v View) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
 	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
@@ -397,19 +397,19 @@ func (v View) Order() []string {
 	return order
 }
 
-// VaultRoot reports the absolute path of the vault this lifecycle writes
+// VaultRoot reports the absolute path of the vault this writer writes
 // into: the resolved directory its capability was pinned to at Open. It is
-// empty on a nil lifecycle and after Close.
-func (lc *Lifecycle) VaultRoot() string {
-	if lc == nil {
+// empty on a nil Writer and after Close.
+func (w *Writer) VaultRoot() string {
+	if w == nil {
 		return ""
 	}
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
-	if lc.root == nil {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.root == nil {
 		return ""
 	}
-	return lc.root.Name()
+	return w.root.Name()
 }
 
 // ObservedStatus reports the status the note carries on disk right now.
@@ -422,17 +422,17 @@ func (lc *Lifecycle) VaultRoot() string {
 // page that shows an older value offers a transition from a state the note has
 // already left — most visibly right after a write, when the reader is looking
 // straight at the thing they just did.
-func (lc *Lifecycle) ObservedStatus(rel string) (string, error) {
+func (w *Writer) ObservedStatus(rel string) (string, error) {
 	relSlash, osPath, err := normalizeRelPath(rel)
 	if err != nil {
 		return "", err
 	}
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
-	if lc.root == nil {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.root == nil {
 		return "", ErrClosed
 	}
-	source, err := readRegularFile(lc.root, osPath, relSlash)
+	source, err := readRegularFile(w.root, osPath, relSlash)
 	if err != nil {
 		return "", err
 	}
@@ -446,10 +446,10 @@ func (lc *Lifecycle) ObservedStatus(rel string) (string, error) {
 // atomically installs the rewritten bytes under the note's own name. Every
 // refusal before the install leaves the file untouched.
 //
-// Flip holds the Lifecycle's lock for its entire duration (see the mu field
+// Flip holds the Writer's lock for its entire duration (see the mu field
 // doc): concurrent callers are serialized, never interleaved.
-func (lc *Lifecycle) Flip(rel, from, to string, contentIdentity [sha256.Size]byte) error {
-	return lc.flip(rel, from, to, contentIdentity, flipHooks{})
+func (w *Writer) Flip(rel, from, to string, contentIdentity [sha256.Size]byte) error {
+	return w.flip(rel, from, to, contentIdentity, flipHooks{})
 }
 
 type flipHooks struct {
@@ -465,7 +465,7 @@ type flipHooks struct {
 	afterInstall func()
 }
 
-func (lc *Lifecycle) flip(rel, from, to string, contentIdentity [sha256.Size]byte, hooks flipHooks) error {
+func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, hooks flipHooks) error {
 	relSlash, rel, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
@@ -476,21 +476,21 @@ func (lc *Lifecycle) flip(rel, from, to string, contentIdentity [sha256.Size]byt
 	if hooks.beforeLock != nil {
 		hooks.beforeLock()
 	}
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if hooks.afterLock != nil {
 		hooks.afterLock()
 	}
-	if lc.root == nil {
+	if w.root == nil {
 		return ErrClosed
 	}
 
-	err = lc.validateWriteTarget(rel, relSlash)
+	err = w.validateWriteTarget(rel, relSlash)
 	if err != nil {
 		return err
 	}
 
-	source, err := readRegularFile(lc.root, rel, relSlash)
+	source, err := readRegularFile(w.root, rel, relSlash)
 	if err != nil {
 		return err
 	}
@@ -507,7 +507,7 @@ func (lc *Lifecycle) flip(rel, from, to string, contentIdentity [sha256.Size]byt
 		return fmt.Errorf("%w: %s", ErrContentChanged, relSlash)
 	}
 
-	if err = lc.contract.Transition(n.Type(), from, to); err != nil {
+	if err = w.contract.Transition(n.Type(), from, to); err != nil {
 		return fmt.Errorf("status: %s %s -> %s: %w", relSlash, from, to, err)
 	}
 
@@ -515,28 +515,28 @@ func (lc *Lifecycle) flip(rel, from, to string, contentIdentity [sha256.Size]byt
 	if err != nil {
 		return err
 	}
-	return lc.install(rel, relSlash, &source, rewritten, hooks)
+	return w.install(rel, relSlash, &source, rewritten, hooks)
 }
 
 // install crosses Flip's irreversible boundary. It revalidates the current
 // artifact authority inside replaceRegularFile's install window, atomically
 // installs the rewritten bytes, and reports only after the durable
 // replacement is visible.
-func (lc *Lifecycle) install(
+func (w *Writer) install(
 	rel, relSlash string,
 	source *fileSnapshot,
 	rewritten []byte,
 	hooks flipHooks,
 ) error {
 	err := replaceRegularFile(
-		lc.root,
+		w.root,
 		rel,
 		relSlash,
 		source,
 		rewritten,
-		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, log: lc.log},
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, log: w.log},
 		func() error {
-			_, authorityErr := lc.validatedArtifactPolicy()
+			_, authorityErr := w.validatedArtifactPolicy()
 			return authorityErr
 		},
 	)
@@ -552,14 +552,14 @@ func (lc *Lifecycle) install(
 	return nil
 }
 
-func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
+func (w *Writer) validateWriteTarget(rel, relSlash string) error {
 	if !durableInstallSupported {
 		return ErrDurabilityUnsupported
 	}
-	if lc.contract == nil {
+	if w.contract == nil {
 		return ErrClosed
 	}
-	policy, err := lc.validatedArtifactPolicy()
+	policy, err := w.validatedArtifactPolicy()
 	if err != nil {
 		return err
 	}
@@ -575,7 +575,7 @@ func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
 	if !vault.IsMarkdown(relSlash) || vault.OutsideScan(relSlash) {
 		return ErrNonInstance
 	}
-	return lc.targetSpelledAsRequested(rel, relSlash)
+	return w.targetSpelledAsRequested(rel, relSlash)
 }
 
 // targetSpelledAsRequested refuses a request the filesystem answers with an
@@ -588,8 +588,8 @@ func (lc *Lifecycle) validateWriteTarget(rel, relSlash string) error {
 // holds, so the refusal comes before anything is written. It also
 // covers spellings that differ in ways beyond letter case, since it compares
 // the resolved entry rather than reasoning about one kind of equivalence.
-func (lc *Lifecycle) targetSpelledAsRequested(rel, relSlash string) error {
-	parent, _, name, err := openRegularParent(lc.root, rel, relSlash)
+func (w *Writer) targetSpelledAsRequested(rel, relSlash string) error {
+	parent, _, name, err := openRegularParent(w.root, rel, relSlash)
 	if err != nil {
 		// The walk to the note's directory failed, and reading the note
 		// reports that failure in the operator's own terms a moment later.
@@ -616,8 +616,8 @@ func (lc *Lifecycle) targetSpelledAsRequested(rel, relSlash string) error {
 	return nil
 }
 
-func (lc *Lifecycle) validatedArtifactPolicy() (schema.ArtifactPolicy, error) {
-	policy := lc.policy.ValidateSource()
+func (w *Writer) validatedArtifactPolicy() (schema.ArtifactPolicy, error) {
+	policy := w.policy.ValidateSource()
 	if !policy.Available() {
 		return schema.ArtifactPolicy{}, &ArtifactPolicyUnavailableError{diagnostic: policy.Diagnostic()}
 	}
@@ -777,13 +777,13 @@ func hasControlByte(s string) bool {
 }
 
 // rewriteStatusChecked computes the surgical rewrite and refuses, in the
-// reader's terms, whenever the byte-level writer cannot honor what the
-// reader read. The reader parses frontmatter as full YAML while the writer
+// reader's terms, whenever the byte-level rewriter cannot honor what the
+// reader read. The reader parses frontmatter as full YAML while the rewriter
 // locates one column-zero "status:" line, and the two definitions disagree
 // on legal syntax in both directions. When the reader understood a status
-// (readable) but the writer finds no such line, the note is written in a
-// key form the writer does not support — not a schema violation. When the
-// writer succeeds, the rewritten bytes are parsed again with the same
+// (readable) but the rewriter finds no such line, the note is written in a
+// key form the rewriter does not support — not a schema violation. When the
+// rewriter succeeds, the rewritten bytes are parsed again with the same
 // reader the product uses: a result that no longer parses (a severed YAML
 // anchor leaves a dangling alias) or does not read back as the target
 // status is refused before anything is written, so a reported success can

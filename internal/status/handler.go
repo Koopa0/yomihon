@@ -26,18 +26,18 @@ const maxFormBytes = 4096
 
 // Handler serves the write face's single HTTP endpoint.
 type Handler struct {
-	lifecycle *Lifecycle
-	shell     func() pages.Shell
-	log       *slog.Logger
+	writer *Writer
+	shell  func() pages.Shell
+	log    *slog.Logger
 }
 
 // NewHandler wires the write face's HTTP surface around an existing
-// Lifecycle. A fail-closed write face is still a non-nil Lifecycle whose View
+// Writer. A fail-closed write face is still a non-nil Writer whose View
 // is closed. shell is sampled once only after a failed write, so the recovery
 // page uses one coherent reading snapshot.
-func NewHandler(lifecycle *Lifecycle, shell func() pages.Shell, log *slog.Logger) *Handler {
-	if lifecycle == nil {
-		panic("status: NewHandler requires a non-nil Lifecycle")
+func NewHandler(writer *Writer, shell func() pages.Shell, log *slog.Logger) *Handler {
+	if writer == nil {
+		panic("status: NewHandler requires a non-nil Writer")
 	}
 	if shell == nil {
 		panic("status: NewHandler requires a non-nil shell provider")
@@ -45,7 +45,7 @@ func NewHandler(lifecycle *Lifecycle, shell func() pages.Shell, log *slog.Logger
 	if log == nil {
 		panic("status: NewHandler requires a non-nil logger")
 	}
-	return &Handler{lifecycle: lifecycle, shell: shell, log: log}
+	return &Handler{writer: writer, shell: shell, log: log}
 }
 
 // Register mounts the write face's route.
@@ -88,7 +88,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.lifecycle.Flip(path, from, to, contentIdentity)
+	err := h.writer.Flip(path, from, to, contentIdentity)
 	if err == nil {
 		// The target names the status this note just left. The reading page
 		// states the change once, in a live region, and states it only when
@@ -302,7 +302,7 @@ func (h *Handler) respondRecovery(
 		NextAction:      failure.nextAction,
 		TechnicalDetail: failure.technicalDetail,
 		NotePath:        notePath,
-		ObsidianHref:    pages.ObsidianHref(h.lifecycle.VaultRoot(), notePath),
+		ObsidianHref:    pages.ObsidianHref(h.writer.VaultRoot(), notePath),
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
 	component := pages.StatusRecovery(view, shell.Chrome(r, view.Title()))
@@ -373,7 +373,7 @@ func decodeContentIdentity(field string) ([sha256.Size]byte, bool) {
 // notesHref percent-escapes each path segment while preserving slash
 // separators. The successful redirect remains local and byte-identical to the
 // reading face's note links without introducing a presentation dependency into
-// Lifecycle.
+// Writer.
 func notesHref(p string) string {
 	segments := strings.Split(p, "/")
 	for i, s := range segments {
