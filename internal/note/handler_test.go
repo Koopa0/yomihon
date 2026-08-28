@@ -657,7 +657,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 
 func noteMain(t *testing.T, page string) string {
 	t.Helper()
-	openAt := strings.Index(page, `<main id="main-content" tabindex="-1" class="y-main">`)
+	openAt := strings.Index(page, `<main id="main-content" tabindex="-1" class="y-main"`)
 	if openAt < 0 {
 		t.Fatal("note page has no main reading surface")
 	}

@@ -4,6 +4,7 @@
 import { initContents } from './contents.js';
 import { initDiagrams } from './diagrams.js';
 import { initDrawer } from './drawer.js';
+import { initFreshness } from './freshness.js';
 import { initLesson } from './lesson.js';
 import { initPreferences } from './preferences.js';
 import { initSearch } from './search.js';
@@ -19,6 +20,7 @@ function init() {
   const sidebar = initSidebar();
   initPreferences();
   initContents();
+  initFreshness();
   const search = initSearch();
   initShortcuts({ drawer, sidebar, search });
   initLesson();

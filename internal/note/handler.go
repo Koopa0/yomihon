@@ -71,6 +71,10 @@ type Dependencies struct {
 // coherently published snapshots.
 type Handler struct {
 	deps Dependencies
+	// freshnessFailures is the only state this handler keeps between
+	// requests: what it last said about a note it could not read, so a page
+	// polling every few seconds does not repeat one fault into the log.
+	freshnessFailures freshnessLog
 }
 
 // New wires the reading feature. It defensively copies the startup-owned
@@ -106,6 +110,7 @@ func New(d *Dependencies) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
+	mux.HandleFunc("GET /freshness/{path...}", h.freshness)
 	mux.HandleFunc("GET /{$}", h.home)
 	mux.HandleFunc("GET /health", h.health)
 	mux.HandleFunc("GET /folders/{path...}", h.folder)

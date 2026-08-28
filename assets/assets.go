@@ -48,5 +48,5 @@ import "embed"
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine (D-brief: zero external requests).
 //
-//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
+//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/freshness.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
 var Files embed.FS

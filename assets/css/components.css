@@ -421,6 +421,17 @@ html, body { margin: 0; background: var(--bg); }
    the column reach its own min-content width instead of being held open. */
 .y-diagdetail { overflow-wrap: anywhere; }
 .y-flipreceipt { color: var(--fg-muted); font-size: var(--fs-13); margin: 0 0 12px; }
+
+/* The freshness line: one quiet sentence the client puts above the article when
+   the file has moved on from the words printed below. It takes the flip
+   receipt's weight because it reports the same kind of thing — something that
+   happened to this note while the page was open — and neither of them is the
+   article. The server never sends it, so there is nothing here to hide when
+   scripting is off. Its control is a button rather than a link: what it does is
+   reload this address, which no href expresses. */
+.y-freshness { color: var(--fg-muted); font-size: var(--fs-13); margin: 0 0 12px; }
+.y-freshness__action { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+button.y-freshness__action { padding: 0; border: 0; background: none; cursor: pointer; }
 .y-syl-nocourse { color: var(--fg-muted); max-width: 60ch; margin: 18px 0 0; }
 .y-prose .embed--widened { border-left-color: var(--warn); }
 .y-prose .embed__widened { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }

@@ -57,6 +57,24 @@ func articleLanguageAttrs(tag string) templ.Attributes {
 	return templ.Attributes{"lang": tag}
 }
 
+// freshnessAttrs marks the reading column as one the client may watch: the path
+// to ask about, and the identity of the bytes printed inside it. They sit on the
+// column rather than on the article because the notice they lead to belongs
+// beside the article, not within it. Both are withheld when
+// the page is already saying its own words may be behind the file, because two
+// differently worded notices about the same doubt help nobody, and when there is
+// no identity to compare against. Where the attributes are absent the client
+// finds nothing to watch and the page stays exactly as the server sent it.
+func freshnessAttrs(v NoteView) templ.Attributes {
+	if v.Stale || v.RelPath == "" || v.ContentIdentity == "" {
+		return nil
+	}
+	return templ.Attributes{
+		"data-freshness-path":     v.RelPath,
+		"data-freshness-identity": v.ContentIdentity,
+	}
+}
+
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
 // and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
 // what it found, and a human edits the file.
@@ -204,7 +222,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar, c.Nonce)
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(v)... }>
 				@flipReceipt(v)
 				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
 					@articleHead(v)
