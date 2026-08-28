@@ -851,7 +851,7 @@ func homeStandIn(snap *snapshot.View, content homeContent) pages.HomeStandIn {
 	if newest.Path() == "" {
 		return standIn
 	}
-	standIn.NewestPath = newest.Path()
+	standIn.NewestRelPath = newest.Path()
 	standIn.NewestName = path.Base(newest.Path())
 	standIn.NewestDate = newest.ModTime().Format("2006-01-02")
 	standIn.NewestAt = newest.ModTime().Format(time.RFC3339)

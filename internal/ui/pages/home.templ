@@ -73,15 +73,15 @@ type HomeView struct {
 }
 
 // HomeStandIn carries the stand-in line's facts: how much is in this folder and
-// which of it changed last. NewestPath is empty for a folder holding no files,
+// which of it changed last. NewestRelPath is empty for a folder holding no files,
 // the one case with nothing to point at.
 type HomeStandIn struct {
-	Shown      bool
-	Files      int
-	NewestName string
-	NewestPath string
-	NewestDate string
-	NewestAt   string
+	Shown         bool
+	Files         int
+	NewestName    string
+	NewestRelPath string
+	NewestDate    string
+	NewestAt      string
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -145,10 +145,10 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if v.StandIn.Shown {
 							<p class="y-homestandin" data-home-standin>
-								if v.StandIn.NewestPath == "" {
+								if v.StandIn.NewestRelPath == "" {
 									這個資料夾目前沒有檔案。
 								} else {
-									{ "這個資料夾有 " + strconv.Itoa(v.StandIn.Files) + " 個檔案，最近一次變更是" }<a href={ templ.URL(notesHref(v.StandIn.NewestPath)) }>{ v.StandIn.NewestName }</a>（<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>）。
+									{ "這個資料夾有 " + strconv.Itoa(v.StandIn.Files) + " 個檔案，最近一次變更是" }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>（<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>）。
 								}
 							</p>
 						}
