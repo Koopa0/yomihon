@@ -410,6 +410,14 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose a.wikilink:hover { border-bottom-color: var(--accent); }
 .y-prose .wikilink-broken { color: var(--fg-muted); border-bottom: 1px dashed var(--warn); text-underline-offset: 2px; cursor: help; }
 .y-prose .wikilink-ambiguous { color: var(--fg-muted); border-bottom: 1px dotted var(--accent); cursor: help; }
+/* A link whose note was found and whose place inside it was not. It keeps the
+   link's ink and stays followable, because the address still leads somewhere
+   real; what changes is the line under it. Dotted says the same thing it says
+   on an ambiguous name — resolved, but not precisely — and the muted colour
+   says this is the smaller of the two faults. The dashed warn line stays
+   reserved for a name with no target at all. */
+.y-prose a.wikilink-degraded { border-bottom: 1px dotted var(--fg-muted); }
+.y-prose a.wikilink-degraded:hover { border-bottom-color: var(--fg-subtle); }
 
 /* embeds */
 .y-prose .embed { border-left: 3px solid var(--border-strong); margin: 18px 0 0; padding: 2px 16px; }

@@ -48,6 +48,36 @@ func unwrittenTarget(target, display, heading string) string {
 // keeps it — that text arrives escaped, which is not what this names.
 const offscreenNoteClass = "y-offscreen"
 
+// fragmentMiss says how a link's fragment failed to place. The two misses
+// degrade differently on purpose and their sentences differ with them: a
+// missing block withdraws the address and the link leads to the whole note, a
+// missing section keeps the address exactly as the author wrote it.
+type fragmentMiss uint8
+
+const (
+	fragmentPlaced fragmentMiss = iota
+	fragmentSectionMissing
+	fragmentBlockMissing
+)
+
+// degradedLink renders a link whose note was found and whose fragment was not.
+// It stays an anchor: the address still leads somewhere real, which is a
+// smaller fault than a name with no target at all, and the reader should be
+// able to follow it. What it adds is the reason, carried the way an unwritten
+// name carries its own — a title for whoever can point at it, and an offscreen
+// sentence for whoever is listening. The panel beside the article states the
+// same fact about the same link, but a reader who finds it there has already
+// followed the link and arrived somewhere they did not mean to be.
+func degradedLink(href string, link graph.Wikilink, miss fragmentMiss) string {
+	reason := "找不到這個區塊，連結已改為指向整篇筆記"
+	if miss == fragmentSectionMissing {
+		reason = fmt.Sprintf("找不到「%s」這個小節，連結會落在筆記最上方", link.Heading)
+	}
+	escaped := html.EscapeString(reason)
+	return `<a href="` + href + `" class="wikilink wikilink-degraded" title="` + escaped + `">` +
+		html.EscapeString(link.Display) + `<span class="` + offscreenNoteClass + `">（` + escaped + `）</span></a>`
+}
+
 // blockPlaceholder is the reserved marker substituted into markdown source for
 // first-party markup that stands on its own line — a transclusion, a callout.
 // An HTML comment is one indivisible raw node, so it reaches the reader as the
@@ -450,17 +480,17 @@ func rawHref(p string) string {
 // from here; a fragment on one names a place that cannot exist, and because a
 // viewer simply ignores what it does not understand, it would look like it had
 // worked.
-func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collector) string {
+func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collector) (string, fragmentMiss) {
 	href := notesHref(relPath)
 	if !vault.IsMarkdown(relPath) {
-		return href
+		return href, fragmentPlaced
 	}
 	switch {
 	case link.Block != "":
 		address := "^" + link.Block
 		body, ok := r.transclusions.Transclusion(relPath)
 		if !ok {
-			return href
+			return href, fragmentPlaced
 		}
 		// A probe into another note reports only on the address it came to
 		// check. Whatever that note's own markers do is its own page's news.
@@ -471,33 +501,33 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 				Target:  link.Target + "#" + address,
 				Message: fmt.Sprintf("no block in %q matched %q; the link leads to the note itself", relPath, address),
 			})
-			return href
+			return href, fragmentBlockMissing
 		}
-		return href + "#" + url.PathEscape(blockAnchorID(address))
+		return href + "#" + url.PathEscape(blockAnchorID(address)), fragmentPlaced
 	case link.Heading != "":
 		addressed := href + "#" + slugify(link.Heading)
 		body, ok := r.transclusions.Transclusion(relPath)
 		if !ok {
-			return addressed
+			return addressed, fragmentPlaced
 		}
 		stripped, _ := stripObsidianComments(body)
 		if _, found := headingSlice(stripped, link.Heading); found {
-			return addressed
+			return addressed, fragmentPlaced
 		}
 		if headingAnchorMayExist(stripped, link.Heading) {
-			return addressed
+			return addressed, fragmentPlaced
 		}
 		if mayCarryTranscludedHeadings(stripped) {
-			return addressed
+			return addressed, fragmentPlaced
 		}
 		col.report(Diagnostic{
 			Kind:    DiagLinkSectionMissing,
 			Target:  link.Target + "#" + link.Heading,
 			Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
 		})
-		return addressed
+		return addressed, fragmentSectionMissing
 	}
-	return href
+	return href, fragmentPlaced
 }
 
 // renderWikilink renders a plain (non-embed) [[target|display]]. The
@@ -513,8 +543,12 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
 	case graph.Unique:
+		href, miss := r.sectionHref(res.RelPath, link, col)
+		if miss != fragmentPlaced {
+			return degradedLink(href, link, miss)
+		}
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref returns an attribute-safe string, path and fragment both percent-escaped
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, r.sectionHref(res.RelPath, link, col), html.EscapeString(link.Display))
+		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, href, html.EscapeString(link.Display))
 	case graph.Ambiguous:
 		col.report(Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,

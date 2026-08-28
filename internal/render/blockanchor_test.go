@@ -121,7 +121,7 @@ func TestBlockLinkWithNoSuchBlockDegradesAndReports(t *testing.T) {
 	r := blockRenderer(t)
 	got := r.HTML("note.md", "", "[[B#^nope]]\n")
 
-	if !strings.Contains(got.HTML, `<a href="/notes/B.md" class="wikilink">`) {
+	if !strings.Contains(got.HTML, `<a href="/notes/B.md" class="wikilink wikilink-degraded"`) {
 		t.Errorf("the link did not fall back to the note itself:\n%s", got.HTML)
 	}
 	if strings.Contains(got.HTML, "#%5Enope") {
