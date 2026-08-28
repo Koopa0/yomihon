@@ -31,6 +31,12 @@ path=$$(command -v $(1)) || { echo '$(1) is required at $(3); run: make tools' >
 go version -m "$$path" | awk '$$1 == "mod" && $$2 == "$(2)" && $$3 == "$(3)" { found = 1 } END { exit !found }' || { \
 	echo '$(1) must be built from $(2) $(3); run: make tools' >&2; \
 	exit 1; \
+}; \
+built=$$(go version -m "$$path" | awk 'NR == 1 { sub(/^go/, "", $$2); print $$2 }'); \
+needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
+[ "$$(printf '%s\n%s\n' "$$needed" "$$built" | sort -V | head -n 1)" = "$$needed" ] || { \
+	echo "$(1) was built with go$$built and cannot read go$$needed source. The pinned version is right; the toolchain that built it is not, which is why the failure reads as a broken tool rather than a stale install. Run: make tools" >&2; \
+	exit 1; \
 }
 endef
 
