@@ -38,25 +38,7 @@ type Sidebar struct {
 	HereTrimmed int
 	// Steps holds, per study path teaching the current note, the readable
 	// lessons on either side of it — the course order the paths drawer walks.
-	Steps []nav.Neighbors
-	// Prev and Next are the neighbors on either side of this one inside its
-	// own folder: from a note, the nearest notes — assets between them belong
-	// to the folder, not the reading line — and from any other file, the
-	// nearest files. A folder of dated entries is a line, and the reader
-	// walking it wants the next one — not a scroll through everything the
-	// folder holds.
-	Prev nav.NoteRef
-	Next nav.NoteRef
-	// FooterPrev, FooterNext and FooterLabel are the sequence the foot of the
-	// article offers, chosen from the two orders above by footerSequence.
-	// FooterCourse says which of the two arrived: a course's declared order, or
-	// the folder's. The two orders can disagree completely, so the foot prints
-	// the difference instead of leaving it to the accessible name alone.
-	FooterPrev   nav.NoteRef
-	FooterNext   nav.NoteRef
-	FooterLabel  string
-	FooterCourse bool
-
+	Steps        []nav.Neighbors
 	openMaps     map[string]bool
 	openBranches map[string]bool
 	openFolders  map[string]bool
@@ -82,8 +64,6 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	sb.HereDir, sb.Here = model.Siblings(currentPath)
 	sb.Here, sb.HereTrimmed = windowAround(sb.Here, currentPath)
 	sb.Steps = model.Neighbors(currentPath)
-	sb.Prev, sb.Next = model.Adjacent(currentPath)
-	sb.FooterPrev, sb.FooterNext, sb.FooterLabel, sb.FooterCourse = footerSequence(&sb)
 
 	// Open every map branch that lists the current note, down to the
 	// branch it sits in (each heading prefix, so the ancestors open too).
@@ -330,7 +310,7 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 	}
 }
 
-// footerSequence chooses which order the foot of the article offers, and what
+// FooterSequence chooses which order the foot of the article offers, and what
 // to call it.
 //
 // The folder is a line for a folder of dated entries, and the arrow at the foot
@@ -349,12 +329,20 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 // course reports which order won, so the foot can print it: the label and the
 // step words are all a sighted reader has to tell an author-declared course
 // from mere folder adjacency, and the two orders can disagree completely.
-func footerSequence(sb *Sidebar) (prev, next nav.NoteRef, label string, course bool) {
-	if len(sb.Steps) == 1 {
-		step := sb.Steps[0]
-		return step.Prev, step.Next, step.PathTitle + " 課程順序", true
+//
+// It is asked for by the one page that has a foot to put it in, rather than
+// resolved for every page and read by that one: the rail on a search result or
+// a folder listing carried this answer too, and nothing there ever looked at it.
+func FooterSequence(model *nav.Model, relPath string) (prev, next nav.NoteRef, label string, course bool) {
+	relPath = vault.NormalizeNFC(relPath)
+	if model == nil || relPath == "" {
+		return prev, next, "", false
 	}
-	return sb.Prev, sb.Next, "同資料夾的前後檔案", false
+	if steps := model.Neighbors(relPath); len(steps) == 1 {
+		return steps[0].Prev, steps[0].Next, steps[0].PathTitle + " 課程順序", true
+	}
+	prev, next = model.Adjacent(relPath)
+	return prev, next, "同資料夾的前後檔案", false
 }
 
 // stepWordPrev and stepWordNext name a footer step for the order it walks: a

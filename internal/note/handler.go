@@ -489,6 +489,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
 	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath)
+	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(governance.shell.Nav, n.RelPath)
 	view := pages.NoteView{
 		Title:             n.Title,
 		RelPath:           n.RelPath,
@@ -502,10 +503,10 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		RenderDiagnostics: faults(result.Diagnostics, snap),
 		CitedBy:           snap.CitedBy(rel),
 		VaultHasLinks:     snap.AnyCitations(),
-		Prev:              sidebar.FooterPrev,
-		Next:              sidebar.FooterNext,
-		StepsLabel:        sidebar.FooterLabel,
-		StepsCourse:       sidebar.FooterCourse,
+		Prev:              footPrev,
+		Next:              footNext,
+		StepsLabel:        footLabel,
+		StepsCourse:       footCourse,
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
 		TitleAnchor:       result.TitleAnchor,

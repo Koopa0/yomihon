@@ -97,7 +97,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 	}
 }
 
-// TestTheFootChoosesTheOrderItCanKnow pins footerSequence's choice — and the
+// TestTheFootChoosesTheOrderItCanKnow pins FooterSequence's choice — and the
 // course flag that now travels with it — against the real navigation build.
 // A note two courses teach falls back to the folder, because which course the
 // reader is walking is not knowable; a side branch's last lesson ends its
@@ -145,18 +145,18 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			sb := NewSidebar(model, tt.current)
-			if sb.FooterPrev.RelPath != tt.wantPrev {
-				t.Errorf("NewSidebar(%q) FooterPrev = %q, want %q", tt.current, sb.FooterPrev.RelPath, tt.wantPrev)
+			prev, next, label, course := FooterSequence(model, tt.current)
+			if prev.RelPath != tt.wantPrev {
+				t.Errorf("FooterSequence(%q) prev = %q, want %q", tt.current, prev.RelPath, tt.wantPrev)
 			}
-			if sb.FooterNext.RelPath != tt.wantNext {
-				t.Errorf("NewSidebar(%q) FooterNext = %q, want %q", tt.current, sb.FooterNext.RelPath, tt.wantNext)
+			if next.RelPath != tt.wantNext {
+				t.Errorf("FooterSequence(%q) next = %q, want %q", tt.current, next.RelPath, tt.wantNext)
 			}
-			if sb.FooterLabel != tt.wantLabel {
-				t.Errorf("NewSidebar(%q) FooterLabel = %q, want %q", tt.current, sb.FooterLabel, tt.wantLabel)
+			if label != tt.wantLabel {
+				t.Errorf("FooterSequence(%q) label = %q, want %q", tt.current, label, tt.wantLabel)
 			}
-			if sb.FooterCourse != tt.wantCourse {
-				t.Errorf("NewSidebar(%q) FooterCourse = %v, want %v", tt.current, sb.FooterCourse, tt.wantCourse)
+			if course != tt.wantCourse {
+				t.Errorf("FooterSequence(%q) course = %v, want %v", tt.current, course, tt.wantCourse)
 			}
 		})
 	}
