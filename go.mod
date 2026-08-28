@@ -5,20 +5,17 @@ go 1.27.0
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/a-h/templ v0.3.1020
-	github.com/google/go-cmp v0.7.0
-	github.com/yuin/goldmark v1.8.4
-	gopkg.in/yaml.v3 v3.0.1
-)
-
-require (
 	// chroma has no stable v3 tag yet; this is deliberately the newest v3
 	// prerelease, and the pin moves to v3.0.0 when it exists. Dropping to the
 	// stable v2 line would be an API rework without cause; the render goldens
 	// gate any future bump.
 	github.com/alecthomas/chroma/v3 v3.0.0-alpha.5
+	github.com/google/go-cmp v0.7.0
+	github.com/yuin/goldmark v1.8.4
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.40.0
 	golang.org/x/tools v0.48.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.54.0
 )
 
