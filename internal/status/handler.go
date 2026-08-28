@@ -102,7 +102,9 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, notesHref(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
 		return
 	}
-	h.respondRecovery(w, r, path, from, to, recoveryFor(err))
+	failure := recoveryFor(err)
+	failure.boundIdentity = hex.EncodeToString(contentIdentity[:])
+	h.respondRecovery(w, r, path, from, to, failure)
 }
 
 type recovery struct {
@@ -114,6 +116,12 @@ type recovery struct {
 	technicalDetail string
 	logMessage      string
 	cause           error
+	// boundIdentity is the hex identity the refused write bound itself to, set
+	// only where a write got far enough to have one. The page carries it so its
+	// own invitation back to the note can be held until the reading generation
+	// holds at least that version: sending the reader back into the same bytes
+	// that were just refused would stage the same refusal again.
+	boundIdentity string
 }
 
 func recoveryFor(err error) *recovery {
@@ -302,6 +310,7 @@ func (h *Handler) respondRecovery(
 		NextAction:      failure.nextAction,
 		TechnicalDetail: failure.technicalDetail,
 		NotePath:        notePath,
+		NoteIdentity:    failure.boundIdentity,
 		ObsidianHref:    pages.ObsidianHref(h.writer.VaultRoot(), notePath),
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}

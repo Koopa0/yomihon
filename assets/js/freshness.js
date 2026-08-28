@@ -11,26 +11,14 @@
 
 const POLL_MS = 5000;
 
-export function initFreshness() {
-  const column = document.querySelector('.y-main[data-freshness-path]');
-  const article = column && column.querySelector('.y-article');
-  if (!article) return;
-  const path = column.dataset.freshnessPath;
-  const identity = column.dataset.freshnessIdentity;
-  if (!path || !identity) return;
-
-  const segments = path.split('/').map(encodeURIComponent).join('/');
-  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}`;
-
+// bannerBeside puts the notice above the article. It is not a live region: the
+// flip receipt above it already is one, and two of them would talk over each
+// other. Once it offers the reload there is nothing further to learn, because a
+// later edit does not change what the sentence says.
+function bannerBeside(column, article) {
   let banner = null;
   let shown = '';
-  let latched = false;
-  let timer = null;
 
-  // The banner sits between the flip receipt and the article: what the reader
-  // just did is announced first, then what the file has done since. It is not a
-  // live region — the receipt above it already is one, and two of them would
-  // talk over each other.
   function place() {
     if (!banner) {
       banner = document.createElement('p');
@@ -40,13 +28,6 @@ export function initFreshness() {
     return banner;
   }
 
-  function clear() {
-    if (!banner) return;
-    banner.remove();
-    banner = null;
-    shown = '';
-  }
-
   function reloadButton() {
     const button = document.createElement('button');
     button.type = 'button';
@@ -54,13 +35,13 @@ export function initFreshness() {
     button.textContent = '重新載入';
     // A plain reload keeps the browser's own scroll restoration, which puts the
     // reader back at the paragraph they were reading. Assigning the same
-    // address instead would be a fresh navigation and would lose it.
+    // address would be a fresh navigation and would lose it.
     button.addEventListener('click', () => location.reload());
     return button;
   }
 
   function searchLink() {
-    const heading = document.querySelector('.y-article .y-title');
+    const heading = column.querySelector('.y-article .y-title');
     const words = heading ? heading.textContent.trim() : '';
     if (!words) return null;
     const link = document.createElement('a');
@@ -70,10 +51,19 @@ export function initFreshness() {
     return link;
   }
 
-  // render is idempotent by state: an unchanged answer redraws nothing, so a
-  // banner that has been standing for a minute neither replays nor counts.
-  function render(state) {
-    if (state === shown) return;
+  // Drawing is idempotent by state, so a banner standing for a minute neither
+  // replays nor counts.
+  return (state) => {
+    if (state === 'unchanged') {
+      if (banner) {
+        banner.remove();
+        banner = null;
+        shown = '';
+      }
+      return false;
+    }
+    if (state !== 'preparing' && state !== 'stale' && state !== 'gone') return false;
+    if (state === shown) return state === 'stale' || state === 'gone';
     const element = place();
     element.replaceChildren();
     element.dataset.freshness = state;
@@ -81,13 +71,81 @@ export function initFreshness() {
       element.append('此筆記已有新版本，頁面資料準備中…');
     } else if (state === 'stale') {
       element.append('此筆記已有新版本。', ' ', reloadButton());
-    } else if (state === 'gone') {
+    } else {
       element.append('此筆記已經不在原本的位置了，可能被搬到別處，也可能已刪除。');
       const link = searchLink();
       if (link) element.append(' ', link);
     }
     shown = state;
+    return state === 'stale' || state === 'gone';
+  };
+}
+
+// holdInvitation gates the recovery page's way back to the note. Sending a
+// reader into the same bytes a write was just refused against would stage that
+// refusal a second time, so the link waits until the reading generation holds
+// at least the version the refused write saw. Nothing here latches on a version
+// change: unlike the banner's sentence, a released link can be owed the wait
+// again the moment the file moves once more.
+function holdInvitation(column) {
+  const link = column.querySelector('a.y-recovery__action[href^="/notes/"]');
+  if (!link) return null;
+  const href = link.getAttribute('href');
+  const label = link.textContent;
+  let note = null;
+
+  function hold(linkText, explanation) {
+    if (!note) {
+      note = document.createElement('p');
+      note.className = 'y-freshness';
+      link.insertAdjacentElement('afterend', note);
+    }
+    // Dropping href rather than styling a dead control: an anchor without one
+    // is not activated by a click, by Enter, or by a middle button either.
+    link.removeAttribute('href');
+    link.setAttribute('aria-disabled', 'true');
+    link.textContent = linkText;
+    note.textContent = explanation;
   }
+
+  function release() {
+    if (!note) return;
+    link.setAttribute('href', href);
+    link.removeAttribute('aria-disabled');
+    link.textContent = label;
+    note.remove();
+    note = null;
+  }
+
+  return (state) => {
+    if (state === 'preparing') {
+      hold('頁面資料準備中…', '這篇筆記在磁碟上已經變更，閱讀頁還沒讀到那一版；準備好之後這個連結會自己恢復。');
+      return false;
+    }
+    if (state === 'gone') {
+      hold('筆記已不在原處', '這篇筆記已經不在原本的位置了，可能被搬到別處，也可能已刪除。');
+      return true;
+    }
+    if (state === 'unchanged' || state === 'stale') release();
+    return false;
+  };
+}
+
+export function initFreshness() {
+  const column = document.querySelector('[data-freshness-path][data-freshness-identity]');
+  if (!column) return;
+  const path = column.dataset.freshnessPath;
+  const identity = column.dataset.freshnessIdentity;
+  if (!path || !identity) return;
+
+  const article = column.querySelector('.y-article');
+  const present = article ? bannerBeside(column, article) : holdInvitation(column);
+  if (!present) return;
+
+  const segments = path.split('/').map(encodeURIComponent).join('/');
+  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}`;
+  let latched = false;
+  let timer = null;
 
   async function ask() {
     try {
@@ -96,32 +154,9 @@ export function initFreshness() {
       return (await response.text()).trim();
     } catch {
       // A network blip is not news about the file. Saying nothing is the same
-      // refusal the write face makes when it cannot confirm what it is replacing.
+      // refusal the write face makes when it cannot confirm what it replaces.
       return null;
     }
-  }
-
-  async function tick() {
-    if (latched) return;
-    const state = await ask();
-    if (state === null) return;
-    if (state === 'unchanged') {
-      clear();
-    } else if (state === 'preparing') {
-      // Still worth asking: what this state is waiting for is the generation
-      // catching up, and only the next answer can report that.
-      render('preparing');
-    } else if (state === 'stale' || state === 'gone') {
-      render(state);
-      latch();
-    }
-    // 'unreadable', and any answer a later server might add, leave the banner
-    // as it stands and keep the question open.
-  }
-
-  function start() {
-    if (timer !== null || latched) return;
-    timer = setInterval(tick, POLL_MS);
   }
 
   function stop() {
@@ -130,11 +165,21 @@ export function initFreshness() {
     timer = null;
   }
 
-  // A terminal answer has nothing further to teach: the reload is offered, or
-  // the file is gone. Asking again would only repeat it.
-  function latch() {
-    latched = true;
-    stop();
+  function start() {
+    if (timer !== null || latched) return;
+    timer = setInterval(tick, POLL_MS);
+  }
+
+  async function tick() {
+    if (latched) return;
+    const state = await ask();
+    // 'unreadable', a failed request, and any answer a later server might add
+    // leave the page as it stands and keep the question open.
+    if (state === null || state === 'unreadable') return;
+    if (present(state)) {
+      latched = true;
+      stop();
+    }
   }
 
   document.addEventListener('visibilitychange', () => {

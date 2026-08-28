@@ -12,6 +12,11 @@ type StatusRecoveryView struct {
 	NextAction      string
 	TechnicalDetail string
 	NotePath        string
+	// NoteIdentity is the hex identity the refused write bound itself to, when
+	// the write got far enough to have one. Where it is present the client may
+	// hold the invitation back to the note until the reading generation holds
+	// at least that version.
+	NoteIdentity string
 	// ObsidianHref is the obsidian://open URI for the note, already built
 	// and escaped by ObsidianHref. Empty renders no editor link. The repair
 	// a recovery page asks for is always a hand edit, so the page offers
@@ -40,12 +45,26 @@ func (v StatusRecoveryView) mutationState() string {
 // StatusRecovery renders the write face's recovery state in the ordinary
 // reading shell. It intentionally exposes only GET links: a failed POST must
 // never be repeated by a recovery control.
+// recoveryFreshnessAttrs marks the recovery column as one the client may watch.
+// Both facts have to be there: which note to ask about, and the version the
+// refused write bound itself to. Without either, the page keeps the plain
+// invitation it carried before there was anything to hold it for.
+func recoveryFreshnessAttrs(v StatusRecoveryView) templ.Attributes {
+	if v.NotePath == "" || v.NoteIdentity == "" {
+		return nil
+	}
+	return templ.Attributes{
+		"data-freshness-path":     v.NotePath,
+		"data-freshness-identity": v.NoteIdentity,
+	}
+}
+
 templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c.Nonce)
-			<main id="main-content" tabindex="-1" class="y-main y-recoverymain">
+			<main id="main-content" tabindex="-1" class="y-main y-recoverymain" { recoveryFreshnessAttrs(v)... }>
 				<article class="y-recovery" lang="zh-Hant" aria-labelledby="recovery-title">
 					<p class="y-recovery__kicker">生命週期寫入</p>
 					<h1 id="recovery-title" class="y-title">{ v.Title() }</h1>
