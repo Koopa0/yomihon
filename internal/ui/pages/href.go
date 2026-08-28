@@ -31,11 +31,6 @@ type Shell struct {
 	Governed bool
 }
 
-// Chrome builds the request-cookie state around this snapshot-derived shell.
-func (s Shell) Chrome(r *http.Request, title string) layouts.Chrome {
-	return chromeFromRequest(r, title, s)
-}
-
 // WithoutInstanceProjections returns a shell whose navigation and topbar carry
 // no instance-derived state. Direct file and folder navigation remain in the
 // model; the supplied claim records why instance projections closed and, when
@@ -174,15 +169,17 @@ type LifecycleItem struct {
 	Unknown bool
 }
 
-// chromeFromRequest builds the shell Chrome from the request: the page title
+// ChromeFromRequest builds the page chrome from the request: the page title
 // plus the persisted theme, furigana, and single-key-shortcut cookies (default
 // light / on / on), so the root element renders the correct state on the first
 // byte (no FOUC). Each
 // cookie honors only its known values; anything else falls to the default —
-// input hygiene, since a cookie is user-controllable. The shell travels whole
-// rather than field by field, so the navigation model and whether anything
-// governs this vault reach the chrome from the same snapshot projection.
-func chromeFromRequest(r *http.Request, title string, s Shell) layouts.Chrome {
+// input hygiene, since a cookie is user-controllable.
+//
+// It takes no shell: what the chrome is built from is the request and nothing
+// else, and a snapshot projection passed alongside would say the two were
+// related when they never were.
+func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
 	theme := "light"
 	if c, err := r.Cookie("yomihon_theme"); err == nil && c.Value == "dark" {
 		theme = "dark"

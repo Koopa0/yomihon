@@ -49,7 +49,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := pages.BuildPathView(current, shell.Nav.Paths())
-	if err := pages.Syllabus(view, shell.Chrome(r, current.Title)).Render(r.Context(), w); err != nil {
+	if err := pages.Syllabus(view, pages.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Error("write syllabus page", "path", rel, "error", err)
 	}
 }

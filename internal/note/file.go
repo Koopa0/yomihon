@@ -143,7 +143,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		view.SourceHTML = render.SourceHTML(name, string(data))
 	}
 
-	if err := pages.File(view, pageShell.Chrome(r, name)).Render(r.Context(), w); err != nil {
+	if err := pages.File(view, pages.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("render file page", "path", rel, "error", err)
 	}
 }

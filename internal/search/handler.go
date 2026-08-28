@@ -103,7 +103,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		StepBacks:  stepBackViews(snap.Index, q, results, diagnostic),
 		Nav:        snap.Shell.Nav,
 	}
-	if err := pages.Search(view, snap.Shell.Chrome(r, "搜尋")).Render(r.Context(), w); err != nil {
+	if err := pages.Search(view, pages.ChromeFromRequest(r, "搜尋")).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search page", q, err)
 	}
 }

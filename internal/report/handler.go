@@ -48,7 +48,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		RelPath:     rep.RelPath,
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
 	}
-	if err := pages.Report(view, shell.Chrome(r, rep.Name)).Render(r.Context(), w); err != nil {
+	if err := pages.Report(view, pages.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
 		h.log.Error("write report page", "name", rep.Name, "error", err)
 	}
 }

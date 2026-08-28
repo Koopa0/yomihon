@@ -152,7 +152,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
-	if err := pages.NotFound(view, pageShell.Chrome(r, title)).Render(r.Context(), w); err != nil {
+	if err := pages.NotFound(view, pages.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write not-found page", "path", asked, "error", err)
 	}
 }
@@ -183,7 +183,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Notes:      notes,
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
-	if err := pages.Folder(view, pageShell.Chrome(r, view.Name)).Render(r.Context(), w); err != nil {
+	if err := pages.Folder(view, pages.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write folder page", "dir", dir, "error", err)
 	}
 }
@@ -208,7 +208,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		LastComplete:      lastCompleteBuild(&fresh),
 		Sidebar:           pages.NewSidebar(pageShell.Nav, ""),
 	}
-	if err := pages.Health(view, pageShell.Chrome(r, "整體狀況")).Render(r.Context(), w); err != nil {
+	if err := pages.Health(view, pages.ChromeFromRequest(r, "整體狀況")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
 	}
 }
@@ -407,7 +407,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		ReadmeMissing:   !hasReadme,
 		Sidebar:         pages.NewSidebar(visibleNav, ""),
 	}
-	if err := pages.Home(view, pageShell.Chrome(r, "首頁")).Render(r.Context(), w); err != nil {
+	if err := pages.Home(view, pages.ChromeFromRequest(r, "首頁")).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
 	}
 }
@@ -472,7 +472,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	var concepts []lesson.ConceptDoc
 	if governance.instance && n.Type == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML)
-		pageChrome := governance.shell.Chrome(r, n.Title)
+		pageChrome := pages.ChromeFromRequest(r, n.Title)
 		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce)
 		var refs []string
 		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
@@ -521,7 +521,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		FlippedFrom:       vouchedOrigin(statusView, n.Type, noteStatus, r.URL.Query().Get("from")),
 	}
 
-	pageChrome := governance.shell.Chrome(r, n.Title)
+	pageChrome := pages.ChromeFromRequest(r, n.Title)
 	// The furigana control switches readings off. A page with none has nothing
 	// to switch, so it does not carry the button — which is most pages in a
 	// folder that holds no Japanese at all.
