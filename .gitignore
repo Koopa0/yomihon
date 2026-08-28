@@ -27,8 +27,3 @@ tests/
 /docs/
 /.github/CODEOWNERS
 /.github/PULL_REQUEST_TEMPLATE.md
-
-# Product research assets: synthetic fixtures alongside reviews that quote the
-# private vault's paths, note titles and counts verbatim. This repository is
-# public, so they stay on the maintainer's machine.
-/examples/test/
