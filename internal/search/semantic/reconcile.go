@@ -41,7 +41,7 @@ func (r *ReadySearch) Search(
 	query string,
 	allowedPaths map[string]struct{},
 	depth int,
-) ([]Rank, error) {
+) ([]Result, error) {
 	if r == nil || r.state == nil || r.state.query.validate == nil ||
 		r.state.query.send == nil || r.state.index == nil || depth <= 0 {
 		return nil, ErrInvalidSearchState

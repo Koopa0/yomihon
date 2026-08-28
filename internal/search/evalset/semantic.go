@@ -181,10 +181,10 @@ func allowedSet(paths []string) map[string]struct{} {
 	return allowed
 }
 
-func scoreCase(testCase *evalCase, ranked []semantic.Rank) retrievalResult {
+func scoreCase(testCase *evalCase, ranked []semantic.Result) retrievalResult {
 	paths := make([]string, 0, len(ranked))
-	for _, rank := range ranked {
-		paths = append(paths, rank.RelPath)
+	for _, result := range ranked {
+		paths = append(paths, result.RelPath)
 	}
 	return scorePaths(testCase, paths)
 }

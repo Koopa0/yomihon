@@ -26,7 +26,7 @@ func (s *matrixSearch) Search(
 	_ string,
 	allowed map[string]struct{},
 	_ int,
-) ([]semantic.Rank, error) {
+) ([]semantic.Result, error) {
 	s.calls++
 	if s.err != nil || len(s.corpus.Chunks) == 0 {
 		return nil, s.err
@@ -35,7 +35,7 @@ func (s *matrixSearch) Search(
 	if _, ok := allowed[document.RelPath]; !ok {
 		return nil, ErrEvidenceMismatch
 	}
-	return []semantic.Rank{{
+	return []semantic.Result{{
 		RelPath:      document.RelPath,
 		ChunkOrdinal: document.Ordinal,
 		Score:        1,

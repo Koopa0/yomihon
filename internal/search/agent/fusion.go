@@ -16,7 +16,7 @@ const (
 // semanticHit joins a ranked note to current-vault display evidence. The
 // durable cache never stores these display fields.
 type semanticHit struct {
-	semantic.Rank
+	semantic.Result
 
 	Title   string
 	Status  string

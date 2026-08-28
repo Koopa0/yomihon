@@ -11,7 +11,7 @@ const (
 	benchmarkSemanticChunksPerNote = 13
 )
 
-var benchmarkSemanticRanks []Rank
+var benchmarkSemanticRanks []Result
 
 func BenchmarkSemanticTopK(b *testing.B) {
 	for _, dimension := range []int{1_536, 3_072} {

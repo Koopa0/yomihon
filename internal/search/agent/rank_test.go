@@ -117,7 +117,7 @@ func TestSemanticSnippetIsOneLineBoundedAndRuneSafe(t *testing.T) {
 type hybridFakeSemanticSearch struct {
 	corpus             semantic.Corpus
 	notes              []SnapshotNote
-	ranked             []semantic.Rank
+	ranked             []semantic.Result
 	calls              int
 	query              string
 	ignoreAllowedPaths bool
@@ -132,10 +132,10 @@ func (f *hybridFakeSemanticSearch) Search(
 	query string,
 	allowedPaths map[string]struct{},
 	depth int,
-) ([]semantic.Rank, error) {
+) ([]semantic.Result, error) {
 	f.calls++
 	f.query = query
-	result := make([]semantic.Rank, 0, len(f.ranked))
+	result := make([]semantic.Result, 0, len(f.ranked))
 	for _, rank := range f.ranked {
 		if allowedPaths != nil && !f.ignoreAllowedPaths {
 			if _, allowed := allowedPaths[rank.RelPath]; !allowed {
@@ -193,7 +193,7 @@ func fixtureSemanticSearch(t *testing.T) *hybridFakeSemanticSearch {
 	return &hybridFakeSemanticSearch{
 		corpus: snapshot.semantic,
 		notes:  notes,
-		ranked: []semantic.Rank{
+		ranked: []semantic.Result{
 			{RelPath: "a.md", ChunkOrdinal: 0, Score: 1},
 			{RelPath: "b.md", ChunkOrdinal: 0, Score: 0},
 		},

@@ -27,7 +27,7 @@ func TestEngineAggregatesChunksBeforeDepthAndRanksDeterministically(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Rank{
+	want := []Result{
 		{RelPath: "a.md", ChunkOrdinal: 0, Score: 1},
 		{RelPath: "b.md", ChunkOrdinal: 1, Score: 1},
 		{RelPath: "c.md", ChunkOrdinal: 0, Score: 0.8},

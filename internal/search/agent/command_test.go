@@ -1673,7 +1673,7 @@ func (f *fakeSemanticSearch) Search(
 	_ string,
 	allowed map[string]struct{},
 	_ int,
-) ([]semantic.Rank, error) {
+) ([]semantic.Result, error) {
 	if len(f.corpus.Chunks) == 0 {
 		return nil, nil
 	}
@@ -1681,7 +1681,7 @@ func (f *fakeSemanticSearch) Search(
 	if _, ok := allowed[document.RelPath]; !ok {
 		return nil, nil
 	}
-	return []semantic.Rank{{RelPath: document.RelPath, ChunkOrdinal: document.Ordinal, Score: 1}}, nil
+	return []semantic.Result{{RelPath: document.RelPath, ChunkOrdinal: document.Ordinal, Score: 1}}, nil
 }
 
 func writeSearchTestVault(t *testing.T, capabilitySections string, notes map[string]string) string {

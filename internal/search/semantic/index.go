@@ -23,9 +23,9 @@ var (
 	ErrIndexCapacity     = errors.New("semantic corpus exceeds the exact-scan capacity")
 )
 
-// Rank is one note-level semantic channel result. ChunkOrdinal names
+// Result is one note-level semantic channel result. ChunkOrdinal names
 // the max-scoring current chunk that supplies heading/snippet evidence.
-type Rank struct {
+type Result struct {
 	RelPath      string
 	ChunkOrdinal uint32
 	Score        float64
@@ -138,7 +138,7 @@ func (i *Index) Len() int {
 // depth cut, and returns deterministic score/path order. Slice position is the
 // channel-rank authority; a nil allowedPaths means all rows, while an empty
 // non-nil map means none.
-func (i *Index) TopNotes(query []float32, allowedPaths map[string]struct{}, depth int) ([]Rank, error) {
+func (i *Index) TopNotes(query []float32, allowedPaths map[string]struct{}, depth int) ([]Result, error) {
 	if i == nil || len(query) != i.dimension {
 		return nil, ErrDimensionMismatch
 	}
@@ -150,7 +150,7 @@ func (i *Index) TopNotes(query []float32, allowedPaths map[string]struct{}, dept
 		return nil, nil
 	}
 
-	best := make(map[string]Rank)
+	best := make(map[string]Result)
 	for _, row := range i.rows {
 		if allowedPaths != nil {
 			if _, allowed := allowedPaths[row.key.relPath]; !allowed {
@@ -160,7 +160,7 @@ func (i *Index) TopNotes(query []float32, allowedPaths map[string]struct{}, dept
 		score := cosine(query, row.vector, queryMagnitude, row.magnitude)
 		previous, found := best[row.key.relPath]
 		if !found || score > previous.Score || (score == previous.Score && row.key.ordinal < previous.ChunkOrdinal) {
-			best[row.key.relPath] = Rank{
+			best[row.key.relPath] = Result{
 				RelPath:      row.key.relPath,
 				ChunkOrdinal: row.key.ordinal,
 				Score:        score,
@@ -168,11 +168,11 @@ func (i *Index) TopNotes(query []float32, allowedPaths map[string]struct{}, dept
 		}
 	}
 
-	ranked := make([]Rank, 0, len(best))
+	ranked := make([]Result, 0, len(best))
 	for _, result := range best {
 		ranked = append(ranked, result)
 	}
-	slices.SortFunc(ranked, func(a, b Rank) int {
+	slices.SortFunc(ranked, func(a, b Result) int {
 		if byScore := cmp.Compare(b.Score, a.Score); byScore != 0 {
 			return byScore
 		}

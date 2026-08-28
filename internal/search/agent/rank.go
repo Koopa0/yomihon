@@ -22,7 +22,7 @@ var ErrInvalidSearch = errors.New("agent search action is invalid")
 // private to semantic.Indexer and cannot leak into fusion.
 type SemanticSearch interface {
 	CorpusFingerprint() [sha256.Size]byte
-	Search(ctx context.Context, query string, allowedPaths map[string]struct{}, depth int) ([]semantic.Rank, error)
+	Search(ctx context.Context, query string, allowedPaths map[string]struct{}, depth int) ([]semantic.Result, error)
 }
 
 // Search binds one snapshot to one single-use semantic capability. Construct
@@ -77,19 +77,19 @@ func (s *Search) Run(ctx context.Context, query search.Query, limit int) ([]Fuse
 }
 
 func joinSemanticEvidence(
-	ranked []semantic.Rank,
+	ranked []semantic.Result,
 	evidence map[evidenceKey]*semantic.CorpusChunk,
 	allowedPaths map[string]struct{},
 ) ([]semanticHit, error) {
 	hits := make([]semanticHit, 0, len(ranked))
 	for i := range ranked {
-		rank := ranked[i]
+		result := ranked[i]
 		if allowedPaths != nil {
-			if _, allowed := allowedPaths[rank.RelPath]; !allowed {
+			if _, allowed := allowedPaths[result.RelPath]; !allowed {
 				return nil, ErrEvidenceMismatch
 			}
 		}
-		chunk, ok := evidence[evidenceKey{relPath: rank.RelPath, ordinal: rank.ChunkOrdinal}]
+		chunk, ok := evidence[evidenceKey{relPath: result.RelPath, ordinal: result.ChunkOrdinal}]
 		if !ok || chunk.Title == "" {
 			return nil, ErrEvidenceMismatch
 		}
@@ -98,7 +98,7 @@ func joinSemanticEvidence(
 			return nil, ErrEvidenceMismatch
 		}
 		hits = append(hits, semanticHit{
-			Rank:    rank,
+			Result:  result,
 			Title:   chunk.Title,
 			Status:  chunk.Status,
 			Snippet: snippet,

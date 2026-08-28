@@ -180,7 +180,7 @@ func (r *recordedSearch) Search(
 	text string,
 	allowed map[string]struct{},
 	depth int,
-) ([]semantic.Rank, error) {
+) ([]semantic.Result, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
