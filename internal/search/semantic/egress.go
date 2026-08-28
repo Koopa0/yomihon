@@ -79,10 +79,10 @@ func (d *CorpusChunk) EgressIdentity() ChunkIdentity {
 type chunkAuthorizer func(context.Context, *ChunkIdentity) error
 
 type chunkAuthority struct {
-	reader        *vault.Reader
-	corpusPolicy  [sha256.Size]byte
-	policySource  [sha256.Size]byte
-	chunkTokenCap int
+	reader                  *vault.Reader
+	corpusPolicy            [sha256.Size]byte
+	policySourceFingerprint [sha256.Size]byte
+	chunkTokenCap           int
 }
 
 // newChunkAuthorizer returns the final egress capability for one CLI action.
@@ -122,11 +122,11 @@ func newChunkAuthority(
 	if !ok {
 		return chunkAuthority{}, ErrPolicySourceChanged
 	}
-	policySource, ok := schema.PolicySourceFingerprint(reader, artifact, privacy)
+	policySourceFingerprint, ok := schema.PolicySourceFingerprint(reader, artifact, privacy)
 	if !ok {
 		return chunkAuthority{}, ErrPolicySourceChanged
 	}
-	return chunkAuthority{reader: reader, corpusPolicy: corpusPolicy, policySource: policySource, chunkTokenCap: chunkTokenCap}, nil
+	return chunkAuthority{reader: reader, corpusPolicy: corpusPolicy, policySourceFingerprint: policySourceFingerprint, chunkTokenCap: chunkTokenCap}, nil
 }
 
 func authorizeChunk(

@@ -917,7 +917,7 @@ func TestIndexerFullBuildPersistsLongRetryWithoutWaiting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resumed, err := writer.prepare(t.Context(), &config.settings.identity, config.settings.policySource, targets)
+	resumed, err := writer.prepare(t.Context(), &config.settings.identity, config.settings.policySourceFingerprint, targets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1098,7 +1098,7 @@ func TestIndexerReconcileUsesGenerationPublishedByTheLeaseWinner(t *testing.T) {
 		if targetErr != nil {
 			t.Fatal(targetErr)
 		}
-		build, prepareErr := winner.prepare(ctx, &config.settings.identity, config.settings.policySource, targets)
+		build, prepareErr := winner.prepare(ctx, &config.settings.identity, config.settings.policySourceFingerprint, targets)
 		if prepareErr != nil {
 			t.Fatal(prepareErr)
 		}
@@ -1528,7 +1528,7 @@ func TestIndexerRenewAttemptBudgetRevalidatesCorpusAtCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := newStagingManifest(&config.settings.identity, config.settings.policySource, targets)
+	manifest, err := newStagingManifest(&config.settings.identity, config.settings.policySourceFingerprint, targets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1776,7 +1776,7 @@ func TestIndexerRenewAttemptBudgetUsesExactExhaustedStagingWhenActiveIsCorrupt(t
 	exhausted, err := writer.prepare(
 		t.Context(),
 		&config.settings.identity,
-		config.settings.policySource,
+		config.settings.policySourceFingerprint,
 		targets,
 	)
 	if err != nil {
@@ -1868,7 +1868,7 @@ func TestIndexerRenewAttemptBudgetUsesExactExhaustedStagingWhenActiveExceedsQuer
 	exhausted, err := writer.prepare(
 		t.Context(),
 		&config.settings.identity,
-		config.settings.policySource,
+		config.settings.policySourceFingerprint,
 		targets,
 	)
 	if err != nil {
@@ -2495,10 +2495,10 @@ func fixtureIndexerConfig(t *testing.T, documents int) (indexerSetup, Corpus) {
 	corpus := fixtureIndexerCorpus(t, docs)
 	config := indexerSetup{
 		settings: indexerSettings{
-			storePath:    filepath.Join(storeRoot, "semantic", "generation.sqlite"),
-			identity:     identity,
-			policySource: sha256.Sum256([]byte("indexer-policy-source")),
-			topKWorkload: fixtureTopKWorkload(t, identity.Dimension()),
+			storePath:               filepath.Join(storeRoot, "semantic", "generation.sqlite"),
+			identity:                identity,
+			policySourceFingerprint: sha256.Sum256([]byte("indexer-policy-source")),
+			topKWorkload:            fixtureTopKWorkload(t, identity.Dimension()),
 		},
 		deps: indexerDeps{
 			readCorpus: func(context.Context) (Corpus, error) {
@@ -2631,7 +2631,7 @@ func seedPendingIndexerStaging(t *testing.T, config *indexerSetup, corpus Corpus
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := writer.prepare(t.Context(), &config.settings.identity, config.settings.policySource, targets); err != nil {
+	if _, err := writer.prepare(t.Context(), &config.settings.identity, config.settings.policySourceFingerprint, targets); err != nil {
 		t.Fatal(err)
 	}
 	if err := writer.Close(); err != nil {
@@ -2676,7 +2676,7 @@ func seedActiveGeneration(t *testing.T, config *indexerSetup, corpus Corpus) {
 		}
 		targets = append(targets, target)
 	}
-	build, err := writer.prepare(t.Context(), &config.settings.identity, config.settings.policySource, targets)
+	build, err := writer.prepare(t.Context(), &config.settings.identity, config.settings.policySourceFingerprint, targets)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -66,7 +66,7 @@ func FuzzParse(f *testing.F) {
 	})
 }
 
-func checkFrontmatterSplit(t *testing.T, data []byte, block Frontmatter, found bool) {
+func checkFrontmatterSplit(t *testing.T, data []byte, block FrontmatterSplit, found bool) {
 	t.Helper()
 	if !found {
 		if !bytes.Equal(block.Body, data) {

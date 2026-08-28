@@ -105,10 +105,10 @@ type IndexerConfig struct {
 }
 
 type indexerSettings struct {
-	storePath    string
-	identity     generationIdentity
-	policySource [sha256.Size]byte
-	topKWorkload topKWorkload
+	storePath               string
+	identity                generationIdentity
+	policySourceFingerprint [sha256.Size]byte
+	topKWorkload            topKWorkload
 }
 
 type indexerDeps struct {
@@ -212,7 +212,7 @@ func newIndexerSetup(config *IndexerConfig) (*indexerSetup, chunkAuthorizer, err
 	if !ok {
 		return nil, nil, ErrPolicySourceChanged
 	}
-	policySource, ok := schema.PolicySourceFingerprint(owned.Vault, owned.ArtifactPolicy, owned.PrivacyPolicy)
+	policySourceFingerprint, ok := schema.PolicySourceFingerprint(owned.Vault, owned.ArtifactPolicy, owned.PrivacyPolicy)
 	if !ok {
 		return nil, nil, ErrPolicySourceChanged
 	}
@@ -246,10 +246,10 @@ func newIndexerSetup(config *IndexerConfig) (*indexerSetup, chunkAuthorizer, err
 	}
 	setup := &indexerSetup{
 		settings: indexerSettings{
-			storePath:    owned.StorePath,
-			identity:     identity,
-			policySource: policySource,
-			topKWorkload: workload,
+			storePath:               owned.StorePath,
+			identity:                identity,
+			policySourceFingerprint: policySourceFingerprint,
+			topKWorkload:            workload,
 		},
 		deps: indexerDeps{
 			readCorpus: readCorpus,
@@ -366,7 +366,7 @@ func validateIndexer(setup *indexerSetup, openProvider providerFactory) error {
 	}
 	if setup.settings.storePath == "" || setup.deps.readCorpus == nil ||
 		setup.deps.validateQueryAuthority == nil ||
-		setup.settings.policySource == ([sha256.Size]byte{}) {
+		setup.settings.policySourceFingerprint == ([sha256.Size]byte{}) {
 		return fmt.Errorf("%w: incomplete indexer configuration", errIndexerConfiguration)
 	}
 	if err := validateIdentity(&setup.settings.identity); err != nil {
@@ -448,7 +448,7 @@ func (ix *Indexer) renewAttemptBudget(
 	if err != nil {
 		return BuildReport{}, err
 	}
-	manifest, err := newStagingManifest(&ix.settings.identity, ix.settings.policySource, targets)
+	manifest, err := newStagingManifest(&ix.settings.identity, ix.settings.policySourceFingerprint, targets)
 	if err != nil {
 		return BuildReport{}, err
 	}
@@ -672,7 +672,7 @@ func acceptBuildActive(
 type preparedGeneration struct {
 	corpus  Corpus
 	targets []ChunkTarget
-	chunks  map[buildChunkKey]*CorpusChunk
+	chunks  map[chunkKey]*CorpusChunk
 	staging *staging
 	pending []ChunkTarget
 	reused  int
@@ -688,7 +688,7 @@ func (ix *Indexer) prepareGeneration(
 	if err != nil {
 		return nil, err
 	}
-	build, err := writer.prepare(ctx, &ix.settings.identity, ix.settings.policySource, targets)
+	build, err := writer.prepare(ctx, &ix.settings.identity, ix.settings.policySourceFingerprint, targets)
 	if err != nil {
 		return nil, err
 	}
@@ -783,7 +783,7 @@ func (ix *Indexer) embedFull(
 }
 
 func (p *preparedGeneration) chunk(target *ChunkTarget) (*CorpusChunk, error) {
-	chunk, ok := p.chunks[buildChunkKey{relPath: target.RelPath, ordinal: target.Ordinal}]
+	chunk, ok := p.chunks[chunkKey{relPath: target.RelPath, ordinal: target.Ordinal}]
 	if !ok || chunk.SubmittedHash != target.SubmittedHash || chunk.NoteHash != target.NoteHash {
 		return nil, fmt.Errorf("%w: pending target has no current chunk", ErrInvalidCorpus)
 	}
@@ -922,14 +922,9 @@ func providerAvailabilityFailure(kind EmbedFailureKind) bool {
 	}
 }
 
-type buildChunkKey struct {
-	relPath string
-	ordinal uint32
-}
-
-func buildTargets(corpus Corpus) ([]ChunkTarget, map[buildChunkKey]*CorpusChunk, error) {
+func buildTargets(corpus Corpus) ([]ChunkTarget, map[chunkKey]*CorpusChunk, error) {
 	targets := make([]ChunkTarget, 0, len(corpus.Chunks))
-	chunks := make(map[buildChunkKey]*CorpusChunk, len(corpus.Chunks))
+	chunks := make(map[chunkKey]*CorpusChunk, len(corpus.Chunks))
 	manifest := make([]ChunkVector, 0, len(corpus.Chunks))
 	for i := range corpus.Chunks {
 		chunk := &corpus.Chunks[i]
@@ -937,7 +932,7 @@ func buildTargets(corpus Corpus) ([]ChunkTarget, map[buildChunkKey]*CorpusChunk,
 		if err != nil {
 			return nil, nil, err
 		}
-		key := buildChunkKey{relPath: target.RelPath, ordinal: target.Ordinal}
+		key := chunkKey{relPath: target.RelPath, ordinal: target.Ordinal}
 		if _, exists := chunks[key]; exists {
 			return nil, nil, fmt.Errorf("%w: duplicate chunk target", ErrInvalidCorpus)
 		}

@@ -1347,7 +1347,7 @@ func TestGenerationStoreRejectsUnboundOrUnsetManifestDigests(t *testing.T) {
 	}
 	closeOnCleanup(t, writer)
 	identity := fixtureGenerationIdentity("manifest-seal")
-	policySource := fixturePolicySource(&identity)
+	policySourceFingerprint := fixturePolicySource(&identity)
 	valid := fixtureChunkTarget("Writing/target.md", 1)
 
 	tests := map[string]ChunkTarget{
@@ -1376,7 +1376,7 @@ func TestGenerationStoreRejectsUnboundOrUnsetManifestDigests(t *testing.T) {
 	for name, target := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := writer.prepare(t.Context(), &identity, policySource, []ChunkTarget{target}); !errors.Is(err, ErrInvalidCorpus) {
+			if _, err := writer.prepare(t.Context(), &identity, policySourceFingerprint, []ChunkTarget{target}); !errors.Is(err, ErrInvalidCorpus) {
 				t.Fatalf("PrepareTargets() error = %v, want ErrInvalidCorpus", err)
 			}
 		})
@@ -1393,11 +1393,11 @@ func TestGenerationStoreRejectsUnsetPolicySourceFingerprint(t *testing.T) {
 	closeOnCleanup(t, writer)
 	identity := fixtureGenerationIdentity("unset-policy-source")
 	target := fixtureChunkTarget("Writing/target.md", 1)
-	policySource := fixturePolicySource(&identity)
+	policySourceFingerprint := fixturePolicySource(&identity)
 	if _, err := writer.prepare(
 		t.Context(),
 		nil,
-		policySource,
+		policySourceFingerprint,
 		[]ChunkTarget{target},
 	); !errors.Is(err, ErrInvalidIdentity) {
 		t.Fatalf("PrepareTargets() with nil identity error = %v, want ErrInvalidIdentity", err)
@@ -2589,7 +2589,7 @@ func prepareBuildWithSource(
 	t *testing.T,
 	writer *writer,
 	identity *generationIdentity,
-	policySource [sha256.Size]byte,
+	policySourceFingerprint [sha256.Size]byte,
 	rows []ChunkVector,
 ) *staging {
 	t.Helper()
@@ -2604,7 +2604,7 @@ func prepareBuildWithSource(
 		}
 		targets[i] = bindChunkTarget(&target)
 	}
-	build, err := writer.prepare(t.Context(), identity, policySource, targets)
+	build, err := writer.prepare(t.Context(), identity, policySourceFingerprint, targets)
 	if err != nil {
 		t.Fatal(err)
 	}

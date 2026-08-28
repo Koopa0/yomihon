@@ -108,11 +108,12 @@ func (n *Note) Slug() string {
 	return ""
 }
 
-// Frontmatter is the byte-level split of one note. Content is the YAML between
-// the fence lines, including the newline before the closing fence when one is
-// present. ContentStart locates that slice in the original input so the status
-// write face can replace one line without rebuilding any delimiter or newline.
-type Frontmatter struct {
+// FrontmatterSplit is the byte-level split of one note. Content is the YAML
+// between the fence lines, including the newline before the closing fence
+// when one is present. ContentStart locates that slice in the original input
+// so the status write face can replace one line without rebuilding any
+// delimiter or newline.
+type FrontmatterSplit struct {
 	Content       []byte
 	Body          []byte
 	ContentStart  int
@@ -134,8 +135,8 @@ type Frontmatter struct {
 // frontmatter at all. The mark is stepped over, never removed: the offsets
 // below stay measured against the original bytes, so the writer that replaces
 // one status line still leaves every other byte, this one included, as it was.
-func SplitFrontmatter(data []byte) (Frontmatter, bool) {
-	block := Frontmatter{Body: data, BodyStartLine: 1}
+func SplitFrontmatter(data []byte) (FrontmatterSplit, bool) {
+	block := FrontmatterSplit{Body: data, BodyStartLine: 1}
 	opening, _ := bytes.CutPrefix(data, []byte("\xef\xbb\xbf"))
 	rest, found := bytes.CutPrefix(opening, []byte("---\n"))
 	if !found {
@@ -154,7 +155,7 @@ func SplitFrontmatter(data []byte) (Frontmatter, bool) {
 		line++
 		switch string(bytes.TrimRight(raw[:advance], "\r\n")) {
 		case "---", "...":
-			return Frontmatter{
+			return FrontmatterSplit{
 				Content:       rest[:offset],
 				Body:          rest[offset+advance:],
 				ContentStart:  contentStart,

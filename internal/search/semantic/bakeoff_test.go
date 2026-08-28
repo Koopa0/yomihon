@@ -14,12 +14,12 @@ import (
 const generationBenchmarkEnabled = "YOMIHON_GENERATION_BENCHMARK"
 
 type generationBenchmarkFixture struct {
-	identity     generationIdentity
-	policySource [sha256.Size]byte
-	revision     int
-	documents    []CorpusChunk
-	targets      []ChunkTarget
-	rows         map[generationBenchmarkKey]ChunkVector
+	identity                generationIdentity
+	policySourceFingerprint [sha256.Size]byte
+	revision                int
+	documents               []CorpusChunk
+	targets                 []ChunkTarget
+	rows                    map[generationBenchmarkKey]ChunkVector
 }
 
 type generationBenchmarkKey struct {
@@ -216,11 +216,11 @@ func newGenerationBenchmarkFixture(
 		tb.Fatal(err)
 	}
 	fixture := generationBenchmarkFixture{
-		identity:     identity,
-		policySource: sha256.Sum256([]byte("generation benchmark policy source")),
-		documents:    make([]CorpusChunk, count),
-		targets:      make([]ChunkTarget, count),
-		rows:         make(map[generationBenchmarkKey]ChunkVector, count),
+		identity:                identity,
+		policySourceFingerprint: sha256.Sum256([]byte("generation benchmark policy source")),
+		documents:               make([]CorpusChunk, count),
+		targets:                 make([]ChunkTarget, count),
+		rows:                    make(map[generationBenchmarkKey]ChunkVector, count),
 	}
 	for i := range count {
 		noteIndex := i % noteCount
@@ -255,12 +255,12 @@ func driftOneGenerationBenchmarkDocument(
 ) generationBenchmarkFixture {
 	tb.Helper()
 	drifted := generationBenchmarkFixture{
-		identity:     fixture.identity,
-		policySource: fixture.policySource,
-		revision:     fixture.revision + 1,
-		documents:    slices.Clone(fixture.documents),
-		targets:      make([]ChunkTarget, len(fixture.documents)),
-		rows:         make(map[generationBenchmarkKey]ChunkVector, len(fixture.documents)),
+		identity:                fixture.identity,
+		policySourceFingerprint: fixture.policySourceFingerprint,
+		revision:                fixture.revision + 1,
+		documents:               slices.Clone(fixture.documents),
+		targets:                 make([]ChunkTarget, len(fixture.documents)),
+		rows:                    make(map[generationBenchmarkKey]ChunkVector, len(fixture.documents)),
 	}
 	changedPath := drifted.documents[len(drifted.documents)/2].RelPath
 	changedNoteHash := sha256.Sum256([]byte("changed note:" + changedPath + ":" + strconv.Itoa(drifted.revision)))
@@ -349,7 +349,7 @@ func prepareGenerationBenchmark(
 	fixture *generationBenchmarkFixture,
 ) *staging {
 	b.Helper()
-	build, err := writer.prepare(b.Context(), &fixture.identity, fixture.policySource, fixture.targets)
+	build, err := writer.prepare(b.Context(), &fixture.identity, fixture.policySourceFingerprint, fixture.targets)
 	if err != nil {
 		b.Fatal(err)
 	}

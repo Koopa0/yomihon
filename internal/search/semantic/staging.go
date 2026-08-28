@@ -44,7 +44,7 @@ func (e *retryNotReadyError) Unwrap() error { return ErrRetryNotReady }
 func (w *writer) prepare(
 	ctx context.Context,
 	identity *generationIdentity,
-	policySource [sha256.Size]byte,
+	policySourceFingerprint [sha256.Size]byte,
 	targets []ChunkTarget,
 ) (*staging, error) {
 	if w == nil || w.db == nil {
@@ -53,7 +53,7 @@ func (w *writer) prepare(
 	if err := w.requireCurrentFiles(); err != nil {
 		return nil, err
 	}
-	manifest, err := newStagingManifest(identity, policySource, targets)
+	manifest, err := newStagingManifest(identity, policySourceFingerprint, targets)
 	if err != nil {
 		return nil, err
 	}
@@ -97,15 +97,15 @@ func (w *writer) prepare(
 }
 
 type stagingManifest struct {
-	identity          generationIdentity
-	policySource      [sha256.Size]byte
-	corpusFingerprint [sha256.Size]byte
-	targets           []ChunkTarget
+	identity                generationIdentity
+	policySourceFingerprint [sha256.Size]byte
+	corpusFingerprint       [sha256.Size]byte
+	targets                 []ChunkTarget
 }
 
 func newStagingManifest(
 	identity *generationIdentity,
-	policySource [sha256.Size]byte,
+	policySourceFingerprint [sha256.Size]byte,
 	targets []ChunkTarget,
 ) (*stagingManifest, error) {
 	if identity == nil {
@@ -114,7 +114,7 @@ func newStagingManifest(
 	if err := validateIdentity(identity); err != nil {
 		return nil, err
 	}
-	if policySource == ([sha256.Size]byte{}) {
+	if policySourceFingerprint == ([sha256.Size]byte{}) {
 		return nil, fmt.Errorf("%w: empty policy source fingerprint", ErrInvalidCorpus)
 	}
 	orderedTargets, fingerprint, err := normalizeTargets(targets)
@@ -122,10 +122,10 @@ func newStagingManifest(
 		return nil, err
 	}
 	return &stagingManifest{
-		identity:          *identity,
-		policySource:      policySource,
-		corpusFingerprint: fingerprint,
-		targets:           orderedTargets,
+		identity:                *identity,
+		policySourceFingerprint: policySourceFingerprint,
+		corpusFingerprint:       fingerprint,
+		targets:                 orderedTargets,
 	}, nil
 }
 
@@ -134,7 +134,7 @@ func (m *stagingManifest) bind(writer *writer, id int64, resumed bool) *staging 
 		writer:                  writer,
 		id:                      id,
 		identity:                m.identity,
-		policySourceFingerprint: m.policySource,
+		policySourceFingerprint: m.policySourceFingerprint,
 		corpusFingerprint:       m.corpusFingerprint,
 		expectedChunks:          len(m.targets),
 		resumed:                 resumed,
@@ -220,7 +220,7 @@ func inspectStagingGeneration(
 	}
 	if metadata.vectorFormatVersion != vectorFormatVersion ||
 		metadata.identity != manifest.identity ||
-		metadata.policySourceFingerprint != manifest.policySource ||
+		metadata.policySourceFingerprint != manifest.policySourceFingerprint ||
 		metadata.corpusFingerprint != manifest.corpusFingerprint ||
 		metadata.expectedChunks != len(manifest.targets) {
 		return inspection, nil
@@ -259,7 +259,7 @@ func stagingMatchesManifest(
 	}
 	if metadata.vectorFormatVersion != vectorFormatVersion ||
 		metadata.identity != manifest.identity ||
-		metadata.policySourceFingerprint != manifest.policySource ||
+		metadata.policySourceFingerprint != manifest.policySourceFingerprint ||
 		metadata.corpusFingerprint != manifest.corpusFingerprint ||
 		metadata.expectedChunks != len(manifest.targets) {
 		return false, nil
@@ -422,7 +422,7 @@ func createGeneration(ctx context.Context, q *catalog.Queries, manifest *staging
 		ChunkerEpoch:            manifest.identity.chunkerEpoch[:],
 		VaultRoot:               manifest.identity.vaultRoot,
 		CorpusPolicyFingerprint: manifest.identity.corpusPolicyFingerprint[:],
-		PolicySourceFingerprint: manifest.policySource[:],
+		PolicySourceFingerprint: manifest.policySourceFingerprint[:],
 		TargetCorpusFingerprint: manifest.corpusFingerprint[:],
 		ExpectedChunks:          int64(len(manifest.targets)),
 	})
