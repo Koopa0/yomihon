@@ -1,6 +1,7 @@
 package search
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -73,7 +74,7 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 			continue
 		}
 		seen[candidate] = true
-		full := strings.Join(append(filters[:len(filters):len(filters)], candidate), " ")
+		full := strings.Join(append(slices.Clip(filters), candidate), " ")
 		// A candidate is only offered for its count, so no result — and no
 		// snippet — is ever materialized for it, and the count is the true
 		// tally rather than the bounded page's opening stretch.

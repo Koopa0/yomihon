@@ -602,12 +602,10 @@ func activeGeneration(ctx context.Context, q *catalog.Queries, afterGeneration f
 		return loadedGeneration{}, fmt.Errorf("%w: active generation has retry state", ErrStoreCorrupt)
 	}
 	return loadedGeneration{
-		generationMetadata: generationMetadata{
-			identity:          metadata.identity,
-			corpusFingerprint: metadata.corpusFingerprint,
-			topKP95:           metadata.topKP95,
-		},
-		rows: rows,
+		identity:          metadata.identity,
+		corpusFingerprint: metadata.corpusFingerprint,
+		topKP95:           metadata.topKP95,
+		rows:              rows,
 	}, nil
 }
 

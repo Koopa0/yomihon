@@ -7,7 +7,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/search"
-	"github.com/koopa0/yomihon/internal/search/semantic"
 )
 
 func TestFuseRRFUsesTopFiftyAndDeterministicPathTies(t *testing.T) {
@@ -21,8 +20,8 @@ func TestFuseRRFUsesTopFiftyAndDeterministicPathTies(t *testing.T) {
 		lexical = append(lexical, search.Result{RelPath: fmt.Sprintf("z%02d.md", i), Title: fmt.Sprintf("Z%d", i)})
 	}
 	semanticHits := []semanticHit{
-		{Rank: semantic.Rank{RelPath: "c.md", ChunkOrdinal: 3}, Title: "C", Snippet: "semantic c", Heading: "C head"},
-		{Rank: semantic.Rank{RelPath: "b.md", ChunkOrdinal: 1}, Title: "B", Snippet: "semantic b", Heading: "B head"},
+		{RelPath: "c.md", ChunkOrdinal: 3, Title: "C", Snippet: "semantic c", Heading: "C head"},
+		{RelPath: "b.md", ChunkOrdinal: 1, Title: "B", Snippet: "semantic b", Heading: "B head"},
 	}
 	got := fuse(lexical, semanticHits, 100)
 	if len(got) != 52 {
@@ -86,7 +85,7 @@ func TestFuseCarriesLexicalRankBeyondFusionDepthOnSemanticHeadHit(t *testing.T) 
 	for i := range lexical {
 		lexical[i] = search.Result{RelPath: fmt.Sprintf("%03d.md", i)}
 	}
-	semanticHits := []semanticHit{{Rank: semantic.Rank{RelPath: lexical[50].RelPath}}}
+	semanticHits := []semanticHit{{RelPath: lexical[50].RelPath}}
 	got := fuse(lexical, semanticHits, 100)
 	if len(got) != len(lexical) {
 		t.Fatalf("Fuse result count = %d, want %d unique lexical notes", len(got), len(lexical))
