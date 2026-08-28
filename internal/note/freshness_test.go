@@ -15,9 +15,9 @@ import (
 const freshRel = "Writing/watched.md"
 
 // writeFreshNote puts body at rel under root, creating the folders it needs.
-func writeFreshNote(t *testing.T, root, rel, body string) {
+func writeFreshNote(t *testing.T, root, body string) {
 	t.Helper()
-	full := filepath.Join(root, filepath.FromSlash(rel))
+	full := filepath.Join(root, filepath.FromSlash(freshRel))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(full), err)
 	}
@@ -34,16 +34,16 @@ func identityOf(body string) string {
 
 // askFreshness performs the request a page open on rel makes every few
 // seconds, and returns the status code beside the answer.
-func askFreshness(t *testing.T, srvURL, rel, identity string) (int, string) {
+func askFreshness(t *testing.T, srvURL, identity string) (code int, answer string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
-		srvURL+"/freshness/"+rel+"?identity="+identity, nil)
+		srvURL+"/freshness/"+freshRel+"?identity="+identity, http.NoBody)
 	if err != nil {
 		t.Fatalf("NewRequest error = %v", err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		t.Fatalf("GET /freshness/%s error = %v", rel, err)
+		t.Fatalf("GET /freshness/%s error = %v", freshRel, err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -61,10 +61,10 @@ func TestFreshnessSaysUnchangedWhileTheNoteIsUntouched(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const body = "# Watched\n\nThe words a reader is reading.\n"
-	writeFreshNote(t, root, freshRel, body)
+	writeFreshNote(t, root, body)
 	srv := newServer(t, root)
 
-	code, got := askFreshness(t, srv.URL, freshRel, identityOf(body))
+	code, got := askFreshness(t, srv.URL, identityOf(body))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -82,14 +82,14 @@ func TestFreshnessOffersReloadOnlyOncePublishedCatchesUp(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const rendered = "# Watched\n\nWhat the page rendered.\n"
-	writeFreshNote(t, root, freshRel, rendered)
+	writeFreshNote(t, root, rendered)
 	// The generation is built here and never rebuilt in this test, so it holds
 	// exactly the bytes on disk at this moment.
 	srv := newServer(t, root)
 
 	// The published generation agrees with the disk and both differ from what
 	// this page rendered: reloading now shows the reader something new.
-	code, got := askFreshness(t, srv.URL, freshRel, identityOf("# Watched\n\nAn older draft.\n"))
+	code, got := askFreshness(t, srv.URL, identityOf("# Watched\n\nAn older draft.\n"))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -99,8 +99,8 @@ func TestFreshnessOffersReloadOnlyOncePublishedCatchesUp(t *testing.T) {
 
 	// Now the disk moves ahead of the generation. Reloading would render the
 	// same bytes again, so the invitation is withheld.
-	writeFreshNote(t, root, freshRel, "# Watched\n\nJust saved in Obsidian.\n")
-	code, got = askFreshness(t, srv.URL, freshRel, identityOf(rendered))
+	writeFreshNote(t, root, "# Watched\n\nJust saved in Obsidian.\n")
+	code, got = askFreshness(t, srv.URL, identityOf(rendered))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -113,13 +113,13 @@ func TestFreshnessSaysGoneWhenTheFileLeaves(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const body = "# Watched\n\nHere for now.\n"
-	writeFreshNote(t, root, freshRel, body)
+	writeFreshNote(t, root, body)
 	srv := newServer(t, root)
 
 	if err := os.Remove(filepath.Join(root, filepath.FromSlash(freshRel))); err != nil {
 		t.Fatalf("Remove error = %v", err)
 	}
-	code, got := askFreshness(t, srv.URL, freshRel, identityOf(body))
+	code, got := askFreshness(t, srv.URL, identityOf(body))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -135,11 +135,11 @@ func TestFreshnessNeverCallsAnUnreadableFileGone(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const body = "# Watched\n\nStill on disk.\n"
-	writeFreshNote(t, root, freshRel, body)
+	writeFreshNote(t, root, body)
 	srv := newServer(t, root)
 	lockNote(t, filepath.Join(root, filepath.FromSlash(freshRel)))
 
-	code, got := askFreshness(t, srv.URL, freshRel, identityOf(body))
+	code, got := askFreshness(t, srv.URL, identityOf(body))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -160,11 +160,11 @@ func TestFreshnessIgnoresAStatusOnlyRewrite(t *testing.T) {
 	root := t.TempDir()
 	const before = "---\ntype: lesson\nstatus: draft\n---\n\nBody.\n"
 	const after = "---\ntype: lesson\nstatus: ready\n---\n\nBody.\n"
-	writeFreshNote(t, root, freshRel, before)
+	writeFreshNote(t, root, before)
 	srv := newServer(t, root)
-	writeFreshNote(t, root, freshRel, after)
+	writeFreshNote(t, root, after)
 
-	code, got := askFreshness(t, srv.URL, freshRel, identityOf(before))
+	code, got := askFreshness(t, srv.URL, identityOf(before))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -176,7 +176,7 @@ func TestFreshnessIgnoresAStatusOnlyRewrite(t *testing.T) {
 func TestFreshnessRefusesAnIdentityItCannotHaveIssued(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeFreshNote(t, root, freshRel, "# Watched\n\nBody.\n")
+	writeFreshNote(t, root, "# Watched\n\nBody.\n")
 	srv := newServer(t, root)
 
 	for _, tt := range []struct {
@@ -189,7 +189,7 @@ func TestFreshnessRefusesAnIdentityItCannotHaveIssued(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, _ := askFreshness(t, srv.URL, freshRel, tt.identity)
+			code, _ := askFreshness(t, srv.URL, tt.identity)
 			if code != http.StatusBadRequest {
 				t.Errorf("status for a %s identity = %d, want %d", tt.name, code, http.StatusBadRequest)
 			}
@@ -206,10 +206,10 @@ func TestFreshnessRefusesAnIdentityItCannotHaveIssued(t *testing.T) {
 func TestReadingPageSendsNoBannerOfItsOwn(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeFreshNote(t, root, freshRel, "# Watched\n\nThe words a reader is reading.\n")
+	writeFreshNote(t, root, "# Watched\n\nThe words a reader is reading.\n")
 	srv := newServer(t, root)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/notes/"+freshRel, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/notes/"+freshRel, http.NoBody)
 	if err != nil {
 		t.Fatalf("NewRequest error = %v", err)
 	}
@@ -233,5 +233,44 @@ func TestReadingPageSendsNoBannerOfItsOwn(t *testing.T) {
 	}
 	if strings.Contains(page, "y-freshness") {
 		t.Error("the server rendered the freshness banner; it must exist only after the client is told the file moved on")
+	}
+}
+
+// TestFreshnessNeverCallsAnUnfindableNoteGone is the other half of the refusal
+// above, and it is a different code path: this one never reaches the file at
+// all. A folder that cannot be searched makes the note unfindable rather than
+// absent, and the two must not be reported as the same thing — a reader whose
+// permissions slipped for a moment has not lost a note.
+func TestFreshnessNeverCallsAnUnfindableNoteGone(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const body = "# Watched\n\nStill on disk.\n"
+	writeFreshNote(t, root, body)
+	srv := newServer(t, root)
+
+	// The folder is closed after the generation was built, so the note is in
+	// the snapshot and out of reach at once.
+	folder := filepath.Dir(filepath.Join(root, filepath.FromSlash(freshRel)))
+	if err := os.Chmod(folder, 0o000); err != nil {
+		t.Fatalf("chmod folder: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(folder, 0o750); err != nil { // #nosec G302 -- a directory needs its search bit; this restores the mode the test removed
+			t.Errorf("restore folder mode: %v", err)
+		}
+	})
+	if _, err := os.ReadFile(filepath.Join(folder, "watched.md")); err == nil { // #nosec G304 -- probing a path inside this test's own TempDir
+		t.Skip("mode 000 does not block a directory here (running as a privileged user)")
+	}
+
+	code, got := askFreshness(t, srv.URL, identityOf(body))
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", code, http.StatusOK)
+	}
+	if got == "gone" {
+		t.Fatal("a note behind a closed folder is reported as removed; not being able to look is not the same as nothing being there")
+	}
+	if got != "unreadable" {
+		t.Errorf("freshness of a note behind a closed folder = %q, want %q", got, "unreadable")
 	}
 }
