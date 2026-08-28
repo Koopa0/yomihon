@@ -38,7 +38,7 @@ func evaluate(
 	if err := requireFullIdentity(vectors, artifactPolicy, privacyPolicy); err != nil {
 		return evaluationReport{}, err
 	}
-	ready, err := newRecordedSearch(suite, vectors)
+	corpus, err := newRecordedIndex(suite, vectors)
 	if err != nil {
 		return evaluationReport{}, err
 	}
@@ -58,7 +58,7 @@ func evaluate(
 	if err != nil {
 		return evaluationReport{}, err
 	}
-	outcome, err := evaluateCases(ctx, suite, snapshot, ready, queries, lexicalIndex)
+	outcome, err := evaluateCases(ctx, suite, snapshot, corpus, queries, lexicalIndex)
 	if err != nil {
 		return evaluationReport{}, err
 	}
@@ -79,7 +79,7 @@ func evaluateCases(
 	ctx context.Context,
 	suite *evalSuite,
 	snapshot *agent.Snapshot,
-	ready *recordedSearch,
+	corpus *recordedIndex,
 	queryVectors []recording.Query,
 	lexicalIndex *search.Index,
 ) (evaluationReport, error) {
@@ -101,9 +101,12 @@ func evaluateCases(
 		if testCase.Class == classFilterMixed && !samePaths(testCase.AllowedPaths, allowed) {
 			return evaluationReport{}, fmt.Errorf("%w: filter projection changed for case %s", errInvalidSuite, testCase.ID)
 		}
-		ready.query = queryVectors[position].Vector
-		ready.expectedText = parsed.BareText()
-		searchAction, bindErr := agent.NewSearch(snapshot, ready)
+		query := &recordedQuery{
+			corpus:       corpus,
+			query:        queryVectors[position].Vector,
+			expectedText: parsed.BareText(),
+		}
+		searchAction, bindErr := agent.NewSearch(snapshot, query)
 		if bindErr != nil {
 			return evaluationReport{}, fmt.Errorf("evaluate hybrid case %s: %w", testCase.ID, bindErr)
 		}
@@ -164,33 +167,15 @@ func samePaths(expected []string, actual map[string]struct{}) bool {
 	return true
 }
 
-type recordedSearch struct {
-	fingerprint  [sha256.Size]byte
-	index        *semantic.Index
-	query        []float32
-	expectedText string
+// recordedIndex is the eval suite's synthetic semantic index and the corpus
+// fingerprint it was built from. It is built once per evaluate() run and
+// shared read-only by every case that run scores.
+type recordedIndex struct {
+	fingerprint [sha256.Size]byte
+	index       *semantic.Index
 }
 
-func (r *recordedSearch) CorpusFingerprint() [sha256.Size]byte {
-	return r.fingerprint
-}
-
-func (r *recordedSearch) Search(
-	ctx context.Context,
-	text string,
-	allowed map[string]struct{},
-	depth int,
-) ([]semantic.Result, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if text != r.expectedText || text == "" {
-		return nil, errors.New("eval query text differs from the parsed bare text")
-	}
-	return r.index.TopNotes(slices.Clone(r.query), allowed, depth)
-}
-
-func newRecordedSearch(suite *evalSuite, vectors *recording.Vectors) (*recordedSearch, error) {
+func newRecordedIndex(suite *evalSuite, vectors *recording.Vectors) (*recordedIndex, error) {
 	rows, err := indexRows(suite, vectors)
 	if err != nil {
 		return nil, err
@@ -203,10 +188,39 @@ func newRecordedSearch(suite *evalSuite, vectors *recording.Vectors) (*recordedS
 	if err != nil {
 		return nil, fmt.Errorf("%w: fingerprint current corpus: %w", errRecordingMismatch, err)
 	}
-	return &recordedSearch{
+	return &recordedIndex{
 		fingerprint: fingerprint,
 		index:       index,
 	}, nil
+}
+
+// recordedQuery binds one eval case's query vector and expected bare text to
+// the run's shared recordedIndex. evaluateCases constructs a fresh value per
+// case rather than mutating one shared value across the loop, so a case's
+// query can never leak into the next case's agent.NewSearch binding.
+type recordedQuery struct {
+	corpus       *recordedIndex
+	query        []float32
+	expectedText string
+}
+
+func (r *recordedQuery) CorpusFingerprint() [sha256.Size]byte {
+	return r.corpus.fingerprint
+}
+
+func (r *recordedQuery) Search(
+	ctx context.Context,
+	text string,
+	allowed map[string]struct{},
+	depth int,
+) ([]semantic.Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if text != r.expectedText || text == "" {
+		return nil, errors.New("eval query text differs from the parsed bare text")
+	}
+	return r.corpus.index.TopNotes(slices.Clone(r.query), allowed, depth)
 }
 
 func lexicalDocs(suite *evalSuite) []search.Document {
