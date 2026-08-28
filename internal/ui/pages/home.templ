@@ -56,14 +56,20 @@ type HomeView struct {
 	// fresh clone stamps every file with one moment, and the block then leads
 	// with whatever name sorts first under a heading promising recency — so
 	// when the times separate nothing, the block says so instead.
-	RecentOrdered   bool
-	RecentClosed    bool
-	Lifecycle       []LifecycleItem
-	LifecycleClosed bool
-	Paths           []HomePath
-	PathsClosed     bool
-	ReadmeMissing   bool
-	Sidebar         Sidebar
+	RecentOrdered bool
+	Lifecycle     []LifecycleItem
+	Paths         []HomePath
+	// ShowRecent, ShowLifecycle and ShowPaths say which blocks this page
+	// carries. Each is one answer, decided where the blocks are gathered and
+	// where the subtitle that names them and the stand-in that replaces them
+	// are decided from the same three values. A template that re-derived them
+	// from the lists and the closure flags would be a second place for the same
+	// question, kept in step by whoever remembered both.
+	ShowRecent    bool
+	ShowLifecycle bool
+	ShowPaths     bool
+	ReadmeMissing bool
+	Sidebar       Sidebar
 }
 
 // HomeStandIn carries the stand-in line's facts: how much is in this folder and
@@ -146,7 +152,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 								}
 							</p>
 						}
-						if !v.RecentClosed && len(v.Recent) > 0 {
+						if v.ShowRecent {
 							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
 								if v.RecentOrdered {
 									@homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記")
@@ -176,7 +182,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 								</div>
 							</section>
 						}
-						if v.Governed && !v.LifecycleClosed && len(v.Lifecycle) > 0 {
+						if v.ShowLifecycle {
 							<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
 								@homeBlockHead("home-lifecycle-title", "依狀態分組", "書庫中每個狀態的筆記數")
 								<div class="y-homechips">
@@ -193,7 +199,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 								</div>
 							</section>
 						}
-						if !v.PathsClosed && len(v.Paths) > 0 {
+						if v.ShowPaths {
 							<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
 								@homeBlockHead("home-paths-title", "學習路徑", "沿著書庫中的課程繼續學習")
 								<div class="y-homepaths">
