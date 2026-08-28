@@ -1,5 +1,105 @@
 package wording
 
+// The shared chrome: what every page carries around whatever it is showing.
+
+// SkipToContent is the first thing keyboard focus reaches on every page, and it
+// exists so a reader who navigates by key does not walk the whole rail before
+// arriving at what they came for.
+var SkipToContent = both("跳至主要內容", "Skip to content")
+
+// ToggleNavigation names the control that opens the rail at widths where it is
+// collapsed behind it.
+var ToggleNavigation = both("切換導覽", "Toggle navigation")
+
+// BrandTag sits beside the name and says what this is: a place to read what is
+// already written, not a place to file it.
+var BrandTag = both("書庫", "Library")
+
+// SearchNotes labels the way into search, both as the control's accessible name
+// and as the dialog's.
+var SearchNotes = both("搜尋筆記", "Search notes")
+
+// SearchNotesPrompt is the same invitation with the ellipsis a placeholder
+// carries, so the control reads as a field waiting rather than a label.
+var SearchNotesPrompt = both("搜尋筆記…", "Search notes…")
+
+// SearchLibraryPrompt is the dialog's own field: it searches the whole library,
+// which is a wider promise than the button that opened it.
+var SearchLibraryPrompt = both("搜尋書庫…", "Search the library…")
+
+// ToggleFurigana names the control for the reading aids over Japanese text.
+var ToggleFurigana = both("切換振假名", "Toggle furigana")
+
+// FuriganaMark is the control's glyph. It is the same in both languages: the
+// character is the conventional mark for the thing itself, and a reader of an
+// interface that renders Japanese will meet it in the text as well.
+var FuriganaMark = both("振", "振")
+
+// The two words this interface uses for a switch's state, wherever one is shown
+// beside the control rather than only announced.
+var (
+	On  = both("開", "On")
+	Off = both("關", "Off")
+)
+
+// HealthLink names the page that reports the vault's own faults — links with no
+// target, notes nothing cites, names two files answer to.
+var HealthLink = both("整體狀況", "Health")
+
+// HealthLinkTitle says what that page counts, so the label does not have to.
+var HealthLinkTitle = both("整體狀況：連結、孤島、名字衝突", "Health: links, islands, name collisions")
+
+// TextSizeMark is the text-size control's glyph. The English side is a letter
+// rather than the character, because the control's whole job is to be legible
+// at a glance to whoever is reading the interface.
+var TextSizeMark = both("字", "A")
+
+// TextSizeCycle says which way the control moves, since it steps rather than
+// toggles and a reader pressing it once cannot tell that from the result.
+var TextSizeCycle = both("字級：中 → 大 → 特大", "Text size: medium → large → extra large")
+
+// The text-size control's accessible name at each step. The name carries the
+// state because a control that cycles three values has nowhere else to put it.
+var (
+	TextSizeMedium     = both("字級：中", "Text size: medium")
+	TextSizeLarge      = both("字級：大", "Text size: large")
+	TextSizeExtraLarge = both("字級：特大", "Text size: extra large")
+)
+
+// KeyboardHelp names the panel of shortcuts and the control that opens it.
+var KeyboardHelp = both("鍵盤快捷鍵", "Keyboard shortcuts")
+
+// KeyboardHelpControl is that control's accessible name, which says it opens an
+// explanation rather than performing a shortcut.
+var KeyboardHelpControl = both("鍵盤快捷鍵說明", "Keyboard shortcut help")
+
+// The shortcut panel's own rows: what each key does, in the fewest words that
+// still distinguish it from the others.
+var (
+	ShortcutSearch              = both("搜尋", "Search")
+	ShortcutCloseSearchOrFilter = both("關閉搜尋或篩選", "Close search or the filter")
+	ShortcutJumpToFilter        = both("跳到導覽篩選（單鍵開啟時）", "Jump to the navigation filter (when single keys are on)")
+	ShortcutToggleSidebar       = both("收合或展開側欄（單鍵開啟時）", "Collapse or expand the sidebar (when single keys are on)")
+)
+
+// SingleKeyShortcuts names the preference that decides whether a bare key does
+// anything, and the two states it reports beside the checkbox.
+var SingleKeyShortcuts = both("單鍵快捷鍵", "Single-key shortcuts")
+var CurrentlyOn = both("目前開啟", "Currently on")
+var CurrentlyOff = both("目前關閉", "Currently off")
+
+// SingleKeyShortcutsNote says what turning them off costs and what it does not,
+// because the two keys that keep working are the two a reader would most miss.
+var SingleKeyShortcutsNote = both(
+	"關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。",
+	"With these off, / and [ type the way the browser types them; ⌘K and Esc are unaffected.",
+)
+
+// SearchDialogEnter and SearchDialogEsc are the dialog's own footer: the two
+// keys it answers to, shown rather than only announced.
+var SearchDialogEnter = both("搜尋", "Search")
+var SearchDialogEsc = both("關閉", "Close")
+
 // ThemeToggle names the control that switches between the light and dark
 // grounds. It is a label rather than a sentence: what it does is visible the
 // moment it is pressed, so it says what it is and stops.

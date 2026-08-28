@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestBaseDeclaresTraditionalChineseDocumentLanguage(t *testing.T) {
@@ -232,10 +234,10 @@ func TestShortcutPreferenceLivesWithTheKeysItGoverns(t *testing.T) {
 	if !strings.Contains(panel, "data-single-key-shortcuts-toggle") {
 		t.Errorf("the preference is not inside the keyboard help panel; panel = %q", panel)
 	}
-	if want := "關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。"; !strings.Contains(panel, want) {
+	if want := wording.SingleKeyShortcutsNote.In(wording.ZhHant); !strings.Contains(panel, want) {
 		t.Errorf("panel does not say what turning it off costs; want %q; panel = %q", want, panel)
 	}
-	for _, want := range []string{">目前開啟<", ">目前關閉<"} {
+	for _, want := range []string{">" + wording.CurrentlyOn.In(wording.ZhHant) + "<", ">" + wording.CurrentlyOff.In(wording.ZhHant) + "<"} {
 		if !strings.Contains(panel, want) {
 			t.Errorf("panel does not state which way the preference is set (%q); panel = %q", want, panel)
 		}
@@ -254,7 +256,7 @@ func TestHeaderSearchKeepsAccessibleNameWhenLabelIsVisuallyHidden(t *testing.T) 
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
-	if !strings.Contains(html, `class="y-searchbtn" href="/search" data-search-open aria-label="搜尋筆記"`) {
+	if !strings.Contains(html, `class="y-searchbtn" href="/search" data-search-open aria-label="`+wording.SearchNotes.In(wording.ZhHant)+`"`) {
 		t.Errorf("header search link has no stable accessible name; html = %q", html)
 	}
 }
@@ -263,7 +265,7 @@ func TestSearchDialogKeepsGETFallbackAroundLiveResults(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	if err := searchDialog().Render(t.Context(), &buf); err != nil {
+	if err := searchDialog(wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render search dialog: %v", err)
 	}
 	html := buf.String()
@@ -313,10 +315,10 @@ func TestTextSizeControlNamesTheSizeItIsAt(t *testing.T) {
 		size string
 		want string
 	}{
-		{size: "m", want: "字級：中"},
-		{size: "l", want: "字級：大"},
-		{size: "xl", want: "字級：特大"},
-		{size: "", want: "字級：中"},
+		{size: "m", want: wording.TextSizeMedium.In(wording.ZhHant)},
+		{size: "l", want: wording.TextSizeLarge.In(wording.ZhHant)},
+		{size: "xl", want: wording.TextSizeExtraLarge.In(wording.ZhHant)},
+		{size: "", want: wording.TextSizeMedium.In(wording.ZhHant)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.size, func(t *testing.T) {
@@ -329,7 +331,7 @@ func TestTextSizeControlNamesTheSizeItIsAt(t *testing.T) {
 			if !strings.Contains(html, `aria-label="`+tt.want+`"`) {
 				t.Errorf("the text-size control does not name its size %q:\n%s", tt.want, textSizeButton(html))
 			}
-			for _, other := range []string{"字級：中", "字級：大", "字級：特大"} {
+			for _, other := range []string{wording.TextSizeMedium.In(wording.ZhHant), wording.TextSizeLarge.In(wording.ZhHant), wording.TextSizeExtraLarge.In(wording.ZhHant)} {
 				if other != tt.want && strings.Contains(html, `aria-label="`+other+`"`) {
 					t.Errorf("the control also claims to be at %q", other)
 				}

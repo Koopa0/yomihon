@@ -58,11 +58,11 @@ templ Base(c Chrome) {
 			<link rel="stylesheet" href="/static/chroma.css"/>
 		</head>
 		<body>
-			<a class="y-skiplink" href="#main-content">跳至主要內容</a>
+			<a class="y-skiplink" href="#main-content">{ wording.SkipToContent.In(c.Lang) }</a>
 			<div class="yomihon">
 				@header(c)
 				{ children... }
-				@searchDialog()
+				@searchDialog(c.Lang)
 			</div>
 			<script nonce={ c.Nonce } type="module" src="/static/yomihon.js"></script>
 		</body>
@@ -79,44 +79,44 @@ templ Base(c Chrome) {
 // upgrades into opening the dialog.
 templ header(c Chrome) {
 	<header class="y-header">
-		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label="切換導覽" aria-expanded="false" aria-controls="nav-rail">
+		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label={ wording.ToggleNavigation.In(c.Lang) } aria-expanded="false" aria-controls="nav-rail">
 			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
 		</button>
 		<div class="y-brand">
 			<a class="y-brand__name" href="/"><img class="y-brand__mark" src="/static/yomihon-mark.svg" width="24" height="24" alt="" aria-hidden="true"/><span>yomihon</span></a>
-			<span class="y-brand__tag">書庫</span>
+			<span class="y-brand__tag">{ wording.BrandTag.In(c.Lang) }</span>
 		</div>
 		<div class="y-header__spacer"></div>
-		<a class="y-searchbtn" href="/search" data-search-open aria-label="搜尋筆記">
+		<a class="y-searchbtn" href="/search" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
 			<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<span class="y-searchbtn__label">搜尋筆記…</span>
+			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
 		if c.HasRuby {
-			<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label="切換振假名" aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
-				<span class="y-rubybtn__glyph" aria-hidden="true">振</span>
-				<span class="y-rubybtn__on">開</span>
-				<span class="y-rubybtn__off">關</span>
+			<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
+				<span class="y-rubybtn__glyph" aria-hidden="true">{ wording.FuriganaMark.In(c.Lang) }</span>
+				<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
+				<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
 			</button>
 		}
-		<a class="y-healthlinkbtn" href="/health" title="整體狀況：連結、孤島、名字衝突">整體狀況</a>
-		<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize) } title="字級：中 → 大 → 特大">
-			<span aria-hidden="true">字</span>
+		<a class="y-healthlinkbtn" href="/health" title={ wording.HealthLinkTitle.In(c.Lang) }>{ wording.HealthLink.In(c.Lang) }</a>
+		<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize, c.Lang) } title={ wording.TextSizeCycle.In(c.Lang) }>
+			<span aria-hidden="true">{ wording.TextSizeMark.In(c.Lang) }</span>
 		</button>
-		<button class="y-iconbtn y-helpbtn" type="button" popovertarget="kbd-help" aria-label="鍵盤快捷鍵說明">
+		<button class="y-iconbtn y-helpbtn" type="button" popovertarget="kbd-help" aria-label={ wording.KeyboardHelpControl.In(c.Lang) }>
 			<span aria-hidden="true">?</span>
 		</button>
-		<div id="kbd-help" popover class="y-kbdhelp" aria-label="鍵盤快捷鍵">
-			<h2 class="y-kbdhelp__title">鍵盤快捷鍵</h2>
+		<div id="kbd-help" popover class="y-kbdhelp" aria-label={ wording.KeyboardHelp.In(c.Lang) }>
+			<h2 class="y-kbdhelp__title">{ wording.KeyboardHelp.In(c.Lang) }</h2>
 			<dl class="y-kbdhelp__list">
 				<dt><span class="ui-kbd">⌘K</span> / <span class="ui-kbd">Ctrl K</span></dt>
-				<dd>搜尋</dd>
+				<dd>{ wording.ShortcutSearch.In(c.Lang) }</dd>
 				<dt><span class="ui-kbd">Esc</span></dt>
-				<dd>關閉搜尋或篩選</dd>
+				<dd>{ wording.ShortcutCloseSearchOrFilter.In(c.Lang) }</dd>
 				<dt><span class="ui-kbd">/</span></dt>
-				<dd>跳到導覽篩選（單鍵開啟時）</dd>
+				<dd>{ wording.ShortcutJumpToFilter.In(c.Lang) }</dd>
 				<dt><span class="ui-kbd">[</span></dt>
-				<dd>收合或展開側欄（單鍵開啟時）</dd>
+				<dd>{ wording.ShortcutToggleSidebar.In(c.Lang) }</dd>
 			</dl>
 			// The preference belongs beside the keys it governs. In the header
 			// it was a permanent two-character control that named neither the
@@ -126,14 +126,14 @@ templ header(c Chrome) {
 			<div class="y-kbdpref">
 				<label class="y-shortcutpref">
 					<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-describedby="kbd-pref-note" checked?={ c.SingleKeyShortcutsEnabled }/>
-					<span class="y-shortcutpref__label">單鍵快捷鍵</span>
-					<span class="y-shortcutpref__on" aria-hidden="true">目前開啟</span>
-					<span class="y-shortcutpref__off" aria-hidden="true">目前關閉</span>
+					<span class="y-shortcutpref__label">{ wording.SingleKeyShortcuts.In(c.Lang) }</span>
+					<span class="y-shortcutpref__on" aria-hidden="true">{ wording.CurrentlyOn.In(c.Lang) }</span>
+					<span class="y-shortcutpref__off" aria-hidden="true">{ wording.CurrentlyOff.In(c.Lang) }</span>
 				</label>
 				// The two keys that keep working either way are named as well,
 				// because "off" reads as "no keyboard" unless the sentence says
 				// otherwise.
-				<p class="y-kbdpref__note" id="kbd-pref-note">關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。</p>
+				<p class="y-kbdpref__note" id="kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
 			</div>
 		</div>
 		<button class="y-iconbtn y-langbtn" type="button" data-lang-toggle aria-label={ wording.LanguageToggle.In(c.Lang) } title={ wording.LanguageToggle.In(c.Lang) }>
@@ -162,18 +162,18 @@ func languageMark(lang wording.Lang) string {
 // backdrop, focus trap, Esc — all free) whose body is a GET form to /search.
 // The data hooks add live lexical results while preserving that ordinary form;
 // without JavaScript the header link still reaches the full search page.
-templ searchDialog() {
-	<dialog class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label="搜尋筆記">
+templ searchDialog(lang wording.Lang) {
+	<dialog class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label={ wording.SearchNotes.In(lang) }>
 		<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
 			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<input class="y-searchdialog__input" type="search" name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記" data-live-search-input autofocus/>
+			<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
 			<span class="ui-kbd">esc</span>
 		</form>
 		<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
 		<div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>
 		<div class="y-searchdialog__foot">
-			<span>↵ 搜尋</span>
-			<span>esc 關閉</span>
+			<span>↵ { wording.SearchDialogEnter.In(lang) }</span>
+			<span>esc { wording.SearchDialogEsc.In(lang) }</span>
 		</div>
 	</dialog>
 }
@@ -184,13 +184,13 @@ templ searchDialog() {
 // aria-pressed; this one cycles through three, which no boolean carries, so
 // the name is where its state has to live. The script keeps it current on
 // every press, and a reader arriving on a reload finds the same answer.
-func textSizeLabel(size string) string {
+func textSizeLabel(size string, lang wording.Lang) string {
 	switch size {
 	case "l":
-		return "字級：大"
+		return wording.TextSizeLarge.In(lang)
 	case "xl":
-		return "字級：特大"
+		return wording.TextSizeExtraLarge.In(lang)
 	default:
-		return "字級：中"
+		return wording.TextSizeMedium.In(lang)
 	}
 }
