@@ -20,7 +20,7 @@ const destBody = "FIRST paragraph.\n\n" +
 
 func blockRenderer(t *testing.T) *render.Pipeline {
 	t.Helper()
-	return newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": destBody})
+	return newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": destBody})
 }
 
 // A link written at a block says which paragraph it means. Without an anchor
@@ -147,7 +147,7 @@ func TestRepeatedBlockAddressBelongsToTheFirstBlock(t *testing.T) {
 	t.Parallel()
 
 	const body = "FIRST paragraph. ^dup\n\nSECOND paragraph. ^dup\n"
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 	page := r.HTML("B.md", "", body)
 
 	if !strings.Contains(page.HTML, `<p>FIRST paragraph. <span id="^dup">^dup</span></p>`) {
@@ -178,7 +178,7 @@ func TestBlockLinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 
 	t.Run("an ambiguous target carrying the block still gets no link", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "a/Foo.md"}, {Path: "b/Foo.md"}}, nil,
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "a/Foo.md"}, {RelPath: "b/Foo.md"}}, nil,
 			transclusions{"a/Foo.md": destBody, "b/Foo.md": destBody})
 		got := r.HTML("note.md", "", "[[Foo#^quux]]\n")
 		if strings.Contains(got.HTML, "href=") {
@@ -203,7 +203,7 @@ func TestBlockAddressInsideAFenceIsNotAnAddress(t *testing.T) {
 	t.Parallel()
 
 	const body = "```\nsample line ^fenced\n```\n\nordinary paragraph.\n"
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 
 	page := r.HTML("B.md", "", body)
 	if strings.Contains(page.HTML, `id="^fenced"`) {
@@ -277,7 +277,7 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": tt.body})
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": tt.body})
 			page := r.HTML("B.md", "", tt.body)
 			got := r.HTML("note.md", "", "[[B#"+tt.address+"]]\n")
 

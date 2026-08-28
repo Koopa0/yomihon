@@ -38,11 +38,11 @@ func newBacklinks(notes []*vault.Note, idx *graph.Index) *Backlinks {
 		seen := make(map[string]bool)
 		for _, target := range judge.LinkTargets(n.Body) {
 			res := idx.Resolve(target)
-			if res.Kind != graph.Unique || res.Path == n.RelPath || seen[res.Path] {
+			if res.Kind != graph.Unique || res.RelPath == n.RelPath || seen[res.RelPath] {
 				continue
 			}
-			seen[res.Path] = true
-			b.byTarget[res.Path] = append(b.byTarget[res.Path], nav.NoteRef{
+			seen[res.RelPath] = true
+			b.byTarget[res.RelPath] = append(b.byTarget[res.RelPath], nav.NoteRef{
 				Name:    nav.Label(n.RelPath),
 				RelPath: n.RelPath,
 			})

@@ -14,7 +14,7 @@ const sectionDest = "# Top\n\nTOPTEXT\n\n## Alpha\n\nALPHATEXT\n\n## Beta\n\nBET
 
 func sectionRenderer(t *testing.T) *render.Pipeline {
 	t.Helper()
-	return newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": sectionDest})
+	return newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": sectionDest})
 }
 
 // fragmentDiagnostics collects what a page said about the addresses in it that
@@ -85,7 +85,7 @@ func TestSectionLinkKeepsAFragmentTheDestinationAnswers(t *testing.T) {
 func TestSectionLinkClaimsNothingAboutABodyItNeverRead(t *testing.T) {
 	t.Parallel()
 
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, nil)
 	got := r.HTML("note.md", "", "[[B#Gamma]]\n")
 
 	if !strings.Contains(got.HTML, `href="/notes/B.md#gamma"`) {
@@ -155,7 +155,7 @@ func TestSectionLinkKeepsAnAnchorTheSourceScanCannotSee(t *testing.T) {
 		"> Quoted Setext\n> ===\n>\n> QUOTEDSETEXTTEXT\n\n" +
 		"> > Nested Setext\n> > ===\n\n" +
 		"- Listed Setext\n  ===\n\n  LISTEDSETEXTTEXT\n"
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": dest})
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": dest})
 
 	headings := []string{
 		"Quoted Heading", "Listed Heading",
@@ -198,7 +198,7 @@ func TestSectionLinkKeepsAnAnchorTheSourceScanCannotSee(t *testing.T) {
 func TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother(t *testing.T) {
 	t.Parallel()
 
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}, {Path: "C.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}, {RelPath: "C.md"}}, nil, transclusions{
 		"B.md": "# Top\n\nTOPTEXT\n\n![[C]]\n",
 		"C.md": "## Brought In\n\nBROUGHTTEXT\n",
 	})
@@ -235,7 +235,7 @@ func TestSectionLinkStillMissesAHeadingInsideAFence(t *testing.T) {
 	t.Parallel()
 
 	const dest = "# Top\n\nTOPTEXT\n\n```markdown\n## Only In A Sample\n```\n"
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": dest})
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": dest})
 
 	page := r.HTML("B.md", "", dest)
 	if strings.Contains(page.HTML, `id="only-in-a-sample"`) {

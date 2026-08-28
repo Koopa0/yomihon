@@ -473,7 +473,7 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 		res := idx.Resolve(link.target)
 		switch res.Kind {
 		case graph.Unique:
-			listed[res.Path] = true
+			listed[res.RelPath] = true
 		case graph.Ambiguous:
 			// An ambiguous link resolves to some note; leave it to the collision rule.
 		case graph.Unresolved:

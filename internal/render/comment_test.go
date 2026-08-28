@@ -83,7 +83,7 @@ func TestObsidianCommentsExcludedFromAllProjections(t *testing.T) {
 
 func TestObsidianCommentsExcludedFromEmbeddedNotes(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Embedded.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Embedded.md"}}, nil, transclusions{
 		"Embedded.md": "visible embed %%hidden embed%%",
 	})
 
@@ -175,7 +175,7 @@ func TestUnclosedCommentReportsADiagnostic(t *testing.T) {
 func TestUnclosedCommentInsideANestedBodyReachesThePage(t *testing.T) {
 	t.Parallel()
 
-	r := newRenderer(t, []graph.NoteInput{{Path: "Embedded.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Embedded.md"}}, nil, transclusions{
 		"Embedded.md": "visible embed\n\n%% swallowed from here\n\ngone\n",
 	})
 
@@ -220,7 +220,7 @@ func TestATranscludedBodyIsScannedForCommentsOnce(t *testing.T) {
 	t.Parallel()
 
 	const body = "before\n\n``a%%b``%%note%%`c`\n\nafter\n"
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 
 	got := r.HTML("note.md", "", "![[B]]\n")
 	if !strings.Contains(got.HTML, "a%%b") {
@@ -245,7 +245,7 @@ func TestATranscludedBodyIsScannedForCommentsOnce(t *testing.T) {
 func TestUnclosedCommentInAnotherNoteStaysOffThisPage(t *testing.T) {
 	t.Parallel()
 
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 		"B.md": "# Top\n\n%% swallowed from here\n",
 	})
 

@@ -145,7 +145,7 @@ func TestHTMLTurnsRemoteMarkdownImagesIntoExplicitLinks(t *testing.T) {
 
 func TestHTMLDoesNotLetAuthoredTextSelectRendererBlocks(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, nil)
 
 	got := r.HTML("note.md", "", `<!--yomihon-block:0--> [[Target]]`).HTML
 	if !strings.Contains(got, `&lt;!--yomihon-block:0--&gt;`) {
@@ -210,7 +210,7 @@ func TestHeadingSlugsTreatInertRawHeadingAsText(t *testing.T) {
 
 func TestWikilinkUnique(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, nil)
 
 	got := r.HTML("note.md", "", "See [[Target]] for details.\n")
 	want := `<a href="/notes/Target.md" class="wikilink">Target</a>`
@@ -224,7 +224,7 @@ func TestWikilinkUnique(t *testing.T) {
 
 func TestWikilinkAmbiguous(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "a/Foo.md"}, {Path: "b/Foo.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "a/Foo.md"}, {RelPath: "b/Foo.md"}}, nil, nil)
 
 	got := r.HTML("note.md", "", "[[Foo]]\n")
 	if !strings.Contains(got.HTML, `class="wikilink-ambiguous"`) {
@@ -274,7 +274,7 @@ func TestWikilinkBareAnchorIsPlainText(t *testing.T) {
 // to open a link there.
 func TestBracketedOrEmptyInnerTextIsNotALink(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "a.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "a.md"}}, nil, nil)
 
 	for _, body := range []string{"before [[a[b]]] after\n", "before [[]] after\n", "before ![[]] after\n"} {
 		got := r.HTML("note.md", "", body)
@@ -320,8 +320,8 @@ func headingID(t *testing.T, res *render.Result, want string) string {
 func TestWikilinkKeepsCrossNoteHeadingFragment(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, []graph.NoteInput{
-		{Path: "Writing/玻璃潮初稿.md"},
-		{Path: "Sources/鹽霧碼頭.md"},
+		{RelPath: "Writing/玻璃潮初稿.md"},
+		{RelPath: "Sources/鹽霧碼頭.md"},
 	}, nil, nil)
 
 	draft := r.HTML("Writing/玻璃潮初稿.md", "玻璃潮初稿", "## 第三節：失約的燈\n\n內文。\n")
@@ -398,7 +398,7 @@ func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 
 	t.Run("an ambiguous target gets no fragment", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "a/Foo.md"}, {Path: "b/Foo.md"}}, nil, nil)
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "a/Foo.md"}, {RelPath: "b/Foo.md"}}, nil, nil)
 		got := r.HTML("note.md", "", "[[Foo#Some Section]]\n")
 		if strings.Contains(got.HTML, "href=") {
 			t.Errorf("an ambiguous target must not become a link at all:\n%s", got.HTML)
@@ -438,7 +438,7 @@ func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 			// The note is in the resolver and its body was not captured, which
 			// is what a generation that read the name but not the bytes looks
 			// like.
-			r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, nil)
 			got := r.HTML("note.md", "", tt.body)
 			if !strings.Contains(got.HTML, tt.want) {
 				t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, tt.want, got.HTML)
@@ -460,7 +460,7 @@ func TestWikilinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 // name. The anchor moves to where those words now are.
 func TestRemovedOpeningHeadingPassesItsAnchorToTheTitle(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Notes/Glass Tide.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Notes/Glass Tide.md"}}, nil, nil)
 
 	page := r.HTML("Notes/Glass Tide.md", "Glass Tide", "# Glass Tide\n\nOpening paragraph.\n\n## Later\n\n本文。\n")
 
@@ -565,7 +565,7 @@ func TestHeadingFragmentFoldsUnicodeForm(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := newRenderer(t, []graph.NoteInput{{Path: "Dest.md"}}, nil, nil)
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "Dest.md"}}, nil, nil)
 
 			dest := r.HTML("Dest.md", "Dest", "## "+tt.destination+"\n\n本文。\n")
 			wanted := headingID(t, &dest, tt.destination)
@@ -586,7 +586,7 @@ func TestHeadingFragmentFoldsUnicodeForm(t *testing.T) {
 // it, quietly reads as though it worked.
 func TestNonMarkdownTargetTakesNoHeadingFragment(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Notes/Real.md"}}, []string{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Notes/Real.md"}}, []string{
 		"Attachments/paper.pdf",
 		"Diagrams/canvas/board.canvas",
 		"Attachments/plate.png",
@@ -633,7 +633,7 @@ func TestNonMarkdownTargetTakesNoHeadingFragment(t *testing.T) {
 
 func TestEmbedTranscludesNote(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 		"B.md": "B's own body text.\n",
 	})
 	got := r.HTML("note.md", "", "![[B]]\n")
@@ -652,7 +652,7 @@ func TestEmbedUsesTheCapturedGeneration(t *testing.T) {
 	const captured = "captured body\n"
 	writeFile(t, root, "B.md", captured)
 
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 		"B.md": captured,
 	})
 	if err := os.RemoveAll(root); err != nil {
@@ -671,7 +671,7 @@ func TestEmbedUsesTheCapturedGeneration(t *testing.T) {
 
 func TestEmbedReportsMissingCapturedBody(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, nil)
 
 	got := r.HTML("note.md", "", "![[B]]\n")
 	if !strings.Contains(got.HTML, `class="wikilink-broken"`) {
@@ -688,7 +688,7 @@ func TestEmbedReportsMissingCapturedBody(t *testing.T) {
 // output: exactly one level of transclusion, not an infinite chain.
 func TestEmbedDepthCapPreventsCycles(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "A.md"}, {Path: "B.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "A.md"}, {RelPath: "B.md"}}, nil, transclusions{
 		"B.md": "![[A]]\n",
 	})
 	got := r.HTML("note.md", "", "![[B]]\n")
@@ -830,7 +830,7 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 
 	t.Run("the named section embeds with its subsections and nothing else", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
 		if !strings.Contains(got.HTML, `<div class="embed">`) {
 			t.Errorf("HTML().HTML missing embed container:\n%s", got.HTML)
@@ -852,7 +852,7 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 
 	t.Run("a missing heading shows the whole note and says so", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 		got := r.HTML("note.md", "", "![[B#No Such Section]]\n")
 		for _, want := range []string{"INTRO-MARKER", "ALPHA-MARKER", "BETA-MARKER"} {
 			if !strings.Contains(got.HTML, want) {
@@ -873,7 +873,7 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 	// deterministic answer rather than a silent pick of a later candidate.
 	t.Run("a duplicated heading embeds its first occurrence", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "## Alpha\n\nFIRST-MARKER\n\n## Alpha\n\nSECOND-MARKER\n",
 		})
 		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
@@ -894,7 +894,7 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 			composed   = "\u304C\u3093"       // がん
 			decomposed = "\u304B\u3099\u3093" // か + combining dakuten, then ん
 		)
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "OUTSIDE-MARKER\n\n## " + decomposed + "\n\nINSIDE-MARKER\n",
 		})
 		got := r.HTML("note.md", "", "![[B#"+composed+"]]\n")
@@ -911,7 +911,7 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 
 	t.Run("a heading-looking line inside a fence is not a section start", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "```\n## Alpha\nFENCED-MARKER\n```\n\n## Alpha\n\nREAL-MARKER\n",
 		})
 		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
@@ -981,7 +981,7 @@ func TestEmbedHeadingSliceReadsAuthoredHTMLBlocks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": tt.body})
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": tt.body})
 			got := r.HTML("note.md", "", "![[B#Alpha]]\n")
 			for _, want := range tt.want {
 				if !strings.Contains(got.HTML, want) {
@@ -1029,7 +1029,7 @@ func TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}, {Path: "Other.md"}}, nil, transclusions{"B.md": tt.body})
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}, {RelPath: "Other.md"}}, nil, transclusions{"B.md": tt.body})
 			dest := r.HTML("B.md", "", tt.body)
 			if len(dest.TOC) == 0 {
 				t.Fatalf("the destination page stamped no anchor at all for:\n%s", tt.body)
@@ -1053,7 +1053,7 @@ func TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors(t *testing.T) {
 	// the section above it ends where the reader sees it end.
 	t.Run("a heading underlined under two lines ends the section above it", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "## Alpha\n\nINSIDE-MARKER\n\nBeta\nGamma\n-----\n\nAFTER-MARKER\n",
 		})
 		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
@@ -1070,7 +1070,7 @@ func TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors(t *testing.T) {
 	// subsections written under it, exactly as a '#' one does.
 	t.Run("an equals-underlined section owns its subsections", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "Alpha\n=====\n\nINSIDE-MARKER\n\n## Sub\n\nSUB-MARKER\n\n# Beta\n\nBETA-MARKER\n",
 		})
 		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
@@ -1086,7 +1086,7 @@ func TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors(t *testing.T) {
 
 	t.Run("a setext section ends at the next heading of its level", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "TOP-MARKER\n\nAlpha\n-----\n\nINSIDE-MARKER\n\n## Beta\n\nBETA-MARKER\n",
 		})
 		got := r.HTML("note.md", "", "![[B#Alpha]]\n")
@@ -1136,7 +1136,7 @@ func TestEmbedHeadingFragmentReportsWhatItCouldNotMatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": tt.body})
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": tt.body})
 			dest := r.HTML("B.md", "", tt.body)
 			if len(dest.TOC) != 1 || dest.TOC[0].Text != tt.fragment {
 				t.Fatalf("destination TOC = %+v, want one entry reading %q", dest.TOC, tt.fragment)
@@ -1171,7 +1171,7 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 
 	t.Run("only the addressed paragraph embeds", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 		got := r.HTML("note.md", "", "![[B#^quux]]\n")
 		if !strings.Contains(got.HTML, "SECOND-MARKER") {
 			t.Errorf("the addressed paragraph is missing:\n%s", got.HTML)
@@ -1193,7 +1193,7 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 	// this renderer widening a scope the author set.
 	t.Run("a marker on a list item embeds that item alone", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "- ITEM-A first\n- ITEM-B addressed ^id\n- ITEM-C last\n",
 		})
 		got := r.HTML("note.md", "", "![[B#^id]]\n")
@@ -1212,7 +1212,7 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 
 	t.Run("a marker under a list item's own continuation embeds the item whole", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "- ITEM-A first\n- ITEM-B opens\n  ITEM-B continues ^id\n- ITEM-C last\n",
 		})
 		got := r.HTML("note.md", "", "![[B#^id]]\n")
@@ -1251,7 +1251,7 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+				r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 					"B.md": "OUTSIDE-MARKER first.\n\nADDRESSED-MARKER the paragraph. " + tt.marker + "\n",
 				})
 				got := r.HTML("note.md", "", "![[B#"+tt.fragment+"]]\n")
@@ -1271,7 +1271,7 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 
 	t.Run("a multi-line paragraph embeds whole", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 			"B.md": "OUTSIDE-MARKER\n\nLINE-ONE continues\nLINE-TWO ends here. ^blk\n\nAFTER-MARKER\n",
 		})
 		got := r.HTML("note.md", "", "![[B#^blk]]\n")
@@ -1289,7 +1289,7 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 
 	t.Run("a missing block shows the whole note and says so", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 		got := r.HTML("note.md", "", "![[B#^missing]]\n")
 		for _, want := range []string{"FIRST-MARKER", "SECOND-MARKER", "THIRD-MARKER"} {
 			if !strings.Contains(got.HTML, want) {
@@ -1322,7 +1322,7 @@ func TestEmbedUnresolvedAndAmbiguous(t *testing.T) {
 
 	t.Run("ambiguous", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "a/Dup.md"}, {Path: "b/Dup.md"}}, nil, nil)
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "a/Dup.md"}, {RelPath: "b/Dup.md"}}, nil, nil)
 		got := r.HTML("note.md", "", "![[Dup]]\n")
 		if !strings.Contains(got.HTML, `class="wikilink-ambiguous"`) {
 			t.Errorf("HTML().HTML missing wikilink-ambiguous span:\n%s", got.HTML)
@@ -1478,7 +1478,7 @@ func TestCalloutUnknownTypeFallsBackToBlockquote(t *testing.T) {
 
 func TestCalloutBodyRendersNestedWikilinks(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, nil)
 
 	got := r.HTML("note.md", "", "> [!note]\n> See [[Target]] here\n")
 	want := `<a href="/notes/Target.md" class="wikilink">Target</a>`
@@ -1574,7 +1574,7 @@ func TestHeadingSlugStripsRubyReading(t *testing.T) {
 
 func TestFenceSafety(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Real.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Real.md"}}, nil, nil)
 
 	body := "before\n\n```text\n[[Fake Link]]\n> [!note] also risky\n```\n\nafter [[Real]]\n"
 	got := r.HTML("note.md", "", body)
@@ -1731,7 +1731,7 @@ func TestHTMLResolvesImagesAgainstTheNotesOwnDirectory(t *testing.T) {
 func TestEmbedResolvesImagesAgainstTheTranscludedNote(t *testing.T) {
 	t.Parallel()
 
-	r := newRenderer(t, []graph.NoteInput{{Path: "Concepts/golang/Slice.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Concepts/golang/Slice.md"}}, nil, transclusions{
 		"Concepts/golang/Slice.md": "![diagram](./slice.png)\n",
 	})
 	got := r.HTML("Journal/2026-07-26.md", "", "![[Slice]]\n").HTML
@@ -1755,7 +1755,7 @@ func TestEmbedResolvesImagesAgainstTheTranscludedNote(t *testing.T) {
 // for a target it does not link to.
 func TestWikilinkInsideACodeSpanIsQuotedNotResolved(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Concepts/Real.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Concepts/Real.md"}}, nil, nil)
 
 	got := r.HTML("Maps/MOC.md", "MOC", "用 `[[概念]]` 互連,以及 `![[嵌入]]` 禁止,而 [[Real]] 是真的。\n")
 
@@ -1806,7 +1806,7 @@ func TestQuotedWikilinkSurvivesAStrayBacktickRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := newRenderer(t, []graph.NoteInput{{Path: "Concepts/Real.md"}}, nil, nil)
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "Concepts/Real.md"}}, nil, nil)
 
 			got := r.HTML("Maps/MOC.md", "MOC", tt.body)
 
@@ -1868,7 +1868,7 @@ func TestEscapedWikilinkStaysLiteral(t *testing.T) {
 
 	t.Run("an escaped backslash before a wikilink still converts", func(t *testing.T) {
 		t.Parallel()
-		r := newRenderer(t, []graph.NoteInput{{Path: "Target.md"}}, nil, nil)
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, nil)
 		got := r.HTML("note.md", "", `\\[[Target]]`+"\n")
 		// "\\" is one literal backslash; the link after it is a real link.
 		want := `\<a href="/notes/Target.md" class="wikilink">Target</a>`
@@ -1916,7 +1916,7 @@ func TestEscapedWikilinkStaysLiteral(t *testing.T) {
 // span, and a wikilink after it still resolves.
 func TestUnclosedBacktickRunIsOrdinaryText(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Concepts/Real.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Concepts/Real.md"}}, nil, nil)
 
 	got := r.HTML("note.md", "note", "一個沒有結尾的 ` 反引號,然後 [[Real]]。\n")
 	if !strings.Contains(got.HTML, `class="wikilink"`) {

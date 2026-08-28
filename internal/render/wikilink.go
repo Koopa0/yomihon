@@ -514,7 +514,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	switch res.Kind {
 	case graph.Unique:
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref returns an attribute-safe string, path and fragment both percent-escaped
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, r.sectionHref(res.Path, link, col), html.EscapeString(link.Display))
+		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, r.sectionHref(res.RelPath, link, col), html.EscapeString(link.Display))
 	case graph.Ambiguous:
 		col.report(Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
@@ -573,33 +573,33 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">![[%s]]</span>`,
 			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(target))
 	case graph.Unique:
-		if IsPicture(res.Path) {
+		if IsPicture(res.RelPath) {
 			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; rawHref percent-escapes the path and the name is html.EscapeString'd
 			return fmt.Sprintf(`<img src="%s" alt="%s">`,
-				rawHref(res.Path), html.EscapeString(path.Base(res.Path)))
+				rawHref(res.RelPath), html.EscapeString(path.Base(res.RelPath)))
 		}
-		if !vault.IsMarkdown(res.Path) {
+		if !vault.IsMarkdown(res.RelPath) {
 			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; notesHref percent-escapes the path and the name is html.EscapeString'd
 			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <a href="%s">%s</a> — inline display not yet supported]</div>`,
-				notesHref(res.Path), html.EscapeString(path.Base(res.Path)))
+				notesHref(res.RelPath), html.EscapeString(path.Base(res.RelPath)))
 		}
-		body, ok := r.transclusions.Transclusion(res.Path)
+		body, ok := r.transclusions.Transclusion(res.RelPath)
 		if !ok {
 			col.report(Diagnostic{
 				Kind: DiagWikilinkBroken, Target: target,
-				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.Path),
+				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.RelPath),
 			})
 			return fmt.Sprintf(`<span class="wikilink-broken" title="這篇筆記存在，但這次讀取時拿不到它的內容">![[%s]]</span>`,
 				html.EscapeString(target))
 		}
-		body, unmatched := embedScope(link, res.Path, body, col)
+		body, unmatched := embedScope(link, res.RelPath, body, col)
 		inner := r.render(body, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		// An image inside a transcluded body was written relative to the
 		// note it came from, which is rarely the note being read, so it is
 		// resolved here — where that note's own path is still known —
 		// rather than later against the host's directory.
-		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched) + resolveAssetHrefs(inner.HTML, res.Path) + `</div>`
+		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched) + resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}

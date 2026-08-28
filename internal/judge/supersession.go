@@ -96,7 +96,7 @@ func archivedNavigationTargets(
 			if resolution.Kind != graph.Unique {
 				continue
 			}
-			target := byPath[resolution.Path]
+			target := byPath[resolution.RelPath]
 			if target == nil ||
 				!authority.egressAllowed(target.path) ||
 				artifacts.IsNonInstance(target.path) ||

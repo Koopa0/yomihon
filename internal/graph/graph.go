@@ -52,8 +52,8 @@ const (
 // Resolution is the outcome of resolving one wikilink target.
 type Resolution struct {
 	Kind Kind
-	// Path holds the resolved vault-relative path when Kind == Unique.
-	Path string
+	// RelPath holds the resolved vault-relative path when Kind == Unique.
+	RelPath string
 	// Candidates holds every candidate path, sorted, when Kind ==
 	// Ambiguous — never guessed at, the caller decides how to present it.
 	Candidates []string
@@ -69,7 +69,7 @@ type Index struct {
 // note: its vault-relative path and its frontmatter aliases (already
 // extracted — deliberately not its title, see the package doc).
 type NoteInput struct {
-	Path    string
+	RelPath string
 	Aliases []string
 }
 
@@ -84,7 +84,7 @@ func New(notes []*vault.Note, resources []string) *Index {
 			continue
 		}
 		inputs = append(inputs, NoteInput{
-			Path:    note.RelPath,
+			RelPath: note.RelPath,
 			Aliases: aliases(note),
 		})
 	}
@@ -97,11 +97,11 @@ func New(notes []*vault.Note, resources []string) *Index {
 func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 	idx := &Index{names: make(map[string][]string)}
 	for _, n := range notes {
-		for _, key := range noteKeys(n.Path) {
-			idx.add(key, n.Path)
+		for _, key := range noteKeys(n.RelPath) {
+			idx.add(key, n.RelPath)
 		}
 		for _, alias := range n.Aliases {
-			idx.add(alias, n.Path)
+			idx.add(alias, n.RelPath)
 		}
 	}
 	for _, res := range resources {
@@ -125,7 +125,7 @@ func (idx *Index) Resolve(name string) Resolution {
 	case 0:
 		return Resolution{Kind: Unresolved}
 	case 1:
-		return Resolution{Kind: Unique, Path: members[0]}
+		return Resolution{Kind: Unique, RelPath: members[0]}
 	default:
 		return Resolution{Kind: Ambiguous, Candidates: slices.Clone(members)}
 	}

@@ -46,11 +46,11 @@ func capturedGraph(t *testing.T, root string) *graph.Index {
 
 func TestResolveCaseInsensitive(t *testing.T) {
 	t.Parallel()
-	idx := graph.BuildFromNotes([]graph.NoteInput{{Path: "a/Go Slice.md"}}, nil)
+	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "a/Go Slice.md"}}, nil)
 
 	for _, name := range []string{"go slice", "GO SLICE", "Go Slice"} {
 		got := idx.Resolve(name)
-		if got.Kind != graph.Unique || got.Path != "a/Go Slice.md" {
+		if got.Kind != graph.Unique || got.RelPath != "a/Go Slice.md" {
 			t.Errorf("Resolve(%q) = %+v, want Unique a/Go Slice.md", name, got)
 		}
 	}
@@ -65,10 +65,10 @@ func TestResolveNFCAndNFDAreEquivalent(t *testing.T) {
 	decomposed := "café" // café, NFD
 	composed := "café"    // café, NFC
 
-	idx := graph.BuildFromNotes([]graph.NoteInput{{Path: "x.md", Aliases: []string{decomposed}}}, nil)
+	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "x.md", Aliases: []string{decomposed}}}, nil)
 
 	got := idx.Resolve(composed)
-	if got.Kind != graph.Unique || got.Path != "x.md" {
+	if got.Kind != graph.Unique || got.RelPath != "x.md" {
 		t.Errorf("Resolve(%q) = %+v, want Unique x.md", composed, got)
 	}
 }
@@ -77,7 +77,7 @@ func TestResolveNFCAndNFDAreEquivalent(t *testing.T) {
 // normalize()'s own doc comment claims but earlier only held for lookup
 // keys, not the stored path value: a note whose filename arrived on disk
 // as raw NFD bytes (macOS filesystems can hold either form regardless of
-// how it was typed) must still resolve to an NFC Resolution.Path.
+// how it was typed) must still resolve to an NFC Resolution.RelPath.
 // normalize() alone cannot fix this because it only normalizes at lookup time;
 // this test exercises the rooted reader capture where path bytes enter the
 // generation.
@@ -100,9 +100,9 @@ func TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
 	if got.Kind != graph.Unique {
 		t.Fatalf("Resolve(%q) = %+v, want Unique", "だ体", got)
 	}
-	if got.Path != composed {
-		t.Errorf("Resolve(%q).Path = %q (% x), want NFC-normalized %q (% x)",
-			"だ体", got.Path, []byte(got.Path), composed, []byte(composed))
+	if got.RelPath != composed {
+		t.Errorf("Resolve(%q).RelPath = %q (% x), want NFC-normalized %q (% x)",
+			"だ体", got.RelPath, []byte(got.RelPath), composed, []byte(composed))
 	}
 }
 
@@ -188,12 +188,12 @@ func TestAliasesContributeOnlyFromAStringList(t *testing.T) {
 func TestResolveAliasSameAsFilename(t *testing.T) {
 	t.Parallel()
 	idx := graph.BuildFromNotes([]graph.NoteInput{
-		{Path: "Concepts/golang/Go Slice.md", Aliases: []string{"Slice Header"}},
+		{RelPath: "Concepts/golang/Go Slice.md", Aliases: []string{"Slice Header"}},
 	}, nil)
 
 	byFilename := idx.Resolve("Go Slice")
 	byAlias := idx.Resolve("Slice Header")
-	if byFilename.Kind != graph.Unique || byFilename.Path != "Concepts/golang/Go Slice.md" {
+	if byFilename.Kind != graph.Unique || byFilename.RelPath != "Concepts/golang/Go Slice.md" {
 		t.Errorf("Resolve(filename) = %+v, want Unique Concepts/golang/Go Slice.md", byFilename)
 	}
 	if diff := cmp.Diff(byFilename, byAlias); diff != "" {
@@ -222,10 +222,10 @@ func TestCapturedGraphTitleIsNotAResolutionKey(t *testing.T) {
 	idx := capturedGraph(t, root)
 
 	const path = "Concepts/golang/Go Slice.md"
-	if got := idx.Resolve("Go Slice"); got.Kind != graph.Unique || got.Path != path {
+	if got := idx.Resolve("Go Slice"); got.Kind != graph.Unique || got.RelPath != path {
 		t.Errorf("Resolve(filename) = %+v, want Unique %s", got, path)
 	}
-	if got := idx.Resolve("Slice Header"); got.Kind != graph.Unique || got.Path != path {
+	if got := idx.Resolve("Slice Header"); got.Kind != graph.Unique || got.RelPath != path {
 		t.Errorf("Resolve(alias) = %+v, want Unique %s", got, path)
 	}
 	if got := idx.Resolve("Go Slice 內部結構"); got.Kind != graph.Unresolved {
@@ -236,8 +236,8 @@ func TestCapturedGraphTitleIsNotAResolutionKey(t *testing.T) {
 func TestResolveDuplicateAliasIsAmbiguous(t *testing.T) {
 	t.Parallel()
 	idx := graph.BuildFromNotes([]graph.NoteInput{
-		{Path: "Concepts/golang/A.md", Aliases: []string{"Mechanical Sympathy"}},
-		{Path: "Concepts/golang/B.md", Aliases: []string{"Mechanical Sympathy"}},
+		{RelPath: "Concepts/golang/A.md", Aliases: []string{"Mechanical Sympathy"}},
+		{RelPath: "Concepts/golang/B.md", Aliases: []string{"Mechanical Sympathy"}},
 	}, nil)
 
 	got := idx.Resolve("Mechanical Sympathy")
@@ -253,8 +253,8 @@ func TestResolveDuplicateAliasIsAmbiguous(t *testing.T) {
 func TestResolveSameFilenameDifferentFolderIsAmbiguous(t *testing.T) {
 	t.Parallel()
 	idx := graph.BuildFromNotes([]graph.NoteInput{
-		{Path: "golang/Foo.md"},
-		{Path: "rust/Foo.md"},
+		{RelPath: "golang/Foo.md"},
+		{RelPath: "rust/Foo.md"},
 	}, nil)
 
 	got := idx.Resolve("Foo")
@@ -270,8 +270,8 @@ func TestResolveSameFilenameDifferentFolderIsAmbiguous(t *testing.T) {
 func TestResolveReturnsIndependentCandidates(t *testing.T) {
 	t.Parallel()
 	idx := graph.BuildFromNotes([]graph.NoteInput{
-		{Path: "A/Foo.md"},
-		{Path: "B/Foo.md"},
+		{RelPath: "A/Foo.md"},
+		{RelPath: "B/Foo.md"},
 	}, nil)
 
 	first := idx.Resolve("Foo")
@@ -289,12 +289,12 @@ func TestResolveReturnsIndependentCandidates(t *testing.T) {
 func TestResolveNonMarkdownResourceNeedsExtension(t *testing.T) {
 	t.Parallel()
 	idx := graph.BuildFromNotes(
-		[]graph.NoteInput{{Path: "Sources/DDIA.md"}},
+		[]graph.NoteInput{{RelPath: "Sources/DDIA.md"}},
 		[]string{"Diagrams/canvas/DDIA-Ch1-Overview.canvas"},
 	)
 
 	got := idx.Resolve("DDIA-Ch1-Overview.canvas")
-	if got.Kind != graph.Unique || got.Path != "Diagrams/canvas/DDIA-Ch1-Overview.canvas" {
+	if got.Kind != graph.Unique || got.RelPath != "Diagrams/canvas/DDIA-Ch1-Overview.canvas" {
 		t.Errorf("Resolve(with extension) = %+v, want Unique Diagrams/canvas/DDIA-Ch1-Overview.canvas", got)
 	}
 	// Without the extension, a resource does not resolve — Obsidian
@@ -444,14 +444,14 @@ func TestWikilinkFragmentsResolveOnNameAloneRegardlessOfHeadingExistence(t *test
 	// Anchors are never verified: [[Go Slice#NoSuchHeading]] must resolve
 	// exactly like [[Go Slice]] — only the target file's existence
 	// matters.
-	idx := graph.BuildFromNotes([]graph.NoteInput{{Path: "Go Slice.md"}}, nil)
+	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Go Slice.md"}}, nil)
 
 	target, _, ok := graph.SplitWikilink("Go Slice#This Heading Does Not Exist Anywhere")
 	if !ok {
 		t.Fatalf("SplitWikilink() ok = false, want true")
 	}
 	got := idx.Resolve(target)
-	if got.Kind != graph.Unique || got.Path != "Go Slice.md" {
+	if got.Kind != graph.Unique || got.RelPath != "Go Slice.md" {
 		t.Errorf("Resolve(%q) = %+v, want Unique Go Slice.md", target, got)
 	}
 }
@@ -465,9 +465,9 @@ func TestCollisionsAreEveryNameMoreThanOneFileClaims(t *testing.T) {
 	t.Parallel()
 
 	idx := graph.BuildFromNotes([]graph.NoteInput{
-		{Path: "golang/Foo.md"},
-		{Path: "rust/Foo.md"},
-		{Path: "notes/Alone.md", Aliases: []string{"solo"}},
+		{RelPath: "golang/Foo.md"},
+		{RelPath: "rust/Foo.md"},
+		{RelPath: "notes/Alone.md", Aliases: []string{"solo"}},
 	}, []string{"img/shot.png", "old/shot.png"})
 
 	// The absences carry as much as the entries: a name one file holds, an
@@ -492,10 +492,10 @@ func TestDistinctCollisionsDropsOnlyRestatedNames(t *testing.T) {
 	t.Parallel()
 
 	idx := graph.BuildFromNotes([]graph.NoteInput{
-		{Path: "golang/Foo.md"},
-		{Path: "rust/Foo.md"},
-		{Path: "a/Bar.md"},
-		{Path: "b/Bar.md"},
+		{RelPath: "golang/Foo.md"},
+		{RelPath: "rust/Foo.md"},
+		{RelPath: "a/Bar.md"},
+		{RelPath: "b/Bar.md"},
 	}, []string{"legacy/Bar"})
 
 	// "foo.md" is absent because its claimants are exactly "foo"'s. "bar.md"
@@ -516,7 +516,7 @@ func TestDistinctCollisionsDropsOnlyRestatedNames(t *testing.T) {
 func TestCollisionsReturnsIndependentCandidates(t *testing.T) {
 	t.Parallel()
 
-	idx := graph.BuildFromNotes([]graph.NoteInput{{Path: "A/Foo.md"}, {Path: "B/Foo.md"}}, nil)
+	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "A/Foo.md"}, {RelPath: "B/Foo.md"}}, nil)
 
 	idx.Collisions()["foo"][0] = "mutated"
 	want := []string{"A/Foo.md", "B/Foo.md"}

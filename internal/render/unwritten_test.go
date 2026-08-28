@@ -14,7 +14,7 @@ import (
 // broken. The explanation has to travel with the mark that promises it.
 func TestUnwrittenLinkCarriesItsExplanation(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "運弓筆記.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "運弓筆記.md"}}, nil, nil)
 
 	tests := []struct {
 		name string
@@ -56,7 +56,7 @@ func TestUnwrittenLinkCarriesItsExplanation(t *testing.T) {
 // can see the split instead of hunting for a note they can watch existing.
 func TestUnwrittenLinkWithSectionFragmentExplainsTheSplit(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "井號#筆記.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "井號#筆記.md"}}, nil, nil)
 
 	tests := []struct {
 		name string
@@ -124,7 +124,7 @@ func TestUnwrittenLinkInAHeadingStaysOutOfItsAnchor(t *testing.T) {
 	const name = "見 那份練習法"
 	const anchor = "見-那份練習法"
 
-	r := newRenderer(t, []graph.NoteInput{{Path: "B.md"}}, nil, transclusions{"B.md": body})
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 	page := r.HTML("B.md", "", body)
 
 	if len(page.TOC) != 1 {
@@ -183,7 +183,7 @@ func TestResolvedButUnavailableEmbedSaysWhatActuallyHappened(t *testing.T) {
 	t.Parallel()
 	// The note is in the resolver but its body was not captured, which is what
 	// a generation that read the name but not the bytes looks like.
-	r := newRenderer(t, []graph.NoteInput{{Path: "運弓筆記.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "運弓筆記.md"}}, nil, nil)
 
 	got := r.HTML("a.md", "A", "![[運弓筆記]]\n")
 	if strings.Contains(got.HTML, "還沒有") {
@@ -202,7 +202,7 @@ func TestResolvedButUnavailableEmbedSaysWhatActuallyHappened(t *testing.T) {
 // resolution key every other reader of that field looks names up by.
 func TestUnresolvedLinkDiagnosticCarriesTheSectionItAddressed(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "井號#筆記.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "井號#筆記.md"}}, nil, nil)
 
 	tests := []struct {
 		name        string

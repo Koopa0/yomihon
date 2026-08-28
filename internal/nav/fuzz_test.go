@@ -33,11 +33,11 @@ func FuzzParseBranches(f *testing.F) {
 	// duplicate basename pair for ambiguity, and a note inside the fixture
 	// contract's non-instance directory.
 	idx := graph.BuildFromNotes([]graph.NoteInput{
-		{Path: "Effective Go.md"},
-		{Path: "Lessons/L01 はじめまして.md"},
-		{Path: "Concepts/Duplicate Name.md"},
-		{Path: "Sources/Duplicate Name.md"},
-		{Path: "System/templates/Card.md"},
+		{RelPath: "Effective Go.md"},
+		{RelPath: "Lessons/L01 はじめまして.md"},
+		{RelPath: "Concepts/Duplicate Name.md"},
+		{RelPath: "Sources/Duplicate Name.md"},
+		{RelPath: "System/templates/Card.md"},
 	}, nil)
 	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {

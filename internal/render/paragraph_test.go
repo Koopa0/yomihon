@@ -14,7 +14,7 @@ import (
 // collapses and two paragraphs run together on the page.
 func TestParagraphKeepsItsWrapperWhenItOpensWithAWikilink(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "運弓筆記.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "運弓筆記.md"}}, nil, nil)
 
 	tests := []struct {
 		name string

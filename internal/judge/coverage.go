@@ -214,7 +214,7 @@ func resolveTargets(idx *graph.Index, value string) []string {
 	res := idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unique:
-		return []string{res.Path}
+		return []string{res.RelPath}
 	case graph.Ambiguous:
 		return res.Candidates
 	case graph.Unresolved:

@@ -113,7 +113,7 @@ func TestComposedFootnoteIDsAreUnique(t *testing.T) {
 	// two levels deep: a body inside a body inside the page. Testing only the
 	// flat cases would leave the one place a region has to be claimed by
 	// something other than the page's own top level.
-	r := newRenderer(t, []graph.NoteInput{{Path: "Embedded.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Embedded.md"}}, nil, transclusions{
 		"Embedded.md": strings.Join([]string{
 			"Embedded text[^e].",
 			"",
@@ -257,7 +257,7 @@ func TestSeparatelyRenderedBodiesKeepDistinctFootnoteIDs(t *testing.T) {
 // load — the condition least likely to be reproduced.
 func TestComposedFootnoteIDsAreDeterministic(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{Path: "Embedded.md"}}, nil, transclusions{
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Embedded.md"}}, nil, transclusions{
 		"Embedded.md": "Embedded text[^e].\n\n[^e]: The embedded note's own note.\n",
 	})
 	body := "Host[^h].\n\n![[Embedded]]\n\n![[Embedded]]\n\n[^h]: Host note.\n"

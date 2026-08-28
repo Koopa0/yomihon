@@ -706,7 +706,7 @@ func resolver(t *testing.T, paths ...string) *graph.Index {
 	t.Helper()
 	notes := make([]graph.NoteInput, 0, len(paths))
 	for _, p := range paths {
-		notes = append(notes, graph.NoteInput{Path: p})
+		notes = append(notes, graph.NoteInput{RelPath: p})
 	}
 	return graph.BuildFromNotes(notes, nil)
 }

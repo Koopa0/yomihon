@@ -34,7 +34,7 @@ func FuzzHTML(f *testing.F) {
 
 	const targetPath = "target.md"
 	renderer := New(
-		graph.BuildFromNotes([]graph.NoteInput{{Path: targetPath}}, nil),
+		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, nil),
 		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
 	)
 	f.Fuzz(func(t *testing.T, body string) {

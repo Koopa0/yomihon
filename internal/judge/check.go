@@ -81,7 +81,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 func buildIndex(notes []note, resources []string) *graph.Index {
 	inputs := make([]graph.NoteInput, len(notes))
 	for i := range notes {
-		inputs[i] = graph.NoteInput{Path: notes[i].path, Aliases: notes[i].aliases}
+		inputs[i] = graph.NoteInput{RelPath: notes[i].path, Aliases: notes[i].aliases}
 	}
 	return graph.BuildFromNotes(inputs, resources)
 }

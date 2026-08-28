@@ -306,10 +306,10 @@ func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, p
 	res := idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unique:
-		if policy.IsNonInstance(res.Path) {
+		if policy.IsNonInstance(res.RelPath) {
 			return Entry{Text: display, Target: target, Kind: EntryNonInstance}, true
 		}
-		return Entry{Text: display, Target: target, RelPath: res.Path, Status: statusByPath[res.Path], Kind: EntryResolved}, true
+		return Entry{Text: display, Target: target, RelPath: res.RelPath, Status: statusByPath[res.RelPath], Kind: EntryResolved}, true
 	case graph.Ambiguous:
 		return Entry{Text: display, Target: target, Kind: EntryAmbiguous, Candidates: slices.Clone(res.Candidates)}, true
 	case graph.Unresolved:
