@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // maxFormBytes bounds the POST /status body: four short form fields never
@@ -74,7 +75,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		h.respondRecovery(w, r, path, from, to, &recovery{
 			code:       http.StatusUnprocessableEntity,
 			summary:    "path、from 與 to 都是必填欄位。",
-			nextAction: "返回筆記或首頁，從目前頁面重新開始這次操作。",
+			nextAction: wording.RecoveryStartOver.In(pages.LanguageFromRequest(r)),
 		})
 		return
 	}

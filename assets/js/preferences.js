@@ -31,6 +31,15 @@ export function initPreferences() {
     setPreference('ruby', root.dataset.ruby === 'off' ? 'on' : 'off');
     event.currentTarget.setAttribute('aria-pressed', String(root.dataset.ruby === 'on'));
   });
+  // Language is the one preference no stylesheet can act on: the words are the
+  // server's, so the choice is stored and the page asked for again. A plain
+  // reload is what keeps the reader's place; a navigation to the same address
+  // would not.
+  document.querySelector('[data-lang-toggle]')?.addEventListener('click', () => {
+    const next = root.lang === 'en' ? 'zh-Hant' : 'en';
+    document.cookie = `yomihon_lang=${next};path=/;max-age=31536000;samesite=lax`;
+    location.reload();
+  });
   document.querySelector('[data-single-key-shortcuts-toggle]')?.addEventListener('change', (event) => {
     const value = event.currentTarget.checked ? 'on' : 'off';
     setSingleKeyShortcuts(value);

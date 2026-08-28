@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // writeDegradedFixture builds a folder where one note is captured by the scan
@@ -94,7 +96,7 @@ func TestUnreadableNoteIsVisibleOnEveryReadingSurface(t *testing.T) {
 	if !strings.Contains(page, "檔案存在") {
 		t.Error("the unreadable note's page does not say the file exists but could not be read")
 	}
-	if strings.Contains(page, "這裡沒有東西") {
+	if strings.Contains(page, wording.NothingHere.In(wording.ZhHant)) {
 		t.Error("the unreadable note's page is indistinguishable from the plain not-found page")
 	}
 }
@@ -124,7 +126,7 @@ func TestFolderNamedLikeANoteGetsThePlainNotFoundPage(t *testing.T) {
 	if strings.Contains(page, "這個檔案目前讀不進來") {
 		t.Error("a folder named like a note is sent to repair a file's permissions")
 	}
-	if !strings.Contains(page, "這裡沒有東西") {
+	if !strings.Contains(page, wording.NothingHere.In(wording.ZhHant)) {
 		t.Error("a folder named like a note does not get the plain not-found page")
 	}
 }

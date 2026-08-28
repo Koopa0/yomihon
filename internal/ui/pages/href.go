@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Shell is the snapshot-derived state shared by the topbar and sidebar.
@@ -169,6 +170,18 @@ type LifecycleItem struct {
 	Unknown bool
 }
 
+// LanguageFromRequest reads which language this request asked the interface to
+// speak. It sits beside the other preference reads rather than in the
+// dictionary, so the dictionary stays a set of sentences with no capability of
+// its own and no import at all.
+func LanguageFromRequest(r *http.Request) wording.Lang {
+	c, err := r.Cookie(wording.CookieName)
+	if err != nil {
+		return wording.ZhHant
+	}
+	return wording.FromCookieValue(c.Value)
+}
+
 // ChromeFromRequest builds the page chrome from the request: the page title
 // plus the persisted theme, furigana, and single-key-shortcut cookies (default
 // light / on / on), so the root element renders the correct state on the first
@@ -198,6 +211,7 @@ func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
 	}
 	return layouts.Chrome{
 		Title:                     title,
+		Lang:                      LanguageFromRequest(r),
 		Nonce:                     origin.Nonce(r.Context()),
 		Theme:                     theme,
 		Ruby:                      ruby,

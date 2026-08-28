@@ -1,6 +1,10 @@
 package pages
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // TestFreshnessAttrsWithholdTheWatchWhereItWouldDouble pins the two cases where
 // a reading page must not be watched. The page that already says its own words
@@ -38,7 +42,7 @@ func TestFreshnessAttrsWithholdTheWatchWhereItWouldDouble(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			attrs := freshnessAttrs(tt.view)
+			attrs := freshnessAttrs(tt.view, wording.ZhHant)
 			if got := len(attrs) > 0; got != tt.watch {
 				t.Fatalf("freshnessAttrs() watches = %t, want %t (attrs = %v)", got, tt.watch, attrs)
 			}

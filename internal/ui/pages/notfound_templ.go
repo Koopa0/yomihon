@@ -8,7 +8,10 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/koopa0/yomihon/internal/ui/layouts"
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // NotFoundView is what a reader who asked for something that is not here needs
 // to see. Asked is the path they typed, echoed back so they can spot their own
@@ -83,31 +86,44 @@ func NotFound(v NotFoundView, c layouts.Chrome) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"y-recovery__kicker\">找不到</p><h1 id=\"notfound-title\" class=\"y-title\">這裡沒有東西</h1><p class=\"y-recovery__summary\">這個位置沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。</p>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			if v.Asked != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<section class=\"y-recovery__detail\" aria-labelledby=\"notfound-asked-title\"><h2 id=\"notfound-asked-title\">你要找的位置</h2><pre><code>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"y-recovery__kicker\">找不到</p><h1 id=\"notfound-title\" class=\"y-title\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var3 string
-				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Asked)
+				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NothingHere.In(c.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/notfound.templ`, Line: 46, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/notfound.templ`, Line: 43, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</code></pre></section>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</h1><p class=\"y-recovery__summary\">這個位置沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<section class=\"y-recovery__next\" aria-labelledby=\"notfound-next-title\"><h2 id=\"notfound-next-title\">下一步</h2><p>從左邊的資料夾往下找，或用上方的搜尋找筆記裡的字。</p></section><nav class=\"y-recovery__actions\" aria-label=\"離開這一頁\"><a class=\"y-recovery__action\" href=\"/search\">搜尋筆記</a> <a class=\"y-recovery__action y-recovery__action--quiet\" href=\"/\">返回首頁</a></nav></article></main></div>")
+			if v.Asked != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<section class=\"y-recovery__detail\" aria-labelledby=\"notfound-asked-title\"><h2 id=\"notfound-asked-title\">你要找的位置</h2><pre><code>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var4 string
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Asked)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/notfound.templ`, Line: 49, Col: 27}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</code></pre></section>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<section class=\"y-recovery__next\" aria-labelledby=\"notfound-next-title\"><h2 id=\"notfound-next-title\">下一步</h2><p>從左邊的資料夾往下找，或用上方的搜尋找筆記裡的字。</p></section><nav class=\"y-recovery__actions\" aria-label=\"離開這一頁\"><a class=\"y-recovery__action\" href=\"/search\">搜尋筆記</a> <a class=\"y-recovery__action y-recovery__action--quiet\" href=\"/\">返回首頁</a></nav></article></main></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

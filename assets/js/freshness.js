@@ -18,6 +18,10 @@ const POLL_MS = 5000;
 function bannerBeside(column, article) {
   let banner = null;
   let shown = '';
+  // The words are the server's: it knows which language this reader chose, and
+  // keeping them here would be a second copy to translate.
+  const newVersion = column.dataset.freshnessNewversion;
+  const reloadLabel = column.dataset.freshnessReload;
 
   function place() {
     if (!banner) {
@@ -32,7 +36,7 @@ function bannerBeside(column, article) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'y-freshness__action';
-    button.textContent = '重新載入';
+    button.textContent = reloadLabel;
     // A plain reload keeps the browser's own scroll restoration, which puts the
     // reader back at the paragraph they were reading. Assigning the same
     // address would be a fresh navigation and would lose it.
@@ -70,7 +74,7 @@ function bannerBeside(column, article) {
     if (state === 'preparing') {
       element.append('此筆記已有新版本，頁面資料準備中…');
     } else if (state === 'stale') {
-      element.append('此筆記已有新版本。', ' ', reloadButton());
+      element.append(newVersion, ' ', reloadButton());
     } else {
       element.append('此筆記已經不在原本的位置了，可能被搬到別處，也可能已刪除。');
       const link = searchLink();

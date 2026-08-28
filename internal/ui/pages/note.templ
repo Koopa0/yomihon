@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const nonInstanceReason = "不屬於生命週期治理範圍"
@@ -65,13 +66,19 @@ func articleLanguageAttrs(tag string) templ.Attributes {
 // differently worded notices about the same doubt help nobody, and when there is
 // no identity to compare against. Where the attributes are absent the client
 // finds nothing to watch and the page stays exactly as the server sent it.
-func freshnessAttrs(v NoteView) templ.Attributes {
+func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
 	if v.Stale || v.RelPath == "" || v.ContentIdentity == "" {
 		return nil
 	}
+	// The sentences travel with the watch rather than living in the script. The
+	// dictionary is the server's, and a second copy of these words inside a
+	// JavaScript file would be a second place to translate them and a second
+	// place for them to fall out of step.
 	return templ.Attributes{
-		"data-freshness-path":     v.RelPath,
-		"data-freshness-identity": v.ContentIdentity,
+		"data-freshness-path":       v.RelPath,
+		"data-freshness-identity":   v.ContentIdentity,
+		"data-freshness-newversion": wording.FreshnessNewVersion.In(lang),
+		"data-freshness-reload":     wording.FreshnessReload.In(lang),
 	}
 }
 
@@ -222,7 +229,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar, c.Nonce)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(v)... }>
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(v, c.Lang)... }>
 				@flipReceipt(v)
 				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
 					@articleHead(v)

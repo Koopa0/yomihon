@@ -1,6 +1,10 @@
 package layouts
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // Chrome is the per-request shell state rendered server-side: the page title
 // and the persisted theme / furigana / text-size / single-key-shortcut signals
@@ -23,6 +27,11 @@ type Chrome struct {
 	// showing through its chrome.
 	HasRuby                   bool
 	SingleKeyShortcutsEnabled bool // plain / and [ are enabled
+	// Lang is the language the interface speaks for this request, and the
+	// language the document declares. The article inside it may declare its
+	// own; that answers what the note is written in, which is a different
+	// question from what the interface is saying.
+	Lang wording.Lang
 }
 
 func singleKeyShortcutsState(enabled bool) string {
@@ -39,7 +48,7 @@ func singleKeyShortcutsState(enabled bool) string {
 // what lets the chrome hold still while a navigation transition runs.
 templ Base(c Chrome) {
 	<!DOCTYPE html>
-	<html lang="zh-Hant" data-theme={ c.Theme } data-ruby={ c.Ruby } data-textsize={ c.TextSize } data-single-key-shortcuts={ singleKeyShortcutsState(c.SingleKeyShortcutsEnabled) }>
+	<html lang={ c.Lang.Tag() } data-theme={ c.Theme } data-ruby={ c.Ruby } data-textsize={ c.TextSize } data-single-key-shortcuts={ singleKeyShortcutsState(c.SingleKeyShortcutsEnabled) }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -127,12 +136,26 @@ templ header(c Chrome) {
 				<p class="y-kbdpref__note" id="kbd-pref-note">關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。</p>
 			</div>
 		</div>
-		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label="切換主題" aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
+		<button class="y-iconbtn y-langbtn" type="button" data-lang-toggle aria-label={ wording.LanguageToggle.In(c.Lang) } title={ wording.LanguageToggle.In(c.Lang) }>
+			<span aria-hidden="true">{ languageMark(c.Lang) }</span>
+		</button>
+		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label={ wording.ThemeToggle.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
 			<svg class="y-ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
 			<svg class="y-ico-moon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
 		</button>
 		<span class="y-readline" aria-hidden="true"></span>
 	</header>
+}
+
+// languageMark labels the language control with the language it switches to
+// rather than the one in force. A control that names the current state reads as
+// a status line, and a reader who cannot read the interface they are looking at
+// needs to recognise the way out of it.
+func languageMark(lang wording.Lang) string {
+	if lang == wording.En {
+		return "中"
+	}
+	return "EN"
 }
 
 // searchDialog is the ⌘K command palette: a native <dialog> (top layer,

@@ -171,6 +171,10 @@ html, body { margin: 0; background: var(--bg); }
 }
 .y-iconbtn:hover { color: var(--fg); background: var(--overlay); }
 .y-iconbtn svg { width: 16px; height: 16px; }
+/* The language control carries two letters rather than a glyph, so it borrows
+   the mono face the other lettered chrome uses and sits at the size those
+   labels sit at. */
+.y-langbtn { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.04em; }
 .y-kbdpref { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-faint); }
 .y-shortcutpref {
   display: inline-flex; align-items: center; gap: 8px; min-height: 32px;

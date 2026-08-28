@@ -101,6 +101,11 @@ var approvedSearchPackages = map[string]struct{}{
 	"github.com/koopa0/yomihon/internal/ui/layouts": {},
 	"github.com/koopa0/yomihon/internal/ui/pages":   {},
 	"github.com/koopa0/yomihon/internal/vault":      {},
+	// wording holds the sentences the interface says, in both languages, and
+	// nothing else. Reviewed for this closure by the strongest evidence
+	// available: its import set is empty. It opens nothing, reads nothing, and
+	// cannot reach anywhere; picking one of two strings is the whole of it.
+	"github.com/koopa0/yomihon/internal/wording": {},
 }
 
 var approvedSearchModules = map[string]struct{}{
