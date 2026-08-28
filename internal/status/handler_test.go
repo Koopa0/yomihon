@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // formIdentity is the hex content_identity form value for fixture bytes as
@@ -189,7 +190,7 @@ func TestHandlerNonInstance(t *testing.T) {
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("POST non-instance status = %d, want %d", code, http.StatusUnprocessableEntity)
 	}
-	if !strings.Contains(body, "不屬於生命週期治理範圍") {
+	if !strings.Contains(body, wording.NonInstanceReason.In(wording.ZhHant)) {
 		t.Errorf("POST non-instance body = %q, want the governed-instance explanation", body)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestNoteArticleLanguageComesOnlyFromAuthority holds what the article element
@@ -130,8 +131,8 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			},
 			wantAbsent: []string{`action="/status"`, "ui-status--draft"},
 			wantCounts: map[string]int{
-				`data-status-state="non-instance"`: 2,
-				"不屬於生命週期治理範圍":                      2,
+				`data-status-state="non-instance"`:           2,
+				wording.NonInstanceReason.In(wording.ZhHant): 2,
 			},
 		},
 		{

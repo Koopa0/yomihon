@@ -25,6 +25,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Sentinel errors. Callers match with errors.Is.
@@ -98,19 +99,15 @@ var (
 	ErrInstallUncertain = errors.New("status: note rewritten but durability was not confirmed")
 )
 
-const (
-	// CoreUnavailableDiagnostic is the reading page's stable explanation for a
-	// write face closed by an unavailable core contract.
-	CoreUnavailableDiagnostic = "vault contract 無法使用；生命週期寫入已關閉（fail-closed）。"
-	// DurableInstallUnavailableDiagnostic is the stable reading-page
-	// explanation for a platform on which the status write face cannot prove
-	// a durable install.
-	DurableInstallUnavailableDiagnostic = "此平台無法確認狀態檔案的耐久寫入；生命週期寫入已關閉（fail-closed）。"
-	// NoteUnreadableDiagnostic is shown when the note's own status line could
-	// not be read for this request. The page will not offer a transition from
-	// a value it could not confirm: whatever blocked the read blocks the write
-	// too, so every control derived from it would be refused on arrival.
-	NoteUnreadableDiagnostic = "無法讀取這個筆記目前的狀態。狀態操作暫時關閉，重新載入頁面可以再試一次。"
+// The reading page's stable explanations for a closed write face. They read
+// from the dictionary so each sentence has one source, and they resolve to the
+// default language because they reach the page through a view that carries no
+// request and therefore no choice — the surface that would carry one is a
+// separate change.
+var (
+	CoreUnavailableDiagnostic           = wording.ContractUnavailable.In(wording.ZhHant)
+	DurableInstallUnavailableDiagnostic = wording.DurabilityUnsupported.In(wording.ZhHant)
+	NoteUnreadableDiagnostic            = wording.NoteStatusUnreadable.In(wording.ZhHant)
 )
 
 var errNotRegular = errors.New("status: target is not a regular file")

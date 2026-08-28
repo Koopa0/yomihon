@@ -11,7 +11,11 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const nonInstanceReason = "不屬於生命週期治理範圍"
+// nonInstanceReason reads from the dictionary so the sentence has one source.
+// It resolves to the default language because the two panels that show it are
+// assembled without one; giving them the reader's choice is part of moving
+// the rest of this page's copy.
+var nonInstanceReason = wording.NonInstanceReason.In(wording.ZhHant)
 
 // diagKindLabel names a rendering diagnostic in the reader's language. A kind
 // without a name here arrives as its raw slug rather than a dead page: the

@@ -9,16 +9,17 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // changedContentSummary is the recovery page's statement for a flip refused
 // because the note's bytes are no longer the ones the page rendered. It is
 // asserted verbatim so the copy stays distinct from the stale-status page.
-const changedContentSummary = "筆記內容在這個頁面載入之後被改過；這次操作綁定的是當時讀到的版本。"
+var changedContentSummary = wording.ContentMoved.In(wording.ZhHant)
 
 // staleStatusSummary is the recovery page's statement for a submitted "from"
 // that no longer matches the status on disk.
-const staleStatusSummary = "這個頁面已過期；磁碟上的狀態已經不同。"
+var staleStatusSummary = wording.PageStale.In(wording.ZhHant)
 
 // renderedIdentity is the content identity the reading page embeds for a
 // note, spelled out independently of the product: the SHA-256 of the note's

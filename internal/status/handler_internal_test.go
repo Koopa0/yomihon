@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestRecoveryClassification(t *testing.T) {
@@ -51,7 +52,7 @@ func TestRecoveryClassification(t *testing.T) {
 			if got.changed != tt.changed {
 				t.Errorf("changed = %v, want %v", got.changed, tt.changed)
 			}
-			if got.summary == "" || got.nextAction == "" {
+			if got.summary == (wording.Phrase{}) || got.nextAction == (wording.Phrase{}) {
 				t.Errorf("recovery must include summary and next action: %#v", got)
 			}
 			if got.code >= http.StatusInternalServerError && (got.logMessage == "" || got.cause == nil) {
@@ -106,7 +107,7 @@ func TestWriteRecoveryBuffersBeforeCommittingResponse(t *testing.T) {
 	})
 	for _, changed := range []bool{false, true} {
 		recorder := httptest.NewRecorder()
-		err := writeRecovery(recorder, t.Context(), http.StatusConflict, changed, component)
+		err := writeRecovery(recorder, t.Context(), http.StatusConflict, changed, component, wording.ZhHant)
 		if !errors.Is(err, wantErr) {
 			t.Errorf("writeRecovery(changed=%v) error = %v, want %v", changed, err, wantErr)
 		}
@@ -134,7 +135,7 @@ func TestWriteRecoveryReportsFallbackWriteFailure(t *testing.T) {
 		return renderErr
 	})
 	w := &failingResponseWriter{header: make(http.Header), err: writeErr}
-	err := writeRecovery(w, t.Context(), http.StatusConflict, false, component)
+	err := writeRecovery(w, t.Context(), http.StatusConflict, false, component, wording.ZhHant)
 	if !errors.Is(err, renderErr) || !errors.Is(err, writeErr) {
 		t.Errorf("writeRecovery() error = %v, want both render and fallback-write failures", err)
 	}
@@ -162,7 +163,7 @@ func TestWriteRecoverySetsBrowserSafetyHeaders(t *testing.T) {
 		_, err := io.WriteString(w, "<!doctype html><title>recovery</title>")
 		return err
 	})
-	if err := writeRecovery(recorder, t.Context(), http.StatusConflict, false, component); err != nil {
+	if err := writeRecovery(recorder, t.Context(), http.StatusConflict, false, component, wording.ZhHant); err != nil {
 		t.Fatalf("writeRecovery() error = %v", err)
 	}
 	if recorder.Code != http.StatusConflict {

@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func openReadingVault(t *testing.T, root string) *vault.Reader {
@@ -193,7 +194,7 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 	}
 	for _, want := range []string{
 		`data-status-state="non-instance"`,
-		"不屬於生命週期治理範圍",
+		wording.NonInstanceReason.In(wording.ZhHant),
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("non-instance lesson page is missing %q", want)
