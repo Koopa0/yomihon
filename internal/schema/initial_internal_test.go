@@ -1,0 +1,181 @@
+package schema
+
+import (
+	"errors"
+	"strings"
+	"testing"
+)
+
+// explicitInitialContract declares initial on every lifecycle row, and is built
+// so that two rows disagree with what the older reading would have concluded
+// from from alone: article draft is an initial status while naming a
+// predecessor, and archived is not one while accepting any predecessor. A
+// fixture where the two readings agree would pass under either and prove
+// nothing.
+const explicitInitialContract = `schema_version = "1"
+
+[enums]
+type = ["article", "lesson", "system"]
+
+[enums.status]
+note = ["draft", "review", "archived"]
+lesson = ["draft", "ready", "published", "archived"]
+system = ["active", "archived"]
+
+[fields]
+known = ["related"]
+lesson_only = ["predecessor", "successors"]
+
+[fields.status_group]
+lesson = ["lesson"]
+system = ["system"]
+
+[rules]
+slug_pattern = "^[a-z]+$"
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["article"]
+initial = true
+from = ["review"]
+owner = ["editor"]
+
+[[lifecycle]]
+status = "review"
+applies_to = ["article"]
+initial = false
+from = ["draft"]
+owner = ["editor"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["lesson"]
+initial = true
+from = ["ready"]
+owner = ["editor"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["lesson"]
+initial = false
+from = ["draft"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "published"
+applies_to = ["lesson"]
+initial = false
+from = ["ready"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "active"
+applies_to = ["system"]
+initial = true
+from = []
+owner = ["system"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+initial = false
+from = ["*"]
+owner = []
+`
+
+// TestInitialIsDeclaredNotInferred locks the whole point of the key: a row says
+// whether a note may start there, and the predecessor list says nothing about
+// it either way. Both cases below are ones the older reading got backwards, so
+// each fails on a contract that still infers.
+func TestInitialIsDeclaredNotInferred(t *testing.T) {
+	t.Parallel()
+	contract := decodeLifecycleFixture(t, explicitInitialContract)
+
+	if err := contract.Transition("article", "", "draft"); err != nil {
+		t.Errorf("Transition(article, initial, draft) = %v, want nil: the row declares initial = true, and naming a predecessor does not take that away", err)
+	}
+	if err := contract.Transition("article", "", "archived"); !errors.Is(err, ErrIllegalTransition) {
+		t.Errorf("Transition(article, initial, archived) = %v, want %v: the row declares initial = false, and accepting any predecessor does not make it a starting point", err, ErrIllegalTransition)
+	}
+	if err := contract.Transition("system", "", "active"); err != nil {
+		t.Errorf("Transition(system, initial, active) = %v, want nil", err)
+	}
+	if err := contract.Transition("article", "", "review"); !errors.Is(err, ErrIllegalTransition) {
+		t.Errorf("Transition(article, initial, review) = %v, want %v", err, ErrIllegalTransition)
+	}
+}
+
+// TestNarrowedLessonDraftRefusesPublished locks the edge the migration removes.
+// A lesson may return to draft from ready, and from nowhere else; the older
+// wildcard let a published lesson walk back, which contradicts what publishing
+// means.
+func TestNarrowedLessonDraftRefusesPublished(t *testing.T) {
+	t.Parallel()
+	contract := decodeLifecycleFixture(t, explicitInitialContract)
+
+	if err := contract.Transition("lesson", "ready", "draft"); err != nil {
+		t.Errorf("Transition(lesson, ready, draft) = %v, want nil", err)
+	}
+	if err := contract.Transition("lesson", "published", "draft"); !errors.Is(err, ErrIllegalTransition) {
+		t.Errorf("Transition(lesson, published, draft) = %v, want %v", err, ErrIllegalTransition)
+	}
+}
+
+// TestInitialKeyMustBeAllRowsOrNone locks the transition between the two
+// readings. A contract that declares the key on some rows and not others has
+// two meanings at once, and the half without it would be read by inference
+// while the half with it would be read as written.
+func TestInitialKeyMustBeAllRowsOrNone(t *testing.T) {
+	t.Parallel()
+
+	mixed := strings.Replace(explicitInitialContract, "applies_to = [\"article\"]\ninitial = false\nfrom = [\"draft\"]", "applies_to = [\"article\"]\nfrom = [\"draft\"]", 1)
+	if mixed == explicitInitialContract {
+		t.Fatal("the fixture edit matched nothing, so this case would pass without ever mixing the key")
+	}
+	_, err := decodeContract([]byte(mixed), policySource{})
+	if err == nil {
+		t.Fatal("decodeContract() with the key on some rows only = nil, want an error naming the mix")
+	}
+	if !strings.Contains(err.Error(), "initial") {
+		t.Errorf("decodeContract() error = %v, want one that names the initial key; an error about anything else means this case is passing for the wrong reason", err)
+	}
+}
+
+// TestInitialFalseWithNoPredecessorIsRefused locks the loader gate. A status
+// that may not be a starting point and names no predecessor cannot be reached
+// by any route, so a contract declaring one is stating something it cannot
+// mean.
+func TestInitialFalseWithNoPredecessorIsRefused(t *testing.T) {
+	t.Parallel()
+
+	unreachable := strings.Replace(explicitInitialContract, "status = \"review\"\napplies_to = [\"article\"]\ninitial = false\nfrom = [\"draft\"]", "status = \"review\"\napplies_to = [\"article\"]\ninitial = false\nfrom = []", 1)
+	if unreachable == explicitInitialContract {
+		t.Fatal("the fixture edit matched nothing, so this case would pass without ever declaring an unreachable status")
+	}
+	_, err := decodeContract([]byte(unreachable), policySource{})
+	if err == nil {
+		t.Fatal("decodeContract() with a status that is neither initial nor reachable = nil, want an error")
+	}
+	if !strings.Contains(err.Error(), "review") {
+		t.Errorf("decodeContract() error = %v, want one that names the unreachable status", err)
+	}
+}
+
+// TestContractWithoutInitialKeysKeepsTheOlderReading locks the transition path:
+// a contract that names the key nowhere is read exactly as it was before, so a
+// vault can be migrated after the code that understands the key is in place
+// rather than at the same moment.
+func TestContractWithoutInitialKeysKeepsTheOlderReading(t *testing.T) {
+	t.Parallel()
+	contract := decodeLifecycleFixture(t, lifecycleContract)
+
+	if err := contract.Transition("article", "", "draft"); err != nil {
+		t.Errorf("Transition(article, initial, draft) = %v, want nil: an empty predecessor list still means a starting point here", err)
+	}
+	if err := contract.Transition("article", "", "archived"); err != nil {
+		t.Errorf("Transition(article, initial, archived) = %v, want nil: a wildcard predecessor list still means a starting point here", err)
+	}
+	if err := contract.Transition("article", "", "review"); !errors.Is(err, ErrIllegalTransition) {
+		t.Errorf("Transition(article, initial, review) = %v, want %v", err, ErrIllegalTransition)
+	}
+}

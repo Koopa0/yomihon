@@ -155,6 +155,7 @@ type supersessionSection struct {
 type rawLifecycleStage struct {
 	Status    *string   `toml:"status"`
 	AppliesTo *[]string `toml:"applies_to"`
+	Initial   *bool     `toml:"initial"`
 	From      *[]string `toml:"from"`
 	Owner     *[]string `toml:"owner"`
 }
@@ -200,12 +201,19 @@ type ScanPolicy struct {
 	NoFrontmatterIsLegal bool     `toml:"no_frontmatter_is_legal"`
 }
 
-// Stage is one lifecycle entry: a status, the types it applies to, its legal
-// predecessor states, and who may set it. An empty From means the status is
-// only legal as an initial state; "*" in From or AppliesTo means any.
+// Stage is one lifecycle entry: a status, the types it applies to, whether a
+// note may start there, its legal predecessor states, and who may set it.
+// "*" in From or AppliesTo means any.
+//
+// Initial and From answer separate questions, and a contract that names the
+// initial key says both out loud. A contract that names it nowhere is read the
+// older way, where an empty or wildcard From was taken to mean a starting
+// point — an inference that could not express a status which is both a place
+// to begin and a place to return to.
 type Stage struct {
 	Status    string   `toml:"status"`
 	AppliesTo []string `toml:"applies_to"`
+	Initial   bool     `toml:"initial"`
 	From      []string `toml:"from"`
 	Owner     []string `toml:"owner"`
 }
@@ -349,6 +357,9 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 }
 
 func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
+	// Which reading this contract asked for. The first row decides, and the
+	// loop below refuses any row that disagrees with it.
+	declared := len(rows) > 0 && rows[0].Initial != nil
 	stages := make([]Stage, len(rows))
 	for i, row := range rows {
 		ordinal := i + 1
@@ -371,14 +382,47 @@ func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
 				from[j] = NormalizeStatus(predecessor)
 			}
 		}
+		initial, err := resolveInitial(row, ordinal, declared, from)
+		if err != nil {
+			return nil, err
+		}
 		stages[i] = Stage{
 			Status:    NormalizeStatus(*row.Status),
 			AppliesTo: slices.Clone(*row.AppliesTo),
+			Initial:   initial,
 			From:      from,
 			Owner:     slices.Clone(*row.Owner),
 		}
 	}
 	return stages, nil
+}
+
+// resolveInitial answers whether a note may be given this row's status as its
+// first one, under whichever reading the contract asked for. declared says the
+// file names the key at all, decided by its first row.
+//
+// A file that names the key on some rows and not others is refused rather than
+// guessed at: it would be read two ways at once, the rows carrying it as
+// written and the rest by inference, and no reader could say what the file
+// means. A row that is neither a starting point nor reachable from anywhere is
+// refused for the same reason — it declares a status nothing could ever hold.
+func resolveInitial(row rawLifecycleStage, ordinal int, declared bool, from []string) (bool, error) {
+	if (row.Initial != nil) != declared {
+		return false, fmt.Errorf(
+			`lifecycle row %d: the "initial" key is set on some rows and not others; a contract states it on every row or on none`,
+			ordinal,
+		)
+	}
+	if !declared {
+		return len(from) == 0 || slices.Contains(from, "*"), nil
+	}
+	if !*row.Initial && len(from) == 0 {
+		return false, fmt.Errorf(
+			`lifecycle row %d: status %q declares initial = false and names no predecessor, so nothing could ever reach it`,
+			ordinal, NormalizeStatus(*row.Status),
+		)
+	}
+	return *row.Initial, nil
 }
 
 func decodeNavigationSection(
@@ -956,10 +1000,15 @@ func validateLifecycleValues(row int, field string, values []string, wildcard bo
 	return nil
 }
 
+// cloneStage copies a row so a caller holding one cannot reach the slices
+// another caller holds. Every field is named: a field added to Stage and
+// forgotten here would read as its zero value everywhere the contract is
+// consulted, which for a bool is silently the opposite of what the row says.
 func cloneStage(stage *Stage) Stage {
 	return Stage{
 		Status:    stage.Status,
 		AppliesTo: slices.Clone(stage.AppliesTo),
+		Initial:   stage.Initial,
 		From:      slices.Clone(stage.From),
 		Owner:     slices.Clone(stage.Owner),
 	}
@@ -1323,7 +1372,10 @@ func (c *Contract) Transition(noteType, from, to string) error {
 	}
 	switch {
 	case from == "":
-		if len(st.From) != 0 && !slices.Contains(st.From, "*") {
+		// Whether a note may start here is the row's own declaration, not
+		// something read off its predecessor list: a status can be both a
+		// place to begin and a place to come back to.
+		if !st.Initial {
 			return fmt.Errorf("%w: %q is not an initial status for type %q", ErrIllegalTransition, to, noteType)
 		}
 	case slices.Contains(st.From, from) || slices.Contains(st.From, "*"):

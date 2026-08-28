@@ -648,12 +648,13 @@ func TestFlipMalformedStatusLine(t *testing.T) {
 
 			writeNote(t, root, tt.content)
 
-			// A missing status retains the declared note type, so the wildcard
-			// archived transition reaches the surgical rewrite and reports the
-			// malformed line count. Duplicate YAML keys invalidate the parsed
+			// A missing status retains the declared note type, and draft is a
+			// declared starting point, so the transition reaches the surgical
+			// rewrite and reports the malformed line count — which is the
+			// thing under test. Duplicate YAML keys invalidate the parsed
 			// frontmatter, including its type. Lifecycle validation therefore
 			// fails closed before the surgical rewrite.
-			err := lifecycle.Flip(testRel, "", "archived", diskIdentity(tt.content))
+			err := lifecycle.Flip(testRel, "", "draft", diskIdentity(tt.content))
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Flip() = %v, want %v", err, tt.wantErr)
 			}

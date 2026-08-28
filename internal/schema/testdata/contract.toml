@@ -51,35 +51,41 @@ non_instance_dirs = ["System/templates"]
 [[lifecycle]]
 status = "captured"
 applies_to = ["inbox", "transcript", "source-note"]
+initial = true
 from = []
 owner = ["hermes", "capture", "claude"]
 
 [[lifecycle]]
 status = "cleaned"
 applies_to = ["source-note"]
+initial = false
 from = ["captured"]
 owner = ["hermes", "claude"]
 
 [[lifecycle]]
 status = "seedling"
 applies_to = ["concept"]
+initial = false
 from = ["cleaned"]
 owner = ["hermes", "claude"]
 
 [[lifecycle]]
 status = "draft"
 applies_to = ["writing", "lesson"]
-from = ["imported"]
+initial = true
+from = ["imported", "ready"]
 owner = ["claude", "koopa"]
 
 [[lifecycle]]
 status = "ready"
 applies_to = ["writing", "lesson"]
+initial = false
 from = ["draft"]
 owner = ["koopa"]
 
 [[lifecycle]]
 status = "archived"
 applies_to = ["*"]
+initial = false
 from = ["*"]
 owner = ["claude", "koopa"]

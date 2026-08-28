@@ -37,23 +37,27 @@ non_instance_dirs = ["System/templates"]
 [[lifecycle]]
 status = "imported"
 applies_to = ["lesson", "writing"]
+initial = true
 from = []
 owner = ["claude", "koopa"]
 
 [[lifecycle]]
 status = "draft"
 applies_to = ["lesson", "writing"]
-from = ["imported"]
+initial = true
+from = ["imported", "ready"]
 owner = ["claude", "koopa"]
 
 [[lifecycle]]
 status = "ready"
 applies_to = ["lesson", "writing"]
+initial = false
 from = ["draft"]
 owner = ["koopa"]
 
 [[lifecycle]]
 status = "archived"
 applies_to = ["*"]
+initial = false
 from = ["*"]
 owner = ["claude", "koopa"]
