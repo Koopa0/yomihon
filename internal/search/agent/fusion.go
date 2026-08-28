@@ -26,13 +26,19 @@ type semanticHit struct {
 
 // FusedHit is the channel-neutral result shape projected onto the CLI wire.
 type FusedHit struct {
-	Rank         int
-	RelPath      string
-	Title        string
-	Status       string
-	Snippet      string
-	Heading      string
-	LexicalRank  int
+	Rank    int
+	RelPath string
+	Title   string
+	Status  string
+	Snippet string
+	Heading string
+	// LexicalRank is the hit's 1-indexed position in the lexical channel's
+	// own ranking. Zero means the hit did not appear in that channel at all
+	// — never a real rank, since ranks start at one.
+	LexicalRank int
+	// SemanticRank is the hit's 1-indexed position in the semantic channel's
+	// own ranking. Zero means the hit did not appear in that channel at all
+	// — never a real rank, since ranks start at one.
 	SemanticRank int
 }
 

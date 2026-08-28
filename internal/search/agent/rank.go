@@ -25,8 +25,11 @@ type SemanticSearch interface {
 	Search(ctx context.Context, query string, allowedPaths map[string]struct{}, depth int) ([]semantic.Result, error)
 }
 
-// Search binds one snapshot to one single-use semantic capability. Construct
-// it with NewSearch before any query can run.
+// Search binds one snapshot to one semantic capability. The capability is
+// single-use: it answers exactly the query it was bound for, so a caller
+// with more than one query to send constructs a fresh capability (and a
+// fresh Search) per query rather than reusing either one across queries.
+// Construct it with NewSearch before any query can run.
 type Search struct {
 	snapshot *Snapshot
 	semantic SemanticSearch

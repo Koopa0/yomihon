@@ -183,7 +183,9 @@ func (s Scan) Contains(canonicalPath string) bool {
 	return ok
 }
 
-// Problems returns the nested paths an available scan could not observe.
+// Problems returns the nested paths an available scan could not observe,
+// sorted by path and then by the observation error's text, so two scans of
+// the same trouble report it in the same order.
 func (s Scan) Problems() []Problem {
 	if s.state == nil {
 		return nil

@@ -107,7 +107,7 @@ func (g Governance) Diagnostic() string { return g.claim.Diagnostic() }
 // a single declaration.
 func (g Governance) Claim() Claim { return g.claim }
 
-// Capabilities resolves the three declarations one process runs on against what
+// Capabilities resolves the four declarations one process runs on against what
 // the folder asserted about its contract as a whole.
 //
 // A contract that loaded answers for itself. A folder with no contract answers
@@ -124,6 +124,12 @@ func (g Governance) Claim() Claim { return g.claim }
 // metadata filter, say — would otherwise have to choose between claiming zero
 // results and saying nothing at all, and zero results is a lie. Surfaces that
 // can show two of them collapse the repetition themselves.
+//
+// ArticleLanguage is the one exception, and returns its plain zero value
+// instead: it carries no Available or Diagnostic of its own for a claim to
+// feed, so a withheld generation would leave that claim with nothing to
+// report through — the same "not declared" state Resolve already returns
+// for a folder with no contract at all.
 func (g Governance) Capabilities(c *Contract) (NavigationRoles, KnowledgeScope, ArtifactPolicy, ArticleLanguage) {
 	if !g.Trustworthy() {
 		return NavigationRoles{claim: g.claim},

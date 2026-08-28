@@ -2,12 +2,19 @@
 // it into HTML for reading; PlainText and PlainSections expose the same parsed
 // dialect to lexical and semantic retrieval without duplicating a parser.
 //
-// Fault-tolerant by contract: it renders what it can and reports
-// what it can't via Diagnostics — it never fixes a note, never fails the
-// whole render, and never goes quiet without saying why. A note can still
-// render to nothing, because an unclosed %% comment hides everything after it
-// and Obsidian hides it too; what the reader then receives is an account of
-// which marker did it, rather than an empty page and no explanation.
+// Fault-tolerant by contract over note content: it renders what it can and
+// reports what it can't via Diagnostics — it never fixes a note, never fails
+// the whole render over anything the note's own bytes could cause, and never
+// goes quiet without saying why. A note can still render to nothing, because
+// an unclosed %% comment hides everything after it and Obsidian hides it
+// too; what the reader then receives is an account of which marker did it,
+// rather than an empty page and no explanation.
+//
+// That promise does not reach an internal enum invariant: a graph.Kind
+// outside Unresolved, Unique, and Ambiguous is not a value any note's
+// content can produce, so reaching one is this package's own bug rather
+// than a fault in what it read, and it panics there instead of rendering
+// past it silently.
 // Authored HTML is inert display
 // input: the Japanese lesson dialect's ruby/rt/rp/br subset survives, while
 // executable or automatically loading markup is shown as text.

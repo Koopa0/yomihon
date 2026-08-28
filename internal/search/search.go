@@ -112,14 +112,17 @@ func (idx *Index) metadataUnavailableError() error {
 // derived artifact policy, with no disk access. Every document remains in the
 // text and folder corpus; policy marks which entries may answer metadata
 // projections. Entries are sorted by RelPath at build time, which is the sole
-// source of result ordering.
+// source of result ordering. docs is expected to carry one entry per RelPath;
+// the sort is stable so that if a caller ever violates that and passes two
+// documents sharing a RelPath, their relative order is at least their input
+// order rather than an unspecified one.
 func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 	entries := make([]*entry, 0, len(docs))
 	for i := range docs {
 		e := entryFromDocument(&docs[i], policy)
 		entries = append(entries, &e)
 	}
-	slices.SortFunc(entries, func(a, b *entry) int {
+	slices.SortStableFunc(entries, func(a, b *entry) int {
 		return cmp.Compare(a.RelPath, b.RelPath)
 	})
 	return &Index{entries: entries, policy: policy}
