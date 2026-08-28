@@ -162,12 +162,10 @@ func reportRawHref(name string) string {
 
 // LifecycleItem is one row of Home's Lifecycle block: a schema status
 // (the vocabulary comes from the toml contract), its live snapshot
-// count, whether it is the current note's status, and whether it is the
-// ready accent's schema-owned status.
+// count, and whether it is the ready accent's schema-owned status.
 type LifecycleItem struct {
 	Name   string
 	Count  int
-	Active bool
 	Sealed bool
 	// Unknown is set when no type carrying this status declares it: the
 	// value is outside every relevant enum, so the chip carries the same

@@ -122,7 +122,7 @@ func BenchmarkGenerationStore(b *testing.B) {
 				b.Fatalf("Pending() rows = %d, want 1 changed chunk", len(pending))
 			}
 			completeGenerationBenchmark(b, build, &drifted, pending)
-			if err := build.activate(b.Context()); err != nil {
+			if _, err := build.activateGeneration(b.Context(), nil); err != nil {
 				b.Fatal(err)
 			}
 			b.ReportMetric(float64(count-len(pending)), "reused_chunks/op")
@@ -338,7 +338,7 @@ func buildGenerationBenchmark(
 	build := prepareGenerationBenchmark(b, writer, fixture)
 	pending := pendingGenerationBenchmarkRows(b, build)
 	completeGenerationBenchmark(b, build, fixture, pending)
-	if err := build.activate(b.Context()); err != nil {
+	if _, err := build.activateGeneration(b.Context(), nil); err != nil {
 		b.Fatal(err)
 	}
 }

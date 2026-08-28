@@ -822,15 +822,12 @@ func (s *staging) deferRetry(ctx context.Context, relPath string, ordinal uint32
 	return nil
 }
 
-// activate validates the complete staging row set and retry ledger, flips all
-// three catalog roles, and prunes unreferenced generations in one transaction.
-func (s *staging) activate(ctx context.Context) error {
-	_, err := s.activateGeneration(ctx, nil)
-	return err
-}
-
 type activationObserver func([]ChunkVector) (time.Duration, error)
 
+// activateGeneration validates the complete staging row set and retry ledger,
+// flips all three catalog roles, and prunes unreferenced generations in one
+// transaction. observe measures the newly activated generation's top-k P95
+// before the roles flip; a nil observe skips that measurement.
 func (s *staging) activateGeneration(ctx context.Context, observe activationObserver) (generationMetadata, error) {
 	tx, q, err := s.beginStaging(ctx, false)
 	if err != nil {

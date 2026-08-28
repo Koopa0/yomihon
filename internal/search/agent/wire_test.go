@@ -254,9 +254,9 @@ func TestWriteSearchIndexRecoveryEnvelopes(t *testing.T) {
 			if tt.reason == searchReasonAttemptBudgetExhausted {
 				cause = exhaustedBuildFailure()
 			}
-			body, err := newBuildErrorEnvelope(tt.reason, cause)
+			body, err := newBuildErrorEnvelopeFromObservation(tt.reason, buildGenerationObservationFromError(cause))
 			if err != nil {
-				t.Fatalf("newBuildErrorEnvelope() error: %v", err)
+				t.Fatalf("newBuildErrorEnvelopeFromObservation() error: %v", err)
 			}
 			var buf bytes.Buffer
 			if err := writeSearchIndexJSON(&buf, body); err != nil {
@@ -330,9 +330,9 @@ func TestBuildGenerationStateProjectionIsExhaustive(t *testing.T) {
 }
 
 func TestWriteSearchIndexJSONRejectsInvalidRecovery(t *testing.T) {
-	valid, err := newBuildErrorEnvelope(searchReasonRateLimited, nil)
+	valid, err := newBuildErrorEnvelopeFromObservation(searchReasonRateLimited, buildGenerationObservationFromError(nil))
 	if err != nil {
-		t.Fatalf("newBuildErrorEnvelope() error: %v", err)
+		t.Fatalf("newBuildErrorEnvelopeFromObservation() error: %v", err)
 	}
 	tests := []struct {
 		name string

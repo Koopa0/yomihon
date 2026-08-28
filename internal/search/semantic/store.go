@@ -401,7 +401,6 @@ func (d *storeDirectory) Close() error {
 // store is a read-only handle to a semantic generation database.
 type store struct {
 	db        *sql.DB
-	q         *catalog.Queries
 	parent    *storeParent
 	directory *storeDirectory
 
@@ -448,7 +447,6 @@ func openStore(ctx context.Context, path string) (*store, error) {
 		return nil, errors.Join(classifyStoreReadError(err), reader.Close())
 	}
 	reader.db = db
-	reader.q = catalog.New(db)
 	if currentErr := reader.requireCurrentFiles(); currentErr != nil {
 		return nil, errors.Join(currentErr, reader.Close())
 	}

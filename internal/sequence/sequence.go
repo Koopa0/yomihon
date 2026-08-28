@@ -289,7 +289,6 @@ func Parse(body string, bodyStartLine int) Document {
 	doc := mdParser.Parse(text.NewReader(src))
 
 	p := &parser{
-		src:           src,
 		body:          body,
 		bodyStartLine: bodyStartLine,
 	}
@@ -316,7 +315,6 @@ func Parse(body string, bodyStartLine int) Document {
 // parser is the walk's state: the open heading stack, the rows collected so
 // far, and the diagnostics raised.
 type parser struct {
-	src           []byte
 	body          string
 	bodyStartLine int
 	zones         []Span

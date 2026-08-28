@@ -385,10 +385,6 @@ func validateSearchIndexAnswer(envelope searchIndexAnswerEnvelope) (searchIndexA
 	return envelope, nil
 }
 
-func newBuildErrorEnvelope(reason searchReason, cause error) (buildErrorEnvelope, error) {
-	return newBuildErrorEnvelopeFromObservation(reason, buildGenerationObservationFromError(cause))
-}
-
 func newBuildErrorEnvelopeFromObservation(
 	reason searchReason,
 	observation buildGenerationObservation,

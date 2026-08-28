@@ -338,7 +338,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, artifactPolicy, snap)
-	lifecycle, lifecycleClosed := h.lifecycle(statusView, snap, "")
+	lifecycle, lifecycleClosed := h.lifecycle(statusView, snap)
 	// The lifecycle block is derived from the write authority while the counts
 	// under it come from the snapshot's own artifact sample, and the two are
 	// taken at different instants. This does not fire today: the request-local
@@ -724,7 +724,6 @@ func (h *Handler) loadConcepts(
 func (h *Handler) lifecycle(
 	statusView status.View,
 	snap *snapshot.View,
-	current string,
 ) (items []pages.LifecycleItem, closed bool) {
 	if !statusView.Governed() {
 		return nil, false
@@ -760,7 +759,6 @@ func (h *Handler) lifecycle(
 		items = append(items, pages.LifecycleItem{
 			Name:    s,
 			Count:   byStatus[s],
-			Active:  s == current,
 			Sealed:  s == schema.SealStatus,
 			Unknown: !declared[s],
 		})

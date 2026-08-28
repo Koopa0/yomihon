@@ -486,7 +486,6 @@ func (ix *Indexer) renewAttemptBudget(
 	}
 	prepared := &preparedGeneration{
 		corpus:  corpus,
-		targets: targets,
 		chunks:  chunks,
 		staging: build,
 		pending: pending,
@@ -671,7 +670,6 @@ func acceptBuildActive(
 
 type preparedGeneration struct {
 	corpus  Corpus
-	targets []ChunkTarget
 	chunks  map[chunkKey]*CorpusChunk
 	staging *staging
 	pending []ChunkTarget
@@ -707,7 +705,6 @@ func (ix *Indexer) prepareGeneration(
 	observation.staging = StagingGenerationResumable
 	return &preparedGeneration{
 		corpus:  corpus,
-		targets: targets,
 		chunks:  chunks,
 		staging: build,
 		pending: pending,

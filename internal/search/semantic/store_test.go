@@ -76,7 +76,7 @@ func TestGenerationStoreRetryLedgerSurvivesRestartAndPreventsSixthSend(t *testin
 	if err := build.put(ctx, &row); err != nil {
 		t.Fatal(err)
 	}
-	if err := build.activate(ctx); err != nil {
+	if _, err := build.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -169,13 +169,13 @@ func TestGenerationStoreRenewalIsAtomicAndPreservesPerTargetDuplicateHashVectors
 	firstActive := []ChunkVector{fixtureChunkVector("Writing/active-one.md", 0, identity.dimension, 10)}
 	firstBuild := prepareBuild(t, writer, &identity, firstActive)
 	putBuildRows(t, firstBuild, firstActive)
-	if activateErr := firstBuild.activate(ctx); activateErr != nil {
+	if _, activateErr := firstBuild.activateGeneration(ctx, nil); activateErr != nil {
 		t.Fatal(activateErr)
 	}
 	secondActive := []ChunkVector{fixtureChunkVector("Writing/active-two.md", 0, identity.dimension, 11)}
 	secondBuild := prepareBuild(t, writer, &identity, secondActive)
 	putBuildRows(t, secondBuild, secondActive)
-	if activateErr := secondBuild.activate(ctx); activateErr != nil {
+	if _, activateErr := secondBuild.activateGeneration(ctx, nil); activateErr != nil {
 		t.Fatal(activateErr)
 	}
 
@@ -336,7 +336,7 @@ func TestGenerationStoreActiveReadIsOldOrNewAcrossActivation(t *testing.T) {
 	closeOnCleanup(t, writer)
 	oldBuild := prepareBuild(t, writer, &identity, oldRows)
 	putBuildRows(t, oldBuild, oldRows)
-	if err := oldBuild.activate(ctx); err != nil {
+	if _, err := oldBuild.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	newBuild := prepareBuild(t, writer, &identity, newRows)
@@ -363,7 +363,7 @@ func TestGenerationStoreActiveReadIsOldOrNewAcrossActivation(t *testing.T) {
 		result <- activeResult{generation: generation, err: err}
 	}()
 	<-metadataRead
-	if err := newBuild.activate(ctx); err != nil {
+	if _, err := newBuild.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	close(continueRead)
@@ -395,7 +395,7 @@ func TestGenerationStoreActivationRollsBackCatalogAndPruneFailures(t *testing.T)
 
 	first := prepareBuild(t, writer, &identity, firstRows)
 	putBuildRows(t, first, firstRows)
-	if err := first.activate(ctx); err != nil {
+	if _, err := first.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	second := prepareBuild(t, writer, &identity, secondRows)
@@ -407,14 +407,14 @@ func TestGenerationStoreActivationRollsBackCatalogAndPruneFailures(t *testing.T)
 	`); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.activate(ctx); err == nil {
+	if _, err := second.activateGeneration(ctx, nil); err == nil {
 		t.Fatal("Activate() with catalog trigger error = nil")
 	}
 	assertActiveGeneration(t, writer, &identity, firstRows, 0)
 	if _, err := writer.db.ExecContext(ctx, `DROP TRIGGER fail_activation`); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.activate(ctx); err != nil {
+	if _, err := second.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -427,7 +427,7 @@ func TestGenerationStoreActivationRollsBackCatalogAndPruneFailures(t *testing.T)
 	`); err != nil {
 		t.Fatal(err)
 	}
-	if err := third.activate(ctx); err == nil {
+	if _, err := third.activateGeneration(ctx, nil); err == nil {
 		t.Fatal("Activate() with prune trigger error = nil")
 	}
 	assertActiveGeneration(t, writer, &identity, secondRows, 0)
@@ -441,7 +441,7 @@ func TestGenerationStoreActivationRollsBackCatalogAndPruneFailures(t *testing.T)
 	if _, err := writer.db.ExecContext(ctx, `DROP TRIGGER fail_prune`); err != nil {
 		t.Fatal(err)
 	}
-	if err := third.activate(ctx); err != nil {
+	if _, err := third.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertActiveGeneration(t, writer, &identity, thirdRows, 0)
@@ -463,12 +463,12 @@ func TestGenerationStoreCorruptionIsScopedByRoleAndActiveNeverFallsBack(t *testi
 	closeOnCleanup(t, writer)
 	first := prepareBuild(t, writer, &identity, firstRows)
 	putBuildRows(t, first, firstRows)
-	if err := first.activate(ctx); err != nil {
+	if _, err := first.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	second := prepareBuild(t, writer, &identity, secondRows)
 	putBuildRows(t, second, secondRows)
-	if err := second.activate(ctx); err != nil {
+	if _, err := second.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	catalog, err := writer.q.Catalog(ctx)
@@ -503,7 +503,7 @@ func TestGenerationStoreExplicitBuildRecoversFromCorruptActive(t *testing.T) {
 	closeOnCleanup(t, writer)
 	oldBuild := prepareBuild(t, writer, &identity, oldRows)
 	putBuildRows(t, oldBuild, oldRows)
-	if err := oldBuild.activate(ctx); err != nil {
+	if _, err := oldBuild.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	catalog, err := writer.q.Catalog(ctx)
@@ -524,7 +524,7 @@ func TestGenerationStoreExplicitBuildRecoversFromCorruptActive(t *testing.T) {
 		t.Fatalf("fresh rebuild pending targets = %d, want %d", len(pending), len(newRows))
 	}
 	putBuildRows(t, rebuild, newRows)
-	if err := rebuild.activate(ctx); err != nil {
+	if _, err := rebuild.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertActiveGeneration(t, writer, &identity, newRows, 0)
@@ -591,7 +591,7 @@ func TestGenerationStoreActivationRejectsOutstandingRetryLedger(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := build.activate(ctx); !errors.Is(err, ErrGenerationIncomplete) {
+	if _, err := build.activateGeneration(ctx, nil); !errors.Is(err, ErrGenerationIncomplete) {
 		t.Fatalf("Activate() with retry ledger error = %v, want ErrGenerationIncomplete", err)
 	}
 	replacement := prepareBuild(t, writer, &identity, []ChunkVector{row})
@@ -671,7 +671,7 @@ func TestGenerationStoreActivationRevalidatesBuildMetadata(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := build.activate(ctx); !errors.Is(err, ErrStoreCorrupt) {
+			if _, err := build.activateGeneration(ctx, nil); !errors.Is(err, ErrStoreCorrupt) {
 				t.Fatalf("Activate() after %s mutation error = %v, want ErrStoreCorrupt", tt.name, err)
 			}
 			if _, err := writer.Active(ctx); !errors.Is(err, ErrNoActiveGeneration) {
@@ -827,7 +827,7 @@ LIMIT 1`, generationID, generationID); err != nil {
 			closeOnCleanup(t, writer)
 			build := prepareBuild(t, writer, &identity, []ChunkVector{row})
 			putBuildRows(t, build, []ChunkVector{row})
-			if err := build.activate(ctx); err != nil {
+			if _, err := build.activateGeneration(ctx, nil); err != nil {
 				t.Fatal(err)
 			}
 			catalog, err := writer.q.Catalog(ctx)
@@ -909,7 +909,7 @@ func TestGenerationStoreStaleBuildCannotMutateReplacement(t *testing.T) {
 		t.Fatalf("stale put() error = %v, want ErrStagingClosed", err)
 	}
 	putBuildRows(t, replacement, secondRows)
-	if err := replacement.activate(ctx); err != nil {
+	if _, err := replacement.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertActiveGeneration(t, writer, &identity, secondRows, 0)
@@ -1259,7 +1259,7 @@ func TestGenerationStoreActivatesImmutableRolesAndPrunes(t *testing.T) {
 	if err := first.setTopKP95(ctx, 125*time.Microsecond); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.activate(ctx); err != nil {
+	if _, err := first.activateGeneration(ctx, nil); err != nil {
 		t.Fatalf("first Activate() error: %v", err)
 	}
 	if err := first.put(ctx, &firstRows[0]); !errors.Is(err, ErrStagingClosed) {
@@ -1273,7 +1273,7 @@ func TestGenerationStoreActivatesImmutableRolesAndPrunes(t *testing.T) {
 	}
 	second := prepareBuild(t, writer, &identity, secondRows)
 	putBuildRows(t, second, secondRows)
-	if err := second.activate(ctx); err != nil {
+	if _, err := second.activateGeneration(ctx, nil); err != nil {
 		t.Fatalf("second Activate() error: %v", err)
 	}
 	assertActiveGeneration(t, writer, &identity, secondRows, 0)
@@ -1281,7 +1281,7 @@ func TestGenerationStoreActivatesImmutableRolesAndPrunes(t *testing.T) {
 	thirdRows := []ChunkVector{fixtureChunkVector("Writing/c.md", 0, identity.dimension, 4)}
 	third := prepareBuild(t, writer, &identity, thirdRows)
 	putBuildRows(t, third, thirdRows)
-	if err := third.activate(ctx); err != nil {
+	if _, err := third.activateGeneration(ctx, nil); err != nil {
 		t.Fatalf("third Activate() error: %v", err)
 	}
 	assertActiveGeneration(t, writer, &identity, thirdRows, 0)
@@ -1322,7 +1322,7 @@ func TestGenerationStoreNormalizesNoteMetadata(t *testing.T) {
 	}
 	build := prepareBuild(t, writer, &identity, rows)
 	putBuildRows(t, build, rows)
-	if err := build.activate(ctx); err != nil {
+	if _, err := build.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	catalog, err := writer.q.Catalog(ctx)
@@ -1520,7 +1520,7 @@ func TestGenerationStoreRejectsInvalidUTF8TextDuringHydration(t *testing.T) {
 	closeOnCleanup(t, writer)
 	build := prepareBuild(t, writer, &identity, []ChunkVector{row})
 	putBuildRows(t, build, []ChunkVector{row})
-	if err := build.activate(ctx); err != nil {
+	if _, err := build.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := writer.db.ExecContext(ctx,
@@ -1565,7 +1565,7 @@ func TestGenerationStoreSQLiteIntegrityPragmasDetectInvalidRows(t *testing.T) {
 		row := fixtureChunkVector("Writing/ok.md", 0, identity.dimension, 1)
 		build := prepareBuild(t, writer, &identity, []ChunkVector{row})
 		putBuildRows(t, build, []ChunkVector{row})
-		if err := build.activate(t.Context()); err != nil {
+		if _, err := build.activateGeneration(t.Context(), nil); err != nil {
 			t.Fatal(err)
 		}
 		var result string
@@ -1684,7 +1684,7 @@ func TestGenerationStoreReusesExactSubmittedBytesAfterNoteChanges(t *testing.T) 
 	closeOnCleanup(t, writer)
 	oldBuild := prepareBuild(t, writer, &identity, oldRows)
 	putBuildRows(t, oldBuild, oldRows)
-	if err := oldBuild.activate(ctx); err != nil {
+	if _, err := oldBuild.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1735,7 +1735,7 @@ func TestReuseQueryCannotBypassGenerationIdentity(t *testing.T) {
 	row := fixtureChunkVector("Writing/note.md", 0, sourceIdentity.dimension, 1)
 	source := prepareBuild(t, writer, &sourceIdentity, []ChunkVector{row})
 	putBuildRows(t, source, []ChunkVector{row})
-	if activateErr := source.activate(ctx); activateErr != nil {
+	if _, activateErr := source.activateGeneration(ctx, nil); activateErr != nil {
 		t.Fatal(activateErr)
 	}
 
@@ -1798,7 +1798,7 @@ func TestGenerationStoreExplicitRebuildReplacesIncompatibleSchema(t *testing.T) 
 	}
 	build := prepareBuild(t, writer, &identity, []ChunkVector{row})
 	putBuildRows(t, build, []ChunkVector{row})
-	if err := build.activate(ctx); err != nil {
+	if _, err := build.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := writer.db.ExecContext(ctx, `PRAGMA user_version = 999`); err != nil {
@@ -2340,7 +2340,7 @@ func TestGenerationStoreReaderRejectsDirectoryReplacement(t *testing.T) {
 	}
 	build := prepareBuild(t, writer, &identity, []ChunkVector{row})
 	putBuildRows(t, build, []ChunkVector{row})
-	if activateErr := build.activate(ctx); activateErr != nil {
+	if _, activateErr := build.activateGeneration(ctx, nil); activateErr != nil {
 		t.Fatal(activateErr)
 	}
 	if closeErr := writer.Close(); closeErr != nil {
@@ -2377,7 +2377,7 @@ func TestGenerationStoreWriterReadRejectsDirectoryReplacement(t *testing.T) {
 	closeOnCleanup(t, writer)
 	build := prepareBuild(t, writer, &identity, []ChunkVector{row})
 	putBuildRows(t, build, []ChunkVector{row})
-	if err := build.activate(ctx); err != nil {
+	if _, err := build.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	dir := filepath.Dir(path)
@@ -2450,7 +2450,7 @@ func TestGenerationStoreResumesOnlyExactStaging(t *testing.T) {
 	}
 	base := prepareBuild(t, writer, &identity, baseRows)
 	putBuildRows(t, base, baseRows)
-	if err := base.activate(ctx); err != nil {
+	if _, err := base.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2546,7 +2546,7 @@ func TestGenerationStoreActivationRejectsIncompleteOrWrongCorpus(t *testing.T) {
 	activeRows := []ChunkVector{fixtureChunkVector("Writing/active.md", 0, identity.dimension, 1)}
 	active := prepareBuild(t, writer, &identity, activeRows)
 	putBuildRows(t, active, activeRows)
-	if err := active.activate(ctx); err != nil {
+	if _, err := active.activateGeneration(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2561,7 +2561,7 @@ func TestGenerationStoreActivationRejectsIncompleteOrWrongCorpus(t *testing.T) {
 	if err := incomplete.put(ctx, &targetRows[0]); err != nil {
 		t.Fatal(err)
 	}
-	if err := incomplete.activate(ctx); !errors.Is(err, ErrGenerationIncomplete) {
+	if _, err := incomplete.activateGeneration(ctx, nil); !errors.Is(err, ErrGenerationIncomplete) {
 		t.Fatalf("incomplete Activate() error = %v, want ErrGenerationIncomplete", err)
 	}
 	assertActiveGeneration(t, writer, &identity, activeRows, 0)
@@ -2574,7 +2574,7 @@ func TestGenerationStoreActivationRejectsIncompleteOrWrongCorpus(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := incomplete.activate(ctx); !errors.Is(err, ErrStoreCorrupt) {
+	if _, err := incomplete.activateGeneration(ctx, nil); !errors.Is(err, ErrStoreCorrupt) {
 		t.Fatalf("tampered-corpus Activate() error = %v, want ErrStoreCorrupt", err)
 	}
 	assertActiveGeneration(t, writer, &identity, activeRows, 0)

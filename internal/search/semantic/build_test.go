@@ -1118,7 +1118,7 @@ func TestIndexerReconcileUsesGenerationPublishedByTheLeaseWinner(t *testing.T) {
 		if measureErr := build.setTopKP95(ctx, time.Microsecond); measureErr != nil {
 			t.Fatal(measureErr)
 		}
-		if activateErr := build.activate(ctx); activateErr != nil {
+		if _, activateErr := build.activateGeneration(ctx, nil); activateErr != nil {
 			t.Fatal(activateErr)
 		}
 		if closeErr := winner.Close(); closeErr != nil {
@@ -2696,7 +2696,7 @@ func seedActiveGeneration(t *testing.T, config *indexerSetup, corpus Corpus) {
 	if err := build.setTopKP95(t.Context(), time.Microsecond); err != nil {
 		t.Fatal(err)
 	}
-	if err := build.activate(t.Context()); err != nil {
+	if _, err := build.activateGeneration(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := writer.Close(); err != nil {

@@ -81,7 +81,6 @@ type Contract struct {
 	statusGroupByType map[string]string
 	statusesByGroup   map[string][]string
 	stageByTypeStatus map[lifecycleKey]Stage
-	lifecycleByType   map[string][]Stage
 }
 
 // Definition is a detached copy of the contract's declarative vocabulary and
@@ -847,7 +846,6 @@ func compileLifecycle(contract *Contract) error {
 	statusSets := compileLifecycleStatusLookups(contract)
 	declaredTypes := stringSet(contract.definition.Enums.Type)
 	contract.stageByTypeStatus = make(map[lifecycleKey]Stage)
-	contract.lifecycleByType = make(map[string][]Stage, len(contract.definition.Enums.Type))
 	rowByKey := make(map[lifecycleKey]int)
 	for i := range contract.stages {
 		row := i + 1
@@ -979,7 +977,6 @@ func indexLifecycleStage(
 	rowByKey[key] = row
 	compiled := cloneStage(stage)
 	contract.stageByTypeStatus[key] = compiled
-	contract.lifecycleByType[noteType] = append(contract.lifecycleByType[noteType], cloneStage(&compiled))
 	return nil
 }
 
