@@ -109,6 +109,12 @@ func TestInitialIsDeclaredNotInferred(t *testing.T) {
 // A lesson may return to draft from ready, and from nowhere else; the older
 // wildcard let a published lesson walk back, which contradicts what publishing
 // means.
+//
+// It reads the predecessor list and never the initial flag, so it says nothing
+// about whether a row's starting-point declaration is honoured: with the flag
+// computed by the older inference instead of read from the row, this passes
+// unchanged while the case above fails. Counting it among the locks on the
+// declared reading would overstate what is covered.
 func TestNarrowedLessonDraftRefusesPublished(t *testing.T) {
 	t.Parallel()
 	contract := decodeLifecycleFixture(t, explicitInitialContract)
@@ -136,8 +142,13 @@ func TestInitialKeyMustBeAllRowsOrNone(t *testing.T) {
 	if err == nil {
 		t.Fatal("decodeContract() with the key on some rows only = nil, want an error naming the mix")
 	}
-	if !strings.Contains(err.Error(), "initial") {
-		t.Errorf("decodeContract() error = %v, want one that names the initial key; an error about anything else means this case is passing for the wrong reason", err)
+	// The rule, not the key. A contract that names initial nowhere is rejected
+	// by a decoder that has never heard of the key at all, and that refusal
+	// says `unknown core keys: "lifecycle.initial"` — which contains the word
+	// and would satisfy any assertion looking for it, letting this case pass
+	// against a build where the whole feature is missing.
+	if !strings.Contains(err.Error(), "on every row or on none") {
+		t.Errorf("decodeContract() error = %v, want the one that states the all-or-none rule; any other error means this case is passing for a reason it does not name", err)
 	}
 }
 
@@ -156,8 +167,14 @@ func TestInitialFalseWithNoPredecessorIsRefused(t *testing.T) {
 	if err == nil {
 		t.Fatal("decodeContract() with a status that is neither initial nor reachable = nil, want an error")
 	}
+	// The condition, not the status name. Naming only the status would be
+	// satisfied by any refusal that happens to mention it, including one about
+	// a different rule entirely.
+	if !strings.Contains(err.Error(), "nothing could ever reach it") {
+		t.Errorf("decodeContract() error = %v, want the one that states the status is unreachable", err)
+	}
 	if !strings.Contains(err.Error(), "review") {
-		t.Errorf("decodeContract() error = %v, want one that names the unreachable status", err)
+		t.Errorf("decodeContract() error = %v, does not say which status it is about", err)
 	}
 }
 
