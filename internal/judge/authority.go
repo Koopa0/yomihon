@@ -24,10 +24,6 @@ var (
 type scanAuthority struct {
 	contract *schema.Contract
 	privacy  schema.PrivacyPolicy
-	// roles answers which note types take part in path and map behaviour. The
-	// judge asks the contract rather than naming a type, so a vault that calls
-	// its courses something else is read the same way the reader reads it.
-	roles schema.NavigationRoles
 }
 
 func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
@@ -47,12 +43,18 @@ func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority
 	authority := scanAuthority{
 		contract: contract,
 		privacy:  contract.PrivacyPolicy(),
-		roles:    contract.NavigationRoles(),
 	}
 	if err := authority.validate(); err != nil {
 		return scanAuthority{}, err
 	}
 	return authority, nil
+}
+
+// roles answers which note types take part in path and map behaviour. The
+// judge asks the contract rather than naming a type, so a vault that calls
+// its courses something else is read the same way the reader reads it.
+func (a scanAuthority) roles() schema.NavigationRoles {
+	return a.contract.NavigationRoles()
 }
 
 func (a scanAuthority) validate() error {

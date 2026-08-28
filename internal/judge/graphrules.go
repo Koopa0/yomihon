@@ -35,12 +35,12 @@ func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Fi
 	planned := plannedNamesSet(notes, authority)
 	aliases := aliasCollisions(notes, authority)
 	return slices.Concat(
-		linkHealth(notes, idx, titles, planned, authority.roles),
+		linkHealth(notes, idx, titles, planned, authority.roles()),
 		collisionAlias(aliases),
 		collisionName(idx, aliases, authority),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),
-		mapDiskMismatch(notes, idx, authority.roles),
-		pathFindings(notes, authority.roles),
+		mapDiskMismatch(notes, idx, authority.roles()),
+		pathFindings(notes, authority.roles()),
 		supersessionFindings(notes, idx, authority),
 	)
 }

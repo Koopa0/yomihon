@@ -23,7 +23,7 @@ func supersessionFindings(notes []note, idx *graph.Index, authority scanAuthorit
 	}
 
 	findings := predecessorNotArchived(notes, authority, artifacts, vocabulary)
-	roles := authority.contract.NavigationRoles()
+	roles := authority.roles()
 	if !roles.Available() {
 		return findings
 	}

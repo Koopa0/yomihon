@@ -146,7 +146,7 @@ func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped
 			// could infer that the private note references it.
 			continue
 		}
-		fromMap := authority.roles.IsMapType(n.noteType)
+		fromMap := authority.roles().IsMapType(n.noteType)
 		for _, target := range coverageTargets(n) {
 			for _, path := range resolveTargets(idx, target) {
 				referenced[path] = true
