@@ -240,7 +240,7 @@ func (r *Pipeline) scanFenceLine(st *preprocessState, col *collector) {
 		st.inFence = false
 	case !st.riskyFenceReported && looksRisky(line):
 		st.riskyFenceReported = true
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind:    DiagRiskyFence,
 			Message: "wikilink/callout/table syntax found inside a fenced code block; left untouched",
 		})
@@ -313,7 +313,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 	}
 	bucket, defaultTitle := calloutBucketOf(typ)
 	if bucket == bucketUnknown {
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind:    DiagUnknownCallout,
 			Target:  typ,
 			Message: fmt.Sprintf("unknown callout type %q; rendered as a plain blockquote", typ),
@@ -496,9 +496,10 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		// check. Whatever that note's own markers do is its own page's news.
 		strippedTarget, _ := stripObsidianComments(body)
 		if _, found := blockSlice(strippedTarget, link.Block); !found {
-			col.report(Diagnostic{
+			col.report(&Diagnostic{
 				Kind:    DiagLinkFragmentMissing,
-				Target:  link.Target + "#" + address,
+				Target:  link.Target,
+				Block:   link.Block,
 				Message: fmt.Sprintf("no block in %q matched %q; the link leads to the note itself", relPath, address),
 			})
 			return href, fragmentBlockMissing
@@ -520,9 +521,10 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		if mayCarryTranscludedHeadings(stripped) {
 			return addressed, fragmentPlaced
 		}
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind:    DiagLinkSectionMissing,
-			Target:  link.Target + "#" + link.Heading,
+			Target:  link.Target,
+			Section: link.Heading,
 			Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
 		})
 		return addressed, fragmentSectionMissing
@@ -550,7 +552,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref returns an attribute-safe string, path and fragment both percent-escaped
 		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, href, html.EscapeString(link.Display))
 	case graph.Ambiguous:
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
 			Message: fmt.Sprintf("wikilink %q is ambiguous: %s", link.Target, strings.Join(res.Candidates, ", ")),
 		})
@@ -558,7 +560,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">%s</span>`,
 			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(link.Display))
 	case graph.Unresolved:
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind: DiagWikilinkBroken, Target: link.Target, Section: link.Heading,
 			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", link.Target),
 		})
@@ -593,13 +595,13 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 	res := r.idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unresolved:
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind: DiagWikilinkBroken, Target: target, Section: link.Heading,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
 		return unwrittenTarget(target, "![["+target+"]]", link.Heading)
 	case graph.Ambiguous:
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: target,
 			Message: fmt.Sprintf("embed target %q is ambiguous: %s", target, strings.Join(res.Candidates, ", ")),
 		})
@@ -619,7 +621,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 		}
 		body, ok := r.transclusions.Transclusion(res.RelPath)
 		if !ok {
-			col.report(Diagnostic{
+			col.report(&Diagnostic{
 				Kind: DiagWikilinkBroken, Target: target,
 				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.RelPath),
 			})
@@ -666,16 +668,18 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped, unmatched string) {
 	stripped, unclosed := stripObsidianComments(body)
 	if unclosed != 0 {
-		col.report(unclosedCommentDiagnostic(unclosed))
+		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
+		col.report(&unclosedDiagnostic)
 	}
 	switch {
 	case link.Block != "":
 		if slice, ok := blockSlice(stripped, link.Block); ok {
 			return slice, ""
 		}
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
-			Target:  link.Target + "#^" + link.Block,
+			Target:  link.Target,
+			Block:   link.Block,
 			Message: fmt.Sprintf("no block in %q matched %q; the whole note is shown", resPath, "^"+link.Block),
 		})
 		return stripped, "#^" + link.Block
@@ -683,9 +687,10 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scop
 		if slice, ok := headingSlice(stripped, link.Heading); ok {
 			return slice, ""
 		}
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
-			Target:  link.Target + "#" + link.Heading,
+			Target:  link.Target,
+			Section: link.Heading,
 			Message: fmt.Sprintf("no heading in %q matched %q; the whole note is shown", resPath, link.Heading),
 		})
 		return stripped, "#" + link.Heading

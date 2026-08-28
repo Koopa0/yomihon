@@ -862,8 +862,16 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagEmbedFragmentMissing {
 			t.Fatalf("Diagnostics = %+v, want one DiagEmbedFragmentMissing", got.Diagnostics)
 		}
-		if got.Diagnostics[0].Target != "B#No Such Section" {
-			t.Errorf("Diagnostic.Target = %q, want %q", got.Diagnostics[0].Target, "B#No Such Section")
+		// The name and the address after it stay apart: readers that look a
+		// planned name up by Target match a bare name and nothing else.
+		if got, want := got.Diagnostics[0].Target, "B"; got != want {
+			t.Errorf("Diagnostic.Target = %q, want the bare name %q", got, want)
+		}
+		if got, want := got.Diagnostics[0].Section, "No Such Section"; got != want {
+			t.Errorf("Diagnostic.Section = %q, want %q", got, want)
+		}
+		if got := got.Diagnostics[0].Block; got != "" {
+			t.Errorf("Diagnostic.Block = %q, want empty: a heading address is not a block address", got)
 		}
 	})
 
@@ -1299,8 +1307,14 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagEmbedFragmentMissing {
 			t.Fatalf("Diagnostics = %+v, want one DiagEmbedFragmentMissing", got.Diagnostics)
 		}
-		if got.Diagnostics[0].Target != "B#^missing" {
-			t.Errorf("Diagnostic.Target = %q, want %q", got.Diagnostics[0].Target, "B#^missing")
+		if got, want := got.Diagnostics[0].Target, "B"; got != want {
+			t.Errorf("Diagnostic.Target = %q, want the bare name %q", got, want)
+		}
+		if got, want := got.Diagnostics[0].Block, "missing"; got != want {
+			t.Errorf("Diagnostic.Block = %q, want %q", got, want)
+		}
+		if got := got.Diagnostics[0].Section; got != "" {
+			t.Errorf("Diagnostic.Section = %q, want empty: a block address is not a section name", got)
 		}
 	})
 }

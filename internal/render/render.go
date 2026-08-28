@@ -129,16 +129,18 @@ type Diagnostic struct {
 	Target  string // the offending wikilink target / callout type / etc.
 	Message string // human-readable
 
-	// Section is the section name a link wrote after "#", carried on the
-	// diagnostic for an unresolved target so a panel listing the note's faults
-	// can say how the link was read. Target stays the bare name resolution
-	// failed on — other readers of that field look planned names up by it, so
-	// folding the two together would quietly change what they match.
+	// Section and Block carry the two halves of an address a link wrote after
+	// "#", so a panel listing the note's faults can say how the link was read.
+	// Target stays the bare name in every case — other readers of that field
+	// look planned names up by it, and a composite string matches none of them,
+	// which fails by finding nothing rather than by reporting anything.
 	//
-	// It is empty unless the author wrote a section address that was split off
-	// a name nothing answered to. A block address ("#^name") is not a section
-	// name in this dialect and leaves this empty.
+	// The two are never both set: this dialect reads "#^name" as a block
+	// address and anything else after "#" as a section name, so a link has one
+	// or neither. Both are empty when the author wrote no address at all, and
+	// on every diagnostic about something other than a link.
 	Section string
+	Block   string
 }
 
 // TOCEntry is one heading in document order, with the id assigned to it
@@ -342,7 +344,7 @@ type collector struct {
 	page  *composition
 }
 
-func (c *collector) report(d Diagnostic) { c.diags = append(c.diags, d) }
+func (c *collector) report(d *Diagnostic) { c.diags = append(c.diags, *d) }
 
 // footnoteRegionAttr names the document attribute carrying one region's
 // footnote id prefix. The renderer writes nothing for a document node's
@@ -422,7 +424,7 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composi
 		// renderer returns one, and the default HTML renderer writing to
 		// a bytes.Buffer never fails — but the fallback keeps the page
 		// non-blank even if a future extension breaks that assumption.
-		col.report(Diagnostic{
+		col.report(&Diagnostic{
 			Kind:    DiagRenderFailed,
 			Message: fmt.Sprintf("markdown render failed: %v", err),
 		})

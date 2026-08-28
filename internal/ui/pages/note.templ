@@ -972,8 +972,27 @@ templ legalTransitionForms(v NoteView) {
 	}
 }
 
+// diagnosticAddress spells an address the way its author wrote it. The
+// diagnostic keeps the note name and the part after "#" apart, because other
+// readers match on the name by itself and a joined string matches none of them;
+// putting them back together is a decision about what to show, and it is made
+// here so every panel shows the same thing.
+func diagnosticAddress(d render.Diagnostic) string {
+	switch {
+	case d.Block != "":
+		return d.Target + "#^" + d.Block
+	case d.Section != "":
+		return d.Target + "#" + d.Section
+	default:
+		return d.Target
+	}
+}
+
 // fragmentSplit states how a link that named a section was read, for a link
-// whose base name resolved to nothing. Without it the panel names the shorter
+// whose base name resolved to nothing. Its words only hold in that case — they
+// say the missing half is the note, which is false of a link whose note was
+// found and whose section was not, so the caller gates it on the kind rather
+// than on a section name being present. Without it the panel names the shorter
 // half and stops, and a reader looking at a file whose own name carries "#" —
 // sitting in the sidebar, spelled exactly as they typed it — has no way to
 // learn that the mark is an address into a note rather than part of its name.
@@ -1011,13 +1030,13 @@ templ diagnostics(v NoteView) {
 						<p class="y-diag__body">
 							{ renderDiagnosticSummary(d.Kind) }
 							if d.Target != "" {
-								<code>{ d.Target }</code>
+								<code>{ diagnosticAddress(d) }</code>
 							}
 							if d.Message != "" {
 								<code lang="en">{ d.Message }</code>
 							}
 						</p>
-						if d.Section != "" {
+						if d.Kind == render.DiagWikilinkBroken && d.Section != "" {
 							@fragmentSplit(d.Target, d.Section)
 						}
 					</div>
