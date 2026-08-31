@@ -5,11 +5,13 @@ package wording
 
 // What a folder listing counts, and what it says when there is nothing to list.
 var (
-	SubfolderCount  = both("%d 個資料夾、", "%d folders, ")
-	FolderNoteCount = both("%d 篇", "%d notes")
-	Subfolders      = both("子資料夾", "Subfolders")
-	FilesInFolder   = both("這個資料夾裡的檔案", "Files in this folder")
-	FolderEmpty     = both("這個資料夾是空的。", "This folder is empty.")
+	SubfolderCountOne   = both("%d 個資料夾、", "%d folder, ")
+	SubfolderCountMany  = both("%d 個資料夾、", "%d folders, ")
+	FolderNoteCountOne  = both("%d 篇", "%d note")
+	FolderNoteCountMany = both("%d 篇", "%d notes")
+	Subfolders          = both("子資料夾", "Subfolders")
+	FilesInFolder       = both("這個資料夾裡的檔案", "Files in this folder")
+	FolderEmpty         = both("這個資料夾是空的。", "This folder is empty.")
 )
 
 // A file yomihon has no reader for: it says so, and offers the bytes.
@@ -53,4 +55,12 @@ var (
 	)
 	LeaveThisPage = both("離開這一頁", "Leave this page")
 	BackHome      = both("返回首頁", "Back to home")
+)
+
+// The syllabus's own units, in the same pairs and for the same reason.
+var (
+	PartCountOne    = both("%d 部", "%d part")
+	PartCountMany   = both("%d 部", "%d parts")
+	ModuleCountOne  = both("%d 模組", "%d module")
+	ModuleCountMany = both("%d 模組", "%d modules")
 )

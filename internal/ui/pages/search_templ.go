@@ -89,7 +89,7 @@ func resultCount(shown, total int, lang wording.Lang) string {
 	if total > shown {
 		return fmt.Sprintf(wording.ResultCountShownFmt.In(lang), total, shown)
 	}
-	return fmt.Sprintf(wording.ResultCountFmt.In(lang), total)
+	return plural(total, wording.ResultCountOne, wording.ResultCountMany, lang)
 }
 
 // SnippetRun is one stretch of a result's snippet, marked or not.
@@ -389,7 +389,7 @@ func SearchResults(query string, results []SearchResult, total int, diagnostic s
 						return templ_7745c5c3_Err
 					}
 					if r.StatusOutsideEnum {
-						templ_7745c5c3_Err = statusOutsideEnumMark().Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = statusOutsideEnumMark(lang).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

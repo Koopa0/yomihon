@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // typeLesson is the one note type the reading page enriches with lesson-body
@@ -473,7 +474,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if governance.instance && n.Type == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML)
 		pageChrome := pages.ChromeFromRequest(r, n.Title)
-		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce)
+		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, pages.LanguageFromRequest(r))
 		var refs []string
 		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
 		concepts = h.loadConcepts(snap, refs)
@@ -676,13 +677,14 @@ func (h *Handler) injectSlotMachine(
 	ctx context.Context,
 	slots lesson.SlotIndex,
 	rel, slug, body, nonce string,
+	lang wording.Lang,
 ) string {
 	sc, ok := slots.Lookup(slug)
 	if !ok {
 		return body
 	}
 	var buf bytes.Buffer
-	if err := pages.SlotMachine(sc, nonce).Render(ctx, &buf); err != nil {
+	if err := pages.SlotMachine(sc, nonce, lang).Render(ctx, &buf); err != nil {
 		h.deps.Log.Error("render slot machine", "path", rel, "slug", slug, "error", err)
 		return body
 	}

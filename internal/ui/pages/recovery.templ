@@ -1,6 +1,9 @@
 package pages
 
-import "github.com/koopa0/yomihon/internal/ui/layouts"
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // StatusRecoveryView is the truthful browser projection of a failed status
 // change. Changed distinguishes refusals that left the file untouched from
@@ -28,18 +31,18 @@ type StatusRecoveryView struct {
 // Title is the page's one title, used for both the document title and the
 // heading so a reader switching between the tab and the page reads the same
 // sentence.
-func (v StatusRecoveryView) Title() string {
+func (v StatusRecoveryView) Title(lang wording.Lang) string {
 	if v.Changed {
-		return "狀態已寫入，需要手動收尾"
+		return wording.RecoveryChangedTitle.In(lang)
 	}
-	return "狀態尚未變更"
+	return wording.RecoveryUnchangedTitle.In(lang)
 }
 
-func (v StatusRecoveryView) mutationState() string {
+func (v StatusRecoveryView) mutationState(lang wording.Lang) string {
 	if v.Changed {
-		return "這次操作已變更筆記檔案；請勿重送這次操作。"
+		return wording.RecoveryChangedState.In(lang)
 	}
-	return "這次操作沒有變更筆記檔案。"
+	return wording.RecoveryUnchangedState.In(lang)
 }
 
 // StatusRecovery renders the write face's recovery state in the ordinary
@@ -66,31 +69,31 @@ templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main y-recoverymain" { recoveryFreshnessAttrs(v)... }>
 				<article class="y-recovery" lang="zh-Hant" aria-labelledby="recovery-title">
-					<p class="y-recovery__kicker">生命週期寫入</p>
-					<h1 id="recovery-title" class="y-title">{ v.Title() }</h1>
-					<p class="y-recovery__state" data-status-changed={ v.Changed }>{ v.mutationState() }</p>
+					<p class="y-recovery__kicker">{ wording.LifecycleWrite.In(c.Lang) }</p>
+					<h1 id="recovery-title" class="y-title">{ v.Title(c.Lang) }</h1>
+					<p class="y-recovery__state" data-status-changed={ v.Changed }>{ v.mutationState(c.Lang) }</p>
 					<p class="y-recovery__summary">{ v.Summary }</p>
 					if v.TechnicalDetail != "" {
 						<section class="y-recovery__detail" aria-labelledby="recovery-detail-title">
-							<h2 id="recovery-detail-title">技術細節</h2>
+							<h2 id="recovery-detail-title">{ wording.TechnicalDetail.In(c.Lang) }</h2>
 							<pre><code lang="en">{ v.TechnicalDetail }</code></pre>
 						</section>
 					}
 					<section class="y-recovery__next" aria-labelledby="recovery-next-title">
-						<h2 id="recovery-next-title">下一步</h2>
+						<h2 id="recovery-next-title">{ wording.WhatNext.In(c.Lang) }</h2>
 						<p>{ v.NextAction }</p>
 					</section>
-					<nav class="y-recovery__actions" aria-label="復原操作">
+					<nav class="y-recovery__actions" aria-label={ wording.RecoveryActions.In(c.Lang) }>
 						if v.NotePath != "" {
-							<a class="y-recovery__action" href={ templ.URL(notesHref(v.NotePath)) }>返回筆記</a>
+							<a class="y-recovery__action" href={ templ.URL(notesHref(v.NotePath)) }>{ wording.BackToNote.In(c.Lang) }</a>
 						}
 						if v.ObsidianHref != "" {
 							// Server-built and escaped from the vault root and a
 							// normalized relative path, so it bypasses the URL
 							// sanitizer that would reject its custom scheme.
-							<a class="y-recovery__action" href={ templ.SafeURL(v.ObsidianHref) }>在 Obsidian 開啟</a>
+							<a class="y-recovery__action" href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(c.Lang) }</a>
 						}
-						<a class="y-recovery__action y-recovery__action--quiet" href="/">返回首頁</a>
+						<a class="y-recovery__action y-recovery__action--quiet" href="/">{ wording.BackHome.In(c.Lang) }</a>
 					</nav>
 				</article>
 			</main>

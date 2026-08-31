@@ -660,11 +660,11 @@ templ pathEntryLink(sb Sidebar, entry *nav.PathEntry) {
 		<span
 			class="ui-navitem y-navitem--broken"
 			data-resolution={ entryResolutionCode(entry.Kind) }
-			title={ entryResolutionTitle(entry.Kind) }
+			title={ entryResolutionTitle(entry.Kind, sb.Lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
 			{ entry.Text }
-			<span class="ui-navitem__count">{ entryResolutionLabel(entry.Kind) }</span>
+			<span class="ui-navitem__count">{ entryResolutionLabel(entry.Kind, sb.Lang) }</span>
 		</span>
 	}
 }
@@ -707,11 +707,11 @@ templ entryLink(sb Sidebar, entry nav.Entry) {
 		<span
 			class="ui-navitem y-navitem--broken"
 			data-resolution={ entryResolutionCode(entry.Kind) }
-			title={ entryResolutionTitle(entry.Kind) }
+			title={ entryResolutionTitle(entry.Kind, sb.Lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
 			{ entry.Text }
-			<span class="ui-navitem__count y-navmark--warn">{ entryResolutionLabel(entry.Kind) }</span>
+			<span class="ui-navitem__count y-navmark--warn">{ entryResolutionLabel(entry.Kind, sb.Lang) }</span>
 		</span>
 	}
 }
@@ -1044,7 +1044,7 @@ templ diagnostics(v NoteView) {
 					<div class="y-diag">
 						<div class="y-diag__label">{ diagKindLabel(d.Kind, v.Lang) }</div>
 						<p class="y-diag__body">
-							{ renderDiagnosticSummary(d.Kind) }
+							{ renderDiagnosticSummary(d.Kind, v.Lang) }
 							if d.Target != "" {
 								<code>{ diagnosticAddress(d) }</code>
 							}

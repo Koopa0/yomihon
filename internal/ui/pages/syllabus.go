@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/wording"
+
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
@@ -105,7 +107,7 @@ type PathRunView struct {
 // point at, and the side-branch heading beside its list also carries the
 // count chip, which a name should not swallow. The rail's lesson-steps
 // label set the precedent of a chrome phrase carrying an authored title.
-func (v *PathBranchView) Runs() []PathRunView {
+func (v *PathBranchView) Runs(lang wording.Lang) []PathRunView {
 	var runs []PathRunView
 	for _, item := range v.Items {
 		switch {
@@ -113,7 +115,7 @@ func (v *PathBranchView) Runs() []PathRunView {
 			if len(runs) == 0 || runs[len(runs)-1].Branch != nil {
 				run := PathRunView{Ordered: item.Entry.Number > 0}
 				if run.Ordered {
-					run.Label = v.runLabel(item.Entry.Number)
+					run.Label = v.runLabel(item.Entry.Number, lang)
 				}
 				runs = append(runs, run)
 			}
@@ -129,17 +131,17 @@ func (v *PathBranchView) Runs() []PathRunView {
 // runLabel names one ordered fragment. first is the fragment's first walk
 // number: one means the component opens here, anything later means the
 // fragment resumes an already-open order.
-func (v *PathBranchView) runLabel(first int) string {
+func (v *PathBranchView) runLabel(first int, lang wording.Lang) string {
 	if v.Local {
 		if first > 1 {
-			return "支線：" + v.Heading + "（接續）"
+			return wording.BranchPrefix.In(lang) + v.Heading + wording.BranchContinued.In(lang)
 		}
-		return "支線：" + v.Heading
+		return wording.BranchPrefix.In(lang) + v.Heading
 	}
 	if first > 1 {
-		return "主線（接續）"
+		return wording.MainContinued.In(lang)
 	}
-	return "主線"
+	return wording.MainLine.In(lang)
 }
 
 // PathLink is one entry in the path switcher: a study-path's title, the
@@ -287,16 +289,16 @@ func buildPathEntry(entry *nav.PathEntry) PathEntryView {
 	return v
 }
 
-func entryResolutionLabel(kind nav.EntryKind) string {
+func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 	switch kind {
 	case nav.EntryUnresolved:
-		return "未解析"
+		return wording.EntryUnresolved.In(lang)
 	case nav.EntryAmbiguous:
-		return "有歧義"
+		return wording.EntryAmbiguous.In(lang)
 	case nav.EntryNonInstance:
-		return "非治理項目"
+		return wording.EntryNonInstance.In(lang)
 	case nav.EntryResolved:
-		return "已解析"
+		return wording.EntryResolved.In(lang)
 	default:
 		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
 	}
@@ -320,14 +322,14 @@ func entryResolutionCode(kind nav.EntryKind) string {
 	}
 }
 
-func entryResolutionTitle(kind nav.EntryKind) string {
+func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 	switch kind {
 	case nav.EntryUnresolved:
-		return "找不到目標"
+		return wording.EntryUnresolvedTitle.In(lang)
 	case nav.EntryAmbiguous:
-		return "目標有歧義"
+		return wording.EntryAmbiguousTitle.In(lang)
 	case nav.EntryNonInstance:
-		return "目標不屬於生命週期治理範圍"
+		return wording.EntryNonInstanceTitle.In(lang)
 	case nav.EntryResolved:
 		return ""
 	default:
@@ -348,11 +350,6 @@ func buildPaths(currentRel string, all []nav.Path) []PathLink {
 		})
 	}
 	return links
-}
-
-// countLabel formats a syllabus metarow figure with its supplied Chinese unit.
-func countLabel(n int, noun string) string {
-	return strconv.Itoa(n) + " " + noun
 }
 
 // roman renders a positive part number as a roman numeral (the part label). A

@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"fmt"
 	"github.com/koopa0/yomihon/internal/wording"
 
 	"github.com/koopa0/yomihon/internal/nav"
@@ -49,9 +48,9 @@ templ Folder(v FolderView, c layouts.Chrome) {
 					<div class="y-seam" aria-hidden="true"></div>
 					<p class="y-foldercount">
 						if len(v.Subfolders) > 0 {
-							{ fmt.Sprintf(wording.SubfolderCount.In(c.Lang), len(v.Subfolders)) }
+							{ plural(len(v.Subfolders), wording.SubfolderCountOne, wording.SubfolderCountMany, c.Lang) }
 						}
-						{ fmt.Sprintf(wording.FolderNoteCount.In(c.Lang), len(v.Notes)) }
+						{ plural(len(v.Notes), wording.FolderNoteCountOne, wording.FolderNoteCountMany, c.Lang) }
 					</p>
 					if len(v.Subfolders) > 0 {
 						<nav class="y-folderlist" aria-label={ wording.Subfolders.In(c.Lang) }>

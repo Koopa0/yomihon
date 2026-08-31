@@ -17,7 +17,7 @@ templ File(v FileView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<article class="y-article">
-					@fileHead(v)
+					@fileHead(v, c.Lang)
 					switch v.Kind {
 						case FileSource:
 							<div class="y-prose y-source">
@@ -40,7 +40,7 @@ templ File(v FileView, c layouts.Chrome) {
 
 // fileHead is the file's breadcrumb, name, and byte-level meta — the same shape
 // a note's head takes, without the status chip a file cannot have.
-templ fileHead(v FileView) {
+templ fileHead(v FileView, lang wording.Lang) {
 	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
 		<div class="y-crumbs">
 			for i, seg := range crumbs {
@@ -53,7 +53,7 @@ templ fileHead(v FileView) {
 	}
 	<h1 class="y-title">{ v.Title }</h1>
 	<div class="y-metarow">
-		<span class="ui-type">{ fileKindLabel(v.Kind) }</span>
+		<span class="ui-type">{ fileKindLabel(v.Kind, lang) }</span>
 		<span>{ v.RelPath }</span>
 	</div>
 	<div class="y-seam" aria-hidden="true"></div>
@@ -68,7 +68,7 @@ templ fileInfo(v FileView, lang wording.Lang) {
 			<dt>{ wording.FileName.In(lang) }</dt>
 			<dd>{ v.Title }</dd>
 			<dt>{ wording.FileSize.In(lang) }</dt>
-			<dd>{ humanSize(v.Size) }</dd>
+			<dd>{ humanSize(v.Size, lang) }</dd>
 			<dt>{ wording.FileType.In(lang) }</dt>
 			<dd>{ v.ContentType }</dd>
 		</dl>

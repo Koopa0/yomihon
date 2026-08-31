@@ -1,6 +1,10 @@
 package pages
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // TestHumanSize pins what the information page tells a reader about a file it
 // cannot show. The exact byte count always travels with the rounded figure,
@@ -23,7 +27,7 @@ func TestHumanSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := humanSize(tt.n); got != tt.want {
+			if got := humanSize(tt.n, wording.ZhHant); got != tt.want {
 				t.Errorf("humanSize(%d) = %q, want %q", tt.n, got, tt.want)
 			}
 		})

@@ -7,6 +7,7 @@ package pages
 
 import (
 	"cmp"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -111,6 +112,17 @@ func syllabusHref(p string) string {
 // the colon, yielding e.g. /search?q=status%3Adraft.
 func statusHref(status string) string {
 	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
+}
+
+// plural picks the phrase that agrees with n. Chinese does not inflect a noun
+// for number, so both sides of such a pair carry the same words there; English
+// does, and a tally that reads "1 notes" is the first thing a reader notices
+// about a page.
+func plural(n int, one, many wording.Phrase, lang wording.Lang) string {
+	if n == 1 {
+		return fmt.Sprintf(one.In(lang), n)
+	}
+	return fmt.Sprintf(many.In(lang), n)
 }
 
 // statusChipLabel names one square of the lifecycle block. A note whose

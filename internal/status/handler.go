@@ -318,7 +318,7 @@ func (h *Handler) respondRecovery(
 		ObsidianHref:    pages.ObsidianHref(h.writer.VaultRoot(), notePath),
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath, lang),
 	}
-	component := pages.StatusRecovery(view, pages.ChromeFromRequest(r, view.Title()))
+	component := pages.StatusRecovery(view, pages.ChromeFromRequest(r, view.Title(lang)))
 	if err := writeRecovery(w, r.Context(), failure.code, failure.changed, component, lang); err != nil {
 		h.log.Error("render status recovery", "path", path, "changed", failure.changed, "error", err)
 	}

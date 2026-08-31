@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/lesson"
@@ -11,18 +12,18 @@ import (
 // first fill, so the sentences read correctly with JS off; lesson.js upgrades
 // the cards to swap fills, recolour, shuffle, and speak. The slot labels, the
 // abstract frame, and the gloss are lesson content, shown as authored.
-templ SlotMachine(s *lesson.Sidecar, nonce string) {
-	<section class="y-slotmachine" lang="zh-Hant" aria-label="句型練習">
+templ SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) {
+	<section class="y-slotmachine" lang={ lang.Tag() } aria-label={ wording.SlotMachineLabel.In(lang) }>
 		<div class="y-slotmachine__intro">
-			<h2 class="y-slotmachine__title">句型練習</h2>
+			<h2 class="y-slotmachine__title">{ wording.SlotMachineLabel.In(lang) }</h2>
 			if s.Note != "" {
 				<p class="y-slotmachine__sub">{ s.Note }</p>
 			} else {
-				<p class="y-slotmachine__sub">替換詞語後，句子會重新組合、著色並朗讀；直接練習本課句型。</p>
+				<p class="y-slotmachine__sub">{ wording.SlotMachineLede.In(lang) }</p>
 			}
 		</div>
 		for i, p := range s.Patterns {
-			@slotCard(i, p, nonce)
+			@slotCard(i, p, nonce, lang)
 		}
 	</section>
 }
@@ -46,7 +47,7 @@ templ SlotMachine(s *lesson.Sidecar, nonce string) {
 // declares Japanese because the sentence is Japanese: the nearest declared
 // language above it is the machine's Traditional Chinese chrome, which would
 // put the sentence in the wrong voice.
-templ slotCard(index int, p lesson.Pattern, nonce string) {
+templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
 	{{ headingID := "slot-pattern-" + strconv.Itoa(index+1) }}
 	<article class="y-slotcard" aria-labelledby={ headingID }>
 		@templ.Raw(`<script nonce="` + templ.EscapeString(nonce) + `" type="application/json" class="y-slotdata">` + lesson.PatternJSON(p) + `</script>`)
@@ -64,10 +65,10 @@ templ slotCard(index int, p lesson.Pattern, nonce string) {
 		@slotOutput(p)
 		<p class="y-slotgloss">{ lesson.GlossInitial(p) }</p>
 		<div class="y-slotactions">
-			<button type="button" class="y-slotbtn" data-slot-action="speak" aria-label="朗讀這組句子">
+			<button type="button" class="y-slotbtn" data-slot-action="speak" aria-label={ wording.SlotMachineSpeak.In(lang) }>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
 			</button>
-			<button type="button" class="y-slotbtn" data-slot-action="shuffle" aria-label="隨機更換組合">
+			<button type="button" class="y-slotbtn" data-slot-action="shuffle" aria-label={ wording.SlotMachineShuffle.In(lang) }>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="m15 15 6 6"></path><path d="M4 4l5 5"></path></svg>
 			</button>
 		</div>

@@ -38,16 +38,21 @@ var (
 
 // What the desk says about a folder it is standing in for, and the empty case.
 var (
-	StandInEmpty     = both("這個資料夾目前沒有檔案。", "This folder holds no files.")
-	StandInBefore    = both("這個資料夾有 %d 個檔案，最近一次變更是", "This folder holds %d files; the most recent change is ")
-	StandInDateOpen  = both("（", " (")
-	StandInDateClose = both("）。", ").")
+	StandInEmpty      = both("這個資料夾目前沒有檔案。", "This folder holds no files.")
+	StandInBeforeOne  = both("這個資料夾有 %d 個檔案，最近一次變更是", "This folder holds %d file; the most recent change is ")
+	StandInBeforeMany = both("這個資料夾有 %d 個檔案，最近一次變更是", "This folder holds %d files; the most recent change is ")
+	StandInDateOpen   = both("（", " (")
+	StandInDateClose  = both("）。", ").")
 )
 
 // The counts beside a status chip and a study path.
+// Chinese does not inflect a noun for number and English does, so each count
+// is a pair. A tally that reads "1 notes" is the first thing a reader notices.
 var (
-	NoteCount   = both("%d 篇筆記", "%d notes")
-	LessonCount = both("%d 課", "%d lessons")
+	NoteCountOne    = both("%d 篇筆記", "%d note")
+	NoteCountMany   = both("%d 篇筆記", "%d notes")
+	LessonCountOne  = both("%d 課", "%d lesson")
+	LessonCountMany = both("%d 課", "%d lessons")
 )
 
 // SearchSubmit is the button on the desk's own search field.

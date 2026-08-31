@@ -8,7 +8,10 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/koopa0/yomihon/internal/render"
+import (
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // browserDiagnostic leads with Traditional Chinese interface copy while
 // preserving the exact low-level diagnostic as explicitly English technical
@@ -42,7 +45,7 @@ func browserDiagnostic(summary, detail string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(summary)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 10, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 13, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -60,7 +63,7 @@ func browserDiagnostic(summary, detail string) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(detail)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 13, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 16, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -96,7 +99,7 @@ func browserDiagnostic(summary, detail string) templ.Component {
 // The words are the element's own text rather than a label or a title, so what
 // is printed and what is announced are the same thing, and what a reader sees
 // does not depend on their pointing at it.
-func statusOutsideEnumMark() templ.Component {
+func statusOutsideEnumMark(lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -117,7 +120,20 @@ func statusOutsideEnumMark() templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"y-outofenum\">不在 schema 允許清單中</span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"y-outofenum\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(wording.StatusOutsideEnumChip.In(lang))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 42, Col: 67}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -125,28 +141,28 @@ func statusOutsideEnumMark() templ.Component {
 	})
 }
 
-func renderDiagnosticSummary(kind render.DiagnosticKind) string {
+func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagWikilinkBroken:
-		return "這個 wikilink 或嵌入的目標尚未建立。"
+		return wording.DiagUnwrittenNote.In(lang)
 	case render.DiagWikilinkAmbiguous:
-		return "wikilink 或嵌入目標有歧義。"
+		return wording.DiagAmbiguousNote.In(lang)
 	case render.DiagUnknownCallout:
-		return "未知的 callout 類型；已改以一般引用區塊顯示。"
+		return wording.DiagCalloutNote.In(lang)
 	case render.DiagRiskyFence:
-		return "程式碼區塊含類似筆記語法的文字；已保持原樣。"
+		return wording.DiagFenceNote.In(lang)
 	case render.DiagEmbedFragmentMissing:
-		return "找不到嵌入指定的段落或區塊；已改顯示整篇筆記。"
+		return wording.DiagEmbedNote.In(lang)
 	case render.DiagLinkFragmentMissing:
-		return "目標筆記沒有這個區塊；連結已改為指向整篇筆記。"
+		return wording.DiagBlockNote.In(lang)
 	case render.DiagLinkSectionMissing:
-		return "目標筆記沒有這個小節；連結位址照原樣保留，點下去會落在筆記最上方。"
+		return wording.DiagSectionNote.In(lang)
 	case render.DiagCommentUnclosed:
-		return "這個註解記號沒有找到配對，它後面的內容全被藏了起來。"
+		return wording.DiagCommentNote.In(lang)
 	case render.DiagRenderFailed:
-		return "Markdown 轉譯失敗；已顯示原始內容。"
+		return wording.DiagRenderNote.In(lang)
 	default:
-		return "內容轉譯產生未識別的診斷。"
+		return wording.DiagUnknownNote.In(lang)
 	}
 }
 

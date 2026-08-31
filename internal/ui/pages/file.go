@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // FileKind is how a vault file that is not a note is presented: highlighted
@@ -47,12 +49,12 @@ var byteUnits = []string{"KB", "MB", "GB"}
 // humanSize renders a byte count the way a person reads one, keeping the exact
 // figure alongside it: an information page exists to be exact, and "2.4 MB" on
 // its own is a rounding, not a fact.
-func humanSize(n int64) string {
+func humanSize(n int64, lang wording.Lang) string {
 	if n == 1 {
-		return "1 位元組"
+		return wording.ByteSingular.In(lang)
 	}
 	if n < 1024 {
-		return withThousands(n) + " 位元組"
+		return withThousands(n) + wording.BytesSuffix.In(lang)
 	}
 	value := float64(n)
 	unit := byteUnits[0]
@@ -63,19 +65,19 @@ func humanSize(n int64) string {
 			break
 		}
 	}
-	return fmt.Sprintf("%.1f %s（%s 位元組）", value, unit, withThousands(n))
+	return fmt.Sprintf(wording.ByteSizeFmt.In(lang), value, unit, withThousands(n))
 }
 
-func fileKindLabel(kind FileKind) string {
+func fileKindLabel(kind FileKind, lang wording.Lang) string {
 	switch kind {
 	case FileSource:
-		return "原始碼"
+		return wording.FileKindSource.In(lang)
 	case FileImage:
-		return "圖片"
+		return wording.FileKindImage.In(lang)
 	case FilePDF:
 		return "PDF"
 	case FileInfo, "":
-		return "檔案資訊"
+		return wording.FileInfoLabel.In(lang)
 	default:
 		panic("pages: unknown FileKind: " + string(kind))
 	}

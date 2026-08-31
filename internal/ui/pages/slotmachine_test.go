@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Each card is an article, which a screen reader offers as a region to jump
@@ -25,7 +26,7 @@ func TestSlotMachineNamesEachCardByItsOwnHeading(t *testing.T) {
 	}}
 
 	var buf bytes.Buffer
-	if err := SlotMachine(view, "nonce").Render(t.Context(), &buf); err != nil {
+	if err := SlotMachine(view, "nonce", wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render slot machine: %v", err)
 	}
 	html := buf.String()
@@ -68,7 +69,7 @@ func TestSlotMachineShipsAnEmptyJapaneseLiveRegionPerCard(t *testing.T) {
 	}}
 
 	var buf bytes.Buffer
-	if err := SlotMachine(view, "nonce").Render(t.Context(), &buf); err != nil {
+	if err := SlotMachine(view, "nonce", wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render slot machine: %v", err)
 	}
 	// Written out closed and empty, and counted: one per card, so a card added
@@ -106,7 +107,7 @@ func TestSlotMachineRendersPatternData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := SlotMachine(view, tt.nonce).Render(t.Context(), &buf); err != nil {
+			if err := SlotMachine(view, tt.nonce, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render slot machine: %v", err)
 			}
 			want := `<script nonce="` + tt.wantNonce + `" type="application/json" class="y-slotdata">` + data + `</script>`

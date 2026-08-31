@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -149,7 +148,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 								if v.StandIn.NewestRelPath == "" {
 									{ wording.StandInEmpty.In(c.Lang) }
 								} else {
-									{ fmt.Sprintf(wording.StandInBefore.In(c.Lang), v.StandIn.Files) }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>{ wording.StandInDateOpen.In(c.Lang) }<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>{ wording.StandInDateClose.In(c.Lang) }
+									{ plural(v.StandIn.Files, wording.StandInBeforeOne, wording.StandInBeforeMany, c.Lang) }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>{ wording.StandInDateOpen.In(c.Lang) }<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>{ wording.StandInDateClose.In(c.Lang) }
 								}
 							</p>
 						}
@@ -171,7 +170,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 												if n.Status != "" {
 													<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
 													if n.StatusOutsideEnum {
-														@statusOutsideEnumMark()
+														@statusOutsideEnumMark(c.Lang)
 													}
 												}
 												if n.Modified != "" {
@@ -192,9 +191,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 											<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
 											<span>{ statusChipLabel(it.Name, c.Lang) }</span>
 											if it.Unknown {
-												@statusOutsideEnumMark()
+												@statusOutsideEnumMark(c.Lang)
 											}
-											<span class="y-homechip__count" aria-label={ fmt.Sprintf(wording.NoteCount.In(c.Lang), it.Count) }>{ strconv.Itoa(it.Count) }</span>
+											<span class="y-homechip__count" aria-label={ plural(it.Count, wording.NoteCountOne, wording.NoteCountMany, c.Lang) }>{ strconv.Itoa(it.Count) }</span>
 										</a>
 									}
 								</div>
@@ -207,7 +206,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 									for _, p := range v.Paths {
 										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
 											<span class="y-homepath__title">{ p.Title }</span>
-											<span class="y-homepath__progress">{ fmt.Sprintf(wording.LessonCount.In(c.Lang), p.Total) }</span>
+											<span class="y-homepath__progress">{ plural(p.Total, wording.LessonCountOne, wording.LessonCountMany, c.Lang) }</span>
 										</a>
 									}
 								</div>

@@ -42,7 +42,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 		{
 			name: "study path warning",
 			render: func(buf *bytes.Buffer) error {
-				return entryRow(PathEntryView{Text: "Missing", Kind: nav.EntryAmbiguous}).Render(t.Context(), buf)
+				return entryRow(PathEntryView{Text: "Missing", Kind: nav.EntryAmbiguous}, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{`data-resolution="ambiguous"`, `title="目標有歧義"`, ">有歧義</span>"},
 			forbidden: []string{`title="Target is ambiguous"`, ">ambiguous</span>"},
@@ -94,7 +94,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 func TestSlotMachineRestoresChromeLanguage(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := SlotMachine(&lesson.Sidecar{}, "response-nonce").Render(t.Context(), &buf); err != nil {
+	if err := SlotMachine(&lesson.Sidecar{}, "response-nonce", wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render slot machine: %v", err)
 	}
 	if html := buf.String(); !strings.Contains(html, `<section class="y-slotmachine" lang="zh-Hant" aria-label="句型練習">`) {
@@ -110,7 +110,7 @@ func TestSlotMachineDataCarriesTheResponseNonce(t *testing.T) {
 		GlossZH:  "普通句子",
 	}}}
 	var buf bytes.Buffer
-	if err := SlotMachine(view, "response-nonce").Render(t.Context(), &buf); err != nil {
+	if err := SlotMachine(view, "response-nonce", wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render slot machine: %v", err)
 	}
 	if html := buf.String(); !strings.Contains(html, `<script nonce="response-nonce" type="application/json" class="y-slotdata">`) {

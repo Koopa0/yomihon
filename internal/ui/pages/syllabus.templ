@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
@@ -16,15 +17,15 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@syllabusRail(v)
+			@syllabusRail(v, c.Lang)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<div class="y-syl">
-					@syllabusHead(v)
+					@syllabusHead(v, c.Lang)
 					if len(v.Branches) == 0 {
-						@syllabusNoCourse()
+						@syllabusNoCourse(c.Lang)
 					}
 					for _, sec := range v.Branches {
-						@partBlock(sec)
+						@partBlock(sec, c.Lang)
 					}
 				</div>
 			</main>
@@ -36,17 +37,17 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 // modules / entries / ready). No path dek (subtitle) is rendered: there is no
 // backing field for it, and no data means no render — the same treatment the
 // reading page gives a note's subtitle.
-templ syllabusHead(v PathView) {
+templ syllabusHead(v PathView, lang wording.Lang) {
 	<div class="y-syl-kicker">課綱 · <span lang="ja">学習パス</span></div>
 	<h1 class="y-title">{ v.Title }</h1>
 	<div class="y-metarow">
-		<span>{ countLabel(v.Parts, "部") }</span>
+		<span>{ plural(v.Parts, wording.PartCountOne, wording.PartCountMany, lang) }</span>
 		if v.Modules > 0 {
 			<span aria-hidden="true">·</span>
-			<span>{ countLabel(v.Modules, "模組") }</span>
+			<span>{ plural(v.Modules, wording.ModuleCountOne, wording.ModuleCountMany, lang) }</span>
 		}
 		<span aria-hidden="true">·</span>
-		<span>{ countLabel(v.Entries, "課") }</span>
+		<span>{ plural(v.Entries, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
 		<span class="y-syl-metaspacer"></span>
 		if v.Ready > 0 {
 			<span class="y-syl-ready">
@@ -71,14 +72,14 @@ templ syllabusHead(v PathView) {
 // heading, then its entries and modules fully expanded inline. There is no
 // per-part page (yomihon has no reading-progress model), so every part —
 // completed or not — expands the same.
-templ partBlock(sec PathBranchView) {
+templ partBlock(sec PathBranchView, lang wording.Lang) {
 	<section class="y-part-block">
 		<h2 class="y-part" id={ sec.Anchor }>
 			<span class="y-part__num">{ sec.Ordinal }</span>
 			<span class="y-part__name">{ sec.Heading }</span>
-			<span class="y-partcount">{ countLabel(sec.Total, "課") }</span>
+			<span class="y-partcount">{ plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
 		</h2>
-		@branchItems(sec)
+		@branchItems(sec, lang)
 	</section>
 }
 
@@ -86,10 +87,10 @@ templ partBlock(sec PathBranchView) {
 // nesting the vault happens to have — the two real study paths are three levels
 // deep (part → module → entry), and a deeper one keeps the module style rather
 // than being flattened (nav's tree is rendered as-is, never forced to a shape).
-templ moduleBlock(sec PathBranchView) {
+templ moduleBlock(sec PathBranchView, lang wording.Lang) {
 	<div class={ "y-module", templ.KV("y-module--local", sec.Local) }>
-		@moduleHeading(sec)
-		@branchItems(sec)
+		@moduleHeading(sec, lang)
+		@branchItems(sec, lang)
 	</div>
 }
 
@@ -105,21 +106,21 @@ templ moduleBlock(sec PathBranchView) {
 // across the branches it spans while a side branch counts alone — an implied
 // index would restart at every interruption and lie. Rows navigation never
 // walks stay outside any list and carry no ordinal.
-templ branchItems(sec PathBranchView) {
-	for _, run := range sec.Runs() {
+templ branchItems(sec PathBranchView, lang wording.Lang) {
+	for _, run := range sec.Runs(lang) {
 		if run.Branch != nil {
-			@moduleBlock(*run.Branch)
+			@moduleBlock(*run.Branch, lang)
 		} else if run.Ordered {
 			<ol class="y-lessons" aria-label={ run.Label }>
 				for _, entry := range run.Entries {
 					<li value={ strconv.Itoa(entry.Number) }>
-						@entryRow(entry)
+						@entryRow(entry, lang)
 					</li>
 				}
 			</ol>
 		} else {
 			for _, entry := range run.Entries {
-				@entryRow(entry)
+				@entryRow(entry, lang)
 			}
 		}
 	}
@@ -128,41 +129,41 @@ templ branchItems(sec PathBranchView) {
 // moduleHeading preserves the outline represented by nav's recursive branch
 // tree. HTML has only six heading levels, so unusually deep branches remain at
 // h6 rather than falling out of the document outline entirely.
-templ moduleHeading(sec PathBranchView) {
+templ moduleHeading(sec PathBranchView, lang wording.Lang) {
 	switch  {
 		case sec.Depth <= 1:
 			<h3 class="y-module__label">
-				@moduleHeadingContent(sec)
+				@moduleHeadingContent(sec, lang)
 			</h3>
 		case sec.Depth == 2:
 			<h4 class="y-module__label">
-				@moduleHeadingContent(sec)
+				@moduleHeadingContent(sec, lang)
 			</h4>
 		case sec.Depth == 3:
 			<h5 class="y-module__label">
-				@moduleHeadingContent(sec)
+				@moduleHeadingContent(sec, lang)
 			</h5>
 		default:
 			<h6 class="y-module__label">
-				@moduleHeadingContent(sec)
+				@moduleHeadingContent(sec, lang)
 			</h6>
 	}
 }
 
-templ moduleHeadingContent(sec PathBranchView) {
+templ moduleHeadingContent(sec PathBranchView, lang wording.Lang) {
 	if sec.Local {
 		<span class="y-module__tag">支線</span>
 	} else {
 		<span class="y-module__tag">模組 { strconv.Itoa(sec.Num) }</span>
 	}
 	<span class="y-module__name">{ sec.Heading }</span>
-	<span class="y-partcount">{ countLabel(sec.Total, "課") }</span>
+	<span class="y-partcount">{ plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
 	<span class="y-module__rule" aria-hidden="true"></span>
 }
 
 // entryRow links governed unique targets and leaves every warning reason visible
 // and non-interactive in its original sequence position.
-templ entryRow(l PathEntryView) {
+templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
 		<a class="y-lesson" href={ templ.URL(l.Href) }>
 			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
@@ -175,11 +176,11 @@ templ entryRow(l PathEntryView) {
 		<span
 			class="y-lesson y-lesson--broken"
 			data-resolution={ entryResolutionCode(l.Kind) }
-			title={ entryResolutionTitle(l.Kind) }
+			title={ entryResolutionTitle(l.Kind, lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
 			<span class="y-lesson__title">{ l.Text }</span>
-			<span class="y-navmark y-navmark--warn">{ entryResolutionLabel(l.Kind) }</span>
+			<span class="y-navmark y-navmark--warn">{ entryResolutionLabel(l.Kind, lang) }</span>
 		</span>
 	}
 }
@@ -189,7 +190,7 @@ templ entryRow(l PathEntryView) {
 // syllabusRail is the left rail: the path switcher (every study-path, the
 // current one active) over the "On this path" part jump-nav and the path-level
 // progress bar.
-templ syllabusRail(v PathView) {
+templ syllabusRail(v PathView, lang wording.Lang) {
 	<aside class="y-rail-left" id="nav-rail" aria-label="學習路徑導覽">
 		<div class="ui-side__label y-syl-raillabel">學習路徑</div>
 		for _, p := range v.Paths {
@@ -201,7 +202,7 @@ templ syllabusRail(v PathView) {
 				<a class="ui-navitem y-pathitem" href={ templ.URL("#" + sec.Anchor) }>
 					<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
 					<span class="y-pathitem__name">{ sec.Heading }</span>
-					<span class="y-pathcount">{ countLabel(sec.Total, "課") }</span>
+					<span class="y-pathcount">{ plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
 				</a>
 			}
 		}
@@ -239,7 +240,7 @@ templ pathIcon() {
 // It states where structure comes from and stops there. Naming which of this
 // note's headings a marker belongs on would be yomihon deciding what the
 // author meant; the file is the author's to edit.
-templ syllabusNoCourse() {
+templ syllabusNoCourse(lang wording.Lang) {
 	<p class="y-syl-nocourse">
 		這條路徑沒有讀到任何課程結構。分部與課次是由標題後面的
 		<code>{ "{sequence=…}" }</code>

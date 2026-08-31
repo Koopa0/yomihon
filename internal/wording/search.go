@@ -13,7 +13,8 @@ var (
 // everything it found, which is a different claim from one that was cut short.
 var (
 	ResultCountShownFmt = both("共 %d 筆，顯示前 %d 筆", "%d results; showing the first %d")
-	ResultCountFmt      = both("共 %d 筆", "%d results")
+	ResultCountOne      = both("共 %d 筆", "%d result")
+	ResultCountMany     = both("共 %d 筆", "%d results")
 )
 
 // What the results say about their own limits.
