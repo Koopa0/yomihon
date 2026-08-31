@@ -13,8 +13,9 @@ Markdown、讓連結與脈絡留在手邊、在需要時沿著學習結構前進
 
 [![yomihon 以繁體中文介面閱讀範例知識庫的一篇筆記：左側是導覽欄與學習路徑，中間是文章，右側是狀態與它唯一能走的轉換、本頁章節，以及連到這篇的筆記](.github/media/reading-zh-TW.png)](.github/media/reading-zh-TW.png)
 
-*瀏覽器介面刻意使用繁體中文；每篇筆記仍保留作者使用的語言。此畫面來自合成的
-示範知識庫。*
+*介面跟著你選的語言走——這一張是繁體中文，也是預設。你的筆記不會被翻譯：
+每一篇都保留作者書寫時使用的語言。畫面來自這個 repository 隨附的範例知識庫，
+可用 `make screenshots` 重新產生。*
 
 > [!WARNING]
 > yomihon 仍在積極開發中；第一個穩定版本推出前，產品與介面仍可能有明顯變動。
@@ -35,7 +36,7 @@ Markdown、讓連結與脈絡留在手邊、在需要時沿著學習結構前進
 
 ## 開始閱讀
 
-你需要 Git 與 Go 1.26.6 以上版本。從原始碼安裝：
+你需要 Git 與 Go 1.27.0 以上版本。從原始碼安裝：
 
 ```sh
 git clone https://github.com/Koopa0/yomihon.git
@@ -62,10 +63,10 @@ yomihon 有兩個環境變數：`YOMIHON_PORT` 指定本機埠號（預設 `9610
 
 [`examples/vault`](examples/vault) 是一個現在就能讀的完整小型知識庫——
 `yomihon examples/vault`——帶著契約、一條學習路徑、一張地圖、兩課，以及一條
-刻意沒寫的連結,好讓你看見診斷長什麼樣子。要複製的就是它的
+刻意沒寫的連結，好讓你看見診斷長什麼樣子。要複製的就是它的
 [契約](examples/vault/System/schemas/vault-schema.toml)。每次執行都有測試掃描
-這個知識庫,所以這個範例不會默默失效:它正是「已經有可用知識庫的人再也不會打開」
-的那種檔案。
+這個知識庫，所以這個範例不會默默失效：它正是「已經有可用知識庫的人再也不會
+打開」的那種檔案。
 
 [`AUTHORING.md`](AUTHORING.md) 記錄的是 yomihon 漸進採用的 Study Path
 本文語法；Map 與 Report 仍保有各自的文件角色。

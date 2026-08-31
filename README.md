@@ -14,8 +14,10 @@ your knowledge into another database.
 
 [![yomihon reading a note from the example vault with its interface in English: the navigation rail and study path on the left, the article in the centre, and on the right its status with the one transition it can take, the sections of the page, and what cites it](.github/media/reading-en.png)](.github/media/reading-en.png)
 
-*The browser chrome is intentionally in Traditional Chinese; each note keeps
-its authored language. This screenshot uses a synthetic demonstration vault.*
+*The interface follows the language you choose — English here, Traditional
+Chinese by default. Your notes are not translated: each keeps the language its
+author wrote it in. The screenshot is the example vault this repository ships,
+retaken with `make screenshots`.*
 
 > [!WARNING]
 > yomihon is under active development. Expect meaningful product and interface
@@ -42,7 +44,7 @@ its authored language. This screenshot uses a synthetic demonstration vault.*
 
 ## Start reading
 
-You need Git and Go 1.26.6 or newer. Install from source:
+You need Git and Go 1.27.0 or newer. Install from source:
 
 ```sh
 git clone https://github.com/Koopa0/yomihon.git
