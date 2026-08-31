@@ -68,9 +68,15 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := strings.TrimSpace(r.PostFormValue("path"))
-	from := strings.TrimSpace(r.PostFormValue("from"))
-	to := strings.TrimSpace(r.PostFormValue("to"))
+	// The path is the note's name, and the two statuses are values the
+	// contract spells, so all three are read exactly as the form sent them.
+	// Tidying the ends of the path used to make a note named with a space
+	// resolve to its neighbour, and since the neighbour can hold the same
+	// bytes, the content the form bound itself to matched and the wrong
+	// file was rewritten under a reported success.
+	path := r.PostFormValue("path")
+	from := r.PostFormValue("from")
+	to := r.PostFormValue("to")
 	if path == "" || from == "" || to == "" {
 		h.respondRecovery(w, r, path, from, to, &recovery{
 			code:       http.StatusUnprocessableEntity,
@@ -374,10 +380,12 @@ func writeRecovery(
 // decodeContentIdentity reads the form's hex-encoded content identity. The
 // field is required — a caller must state which version of the note its
 // ruling was read against — so an absent, blank, or malformed value reports
-// false rather than standing in for any real identity.
+// false rather than standing in for any real identity. The page writes the
+// field itself, so the value is read as submitted; room around the digits is
+// something no render produces and nothing here needs to accept.
 func decodeContentIdentity(field string) ([sha256.Size]byte, bool) {
 	var identity [sha256.Size]byte
-	decoded, err := hex.DecodeString(strings.TrimSpace(field))
+	decoded, err := hex.DecodeString(field)
 	if err != nil || len(decoded) != sha256.Size {
 		return identity, false
 	}

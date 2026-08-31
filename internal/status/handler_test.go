@@ -105,7 +105,6 @@ func TestHandlerMissingFields(t *testing.T) {
 		{"missing path", url.Values{"from": {"draft"}, "to": {schema.SealStatus}}},
 		{"missing from", url.Values{"path": {"a.md"}, "to": {schema.SealStatus}}},
 		{"missing to", url.Values{"path": {"a.md"}, "from": {"draft"}}},
-		{"blank path", url.Values{"path": {"  "}, "from": {"draft"}, "to": {schema.SealStatus}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
