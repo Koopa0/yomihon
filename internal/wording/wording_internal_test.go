@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -66,39 +66,48 @@ func TestNoPhraseIsHalfWritten(t *testing.T) {
 func writtenPhrases(t *testing.T) []pair {
 	t.Helper()
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, ".", func(fi fs.FileInfo) bool {
-		return !strings.HasSuffix(fi.Name(), "_test.go")
-	}, 0)
+	entries, err := os.ReadDir(".")
 	if err != nil {
-		t.Fatalf("parse the wording package: %v", err)
+		t.Fatalf("read the wording package's own directory: %v", err)
 	}
 	var out []pair
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
-			ast.Inspect(file, func(n ast.Node) bool {
-				spec, ok := n.(*ast.ValueSpec)
-				if !ok {
-					return true
-				}
-				for i, value := range spec.Values {
-					call, ok := value.(*ast.CallExpr)
-					if !ok {
-						continue
-					}
-					if fn, ok := call.Fun.(*ast.Ident); !ok || fn.Name != "both" || len(call.Args) != 2 {
-						continue
-					}
-					zh, zhOK := literal(call.Args[0])
-					en, enOK := literal(call.Args[1])
-					if !zhOK || !enOK {
-						t.Errorf("%s is built from something other than two written strings, which this check cannot read", spec.Names[i].Name)
-						continue
-					}
-					out = append(out, pair{name: spec.Names[i].Name, zhHant: zh, en: en})
-				}
-				return true
-			})
+	read := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
 		}
+		file, parseErr := parser.ParseFile(fset, name, nil, 0)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", name, parseErr)
+		}
+		read++
+		ast.Inspect(file, func(n ast.Node) bool {
+			spec, ok := n.(*ast.ValueSpec)
+			if !ok {
+				return true
+			}
+			for i, value := range spec.Values {
+				call, ok := value.(*ast.CallExpr)
+				if !ok {
+					continue
+				}
+				if fn, ok := call.Fun.(*ast.Ident); !ok || fn.Name != "both" || len(call.Args) != 2 {
+					continue
+				}
+				zh, zhOK := literal(call.Args[0])
+				en, enOK := literal(call.Args[1])
+				if !zhOK || !enOK {
+					t.Errorf("%s is built from something other than two written strings, which this check cannot read", spec.Names[i].Name)
+					continue
+				}
+				out = append(out, pair{name: spec.Names[i].Name, zhHant: zh, en: en})
+			}
+			return true
+		})
+	}
+	if read < 2 {
+		t.Fatalf("only %d source files were read, so this walked almost nothing", read)
 	}
 	if len(out) < 100 {
 		t.Fatalf("only %d phrases were found in this package's source; the reader below cannot have walked it", len(out))
