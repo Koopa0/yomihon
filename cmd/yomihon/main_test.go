@@ -50,7 +50,6 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 	home := t.TempDir()
 	env := append(isolatedUserEnv(home),
 		"YOMIHON_PORT=not-a-port",
-		"YOMIHON_EMBED_KEY=help-must-not-touch-this-key",
 	)
 
 	top := "Usage:\n" +
@@ -149,11 +148,9 @@ func TestAgentInterfaceDocumentCoversTheMachineSurface(t *testing.T) {
 		"yomihon coverage",
 		"yomihon exists",
 		"System/schemas/vault-schema.toml",
-		"privacy-capability-unavailable",
 		"`--format json`",
 		"`--json`",
 		"fingerprint",
-		"rel_path",
 		"## Exit codes",
 	} {
 		if !strings.Contains(text, anchor) {
@@ -452,12 +449,10 @@ func drive(t *testing.T, url string) {
 }
 
 // allowedEnvKeys are the two variables this command may interpret as
-// configuration: the listening port, and the embedding credential read lazily
-// by an explicit semantic CLI action. Which folder to read is not among them —
-// it is where you are standing, or what you name on the line.
+// configuration: the listening port, and nothing else. Which folder to read is
+// not among them — it is where you are standing, or what you name on the line.
 var allowedEnvKeys = map[string]bool{
-	"YOMIHON_PORT":      true,
-	"YOMIHON_EMBED_KEY": true,
+	"YOMIHON_PORT": true,
 }
 
 // envReaders names every way the two packages that expose one can read the
@@ -773,7 +768,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 		for _, o := range offenders {
 			lines = append(lines, fmt.Sprintf("%s: %s", o.Pos, o.Why))
 		}
-		t.Errorf("this command may configure only YOMIHON_PORT and YOMIHON_EMBED_KEY, but found:\n%s",
+		t.Errorf("this command may configure only YOMIHON_PORT, but found:\n%s",
 			strings.Join(lines, "\n"))
 	}
 }
@@ -832,7 +827,6 @@ var envFixtures = []struct {
 import "os"
 func f() (string, bool) {
 	v, ok := os.LookupEnv("YOMIHON_PORT")
-	_ = os.Getenv("YOMIHON_EMBED_KEY")
 	return v, ok
 }`,
 		want: nil,

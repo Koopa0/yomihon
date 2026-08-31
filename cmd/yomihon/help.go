@@ -87,8 +87,6 @@ func helpTopic(args []string) (string, bool) {
 		return rootHelpTopic(args[0])
 	case 2:
 		return commandHelpTopic(args[0], args[1])
-	case 3:
-		return searchIndexHelpTopic(args[0], args[1], args[2])
 	default:
 		return "", false
 	}
@@ -112,16 +110,6 @@ func commandHelpTopic(first, second string) (string, bool) {
 	}
 	_, known := commandHelp[first]
 	return first, known
-}
-
-func searchIndexHelpTopic(first, second, third string) (string, bool) {
-	if first == "help" && second == "search-index" && third == "build" {
-		return "search-index", true
-	}
-	if first == "search-index" && second == "build" && isHelpFlag(third) {
-		return "search-index", true
-	}
-	return "", false
 }
 
 func isHelpFlag(arg string) bool {
