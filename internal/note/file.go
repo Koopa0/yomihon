@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // sniffBytes is how much of a file's opening the raw endpoint reads to decide
@@ -87,6 +88,7 @@ func servable(rel string) bool {
 // No status face, no ready accent, no diagnostics: a source file is not a
 // note, and the write face has no opinion about it.
 func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
+	lang := pages.LanguageFromRequest(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path)
@@ -122,7 +124,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		view.Kind = pages.FileInfo
 		head, readErr := h.deps.Source.ReadPrefix(r.Context(), entry, sniffBytes)
 		if readErr != nil {
-			h.respondFileReadError(w, rel, "read vault file prefix", readErr)
+			h.respondFileReadError(w, rel, "read vault file prefix", readErr, lang)
 			return
 		}
 		view.ContentType = fileContentType(rel, head)
@@ -131,7 +133,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		// text decision runs on all of it rather than a window.
 		data, readErr := h.deps.Source.ReadFile(r.Context(), entry)
 		if readErr != nil {
-			h.respondFileReadError(w, rel, "read vault file", readErr)
+			h.respondFileReadError(w, rel, "read vault file", readErr, lang)
 			return
 		}
 		view.ContentType = fileContentType(rel, data)
@@ -162,26 +164,27 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 // or HTML document meets. Without it, opening one top-level would give it read
 // of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
+	lang := pages.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
-		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 	snap := h.deps.Snapshot().Capture()
 	entry, ok := snap.Entry(rel)
 	if !ok {
-		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 	entry, err := h.deps.Source.Refresh(entry)
 	if err != nil {
 		h.deps.Log.Warn("refresh vault file", "path", rel, "error", err)
-		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 	file, err := h.deps.Source.OpenFile(r.Context(), entry)
 	if err != nil {
-		h.respondFileReadError(w, rel, "open vault file", err)
+		h.respondFileReadError(w, rel, "open vault file", err, lang)
 		return
 	}
 	defer func() {
@@ -190,7 +193,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	if err := serveRaw(w, r, rel, entry.ModTime(), file); err != nil {
-		h.respondFileReadError(w, rel, "prepare raw vault file", err)
+		h.respondFileReadError(w, rel, "prepare raw vault file", err, lang)
 	}
 }
 
@@ -223,14 +226,14 @@ func serveRaw(
 	return nil
 }
 
-func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation string, err error) {
+func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation string, err error, lang wording.Lang) {
 	if errors.Is(err, vault.ErrSourceChanged) {
 		h.deps.Log.Warn(operation, "path", rel, "error", err)
-		http.Error(w, "找不到指定的檔案", http.StatusNotFound)
+		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 	h.deps.Log.Error(operation, "path", rel, "error", err)
-	http.Error(w, "無法讀取檔案", http.StatusInternalServerError)
+	http.Error(w, wording.FileUnreadable.In(lang), http.StatusInternalServerError)
 }
 
 // rawContentSecurityPolicy chooses how strongly a raw response is sandboxed.

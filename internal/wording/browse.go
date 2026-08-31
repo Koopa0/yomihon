@@ -64,3 +64,10 @@ var (
 	ModuleCountOne  = both("%d 模組", "%d module")
 	ModuleCountMany = both("%d 模組", "%d modules")
 )
+
+// What the raw-bytes route says when it cannot answer. These reach a reader as
+// a plain-text body rather than a page, so they are one line each.
+var (
+	FileNotFound   = both("找不到指定的檔案", "That file was not found")
+	FileUnreadable = both("無法讀取檔案", "That file could not be read")
+)

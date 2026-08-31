@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -147,9 +148,10 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 		Unreadable: unreadable,
 		Sidebar:    pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
 	}
-	title := "找不到"
+	lang := pages.LanguageFromRequest(r)
+	title := wording.NotFoundKicker.In(lang)
 	if unreadable {
-		title = "讀不進來"
+		title = wording.NotReadableKicker.In(lang)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
@@ -209,7 +211,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		LastComplete:      lastCompleteBuild(&fresh),
 		Sidebar:           pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
 	}
-	if err := pages.Health(view, pages.ChromeFromRequest(r, "整體狀況")).Render(r.Context(), w); err != nil {
+	if err := pages.Health(view, pages.ChromeFromRequest(r, wording.HealthTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
 	}
 }
@@ -376,7 +378,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.HomeView{
 		Governed: pageShell.Governed,
-		Subtitle: content.subtitle(),
+		Subtitle: content.subtitle(pages.LanguageFromRequest(r)),
 		StandIn:  homeStandIn(snap, content),
 		// The reason a block is missing, stated where the reader is looking. One
 		// cause reaches several blocks — a contract that cannot be read closes
@@ -396,7 +398,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 			visibleNav.NavigationDiagnostic(),
 			visibleNav.ArtifactDiagnostic(),
 		),
-		Degraded:       degradedNotice(&fresh),
+		Degraded:       degradedNotice(&fresh, pages.LanguageFromRequest(r)),
 		DegradedDetail: blockedDetail(fresh.Blocked),
 		Recent:         recent,
 		RecentOrdered:  recentOrdered,
@@ -408,7 +410,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		ReadmeMissing:  !hasReadme,
 		Sidebar:        pages.NewSidebar(visibleNav, "", pages.LanguageFromRequest(r)),
 	}
-	if err := pages.Home(view, pages.ChromeFromRequest(r, "首頁")).Render(r.Context(), w); err != nil {
+	if err := pages.Home(view, pages.ChromeFromRequest(r, wording.HomeTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
 	}
 }
@@ -807,26 +809,26 @@ type homeContent struct {
 // subtitle names the blocks that are on the page, and nothing else. The three
 // together produce the sentence this page has always carried; fewer of them
 // produce a shorter true one, and none produces silence.
-func (c homeContent) subtitle() string {
+func (c homeContent) subtitle(lang wording.Lang) string {
 	parts := make([]string, 0, 3)
 	if c.recent {
-		parts = append(parts, "最近變更")
+		parts = append(parts, wording.HomeSubtitleRecent.In(lang))
 	}
 	if c.lifecycle {
-		parts = append(parts, "狀態分布")
+		parts = append(parts, wording.HomeSubtitleLifecycle.In(lang))
 	}
 	if c.paths {
-		parts = append(parts, "接下來的學習路徑")
+		parts = append(parts, wording.HomeSubtitlePaths.In(lang))
 	}
 	switch len(parts) {
 	case 0:
 		return ""
 	case 1:
-		return "查看" + parts[0] + "。"
+		return fmt.Sprintf(wording.HomeSubtitleOneFmt.In(lang), parts[0])
 	case 2:
-		return "查看" + parts[0] + "與" + parts[1] + "。"
+		return fmt.Sprintf(wording.HomeSubtitleTwoFmt.In(lang), parts[0], parts[1])
 	default:
-		return "查看" + parts[0] + "、" + parts[1] + "，以及" + parts[2] + "。"
+		return fmt.Sprintf(wording.HomeSubtitleThreeFmt.In(lang), parts[0], parts[1], parts[2])
 	}
 }
 
@@ -866,11 +868,15 @@ func homeStandIn(snap *snapshot.View, content homeContent) pages.HomeStandIn {
 // the page could not read everything, so the content may be incomplete or held
 // at an older generation. Empty when the snapshot is whole and current, which
 // is the ordinary case and renders nothing.
-func degradedNotice(fresh *snapshot.Freshness) string {
-	if len(fresh.Blocked) == 0 {
+func degradedNotice(fresh *snapshot.Freshness, lang wording.Lang) string {
+	n := len(fresh.Blocked)
+	if n == 0 {
 		return ""
 	}
-	return "有 " + strconv.Itoa(len(fresh.Blocked)) + " 個檔案讀不進來，頁面內容可能不完整，或停在較舊的版本。詳細狀況見整體狀況頁。"
+	if n == 1 {
+		return fmt.Sprintf(wording.DegradedNoticeOne.In(lang), n)
+	}
+	return fmt.Sprintf(wording.DegradedNoticeMany.In(lang), n)
 }
 
 // blockedDetail joins the blocked paths and their errors into the technical

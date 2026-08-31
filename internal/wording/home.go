@@ -63,3 +63,29 @@ var SearchSubmit = both("搜尋", "Search")
 // any other; the words say what the file is missing, which a blank chip would
 // leave the reader to guess.
 var NoStatusStated = both("未標示狀態", "No status stated")
+
+// The line under Home's title names the blocks that are actually on the page.
+// The joiners differ between the two languages in more than the words — the
+// list separator and the final conjunction are both different marks — so the
+// three shapes are written out rather than assembled from one comma.
+var (
+	HomeSubtitleRecent    = both("最近變更", "recent changes")
+	HomeSubtitleLifecycle = both("狀態分布", "the status distribution")
+	HomeSubtitlePaths     = both("接下來的學習路徑", "the study paths ahead")
+	HomeSubtitleOneFmt    = both("查看%s。", "See %s.")
+	HomeSubtitleTwoFmt    = both("查看%s與%s。", "See %s and %s.")
+	HomeSubtitleThreeFmt  = both("查看%s、%s，以及%s。", "See %s, %s and %s.")
+)
+
+// DegradedNotice says how much of the page may be missing or stale, and where
+// the detail is. It carries the count, so it is a pair like the other tallies.
+var (
+	DegradedNoticeOne = both(
+		"有 %d 個檔案讀不進來，頁面內容可能不完整，或停在較舊的版本。詳細狀況見整體狀況頁。",
+		"%d file could not be read, so pages may be incomplete or stopped at an older version. The health page has the detail.",
+	)
+	DegradedNoticeMany = both(
+		"有 %d 個檔案讀不進來，頁面內容可能不完整，或停在較舊的版本。詳細狀況見整體狀況頁。",
+		"%d files could not be read, so pages may be incomplete or stopped at an older version. The health page has the detail.",
+	)
+)
