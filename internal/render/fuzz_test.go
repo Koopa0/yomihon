@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 type fuzzTransclusions map[string]string
@@ -43,19 +44,19 @@ func FuzzHTML(f *testing.F) {
 			return
 		}
 
-		first := renderer.HTML("note.md", "", body)
-		second := renderer.HTML("note.md", "", body)
+		first := renderer.HTML("note.md", "", body, wording.ZhHant)
+		second := renderer.HTML("note.md", "", body, wording.ZhHant)
 		if diff := cmp.Diff(first, second); diff != "" {
-			t.Fatalf("Pipeline.HTML() is not deterministic (-first +second):\n%s", diff)
+			t.Fatalf("Pipeline.HTML(, wording.ZhHant) is not deterministic (-first +second):\n%s", diff)
 		}
 
 		const fixedOverhead = 4 << 10
 		const maxExpansion = 256
 		if size := resultBytes(&first); size > fixedOverhead+maxExpansion*len(body) {
-			t.Fatalf("Pipeline.HTML() output uses %d bytes for %d input bytes", size, len(body))
+			t.Fatalf("Pipeline.HTML(, wording.ZhHant) output uses %d bytes for %d input bytes", size, len(body))
 		}
 		if len(first.TOC) > len(body)+1 {
-			t.Fatalf("Pipeline.HTML() produced %d TOC entries from %d input bytes", len(first.TOC), len(body))
+			t.Fatalf("Pipeline.HTML(, wording.ZhHant) produced %d TOC entries from %d input bytes", len(first.TOC), len(body))
 		}
 	})
 }

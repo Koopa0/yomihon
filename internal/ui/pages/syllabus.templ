@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 
@@ -38,7 +39,7 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 // backing field for it, and no data means no render — the same treatment the
 // reading page gives a note's subtitle.
 templ syllabusHead(v PathView, lang wording.Lang) {
-	<div class="y-syl-kicker">課綱 · <span lang="ja">学習パス</span></div>
+	<div class="y-syl-kicker">{ wording.SyllabusKicker.In(lang) }<span lang="ja">学習パス</span></div>
 	<h1 class="y-title">{ v.Title }</h1>
 	<div class="y-metarow">
 		<span>{ plural(v.Parts, wording.PartCountOne, wording.PartCountMany, lang) }</span>
@@ -59,10 +60,10 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 	<div class="y-seam" aria-hidden="true"></div>
 	<div class="y-syl-guide">
 		<div>
-			<strong>第一次使用這條路徑？</strong>
-			<p>先讀課程目的、每日節奏、支線分工與完成標準，再開始第一課。</p>
+			<strong>{ wording.FirstTimeHere.In(lang) }</strong>
+			<p>{ wording.FirstTimeLede.In(lang) }</p>
 		</div>
-		<a href={ templ.URL(v.GuideHref) }>閱讀完整使用方式 <span aria-hidden="true">→</span></a>
+		<a href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
 	</div>
 }
 
@@ -152,9 +153,9 @@ templ moduleHeading(sec PathBranchView, lang wording.Lang) {
 
 templ moduleHeadingContent(sec PathBranchView, lang wording.Lang) {
 	if sec.Local {
-		<span class="y-module__tag">支線</span>
+		<span class="y-module__tag">{ wording.BranchTag.In(lang) }</span>
 	} else {
-		<span class="y-module__tag">模組 { strconv.Itoa(sec.Num) }</span>
+		<span class="y-module__tag">{ fmt.Sprintf(wording.ModuleTagFmt.In(lang), sec.Num) }</span>
 	}
 	<span class="y-module__name">{ sec.Heading }</span>
 	<span class="y-partcount">{ plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
@@ -191,13 +192,13 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 // current one active) over the "On this path" part jump-nav and the path-level
 // progress bar.
 templ syllabusRail(v PathView, lang wording.Lang) {
-	<aside class="y-rail-left" id="nav-rail" aria-label="學習路徑導覽">
-		<div class="ui-side__label y-syl-raillabel">學習路徑</div>
+	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.StudyPathNav.In(lang) }>
+		<div class="ui-side__label y-syl-raillabel">{ wording.StudyPaths.In(lang) }</div>
 		for _, p := range v.Paths {
 			@pathSwitch(p)
 		}
 		if len(v.Branches) > 0 {
-			<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">本路徑</div>
+			<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisPath.In(lang) }</div>
 			for _, sec := range v.Branches {
 				<a class="ui-navitem y-pathitem" href={ templ.URL("#" + sec.Anchor) }>
 					<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
@@ -242,8 +243,8 @@ templ pathIcon() {
 // author meant; the file is the author's to edit.
 templ syllabusNoCourse(lang wording.Lang) {
 	<p class="y-syl-nocourse">
-		這條路徑沒有讀到任何課程結構。分部與課次是由標題後面的
+		{ wording.NoStructureBefore.In(lang) }
 		<code>{ "{sequence=…}" }</code>
-		標記宣告的，沒有標記的標題不會被讀成分部，底下的連結也不會被讀成課。yomihon 只陳述，不修復；請直接編輯這篇筆記。
+		{ wording.NoStructureAfter.In(lang) }
 	</p>
 }

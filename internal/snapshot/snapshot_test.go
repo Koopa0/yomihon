@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
@@ -481,7 +482,7 @@ func TestViewBindsResolutionAndTransclusionsToOneGeneration(t *testing.T) {
 	if !ok {
 		t.Fatal("Host.md is absent from the initial generation")
 	}
-	if got := oldView.Render("Host.md", host.Body).HTML; !strings.Contains(got, "old generation body") {
+	if got := oldView.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "old generation body") {
 		t.Fatalf("initial render = %q, want captured target body", got)
 	}
 
@@ -491,10 +492,10 @@ func TestViewBindsResolutionAndTransclusionsToOneGeneration(t *testing.T) {
 	if newView == oldView {
 		t.Fatal("changed target did not publish a new generation")
 	}
-	if got := newView.Render("Host.md", host.Body).HTML; !strings.Contains(got, "replacement generation body") {
+	if got := newView.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "replacement generation body") {
 		t.Errorf("new generation render = %q, want replacement target body", got)
 	}
-	if got := oldView.Render("Host.md", host.Body).HTML; !strings.Contains(got, "old generation body") || strings.Contains(got, "replacement generation body") {
+	if got := oldView.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "old generation body") || strings.Contains(got, "replacement generation body") {
 		t.Errorf("old generation render changed after publication: %q", got)
 	}
 }
@@ -783,7 +784,7 @@ func TestBuildViewStillResolvesWikilinksToFiles(t *testing.T) {
 	if !ok {
 		t.Fatal("the linking note is absent from the generation")
 	}
-	result := store.Current().Render("Concepts/Note.md", note.Body)
+	result := store.Current().Render("Concepts/Note.md", note.Body, wording.ZhHant)
 	if !strings.Contains(result.HTML, "/notes/Diagrams/drawing.svg") {
 		t.Errorf("a wikilink to a file no longer resolves; html = %q", result.HTML)
 	}

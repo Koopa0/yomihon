@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // plainVaultView builds one generation over root — an ungoverned folder, which
@@ -92,7 +93,7 @@ This cites [[Byzantine Broadcast]], which no note has said it will write.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rendered := snap.Render(tt.relPath, tt.body)
+			rendered := snap.Render(tt.relPath, tt.body, wording.ZhHant)
 			// The render pass must have seen every link as unresolved, or the
 			// filter below would be reported as working while never running.
 			if len(brokenTargets(rendered.Diagnostics)) == 0 {

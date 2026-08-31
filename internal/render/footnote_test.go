@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // hrefValue reads every href attribute the renderer emitted, so a test can
@@ -45,7 +46,7 @@ func TestFootnoteSemanticContract(t *testing.T) {
 	r := newRenderer(t, nil, nil, nil)
 
 	body := "研究結論受範圍限制[^scope]，第二次引用[^scope]。\n\n[^scope]: 僅涵蓋本次研究範圍。\n"
-	got := r.HTML("Notes/研究.md", "", body)
+	got := r.HTML("Notes/研究.md", "", body, wording.ZhHant)
 
 	// Every anchor on the page is a same-page jump. A footnote never
 	// navigates, so an href that is not a fragment is the fabricated link.
@@ -140,7 +141,7 @@ func TestComposedFootnoteIDsAreUnique(t *testing.T) {
 		"",
 		"[^h]: The host's own note.",
 	}, "\n")
-	got := r.HTML("Notes/host.md", "", body).HTML
+	got := r.HTML("Notes/host.md", "", body, wording.ZhHant).HTML
 
 	// The page has to be the composed one this test claims to describe: six
 	// definitions from six separately rendered regions, seven citations of
@@ -214,10 +215,10 @@ func TestSeparatelyRenderedBodiesKeepDistinctFootnoteIDs(t *testing.T) {
 		"[^b]: The body's own note.",
 	}, "\n")
 
-	page := r.HTML("Writing/lesson.md", "", body)
+	page := r.HTML("Writing/lesson.md", "", body, wording.ZhHant)
 	sheets := []string{
-		r.HTMLIn("c1-", "Concepts/one.md", "", body).HTML,
-		r.HTMLIn("c2-", "Concepts/two.md", "", body).HTML,
+		r.HTMLIn("c1-", "Concepts/one.md", "", body, wording.ZhHant).HTML,
+		r.HTMLIn("c2-", "Concepts/two.md", "", body, wording.ZhHant).HTML,
 	}
 
 	seen := map[string]string{}
@@ -262,7 +263,7 @@ func TestComposedFootnoteIDsAreDeterministic(t *testing.T) {
 	})
 	body := "Host[^h].\n\n![[Embedded]]\n\n![[Embedded]]\n\n[^h]: Host note.\n"
 
-	want := r.HTML("Notes/host.md", "", body).HTML
+	want := r.HTML("Notes/host.md", "", body, wording.ZhHant).HTML
 	if !strings.Contains(want, "y1-fn:1") || !strings.Contains(want, "y2-fn:1") {
 		t.Fatalf("the fixture did not produce two distinct regions, so repeating it proves nothing:\n%s", want)
 	}
@@ -270,7 +271,7 @@ func TestComposedFootnoteIDsAreDeterministic(t *testing.T) {
 	var wg sync.WaitGroup
 	got := make([]string, 32)
 	for i := range got {
-		wg.Go(func() { got[i] = r.HTML("Notes/host.md", "", body).HTML })
+		wg.Go(func() { got[i] = r.HTML("Notes/host.md", "", body, wording.ZhHant).HTML })
 	}
 	wg.Wait()
 	for i, out := range got {
@@ -318,7 +319,7 @@ func TestFootnoteWithoutDefinitionStaysLiteral(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
 
-	got := r.HTML("Notes/研究.md", "", "未定義的註腳[^missing]。\n")
+	got := r.HTML("Notes/研究.md", "", "未定義的註腳[^missing]。\n", wording.ZhHant)
 
 	if !strings.Contains(got.HTML, "[^missing]") {
 		t.Errorf("an undefined footnote reference must stay readable as written:\n%s", got.HTML)

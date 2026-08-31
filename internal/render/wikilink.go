@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // unwrittenTarget renders a link whose target does not exist yet. The styling
@@ -30,14 +31,14 @@ import (
 // mark can never be linked whole, and without this sentence the reader is
 // told a shorter name than the one they typed failed, with nothing saying
 // where the rest of it went.
-func unwrittenTarget(target, display, heading string) string {
-	reason := fmt.Sprintf("還沒有「%s」這篇筆記", target)
+func unwrittenTarget(target, display, heading string, lang wording.Lang) string {
+	reason := fmt.Sprintf(wording.UnwrittenTargetFmt.In(lang), target)
 	if heading != "" {
-		reason += fmt.Sprintf("；「#」之後的「%s」被讀成章節名稱", heading)
+		reason += fmt.Sprintf(wording.UnwrittenHeadingFmt.In(lang), heading)
 	}
 	escaped := html.EscapeString(reason)
 	return `<span class="wikilink-broken" title="` + escaped + `">` +
-		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">（` + escaped + `）</span></span>`
+		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">` + html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
 }
 
 // offscreenNoteClass names the element the explanation above is carried out of
@@ -68,14 +69,14 @@ const (
 // sentence for whoever is listening. The panel beside the article states the
 // same fact about the same link, but a reader who finds it there has already
 // followed the link and arrived somewhere they did not mean to be.
-func degradedLink(href string, link graph.Wikilink, miss fragmentMiss) string {
-	reason := "找不到這個區塊，連結已改為指向整篇筆記"
+func degradedLink(href string, link graph.Wikilink, miss fragmentMiss, lang wording.Lang) string {
+	reason := wording.BlockNotFound.In(lang)
 	if miss == fragmentSectionMissing {
-		reason = fmt.Sprintf("找不到「%s」這個小節，連結會落在筆記最上方", link.Heading)
+		reason = fmt.Sprintf(wording.SectionNotFoundFmt.In(lang), link.Heading)
 	}
 	escaped := html.EscapeString(reason)
 	return `<a href="` + href + `" class="wikilink wikilink-degraded" title="` + escaped + `">` +
-		html.EscapeString(link.Display) + `<span class="` + offscreenNoteClass + `">（` + escaped + `）</span></a>`
+		html.EscapeString(link.Display) + `<span class="` + offscreenNoteClass + `">` + html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></a>`
 }
 
 // blockPlaceholder is the reserved marker substituted into markdown source for
@@ -547,7 +548,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	case graph.Unique:
 		href, miss := r.sectionHref(res.RelPath, link, col)
 		if miss != fragmentPlaced {
-			return degradedLink(href, link, miss)
+			return degradedLink(href, link, miss, col.page.lang)
 		}
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref returns an attribute-safe string, path and fragment both percent-escaped
 		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, href, html.EscapeString(link.Display))
@@ -564,7 +565,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 			Kind: DiagWikilinkBroken, Target: link.Target, Section: link.Heading,
 			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", link.Target),
 		})
-		return unwrittenTarget(link.Target, link.Display, link.Heading)
+		return unwrittenTarget(link.Target, link.Display, link.Heading, col.page.lang)
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -599,7 +600,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 			Kind: DiagWikilinkBroken, Target: target, Section: link.Heading,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
-		return unwrittenTarget(target, "![["+target+"]]", link.Heading)
+		return unwrittenTarget(target, "![["+target+"]]", link.Heading, col.page.lang)
 	case graph.Ambiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: target,
@@ -625,7 +626,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 				Kind: DiagWikilinkBroken, Target: target,
 				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.RelPath),
 			})
-			return fmt.Sprintf(`<span class="wikilink-broken" title="這篇筆記存在，但這次讀取時拿不到它的內容">![[%s]]</span>`,
+			return fmt.Sprintf(`<span class="wikilink-broken" title="`+html.EscapeString(wording.EmbedUnreadable.In(col.page.lang))+`">![[%s]]</span>`,
 				html.EscapeString(target))
 		}
 		body, unmatched := embedScope(link, res.RelPath, body, col)
@@ -635,7 +636,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 		// note it came from, which is rarely the note being read, so it is
 		// resolved here — where that note's own path is still known —
 		// rather than later against the host's directory.
-		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched) + resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
+		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched, col.page.lang) + resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -990,11 +991,11 @@ func embedClass(unmatched string) string {
 // rail: narrow viewports collapse it and the widest ones put it beside the
 // article rather than in it. The words the author scoped out are on the page
 // either way, so the account of why has to be on the page too.
-func widenedNotice(unmatched string) string {
+func widenedNotice(unmatched string, lang wording.Lang) string {
 	if unmatched == "" {
 		return ""
 	}
-	return `<p class="embed__widened">找不到 <code>` + html.EscapeString(unmatched) + `</code>，以下顯示整篇筆記。</p>`
+	return `<p class="embed__widened">` + html.EscapeString(wording.EmbedWidenedBefore.In(lang)) + `<code>` + html.EscapeString(unmatched) + `</code>` + html.EscapeString(wording.EmbedWidenedAfter.In(lang)) + `</p>`
 }
 
 // headingAnchorMayExist reports whether any line of body could stamp the id a

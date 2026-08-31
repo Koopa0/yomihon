@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestDegradedLinkSaysSoBeforeItIsFollowed covers the half of a fragment miss
@@ -39,7 +40,7 @@ func TestDegradedLinkSaysSoBeforeItIsFollowed(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.renderer(t).HTML("note.md", "", tt.body)
+			got := tt.renderer(t).HTML("note.md", "", tt.body, wording.ZhHant)
 			if !strings.Contains(got.HTML, "wikilink-degraded") {
 				t.Fatalf("the link is not marked as degraded:\n%s", got.HTML)
 			}
@@ -81,7 +82,7 @@ func TestPlacedFragmentsCarryNoMarking(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.renderer(t).HTML("note.md", "", tt.body)
+			got := tt.renderer(t).HTML("note.md", "", tt.body, wording.ZhHant)
 			if strings.Contains(got.HTML, "wikilink-degraded") {
 				t.Errorf("a link that placed its address is marked as degraded:\n%s", got.HTML)
 			}
@@ -96,7 +97,7 @@ func TestUnresolvedNameKeepsItsOwnTier(t *testing.T) {
 	t.Parallel()
 
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": sectionDest})
-	got := r.HTML("note.md", "", "[[Nowhere#Gamma]]\n")
+	got := r.HTML("note.md", "", "[[Nowhere#Gamma]]\n", wording.ZhHant)
 	if !strings.Contains(got.HTML, "wikilink-broken") {
 		t.Fatalf("a name with no note behind it lost its own tier:\n%s", got.HTML)
 	}

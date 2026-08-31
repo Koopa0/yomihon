@@ -33,7 +33,7 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
-				<article class="y-recovery" lang="zh-Hant" aria-labelledby="notfound-title">
+				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="notfound-title">
 					if v.Unreadable {
 						<p class="y-recovery__kicker">{ wording.NotReadableKicker.In(c.Lang) }</p>
 						<h1 id="notfound-title" class="y-title">{ wording.NotReadableTitle.In(c.Lang) }</h1>

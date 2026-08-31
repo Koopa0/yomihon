@@ -71,3 +71,11 @@ var (
 	TitleOnlyMeansTo = both("寫的是「%s」，指的是", "written as %q, meaning ")
 	StatusAndTypeFmt = both("狀態值「%s」，類型「%s」", "status %q, type %q")
 )
+
+// ContractUnreadable is the one loud sentence for a vault whose contract file
+// exists and could not be loaded: without it, a folder with a broken contract
+// is indistinguishable from a folder with none.
+var (
+	ContractUnreadable       = both("vault contract 無法讀取；生命週期與治理投影已關閉。", "The vault contract could not be read; lifecycle and governance projections are closed.")
+	ContractUnreadablePrefix = both("vault contract 無法讀取：", "The vault contract could not be read: ")
+)

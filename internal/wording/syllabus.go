@@ -57,3 +57,20 @@ var (
 	EntryAmbiguousTitle   = both("目標有歧義", "The target is ambiguous")
 	EntryNonInstanceTitle = both("目標不屬於生命週期治理範圍", "The target is outside lifecycle governance")
 )
+
+// The parentheses the offscreen explanation of a link sits inside, and the
+// ones a syllabus uses. They are marks rather than words, and the two
+// languages do not use the same ones.
+var (
+	ParenOpen  = both("（", " (")
+	ParenClose = both("）", ")")
+)
+
+// AssetNotFound, ReportNotFound and PathNotFound are what the three
+// address-shaped routes say when they answer with nothing. Each names what was
+// looked for, because the address alone does not say which route refused it.
+var (
+	AssetNotFound  = both("找不到指定的資產", "That asset was not found")
+	ReportNotFound = both("找不到指定的報告", "That report was not found")
+	PathNotFound   = both("找不到指定的學習路徑", "That study path was not found")
+)

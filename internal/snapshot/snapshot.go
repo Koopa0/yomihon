@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // scanInterval is the reconciliation cadence. It preserves the ruled
@@ -355,21 +356,21 @@ func (v *View) Note(canonicalPath string) (Note, bool) {
 // relPath is where the body lives in the vault. It is the caller's answer to
 // "relative to what", which every note body needs and which nothing in the
 // body itself supplies.
-func (v *View) Render(relPath, body string) render.Result {
-	return v.RenderIn("", relPath, body)
+func (v *View) Render(relPath, body string, lang wording.Lang) render.Result {
+	return v.RenderIn("", relPath, body, lang)
 }
 
 // RenderIn is Render for a body that shares a page with another rendered body,
 // naming the region this one occupies so the two cannot both call their first
 // footnote the same thing. The region qualifies footnote ids only — heading
 // ids stay unique within a body rather than across the page.
-func (v *View) RenderIn(region, relPath, body string) render.Result {
+func (v *View) RenderIn(region, relPath, body string, lang wording.Lang) render.Result {
 	if v == nil || v.markdown == nil {
 		return render.Result{}
 	}
 	// The title the page will show, so the renderer can tell a heading that
 	// repeats it from one that is the only thing naming the document.
-	return v.markdown.HTMLIn(region, relPath, v.notes[relPath].Title, body)
+	return v.markdown.HTMLIn(region, relPath, v.notes[relPath].Title, body, lang)
 }
 
 // Transclusion returns the immutable body captured for canonicalPath. It is

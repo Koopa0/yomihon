@@ -68,7 +68,7 @@ templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main y-recoverymain" { recoveryFreshnessAttrs(v)... }>
-				<article class="y-recovery" lang="zh-Hant" aria-labelledby="recovery-title">
+				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="recovery-title">
 					<p class="y-recovery__kicker">{ wording.LifecycleWrite.In(c.Lang) }</p>
 					<h1 id="recovery-title" class="y-title">{ v.Title(c.Lang) }</h1>
 					<p class="y-recovery__state" data-status-changed={ v.Changed }>{ v.mutationState(c.Lang) }</p>

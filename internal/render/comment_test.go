@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestObsidianCommentsExcludedFromAllProjections(t *testing.T) {
@@ -61,7 +62,7 @@ func TestObsidianCommentsExcludedFromAllProjections(t *testing.T) {
 			t.Parallel()
 
 			projections := map[string]string{
-				"HTML":          r.HTML("note.md", "", tt.body).HTML,
+				"HTML":          r.HTML("note.md", "", tt.body, wording.ZhHant).HTML,
 				"PlainText":     render.PlainText(tt.body),
 				"PlainSections": joinedSectionText(render.PlainSections(tt.body)),
 			}
@@ -87,7 +88,7 @@ func TestObsidianCommentsExcludedFromEmbeddedNotes(t *testing.T) {
 		"Embedded.md": "visible embed %%hidden embed%%",
 	})
 
-	got := r.HTML("note.md", "", "![[Embedded]]").HTML
+	got := r.HTML("note.md", "", "![[Embedded]]", wording.ZhHant).HTML
 	if !strings.Contains(got, "visible embed") {
 		t.Errorf("HTML() = %q, want embedded visible text", got)
 	}
@@ -152,7 +153,7 @@ func TestUnclosedCommentReportsADiagnostic(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := r.HTML("note.md", "", tt.body)
+			got := r.HTML("note.md", "", tt.body, wording.ZhHant)
 			messages := unclosedCommentDiagnostics(&got)
 			switch {
 			case tt.want == "":
@@ -179,7 +180,7 @@ func TestUnclosedCommentInsideANestedBodyReachesThePage(t *testing.T) {
 		"Embedded.md": "visible embed\n\n%% swallowed from here\n\ngone\n",
 	})
 
-	embed := r.HTML("note.md", "", "![[Embedded]]\n")
+	embed := r.HTML("note.md", "", "![[Embedded]]\n", wording.ZhHant)
 	if !strings.Contains(embed.HTML, "visible embed") {
 		t.Fatalf("the excerpt lost the words before its marker:\n%s", embed.HTML)
 	}
@@ -190,7 +191,7 @@ func TestUnclosedCommentInsideANestedBodyReachesThePage(t *testing.T) {
 		t.Errorf("an embedded body's runaway marker did not reach the citing page: %q", messages)
 	}
 
-	callout := r.HTML("note.md", "", "> [!note] Title\n> visible callout\n> %% swallowed from here\n")
+	callout := r.HTML("note.md", "", "> [!note] Title\n> visible callout\n> %% swallowed from here\n", wording.ZhHant)
 	if !strings.Contains(callout.HTML, "visible callout") {
 		t.Fatalf("the callout lost the words before its marker:\n%s", callout.HTML)
 	}
@@ -222,7 +223,7 @@ func TestATranscludedBodyIsScannedForCommentsOnce(t *testing.T) {
 	const body = "before\n\n``a%%b``%%note%%`c`\n\nafter\n"
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 
-	got := r.HTML("note.md", "", "![[B]]\n")
+	got := r.HTML("note.md", "", "![[B]]\n", wording.ZhHant)
 	if !strings.Contains(got.HTML, "a%%b") {
 		t.Errorf("a percent sign the author was displaying was read as a marker and removed:\n%s", got.HTML)
 	}
@@ -249,7 +250,7 @@ func TestUnclosedCommentInAnotherNoteStaysOffThisPage(t *testing.T) {
 		"B.md": "# Top\n\n%% swallowed from here\n",
 	})
 
-	got := r.HTML("note.md", "", "[[B#Top]]\n")
+	got := r.HTML("note.md", "", "[[B#Top]]\n", wording.ZhHant)
 	if messages := unclosedCommentDiagnostics(&got); len(messages) != 0 {
 		t.Errorf("a citing page reported a marker written in the note it links to: %q", messages)
 	}

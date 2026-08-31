@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const rawContentSecurityPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
@@ -30,7 +31,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, "找不到指定的報告", http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 	shell := h.shell(snap)
@@ -65,14 +66,14 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, "找不到指定的報告", http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 
 	b, err := readReport(r.Context(), h.source, snap, rep.RelPath)
 	if err != nil {
 		h.log.Warn("read report", "name", rep.Name, "path", rep.RelPath, "error", err)
-		http.Error(w, "找不到指定的報告", http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 

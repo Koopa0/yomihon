@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestInjectTTSSkipsUnmarkedRubyParagraph(t *testing.T) {
 	t.Parallel()
 	in := `<p><ruby>今日<rt>きょう</rt></ruby>は晴れです。</p>`
-	if got := render.InjectTTS(in); got != in {
+	if got := render.InjectTTS(in, wording.ZhHant); got != in {
 		t.Errorf("InjectTTS inferred speech from ruby:\nwant %q\ngot  %q", in, got)
 	}
 }
@@ -18,7 +19,7 @@ func TestInjectTTSSkipsUnmarkedRubyParagraph(t *testing.T) {
 func TestInjectTTSSkipsUnmarkedRubyListItem(t *testing.T) {
 	t.Parallel()
 	in := `<ul><li><ruby>私<rt>わたし</rt></ruby>は学生です。</li></ul>`
-	if got := render.InjectTTS(in); got != in {
+	if got := render.InjectTTS(in, wording.ZhHant); got != in {
 		t.Errorf("InjectTTS inferred speech from a ruby list item:\nwant %q\ngot  %q", in, got)
 	}
 }
@@ -26,7 +27,7 @@ func TestInjectTTSSkipsUnmarkedRubyListItem(t *testing.T) {
 func TestInjectTTSWrapsExplicitRubylessParagraph(t *testing.T) {
 	t.Parallel()
 	in := "<!-- read-aloud: ja -->\n<p>あさ、ひる、よる。</p>"
-	got := render.InjectTTS(in)
+	got := render.InjectTTS(in, wording.ZhHant)
 	for _, want := range []string{
 		`<div class="y-reading" lang="ja">`,
 		`data-tts="あさ、ひる、よる。"`,
@@ -48,7 +49,7 @@ func TestInjectTTSWrapsExplicitRubylessParagraph(t *testing.T) {
 func TestInjectTTSExplicitRubyParagraphStripsReading(t *testing.T) {
 	t.Parallel()
 	in := `<!-- read-aloud: ja --><p><ruby>今日<rt>きょう</rt></ruby>です。</p>`
-	got := render.InjectTTS(in)
+	got := render.InjectTTS(in, wording.ZhHant)
 	if n := strings.Count(got, "data-tts"); n != 1 {
 		t.Errorf("explicit ruby paragraph produced %d controls, want 1; got:\n%s", n, got)
 	}
@@ -63,7 +64,7 @@ func TestInjectTTSExplicitRubyParagraphStripsReading(t *testing.T) {
 func TestInjectTTSStripsRpAndMultipleRuby(t *testing.T) {
 	t.Parallel()
 	in := `<!-- read-aloud: ja --><p><ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby>字と<ruby>学生<rt>がくせい</rt></ruby></p>`
-	got := render.InjectTTS(in)
+	got := render.InjectTTS(in, wording.ZhHant)
 	if !strings.Contains(got, `data-tts="漢字と学生"`) {
 		t.Errorf("InjectTTS did not strip ruby reading apparatus; got:\n%s", got)
 	}
@@ -72,7 +73,7 @@ func TestInjectTTSStripsRpAndMultipleRuby(t *testing.T) {
 func TestInjectTTSEscapesAttribute(t *testing.T) {
 	t.Parallel()
 	in := `<!-- read-aloud: ja --><p><ruby>猫<rt>ねこ</rt></ruby>&amp;&quot;A&quot;</p>`
-	got := render.InjectTTS(in)
+	got := render.InjectTTS(in, wording.ZhHant)
 	if strings.Contains(got, `data-tts="猫&"A"`) {
 		t.Errorf("InjectTTS left an unescaped quote or ampersand; got:\n%s", got)
 	}
@@ -84,7 +85,7 @@ func TestInjectTTSEscapesAttribute(t *testing.T) {
 func TestInjectTTSSkipsExplicitParagraphWithNestedRawParagraph(t *testing.T) {
 	t.Parallel()
 	in := `<!-- read-aloud: ja --><p><ruby>今日<rt>きょう</rt></ruby>は<p>晴れ</p>です。</p>`
-	got := render.InjectTTS(in)
+	got := render.InjectTTS(in, wording.ZhHant)
 	if got != in {
 		t.Errorf("InjectTTS corrupted a paragraph with nested raw p:\nwant %q\ngot  %q", in, got)
 	}
@@ -96,7 +97,7 @@ func TestInjectTTSSkipsExplicitParagraphWithNestedRawParagraph(t *testing.T) {
 func TestInjectTTSLeavesUnmarkedDocumentUnchanged(t *testing.T) {
 	t.Parallel()
 	in := `<h2 id="x">Head</h2><p><ruby>今日<rt>きょう</rt></ruby></p><ul><li><ruby>猫<rt>ねこ</rt></ruby></li></ul>`
-	if got := render.InjectTTS(in); got != in {
+	if got := render.InjectTTS(in, wording.ZhHant); got != in {
 		t.Errorf("InjectTTS altered unmarked content:\nwant %q\ngot  %q", in, got)
 	}
 }

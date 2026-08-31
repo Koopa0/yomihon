@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // sectionDest is a destination with two named sections and a sentinel in each,
@@ -44,7 +45,7 @@ func TestSectionLinkWithNoSuchHeadingReportsWithoutWithdrawing(t *testing.T) {
 	t.Parallel()
 
 	r := sectionRenderer(t)
-	got := r.HTML("note.md", "", "[[B#Gamma]]\n")
+	got := r.HTML("note.md", "", "[[B#Gamma]]\n", wording.ZhHant)
 
 	if !strings.Contains(got.HTML, `href="/notes/B.md#gamma"`) {
 		t.Errorf("the link lost the address its author wrote:\n%s", got.HTML)
@@ -67,7 +68,7 @@ func TestSectionLinkKeepsAFragmentTheDestinationAnswers(t *testing.T) {
 
 	r := sectionRenderer(t)
 	for _, heading := range []string{"Alpha", "Beta", "Top"} {
-		got := r.HTML("note.md", "", "[[B#"+heading+"]]\n")
+		got := r.HTML("note.md", "", "[[B#"+heading+"]]\n", wording.ZhHant)
 		wantHref := `<a href="/notes/B.md#` + strings.ToLower(heading) + `" class="wikilink">`
 		if !strings.Contains(got.HTML, wantHref) {
 			t.Errorf("a section the destination carries lost its fragment:\nwant %s\ngot  %s", wantHref, got.HTML)
@@ -86,7 +87,7 @@ func TestSectionLinkClaimsNothingAboutABodyItNeverRead(t *testing.T) {
 	t.Parallel()
 
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, nil)
-	got := r.HTML("note.md", "", "[[B#Gamma]]\n")
+	got := r.HTML("note.md", "", "[[B#Gamma]]\n", wording.ZhHant)
 
 	if !strings.Contains(got.HTML, `href="/notes/B.md#gamma"`) {
 		t.Errorf("an unread destination had its author's address withdrawn:\n%s", got.HTML)
@@ -107,7 +108,7 @@ func TestWidenedEmbedSaysSoInTheBody(t *testing.T) {
 
 	r := sectionRenderer(t)
 
-	scoped := r.HTML("note.md", "", "![[B#Alpha]]\n")
+	scoped := r.HTML("note.md", "", "![[B#Alpha]]\n", wording.ZhHant)
 	if !strings.Contains(scoped.HTML, "ALPHATEXT") {
 		t.Fatalf("a scoped embed lost its own section:\n%s", scoped.HTML)
 	}
@@ -120,7 +121,7 @@ func TestWidenedEmbedSaysSoInTheBody(t *testing.T) {
 		t.Errorf("a scoped embed was marked widened:\n%s", scoped.HTML)
 	}
 
-	widened := r.HTML("note.md", "", "![[B#Gamma]]\n")
+	widened := r.HTML("note.md", "", "![[B#Gamma]]\n", wording.ZhHant)
 	for _, sentinel := range []string{"ALPHATEXT", "BETATEXT", "TOPTEXT"} {
 		if !strings.Contains(widened.HTML, sentinel) {
 			t.Errorf("the widened fallback dropped %s:\n%s", sentinel, widened.HTML)
@@ -166,7 +167,7 @@ func TestSectionLinkKeepsAnAnchorTheSourceScanCannotSee(t *testing.T) {
 	// test rests on. Read it off the destination's own rendering rather than
 	// assuming it, and read it first — a fixture whose premise is wrong would
 	// otherwise look like a passing test of the scan.
-	page := r.HTML("B.md", "", dest)
+	page := r.HTML("B.md", "", dest, wording.ZhHant)
 	for _, heading := range headings {
 		id := `id="` + strings.ToLower(strings.ReplaceAll(heading, " ", "-")) + `"`
 		if !strings.Contains(page.HTML, id) {
@@ -175,7 +176,7 @@ func TestSectionLinkKeepsAnAnchorTheSourceScanCannotSee(t *testing.T) {
 	}
 
 	for _, heading := range headings {
-		got := r.HTML("note.md", "", "[[B#"+heading+"]]\n")
+		got := r.HTML("note.md", "", "[[B#"+heading+"]]\n", wording.ZhHant)
 		if !strings.Contains(got.HTML, "#"+strings.ToLower(strings.ReplaceAll(heading, " ", "-"))) {
 			t.Errorf("the link to %q lost its fragment; the destination stamps that id:\n%s", heading, got.HTML)
 		}
@@ -203,7 +204,7 @@ func TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother(t *testing.T) {
 		"C.md": "## Brought In\n\nBROUGHTTEXT\n",
 	})
 
-	embedding := r.HTML("note.md", "", "[[B#Brought In]]\n")
+	embedding := r.HTML("note.md", "", "[[B#Brought In]]\n", wording.ZhHant)
 	if !strings.Contains(embedding.HTML, `href="/notes/B.md#brought-in"`) {
 		t.Errorf("the link lost the address its author wrote:\n%s", embedding.HTML)
 	}
@@ -213,12 +214,12 @@ func TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother(t *testing.T) {
 
 	// The premise: the destination really does stamp that id, because the
 	// embed really is expanded into it.
-	page := r.HTML("B.md", "", "# Top\n\nTOPTEXT\n\n![[C]]\n")
+	page := r.HTML("B.md", "", "# Top\n\nTOPTEXT\n\n![[C]]\n", wording.ZhHant)
 	if !strings.Contains(page.HTML, `id="brought-in"`) {
 		t.Fatalf("the fixture's premise is wrong: the embed does not bring the heading in:\n%s", page.HTML)
 	}
 
-	plain := r.HTML("note.md", "", "[[C#Nowhere]]\n")
+	plain := r.HTML("note.md", "", "[[C#Nowhere]]\n", wording.ZhHant)
 	if messages := fragmentDiagnostics(&plain); len(messages) != 1 {
 		t.Errorf("a destination that embeds nothing stopped reporting a section it really lacks: %q", messages)
 	}
@@ -237,12 +238,12 @@ func TestSectionLinkStillMissesAHeadingInsideAFence(t *testing.T) {
 	const dest = "# Top\n\nTOPTEXT\n\n```markdown\n## Only In A Sample\n```\n"
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": dest})
 
-	page := r.HTML("B.md", "", dest)
+	page := r.HTML("B.md", "", dest, wording.ZhHant)
 	if strings.Contains(page.HTML, `id="only-in-a-sample"`) {
 		t.Fatalf("the fixture's premise is wrong: the fenced heading really is an anchor:\n%s", page.HTML)
 	}
 
-	got := r.HTML("note.md", "", "[[B#Only In A Sample]]\n")
+	got := r.HTML("note.md", "", "[[B#Only In A Sample]]\n", wording.ZhHant)
 	if messages := fragmentDiagnostics(&got); len(messages) != 0 {
 		t.Errorf("the fenced-heading gap has closed; this test now records the wrong limit: %q", messages)
 	}

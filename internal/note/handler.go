@@ -427,6 +427,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 // to the browser through the sandboxed raw endpoint, never poured into this
 // page as live markup.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
+	lang := pages.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		h.showNotFound(w, r, r.URL.Path)
@@ -462,7 +463,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	governance := h.governance(&n, snap, statusView, artifactPolicy)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
-	result := snap.Render(rel, n.Body)
+	result := snap.Render(rel, n.Body, lang)
 
 	// Governed lesson bodies get the read-aloud affordance: wrap each ruby-bearing
 	// sentence with a speak button whose text has the furigana stripped
@@ -474,12 +475,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// projection in this response uses one coherent lifecycle view.
 	var concepts []lesson.ConceptDoc
 	if governance.instance && n.Type == typeLesson {
-		result.HTML = render.InjectTTS(result.HTML)
+		result.HTML = render.InjectTTS(result.HTML, lang)
 		pageChrome := pages.ChromeFromRequest(r, n.Title)
 		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, pages.LanguageFromRequest(r))
 		var refs []string
 		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
-		concepts = h.loadConcepts(snap, refs)
+		concepts = h.loadConcepts(snap, refs, lang)
 	}
 	if n.LanguageDiagnostic != "" {
 		h.deps.Log.Warn("invalid article language; the article carries no language of its own", "path", rel, "error", n.LanguageDiagnostic)
@@ -706,6 +707,7 @@ func (h *Handler) injectSlotMachine(
 func (h *Handler) loadConcepts(
 	snap *snapshot.View,
 	refs []string,
+	lang wording.Lang,
 ) []lesson.ConceptDoc {
 	if len(refs) == 0 {
 		return nil
@@ -718,7 +720,7 @@ func (h *Handler) loadConcepts(
 		// concepts — the same for every reader of the page, and derived from
 		// the page rather than from anything the process is counting.
 		region := "c" + strconv.Itoa(ordinal+1) + "-"
-		renderBody := func(rel, body string) string { return snap.RenderIn(region, rel, body).HTML }
+		renderBody := func(rel, body string) string { return snap.RenderIn(region, rel, body, lang).HTML }
 		if d, ok := snap.Concepts().Document(renderBody, rel); ok {
 			docs = append(docs, d)
 		}

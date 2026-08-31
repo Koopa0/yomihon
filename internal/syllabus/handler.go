@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Handler serves the study-path page.
@@ -44,7 +45,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	shell := h.shell()
 	current := findPath(shell.Nav, rel)
 	if current == nil {
-		http.Error(w, "找不到指定的學習路徑", http.StatusNotFound)
+		http.Error(w, wording.PathNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 

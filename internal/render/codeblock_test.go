@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestFencedCodeBlockHighlighting covers codeblock.go's chroma
@@ -56,7 +57,7 @@ func TestFencedCodeBlockHighlighting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := r.HTML("note.md", "", tt.body)
+			got := r.HTML("note.md", "", tt.body, wording.ZhHant)
 			for _, w := range tt.want {
 				if !strings.Contains(got.HTML, w) {
 					t.Errorf("HTML(%q).HTML missing %q:\n%s", tt.body, w, got.HTML)
@@ -111,7 +112,7 @@ func TestHighlightMarkupCarriesNoTheme(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
 
-	got := r.HTML("note.md", "", "```go\npackage main // hi\n```\n").HTML
+	got := r.HTML("note.md", "", "```go\npackage main // hi\n```\n", wording.ZhHant).HTML
 	for _, name := range []string{"github", "github-dark"} {
 		if strings.Contains(got, name) {
 			t.Errorf("the rendered code block names the palette %q; the markup must be theme-independent:\n%s", name, got)

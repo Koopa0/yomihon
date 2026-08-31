@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // A wikilink is substituted into the source before the markdown pass and put
@@ -40,7 +41,7 @@ func TestParagraphKeepsItsWrapperWhenItOpensWithAWikilink(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := r.HTML("練習日誌/2026-07-29.md", "2026-07-29", tt.body)
+			got := r.HTML("練習日誌/2026-07-29.md", "2026-07-29", tt.body, wording.ZhHant)
 			// Two authored paragraphs must arrive as two wrapped paragraphs.
 			// Counting them is what distinguishes a lost wrapper from a merely
 			// different one: the trailing text stays either way.

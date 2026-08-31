@@ -34,6 +34,7 @@ import (
 
 	"github.com/koopa0/yomihon/assets"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const (
@@ -201,7 +202,7 @@ func Register(mux *http.ServeMux) {
 func serve(w http.ResponseWriter, r *http.Request) {
 	e, ok := registry[r.PathValue("path")]
 	if !ok {
-		http.Error(w, "找不到指定的資產", http.StatusNotFound)
+		http.Error(w, wording.AssetNotFound.In(wording.ZhHant), http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", e.contentType)

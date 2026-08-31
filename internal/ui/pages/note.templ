@@ -80,10 +80,16 @@ func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
 	// JavaScript file would be a second place to translate them and a second
 	// place for them to fall out of step.
 	return templ.Attributes{
-		"data-freshness-path":       v.RelPath,
-		"data-freshness-identity":   v.ContentIdentity,
-		"data-freshness-newversion": wording.FreshnessNewVersion.In(lang),
-		"data-freshness-reload":     wording.FreshnessReload.In(lang),
+		"data-freshness-path":        v.RelPath,
+		"data-freshness-identity":    v.ContentIdentity,
+		"data-freshness-newversion":  wording.FreshnessNewVersion.In(lang),
+		"data-freshness-reload":      wording.FreshnessReload.In(lang),
+		"data-freshness-preparing":   wording.FreshnessPreparing.In(lang),
+		"data-freshness-gone":        wording.FreshnessGone.In(lang),
+		"data-freshness-searchtitle": wording.FreshnessSearchTitle.In(lang),
+		"data-freshness-holdtitle":   wording.FreshnessHoldPreparingTitle.In(lang),
+		"data-freshness-holddetail":  wording.FreshnessHoldPreparingDetail.In(lang),
+		"data-freshness-gonetitle":   wording.FreshnessHoldGoneTitle.In(lang),
 	}
 }
 
@@ -821,7 +827,7 @@ templ tocList(v NoteView) {
 // block and show the rail instead; a note with no aids renders nothing here.
 templ inlineAids(v NoteView) {
 	if v.hasAids() {
-		<div class="y-inlineaids" lang="zh-Hant">
+		<div class="y-inlineaids" lang={ v.Lang.Tag() }>
 			if len(v.TOC) > 0 {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">

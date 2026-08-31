@@ -48,6 +48,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Transclusions is the captured note-body set used by embed expansion. The
@@ -243,8 +244,8 @@ func New(idx *graph.Index, transclusions Transclusions) *Pipeline {
 // transcluded body is resolved against its own note before it is spliced
 // in, so what arrives here is already routed and passes through
 // untouched.
-func (r *Pipeline) HTML(relPath, title, body string) Result {
-	return r.HTMLIn(hostRegion, relPath, title, body)
+func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
+	return r.HTMLIn(hostRegion, relPath, title, body, lang)
 }
 
 // HTMLIn is HTML for a body that will be placed on a page already carrying
@@ -264,8 +265,8 @@ func (r *Pipeline) HTML(relPath, title, body string) Result {
 // region must be distinct for each such body on a page and must be derived
 // from the page rather than from a running process, so two readers of one
 // lesson receive the same bytes.
-func (r *Pipeline) HTMLIn(region, relPath, title, body string) Result {
-	page := &composition{base: region}
+func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
+	page := &composition{base: region, lang: lang}
 	body, unclosedComment := stripObsidianComments(body)
 	body, titleAnchor := removeBodyFirstH1(title, body)
 	res := r.renderBody(body, embedsAllowed, page, region)
@@ -313,6 +314,11 @@ type composition struct {
 	base    string
 	regions int
 	blocks  map[string]bool
+	// lang is the language this render's own sentences are written in. It sits
+	// here rather than on the pipeline because a pipeline belongs to a scan and
+	// a language belongs to a request: one pipeline serves every reader, and
+	// each of them may have chosen differently.
+	lang wording.Lang
 }
 
 func (c *composition) nextRegion() string {

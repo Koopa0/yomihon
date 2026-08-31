@@ -1,5 +1,7 @@
 package schema
 
+import "github.com/koopa0/yomihon/internal/wording"
+
 // grant records how far one declaration got. Absence of a declaration has two
 // meanings and only one of them is news: a folder that never carried a contract
 // asserted nothing, while a contract that exists and then omits, mangles, or
@@ -76,9 +78,9 @@ func Ungoverned() Governance { return Governance{} }
 // with a broken contract is indistinguishable from a folder with none.
 func Unreadable(err error) Governance {
 	if err == nil {
-		return Governance{claim: Rejected("vault contract 無法讀取；生命週期與治理投影已關閉。")}
+		return Governance{claim: Rejected(wording.ContractUnreadable.In(wording.ZhHant))}
 	}
-	return Governance{claim: Rejected("vault contract 無法讀取：" + err.Error())}
+	return Governance{claim: Rejected(wording.ContractUnreadablePrefix.In(wording.ZhHant) + err.Error())}
 }
 
 // Governance reports what this contract asserts. A nil contract governs nothing.

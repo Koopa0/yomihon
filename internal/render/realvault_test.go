@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestRealVaultRendersWithoutFaults checks that every markdown note in an
@@ -111,7 +112,7 @@ func renderRealVaultNote(body string, r *render.Pipeline) (result renderResult) 
 		}
 	}()
 
-	if r.HTML("note.md", "", body).HTML == "" {
+	if r.HTML("note.md", "", body, wording.ZhHant).HTML == "" {
 		return renderBlank
 	}
 	return renderOK

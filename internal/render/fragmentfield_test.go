@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestFragmentDiagnosticsKeepTheNameBare holds the contract Target carries for
@@ -37,7 +38,7 @@ func TestFragmentDiagnosticsKeepTheNameBare(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.renderer(t).HTML("note.md", "", tt.body)
+			got := tt.renderer(t).HTML("note.md", "", tt.body, wording.ZhHant)
 			var found int
 			for _, d := range got.Diagnostics {
 				if d.Kind != tt.kind {

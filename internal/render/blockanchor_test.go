@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // destBody is one note carrying block addresses of every shape a reader
@@ -30,7 +31,7 @@ func TestBlockAddressIsAnchoredOnItsBlock(t *testing.T) {
 	t.Parallel()
 
 	r := blockRenderer(t)
-	page := r.HTML("B.md", "", destBody)
+	page := r.HTML("B.md", "", destBody, wording.ZhHant)
 
 	anchors := []struct {
 		name string
@@ -55,7 +56,7 @@ func TestBlockAddressStaysVisible(t *testing.T) {
 	t.Parallel()
 
 	r := blockRenderer(t)
-	page := r.HTML("B.md", "", destBody)
+	page := r.HTML("B.md", "", destBody, wording.ZhHant)
 	for _, marker := range []string{"^quux", "^itm", "^qq", "^under"} {
 		if !strings.Contains(page.HTML, marker) {
 			t.Errorf("the marker %q is no longer on the page:\n%s", marker, page.HTML)
@@ -99,7 +100,7 @@ func TestBlockLinkAddressesTheBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			r := blockRenderer(t)
-			got := r.HTML("note.md", "", tt.body)
+			got := r.HTML("note.md", "", tt.body, wording.ZhHant)
 			if !strings.Contains(got.HTML, tt.want) {
 				t.Errorf("HTML(%q) missing %q:\n%s", tt.body, tt.want, got.HTML)
 			}
@@ -119,7 +120,7 @@ func TestBlockLinkWithNoSuchBlockDegradesAndReports(t *testing.T) {
 	t.Parallel()
 
 	r := blockRenderer(t)
-	got := r.HTML("note.md", "", "[[B#^nope]]\n")
+	got := r.HTML("note.md", "", "[[B#^nope]]\n", wording.ZhHant)
 
 	if !strings.Contains(got.HTML, `<a href="/notes/B.md" class="wikilink wikilink-degraded"`) {
 		t.Errorf("the link did not fall back to the note itself:\n%s", got.HTML)
@@ -148,7 +149,7 @@ func TestRepeatedBlockAddressBelongsToTheFirstBlock(t *testing.T) {
 
 	const body = "FIRST paragraph. ^dup\n\nSECOND paragraph. ^dup\n"
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
-	page := r.HTML("B.md", "", body)
+	page := r.HTML("B.md", "", body, wording.ZhHant)
 
 	if !strings.Contains(page.HTML, `<p>FIRST paragraph. <span id="^dup">^dup</span></p>`) {
 		t.Errorf("the first block did not take the address:\n%s", page.HTML)
@@ -170,7 +171,7 @@ func TestBlockLinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 	t.Run("an unresolved target gets no link at all", func(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, nil, nil, transclusions{"B.md": destBody})
-		got := r.HTML("note.md", "", "[[Ghost#^quux]]\n")
+		got := r.HTML("note.md", "", "[[Ghost#^quux]]\n", wording.ZhHant)
 		if strings.Contains(got.HTML, "href=") {
 			t.Errorf("an unresolved target must not become a link at all:\n%s", got.HTML)
 		}
@@ -180,7 +181,7 @@ func TestBlockLinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, []graph.NoteInput{{RelPath: "a/Foo.md"}, {RelPath: "b/Foo.md"}}, nil,
 			transclusions{"a/Foo.md": destBody, "b/Foo.md": destBody})
-		got := r.HTML("note.md", "", "[[Foo#^quux]]\n")
+		got := r.HTML("note.md", "", "[[Foo#^quux]]\n", wording.ZhHant)
 		if strings.Contains(got.HTML, "href=") {
 			t.Errorf("an ambiguous target must not become a link at all:\n%s", got.HTML)
 		}
@@ -189,7 +190,7 @@ func TestBlockLinkFragmentOnlyWhenTheNoteIsCertain(t *testing.T) {
 	t.Run("a resource that is not a note gets no fragment", func(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, nil, []string{"Files/plan.pdf"}, nil)
-		got := r.HTML("note.md", "", "[[plan.pdf#^quux]]\n")
+		got := r.HTML("note.md", "", "[[plan.pdf#^quux]]\n", wording.ZhHant)
 		if strings.Contains(got.HTML, "#%5Equux") {
 			t.Errorf("a file nothing inside is addressable from here kept a fragment:\n%s", got.HTML)
 		}
@@ -205,12 +206,12 @@ func TestBlockAddressInsideAFenceIsNotAnAddress(t *testing.T) {
 	const body = "```\nsample line ^fenced\n```\n\nordinary paragraph.\n"
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 
-	page := r.HTML("B.md", "", body)
+	page := r.HTML("B.md", "", body, wording.ZhHant)
 	if strings.Contains(page.HTML, `id="^fenced"`) {
 		t.Errorf("a marker inside a fence was made into an anchor:\n%s", page.HTML)
 	}
 
-	got := r.HTML("note.md", "", "[[B#^fenced]]\n")
+	got := r.HTML("note.md", "", "[[B#^fenced]]\n", wording.ZhHant)
 	if strings.Contains(got.HTML, "#%5Efenced") {
 		t.Errorf("a link named a marker the page shows as code:\n%s", got.HTML)
 	}
@@ -278,8 +279,8 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": tt.body})
-			page := r.HTML("B.md", "", tt.body)
-			got := r.HTML("note.md", "", "[[B#"+tt.address+"]]\n")
+			page := r.HTML("B.md", "", tt.body, wording.ZhHant)
+			got := r.HTML("note.md", "", "[[B#"+tt.address+"]]\n", wording.ZhHant)
 
 			hasFragment := strings.Contains(got.HTML, "/notes/B.md#")
 			hasAnchor := strings.Contains(page.HTML, `id="`+tt.address+`"`)
@@ -304,7 +305,7 @@ func TestATranscludedBodyBringsNoBlockAnchors(t *testing.T) {
 	t.Parallel()
 
 	r := blockRenderer(t)
-	got := r.HTML("note.md", "", "![[B]]\n")
+	got := r.HTML("note.md", "", "![[B]]\n", wording.ZhHant)
 
 	if !strings.Contains(got.HTML, "SECOND the addressed paragraph.") {
 		t.Fatalf("the embed did not reach the body at all:\n%s", got.HTML)

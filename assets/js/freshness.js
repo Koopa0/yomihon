@@ -51,7 +51,7 @@ function bannerBeside(column, article) {
     const link = document.createElement('a');
     link.className = 'y-freshness__action';
     link.href = `/search?q=${encodeURIComponent(words)}`;
-    link.textContent = '搜尋這個標題';
+    link.textContent = searchTitleLabel;
     return link;
   }
 
@@ -72,11 +72,11 @@ function bannerBeside(column, article) {
     element.replaceChildren();
     element.dataset.freshness = state;
     if (state === 'preparing') {
-      element.append('此筆記已有新版本，頁面資料準備中…');
+      element.append(preparing);
     } else if (state === 'stale') {
       element.append(newVersion, ' ', reloadButton());
     } else {
-      element.append('此筆記已經不在原本的位置了，可能被搬到別處，也可能已刪除。');
+      element.append(gone);
       const link = searchLink();
       if (link) element.append(' ', link);
     }
@@ -92,6 +92,11 @@ function bannerBeside(column, article) {
 // change: unlike the banner's sentence, a released link can be owed the wait
 // again the moment the file moves once more.
 function holdInvitation(column) {
+  // The words are the server's, read off the page the same way the banner's are.
+  const preparingTitle = column.dataset.freshnessHoldtitle;
+  const preparingDetail = column.dataset.freshnessHolddetail;
+  const goneTitle = column.dataset.freshnessGonetitle;
+  const goneDetail = column.dataset.freshnessGone;
   const link = column.querySelector('a.y-recovery__action[href^="/notes/"]');
   if (!link) return null;
   const href = link.getAttribute('href');
@@ -123,11 +128,11 @@ function holdInvitation(column) {
 
   return (state) => {
     if (state === 'preparing') {
-      hold('頁面資料準備中…', '這篇筆記在磁碟上已經變更，閱讀頁還沒讀到那一版；準備好之後這個連結會自己恢復。');
+      hold(preparingTitle, preparingDetail);
       return false;
     }
     if (state === 'gone') {
-      hold('筆記已不在原處', '這篇筆記已經不在原本的位置了，可能被搬到別處，也可能已刪除。');
+      hold(goneTitle, goneDetail);
       return true;
     }
     if (state === 'unchanged' || state === 'stale') release();

@@ -11,11 +11,14 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // vaultRootLabel names the folder a root-level file lives in, which has no
 // name of its own.
-const vaultRootLabel = "書庫根目錄"
+// It resolves to the default language because a health projection is built
+// from a scan rather than from a request, and so carries no reader's choice.
+var vaultRootLabel = wording.VaultRoot.In(wording.ZhHant)
 
 // Health is what the whole folder looks like at once, rather than one note at a
 // time. Every fact in it was already being computed to render single pages —

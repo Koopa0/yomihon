@@ -4,6 +4,8 @@ import (
 	"html"
 	"regexp"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 var (
@@ -54,14 +56,14 @@ const ttsSpeaker = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 // paragraph, recall item, or answer that merely contains ruby stays untouched;
 // the author must opt a paragraph in with <!-- read-aloud: ja -->. Keeping that
 // semantic decision in source content prevents presentation from guessing.
-func InjectTTS(htmlOut string) string {
-	return injectMarkedParagraphTTS(htmlOut)
+func InjectTTS(htmlOut string, lang wording.Lang) string {
+	return injectMarkedParagraphTTS(htmlOut, lang)
 }
 
 // injectMarkedParagraphTTS consumes the explicit author marker and wraps the
 // following paragraph whether or not it contains ruby. The paragraph gains
 // lang=ja for assistive technology.
-func injectMarkedParagraphTTS(htmlOut string) string {
+func injectMarkedParagraphTTS(htmlOut string, lang wording.Lang) string {
 	return ttsMarkedParagraph.ReplaceAllStringFunc(htmlOut, func(marked string) string {
 		inner := ttsMarkedParagraph.FindStringSubmatch(marked)[1]
 		if nestedParaOpen.MatchString(inner) {
@@ -71,7 +73,7 @@ func injectMarkedParagraphTTS(htmlOut string) string {
 		if spoken == "" {
 			return `<p lang="ja">` + inner + `</p>`
 		}
-		return `<div class="y-reading" lang="ja">` + speakButton(spoken) +
+		return `<div class="y-reading" lang="ja">` + speakButton(spoken, lang) +
 			`<p lang="ja">` + inner + `</p></div>`
 	})
 }
@@ -87,7 +89,7 @@ func spokenText(inner string) string {
 // speakButton emits the read-aloud control for an opted-in paragraph. text is
 // already the reading-stripped spoken form; it is attribute-escaped into
 // data-tts.
-func speakButton(text string) string {
+func speakButton(text string, lang wording.Lang) string {
 	return `<button class="y-tts" type="button" data-tts="` + html.EscapeString(text) +
-		`" lang="zh-Hant" aria-label="朗讀這段日文">` + ttsSpeaker + `</button>`
+		`" lang="` + lang.Tag() + `" aria-label="` + html.EscapeString(wording.ReadAloud.In(lang)) + `">` + ttsSpeaker + `</button>`
 }

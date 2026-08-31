@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // A link to a note nobody has written yet is styled with a help cursor, which
@@ -35,7 +36,7 @@ func TestUnwrittenLinkCarriesItsExplanation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := r.HTML("練習日誌/2026-07-30.md", "2026-07-30", tt.body)
+			got := r.HTML("練習日誌/2026-07-30.md", "2026-07-30", tt.body, wording.ZhHant)
 			if !strings.Contains(got.HTML, tt.want) {
 				t.Errorf("HTML(%q) = %s\nwant it to contain %s", tt.body, got.HTML, tt.want)
 			}
@@ -69,7 +70,7 @@ func TestUnwrittenLinkWithSectionFragmentExplainsTheSplit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := r.HTML("a.md", "A", tt.body)
+			got := r.HTML("a.md", "A", tt.body, wording.ZhHant)
 			if !strings.Contains(got.HTML, `title="`+reason+`"`) {
 				t.Errorf("HTML(%q) = %s\nwant the explanation to state the fragment split: %q", tt.body, got.HTML, reason)
 			}
@@ -101,7 +102,7 @@ func TestUnwrittenLinkWithoutSectionFragmentKeepsThePlainExplanation(t *testing.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := r.HTML("a.md", "A", tt.body)
+			got := r.HTML("a.md", "A", tt.body, wording.ZhHant)
 			if !strings.Contains(got.HTML, `title="還沒有「井號」這篇筆記"`) {
 				t.Errorf("HTML(%q) lost the plain unwritten explanation:\n%s", tt.body, got.HTML)
 			}
@@ -125,7 +126,7 @@ func TestUnwrittenLinkInAHeadingStaysOutOfItsAnchor(t *testing.T) {
 	const anchor = "見-那份練習法"
 
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
-	page := r.HTML("B.md", "", body)
+	page := r.HTML("B.md", "", body, wording.ZhHant)
 
 	if len(page.TOC) != 1 {
 		t.Fatalf("TOC = %+v, want exactly one entry", page.TOC)
@@ -149,7 +150,7 @@ func TestUnwrittenLinkInAHeadingStaysOutOfItsAnchor(t *testing.T) {
 	// The scan that answers an embed's "#section" reads the same heading from
 	// source. Both surfaces name a section by the words on screen, so the name
 	// the page publishes is one an embed accepts.
-	embedded := r.HTML("note.md", "", "![[B#"+name+"]]\n")
+	embedded := r.HTML("note.md", "", "![[B#"+name+"]]\n", wording.ZhHant)
 	if !strings.Contains(embedded.HTML, "本文。") {
 		t.Errorf("an embed of the section the page names did not reach it:\n%s", embedded.HTML)
 	}
@@ -167,7 +168,7 @@ func TestAuthoredOffscreenMarkupInAHeadingIsShownRatherThanDropped(t *testing.T)
 	t.Parallel()
 
 	r := newRenderer(t, nil, nil, nil)
-	page := r.HTML("a.md", "", "## 標題<span class=\"y-offscreen\">（隱藏）</span>\n\n本文。\n")
+	page := r.HTML("a.md", "", "## 標題<span class=\"y-offscreen\">（隱藏）</span>\n\n本文。\n", wording.ZhHant)
 
 	if len(page.TOC) != 1 {
 		t.Fatalf("TOC = %+v, want exactly one entry", page.TOC)
@@ -185,7 +186,7 @@ func TestResolvedButUnavailableEmbedSaysWhatActuallyHappened(t *testing.T) {
 	// a generation that read the name but not the bytes looks like.
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "運弓筆記.md"}}, nil, nil)
 
-	got := r.HTML("a.md", "A", "![[運弓筆記]]\n")
+	got := r.HTML("a.md", "A", "![[運弓筆記]]\n", wording.ZhHant)
 	if strings.Contains(got.HTML, "還沒有") {
 		t.Errorf("HTML() told the reader the note was never written, when it exists:\n%s", got.HTML)
 	}
@@ -220,7 +221,7 @@ func TestUnresolvedLinkDiagnosticCarriesTheSectionItAddressed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := r.HTML("a.md", "A", tt.body)
+			got := r.HTML("a.md", "A", tt.body, wording.ZhHant)
 			if len(got.Diagnostics) != 1 {
 				t.Fatalf("HTML(%q) produced %d diagnostics, want 1", tt.body, len(got.Diagnostics))
 			}
