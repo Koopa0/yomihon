@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // terminalLessonPage renders the reading page for one lesson fixture at the
@@ -96,7 +98,7 @@ func TestShowZeroTransitionsNamesTheFrontmatterDoor(t *testing.T) {
 	t.Parallel()
 	body := terminalLessonPage(t, "archived")
 
-	if !strings.Contains(body, "目前沒有合法的狀態轉換。") {
+	if !strings.Contains(body, wording.NoLegalTransitions.In(wording.ZhHant)) {
 		t.Fatalf("archived lesson lost its empty-transitions notice; body = %q", body)
 	}
 	if !strings.Contains(body, "要恢復請直接編輯 frontmatter") {

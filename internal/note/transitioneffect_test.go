@@ -3,11 +3,13 @@ package note_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // transitionEffectSentence is what both status faces say about the buttons
 // beside it, before any of them is pressed.
-const transitionEffectSentence = "這個按鈕只會改寫這篇筆記 frontmatter 的 status 欄位。"
+var transitionEffectSentence = wording.TransitionEffect.In(wording.ZhHant)
 
 // TestBothStatusFacesStateWhatTheirButtonsDo holds the sentence to the moment
 // it is useful: a reader deciding whether to press. Both faces carry it,
@@ -38,7 +40,7 @@ func TestNoButtonsMeansNoSentenceAboutThem(t *testing.T) {
 	t.Parallel()
 	page := terminalLessonPage(t, "archived")
 
-	if !strings.Contains(page, "目前沒有合法的狀態轉換。") {
+	if !strings.Contains(page, wording.NoLegalTransitions.In(wording.ZhHant)) {
 		t.Fatal("the fixture no longer reaches the empty-transitions state, so this test asserts nothing")
 	}
 	if strings.Contains(page, transitionEffectSentence) {

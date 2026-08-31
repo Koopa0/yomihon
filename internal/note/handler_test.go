@@ -3270,7 +3270,7 @@ func TestShowFlagsAStatusOutsideTheSchema(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		"狀態值 <code>這是草稿</code> 不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。",
+		wording.StatusValuePrefix.In(wording.ZhHant) + "<code>這是草稿</code> " + wording.StatusOutsideList.In(wording.ZhHant),
 		"ui-status--這是草稿",
 	} {
 		if !strings.Contains(page, want) {
@@ -3278,7 +3278,7 @@ func TestShowFlagsAStatusOutsideTheSchema(t *testing.T) {
 		}
 	}
 	for _, absent := range []string{
-		"目前沒有合法的狀態轉換。",
+		wording.NoLegalTransitions.In(wording.ZhHant),
 		`action="/status"`,
 	} {
 		if strings.Contains(page, absent) {
@@ -3308,7 +3308,7 @@ func TestShowOffersAnObsidianDoor(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(page, "在 Obsidian 開啟") {
+	if !strings.Contains(page, wording.OpenInObsidian.In(wording.ZhHant)) {
 		t.Error("page offers no Obsidian link")
 	}
 	if !strings.Contains(page, `href="obsidian://open?path=`) {

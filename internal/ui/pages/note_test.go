@@ -142,7 +142,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantPresent: []string{
 				"y-shell--rail-empty",
 				"y-sealbar",
-				"沒有 frontmatter（合法）。",
+				wording.NoFrontmatter.In(wording.ZhHant),
 			},
 		},
 		{
@@ -167,14 +167,14 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantPresent: []string{
 				"y-statuspanel",
 				"y-sealbar",
-				"目前沒有合法的狀態轉換。",
+				wording.NoLegalTransitions.In(wording.ZhHant),
 			},
 			wantAbsent: []string{"接下來的狀態轉換由其他 owner 持有"},
 			// Counted, not merely present: the two faces carry the same
 			// sentence, so a Contains satisfied by the panel alone would leave
 			// the bar's branch — the only status face at the widths that drop
 			// the rail — locked by nothing.
-			wantCounts: map[string]int{"目前沒有合法的狀態轉換。": 2},
+			wantCounts: map[string]int{wording.NoLegalTransitions.In(wording.ZhHant): 2},
 		},
 		{
 			// The corner the invariant missed. The frontmatter parses, so the
@@ -194,7 +194,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"y-statuspanel",
 				"讀不出 status 值",
 			},
-			wantAbsent: []string{"目前沒有合法的狀態轉換。", `action="/status"`},
+			wantAbsent: []string{wording.NoLegalTransitions.In(wording.ZhHant), `action="/status"`},
 			wantCounts: map[string]int{
 				"讀不出 status 值": 2,
 			},

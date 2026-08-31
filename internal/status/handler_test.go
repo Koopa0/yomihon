@@ -290,7 +290,7 @@ func TestHandlerStale(t *testing.T) {
 	}
 	// The repair a recovery page asks for is a hand edit, so a refusal that
 	// knows which note it was about links straight to it in Obsidian.
-	if !strings.Contains(body, "在 Obsidian 開啟") || !strings.Contains(body, `href="obsidian://open?path=`) {
+	if !strings.Contains(body, wording.OpenInObsidian.In(wording.ZhHant)) || !strings.Contains(body, `href="obsidian://open?path=`) {
 		t.Errorf("body = %q, want an Obsidian editor link on the recovery page", body)
 	}
 	if !strings.Contains(body, testRel) {

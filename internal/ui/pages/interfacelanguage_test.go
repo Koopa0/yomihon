@@ -57,6 +57,8 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 		"theme toggle":     wording.ThemeToggle,
 		"not-found title":  wording.NothingHere,
 		"freshness notice": wording.FreshnessNewVersion,
+		"raw-file link":    wording.RawFile,
+		"rail heading":     wording.Folders,
 	} {
 		if phrase.In(wording.ZhHant) == phrase.In(wording.En) {
 			t.Fatalf("the %s reads the same in both languages, so no assertion below can tell them apart", name)
@@ -86,12 +88,25 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 			// The freshness notice is the server's too: the script that shows it
 			// reads the sentence off the page rather than carrying its own copy.
 			var note bytes.Buffer
-			view := NoteView{RelPath: "Writing/n.md", ContentIdentity: "abc"}
+			view := NoteView{RelPath: "Writing/n.md", ContentIdentity: "abc", Lang: lang}
 			if err := Note(view, chrome).Render(t.Context(), &note); err != nil {
 				t.Fatalf("render note: %v", err)
 			}
 			if !strings.Contains(note.String(), wording.FreshnessNewVersion.In(lang)) {
 				t.Errorf("the freshness notice does not travel to the page in %q: want %q", lang, wording.FreshnessNewVersion.In(lang))
+			}
+			// The reading page's own furniture and the rail it shares with every
+			// other page are two more routes the language takes to reach words,
+			// and each carries it differently: one on the view, one on the rail.
+			if !strings.Contains(note.String(), wording.RawFile.In(lang)) {
+				t.Errorf("the reading page is not speaking %q: want %q", lang, wording.RawFile.In(lang))
+			}
+			var rail bytes.Buffer
+			if err := sidebar(NewSidebar(nil, "", lang), "").Render(t.Context(), &rail); err != nil {
+				t.Fatalf("render rail: %v", err)
+			}
+			if !strings.Contains(rail.String(), wording.FilterNavigation.In(lang)) {
+				t.Errorf("the rail is not speaking %q: want %q", lang, wording.FilterNavigation.In(lang))
 			}
 		})
 	}

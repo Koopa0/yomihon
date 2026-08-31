@@ -22,24 +22,24 @@ var nonInstanceReason = wording.NonInstanceReason.In(wording.ZhHant)
 // without a name here arrives as its raw slug rather than a dead page: the
 // diagnostics exist to report trouble, and the panel failing on an unnamed
 // kind would be the reporter breaking on the news.
-func diagKindLabel(kind render.DiagnosticKind) string {
+func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagWikilinkBroken:
-		return "連結沒有目標"
+		return wording.DiagLinkNoTarget.In(lang)
 	case render.DiagWikilinkAmbiguous:
-		return "連結有多個目標"
+		return wording.DiagLinkManyTargets.In(lang)
 	case render.DiagUnknownCallout:
-		return "沒見過的提示框類型"
+		return wording.DiagUnknownCallout.In(lang)
 	case render.DiagRiskyFence:
-		return "程式碼區塊裡的筆記語法"
+		return wording.DiagRiskyFence.In(lang)
 	case render.DiagEmbedFragmentMissing:
-		return "找不到嵌入指定的段落"
+		return wording.DiagEmbedFragmentGone.In(lang)
 	case render.DiagLinkFragmentMissing:
-		return "找不到連結指定的區塊"
+		return wording.DiagLinkBlockGone.In(lang)
 	case render.DiagLinkSectionMissing:
-		return "找不到連結指定的小節"
+		return wording.DiagLinkSectionGone.In(lang)
 	case render.DiagCommentUnclosed:
-		return "沒有配對的註解記號"
+		return wording.DiagCommentUnclosed.In(lang)
 	default:
 		return string(kind)
 	}
@@ -252,7 +252,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 			@rightRail(v)
 		</div>
 		@statusBar(v)
-		@conceptSheet(v.Concepts)
+		@conceptSheet(v.Concepts, v.Lang)
 	}
 }
 
@@ -261,17 +261,17 @@ templ Note(v NoteView, c layouts.Chrome) {
 // <dialog>. lesson.js clones the matching template into the dialog on a trigger
 // click and calls showModal(); with JS off the triggers stay ordinary links to
 // the concept notes, so nothing here renders unless a concept is referenced.
-templ conceptSheet(concepts []lesson.ConceptDoc) {
+templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
 			<template id={ "concept-" + c.ID } data-title={ c.Title }>
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog class="y-conceptsheet" data-concept-sheet aria-label="文法筆記" closedby="any">
+		<dialog class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
 			<div class="y-conceptsheet__head">
 				<span class="y-conceptsheet__title" data-concept-title></span>
-				<button type="button" class="y-iconbtn" data-concept-close aria-label="關閉">
+				<button type="button" class="y-iconbtn" data-concept-close aria-label={ wording.CloseControl.In(lang) }>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
 			</div>
@@ -311,7 +311,7 @@ templ articleHead(v NoteView) {
 				// did, so the one surface where a reader is most likely to ask
 				// "what does the file actually say" was the one with no way to
 				// look. The endpoint was there; only the door was missing.
-				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>原始檔</a>
+				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(v.Lang) }</a>
 			}
 			if v.ObsidianHref != "" {
 				// Every repair yomihon reports is a hand edit, so the page
@@ -319,15 +319,15 @@ templ articleHead(v NoteView) {
 				// is already built and escaped server-side from the vault root
 				// and a route-validated relative path, so it bypasses the URL
 				// sanitizer that would reject its custom scheme.
-				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>在 Obsidian 開啟</a>
+				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(v.Lang) }</a>
 			}
 		</div>
 	}
 	if v.Unsearchable {
-		<p class="y-fileinfo__note" data-note-unsearchable>這個筆記太大,內容不會被搜尋讀取;閱讀不受影響。</p>
+		<p class="y-fileinfo__note" data-note-unsearchable>{ wording.NoteTooLargeToIndex.In(v.Lang) }</p>
 	}
 	if v.Stale {
-		<p class="y-fileinfo__note" data-note-stale>這個檔案這一次讀不進來，下面是上一次讀到的內容，可能不是檔案現在的樣子。排除之後，過幾秒重新整理就會讀到新的。</p>
+		<p class="y-fileinfo__note" data-note-stale>{ wording.NoteStale.In(v.Lang) }</p>
 	}
 	<div class="y-seam" aria-hidden="true"></div>
 }
@@ -403,10 +403,10 @@ templ sidebar(sb Sidebar, nonce string) {
 									<div class="y-lessonsteps__path">{ step.PathTitle }</div>
 								}
 								if step.Prev.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.PreviousLesson.In(sb.Lang) }：{ step.Prev.Name }</a>
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(sb.Lang) }{ step.Prev.Name }</a>
 								}
 								if step.Next.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.NextLesson.In(sb.Lang) }：{ step.Next.Name } →</a>
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.RailNextLesson.In(sb.Lang) }{ step.Next.Name } →</a>
 								}
 							</nav>
 						}
@@ -724,13 +724,13 @@ templ entryLink(sb Sidebar, entry nav.Entry) {
 // looked. Ordering it first pins it a fixed distance from the rail's top on
 // every note, whatever the outline's length.
 templ rightRail(v NoteView) {
-	<aside class="y-rail-right" aria-label="閱讀輔助">
+	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(v.Lang) }>
 		if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
 			@statusPanel(v)
 		}
 		if len(v.TOC) > 0 {
-			<nav aria-label="本頁內容">
-				<div class="ui-side__label">本頁內容</div>
+			<nav aria-label={ wording.OnThisPage.In(v.Lang) }>
+				<div class="ui-side__label">{ wording.OnThisPage.In(v.Lang) }</div>
 				@tocList(v)
 			</nav>
 		}
@@ -752,9 +752,9 @@ templ citedBy(v NoteView) {
 // citedByBlock is the block itself, rendered only where the answer means
 // something.
 templ citedByBlock(v NoteView) {
-	<nav class="y-citedby" aria-label="連到這篇的筆記">
+	<nav class="y-citedby" aria-label={ wording.CitedByNav.In(v.Lang) }>
 		<div class="ui-side__label">
-			連到這篇
+			{ wording.CitedBy.In(v.Lang) }
 			if len(v.CitedBy) > 0 {
 				<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
 			}
@@ -764,7 +764,7 @@ templ citedByBlock(v NoteView) {
 				<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a>
 			}
 		} else {
-			<p class="y-citedby__none">目前沒有其他筆記連到這篇。</p>
+			<p class="y-citedby__none">{ wording.CitedByNone.In(v.Lang) }</p>
 		}
 	</nav>
 }
@@ -826,7 +826,7 @@ templ inlineAids(v NoteView) {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						本頁內容
+						{ wording.OnThisPage.In(v.Lang) }
 					</summary>
 					@tocList(v)
 				</details>
@@ -840,7 +840,7 @@ templ inlineAids(v NoteView) {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						筆記狀況
+						{ wording.NoteHealth.In(v.Lang) }
 						<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 					</summary>
 					@diagnostics(v)
@@ -853,7 +853,7 @@ templ inlineAids(v NoteView) {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						連到這篇
+						{ wording.CitedBy.In(v.Lang) }
 						if len(v.CitedBy) > 0 {
 							<span class="y-diagcount">{ strconv.Itoa(len(v.CitedBy)) }</span>
 						}
@@ -877,7 +877,7 @@ templ statusPanel(v NoteView) {
 		} else {
 			<div class="y-statuspanel__head">
 				<div class="y-statuspanel__row">
-					<span class="ui-side__label">狀態</span>
+					<span class="ui-side__label">{ wording.StatusLabel.In(v.Lang) }</span>
 				</div>
 				if v.Status != "" {
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
@@ -886,19 +886,19 @@ templ statusPanel(v NoteView) {
 			switch  {
 				case v.WriteDiagnostic != "":
 					<p class="y-statuspanel__notice">
-						@browserDiagnostic("生命週期寫入目前無法使用。", v.WriteDiagnostic)
+						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
 					</p>
 				case v.NoFrontmatter:
-					<p class="y-statuspanel__notice">沒有 frontmatter（合法）。</p>
+					<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
 				case v.StatusUnknown:
 					@statusUnknownFlag(v, "y-statuspanel__notice")
 				case v.Status == "":
 					@statusUnreadableFlag(v, "y-statuspanel__notice")
 				case len(v.Transitions) == 0:
-					<p class="y-statuspanel__notice">目前沒有合法的狀態轉換。</p>
+					<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
 					<p class="y-statuspanel__notice">{ frontmatterDoorLine(v) }</p>
 				default:
-					@transitionEffectLine("y-statuspanel__notice")
+					@transitionEffectLine("y-statuspanel__notice", v.Lang)
 					<div class="y-statuspanel__forms">
 						@legalTransitionForms(v)
 					</div>
@@ -913,9 +913,9 @@ templ statusPanel(v NoteView) {
 // does. Yomihon states the door; it never walks through it.
 func frontmatterDoorLine(v NoteView) string {
 	if v.ObsidianHref == "" {
-		return "要恢復請直接編輯 frontmatter。"
+		return wording.EditFrontmatterToRecover.In(v.Lang)
 	}
-	return "要恢復請直接編輯 frontmatter；「在 Obsidian 開啟」就在標題下方。"
+	return wording.EditFrontmatterToRecoverWithLink.In(v.Lang)
 }
 
 // statusUnknownFlag states that the note's status value is outside the
@@ -933,12 +933,12 @@ func frontmatterDoorLine(v NoteView) string {
 // notices with, so the rail and the bar cannot come to describe the same button
 // differently. It appears only beside real controls: a face with no legal
 // transition has no button whose effect there would be to state.
-templ transitionEffectLine(noticeClass string) {
-	<p class={ noticeClass }>這個按鈕只會改寫這篇筆記 frontmatter 的 status 欄位。</p>
+templ transitionEffectLine(noticeClass string, lang wording.Lang) {
+	<p class={ noticeClass }>{ wording.TransitionEffect.In(lang) }</p>
 }
 
 templ statusUnknownFlag(v NoteView, noticeClass string) {
-	<p class={ noticeClass, "y-statusflag" }>狀態值 <code>{ v.Status }</code> 不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。</p>
+	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(v.Lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(v.Lang) }</p>
 }
 
 // statusUnreadableFlag states that this note's frontmatter yielded no status
@@ -949,7 +949,7 @@ templ statusUnknownFlag(v NoteView, noticeClass string) {
 // notice here, which says the contract defines nothing onward from the note's
 // status — a claim about a status nobody could read.
 templ statusUnreadableFlag(v NoteView, noticeClass string) {
-	<p class={ noticeClass, "y-statusflag" }>frontmatter 裡讀不出 status 值（缺少，或不是單一值）。yomihon 只陳述，不修復；{ frontmatterDoorLine(v) }</p>
+	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(v.Lang) }{ frontmatterDoorLine(v) }</p>
 }
 
 // transitionForm is one transition control: a plain POST form whose
@@ -971,8 +971,8 @@ templ transitionForm(v NoteView, t Transition) {
 		if t.Terminal {
 			<details class="y-statusconfirm">
 				<summary class="y-xbtn y-statusconfirm__summary">{ t.To }</summary>
-				<p class="y-statusconfirm__note">設為 { t.To } 之後，這裡不會再提供任何狀態轉換。</p>
-				<button class="y-xbtn y-statusconfirm__submit" type="submit">確認設為 { t.To }</button>
+				<p class="y-statusconfirm__note">{ wording.TerminalTargetBefore.In(v.Lang) }{ t.To }{ wording.TerminalTargetAfter.In(v.Lang) }</p>
+				<button class="y-xbtn y-statusconfirm__submit" type="submit">{ wording.ConfirmSetBefore.In(v.Lang) }{ t.To }{ wording.ConfirmSetAfter.In(v.Lang) }</button>
 			</details>
 		} else {
 			<button class="y-xbtn" type="submit">{ t.To }</button>
@@ -1015,10 +1015,10 @@ func diagnosticAddress(d render.Diagnostic) string {
 // The words are the panel's own: the mark beside the link in the prose says
 // the same thing in the shape a sentence there can take, and neither is the
 // other's only copy.
-templ fragmentSplit(target, section string) {
+templ fragmentSplit(target, section string, lang wording.Lang) {
 	<p class="y-diag__split">
-		連結被讀成兩段：筆記目標 <code>{ target }</code>、章節 <code>{ section }</code>。
-		缺的是筆記目標「{ target }」，不是章節；「#」是章節的分隔符號，所以檔名裡真的帶「#」的檔案，wikilink 指不到。
+		{ wording.LinkSplitBefore.In(lang) }<code>{ target }</code>{ wording.LinkSplitBetween.In(lang) }<code>{ section }</code>{ wording.LinkSplitAfter.In(lang) }
+		{ fmt.Sprintf(wording.LinkMissingHalfIsTheNote.In(lang), target) }
 	</p>
 }
 
@@ -1028,7 +1028,7 @@ templ diagnostics(v NoteView) {
 	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {
 		<section>
 			<div class="ui-side__label y-diaghead">
-				筆記狀況
+				{ wording.NoteHealth.In(v.Lang) }
 				<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 			</div>
 			<div class="y-diaglist">
@@ -1036,13 +1036,13 @@ templ diagnostics(v NoteView) {
 					<div class="y-diag">
 						<div class="y-diag__label">frontmatter</div>
 						<p class="y-diag__body">
-							@browserDiagnostic("frontmatter 不是有效的 YAML。", v.Diagnostic)
+							@browserDiagnostic(wording.FrontmatterNotYAML.In(v.Lang), v.Diagnostic)
 						</p>
 					</div>
 				}
 				for _, d := range v.RenderDiagnostics {
 					<div class="y-diag">
-						<div class="y-diag__label">{ diagKindLabel(d.Kind) }</div>
+						<div class="y-diag__label">{ diagKindLabel(d.Kind, v.Lang) }</div>
 						<p class="y-diag__body">
 							{ renderDiagnosticSummary(d.Kind) }
 							if d.Target != "" {
@@ -1053,12 +1053,12 @@ templ diagnostics(v NoteView) {
 							}
 						</p>
 						if d.Kind == render.DiagWikilinkBroken && d.Section != "" {
-							@fragmentSplit(d.Target, d.Section)
+							@fragmentSplit(d.Target, d.Section, v.Lang)
 						}
 					</div>
 				}
 			</div>
-			<p class="y-diag__note">只陳述狀態，不自動修復。</p>
+			<p class="y-diag__note">{ wording.ReportsOnlyNote.In(v.Lang) }</p>
 		</section>
 	}
 }
@@ -1082,10 +1082,10 @@ templ statusBar(v NoteView) {
 					<p class="y-sealbar__notice">{ nonInstanceReason }</p>
 				case v.WriteDiagnostic != "":
 					<p class="y-sealbar__notice">
-						@browserDiagnostic("生命週期寫入目前無法使用。", v.WriteDiagnostic)
+						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
 					</p>
 				case v.NoFrontmatter:
-					<p class="y-sealbar__notice">沒有 frontmatter（合法）。</p>
+					<p class="y-sealbar__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
 				case v.StatusUnknown:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
@@ -1095,13 +1095,13 @@ templ statusBar(v NoteView) {
 				case len(v.Transitions) == 0:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
-					<p class="y-sealbar__notice">目前沒有合法的狀態轉換。{ frontmatterDoorLine(v) }</p>
+					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(v.Lang) }{ frontmatterDoorLine(v) }</p>
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
-					@transitionEffectLine("y-sealbar__notice")
+					@transitionEffectLine("y-sealbar__notice", v.Lang)
 					@legalTransitionForms(v)
 			}
 		</div>
@@ -1136,7 +1136,7 @@ func statusState(v NoteView) string {
 templ flipReceipt(v NoteView) {
 	if v.showsFlipReceipt() {
 		<p class="y-flipreceipt" role="status">
-			狀態已從 <code lang="en">{ v.FlippedFrom }</code> 改為 <code lang="en">{ v.Status }</code>。
+			{ wording.FlipReceiptBefore.In(v.Lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(v.Lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(v.Lang) }
 		</p>
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestStatusRecoveryDistinguishesMutationState(t *testing.T) {
@@ -119,7 +120,7 @@ func TestStatusRecoveryObsidianAction(t *testing.T) {
 				t.Fatalf("render: %v", err)
 			}
 			html := buf.String()
-			if got := strings.Contains(html, "在 Obsidian 開啟"); got != tt.want {
+			if got := strings.Contains(html, wording.OpenInObsidian.In(wording.ZhHant)); got != tt.want {
 				t.Errorf("Obsidian action rendered = %v, want %v", got, tt.want)
 			}
 			if tt.want && !strings.Contains(html, `href="obsidian://open?path=/vault/Notes/n.md"`) {
