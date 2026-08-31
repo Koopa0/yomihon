@@ -3,21 +3,17 @@ title: Lesson template
 type: lesson
 status: draft
 slug: lesson-template
-lang: ja
+lang: en
 ---
 
-## 文型骨格
+A shape to copy for a lesson, which carries one field a note does not: a slug,
+checked against the contract's `slug_pattern`.
 
-| 型 | 例 |
-| --- | --- |
-|  |  |
+## What this lesson covers
 
-## 本文
+## What to do
 
-## 語彙
+## What it assumes
 
--
-
-This file lives under a directory the contract names in `artifacts`, so it is
-read and rendered like any note but carries no status control: it is a shape to
-copy, not a note moving through a lifecycle.
+Like the note template beside it, this file lives under a directory the contract
+names in `[artifacts]`, so it is rendered and carries no status control.
