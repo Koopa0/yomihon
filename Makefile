@@ -273,7 +273,10 @@ frontend-check:
 	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs
 	@$(MAKE) --no-print-directory stylelint-check
 
-# Regenerates the README's pictures from the example vault. A screenshot the
+# Regenerates the README's pictures from the example vault. The script sits
+# beside .github/package.json rather than under e2e/, because everything in that
+# directory is a probe the runner drives and a tool parked among them is a file
+# nothing runs — which the probe runner refuses, correctly. A screenshot the
 # repository can retake is a screenshot that can be kept current; one taken by
 # hand goes stale the first time the interface moves and nobody can tell when.
 # The two pictures show the two languages the interface speaks.
@@ -283,8 +286,8 @@ screenshots:
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	YOMIHON_FIXTURE=examples/vault bash .github/e2e/serve.sh "$$tmp/yomihon" 19761 -- sh -c '\
-	  LANG_CHOICE=en OUT=.github/media/reading-en.png node .github/e2e/screenshot.mjs && \
-	  LANG_CHOICE=zh-Hant OUT=.github/media/reading-zh-TW.png node .github/e2e/screenshot.mjs'
+	  LANG_CHOICE=en OUT=.github/media/reading-en.png node .github/screenshot.mjs && \
+	  LANG_CHOICE=zh-Hant OUT=.github/media/reading-zh-TW.png node .github/screenshot.mjs'
 
 e2e-http-check:
 	@set -eu; \
