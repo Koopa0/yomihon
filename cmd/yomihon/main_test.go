@@ -3,7 +3,7 @@ package main_test
 // The composition point is where every face is wired together, so it is the
 // only honest home for two guards that are about the whole system rather than
 // any one feature: that no read or render face ever writes to the vault, and
-// that the command reads no environment beyond the three variables it is allowed.
+// that the command reads no environment beyond the one variable it is allowed.
 // Neither exercises main's wiring logic; each pins a system-wide invariant that
 // has no other place to live.
 
@@ -448,9 +448,9 @@ func drive(t *testing.T, url string) {
 	}
 }
 
-// allowedEnvKeys are the two variables this command may interpret as
-// configuration: the listening port, and nothing else. Which folder to read is
-// not among them — it is where you are standing, or what you name on the line.
+// allowedEnvKeys is the one variable this command may interpret as
+// configuration: the listening port. Which folder to read is not among them —
+// it is where you are standing, or what you name on the line.
 var allowedEnvKeys = map[string]bool{
 	"YOMIHON_PORT": true,
 }
@@ -461,7 +461,7 @@ var allowedEnvKeys = map[string]bool{
 // wherever it appears, and its reason says why.
 //
 // os.Getenv and os.LookupEnv are the two doors, because the command reads its
-// three variables through them. os.Environ takes the whole environment at once;
+// one variable through them. os.Environ takes the whole environment at once;
 // os.ExpandEnv names its variables inside a string, and os.Expand hands the
 // reading to a mapping — neither offers a key to check. syscall.Getenv takes a
 // single literal key exactly as os.Getenv does, and is refused all the same: an
@@ -720,10 +720,10 @@ func validateProductionGoPaths(t *testing.T, paths []string) {
 func envGuardTargets() []goTarget {
 	// The release surface is the two 64-bit architectures on each supported
 	// reader OS. Do not derive this from go tool dist list: that list describes
-	// targets the Go toolchain knows how to emit, including architectures on
-	// which this binary's SQLite dependency is not buildable and which yomihon
-	// does not certify. Keeping the matrix explicit makes a newly supported
-	// architecture an intentional review of both CI and the environment wall.
+	// targets the Go toolchain knows how to emit, including architectures
+	// yomihon does not certify. Keeping the matrix explicit makes a newly
+	// supported architecture an intentional review of both CI and the
+	// environment wall.
 	return []goTarget{
 		{os: "darwin", arch: "amd64"},
 		{os: "darwin", arch: "arm64"},
@@ -748,9 +748,7 @@ func goTargetEnvironment(target goTarget) []string {
 
 // TestOnlyKnownEnvVarsAreRead fixes the command's configuration surface. The
 // listener binds the loopback address and only the port is configurable, so the
-// only environment values this binary may interpret are the vault root, the
-// port, and the embedding credential. The credential is dormant unless an
-// explicit semantic CLI action reaches the provider gate. The
+// port is the only environment value this binary may interpret. The
 // test parses every file the command is built from — its own and each package it
 // links, as the toolchain reports them — and asserts that every reach for the
 // environment, through os or through the syscall package beneath it, called or

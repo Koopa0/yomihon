@@ -9,15 +9,6 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: gomod
-    directory: /tools/sqlite-driver-bakeoff
-    schedule:
-      interval: monthly
-    groups:
-      sqlite-bakeoff:
-        patterns:
-          - "*"
-
   - package-ecosystem: npm
     directory: /.github
     schedule:

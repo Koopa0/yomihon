@@ -194,7 +194,7 @@ linters:
               desc: NEVER mock the database — testcontainers-go (rules/testing.md)
             # Database (rules/database.md)
             - pkg: database/sql
-              desc: only the semantic SQLite owner may use database/sql; application queries go through sqlc
+              desc: no SQL in this repository — nothing here has a database
             # HTTP frameworks (go-philosophy — std net/http only)
             - pkg: github.com/go-chi/chi
               desc: no HTTP frameworks — net/http Go 1.22+ routing
@@ -202,13 +202,13 @@ linters:
               desc: no HTTP frameworks — net/http Go 1.22+ routing
             - pkg: github.com/labstack/echo
               desc: no HTTP frameworks — net/http Go 1.22+ routing
-            # ORMs (go-philosophy — pgx/v5 + sqlc only)
+            # ORMs (go-philosophy — this repository has no database at all)
             - pkg: gorm.io
-              desc: no ORM — pgx/v5 + sqlc
+              desc: no ORM — there is no database here to map
             - pkg: entgo.io
-              desc: no ORM — pgx/v5 + sqlc
+              desc: no ORM — there is no database here to map
             - pkg: github.com/uptrace/bun
-              desc: no ORM — pgx/v5 + sqlc
+              desc: no ORM — there is no database here to map
             # Logging (go-philosophy — log/slog only)
             - pkg: go.uber.org/zap
               desc: log/slog only

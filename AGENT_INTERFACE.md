@@ -22,7 +22,7 @@ the command runs in is the vault.
 
 ## The vault contract is required
 
-All five commands refuse a folder that has no vault contract at
+All three commands refuse a folder that has no vault contract at
 `System/schemas/vault-schema.toml`:
 
 - `check`, `coverage`, and `exists` print a tool error with guidance on
@@ -33,15 +33,13 @@ Reading and browser search are not gated; only this machine surface is.
 
 ## Output format selection
 
-Two conventions coexist, one per command family; each is deliberate and
-test-pinned, and they do not match. Pass `--format json` or `--json`
-explicitly in a pipeline rather than relying on pipe detection.
+All three commands adapt to the terminal: with no `--format` flag they write
+the machine format when stdout is not a terminal and the human view when it
+is. `--format json|human|md` decides instead of the terminal. `md` is a
+check-only format; `coverage` and `exists` fall back to the human view for it.
 
-- `check`, `coverage`, and `exists` adapt to the terminal: with no `--format`
-  flag they write the machine format when stdout is not a terminal and the
-  human view when it is. `--format json|human|md` decides instead of the
-  terminal. `md` is a check-only format; `coverage` and `exists` fall back to
-  the human view for it.
+Pass `--format json` explicitly in a pipeline rather than relying on pipe
+detection.
 
 ## Machine formats
 
@@ -68,11 +66,11 @@ with `path`, `note_type`, `expected_route`).
 
 ## Exit codes
 
-| Command | 0 | 1 | 2 | 3 |
-|---|---|---|---|---|
-| `check` | nothing named by `--deny` found | a `--deny` gate hit | could not run | — |
-| `coverage` | always: it reports, never gates | — | could not run | — |
-| `exists` | a match exists, describable or withheld | no match exists | could not run | — |
+| Command | 0 | 1 | 2 |
+|---|---|---|---|
+| `check` | nothing named by `--deny` found | a `--deny` gate hit | could not run |
+| `coverage` | always: it reports, never gates | — | could not run |
+| `exists` | a match exists, describable or withheld | no match exists | could not run |
 
 `exists` is designed so a caller can gate a write-if-absent on the exit code
 alone.
