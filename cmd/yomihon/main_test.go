@@ -149,13 +149,54 @@ func TestAgentInterfaceDocumentCoversTheMachineSurface(t *testing.T) {
 		"yomihon exists",
 		"System/schemas/vault-schema.toml",
 		"`--format json`",
-		"`--json`",
 		"fingerprint",
 		"## Exit codes",
 	} {
 		if !strings.Contains(text, anchor) {
 			t.Errorf("agent interface document does not mention %q", anchor)
 		}
+	}
+
+	// The document counts its own commands in prose, and the prose is what goes
+	// stale when one is removed: a sentence saying five sits three lines above a
+	// table listing three. Asking whether the right number is present does not
+	// catch that — the right number is present, in the sentence nobody broke.
+	// Asking only about phrasings the document already gets right does not catch
+	// it either, which is how the first two versions of this check passed a
+	// document that contradicted itself. What catches it: for every way the
+	// document counts itself, whatever number it used there has to be the one
+	// the table lists.
+	rows := 0
+	for line := range strings.SplitSeq(text, "\n") {
+		if strings.HasPrefix(line, "| `yomihon ") {
+			rows++
+		}
+	}
+	if rows == 0 {
+		t.Fatal("the commands table has no rows, so the count below would compare against nothing")
+	}
+	spelled := map[int]string{1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+	truth, named := spelled[rows]
+	if !named {
+		t.Fatalf("the commands table lists %d commands, which this check has no word for", rows)
+	}
+	// Every shape the document uses to count itself. A new one is a new way for
+	// this to go stale unseen, so it belongs here the day it is written.
+	counted := 0
+	for _, form := range []string{"%s subcommands", "All %s commands", "the %s commands"} {
+		for n, word := range spelled {
+			phrase := fmt.Sprintf(form, word)
+			if !strings.Contains(text, phrase) {
+				continue
+			}
+			counted++
+			if n != rows {
+				t.Errorf("the commands table lists %d, and the document says %q", rows, phrase)
+			}
+		}
+	}
+	if counted == 0 {
+		t.Errorf("the document counts its commands in none of the known phrasings, so this check compared nothing; it should say %q somewhere", truth+" subcommands")
 	}
 }
 
