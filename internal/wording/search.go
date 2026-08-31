@@ -28,8 +28,8 @@ var (
 var (
 	NoResultsFmt     = both("找不到「%s」的結果。", "Nothing matches %q.")
 	StepBackLabel    = both("退一步找：", "Try a shorter query: ")
-	StepBackOpen     = both("「", "")
-	StepBackClose    = both("」", "")
+	StepBackOpen     = both("「", "\"")
+	StepBackClose    = both("」", "\"")
 	StepBackCountFmt = both("（%d 筆）", " (%d)")
 )
 
