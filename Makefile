@@ -1,6 +1,5 @@
 GOLANGCI_LINT_VERSION := 2.13.2
 GOSEC_VERSION := v2.28.0
-SQLC_VERSION := v1.31.1
 STATICCHECK_VERSION := v0.8.1
 ACTIONLINT_VERSION := v1.7.12
 SHELLCHECK_VERSION := 0.11.0
@@ -15,9 +14,7 @@ COVER_SUMMARY ?= /tmp/yomihon-coverage.txt
 
 # Root-module Go code lives in three owned trees. Listing those roots directly
 # prevents an ignored frontend dependency with a stray Go package from entering
-# the build graph before an exclusion can run. The SQLite bake-off is a nested
-# module: tools-check gates the selected driver, while CI additionally runs the
-# retained comparison through tools-check-mattn.
+# the build graph before an exclusion can run.
 #
 # $(1) is any extra `go list` flags; the owned result lands in $$list.
 define owned-go-list
@@ -40,18 +37,18 @@ needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
 }
 endef
 
-.PHONY: screenshots build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
+.PHONY: screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
 
-build-check: sqlc-check
+build-check:
 	go build ./assets ./cmd/... ./internal/...
 
 run: gen css
 	go run ./cmd/yomihon serve
 
-test: sqlc-check
+test:
 	@$(call owned-go-list); go test -race -count=1 -shuffle=on $$list
 
 test-real-vault:
@@ -64,23 +61,8 @@ test-real-vault:
 real-vault-build-check:
 	@$(call owned-go-list,-tags=realvault); YOMIHON_ROOT= go test -run='^$$' -tags=realvault $$list
 
-# Deliberately absent from ordinary PR verification: this sends only fixed
-# synthetic protocol probes, but it spends provider quota. Unlike a skipped
-# test, the named certification gate refuses to pass without the explicit
-# opt-in and the operator's own credential.
-provider-live:
-	@test "$${YOMIHON_EMBED_LIVE:-}" = 1 || { echo 'YOMIHON_EMBED_LIVE=1 is required for provider-live' >&2; exit 2; }
-	@test -n "$${YOMIHON_EMBED_KEY:-}" || { echo 'YOMIHON_EMBED_KEY is required for provider-live' >&2; exit 2; }
-	@listed=$$(go test ./internal/search/semantic -run='^TestGeminiEmbedding2LiveProtocol$$' -list='^TestGeminiEmbedding2LiveProtocol$$') || exit 1; \
-	case "$$listed" in *TestGeminiEmbedding2LiveProtocol*) ;; *) echo 'TestGeminiEmbedding2LiveProtocol is gone; the live certification would run nothing' >&2; exit 1;; esac
-	go test -count=1 -run='^TestGeminiEmbedding2LiveProtocol$$' ./internal/search/semantic
 
-# Coverage is an observable report, not a percentage gate. A repository-wide
-# floor would reward shallow tests and punish generated or platform-specific
-# code without proving any contract; watched-red and mutation evidence remain
-# the acceptance standard. CI retains both the machine profile and this exact
-# function summary so missing areas can still be reviewed over time.
-coverage-report: sqlc-check
+coverage-report:
 	@$(call owned-go-list); \
 	coverpkg=$$(printf '%s\n' "$$list" | paste -sd, -); \
 	testlog=$$(mktemp "$${TMPDIR:-/tmp}/yomihon-coverage-test.XXXXXX"); \
@@ -105,7 +87,7 @@ bench-compare:
 	@$(call owned-go-list); go test -run='^$$' -bench=. -benchmem -count=10 $$list > "$(BENCH_CURRENT)"
 	benchstat "$(BENCH_BASELINE)" "$(BENCH_CURRENT)"
 
-lint: sqlc-check
+lint:
 	@version=$$(golangci-lint version); case "$$version" in *"version $(GOLANGCI_LINT_VERSION) "*) ;; *) echo 'golangci-lint $(GOLANGCI_LINT_VERSION) is required' >&2; exit 1;; esac
 	golangci-lint config verify
 	golangci-lint run ./assets ./cmd/... ./internal/...
@@ -115,12 +97,10 @@ fmt:
 	go tool templ fmt internal/ui
 	go tool templ generate -path internal/ui
 	golangci-lint fmt ./assets ./cmd ./internal
-	cd tools/sqlite-driver-bakeoff && golangci-lint fmt --config ../../.golangci.yml
 
 fmt-check: templ-fmt-check templ-gen-check
 	@version=$$(golangci-lint version); case "$$version" in *"version $(GOLANGCI_LINT_VERSION) "*) ;; *) echo 'golangci-lint $(GOLANGCI_LINT_VERSION) is required' >&2; exit 1;; esac
 	golangci-lint fmt --diff ./assets ./cmd ./internal
-	cd tools/sqlite-driver-bakeoff && golangci-lint fmt --config ../../.golangci.yml --diff
 
 # templ's -fail mode formats in place before it returns 1, which makes it a
 # poor verification primitive in a dirty checkout. Compare each formatter
@@ -149,7 +129,7 @@ templ-gen-check:
 # selects the platform-boundary test files hiding behind it on the supported
 # platforms. Without it a break inside those files is invisible to every
 # local gate: plain vet skips them and the cross-builds compile no tests.
-vet: sqlc-check
+vet:
 	@$(call owned-go-list); go vet $$list
 	@$(call owned-go-list); go vet -tags yomihon_nodurable $$list
 
@@ -171,7 +151,6 @@ vuln:
 tools:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)
 	go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
 	go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 	go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
@@ -191,32 +170,14 @@ workflow-check:
 tracked-paths-check:
 	sh tools/check-tracked-paths.sh
 
-gen: sqlc
+gen:
 	go tool templ generate -path internal/ui
 
-sqlc: sqlc-version
-	sqlc generate
-	sqlc vet
 
-sqlc-version:
-	@version=$$(sqlc version); [ "$$version" = "$(SQLC_VERSION)" ] || { echo 'sqlc $(SQLC_VERSION) is required, got '"$$version" >&2; exit 1; }
 
-# Generation is intentionally separated from verification. The check generates
-# into an empty directory and compares exact trees, so stale output and extra
-# hand-written files in the generated package both fail closed.
-sqlc-check: sqlc-version
-	@set -eu; \
-	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-sqlc.XXXXXX"); \
-	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
-	mkdir -p "$$tmp/internal/search/semantic/sql"; \
-	cp sqlc.yaml "$$tmp/sqlc.yaml"; \
-	cp internal/search/semantic/sql/schema.sql internal/search/semantic/sql/query.sql "$$tmp/internal/search/semantic/sql/"; \
-	sqlc generate --no-remote -f "$$tmp/sqlc.yaml"; \
-	if ! diff -ru "$$tmp/internal/search/semantic/catalog" internal/search/semantic/catalog; then \
-		echo 'sqlc generated tree differs from the checked-in package' >&2; \
-		exit 1; \
-	fi; \
-	sqlc vet
+
+
+
 
 css:
 	tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
@@ -235,38 +196,12 @@ css-check:
 mod-check:
 	go mod tidy -diff
 	go mod verify
-	go -C tools/sqlite-driver-bakeoff mod verify
 
-tools-check-prepare:
-	@test "$$(sed -n 's|^replace github.com/koopa0/yomihon => \(.*\)$$|\1|p' tools/sqlite-driver-bakeoff/go.mod)" = "../.." || { \
-		echo 'SQLite bake-off replace must point exactly at the root module' >&2; \
-		exit 1; \
-	}
-	go -C tools/sqlite-driver-bakeoff mod tidy -diff
 
-tools-check: tools-check-prepare
-	go -C tools/sqlite-driver-bakeoff vet -tags modernc ./...
-	@version=$$(golangci-lint version); case "$$version" in *"version $(GOLANGCI_LINT_VERSION) "*) ;; *) echo 'golangci-lint $(GOLANGCI_LINT_VERSION) is required' >&2; exit 1;; esac
-	cd tools/sqlite-driver-bakeoff && golangci-lint run --config ../../.golangci.yml --build-tags modernc --disable=gomoddirectives ./...
-	@$(call require-go-tool,staticcheck,honnef.co/go/tools,$(STATICCHECK_VERSION))
-	cd tools/sqlite-driver-bakeoff && staticcheck -tags modernc ./...
-	@$(call require-go-tool,gosec,github.com/securego/gosec/v2,$(GOSEC_VERSION))
-	cd tools/sqlite-driver-bakeoff && gosec -tags modernc -tests -nosec-require-rules -nosec-require-justification ./...
-	go -C tools/sqlite-driver-bakeoff test -race -tags modernc ./...
 
-# The rejected CGO driver remains only to reproduce the documented comparison.
-# It is not part of the product gate because requiring a C toolchain would undo
-# the selected driver's portability advantage. CI calls this target on Linux so
-# retained comparison code cannot rot unnoticed.
-tools-check-mattn: tools-check-prepare
-	go -C tools/sqlite-driver-bakeoff vet -tags mattn ./...
-	@version=$$(golangci-lint version); case "$$version" in *"version $(GOLANGCI_LINT_VERSION) "*) ;; *) echo 'golangci-lint $(GOLANGCI_LINT_VERSION) is required' >&2; exit 1;; esac
-	cd tools/sqlite-driver-bakeoff && golangci-lint run --config ../../.golangci.yml --build-tags mattn --disable=gomoddirectives ./...
-	@$(call require-go-tool,staticcheck,honnef.co/go/tools,$(STATICCHECK_VERSION))
-	cd tools/sqlite-driver-bakeoff && staticcheck -tags mattn ./...
-	@$(call require-go-tool,gosec,github.com/securego/gosec/v2,$(GOSEC_VERSION))
-	cd tools/sqlite-driver-bakeoff && gosec -tags mattn -tests -nosec-require-rules -nosec-require-justification ./...
-	go -C tools/sqlite-driver-bakeoff test -race -tags mattn ./...
+
+
+
 
 frontend-check:
 	npm ci --prefix .github --ignore-scripts --no-audit --fund=false
@@ -364,7 +299,7 @@ stylelint-check:
 	while IFS= read -r file; do set -- "$$@" "$$file"; done < "$$tmp/files"; \
 	npm exec --prefix .github -- stylelint --config .stylelintrc.json --config-basedir .github "$$@"
 
-verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check tools-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
+verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
 
 verify-spec:
 	@test -f tests/test-hooks.sh \

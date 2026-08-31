@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -247,75 +246,6 @@ func assertHomeUntouched(t *testing.T, home string) {
 		}
 		t.Errorf("command touched isolated home: entries = %q, want none", names)
 	}
-}
-
-func assertNoSemanticStore(t *testing.T, home string) {
-	t.Helper()
-	assertHomeUntouched(t, home)
-}
-
-func runYomihonServe(t *testing.T, binary, root, home, key string) string {
-	t.Helper()
-	logPath := filepath.Join(t.TempDir(), "serve.log")
-	logFile, openErr := os.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600) // #nosec G304 -- logPath is rooted in t.TempDir
-	if openErr != nil {
-		t.Fatalf("open serve log: %v", openErr)
-	}
-	cmd := exec.CommandContext(t.Context(), binary, "serve", root) // #nosec G204 -- binary and arguments are constructed entirely by this test
-	cmd.Env = append(isolatedUserEnv(home),
-		"YOMIHON_PORT=0",
-		"YOMIHON_EMBED_KEY="+key,
-	)
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
-	if startErr := cmd.Start(); startErr != nil {
-		closeErr := logFile.Close()
-		t.Fatalf("start yomihon serve: %v", errors.Join(startErr, closeErr))
-	}
-	stopped := false
-	t.Cleanup(func() {
-		if !stopped && cmd.Process != nil {
-			if killErr := cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
-				t.Logf("kill unfinished yomihon serve: %v", killErr)
-			}
-			if waitErr := cmd.Wait(); waitErr != nil {
-				t.Logf("wait for killed yomihon serve: %v", waitErr)
-			}
-		}
-		if closeErr := logFile.Close(); closeErr != nil && !errors.Is(closeErr, os.ErrClosed) {
-			t.Errorf("close serve log during cleanup: %v", closeErr)
-		}
-	})
-
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		data, readErr := os.ReadFile(logPath) // #nosec G304 -- logPath is rooted in t.TempDir
-		if readErr != nil {
-			t.Fatalf("read serve log: %v", readErr)
-		}
-		if bytes.Contains(data, []byte("yomihon serving")) {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("yomihon serve did not start; log = %q", data)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if signalErr := cmd.Process.Signal(os.Interrupt); signalErr != nil {
-		t.Fatalf("interrupt yomihon serve: %v", signalErr)
-	}
-	if waitErr := cmd.Wait(); waitErr != nil {
-		t.Fatalf("wait yomihon serve: %v", waitErr)
-	}
-	stopped = true
-	if closeErr := logFile.Close(); closeErr != nil {
-		t.Fatalf("close serve log: %v", closeErr)
-	}
-	data, readErr := os.ReadFile(logPath) // #nosec G304 -- logPath is rooted in t.TempDir
-	if readErr != nil {
-		t.Fatalf("read final serve log: %v", readErr)
-	}
-	return string(data)
 }
 
 // TestReadFacesNeverWriteTheVault drives every read and render face against a

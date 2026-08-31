@@ -29,7 +29,6 @@ env:
   GOLANGCI_LINT_VERSION: v2.13.2
   GOLANGCI_LINT_SHA256: 2277d43b98ec0054280f2ac26b53268bae97682444678a59a657dd565da021d6
   GOSEC_VERSION: v2.28.0
-  SQLC_VERSION: v1.31.1
   STATICCHECK_VERSION: v0.8.1
   ACTIONLINT_VERSION: v1.7.12
   GOVULNCHECK_VERSION: v1.5.0
@@ -59,7 +58,6 @@ jobs:
       - name: Install pinned Go analysis and generation tools
         run: |
           go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
-          go install "github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}"
           go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
           go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
           go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
@@ -87,12 +85,6 @@ jobs:
 
       - name: Verify
         run: make verify
-
-      # The product uses modernc and remains CGo-free. This extra Linux-only
-      # gate keeps the retained mattn comparison reproducible without making a
-      # C compiler a product-build prerequisite.
-      - name: Verify the retained mattn comparison
-        run: make tools-check-mattn
 
   # Scans the dependency and standard-library surface for known
   # vulnerabilities. Kept separate from the build-and-test gate so a new
@@ -128,9 +120,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install the pinned SQL generator
-        run: go install "github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}"
-
       - name: Record Go coverage
         run: |
           make coverage-report \
@@ -157,8 +146,8 @@ jobs:
   # The full analysis, generation, race, and fuzz gates run once on Linux. A
   # real Darwin runner also executes the complete suite. Windows builds and
   # vets every package, compiles every test, then drives its product-specific
-  # contract: the lexical reader remains available while both status
-  # publication and the first semantic store fail before filesystem access.
+  # contract: the lexical reader remains available while status publication
+  # fails before filesystem access.
   # Supported-platform write tests are intentionally not executed on a kernel
   # where those features are unavailable; the focused runtime contract below
   # is stronger evidence than skipping inside hundreds of unrelated tests.
@@ -213,48 +202,7 @@ jobs:
           done
           go test ./... -run '^TestUnsupportedPlatform' -count=1
 
-  # Windows deliberately exposes no semantic-generation store in the first
-  # store implementation. A real
-  # Windows runner proves the three store entry points fail before creating a
-  # directory or SQLite sidecar; cross-compilation cannot prove that runtime
-  # privacy boundary. Plain lexical search and the server remain portable.
-  windows-semantic-contract:
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      # As in the Windows boundary step above, the test is asked for before it
-      # is run: a pattern matching nothing exits 0, and this job would stay
-      # green while proving nothing about the store's fail-fast contract.
-      - name: Prove the semantic store is fail-fast and side-effect free
-        shell: bash
-        run: |
-          listed=$(go test ./internal/search/semantic -run '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$' -list '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$')
-          printf '%s\n' "$listed"
-          printf '%s\n' "$listed" | grep -q '^Test' || { echo "the semantic-store platform test is gone; this job would run nothing" >&2; exit 1; }
-          go test ./internal/search/semantic -run '^TestSemanticStoreEntryPointsFailBeforeCreatingFilesOnUnsupportedPlatform$' -count=1
-
-  # The writer lease is implemented separately on Darwin and Linux. Running
-  # the package on a real macOS kernel proves the Darwin flock path is both
-  # compilable and nonblocking; a Linux-only gate cannot cover that privacy
-  # and publication boundary.
-  darwin-semantic-contract:
-    runs-on: macos-15
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Exercise the Darwin store and writer lease
-        run: go test -race ./internal/search/semantic -count=1
 
   # Regenerating the checked-in generated files must produce no change. A
   # difference means a generated file was edited by hand, or a source changed
