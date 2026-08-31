@@ -98,13 +98,10 @@ linters:
     # Context
     - containedctx      # context.Context stored in struct field
     - fatcontext        # context rebuilt inside loop
-    - noctx             # HTTP/SQL calls without context
+    - noctx             # HTTP calls without context
 
-    # HTTP / SQL resource hygiene
+    # HTTP resource hygiene
     - bodyclose         # resp.Body must be closed
-    - sqlclosecheck     # Rows/Stmt closed
-    - rowserrcheck      # Rows.Err() checked (exit condition: remove if
-                        # proven database/sql-only and useless for pgx)
 
     # Observability
     - sloglint          # slog call hygiene (key naming, arg style)
