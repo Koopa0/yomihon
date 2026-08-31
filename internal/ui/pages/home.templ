@@ -1,9 +1,11 @@
 package pages
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // HomeView is the read-only landing surface: dashboard blocks assembled from
@@ -23,7 +25,6 @@ import (
 // a reader who wants it is one click away.
 const (
 	homeReadmeRelPath = "README.md"
-	homeReadmeTitle   = "這個書庫的說明"
 )
 
 // HomeView is everything the landing page shows about a vault at one moment:
@@ -120,8 +121,8 @@ templ Home(v HomeView, c layouts.Chrome) {
 			<main id="main-content" tabindex="-1" class="y-main">
 				<div class="y-home">
 					<header class="y-home__head">
-						<div class="y-home__kicker">閱讀桌</div>
-						<h1 class="y-title">首頁</h1>
+						<div class="y-home__kicker">{ wording.HomeKicker.In(c.Lang) }</div>
+						<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
 						if v.Subtitle != "" {
 							<p>{ v.Subtitle }</p>
 						}
@@ -129,15 +130,15 @@ templ Home(v HomeView, c layouts.Chrome) {
 					<div class="y-homegrid">
 						if v.Fault != "" {
 							<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
-								@homeBlockHead("home-faults-title", "契約能力", "書庫宣告了無法履行的事")
+								@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
 								<p class="y-homeempty" data-home-fault>
-									@browserDiagnostic("部分投影已關閉。", v.Fault)
+									@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
 								</p>
 							</section>
 						}
 						if v.Degraded != "" {
 							<section class="y-homeblock y-homeblock--faults" data-home-block="degraded" aria-labelledby="home-degraded-title">
-								@homeBlockHead("home-degraded-title", "讀取狀況", "有檔案這次沒有讀進來")
+								@homeBlockHead("home-degraded-title", wording.HomeDegradedTitle.In(c.Lang), wording.HomeDegradedLede.In(c.Lang))
 								<p class="y-homeempty" data-home-degraded>
 									@browserDiagnostic(v.Degraded, v.DegradedDetail)
 								</p>
@@ -146,18 +147,18 @@ templ Home(v HomeView, c layouts.Chrome) {
 						if v.StandIn.Shown {
 							<p class="y-homestandin" data-home-standin>
 								if v.StandIn.NewestRelPath == "" {
-									這個資料夾目前沒有檔案。
+									{ wording.StandInEmpty.In(c.Lang) }
 								} else {
-									{ "這個資料夾有 " + strconv.Itoa(v.StandIn.Files) + " 個檔案，最近一次變更是" }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>（<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>）。
+									{ fmt.Sprintf(wording.StandInBefore.In(c.Lang), v.StandIn.Files) }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>{ wording.StandInDateOpen.In(c.Lang) }<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>{ wording.StandInDateClose.In(c.Lang) }
 								}
 							</p>
 						}
 						if v.ShowRecent {
 							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
 								if v.RecentOrdered {
-									@homeBlockHead("home-recent-title", "最近變更", "最近改動過的筆記")
+									@homeBlockHead("home-recent-title", wording.HomeRecentTitle.In(c.Lang), wording.HomeRecentLede.In(c.Lang))
 								} else {
-									@homeBlockHead("home-recent-title", "筆記", "這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」")
+									@homeBlockHead("home-recent-title", wording.HomeTiedTitle.In(c.Lang), wording.HomeTiedLede.In(c.Lang))
 								}
 								<div class="y-homerecent">
 									for _, n := range v.Recent {
@@ -184,16 +185,16 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if v.ShowLifecycle {
 							<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
-								@homeBlockHead("home-lifecycle-title", "依狀態分組", "書庫中每個狀態的筆記數")
+								@homeBlockHead("home-lifecycle-title", wording.HomeLifecycleTitle.In(c.Lang), wording.HomeLifecycleLede.In(c.Lang))
 								<div class="y-homechips">
 									for _, it := range v.Lifecycle {
 										<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
 											<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
-											<span>{ statusChipLabel(it.Name) }</span>
+											<span>{ statusChipLabel(it.Name, c.Lang) }</span>
 											if it.Unknown {
 												@statusOutsideEnumMark()
 											}
-											<span class="y-homechip__count" aria-label={ strconv.Itoa(it.Count) + " 篇筆記" }>{ strconv.Itoa(it.Count) }</span>
+											<span class="y-homechip__count" aria-label={ fmt.Sprintf(wording.NoteCount.In(c.Lang), it.Count) }>{ strconv.Itoa(it.Count) }</span>
 										</a>
 									}
 								</div>
@@ -201,23 +202,23 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if v.ShowPaths {
 							<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
-								@homeBlockHead("home-paths-title", "學習路徑", "沿著書庫中的課程繼續學習")
+								@homeBlockHead("home-paths-title", wording.HomePathsTitle.In(c.Lang), wording.HomePathsLede.In(c.Lang))
 								<div class="y-homepaths">
 									for _, p := range v.Paths {
 										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
 											<span class="y-homepath__title">{ p.Title }</span>
-											<span class="y-homepath__progress">{ strconv.Itoa(p.Total) } 課</span>
+											<span class="y-homepath__progress">{ fmt.Sprintf(wording.LessonCount.In(c.Lang), p.Total) }</span>
 										</a>
 									}
 								</div>
 							</section>
 						}
 						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
-							@homeBlockHead("home-search-title", "搜尋", "尋找筆記或篩選書庫")
+							@homeBlockHead("home-search-title", wording.HomeSearchTitle.In(c.Lang), wording.HomeSearchLede.In(c.Lang))
 							<form class="y-homesearch" method="get" action="/search" role="search">
 								<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-								<input type="search" name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記"/>
-								<button type="submit" class="y-xbtn">搜尋</button>
+								<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
+								<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
 							</form>
 						</section>
 					</div>
@@ -232,7 +233,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 					// leave.
 					if !v.ReadmeMissing {
 						<p class="y-homereadme" data-home-readme>
-							<a href={ templ.URL(notesHref(homeReadmeRelPath)) }>{ homeReadmeTitle }</a>
+							<a href={ templ.URL(notesHref(homeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
 						</p>
 					}
 				</div>

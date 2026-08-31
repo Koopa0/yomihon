@@ -3,6 +3,7 @@ package pages
 import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // ReportView is the minimal shell a sandboxed report needs: the report's name
@@ -42,7 +43,7 @@ templ Report(v ReportView, c layouts.Chrome) {
 				<h1 class="y-reporttitle">{ v.Name }</h1>
 				if v.NeedsScript {
 					<p class="y-homeempty" data-report-inert>
-						這份文件以原樣顯示。它有一部分要靠程式繪製，而程式不會在這裡執行——那些部分不會出現。
+						{ wording.ReportAsIs.In(c.Lang) }
 					</p>
 				}
 				<iframe

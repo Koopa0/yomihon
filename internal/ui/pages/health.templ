@@ -1,10 +1,12 @@
 package pages
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // HealthView is the whole-folder answer to "what needs attention". Every note
@@ -97,12 +99,12 @@ func (v HealthView) clean() bool {
 
 // blockedLede states what the blocked list means for the reader, and how
 // current the page behind it is.
-func (v HealthView) blockedLede() string {
-	lede := "這一次讀取時打不開這些檔案，頁面顯示的內容缺了它們，或停在較舊的版本。"
+func (v HealthView) blockedLede(lang wording.Lang) string {
+	lede := wording.BlockedLede.In(lang)
 	if v.LastComplete == "" {
-		return lede + "啟動到現在還沒有一次完整的讀取。"
+		return lede + wording.BlockedNeverComplete.In(lang)
 	}
-	return lede + "最後一次完整讀取是 " + v.LastComplete + "。"
+	return lede + fmt.Sprintf(wording.BlockedLastCompleteFmt.In(lang), v.LastComplete)
 }
 
 // Health is the page listing what the folder owes: citations with nowhere to
@@ -116,13 +118,13 @@ templ Health(v HealthView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c.Nonce)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<article class="y-article">
-					<h1 class="y-title">整體狀況</h1>
+					<h1 class="y-title">{ wording.HealthTitle.In(c.Lang) }</h1>
 					<div class="y-seam" aria-hidden="true"></div>
 					if v.clean() {
-						<p class="y-homeempty">這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——這裡的 status 名單是從「有寫 status 的筆記」來的，沒寫的不會出現在任何一區；那些請跑 <code lang="en">yomihon check</code>。</p>
+						<p class="y-homeempty">{ wording.HealthAllClear.In(c.Lang) }<code lang="en">yomihon check</code>{ wording.HealthAllClearAfterCommand.In(c.Lang) }</p>
 					} else {
-						<p class="y-healthlede">這裡只陳述狀況，不會動你的檔案。要修改請在編輯器裡改那個檔案。</p>
-						@healthSection("讀不進來的檔案", len(v.Blocked), v.blockedLede()) {
+						<p class="y-healthlede">{ wording.HealthReportsOnly.In(c.Lang) }</p>
+						@healthSection(wording.BlockedTitle.In(c.Lang), len(v.Blocked), v.blockedLede(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, source := range v.Blocked {
 									<li>
@@ -134,30 +136,30 @@ templ Health(v HealthView, c layouts.Chrome) {
 								}
 							</ul>
 						}
-						@healthSection("連到不存在的目標", len(v.Unwritten), "這些連結的目標不存在，而且沒有任何缺口帳列出它們。目標是作者寫下的名字：可能是一篇還沒寫的筆記，也可能是一個不在書庫裡的檔案——兩者要修的東西不一樣。") {
+						@healthSection(wording.UnwrittenTitle.In(c.Lang), len(v.Unwritten), wording.UnwrittenLede.In(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, link := range v.Unwritten {
 									<li>
 										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }>{ link.From.Name }</a>
-										<span class="y-healthlist__detail">連到「{ link.Target }」</span>
+										<span class="y-healthlist__detail">{ fmt.Sprintf(wording.LinkedToFmt.In(c.Lang), link.Target) }</span>
 									</li>
 								}
 							</ul>
 						}
-						@healthSection("連結寫的是筆記的標題", len(v.TitleOnly), "這些筆記都存在。連結指不到它們，是因為寫的是標題，而標題不是這個書庫解析連結用的名字——檔名和 aliases 才是。要修的是那篇筆記的 aliases，不是再寫一篇。") {
+						@healthSection(wording.TitleOnlyTitle.In(c.Lang), len(v.TitleOnly), wording.TitleOnlyLede.In(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, link := range v.TitleOnly {
 									<li>
 										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }>{ link.From.Name }</a>
 										<span class="y-healthlist__detail">
-											寫的是「{ link.Target }」，指的是
+											{ fmt.Sprintf(wording.TitleOnlyMeansTo.In(c.Lang), link.Target) }
 											<a class="y-healthlink" href={ templ.URL(notesHref(link.Note.RelPath)) }>{ link.Note.Name }</a>
 										</span>
 									</li>
 								}
 							</ul>
 						}
-						@healthSection("沒有人連過來的筆記", v.IslandCount, "沒有其他筆記連到它們。很多寫作方式本來就不互相引用——日記、逐字稿、模板、產生出來的報告——所以這裡按資料夾分開，先看形狀，再決定哪一堆值得你看。") {
+						@healthSection(wording.IslandsTitle.In(c.Lang), v.IslandCount, wording.IslandsLede.In(c.Lang)) {
 							for _, group := range v.Islands {
 								<details class="y-islandgroup">
 									<summary class="y-islandgroup__head">
@@ -172,19 +174,19 @@ templ Health(v HealthView, c layouts.Chrome) {
 								</details>
 							}
 						}
-						@healthSection("狀態值不在允許清單的筆記", len(v.StatusOutsideEnum), "這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁會標出它們；要修正請直接編輯 frontmatter。") {
+						@healthSection(wording.StatusOutsideEnumTitle.In(c.Lang), len(v.StatusOutsideEnum), wording.StatusOutsideEnumLede.In(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, found := range v.StatusOutsideEnum {
 									<li>
 										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }>{ found.Note.Name }</a>
 										<span class="y-healthlist__detail">
-											狀態值「{ found.Status }」，類型「{ found.Type }」
+											{ fmt.Sprintf(wording.StatusAndTypeFmt.In(c.Lang), found.Status, found.Type) }
 										</span>
 									</li>
 								}
 							</ul>
 						}
-						@healthSection("兩個檔案共用的名字", len(v.Collisions), "連到這些名字的連結不會生效，因為無法判斷指的是哪一個，而這裡不猜。") {
+						@healthSection(wording.CollisionsTitle.In(c.Lang), len(v.Collisions), wording.CollisionsLede.In(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, collision := range v.Collisions {
 									<li>
@@ -204,7 +206,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 					}
 				</article>
 			</main>
-			<aside class="y-rail-right" aria-label="閱讀輔助"></aside>
+			<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(c.Lang) }></aside>
 		</div>
 	}
 }

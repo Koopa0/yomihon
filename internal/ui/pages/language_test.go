@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestBrowserCopyUsesTraditionalChinese keeps machine tokens independent from
@@ -25,7 +26,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 		{
 			name: "file information",
 			render: func(buf *bytes.Buffer) error {
-				return fileInfo(FileView{Title: "blob", Size: 2, ContentType: "application/octet-stream"}).Render(t.Context(), buf)
+				return fileInfo(FileView{Title: "blob", Size: 2, ContentType: "application/octet-stream"}, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{"沒有可呈現此檔案的閱讀器", "2 位元組", "開啟原始位元組"},
 			forbidden: []string{"no reader here", "2 bytes", "Open raw bytes"},
@@ -33,7 +34,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 		{
 			name: "search",
 			render: func(buf *bytes.Buffer) error {
-				return SearchResults("needle", nil, 0, "technical diagnostic", true, nil).Render(t.Context(), buf)
+				return SearchResults("needle", nil, 0, "technical diagnostic", true, nil, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{"中介資料搜尋目前無法使用", "vault schema 的治理資料無法使用", `lang="en"`},
 			forbidden: []string{"Metadata search unavailable", "Search is temporarily unavailable"},

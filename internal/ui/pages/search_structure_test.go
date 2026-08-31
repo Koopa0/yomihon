@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Arriving here by ear, the first thing announced was a text field with no
@@ -68,7 +69,7 @@ func TestSearchResultsFragmentCarriesNoHeading(t *testing.T) {
 
 	var buf bytes.Buffer
 	results := []SearchResult{{Title: "First", RelPath: "Concepts/first.md"}}
-	if err := SearchResults("a", results, len(results), "", false, nil).Render(t.Context(), &buf); err != nil {
+	if err := SearchResults("a", results, len(results), "", false, nil, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render search results: %v", err)
 	}
 	html := buf.String()

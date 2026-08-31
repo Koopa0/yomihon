@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // When a search finds nothing, the page offers a way to narrow it. Offering to
@@ -26,7 +28,7 @@ func TestEmptySearchOffersLifecycleFilterOnlyWhereLifecycleExists(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := SearchResults("沒有這個詞", nil, 0, "", tt.governed, nil).Render(t.Context(), &buf); err != nil {
+			if err := SearchResults("沒有這個詞", nil, 0, "", tt.governed, nil, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("SearchResults(...).Render() error = %v", err)
 			}
 			got := buf.String()
@@ -47,7 +49,7 @@ func TestEmptySearchOffersStepBacks(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	steps := []SearchStepBack{{Query: "20 mg", Count: 1}}
-	if err := SearchResults("20mg", nil, 0, "", false, steps).Render(t.Context(), &buf); err != nil {
+	if err := SearchResults("20mg", nil, 0, "", false, steps, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("SearchResults(...).Render() error = %v", err)
 	}
 	got := buf.String()
@@ -58,7 +60,7 @@ func TestEmptySearchOffersStepBacks(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := SearchResults("20mg", nil, 0, "", false, nil).Render(t.Context(), &buf); err != nil {
+	if err := SearchResults("20mg", nil, 0, "", false, nil, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("SearchResults(...).Render() error = %v", err)
 	}
 	if strings.Contains(buf.String(), "退一步找") {

@@ -117,8 +117,8 @@ func statusHref(status string) string {
 // frontmatter carries no status still has somewhere to go, so it is counted
 // and listed like any other; saying so in words leaves the reader with what
 // the file is missing rather than a link with nothing written on it.
-func statusChipLabel(status string) string {
-	return cmp.Or(status, "未標示狀態")
+func statusChipLabel(status string, lang wording.Lang) string {
+	return cmp.Or(status, wording.NoStatusStated.In(lang))
 }
 
 // folderHref builds the browse URL for a folder, escaping each segment the

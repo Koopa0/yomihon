@@ -1,7 +1,8 @@
 package pages
 
 import (
-	"strconv"
+	"fmt"
+	"github.com/koopa0/yomihon/internal/wording"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -48,30 +49,30 @@ templ Folder(v FolderView, c layouts.Chrome) {
 					<div class="y-seam" aria-hidden="true"></div>
 					<p class="y-foldercount">
 						if len(v.Subfolders) > 0 {
-							{ strconv.Itoa(len(v.Subfolders)) } 個資料夾、
+							{ fmt.Sprintf(wording.SubfolderCount.In(c.Lang), len(v.Subfolders)) }
 						}
-						{ strconv.Itoa(len(v.Notes)) } 篇
+						{ fmt.Sprintf(wording.FolderNoteCount.In(c.Lang), len(v.Notes)) }
 					</p>
 					if len(v.Subfolders) > 0 {
-						<nav class="y-folderlist" aria-label="子資料夾">
+						<nav class="y-folderlist" aria-label={ wording.Subfolders.In(c.Lang) }>
 							for _, sub := range v.Subfolders {
 								<a class="ui-navitem" href={ templ.URL(folderHref(sub.RelPath)) }>{ sub.Name }</a>
 							}
 						</nav>
 					}
 					if len(v.Notes) > 0 {
-						<nav class="y-folderlist" aria-label="這個資料夾裡的檔案">
+						<nav class="y-folderlist" aria-label={ wording.FilesInFolder.In(c.Lang) }>
 							for _, note := range v.Notes {
 								<a class="ui-navitem" href={ templ.URL(notesHref(note.RelPath)) }>{ note.Name }</a>
 							}
 						</nav>
 					}
 					if len(v.Notes) == 0 && len(v.Subfolders) == 0 {
-						<p class="y-homeempty">這個資料夾是空的。</p>
+						<p class="y-homeempty">{ wording.FolderEmpty.In(c.Lang) }</p>
 					}
 				</article>
 			</main>
-			<aside class="y-rail-right" aria-label="閱讀輔助"></aside>
+			<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(c.Lang) }></aside>
 		</div>
 	}
 }

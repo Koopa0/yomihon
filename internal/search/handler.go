@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const maxQueryBytes = 4096
@@ -92,7 +93,8 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, total, diagnostic, tokens := h.query(snap.Index, q)
+	lang := pages.LanguageFromRequest(r)
+	results, total, diagnostic, tokens := h.query(snap.Index, q, lang)
 
 	view := pages.SearchView{
 		Query:      q,
@@ -103,7 +105,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		StepBacks:  stepBackViews(snap.Index, q, results, diagnostic),
 		Nav:        snap.Shell.Nav,
 	}
-	if err := pages.Search(view, pages.ChromeFromRequest(r, "搜尋")).Render(r.Context(), w); err != nil {
+	if err := pages.Search(view, pages.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search page", q, err)
 	}
 }
@@ -116,13 +118,13 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, total, diagnostic, tokens := h.query(snap.Index, q)
+	results, total, diagnostic, tokens := h.query(snap.Index, q, pages.LanguageFromRequest(r))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	stepBacks := stepBackViews(snap.Index, q, results, diagnostic)
-	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, snap.Status, tokens), total, diagnostic, snap.Shell.Governed, stepBacks).Render(r.Context(), w); err != nil {
+	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, snap.Status, tokens), total, diagnostic, snap.Shell.Governed, stepBacks, pages.LanguageFromRequest(r)).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }
@@ -131,7 +133,7 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 // terms that produced them, so the page can mark those terms in a snippet
 // without parsing again. The hits are bounded by maxRenderedResults; total is
 // not, so the page can stay honest about what the bounded list leaves out.
-func (h *Handler) query(idx *Index, q string) (results []Result, total int, diagnostic string, tokens []string) {
+func (h *Handler) query(idx *Index, q string, lang wording.Lang) (results []Result, total int, diagnostic string, tokens []string) {
 	parsed := Parse(q)
 	results, total, err := idx.search(parsed, maxRenderedResults)
 	if errors.Is(err, ErrMetadataUnavailable) {
@@ -139,7 +141,7 @@ func (h *Handler) query(idx *Index, q string) (results []Result, total int, diag
 	}
 	if err != nil {
 		h.logQueryError("search query", q, err)
-		return nil, 0, "搜尋目前暫時無法使用。", nil
+		return nil, 0, wording.SearchUnavailable.In(lang), nil
 	}
 	return results, total, "", parsed.Tokens()
 }
@@ -176,13 +178,13 @@ func (h *Handler) logQueryError(message, rawQuery string, err error) {
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 	q := r.URL.Query().Get("q")
 	if len(q) > maxQueryBytes {
-		http.Error(w, "搜尋字串過長", http.StatusBadRequest)
+		http.Error(w, wording.QueryTooLong.In(pages.LanguageFromRequest(r)), http.StatusBadRequest)
 		return "", false
 	}
 	if strings.IndexFunc(q, func(r rune) bool {
 		return r <= 0x1f || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 	}) >= 0 {
-		http.Error(w, "搜尋字串含有控制字元", http.StatusBadRequest)
+		http.Error(w, wording.QueryHasControlByte.In(pages.LanguageFromRequest(r)), http.StatusBadRequest)
 		return "", false
 	}
 	return q, true
