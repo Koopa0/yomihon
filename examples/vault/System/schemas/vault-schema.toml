@@ -1,0 +1,92 @@
+# The contract for this example vault, and a starting point for your own.
+#
+# Copy it to System/schemas/vault-schema.toml inside your vault, then adapt
+# every directory, enum, privacy boundary and transition deliberately: each one
+# is a decision about your notes. yomihon reads this file and never writes it.
+
+schema_version = "1"
+
+[enums]
+type = ["note", "lesson", "study-path", "moc"]
+
+# published is declared for notes. yomihon never sets it — see the lifecycle
+# row below — but a note that carries it is legal and renders like any other.
+[enums.status]
+note = ["draft", "ready", "published", "archived"]
+lesson = ["draft", "ready", "archived"]
+
+[fields]
+required = ["title", "type", "status"]
+known = ["title", "aliases", "type", "status", "created", "updated", "lang"]
+lesson_only = ["slug"]
+# lang declares one note's own BCP 47 language tag, e.g. "zh-Hant" or "ja". A
+# note that leaves it out has its content inherit the page's language; writing
+# it marks that note's content on its own, whichever language the interface is
+# speaking around it.
+
+[fields.status_group]
+lesson = ["lesson"]
+
+[rules]
+slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+
+[scan]
+knowledge_dirs = ["Notes", "Lessons"]
+skip_basenames = ["README.md"]
+no_frontmatter_is_legal = true
+
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
+[privacy]
+# Empty on purpose: this vault has nothing to withhold. Name a top-level
+# directory here and nothing under it reaches an agent's output or an embedding
+# provider, whatever else the contract allows.
+never_egress_dirs = []
+
+# Every stage says outright whether a note can start there. Writing "initial" on
+# one row means writing it on all of them: a lifecycle where some rows declare
+# it and others leave it to be worked out is refused, because the rows that
+# stayed silent are the ones a reader would have to guess about.
+#
+# Owner lists are declarative data. They gate nothing and any name works; they
+# record, for your own tooling's doctrine, whose step a status's onward move is.
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+initial = true
+from = []
+owner = ["author"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["*"]
+initial = false
+from = ["draft"]
+owner = ["author"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+initial = false
+from = ["*"]
+owner = ["author"]
+
+# The schema allows this transition and yomihon still refuses to make it. The
+# value records a publication that happened outside the vault, and nothing here
+# can attest to one, so the control is never offered and a request for it is
+# refused with that reason. A note carrying the value renders like any other.
+# The refusal is yomihon's own, which is why the row is written out rather than
+# left absent: an absent row would say the vault never allowed it.
+[[lifecycle]]
+status = "published"
+# Every type whose status list carries the value, and no more. A lesson's list
+# does not, so naming it here would be a row for a status that type cannot hold.
+applies_to = ["note", "study-path", "moc"]
+initial = false
+from = ["ready"]
+owner = ["author"]

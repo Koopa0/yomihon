@@ -9,7 +9,7 @@ import (
 
 // exampleContractPath is the tracked starting-point contract that the install
 // instructions tell a new operator to copy into their own vault.
-var exampleContractPath = filepath.Join("..", "..", "examples", "vault-schema.toml")
+var exampleContractPath = filepath.Join("..", "..", "examples", "vault", "System", "schemas", "vault-schema.toml")
 
 // TestShippedExampleContractLoadsAndReachesEveryStatus holds the tracked
 // starting-point contract to the two promises made about it: it decodes under
@@ -65,10 +65,16 @@ func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 		t.Fatal("no lifecycle row was examined, so this test asserts nothing")
 	}
 
+	// The last step is one the contract allows and yomihon refuses to make: the
+	// published value records something that happened outside the vault, so the
+	// control is never offered. The two are different layers, and the walk is
+	// about this one — a status the contract declares and no row could reach
+	// would be a fault in the contract whatever the write face later decides.
 	walk := []struct{ from, to string }{
 		{"", "draft"},
 		{"draft", "ready"},
 		{"ready", "archived"},
+		{"ready", "published"},
 	}
 	walked := make(map[string]bool, len(walk))
 	for _, step := range walk {
@@ -76,11 +82,27 @@ func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 	}
 
 	for _, noteType := range noteTypes {
+		// A type carries the statuses its own list declares, and the walk is
+		// written for all of them together. A step whose target this type never
+		// declared is not a promise broken; walking it anyway would assert that
+		// every type must carry every status, which no contract has to.
+		carries := make(map[string]bool)
+		for _, status := range contract.Statuses(noteType) {
+			carries[status] = true
+		}
+		reached := 0
 		for _, step := range walk {
+			if !carries[step.to] {
+				continue
+			}
+			reached++
 			if err := contract.Transition(noteType, step.from, step.to); err != nil {
 				t.Errorf("Transition(%q, %q→%q) = %v, want allowed: the starting point promises this walk",
 					noteType, step.from, step.to, err)
 			}
+		}
+		if reached == 0 {
+			t.Errorf("no walk step applies to type %q, so nothing about its lifecycle was exercised", noteType)
 		}
 		// The walk is written out rather than derived, so it would stop
 		// covering a status the moment one is added. Saying so here turns

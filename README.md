@@ -12,7 +12,7 @@ long-form Markdown, keep its links and context close, follow learning
 structures when they exist, and decide when a note is ready—without moving
 your knowledge into another database.
 
-[![An English note open in yomihon, with a Study Path and Map on the left, the article in the centre, and its status, contents, and backlinks on the right](.github/media/reading-en.png)](.github/media/reading-en.png)
+[![yomihon reading a note from the example vault with its interface in English: the navigation rail and study path on the left, the article in the centre, and on the right its status with the one transition it can take, the sections of the page, and what cites it](.github/media/reading-en.png)](.github/media/reading-en.png)
 
 *The browser chrome is intentionally in Traditional Chinese; each note keeps
 its authored language. This screenshot uses a synthetic demonstration vault.*
@@ -35,6 +35,10 @@ its authored language. This screenshot uses a synthetic demonstration vault.*
 - **Keep the final decision human.** yomihon is a reader, not an editor. It can
   advance one note's approved `status`; prose revisions stay in the writing
   tool you already use.
+- **Two languages, one set of notes.** Everything yomihon says in its own voice
+  reads in English or Traditional Chinese, switched from the header. Your notes
+  are not translated: a note that declares its own language keeps it whichever
+  language the interface is speaking around it.
 
 ## Start reading
 
@@ -63,9 +67,16 @@ content the vault's privacy contract allows, and to embed the query text of a
 semantic search you request.
 
 A plain folder is readable without changing its files. To opt in to governed
-metadata, structured navigation, and lifecycle actions, add a vault contract
-at `System/schemas/vault-schema.toml`; start with
-[`examples/vault-schema.toml`](examples/vault-schema.toml).
+metadata, structured navigation, and lifecycle actions, add a vault contract at
+`System/schemas/vault-schema.toml`.
+
+[`examples/vault`](examples/vault) is a complete small vault you can read right
+now — `yomihon examples/vault` — with a contract, a study path, a map, lessons,
+and one deliberately unwritten link so you can see what a diagnostic looks like.
+Its [contract](examples/vault/System/schemas/vault-schema.toml) is the one to
+copy. A test scans that vault on every run, so the example cannot quietly stop
+working: it is the file nobody with a working vault ever opens again.
+
 [`AUTHORING.md`](AUTHORING.md) documents yomihon's opt-in Study Path body
 syntax; Maps and Reports keep their own document roles.
 
@@ -78,6 +89,10 @@ syntax; Maps and Reports keep their own document roles.
   a single frontmatter line, rewritten in place.
 - **Visible failure.** Invalid metadata and broken or ambiguous links become
   diagnostics. yomihon does not guess at or silently repair your notes.
+- **Bound to what you read.** A status change carries the identity of the bytes
+  the page showed you. If the note changed on disk in between, the write is
+  refused rather than applied to a version you never saw — and the reading page
+  tells you the note has moved on before you press anything.
 - **Optional network use.** Ordinary reading and lexical search stay local.
   Semantic actions are explicit, use your own provider credential, and respect
   the vault's privacy contract.

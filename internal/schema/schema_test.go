@@ -1564,7 +1564,7 @@ func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
 	forbidden := map[string]bool{}
 	for _, contractPath := range []string{
 		filepath.Join("testdata", "contract.toml"),
-		filepath.Join(root, "examples", "vault-schema.toml"),
+		filepath.Join(root, "examples", "vault", "System", "schemas", "vault-schema.toml"),
 	} {
 		s, err := schema.LoadFile(contractPath)
 		if err != nil {

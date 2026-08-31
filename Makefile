@@ -40,7 +40,7 @@ needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
 }
 endef
 
-.PHONY: build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
+.PHONY: screenshots build build-check run test test-real-vault real-vault-build-check provider-live coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check gen sqlc sqlc-check sqlc-version mod-check tools-check-prepare tools-check tools-check-mattn frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -272,6 +272,19 @@ frontend-check:
 	npm ci --prefix .github --ignore-scripts --no-audit --fund=false
 	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs
 	@$(MAKE) --no-print-directory stylelint-check
+
+# Regenerates the README's pictures from the example vault. A screenshot the
+# repository can retake is a screenshot that can be kept current; one taken by
+# hand goes stale the first time the interface moves and nobody can tell when.
+# The two pictures show the two languages the interface speaks.
+screenshots:
+	@set -eu; \
+	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-shot.XXXXXX"); \
+	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
+	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
+	YOMIHON_FIXTURE=examples/vault bash .github/e2e/serve.sh "$$tmp/yomihon" 19761 -- sh -c '\
+	  LANG_CHOICE=en OUT=.github/media/reading-en.png node .github/e2e/screenshot.mjs && \
+	  LANG_CHOICE=zh-Hant OUT=.github/media/reading-zh-TW.png node .github/e2e/screenshot.mjs'
 
 e2e-http-check:
 	@set -eu; \

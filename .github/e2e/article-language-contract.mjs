@@ -1,8 +1,15 @@
 // Behavior lock for the authored-language boundary. The fixture and contract
-// must supply the authority; the document chrome stays Traditional Chinese,
-// while each note article carries its own exact language or, where nothing
-// was declared, no lang attribute at all — inheriting the page's language
-// instead of stamping one nobody chose.
+// must supply the authority; each note article carries its own exact language
+// or, where nothing was declared, no lang attribute at all — inheriting the
+// page's language instead of stamping one nobody chose.
+//
+// The document's own language is the reader's, not a constant. The run below
+// therefore walks the same page twice: once as a reader who chose nothing, and
+// once as one who chose English. The second pass is what tells a chrome that
+// follows the reader from a chrome that merely happens to agree with the
+// default — and it holds the nesting the two answers make together, which is
+// where the fault would actually be: an English frame declaring English around
+// a Japanese article that must still declare Japanese.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the L01 fixture), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -26,6 +33,9 @@ const SITES = [
   'tts-authored-language',
   'missing-shell-language',
   'missing-article-language',
+  'switched-shell-language',
+  'switched-chrome-language',
+  'switched-authored-language',
 ];
 
 class LockFired extends Error {
@@ -106,6 +116,23 @@ const MUTATIONS = {
     target: 'missing-article-language',
     apply: rewritePath(MISSING_PAGE, '<article class="y-article">', '<article class="y-article" lang="ja">', 'missing note article language'),
   },
+  // These three run against the second pass, where the reader chose English.
+  // Each injects the shape a chrome that ignored the choice would produce.
+  'switched-shell-stays-default': {
+    target: 'switched-shell-language',
+    on: 'switched',
+    apply: rewritePath(DECLARED_PAGE, '<html lang="en"', '<html lang="zh-Hant"', 'switched shell language'),
+  },
+  'switched-chrome-stays-default': {
+    target: 'switched-chrome-language',
+    on: 'switched',
+    apply: rewritePath(DECLARED_PAGE, '<div class="y-inlineaids" lang="en">', '<div class="y-inlineaids" lang="zh-Hant">', 'switched inline reading aids language'),
+  },
+  'switched-article-follows-chrome': {
+    target: 'switched-authored-language',
+    on: 'switched',
+    apply: rewritePath(DECLARED_PAGE, '<article class="y-article" lang="ja">', '<article class="y-article" lang="en">', 'switched note article language'),
+  },
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -135,7 +162,8 @@ let proof = null;
 let mutationApplied = false;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+  const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
+  proof = mutation && mutation.on !== 'switched' ? await mutation.apply(page) : null;
 
   let response = await page.goto(BASE + DECLARED_PAGE, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) broken(`${DECLARED_PAGE} returned ${response?.status() ?? 'no response'}, want 200`);
@@ -162,6 +190,25 @@ try {
   const missingDOM = await page.evaluate(() => ({
     shellLanguage: document.documentElement.getAttribute('lang'),
     articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
+  }));
+
+  // The same page again, for a reader who chose English. A separate context
+  // rather than a second visit: the cookie belongs to the reader, and the first
+  // pass's route interceptions belong to its own page, so neither run can be
+  // mistaken for the other.
+  const switched = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await switched.addCookies([{ name: 'yomihon_lang', value: 'en', url: BASE }]);
+  const switchedPage = await switched.newPage();
+  if (mutation && mutation.on === 'switched') proof = await mutation.apply(switchedPage);
+  response = await switchedPage.goto(BASE + DECLARED_PAGE, { waitUntil: 'domcontentloaded' });
+  if (!response || response.status() !== 200) broken(`${DECLARED_PAGE} in English returned ${response?.status() ?? 'no response'}, want 200`);
+  const switchedDOM = await switchedPage.evaluate(() => ({
+    shellLanguage: document.documentElement.getAttribute('lang'),
+    articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
+    inlineAidsLanguages: Array.from(document.querySelectorAll('.y-inlineaids'), (element) => element.getAttribute('lang')),
+    slotMachineLanguages: Array.from(document.querySelectorAll('.y-slotmachine'), (element) => element.getAttribute('lang')),
+    slotOutputLanguages: Array.from(document.querySelectorAll('.y-slotoutput'), (element) => element.getAttribute('lang')),
+    readingLanguages: Array.from(document.querySelectorAll('.y-reading'), (element) => element.getAttribute('lang')),
   }));
 
   if (proof) {
@@ -213,7 +260,34 @@ try {
     fail('missing-article-language', `note-without-lang article langs are ${JSON.stringify(missingDOM.articleLanguages)}, want exactly [null]: no attribute, so the page language is inherited`);
   }
 
-  console.log('PASS article-language-contract: article, chrome islands, read-aloud, and slot output keep their ruled language boundaries');
+  // The second pass. Everything the interface says is now English and
+  // everything the author wrote is still Japanese, and the two are nested
+  // inside each other: the frame declares one language and the article inside
+  // it declares another, which is the only arrangement a screen reader can act
+  // on. A chrome that ignored the choice would agree with the first pass here
+  // and be wrong in exactly the way nobody would see.
+  if (switchedDOM.shellLanguage !== 'en') {
+    fail('switched-shell-language', `with the language set to English the document lang is ${JSON.stringify(switchedDOM.shellLanguage)}, want "en": the chrome did not follow the reader`);
+  }
+  for (const [what, langs] of [
+    ['inline reading aids', switchedDOM.inlineAidsLanguages],
+    ['the slot machine', switchedDOM.slotMachineLanguages],
+  ]) {
+    if (langs.length !== 1 || langs[0] !== 'en') {
+      fail('switched-chrome-language', `with the language set to English ${what} declares ${JSON.stringify(langs)}, want exactly ["en"]: it is chrome, so it moves with the chrome`);
+    }
+  }
+  for (const [what, langs] of [
+    ['the article', switchedDOM.articleLanguages],
+    ['the slot output', switchedDOM.slotOutputLanguages],
+    ['the read-aloud segment', switchedDOM.readingLanguages],
+  ]) {
+    if (langs.length !== 1 || langs[0] !== 'ja') {
+      fail('switched-authored-language', `with the language set to English ${what} declares ${JSON.stringify(langs)}, want exactly ["ja"]: the author's language is not the reader's to change`);
+    }
+  }
+
+  console.log('PASS article-language-contract: article, chrome islands, read-aloud, and slot output keep their ruled language boundaries, in both languages the chrome speaks');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

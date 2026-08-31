@@ -209,7 +209,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-copy_fixture "$here/vault" "$vault"
+# The probes read the fixture beside this script. The screenshot target reads
+# the example vault instead, because a picture of a fixture would be a picture
+# of something no reader can open. Everything else about the run — above all how
+# readiness is judged — stays the same for both.
+copy_fixture "${YOMIHON_FIXTURE:-$here/vault}" "$vault"
 
 YOMIHON_PORT="$port" "$bin" serve "$vault" >"$log" 2>&1 &
 server_pid=$!
