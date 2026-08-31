@@ -1,7 +1,6 @@
 // yomihon is the local reading-and-adjudication interface for the Obsidian
 // vault. Its HTTP server listens only on 127.0.0.1 and writes exactly one
-// frontmatter field (status); explicit semantic CLI actions are the separately
-// ruled path that may contact the embedding provider.
+// frontmatter field (status). Nothing here contacts a network.
 package main
 
 import (
@@ -16,7 +15,6 @@ import (
 	"syscall"
 
 	"github.com/koopa0/yomihon/internal/judge"
-	"github.com/koopa0/yomihon/internal/search/agent"
 )
 
 func main() {
@@ -46,18 +44,8 @@ func main() {
 		}
 	case "check", "coverage", "exists":
 		os.Exit(judge.RunCommand(command, args, os.Stdout, os.Stderr, stdoutIsTerminal()))
-	case "search", "search-index":
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		exit := (agent.CLI{
-			DefaultRoot:      configuredVaultRoot,
-			Stdout:           os.Stdout,
-			Stderr:           os.Stderr,
-			ReadEmbeddingKey: func() string { return os.Getenv("YOMIHON_EMBED_KEY") },
-		}).Run(ctx, command, args)
-		stop()
-		os.Exit(exit)
 	default:
-		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, search, search-index, check, coverage, and exists\n", command)
+		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, and exists\n", command)
 		os.Exit(2)
 	}
 }
@@ -77,7 +65,7 @@ func dispatch(argv []string) (command string, args []string) {
 		return "serve", nil
 	}
 	switch argv[0] {
-	case "serve", "search", "search-index", "check", "coverage", "exists":
+	case "serve", "check", "coverage", "exists":
 		return argv[0], argv[1:]
 	}
 	// #nosec G703 -- the operator's own shell argument, asked only whether it

@@ -57,8 +57,6 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 	top := "Usage:\n" +
 		"  yomihon [<dir>]                       read a folder (default: this one)\n" +
 		"  yomihon serve [<dir>]                 read a folder (or --root <dir>)\n" +
-		"  yomihon search [options] <query...>\n" +
-		"  yomihon search-index build [options]\n" +
 		"  yomihon check [options] [path...]      judge a vault (--root <vault>; path narrows)\n" +
 		"  yomihon coverage [options]\n" +
 		"  yomihon exists [options] <name>\n\n" +
@@ -72,29 +70,6 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"\n" +
 			"The folder is fixed for the life of the process: reading another one\n" +
 			"means another yomihon, on another port.\n",
-		"search": "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n" +
-			"\n" +
-			"Searches Markdown notes only, needs the vault contract, and excludes the\n" +
-			"contract's never-egress directories. Browser search additionally covers\n" +
-			"other text-presentable files up to 1 MiB; this command does not.\n" +
-			"\n" +
-			"--semantic embeds the query with the key in $YOMIHON_EMBED_KEY.\n" +
-			"\n" +
-			"Writes a human-readable list by default — empty for zero results —\n" +
-			"whether or not stdout is a terminal; --json always writes the machine\n" +
-			"envelope instead.\n" +
-			"\n" +
-			"Exits 0 on an answer, 1 on an internal error, 2 when the command could\n" +
-			"not run, and 3 when search is refused or semantic retrieval is degraded.\n",
-		"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n" +
-			"\n" +
-			"Needs an embedding key in $YOMIHON_EMBED_KEY.\n" +
-			"\n" +
-			"Writes human progress by default; --json writes the machine envelope.\n" +
-			"\n" +
-			"Exits 0 when the index is current or built, 1 on an internal error,\n" +
-			"2 when the command could not run, and 3 when building is refused or\n" +
-			"could not complete.\n",
 		"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 			"\n" +
 			"--root is the vault to judge; without it, the folder you are standing in is\n" +
@@ -154,12 +129,6 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			}
 		}
 	}
-	for _, args := range [][]string{{"search-index", "build", "--help"}, {"search-index", "build", "-h"}, {"help", "search-index", "build"}} {
-		exit, stdout, stderr := runYomihonBinary(t, binary, args, env)
-		if exit != 0 || stdout != command["search-index"] || stderr != "" {
-			t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, %q, empty", args, exit, stdout, stderr, command["search-index"])
-		}
-	}
 	assertHomeUntouched(t, home)
 }
 
@@ -180,15 +149,12 @@ func TestAgentInterfaceDocumentCoversTheMachineSurface(t *testing.T) {
 		"yomihon check",
 		"yomihon coverage",
 		"yomihon exists",
-		"yomihon search",
-		"yomihon search-index build",
 		"System/schemas/vault-schema.toml",
 		"privacy-capability-unavailable",
 		"`--format json`",
 		"`--json`",
 		"fingerprint",
 		"rel_path",
-		"YOMIHON_EMBED_KEY",
 		"## Exit codes",
 	} {
 		if !strings.Contains(text, anchor) {
@@ -227,86 +193,6 @@ func TestServeRejectsNonDirectoryVaultRoot(t *testing.T) {
 	if exit != 1 || stdout != "" || !strings.Contains(stderr, root) ||
 		!strings.Contains(stderr, "is not a directory") || strings.Contains(stderr, "listen") {
 		t.Errorf("yomihon serve with file root = exit %d, stdout %q, stderr %q; want 1, empty, root and directory error before listen", exit, stdout, stderr)
-	}
-}
-
-func TestAgentCommandsReachProductionComposition(t *testing.T) {
-	root := t.TempDir()
-	writeSweepFixture(t, root)
-	binary := buildYomihonBinary(t)
-
-	t.Run("lexical search ignores semantic state", func(t *testing.T) {
-		home := t.TempDir()
-		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "--root", root, "tortoise"}, append(isolatedUserEnv(home),
-			"YOMIHON_EMBED_KEY=key-must-remain-dormant",
-		))
-		if exit != 0 {
-			t.Fatalf("yomihon search exit = %d, want 0; stderr = %q", exit, stderr)
-		}
-		if !strings.Contains(stdout, `"semantic":"off"`) || !strings.Contains(stdout, `"rel_path":"Notes/alpha.md"`) {
-			t.Errorf("yomihon search stdout = %q, want lexical answer", stdout)
-		}
-		if stderr != "" {
-			t.Errorf("yomihon search stderr = %q, want empty", stderr)
-		}
-		if strings.Contains(stdout+stderr, "key-must-remain-dormant") {
-			t.Error("yomihon search exposed the embedding key")
-		}
-		assertNoSemanticStore(t, home)
-	})
-
-	t.Run("semantic search reports cold before provider", func(t *testing.T) {
-		home := t.TempDir()
-		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search", "--json", "--semantic", "--root", root, "tortoise"}, append(isolatedUserEnv(home),
-			"YOMIHON_EMBED_KEY=key-must-not-reach-a-client",
-		))
-		if exit != 3 {
-			t.Fatalf("yomihon search --semantic exit = %d, want 3; stderr = %q", exit, stderr)
-		}
-		if !strings.Contains(stdout, `"reason":"cache-cold"`) {
-			t.Errorf("yomihon search --semantic stdout = %q, want cache-cold", stdout)
-		}
-		if got, want := stderr, "yomihon search: cache-cold: no semantic index exists; run yomihon search-index build\n"; got != want {
-			t.Errorf("yomihon search --semantic stderr = %q, want %q", got, want)
-		}
-		if strings.Contains(stdout+stderr, "key-must-not-reach-a-client") {
-			t.Error("yomihon search --semantic exposed the embedding key")
-		}
-		assertNoSemanticStore(t, home)
-	})
-
-	t.Run("explicit build without credential is unavailable", func(t *testing.T) {
-		home := t.TempDir()
-		exit, stdout, stderr := runYomihonBinary(t, binary, []string{"search-index", "build", "--json", "--root", root}, isolatedUserEnv(home))
-		if exit != 3 {
-			t.Fatalf("yomihon search-index build exit = %d, want 3; stderr = %q", exit, stderr)
-		}
-		if got, want := stdout, "{\"error\":{\"reason\":\"embedder-unconfigured\",\"active_generation\":\"absent\",\"staging_generation\":\"resumable\",\"retry_safe\":false,\"next_action\":\"repair-configuration\"}}\n"; got != want {
-			t.Errorf("yomihon search-index build stdout = %q, want %q", got, want)
-		}
-		if got, want := stderr, "yomihon search-index: embedder-unconfigured: no embedding key is configured, so semantic search is off; set YOMIHON_EMBED_KEY\n"; got != want {
-			t.Errorf("yomihon search-index build stderr = %q, want %q", got, want)
-		}
-	})
-
-	for _, tt := range []struct {
-		name string
-		key  string
-	}{
-		{name: "serve without key"},
-		{name: "serve with key", key: "serve-key-must-remain-dormant"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			home := t.TempDir()
-			log := runYomihonServe(t, binary, root, home, tt.key)
-			if strings.Contains(log, "semantic") {
-				t.Errorf("yomihon serve log mentions semantic state: %q", log)
-			}
-			if tt.key != "" && strings.Contains(log, tt.key) {
-				t.Error("yomihon serve exposed the embedding key")
-			}
-			assertNoSemanticStore(t, home)
-		})
 	}
 }
 

@@ -5,8 +5,6 @@ import "fmt"
 const topLevelHelp = `Usage:
   yomihon [<dir>]                       read a folder (default: this one)
   yomihon serve [<dir>]                 read a folder (or --root <dir>)
-  yomihon search [options] <query...>
-  yomihon search-index build [options]
   yomihon check [options] [path...]      judge a vault (--root <vault>; path narrows)
   yomihon coverage [options]
   yomihon exists [options] <name>
@@ -23,29 +21,6 @@ var commandHelp = map[string]string{
 		"\n" +
 		"The folder is fixed for the life of the process: reading another one\n" +
 		"means another yomihon, on another port.\n",
-	"search": "Usage: yomihon search [--json] [--semantic] [--root <dir>] [--limit <1..1000>] [--] <query...>\n" +
-		"\n" +
-		"Searches Markdown notes only, needs the vault contract, and excludes the\n" +
-		"contract's never-egress directories. Browser search additionally covers\n" +
-		"other text-presentable files up to 1 MiB; this command does not.\n" +
-		"\n" +
-		"--semantic embeds the query with the key in $YOMIHON_EMBED_KEY.\n" +
-		"\n" +
-		"Writes a human-readable list by default — empty for zero results —\n" +
-		"whether or not stdout is a terminal; --json always writes the machine\n" +
-		"envelope instead.\n" +
-		"\n" +
-		"Exits 0 on an answer, 1 on an internal error, 2 when the command could\n" +
-		"not run, and 3 when search is refused or semantic retrieval is degraded.\n",
-	"search-index": "Usage: yomihon search-index build [--json] [--renew-attempt-budget] [--root <dir>]\n" +
-		"\n" +
-		"Needs an embedding key in $YOMIHON_EMBED_KEY.\n" +
-		"\n" +
-		"Writes human progress by default; --json writes the machine envelope.\n" +
-		"\n" +
-		"Exits 0 when the index is current or built, 1 on an internal error,\n" +
-		"2 when the command could not run, and 3 when building is refused or\n" +
-		"could not complete.\n",
 	"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 		"\n" +
 		"--root is the vault to judge; without it, the folder you are standing in is\n" +
