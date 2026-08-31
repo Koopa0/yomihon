@@ -288,6 +288,9 @@ func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
 }
 
 func decodeContract(data []byte, source policySource) (*Contract, error) {
+	if err := validateDistinctKeys(data); err != nil {
+		return nil, err
+	}
 	var decoded contractFile
 	tomlMeta, err := toml.Decode(string(data), &decoded)
 	if err != nil {
@@ -576,6 +579,90 @@ func resolvePrivacyPolicy(
 		metadata.IsDefined("privacy", "never_egress_dirs"),
 		source,
 	)
+}
+
+// validateDistinctKeys refuses a contract that spells one key two ways.
+//
+// A table's key reaches a Go field by its exact name and, when no name
+// matches, by a name that differs only in case; the table is walked in map
+// order, so two spellings that fold together have no fixed winner. The same
+// bytes then load one way on one call and the other way on the next within a
+// single run, and whichever spelling loses is dropped without a word. Asking
+// the decoder for a case-sensitive binding is not on offer, so a contract
+// holding such a pair is refused rather than read.
+//
+// Sibling names are compared with strings.EqualFold because that is the
+// comparison the decoder makes. Comparing lowercased names disagrees with it
+// in both directions: it joins U+0130 to "i", which the decoder keeps apart,
+// and it separates U+017F from "s", which the decoder joins.
+func validateDistinctKeys(data []byte) error {
+	var tables map[string]any
+	if _, err := toml.Decode(string(data), &tables); err != nil {
+		return err
+	}
+	pairs := foldedKeyPairs("", tables)
+	if len(pairs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("contract keys differ only by letter case: %s", strings.Join(pairs, "; "))
+}
+
+// foldedKeyPairs names every pair of sibling keys that fold together, in each
+// table reachable from table.
+func foldedKeyPairs(prefix string, table map[string]any) []string {
+	names := make([]string, 0, len(table))
+	for name := range table {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	pairs := siblingsThatFold(prefix, names)
+	for _, name := range names {
+		pairs = append(pairs, foldedKeyPairsUnder(prefix+name+".", table[name])...)
+	}
+	return pairs
+}
+
+// siblingsThatFold names the pairs, among one table's own sorted keys, that
+// the decoder resolves to the same field.
+func siblingsThatFold(prefix string, names []string) []string {
+	var pairs []string
+	for i, name := range names {
+		for _, other := range names[i+1:] {
+			if strings.EqualFold(name, other) {
+				pairs = append(pairs, fmt.Sprintf("%s and %s",
+					strconv.Quote(prefix+name), strconv.Quote(prefix+other)))
+			}
+		}
+	}
+	return pairs
+}
+
+// foldedKeyPairsUnder walks the tables a value holds: a table, a list of
+// tables, or a list written inline whose elements are tables. Rows of a list
+// are walked one at a time, because each row binds on its own and two rows
+// spelling one field differently is not an ambiguity. Any other value holds no
+// keys.
+func foldedKeyPairsUnder(prefix string, value any) []string {
+	switch value := value.(type) {
+	case map[string]any:
+		return foldedKeyPairs(prefix, value)
+	case []map[string]any:
+		var pairs []string
+		for _, row := range value {
+			pairs = append(pairs, foldedKeyPairs(prefix, row)...)
+		}
+		return pairs
+	case []any:
+		var pairs []string
+		for _, element := range value {
+			if row, ok := element.(map[string]any); ok {
+				pairs = append(pairs, foldedKeyPairs(prefix, row)...)
+			}
+		}
+		return pairs
+	}
+	return nil
 }
 
 func formatContractKeys(keys []string) string {

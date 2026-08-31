@@ -421,6 +421,7 @@ type decodeClassification struct {
 	errClass                 string
 	version                  string
 	lifecycleEntries         int
+	lifecycleStatuses        string
 	navigationAvailable      bool
 	navigationDiagnostic     string
 	artifactAvailable        bool
@@ -444,6 +445,7 @@ func classifyDecode(data []byte) decodeClassification {
 	classification := decodeClassification{
 		version:              s.Version(),
 		lifecycleEntries:     s.StageCount(),
+		lifecycleStatuses:    stageStatuses(s),
 		navigationAvailable:  s.NavigationRoles().Available(),
 		navigationDiagnostic: s.NavigationRoles().Diagnostic(),
 		artifactAvailable:    s.ArtifactPolicy().Available(),
@@ -463,6 +465,18 @@ func classifyDecode(data []byte) decodeClassification {
 	return classification
 }
 
+// stageStatuses names the lifecycle rows a decode kept, in the order it kept
+// them. The row count alone let two decodes that kept different rows of the
+// same length compare equal, which is the shape of the defect this comparison
+// exists to catch.
+func stageStatuses(contract *Contract) string {
+	names := make([]string, len(contract.stages))
+	for i, stage := range contract.stages {
+		names[i] = stage.Status
+	}
+	return strings.Join(names, ",")
+}
+
 func classifyDecodeError(err error) string {
 	switch message := err.Error(); {
 	case message == `missing required key "schema_version"`:
@@ -471,6 +485,8 @@ func classifyDecodeError(err error) string {
 		return "unsupported-version"
 	case strings.HasPrefix(message, "unknown core keys: "):
 		return "unknown-core"
+	case strings.HasPrefix(message, "contract keys differ only by letter case: "):
+		return "folded-keys"
 	case message == "no lifecycle stages":
 		return "missing-lifecycle"
 	case strings.HasPrefix(message, "toml:"):
@@ -494,6 +510,16 @@ func FuzzDecodeContractDeterministic(f *testing.F) {
 		[]byte(strings.Replace(validContractV1, `non_instance_dirs = ["System/templates"]`, `non_instance_dirs = "System/templates"`, 1)),
 		[]byte(strings.Replace(validContractV1, `never_egress_dirs = ["Private"]`, `never_egress_dirs = "Private"`, 1)),
 		[]byte("0B7b11BYCAAXX7=\"8\"\n[enums.status]\n72=\"\"\n0=\"\""),
+		[]byte(foldedKeyContract("top-level")),
+		[]byte(foldedKeyContract("nested-table")),
+		[]byte(foldedKeyContract("array-of-tables")),
+		[]byte(foldedKeyContract("key-in-table")),
+		[]byte(foldedKeyContract("map-valued-section")),
+		[]byte(foldedKeyContract("quoted-key")),
+		[]byte(foldedKeyContract("inline-table-array")),
+		[]byte(foldedKeyContract("row-in-table-array")),
+		[]byte(foldedKeyContract("two-pairs")),
+		[]byte(foldedKeyContract("lowercases-together-only")),
 	}
 	for _, seed := range seeds {
 		f.Add(seed)
@@ -504,6 +530,185 @@ func FuzzDecodeContractDeterministic(f *testing.F) {
 		second := classifyDecode(data)
 		if first != second {
 			t.Errorf("decode classification changed between identical inputs:\nfirst:  %+v\nsecond: %+v", first, second)
+		}
+	})
+}
+
+// foldedKeyContract writes a contract that spells one key twice, differing
+// only in the letters' case, so the decoder's second-chance folded match has
+// two candidates for one field.
+// foldedKeyContract writes a contract that spells one key twice, differing
+// only in the letters' case, so the decoder's second-chance folded match has
+// two candidates for one field.
+//
+// The two non-ASCII shapes are built from their code points rather than typed,
+// because U+017F reads as an f and U+0130 as an I, and a reviewer has to be
+// able to see which letter a case is about.
+func foldedKeyContract(shape string) string {
+	const (
+		longS   = "\u017f" // ſ, which the decoder folds to s
+		dottedI = "\u0130" // İ, which the decoder does not fold to i
+	)
+	switch shape {
+	case "top-level":
+		return strings.Replace(validContractV1,
+			"aligned_with = \"Note-Contract.md\"\n",
+			"aligned_with = \"Note-Contract.md\"\nAligned_With = \"Other.md\"\n", 1)
+	case "nested-table":
+		return validContractV1 + "\n[Navigation]\npath_types = [\"moc\"]\n"
+	case "array-of-tables":
+		return validContractV1 + "\n[[Lifecycle]]\nstatus = \"ready\"\napplies_to = [\"*\"]\nfrom = [\"draft\"]\nowner = []\n"
+	case "key-in-table":
+		return strings.Replace(validContractV1,
+			"required = [\"title\", \"type\"]\n",
+			"required = [\"title\", \"type\"]\nRequired = [\"nothing\"]\n", 1)
+	case "map-valued-section":
+		return strings.Replace(validContractV1,
+			"note = [\"draft\", \"archived\"]\n",
+			"note = [\"draft\", \"archived\"]\nNote = [\"draft\"]\n", 1)
+	case "quoted-key":
+		// A key outside the ASCII set has to be quoted to be a key at all, and
+		// this pair separates the decoder's own folding from a lowercasing
+		// comparison: the two fold together and do not lowercase together.
+		return strings.Replace(validContractV1,
+			"slug_pattern = \"^[a-z]+$\"\n",
+			"slug_pattern = \"^[a-z]+$\"\n\""+longS+"lug_pattern\" = \"^[0-9]+$\"\n", 1)
+	case "two-pairs":
+		// Two folded pairs in two different tables, so the order they are
+		// reported in is observable.
+		withFields := strings.Replace(validContractV1,
+			"required = [\"title\", \"type\"]\n",
+			"required = [\"title\", \"type\"]\nRequired = [\"nothing\"]\n", 1)
+		return strings.Replace(withFields,
+			"note = [\"draft\", \"archived\"]\n",
+			"note = [\"draft\", \"archived\"]\nNote = [\"draft\"]\n", 1)
+	case "row-in-table-array":
+		// Both spellings inside one row of an array of tables: the ambiguity is
+		// in the row, not among the row headers.
+		return strings.Replace(validContractV1,
+			"[[lifecycle]]\nstatus = \"archived\"\n",
+			"[[lifecycle]]\nstatus = \"archived\"\nStatus = \"ready\"\n", 1)
+	case "inline-table-array":
+		// Written as an array of inline tables, the lifecycle rows arrive as a
+		// different Go type from the same rows written as tables.
+		head, _, _ := strings.Cut(validContractV1, "[[lifecycle]]")
+		return strings.Replace(head,
+			"generated_at_must_match = true\n",
+			"generated_at_must_match = true\nlifecycle = [{status = \"draft\", Status = \"archived\", applies_to = [\"lesson\"], from = [], owner = []}]\n", 1)
+	case "lowercases-together-only":
+		// The other direction: these two lowercase to the same string and the
+		// decoder still keeps them apart, so they are two unknown keys.
+		return strings.Replace(validContractV1,
+			"aligned_with = \"Note-Contract.md\"\n",
+			"aligned_with = \"Note-Contract.md\"\ninitial = true\n\""+dottedI+"nitial\" = true\n", 1)
+	}
+	panic("unknown shape " + shape)
+}
+
+func TestDecodeRefusesKeysThatFoldTogether(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		shape string
+		names [2]string
+	}{
+		{"top-level", [2]string{`"Aligned_With"`, `"aligned_with"`}},
+		{"nested-table", [2]string{`"Navigation"`, `"navigation"`}},
+		{"array-of-tables", [2]string{`"Lifecycle"`, `"lifecycle"`}},
+		{"key-in-table", [2]string{`"fields.Required"`, `"fields.required"`}},
+		{"map-valued-section", [2]string{`"enums.status.Note"`, `"enums.status.note"`}},
+		{"quoted-key", [2]string{`"rules.slug_pattern"`, "\"rules.\u017flug_pattern\""}},
+		{"inline-table-array", [2]string{`"lifecycle.Status"`, `"lifecycle.status"`}},
+		{"row-in-table-array", [2]string{`"lifecycle.Status"`, `"lifecycle.status"`}},
+	} {
+		t.Run(tc.shape, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := decodeContract([]byte(foldedKeyContract(tc.shape)), policySource{})
+			if err == nil {
+				t.Fatal("decodeContract() error = nil, want a refusal naming both spellings")
+			}
+			if got := classifyDecodeError(err); got != "folded-keys" {
+				t.Fatalf("classifyDecodeError() = %q, want %q (error was %v)", got, "folded-keys", err)
+			}
+			for _, name := range tc.names {
+				if !strings.Contains(err.Error(), name) {
+					t.Errorf("refusal %q does not name %s", err.Error(), name)
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeOfFoldedKeysIsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	for _, shape := range []string{
+		"top-level", "nested-table", "array-of-tables", "key-in-table",
+		"map-valued-section", "quoted-key", "inline-table-array", "row-in-table-array",
+		"two-pairs",
+	} {
+		t.Run(shape, func(t *testing.T) {
+			t.Parallel()
+
+			data := []byte(foldedKeyContract(shape))
+			_, first := decodeContract(data, policySource{})
+			if first == nil {
+				t.Fatal("decodeContract() error = nil, want a refusal")
+			}
+			for i := range 200 {
+				_, err := decodeContract(data, policySource{})
+				if err == nil || err.Error() != first.Error() {
+					t.Fatalf("decode %d differed:\nfirst: %v\nnow:   %v", i, first, err)
+				}
+			}
+		})
+	}
+}
+
+// TestDecodeKeepsSpellingsTheDecoderTellsApart pins the other side of the
+// refusal: a spelling the decoder resolves to one field, and a spelling it
+// treats as a different key entirely, both stay as they were.
+func TestDecodeKeepsSpellingsTheDecoderTellsApart(t *testing.T) {
+	t.Parallel()
+
+	t.Run("one folded spelling per table still binds", func(t *testing.T) {
+		t.Parallel()
+
+		// The second lifecycle row writes Status, and nothing else in that row
+		// folds to it, so the row binds the way it always did.
+		data := strings.Replace(validContractV1,
+			"[[lifecycle]]\nstatus = \"archived\"\n",
+			"[[lifecycle]]\nStatus = \"archived\"\n", 1)
+		contract, err := decodeContract([]byte(data), policySource{})
+		if err != nil {
+			t.Fatalf("decodeContract() error = %v, want the contract to load", err)
+		}
+		if got, want := contract.StageCount(), 2; got != want {
+			t.Errorf("StageCount() = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("dotted capital I does not fold to i", func(t *testing.T) {
+		t.Parallel()
+
+		// These two keys lowercase to the same string, and the decoder still
+		// binds them separately, so what is owed here is the refusal for a key
+		// nobody knows, not the one for a spelling nobody can tell apart.
+		_, err := decodeContract([]byte(foldedKeyContract("lowercases-together-only")), policySource{})
+		if err == nil {
+			t.Fatal("decodeContract() error = nil, want the unknown-key refusal")
+		}
+		if got, want := classifyDecodeError(err), "unknown-core"; got != want {
+			t.Fatalf("classifyDecodeError() = %q, want %q (error was %v)", got, want, err)
+		}
+	})
+
+	t.Run("the shipped contract vocabulary still loads", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := decodeContract([]byte(validContractV1), policySource{}); err != nil {
+			t.Fatalf("decodeContract(valid) error = %v", err)
 		}
 	})
 }
