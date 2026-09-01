@@ -24,11 +24,24 @@ import (
 func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 	t.Parallel()
 
-	const aboutTheFolderNotANote = "schema.unmatched_knowledge_dir"
+	// Two rules are answered somewhere other than a note page's own words, so
+	// a sentence here for either would be one nothing ever renders.
+	saidElsewhere := map[string]string{
+		// Reached from the scan rather than from any note's frontmatter, so no
+		// note page can be asked to say it.
+		"schema.unmatched_knowledge_dir": "it is about the folder rather than a note",
+		// The panel that would carry it is not rendered at all when the
+		// frontmatter cannot be read, and the page says so through the surface
+		// that also carries the parser's own account of what failed.
+		"schema.frontmatter": "the note's conditions face already says it, with more detail",
+	}
 
 	checked := 0
 	for _, id := range ruleIDs {
-		if !strings.HasPrefix(id, "schema.") || id == aboutTheFolderNotANote {
+		if !strings.HasPrefix(id, "schema.") {
+			continue
+		}
+		if _, elsewhere := saidElsewhere[id]; elsewhere {
 			continue
 		}
 		t.Run(id, func(t *testing.T) {
@@ -50,7 +63,7 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 		})
 		checked++
 	}
-	if checked < 9 {
+	if checked < 8 {
 		t.Errorf("only %d schema rules were checked; the registry scan found too few to prove anything", checked)
 	}
 }

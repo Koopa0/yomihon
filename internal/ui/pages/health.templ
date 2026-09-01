@@ -37,6 +37,14 @@ type HealthView struct {
 	// beside no rows at all, so the one reader who could act on it had to
 	// guess a query to learn which files it meant.
 	StatusOutsideEnum []HealthStatusNote
+	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
+	// so nothing they declare could be judged at all.
+	FrontmatterUnreadable []nav.NoteRef
+	// SchemaFaults are the notes whose frontmatter reads and carries something
+	// the schema does not accept. The detail stays on each note's own page:
+	// saying it twice, in two places, is how two accounts of one file start
+	// disagreeing.
+	SchemaFaults []nav.NoteRef
 	// LastComplete is when the folder was last read whole, which is not always
 	// when the generation behind this page was built: a page can be built from
 	// a reading that lost some sources and carried the last copy of each.
@@ -94,7 +102,8 @@ type HealthCollision struct {
 // clean reports whether the folder has nothing to answer for.
 func (v HealthView) clean() bool {
 	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
-		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.StatusOutsideEnum) == 0
+		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.StatusOutsideEnum) == 0 &&
+		len(v.FrontmatterUnreadable) == 0 && len(v.SchemaFaults) == 0
 }
 
 // blockedLede states what the blocked list means for the reader, and how
@@ -173,6 +182,24 @@ templ Health(v HealthView, c layouts.Chrome) {
 									</ul>
 								</details>
 							}
+						}
+						@healthSection(wording.HealthFrontmatterTitle.In(c.Lang), len(v.FrontmatterUnreadable), wording.HealthFrontmatterLede.In(c.Lang)) {
+							<ul class="y-healthlist">
+								for _, found := range v.FrontmatterUnreadable {
+									<li>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }>{ found.Name }</a>
+									</li>
+								}
+							</ul>
+						}
+						@healthSection(wording.HealthSchemaTitle.In(c.Lang), len(v.SchemaFaults), wording.HealthSchemaLede.In(c.Lang)) {
+							<ul class="y-healthlist">
+								for _, found := range v.SchemaFaults {
+									<li>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }>{ found.Name }</a>
+									</li>
+								}
+							</ul>
 						}
 						@healthSection(wording.StatusOutsideEnumTitle.In(c.Lang), len(v.StatusOutsideEnum), wording.StatusOutsideEnumLede.In(c.Lang)) {
 							<ul class="y-healthlist">

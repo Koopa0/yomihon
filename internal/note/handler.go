@@ -201,20 +201,55 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	pageShell := shell.Project(statusView, snap.ArtifactPolicy(), snap)
 	health := snap.Health()
 	fresh := snap.Freshness()
+	unreadableFrontmatter, schemaFaults := schemaFaultLists(snap)
 	view := pages.HealthView{
-		Unwritten:         healthLinks(health.Unwritten),
-		TitleOnly:         healthTitleLinks(health.TitleOnly),
-		Islands:           healthIslands(health.Islands),
-		IslandCount:       healthIslandCount(health.Islands),
-		Collisions:        healthCollisions(health.Collisions),
-		Blocked:           healthBlocked(fresh.Blocked),
-		StatusOutsideEnum: statusesOutsideEnum(statusView, snap),
-		LastComplete:      lastCompleteBuild(&fresh),
-		Sidebar:           pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
+		Unwritten:             healthLinks(health.Unwritten),
+		TitleOnly:             healthTitleLinks(health.TitleOnly),
+		Islands:               healthIslands(health.Islands),
+		IslandCount:           healthIslandCount(health.Islands),
+		Collisions:            healthCollisions(health.Collisions),
+		Blocked:               healthBlocked(fresh.Blocked),
+		StatusOutsideEnum:     statusesOutsideEnum(statusView, snap),
+		FrontmatterUnreadable: unreadableFrontmatter,
+		SchemaFaults:          schemaFaults,
+		LastComplete:          lastCompleteBuild(&fresh),
+		Sidebar:               pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
 	}
 	if err := pages.Health(view, pages.ChromeFromRequest(r, wording.HealthTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
 	}
+}
+
+// schemaFaultLists splits what the schema said about the whole folder into the
+// two things a reader does differently about them: frontmatter that cannot be
+// read at all, which has to be repaired before anything else about the note
+// can be judged, and frontmatter that reads and carries something the schema
+// does not accept, which has a named field to change.
+//
+// The split is on the rule that fired rather than on a guess about the note,
+// because one of these findings is the judge's own statement that it could
+// read nothing. The rows carry no detail: each note's own page says which
+// field and why, and one file described twice in two places is how two
+// accounts of it start to disagree.
+func schemaFaultLists(snap *snapshot.View) (unreadable, faults []nav.NoteRef) {
+	for _, entry := range snap.Files() {
+		rel := entry.Path()
+		findings := snap.SchemaFindings(rel)
+		if len(findings) == 0 {
+			continue
+		}
+		note, ok := snap.Note(rel)
+		if !ok {
+			continue
+		}
+		ref := nav.NoteRef{RelPath: rel, Name: note.Title}
+		if slices.ContainsFunc(findings, func(f judge.Finding) bool { return f.RuleID == "schema.frontmatter" }) {
+			unreadable = append(unreadable, ref)
+			continue
+		}
+		faults = append(faults, ref)
+	}
+	return unreadable, faults
 }
 
 // statusesOutsideEnum names the notes whose status value is outside their
