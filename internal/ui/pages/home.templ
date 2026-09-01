@@ -58,7 +58,11 @@ type HomeView struct {
 	// when the times separate nothing, the block says so instead.
 	RecentOrdered bool
 	Lifecycle     []LifecycleItem
-	Paths         []HomePath
+	// Unstated are the cells for notes the block must account for that carry no
+	// status to be grouped by. They are kept apart from Lifecycle rather than
+	// flagged inside it, so the markup cannot come to dress them as statuses.
+	Unstated []LifecycleItem
+	Paths    []HomePath
 	// ShowRecent, ShowLifecycle and ShowPaths say which blocks this page
 	// carries. Each is one answer, decided where the blocks are gathered and
 	// where the subtitle that names them and the stand-in that replaces them
@@ -188,15 +192,26 @@ templ Home(v HomeView, c layouts.Chrome) {
 								<div class="y-homechips">
 									for _, it := range v.Lifecycle {
 										<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
-											<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
-											<span>{ statusChipLabel(it.Name, c.Lang) }</span>
-											if it.Unknown {
-												@statusOutsideEnumMark(c.Lang)
-											}
-											<span class="y-homechip__count" aria-label={ plural(it.Count, wording.NoteCountOne, wording.NoteCountMany, c.Lang) }>{ strconv.Itoa(it.Count) }</span>
+											@lifecycleChipBody(it, c.Lang)
 										</a>
 									}
 								</div>
+								if len(v.Unstated) > 0 {
+									<div class="y-homeunstated">
+										for _, it := range v.Unstated {
+											if it.Href == "" {
+												<span class="y-homeunstated__cell">
+													@unstatedChipBody(it, c.Lang)
+												</span>
+											} else {
+												<a class="y-homeunstated__cell" href={ templ.URL(it.Href) }>
+													@unstatedChipBody(it, c.Lang)
+												</a>
+											}
+										}
+									</div>
+									<p class="y-homeblock__note">{ wording.LifecycleUnstatedNote.In(c.Lang) }</p>
+								}
 							</section>
 						}
 						if v.ShowPaths {
@@ -246,4 +261,30 @@ templ homeBlockHead(id, title, note string) {
 		<h2 id={ id }>{ title }</h2>
 		<p>{ note }</p>
 	</header>
+}
+
+// lifecycleChipBody is what every chip shows, whether or not it leads
+// anywhere, so a chip that is not a link cannot drift into looking different
+// from one that is.
+templ lifecycleChipBody(it LifecycleItem, lang wording.Lang) {
+	<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
+	<span>{ statusChipLabel(it.Name, lang) }</span>
+	if it.Unknown {
+		@statusOutsideEnumMark(lang)
+	}
+	<span class="y-homechip__count" aria-label={ plural(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }>{ strconv.Itoa(it.Count) }</span>
+}
+
+// unstatedChipBody is what a cell shows when it stands for notes carrying no
+// status. It has no status dot, because there is no status for one to mark.
+// The cell for notes that simply declared none takes its words from the same
+// place a blank status has always taken them, so one sentence serves both
+// rather than two sentences saying it.
+templ unstatedChipBody(it LifecycleItem, lang wording.Lang) {
+	if it.Label != "" {
+		<span>{ it.Label }</span>
+	} else {
+		<span>{ statusChipLabel(it.Name, lang) }</span>
+	}
+	<span class="y-homeunstated__count" aria-label={ plural(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }>{ strconv.Itoa(it.Count) }</span>
 }

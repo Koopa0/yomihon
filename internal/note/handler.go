@@ -382,7 +382,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, artifactPolicy, snap)
-	lifecycle, lifecycleClosed := h.lifecycle(statusView, snap)
+	lifecycle, unstated, lifecycleClosed := h.lifecycle(statusView, snap, pages.LanguageFromRequest(r))
 	// The lifecycle block is derived from the write authority while the counts
 	// under it come from the snapshot's own artifact sample, and the two are
 	// taken at different instants. This does not fire today: the request-local
@@ -439,6 +439,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Recent:         recent,
 		RecentOrdered:  recentOrdered,
 		Lifecycle:      lifecycle,
+		Unstated:       unstated,
 		Paths:          paths,
 		ShowRecent:     content.recent,
 		ShowLifecycle:  content.lifecycle,
@@ -808,29 +809,38 @@ func (h *Handler) loadConcepts(
 func (h *Handler) lifecycle(
 	statusView status.View,
 	snap *snapshot.View,
-) (items []pages.LifecycleItem, closed bool) {
+	lang wording.Lang,
+) (items, unstated []pages.LifecycleItem, closed bool) {
 	if !statusView.Governed() {
-		return nil, false
+		return nil, nil, false
 	}
 	if statusView.Closed() {
-		return nil, true
+		return nil, nil, true
 	}
 	counts, err := snap.Search().CountByTypeStatus()
 	if err != nil {
-		return nil, true
+		return nil, nil, true
 	}
 	// The block states what the notes carry and claims nothing more: owner
 	// lists play no part, and a terminal status with notes at it is as much a
 	// fact of the vault as any other — a distribution that hid a bucket would
-	// disagree with its own total. A note carrying no status value sits in no
-	// bucket and is not a row.
+	// disagree with its own total. Every indexed note is accounted for,
+	// including the ones holding no status at all: they leave this loop and
+	// arrive in the two cells below, which are kept apart from the statuses
+	// because neither of them is one.
 	byStatus := make(map[string]int, len(counts))
 	// declared records whether some type carrying the status declares it. A
 	// status no carrier declares is outside every relevant enum, and its chip
 	// says so with the note page's own flag instead of passing as vocabulary.
 	declared := make(map[string]bool, len(counts))
+	// Notes with no readable status used to leave the block entirely, which is
+	// how a distribution came to disagree with the number of notes it claimed
+	// to be a distribution of. They are counted here and given their own two
+	// cells below.
+	withoutStatus := 0
 	for ts, n := range counts {
 		if ts.Status == "" {
+			withoutStatus += n
 			continue
 		}
 		byStatus[ts.Status] += n
@@ -863,7 +873,30 @@ func (h *Handler) lifecycle(
 	for _, s := range slices.Sorted(maps.Keys(byStatus)) {
 		add(s)
 	}
-	return items, false
+	// The notes with no readable status divide in two, and the division
+	// matters to a reader: one kind cannot be judged at all until its
+	// frontmatter is repaired, the other declared no status and may be
+	// perfectly entitled not to. Both counts come from the index that produced
+	// the tally above, so the cells add up to the notes it counted rather than
+	// to a second reckoning of the folder.
+	unreadable, err := snap.Search().CountUnreadableFrontmatter()
+	if err != nil {
+		return items, nil, false
+	}
+	if unreadable > 0 {
+		unstated = append(unstated, pages.LifecycleItem{
+			Label: wording.LifecycleUnreadable.In(lang),
+			Count: unreadable,
+			Href:  "/health",
+		})
+	}
+	// The rest declared no status at all. The cell takes its words from where a
+	// blank status has always taken them, which is a sentence this product
+	// already wrote for exactly this square and then stopped reaching.
+	if declaredNone := withoutStatus - unreadable; declaredNone > 0 {
+		unstated = append(unstated, pages.LifecycleItem{Count: declaredNone})
+	}
+	return items, unstated, false
 }
 
 // homeContent records which of Home's content blocks this folder actually

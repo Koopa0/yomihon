@@ -47,6 +47,13 @@ type Document struct {
 	// searching a reading tool is looking for what they wrote before they are
 	// looking at what sits beside it.
 	File bool
+
+	// FrontmatterUnreadable marks a note whose frontmatter was there and could
+	// not be parsed, which is a different thing from a note that declares
+	// nothing. Both arrive here with every field empty, and a count that
+	// cannot tell them apart has to describe them with one sentence that is
+	// wrong about one of them.
+	FrontmatterUnreadable bool
 }
 
 // entry is one indexed note. The *Fold copies double the note's text in memory
@@ -75,6 +82,10 @@ type entry struct {
 	PlainFold       string
 	isFile          bool
 	metadataCapable bool
+	// frontmatterUnreadable records that this note had a frontmatter block that
+	// could not be parsed, so a tally can separate it from a note that declared
+	// nothing.
+	frontmatterUnreadable bool
 }
 
 // Index is the whole in-memory search index: entries kept sorted by RelPath so
@@ -173,7 +184,8 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		// A file has no frontmatter to be an instance of, so it answers no
 		// metadata projection under any policy. That is also what keeps a tally
 		// over a governed vault the same tally it was before files were indexed.
-		metadataCapable: !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
+		metadataCapable:       !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
+		frontmatterUnreadable: d.FrontmatterUnreadable,
 	}
 }
 
@@ -191,6 +203,9 @@ func DocumentFromNote(n *vault.Note) Document {
 		Slug:      stringField(n, "slug"),
 		Topics:    stringsField(n, "topics"),
 		PlainText: render.PlainText(n.Body),
+		// A diagnostic here means the block was present and did not parse. A
+		// note that simply carries no frontmatter has none, and is not this.
+		FrontmatterUnreadable: n.FMDiagnostic != "",
 	}
 }
 
@@ -251,6 +266,30 @@ type TypeStatus struct {
 // CountByStatus does not carry enough. A note missing either field lands in that
 // field's "" bucket. An artifact policy that was declared and could not be
 // honoured returns ErrMetadataUnavailable with its contract diagnostic.
+
+// CountUnreadableFrontmatter reports how many of the notes this index counts
+// had a frontmatter block that could not be parsed.
+//
+// It answers over exactly the entries CountByTypeStatus answers over, because
+// its whole purpose is to divide that tally's empty bucket: a note whose
+// frontmatter could not be read and a note that simply declares no status both
+// land there, and they are not the same thing to a reader — one has to be
+// repaired before anything about it can be judged, the other may be perfectly
+// legal for its kind. Counting them here rather than at the caller is what
+// keeps the two numbers describing the same population.
+func (idx *Index) CountUnreadableFrontmatter() (int, error) {
+	if !idx.policy.Trustworthy() {
+		return 0, idx.metadataUnavailableError()
+	}
+	unreadable := 0
+	for _, e := range idx.entries {
+		if e.metadataCapable && e.frontmatterUnreadable {
+			unreadable++
+		}
+	}
+	return unreadable, nil
+}
+
 func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
 	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()

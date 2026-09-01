@@ -142,3 +142,38 @@ func TestNotePageEscapesTheNotesOwnTextInANotice(t *testing.T) {
 		t.Errorf("the page carries %q verbatim, so a note's own text reached the reader as markup", hostile)
 	}
 }
+
+// TestNotePageReadsTogetherForAStatusThatIsNotText holds the two sentences a
+// non-text status draws, because they are said side by side and a reader has
+// to be able to act on the pair. One explains why no status could be read; the
+// other names what was written. Before the first was completed it said the
+// value was missing or not single, which is false of 123 — a number is both
+// present and single — leaving the two sentences disagreeing about whether
+// there was a value at all.
+func TestNotePageReadsTogetherForAStatusThatIsNotText(t *testing.T) {
+	t.Parallel()
+
+	const rel = "Concepts/golang/Numeric.md"
+	body := "---\ntitle: Numeric\ntype: concept\ndomain: golang\nstatus: 123\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
+
+	root := t.TempDir()
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+
+	code, page := get(t, srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
+	}
+	if !strings.Contains(page, "不是文字") {
+		t.Error("the page does not say the value is not text, so its account of why nothing could be read omits this note's actual cause")
+	}
+	if !strings.Contains(page, "<code>123</code>") {
+		t.Error("the page does not name what was written")
+	}
+}

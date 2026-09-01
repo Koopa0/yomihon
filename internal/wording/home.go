@@ -29,7 +29,7 @@ var (
 		"These files carry identical timestamps, so nothing here is more recent than anything else",
 	)
 	HomeLifecycleTitle = both("依狀態分組", "By status")
-	HomeLifecycleLede  = both("書庫中每個狀態的筆記數", "How many notes hold each status the vault declares")
+	HomeLifecycleLede  = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
 	HomePathsTitle     = both("學習路徑", "Study paths")
 	HomePathsLede      = both("沿著書庫中的課程繼續學習", "Carry on through a course the vault lays out")
 	HomeSearchTitle    = both("搜尋", "Search")
@@ -89,3 +89,17 @@ var (
 		"%d files could not be read, so pages may be incomplete or stopped at an older version. The health page has the detail.",
 	)
 )
+
+// LifecycleUnreadable names the cell for notes whose frontmatter was there and
+// could not be parsed. Nothing they declare could be read, so they belong to
+// no status — and until the YAML is repaired, nothing else about them can be
+// judged either.
+var LifecycleUnreadable = both("無法判讀", "Could not be read")
+
+// LifecycleUnstatedNote sits under the cells for notes carrying no status. One
+// of those cells is not a fault: for some kinds of note, declaring no status
+// is exactly right, and a number in a panel about lifecycle would otherwise
+// read as something to go and fix.
+var LifecycleUnstatedNote = both(
+	"「未標示狀態」對某些類型的筆記是合法的；「無法判讀」則是 frontmatter 需要修。",
+	"No status stated is legal for some kinds of note; could not be read means the frontmatter needs repair.")

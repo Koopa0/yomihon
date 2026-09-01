@@ -180,6 +180,17 @@ type LifecycleItem struct {
 	// amber flag the note page shows, and stays a link — flagged, not
 	// hidden.
 	Unknown bool
+	// Href is where the chip leads. Every chip standing for a status leads to
+	// that status's own query; the two that stand for notes carrying no
+	// readable status name no status to query, so one leads to the page
+	// listing them and the other leads nowhere and is not a link at all. A
+	// chip that looked like a link to a query no note answers would be an
+	// offer the folder cannot keep.
+	Href string
+	// Label is what the chip reads when it stands for something other than a
+	// status the folder declares, so the status name and the words shown do
+	// not have to be the same string.
+	Label string
 }
 
 // LanguageFromRequest reads which language this request asked the interface to

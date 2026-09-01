@@ -98,9 +98,15 @@ var (
 		"不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。",
 		"is not in the schema's declared list. yomihon reports and never repairs; edit the frontmatter directly.",
 	)
+	// The four causes are a complete division of what reaches this sentence,
+	// not a list of the shapes anyone happened to meet: it is said when the
+	// status reads as no non-empty text, and a YAML value fails that by being
+	// absent, by being empty or null, by not being a single value, or by being
+	// a single value that is not text. A fifth cause would have to fall
+	// outside all four.
 	StatusUnreadable = both(
-		"frontmatter 裡讀不出 status 值（缺少，或不是單一值）。yomihon 只陳述，不修復；",
-		"No status value could be read from the frontmatter — it is missing, or it is not a single value. yomihon reports and never repairs; ",
+		"frontmatter 裡讀不出 status 值（缺少、是空的、不是單一值，或不是文字）。yomihon 只陳述，不修復；",
+		"No status value could be read from the frontmatter — it is missing, empty, not a single value, or not text. yomihon reports and never repairs; ",
 	)
 	StatusValuePrefix = both("狀態值 ", "The status ")
 )

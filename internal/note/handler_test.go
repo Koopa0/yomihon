@@ -2331,7 +2331,7 @@ func TestHomeLifecycleCountsStatusDistribution(t *testing.T) {
 			wantRows: map[string]int{"draft": 1, "proposed": 1},
 		},
 		{
-			name: "a note without a status is not a bucket",
+			name: "a note without a status is accounted for outside the statuses",
 			notes: []note{
 				doc("D1", "draft"),
 				{path: "Writing/D2.md", front: "title: D2\ntype: doc"},
@@ -3404,5 +3404,93 @@ func TestHomeLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 		if strings.Contains(body, phrase) {
 			t.Errorf("the page still claims a queue: %q", phrase)
 		}
+	}
+}
+
+// TestHomeLifecycleAccountsForEveryIndexedNote is the structural claim the
+// block makes once it carries cells for notes holding no status: every note
+// the folder counts is somewhere in it. A note that left the block entirely is
+// how a distribution came to disagree with the number of notes it was a
+// distribution of, and no per-status assertion can see that — only the sum can.
+//
+// The four shapes are the ones that divide here: a note with a declared
+// status, one whose frontmatter cannot be parsed, one carrying no frontmatter
+// at all, and one whose frontmatter reads and states no status. The last two
+// are legal and the second is not, which is why they are not one cell.
+func TestHomeLifecycleAccountsForEveryIndexedNote(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	for _, n := range []struct{ path, body string }{
+		{"Writing/Declared.md", "---\ntitle: Declared\ntype: doc\nstatus: draft\n---\n\nbody\n"},
+		{"Writing/Unparsable.md", "---\ntitle: Unparsable\ntype: doc\nstatus: draft\nstatus: ready\n---\n\nbody\n"},
+		{"Writing/Bare.md", "no frontmatter at all\n"},
+		{"Writing/Silent.md", "---\ntitle: Silent\ntype: doc\n---\n\nbody\n"},
+	} {
+		full := filepath.Join(root, filepath.FromSlash(n.path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", n.path, err)
+		}
+		if err := os.WriteFile(full, []byte(n.body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", n.path, err)
+		}
+	}
+	srv := newServerWithContract(t, root, distributionContract(t))
+
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	block := homeSection(t, body, `data-home-block="lifecycle"`)
+
+	total := 0
+	for _, n := range chipCounts(t, block) {
+		total += n
+	}
+	unstated := unstatedCounts(t, block)
+	if len(unstated) != 2 {
+		t.Fatalf("the block carries %d cells for notes with no status; want one for unparsable frontmatter and one for none stated", len(unstated))
+	}
+	// The division is the point, not just the total: a note carrying no
+	// frontmatter declared nothing, which is legal, and calling it unreadable
+	// would send a reader to repair a file with nothing wrong with it. Only
+	// the note whose frontmatter was there and did not parse belongs in the
+	// first cell.
+	if want := []int{1, 2}; unstated[0] != want[0] || unstated[1] != want[1] {
+		t.Errorf("the cells hold %v; want %v — one unparsable, and the bare and silent notes together", unstated, want)
+	}
+	for _, n := range unstated {
+		total += n
+	}
+	if want := 4; total != want {
+		t.Errorf("the block accounts for %d notes and the folder holds %d; a note that appears nowhere is the defect this counts against", total, want)
+	}
+}
+
+// unstatedCounts reads the counts from the cells that stand for notes with no
+// status. They carry their own markup rather than the status chip's, so this
+// cannot pick up a status by accident — which is also what stops the block
+// from dressing them as statuses.
+func unstatedCounts(t *testing.T, block string) []int {
+	t.Helper()
+	var out []int
+	const marker = `class="y-homeunstated__count"`
+	for rest := block; ; {
+		at := strings.Index(rest, marker)
+		if at < 0 {
+			return out
+		}
+		rest = rest[at:]
+		open := strings.IndexByte(rest, '>')
+		shut := strings.Index(rest, "</span>")
+		if open < 0 || shut < 0 || shut < open {
+			t.Fatalf("an unstated cell's count is not readable: %q", rest[:min(len(rest), 120)])
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(rest[open+1 : shut]))
+		if err != nil {
+			t.Fatalf("an unstated cell states no number: %v", err)
+		}
+		out = append(out, n)
+		rest = rest[shut:]
 	}
 }
