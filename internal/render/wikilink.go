@@ -431,18 +431,10 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 // caller can consult the characters just before the match — returning the
 // match unchanged leaves that occurrence byte-identical too.
 func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(start int, m string) string) string {
-	inSkip := func(start, end int) bool {
-		for _, s := range skip {
-			if start >= s[0] && end <= s[1] {
-				return true
-			}
-		}
-		return false
-	}
 	var out strings.Builder
 	last := 0
 	for _, loc := range re.FindAllStringIndex(text, -1) {
-		if inSkip(loc[0], loc[1]) {
+		if withinAny(skip, loc[0], loc[1]) {
 			continue
 		}
 		out.WriteString(text[last:loc[0]])
@@ -451,6 +443,19 @@ func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(start
 	}
 	out.WriteString(text[last:])
 	return out.String()
+}
+
+// withinAny reports whether the half-open range start..end lies wholly inside
+// one of the given ranges. Both the pass that rewrites wikilinks and the scan
+// that looks for the embeds among them have to ignore the same quoted text, so
+// they ask the same question here rather than each keeping an answer.
+func withinAny(ranges [][2]int, start, end int) bool {
+	for _, r := range ranges {
+		if start >= r[0] && end <= r[1] {
+			return true
+		}
+	}
+	return false
 }
 
 // escapedVaultPath percent-escapes each segment of a vault-relative path
@@ -501,9 +506,10 @@ func rawHref(p string) string {
 // inside a list item — so the scan can report that it found nothing and cannot
 // rule that nothing is there. A section address therefore always survives, and
 // a miss is reported only when a second, deliberately generous scan agrees the
-// name is nowhere, and not at all where the destination transcludes another
-// note — a heading arriving through an embed is written in a file neither scan
-// reads, so silence there is the only honest answer. Under-reporting a broken
+// name is nowhere. Where the destination transcludes another note, both scans
+// read that note as well, because a heading arriving through an embed is
+// written in a different file and stamped on this page all the same; see
+// embedBringsHeading for how far that reading goes. Under-reporting a broken
 // fragment costs a diagnostic, while over-reporting one withdraws a working
 // link and tells the reader a section they can see does not exist.
 //
@@ -560,7 +566,7 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		if headingAnchorMayExist(stripped, link.Heading) {
 			return addressed, fragmentPlaced
 		}
-		if mayCarryTranscludedHeadings(stripped) {
+		if r.embedBringsHeading(stripped, link.Heading) {
 			return addressed, fragmentPlaced
 		}
 		col.report(&Diagnostic{
@@ -1110,12 +1116,79 @@ func withoutQuoteAndListMarkers(line string) string {
 	return candidate
 }
 
-// mayCarryTranscludedHeadings reports whether a body pulls another note's
-// content into itself. The scans that validate a section address read this
-// note's own source and nothing else, so a heading that arrives inside an
-// embed is one they cannot see at any level of generosity — and the page
-// stamps its id all the same. Where a body embeds anything, a name neither
-// scan found is left unreported rather than called broken.
-func mayCarryTranscludedHeadings(body string) bool {
-	return strings.Contains(body, "![[")
+// embedBringsHeading reports whether a heading absent from this body arrives
+// inside one of the notes it embeds. The scans that validate a section address
+// read one note's own source, so a heading written in an embedded file is one
+// they cannot see at any level of generosity — while the page stamps its id all
+// the same, because the embed really is expanded into it.
+//
+// Where a body embedded anything, such a name used to be left unreported
+// wholesale. That bought silence about the headings an embed genuinely brings
+// and paid for it with silence about every name that was nowhere at all: one
+// citation of a section that does not exist anywhere goes unmentioned for as
+// long as the destination happens to embed something. Reading the embedded
+// file instead separates the two, and costs one resolution per embed.
+//
+// The walk goes exactly one level, which is not a limit chosen here but the one
+// the render already has: an embed inside an embedded body renders as plain
+// link text rather than expanding, so its headings never reach the page and
+// must not count. The same rule decides which occurrences are embeds at all —
+// quoted syntax and escaped brackets are shown, not followed — so this reads
+// the source the way the pass that expands it will.
+//
+// Only a note can bring headings. A picture, a PDF, an embed that resolves to
+// nothing, and a body this generation never captured all bring none, and a
+// fragment naming one of them is as absent as if the embed were not there.
+func (r *Pipeline) embedBringsHeading(body, heading string) bool {
+	spans := codeSpanRanges(body)
+	for _, loc := range wikilinkToken.FindAllStringIndex(body, -1) {
+		if body[loc[0]] != '!' || withinAny(spans, loc[0], loc[1]) {
+			continue
+		}
+		if graph.EscapedWikilinkAt(body, loc[0]+1) {
+			continue
+		}
+		link, ok := graph.ParseWikilink(body[loc[0]+3 : loc[1]-2])
+		if !ok {
+			continue
+		}
+		res := r.idx.Resolve(link.Target)
+		if res.Kind != graph.Unique || !vault.IsMarkdown(res.RelPath) {
+			continue
+		}
+		embedded, ok := r.transclusions.Transclusion(res.RelPath)
+		if !ok {
+			continue
+		}
+		stripped, _ := stripObsidianComments(embedded)
+		if headingBroughtBy(link, stripped, heading) {
+			return true
+		}
+	}
+	return false
+}
+
+// headingBroughtBy reports whether the heading is inside the part of an
+// embedded body that the embed actually shows. An embed carrying a fragment
+// narrows the excerpt on purpose, so a heading outside that slice never
+// reaches the page and a link naming it is naming something absent; an embed
+// whose fragment matches nothing widens back to the whole note, and then
+// everything in it does arrive. Both readings are the ones embedScope applies
+// when it cuts the excerpt for display.
+func headingBroughtBy(link graph.Wikilink, embedded, heading string) bool {
+	scoped := embedded
+	switch {
+	case link.Block != "":
+		if slice, ok := blockSlice(embedded, link.Block); ok {
+			scoped = slice
+		}
+	case link.Heading != "":
+		if slice, ok := headingSlice(embedded, link.Heading); ok {
+			scoped = slice
+		}
+	}
+	if _, found := headingSlice(scoped, heading); found {
+		return true
+	}
+	return headingAnchorMayExist(scoped, heading)
 }

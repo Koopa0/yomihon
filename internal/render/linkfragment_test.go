@@ -186,23 +186,31 @@ func TestSectionLinkKeepsAnAnchorTheSourceScanCannotSee(t *testing.T) {
 	}
 }
 
-// TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother is the conservative
-// close on the one gap generosity cannot reach. Both scans read this note's own
-// source, and a heading that arrives through an embed is written in a different
-// file — so no amount of marker stripping will find it, while the page stamps
-// its id all the same. Where the destination embeds anything, a name the scans
-// missed is left unreported.
+// TestSectionLinkFollowsTheEmbedThatBringsTheHeadingIn closes the one gap
+// neither scan of this note's own source can reach. A heading that arrives
+// inside an embed is written in another file, and the page stamps its id all
+// the same — so the check reads that file too, one level, exactly as far as
+// the render goes.
 //
-// The control beside it is what keeps that from becoming blanket silence: a
-// destination that embeds nothing still gets its genuinely absent section
-// reported, so the close costs exactly the notes it is aimed at.
-func TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother(t *testing.T) {
+// It used to stop instead: a destination that embedded anything had every
+// unmatched name left unreported, which bought silence about the headings the
+// embed really brought and paid for it with silence about every name that was
+// nowhere at all.
+func TestSectionLinkFollowsTheEmbedThatBringsTheHeadingIn(t *testing.T) {
 	t.Parallel()
 
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}, {RelPath: "C.md"}}, nil, transclusions{
 		"B.md": "# Top\n\nTOPTEXT\n\n![[C]]\n",
 		"C.md": "## Brought In\n\nBROUGHTTEXT\n",
 	})
+
+	// The premise, checked before anything is concluded from it: the
+	// destination really does stamp that id, because the embed really is
+	// expanded into it.
+	page := r.HTML("B.md", "", "# Top\n\nTOPTEXT\n\n![[C]]\n", wording.ZhHant)
+	if !strings.Contains(page.HTML, `id="brought-in"`) {
+		t.Fatalf("the fixture's premise is wrong: the embed does not bring the heading in:\n%s", page.HTML)
+	}
 
 	embedding := r.HTML("note.md", "", "[[B#Brought In]]\n", wording.ZhHant)
 	if !strings.Contains(embedding.HTML, `href="/notes/B.md#brought-in"`) {
@@ -212,16 +220,157 @@ func TestSectionLinkStaysSilentAboutANoteThatEmbedsAnother(t *testing.T) {
 		t.Errorf("a section an embed brings into the destination was called missing: %q", messages)
 	}
 
-	// The premise: the destination really does stamp that id, because the
-	// embed really is expanded into it.
-	page := r.HTML("B.md", "", "# Top\n\nTOPTEXT\n\n![[C]]\n", wording.ZhHant)
-	if !strings.Contains(page.HTML, `id="brought-in"`) {
-		t.Fatalf("the fixture's premise is wrong: the embed does not bring the heading in:\n%s", page.HTML)
+	// The half the old close gave away: a name that is in neither file.
+	nowhere := r.HTML("note.md", "", "[[B#Nowhere]]\n", wording.ZhHant)
+	if messages := fragmentDiagnostics(&nowhere); len(messages) != 1 {
+		t.Errorf("a name absent from the destination and from what it embeds went unreported: %q", messages)
 	}
 
 	plain := r.HTML("note.md", "", "[[C#Nowhere]]\n", wording.ZhHant)
 	if messages := fragmentDiagnostics(&plain); len(messages) != 1 {
 		t.Errorf("a destination that embeds nothing stopped reporting a section it really lacks: %q", messages)
+	}
+}
+
+// TestSectionLinkReadsOnlyWhatTheEmbedActuallyBrings holds the check to the
+// same edges the render draws. An embed carrying a fragment shows one section,
+// so only that section's headings reach the page, and a name from elsewhere in
+// the same file is as absent as if the file had never been cited. An embed of
+// something that is not a note brings no headings at all, and one that
+// resolves nowhere brings nothing to read.
+func TestSectionLinkReadsOnlyWhatTheEmbedActuallyBrings(t *testing.T) {
+	t.Parallel()
+
+	notes := []graph.NoteInput{{RelPath: "Scoped.md"}, {RelPath: "Parts.md"}, {RelPath: "Pic.md"}, {RelPath: "Gone.md"}, {RelPath: "Data.md"}}
+	r := newRenderer(t, notes, []string{"pics/plate.png", "table.csv"}, transclusions{
+		"Scoped.md": "![[Parts#Wanted]]\n",
+		"Parts.md":  "## Wanted\n\nWANTEDTEXT\n\n## Unwanted\n\nUNWANTEDTEXT\n",
+		"Pic.md":    "![[pics/plate.png]]\n",
+		"Gone.md":   "![[NoSuchNote]]\n",
+		"Data.md":   "![[table.csv]]\n",
+		// A readable non-Markdown file is captured with its bytes, so this
+		// body is one the scan could reach — and its first line is heading
+		// shaped on purpose. The reader is handed the file whole and nothing
+		// inside it is rendered, so nothing inside it is addressable either.
+		"table.csv": "## Column One\n\n1,2,3\n",
+	})
+
+	// The premise for the scoped case, in both directions: the section the
+	// embed names arrives, and the one beside it does not.
+	page := r.HTML("Scoped.md", "", "![[Parts#Wanted]]\n", wording.ZhHant)
+	if !strings.Contains(page.HTML, `id="wanted"`) {
+		t.Fatalf("the fixture's premise is wrong: the named section did not arrive:\n%s", page.HTML)
+	}
+	if strings.Contains(page.HTML, `id="unwanted"`) {
+		t.Fatalf("the fixture's premise is wrong: the embed was not scoped:\n%s", page.HTML)
+	}
+
+	// The premise for the non-Markdown case: its bytes really are captured
+	// (so the scan could read them) and the render really does hand the file
+	// over whole rather than expanding what is inside it.
+	shownWhole := r.HTML("Data.md", "", "![[table.csv]]\n", wording.ZhHant)
+	if !strings.Contains(shownWhole.HTML, "embed-media") {
+		t.Fatalf("the fixture's premise is wrong: the file was not shown whole:\n%s", shownWhole.HTML)
+	}
+	if strings.Contains(shownWhole.HTML, `id="column-one"`) {
+		t.Fatalf("the fixture's premise is wrong: the file's contents were rendered:\n%s", shownWhole.HTML)
+	}
+
+	for _, c := range []struct {
+		name string
+		link string
+		want int
+	}{
+		{"a section the scoped embed brings", "[[Scoped#Wanted]]", 0},
+		{"a section left outside the embed's own fragment", "[[Scoped#Unwanted]]", 1},
+		{"a name nowhere near either file", "[[Scoped#Nowhere]]", 1},
+		{"a picture embed carries no headings", "[[Pic#Nowhere]]", 1},
+		{"an embed that resolves nowhere carries none either", "[[Gone#Nowhere]]", 1},
+		{"a file shown whole carries no addressable headings", "[[Data#Column One]]", 1},
+	} {
+		got := r.HTML("note.md", "", c.link+"\n", wording.ZhHant)
+		if messages := fragmentDiagnostics(&got); len(messages) != c.want {
+			t.Errorf("%s: want %d reports, got %d: %q", c.name, c.want, len(messages), messages)
+		}
+	}
+}
+
+// TestSectionLinkIgnoresAnEmbedNobodyFollows keeps the scan on the same side
+// of quoting as the pass that expands embeds. Syntax inside a code span is the
+// author showing what an embed looks like, and a backslash before one is the
+// author asking for the brackets themselves — neither is expanded, so neither
+// brings a heading, and a link naming one is naming something that is not
+// there. Counting them would restore the old silence through the back door:
+// any note that merely mentions the syntax would stop reporting.
+func TestSectionLinkIgnoresAnEmbedNobodyFollows(t *testing.T) {
+	t.Parallel()
+
+	bodies := transclusions{
+		"Quoted.md":  "## Own\n\n`![[C]]`\n",
+		"Escaped.md": "## Own\n\n\\![[C]]\n",
+		"C.md":       "## Brought In\n\nBROUGHTTEXT\n",
+	}
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Quoted.md"}, {RelPath: "Escaped.md"}, {RelPath: "C.md"}}, nil, bodies)
+
+	for _, relPath := range []string{"Quoted.md", "Escaped.md"} {
+		// The premise: the render really does leave this one alone, so there
+		// really is no id for the link to have found.
+		page := r.HTML(relPath, "", bodies[relPath], wording.ZhHant)
+		if strings.Contains(page.HTML, `id="brought-in"`) {
+			t.Fatalf("the fixture's premise is wrong: %s expanded an embed it should have shown:\n%s", relPath, page.HTML)
+		}
+		link := r.HTML("note.md", "", "[["+strings.TrimSuffix(relPath, ".md")+"#Brought In]]\n", wording.ZhHant)
+		if messages := fragmentDiagnostics(&link); len(messages) != 1 {
+			t.Errorf("%s shows the syntax rather than following it, and a link into it went unreported: %q", relPath, messages)
+		}
+	}
+}
+
+// TestEveryStampedHeadingIsAFragmentTheCheckAccepts is the differential lock
+// between the two halves that must not drift: the pass that stamps ids over
+// rendered HTML, and the scan that decides whether a link naming one is
+// broken. Whatever the render stamps, the check has to leave alone — a
+// reported miss on an id the page really carries is the expensive direction of
+// wrong, because it withdraws a section the reader can see.
+//
+// The reverse does not hold and is not asserted. The check is deliberately
+// generous: it accepts names it cannot prove absent, so it accepts more than
+// the render stamps, and that surplus is the safe direction.
+func TestEveryStampedHeadingIsAFragmentTheCheckAccepts(t *testing.T) {
+	t.Parallel()
+
+	bodies := transclusions{
+		"Own.md":     "## Plain\n\nx\n\n### Deeper\n\ny\n",
+		"Host.md":    "## Host Own\n\nx\n\n![[Bring]]\n",
+		"Bring.md":   "## Brought\n\nx\n\n## Also Brought\n\ny\n",
+		"Narrow.md":  "![[Bring#Brought]]\n",
+		"Quoted.md":  "> ## Inside A Quote\n>\n> x\n",
+		"Listed.md":  "- ## Inside A List\n\n  x\n",
+		"Twofold.md": "## Same\n\nx\n\n## Same\n\ny\n",
+	}
+	var notes []graph.NoteInput
+	for relPath := range bodies {
+		notes = append(notes, graph.NoteInput{RelPath: relPath})
+	}
+	r := newRenderer(t, notes, nil, bodies)
+
+	stamped := 0
+	for relPath, body := range bodies {
+		page := r.HTML(relPath, "", body, wording.ZhHant)
+		for _, entry := range page.TOC {
+			stamped++
+			// The check is asked in the terms a reader writes: the heading's
+			// own text, which is what a wikilink fragment carries.
+			link := r.HTML("asking.md", "", "[["+strings.TrimSuffix(relPath, ".md")+"#"+entry.Text+"]]\n", wording.ZhHant)
+			if messages := fragmentDiagnostics(&link); len(messages) != 0 {
+				t.Errorf("%s stamps id %q for heading %q, and a link naming it was reported broken: %q",
+					relPath, entry.ID, entry.Text, messages)
+			}
+		}
+	}
+	// A run over an empty set of headings would pass while checking nothing.
+	if stamped < len(bodies) {
+		t.Fatalf("the sweep found only %d stamped headings across %d notes, so it proves almost nothing", stamped, len(bodies))
 	}
 }
 
