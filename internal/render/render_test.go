@@ -25,7 +25,7 @@ func (b transclusions) Transclusion(path string) (string, bool) {
 // set. Tests never need a filesystem to exercise the rendering projection.
 func newRenderer(t *testing.T, notes []graph.NoteInput, resources []string, bodies transclusions) *render.Pipeline {
 	t.Helper()
-	return render.New(graph.BuildFromNotes(notes, resources), bodies)
+	return render.New(graph.BuildFromNotes(notes, resources), bodies, noTitles{})
 }
 
 func TestHTMLExistingDialectRegressions(t *testing.T) {
@@ -1938,3 +1938,10 @@ func TestUnclosedBacktickRunIsOrdinaryText(t *testing.T) {
 		t.Errorf("an unclosed backtick swallowed the rest of the document:\n%s", got.HTML)
 	}
 }
+
+// noTitles answers that nothing declares any title, which is what these tests
+// are about: they exercise resolution and rendering, not the sentence a page
+// says when a name turns out to be some note's title.
+type noTitles struct{}
+
+func (noTitles) TitledBy(string) []string { return nil }

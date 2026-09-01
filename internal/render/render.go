@@ -58,6 +58,19 @@ type Transclusions interface {
 	Transclusion(path string) (body string, ok bool)
 }
 
+// Titles answers which notes declare a given title. A title is not a name a
+// link resolves by, so this never affects resolution — it is how a page that
+// has already failed to resolve a name can tell a reader the note is right
+// there under a name links do not follow, instead of that it was never
+// written.
+//
+// It returns display names rather than paths because that is all the sentence
+// on the page needs, and a capability that hands over more than its consumer
+// uses is a wider coupling than the consumer asked for.
+type Titles interface {
+	TitledBy(name string) []string
+}
+
 // DiagnosticKind classifies one rendering-time Diagnostic.
 type DiagnosticKind string
 
@@ -68,6 +81,24 @@ const (
 	// DiagWikilinkAmbiguous means a target resolves to more than one
 	// file; the candidates are listed, never guessed at.
 	DiagWikilinkAmbiguous DiagnosticKind = "wikilink-ambiguous"
+
+	// DiagWikilinkTitleOnly means the target names some note's declared title.
+	// A title is not a name a link resolves by — the vault's own reader fails
+	// on one too, and this program reproduces that — so the link is broken
+	// either way. It is a separate kind because the repair is not: nothing has
+	// to be written, and an alias on the note the citation meant makes the
+	// existing link work. Telling a reader there is no such note when the note
+	// is right there, under a name they nearly used, is the one thing this
+	// kind exists to stop.
+	DiagWikilinkTitleOnly DiagnosticKind = "wikilink-title-only"
+
+	// DiagTitleTruncatedAtHash means this note's own title is exactly what its
+	// filename becomes when cut at the first whitespace followed by a "#" —
+	// which is where YAML starts a comment in an unquoted value. It is an
+	// observation rather than an accusation: a title deliberately written
+	// short, in quotes, produces the same coincidence, and nothing in the
+	// parsed frontmatter can tell the two apart.
+	DiagTitleTruncatedAtHash DiagnosticKind = "title-truncated-at-hash"
 	// DiagUnknownCallout means a "> [!type]" callout's type is not one
 	// of the recognized callout types; it was rendered as a plain
 	// blockquote instead of being dropped.
@@ -185,6 +216,7 @@ const (
 type Pipeline struct {
 	idx           *graph.Index
 	transclusions Transclusions
+	titles        Titles
 	md            goldmark.Markdown
 }
 
@@ -202,16 +234,20 @@ type Pipeline struct {
 // does not exist, and the note's own text was swallowed as the link's
 // destination. With the extension, the reference and its definition are two
 // ends of one anchor pair inside the page, which needs no script to work.
-func New(idx *graph.Index, transclusions Transclusions) *Pipeline {
+func New(idx *graph.Index, transclusions Transclusions, titles Titles) *Pipeline {
 	if idx == nil {
 		panic("render: New requires a non-nil *graph.Index")
 	}
 	if transclusions == nil {
 		panic("render: New requires non-nil Transclusions")
 	}
+	if titles == nil {
+		panic("render: New requires non-nil Titles")
+	}
 	return &Pipeline{
 		idx:           idx,
 		transclusions: transclusions,
+		titles:        titles,
 		md: goldmark.New(
 			goldmark.WithExtensions(
 				extension.GFM,

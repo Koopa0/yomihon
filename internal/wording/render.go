@@ -34,3 +34,27 @@ var (
 
 // ReadAloud names the control beside a paragraph of Japanese.
 var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
+
+// TitleOnlyTargetFmt is said where a citation names a note's declared title.
+// The note exists; the name it was written under is not one a link finds,
+// which is what the vault's own reader does with it too. Saying there is no
+// such note would be false about a file the reader can open.
+var TitleOnlyTargetFmt = both(
+	"「%s」是〈%s〉的 title，而 title 不是連結找得到的名字；在那篇加一個 alias 就能讓這個連結成立",
+	"%q is the title of %q, and a title is not a name a link finds; an alias on that note makes this link work")
+
+// TitleOnlySeveralFmt is the same for a title more than one note declares.
+// Every holder is named: picking one would be a guess, and the reader is the
+// one who knows which they meant.
+var TitleOnlySeveralFmt = both(
+	"「%s」是 %d 篇筆記共同的 title，而 title 不是連結找得到的名字；旁邊的筆記狀況列出了是哪幾篇",
+	"%q is the title of %d notes, and a title is not a name a link finds; the note's conditions beside the article name them")
+
+// TitleTruncatedAtHashFmt states a coincidence and the remedy, and is true
+// whichever way the note got here. An unquoted value loses everything from a
+// whitespace-and-hash onward, and a title written short in quotes lands in the
+// same place; the parsed frontmatter cannot tell them apart, so this reports
+// what is observable and leaves the author to recognise their own case.
+var TitleTruncatedAtHashFmt = both(
+	"這篇的 title「%s」恰好是檔名在空白加 # 處截斷的結果；若 title 原本要包含 #，用引號寫就能保留。",
+	"This note's title %q is exactly what its filename becomes when cut at a space followed by #; if the title was meant to carry the #, quoting it keeps it.")

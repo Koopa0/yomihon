@@ -59,7 +59,7 @@ func testRealVaultRendersWithoutFaults(t *testing.T) {
 		notes = append(notes, note)
 		bodies[entry.Path()] = note.Body
 	}
-	r := render.New(graph.New(notes, resources), bodies)
+	r := render.New(graph.New(notes, resources), bodies, noTitles{})
 
 	mdCount := 0
 	for _, entry := range entries {

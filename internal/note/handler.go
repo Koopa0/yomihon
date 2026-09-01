@@ -550,7 +550,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,
-		RenderDiagnostics: faults(result.Diagnostics, snap),
+		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, pages.LanguageFromRequest(r)),
 		CitedBy:           snap.CitedBy(rel),
 		VaultHasLinks:     snap.AnyCitations(),
 		Prev:              footPrev,
@@ -635,6 +635,48 @@ func faults(diags []render.Diagnostic, snap *snapshot.View) []render.Diagnostic 
 		kept = append(kept, d)
 	}
 	return kept
+}
+
+// noteFaults is every fault this page states about the note: what the render
+// met, filtered against what the vault knows, plus the one observation that
+// needs the note's own name beside its title. It takes those two strings
+// rather than the note, because those two are all it reads and a projection
+// of a whole note is a wider coupling than this asks for.
+func noteFaults(diags []render.Diagnostic, snap *snapshot.View, relPath, title string, lang wording.Lang) []render.Diagnostic {
+	out := faults(diags, snap)
+	if d, ok := titleTruncatedAtHash(relPath, title, lang); ok {
+		out = append(out, d)
+	}
+	return out
+}
+
+// titleTruncatedAtHash reports that a note's title is exactly its filename cut
+// where YAML starts a comment: at whitespace followed by "#".
+//
+// The condition mirrors YAML's own, which is why it cannot fire on a title
+// that survived. A hash with no space before it starts no comment, so
+// "trailing#nospace" arrives whole and is not this.
+//
+// It is an observation, not an accusation. A title written short on purpose,
+// in quotes, produces the identical coincidence, and nothing in the parsed
+// frontmatter separates the two; the sentence therefore reports what is
+// visible and leaves the author to recognise their own case.
+func titleTruncatedAtHash(relPath, title string, lang wording.Lang) (render.Diagnostic, bool) {
+	stem := vault.NormalizeNFC(strings.TrimSuffix(path.Base(relPath), ".md"))
+	written := vault.NormalizeNFC(title)
+	if written == "" || written == stem || !strings.HasPrefix(stem, written) {
+		return render.Diagnostic{}, false
+	}
+	rest := stem[len(written):]
+	trimmed := strings.TrimLeft(rest, " \t")
+	if len(trimmed) == len(rest) || !strings.HasPrefix(trimmed, "#") {
+		return render.Diagnostic{}, false
+	}
+	return render.Diagnostic{
+		Kind:    render.DiagTitleTruncatedAtHash,
+		Target:  title,
+		Message: fmt.Sprintf(wording.TitleTruncatedAtHashFmt.In(lang), title),
+	}, true
 }
 
 type governanceState struct {

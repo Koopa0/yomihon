@@ -102,9 +102,10 @@ func (h *Health) Empty() bool {
 // already built. It walks the same bodies through the same extractor as every
 // other link answer here, so a citation counted broken on this page is broken
 // on the note's own page too.
-func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy) Health {
+func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
 	var h Health
 	var islands []nav.NoteRef
+	titleReferenced := make(map[string]bool)
 	if idx == nil {
 		return h
 	}
@@ -125,7 +126,6 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 		sortHealth(&h)
 		return h
 	}
-	titles := titleIndex(notes)
 	for _, n := range notes {
 		if n == nil {
 			continue
@@ -145,17 +145,27 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 			switch {
 			case res.Kind != graph.Unresolved || planned.Has(target) || seen[target]:
 				// Resolved, owed, or already reported for this note.
-			case titles[graph.NormalizeKey(target)].RelPath != "":
+			// One holder only: naming a note out of several would be a
+			// guess, and this page does not make those. The whole-vault index
+			// keeps every holder, so the choice of what to do about a shared
+			// title is made here rather than settled for everyone upstream.
+			case len(titles[graph.NormalizeKey(target)]) == 1:
 				seen[target] = true
+				titleReferenced[titles[graph.NormalizeKey(target)][0].RelPath] = true
 				h.TitleOnly = append(h.TitleOnly, HealthTitleLink{
-					From: from, Target: target, Note: titles[graph.NormalizeKey(target)],
+					From: from, Target: target, Note: titles[graph.NormalizeKey(target)][0],
 				})
 			default:
 				seen[target] = true
 				h.Unwritten = append(h.Unwritten, HealthLink{From: from, Target: target})
 			}
 		}
-		if back.Citing(n.RelPath) == 0 {
+		// A note reached only by its title is cited by nobody as far as the
+		// resolver is concerned, because a title is not a name a link follows.
+		// Calling it uncited would be true of the graph and false of the
+		// vault: someone wrote its name down. The set is the one this same
+		// pass already collected, not a third definition of what a citation is.
+		if back.Citing(n.RelPath) == 0 && !titleReferenced[n.RelPath] {
 			islands = append(islands, from)
 		}
 	}
@@ -221,31 +231,4 @@ func sortHealth(h *Health) {
 	slices.SortFunc(h.Collisions, func(a, b HealthCollision) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
-}
-
-// titleIndex maps a note's declared title to the note, for the one question the
-// resolver deliberately cannot answer: which note was a citation reaching for
-// when it named a title. A title two notes both declare is left out — naming
-// one of them would be a guess, and this page does not make those.
-func titleIndex(notes []*vault.Note) map[string]nav.NoteRef {
-	byTitle := make(map[string]nav.NoteRef)
-	ambiguous := make(map[string]bool)
-	for _, n := range notes {
-		if n == nil {
-			continue
-		}
-		key := graph.NormalizeKey(n.Title())
-		if key == "" {
-			continue
-		}
-		if _, taken := byTitle[key]; taken {
-			ambiguous[key] = true
-			continue
-		}
-		byTitle[key] = nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath}
-	}
-	for key := range ambiguous {
-		delete(byTitle, key)
-	}
-	return byTitle
 }

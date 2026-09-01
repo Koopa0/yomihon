@@ -36,7 +36,7 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	}
 	idx := graph.New(notes, nil)
 	planned := judge.NewPlanned(noteBodies(notes))
-	h := newHealth(notes, idx, planned, newBacklinks(notes, idx), schema.ArtifactPolicy{})
+	h := newHealth(notes, idx, planned, newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	wantTitleOnly := []HealthTitleLink{{
 		From:   nav.NoteRef{Name: "cites title", RelPath: "Concepts/cites title.md"},
@@ -71,7 +71,7 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 		parse(t, "root.md", "e\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{})
+	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Name: "Sources/course", Notes: []nav.NoteRef{
@@ -145,7 +145,7 @@ func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
 		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]]\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{})
+	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	// The names carrying the extension are absent on purpose: two files sharing
 	// "cited.md" necessarily share "cited", and one repair stated twice reads

@@ -41,6 +41,28 @@ func unwrittenTarget(target, display, heading string, lang wording.Lang) string 
 		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">` + html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
 }
 
+// titleOnlyTarget says the name reached a note's declared title. The note is
+// there; the name is not one a link follows, which is what the vault's own
+// reader does with it too.
+//
+// One holder is named. Several are counted rather than listed: this sentence
+// is carried in a title attribute and read aloud out of an offscreen span, and
+// a list of paths spoken mid-sentence is not something anyone can follow. The
+// panel beside the article names them all, where a reader can look down the
+// list at their own pace.
+func titleOnlyTarget(target, display string, held []string, lang wording.Lang) string {
+	var reason string
+	if len(held) == 1 {
+		reason = fmt.Sprintf(wording.TitleOnlyTargetFmt.In(lang), target, held[0])
+	} else {
+		reason = fmt.Sprintf(wording.TitleOnlySeveralFmt.In(lang), target, len(held))
+	}
+	escaped := html.EscapeString(reason)
+	return `<span class="wikilink-broken wikilink-title-only" title="` + escaped + `">` +
+		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">` +
+		html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
+}
+
 // offscreenNoteClass names the element the explanation above is carried out of
 // sight in. The heading scan removes elements of this name before it reads a
 // heading's words, so the sentence explaining a link never becomes the name of
@@ -561,6 +583,18 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">%s</span>`,
 			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(link.Display))
 	case graph.Unresolved:
+		// The name found nothing, which is as far as the resolver goes: a
+		// title is deliberately not a name a link follows. Whether the name is
+		// nonetheless some note's title changes what the reader should do —
+		// nothing needs writing, an alias on the note they meant makes this
+		// link work — so it changes what the page says.
+		if held := r.titles.TitledBy(link.Target); len(held) > 0 {
+			col.report(&Diagnostic{
+				Kind: DiagWikilinkTitleOnly, Target: link.Target, Section: link.Heading,
+				Message: fmt.Sprintf("wikilink %q names the title of: %s", link.Target, strings.Join(held, ", ")),
+			})
+			return titleOnlyTarget(link.Target, link.Display, held, col.page.lang)
+		}
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkBroken, Target: link.Target, Section: link.Heading,
 			Message: fmt.Sprintf("wikilink %q does not resolve to any note or file", link.Target),

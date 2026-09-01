@@ -143,3 +143,16 @@ var (
 	FlipReceiptBetween = both(" 改為 ", " to ")
 	FlipReceiptAfter   = both("。", ".")
 )
+
+// The panel's label and sentence for a citation that named a note's title, and
+// for a title that is exactly its filename cut where YAML starts a comment.
+var (
+	DiagLinkTitleOnly = both("連結寫到 title", "Link written to a title")
+	DiagTitleOnlyNote = both(
+		"這個名字是某篇筆記的 title。title 不是連結找得到的名字，那篇筆記加一個 alias 就能讓連結成立；下面列出是哪幾篇。",
+		"This name is a note's title. A title is not a name a link finds; an alias on that note makes the link work. The notes are named below.")
+	DiagTitleCut     = both("title 在 # 處截斷", "Title cut at a hash")
+	DiagTitleCutNote = both(
+		"這篇的 title 恰好是檔名在空白加 # 處截斷的結果。未加引號的值到那裡就被 YAML 當成註解；若 title 原本要包含 #，用引號寫就能保留。",
+		"This note's title is exactly what its filename becomes when cut at a space followed by #. An unquoted value ends there, where YAML starts a comment; if the title was meant to carry the #, quoting it keeps it.")
+)

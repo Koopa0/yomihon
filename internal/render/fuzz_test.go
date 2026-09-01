@@ -37,6 +37,7 @@ func FuzzHTML(f *testing.F) {
 	renderer := New(
 		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, nil),
 		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
+		internalNoTitles{},
 	)
 	f.Fuzz(func(t *testing.T, body string) {
 		const maxInput = 32 << 10
@@ -71,3 +72,9 @@ func resultBytes(result *Result) int {
 	}
 	return size
 }
+
+// internalNoTitles is the in-package double: these fuzz targets are about
+// parsing and rendering, never about a name that turns out to be a title.
+type internalNoTitles struct{}
+
+func (internalNoTitles) TitledBy(string) []string { return nil }

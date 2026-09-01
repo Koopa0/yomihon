@@ -46,6 +46,10 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 	switch kind {
 	case render.DiagWikilinkBroken:
 		return wording.DiagUnwrittenNote.In(lang)
+	case render.DiagWikilinkTitleOnly:
+		return wording.DiagTitleOnlyNote.In(lang)
+	case render.DiagTitleTruncatedAtHash:
+		return wording.DiagTitleCutNote.In(lang)
 	case render.DiagWikilinkAmbiguous:
 		return wording.DiagAmbiguousNote.In(lang)
 	case render.DiagUnknownCallout:

@@ -155,6 +155,11 @@ type View struct {
 	// request, so a page and the check command answer for the same bytes.
 	schemaFindings map[string][]judge.Finding
 
+	// titles maps each declared title to every note declaring it, for the one
+	// question the resolver is built not to answer: what a citation written
+	// against a title was reaching for.
+	titles map[string][]nav.NoteRef
+
 	// parsed and sidecars are what a later build can fall back on for a source
 	// it can no longer read: the frontmatter and body this generation parsed,
 	// and the practice files a lesson is built from. Both are already held by
@@ -757,6 +762,7 @@ func buildView(
 	}
 
 	graphIndex := graph.New(slices.Concat(parsedNotes, unreadableNotes), resources)
+	titles := titlesByName(parsedNotes)
 	navigation := nav.New(entries, parsedByPath, graphIndex, roles, scope, projectionPolicy)
 	searchIndex := search.NewIndex(indexDocuments(parsedNotes, indexableNotes, fileDocuments), projectionPolicy)
 
@@ -783,15 +789,16 @@ func buildView(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
-		health:         newHealth(parsedNotes, graphIndex, planned, backlinks, policy),
+		health:         newHealth(parsedNotes, graphIndex, planned, backlinks, policy, titles),
 		artifactPolicy: policy,
 		scan:           scan,
 		notes:          publishedNotes,
 		schemaFindings: schemaFindings,
+		titles:         titles,
 		parsed:         parsedByPath,
 		sidecars:       slotFiles,
 	}
-	view.markdown = render.New(graphIndex, view)
+	view.markdown = render.New(graphIndex, view, view)
 	return view, blocked, nil
 }
 
