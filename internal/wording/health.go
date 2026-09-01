@@ -79,3 +79,15 @@ var (
 	ContractUnreadable       = both("vault contract 無法讀取；生命週期與治理投影已關閉。", "The vault contract could not be read; lifecycle and governance projections are closed.")
 	ContractUnreadablePrefix = both("vault contract 無法讀取：", "The vault contract could not be read: ")
 )
+
+// The two headings for groups of findings that could not be worked out. Each
+// sits above the reason the failing declaration gave, so the heading says what
+// is missing and the sentence under it says why.
+var (
+	HealthInstanceScopeUnknown = both(
+		"引用與孤島無法評估",
+		"Citations and uncited notes could not be evaluated")
+	HealthSchemaScopeUnknown = both(
+		"schema 相關的檢查無法評估",
+		"The schema checks could not be evaluated")
+)

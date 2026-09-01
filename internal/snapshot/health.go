@@ -35,6 +35,13 @@ var vaultRootLabel = wording.VaultRoot.In(wording.ZhHant)
 // below counts it. The page says which links it read for that reason: an
 // all-clear is only worth what it covers.
 type Health struct {
+	// InstanceScopeUnknown is why the citation and island lists could not be
+	// worked out, and empty when they could. It is filled here, by the build,
+	// because the fact it reports is one the build meets: the artifact policy
+	// this generation was handed was declared and could not be honoured, so
+	// which files are instances is unknown for the whole of it.
+	InstanceScopeUnknown string
+
 	// Unwritten are citations to names no file carries and no ledger declared.
 	// A name the vault has planned is not here: it is on the page because it is
 	// owed, not because it is wrong.
@@ -99,6 +106,23 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 	var h Health
 	var islands []nav.NoteRef
 	if idx == nil {
+		return h
+	}
+	// Which files are instances decides which citations are anyone's to answer
+	// for, and a policy that was declared and could not be honoured leaves
+	// that unknown. Reading it anyway answers false for every path, so a
+	// template's placeholders arrive as work the reader owes — a repair nobody
+	// can make. The three lists that depend on it are therefore not computed
+	// at all: an answer built from an unknown scope is worse than no answer,
+	// because it looks exactly like a real one.
+	//
+	// A vault that declared nothing is a different case and keeps its answers.
+	// Excluding nothing is what an undeclared exclusion means, and inventing a
+	// rule its owner never wrote would be the larger error.
+	if !policy.Trustworthy() {
+		h.InstanceScopeUnknown = policy.Diagnostic()
+		h.Collisions = collisions(idx)
+		sortHealth(&h)
 		return h
 	}
 	titles := titleIndex(notes)

@@ -45,6 +45,26 @@ type HealthView struct {
 	// saying it twice, in two places, is how two accounts of one file start
 	// disagreeing.
 	SchemaFaults []nav.NoteRef
+	// InstanceScopeUnknown and SchemaScopeUnknown are why a group of lists
+	// above could not be worked out, and empty when it could. A group that
+	// could not be evaluated says so; an empty list under a silent heading
+	// reads as "nothing found", which is a different statement and, here, a
+	// false one.
+	//
+	// They are filled in different places because the facts they report are
+	// met in different places, and that is the design rather than an accident.
+	// Which files are instances is settled while a generation is built, so the
+	// build reports it. Whether the folder's vocabulary can be read is settled
+	// per request against the live governance, so the page's own handler
+	// reports that one.
+	//
+	// Each carries the diagnostic of the claim that actually failed, never a
+	// sentence chosen in advance: a contract can read perfectly and still
+	// leave governance closed — an artifact section naming a folder outside
+	// the vault does exactly that — and "the contract could not be read" would
+	// then be false about a contract that was.
+	InstanceScopeUnknown string
+	SchemaScopeUnknown   string
 	// LastComplete is when the folder was last read whole, which is not always
 	// when the generation behind this page was built: a page can be built from
 	// a reading that lost some sources and carried the last copy of each.
@@ -103,7 +123,8 @@ type HealthCollision struct {
 func (v HealthView) clean() bool {
 	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
 		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.StatusOutsideEnum) == 0 &&
-		len(v.FrontmatterUnreadable) == 0 && len(v.SchemaFaults) == 0
+		len(v.FrontmatterUnreadable) == 0 && len(v.SchemaFaults) == 0 &&
+		v.InstanceScopeUnknown == "" && v.SchemaScopeUnknown == ""
 }
 
 // blockedLede states what the blocked list means for the reader, and how
@@ -183,6 +204,8 @@ templ Health(v HealthView, c layouts.Chrome) {
 								</details>
 							}
 						}
+						@healthUnknown(wording.HealthInstanceScopeUnknown.In(c.Lang), v.InstanceScopeUnknown)
+						@healthUnknown(wording.HealthSchemaScopeUnknown.In(c.Lang), v.SchemaScopeUnknown)
 						@healthSection(wording.HealthFrontmatterTitle.In(c.Lang), len(v.FrontmatterUnreadable), wording.HealthFrontmatterLede.In(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, found := range v.FrontmatterUnreadable {
@@ -250,6 +273,22 @@ templ healthSection(title string, count int, lede string) {
 			</h2>
 			<p class="y-healthsection__lede">{ lede }</p>
 			{ children... }
+		</section>
+	}
+}
+
+// healthUnknown states that a group of findings could not be worked out, and
+// why. It renders nothing when the group was evaluated, so a folder in good
+// order carries no explanation of a failure that did not happen.
+//
+// The reason is the diagnostic of whatever claim failed, shown as it was
+// written: it names the field or the file at fault, and rewording it here
+// would put this page's guess in front of the account the contract gave.
+templ healthUnknown(title, reason string) {
+	if reason != "" {
+		<section class="y-healthsection y-healthsection--unknown">
+			<h2 class="y-healthsection__title">{ title }</h2>
+			<p class="y-healthsection__lede">{ reason }</p>
 		</section>
 	}
 }

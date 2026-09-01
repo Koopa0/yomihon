@@ -212,8 +212,16 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		StatusOutsideEnum:     statusesOutsideEnum(statusView, snap),
 		FrontmatterUnreadable: unreadableFrontmatter,
 		SchemaFaults:          schemaFaults,
-		LastComplete:          lastCompleteBuild(&fresh),
-		Sidebar:               pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
+		InstanceScopeUnknown:  health.InstanceScopeUnknown,
+		// A folder that declared no vocabulary has no schema findings to
+		// report, and that is an answer rather than a failure — the view says
+		// nothing in that case, which is why this reads the diagnostic instead
+		// of the closed flag. What it carries is whatever actually failed: a
+		// contract that could not be read, or one that read and named a
+		// folder its artifacts section may not name.
+		SchemaScopeUnknown: statusView.Diagnostic(),
+		LastComplete:       lastCompleteBuild(&fresh),
+		Sidebar:            pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
 	}
 	if err := pages.Health(view, pages.ChromeFromRequest(r, wording.HealthTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)

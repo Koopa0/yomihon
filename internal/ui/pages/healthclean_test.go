@@ -30,6 +30,8 @@ func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 		{"a status outside its list", HealthView{StatusOutsideEnum: []HealthStatusNote{{}}}},
 		{"frontmatter that cannot be read", HealthView{FrontmatterUnreadable: ref}},
 		{"frontmatter the schema rejects", HealthView{SchemaFaults: ref}},
+		{"a scope that could not be worked out", HealthView{InstanceScopeUnknown: "why"}},
+		{"a vocabulary that could not be read", HealthView{SchemaScopeUnknown: "why"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
