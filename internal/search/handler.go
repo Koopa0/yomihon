@@ -290,6 +290,20 @@ func markHits(snippet string, tokens []string) []pages.SnippetRun {
 // character, and Turkish İ shrinks from two bytes to one. An offset found in
 // the folded copy therefore cannot index s directly; it has to come back
 // through this mapping.
+func foldWithSourceOffsets(s string) (fold string, src []int) {
+	var folded strings.Builder
+	folded.Grow(len(s))
+	src = make([]int, 0, len(s)+1)
+	for i, r := range s {
+		n := folded.Len()
+		folded.WriteRune(unicode.ToLower(r))
+		for ; n < folded.Len(); n++ {
+			src = append(src, i)
+		}
+	}
+	return folded.String(), append(src, len(s))
+}
+
 // sourceOffsetOfFold maps one byte offset in the lowercased copy of s back to
 // the byte offset in s of the character that produced it. It answers exactly
 // what foldWithSourceOffsets tabulates, walked to a single position instead of
@@ -309,18 +323,4 @@ func sourceOffsetOfFold(s string, foldOff int) int {
 		folded = next
 	}
 	return len(s)
-}
-
-func foldWithSourceOffsets(s string) (fold string, src []int) {
-	var folded strings.Builder
-	folded.Grow(len(s))
-	src = make([]int, 0, len(s)+1)
-	for i, r := range s {
-		n := folded.Len()
-		folded.WriteRune(unicode.ToLower(r))
-		for ; n < folded.Len(); n++ {
-			src = append(src, i)
-		}
-	}
-	return folded.String(), append(src, len(s))
 }

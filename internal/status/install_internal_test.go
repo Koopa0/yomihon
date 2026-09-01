@@ -702,3 +702,57 @@ func TestExchangeInstallRemovesTheDisplacedVersionItRecognized(t *testing.T) {
 		t.Errorf("install residue = %v, want the recognized version removed", residue)
 	}
 }
+
+// TestExchangeInstallAcceptsADisplacedVersionThatIsAlreadyGone covers the
+// branch the second read introduced. The read can find nothing there, and an
+// entry that is already gone is where removing it would have arrived: the
+// note's own name holds the flipped bytes and nothing sits beside it. Reporting
+// a stranded install would hand the operator a temporary name to go and
+// reconcile that no longer exists.
+func TestExchangeInstallAcceptsADisplacedVersionThatIsAlreadyGone(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	parent := internalRoot(t, dir)
+	const rel = "note.md"
+	path := filepath.Join(dir, rel)
+	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+		t.Fatalf("write original: %v", err)
+	}
+	source, err := readRegularFile(parent, rel, rel)
+	if err != nil {
+		t.Fatalf("readRegularFile() error = %v", err)
+	}
+
+	reads := 0
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+		rung: func() installRung { return rungExchange },
+		ops: func(base installOps) installOps {
+			read, remove := base.read, base.remove
+			base.read = func(name string) ([]byte, error) {
+				b, readErr := read(name)
+				reads++
+				if reads == 1 && readErr == nil {
+					if rmErr := remove(name); rmErr != nil {
+						t.Errorf("take the displaced entry away: %v", rmErr)
+					}
+				}
+				return b, readErr
+			}
+			return base
+		},
+	}, func() error { return nil })
+	if err != nil {
+		t.Fatalf("replaceRegularFile() = %v, want the flip to stand", err)
+	}
+	got, readErr := os.ReadFile(path) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read the note: %v", readErr)
+	}
+	if string(got) != "replacement" {
+		t.Errorf("note = %q, want the rewritten bytes", got)
+	}
+	if residue := statusEntries(t, dir); len(residue) != 0 {
+		t.Errorf("install residue = %v, want none", residue)
+	}
+}

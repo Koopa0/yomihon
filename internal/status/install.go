@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -272,6 +273,12 @@ func installByExchange(ops installOps, relSlash, tmpName string, source *fileSna
 		// the same way as one that arrives earlier — it goes back under the
 		// note's name and the flip is refused, never removed.
 		again, readErr := ops.read(tmpName)
+		if errors.Is(readErr, fs.ErrNotExist) {
+			// The entry this was about to remove is already gone, which is
+			// where removing it would have arrived. Nothing is beside the
+			// note, so nothing is reported as being beside it.
+			return nil
+		}
 		if readErr != nil {
 			return strandedError(relSlash, tmpName, rungExchange,
 				fmt.Errorf("confirm the displaced version before removing it: %w", readErr))

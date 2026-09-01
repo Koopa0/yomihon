@@ -595,6 +595,14 @@ func resolvePrivacyPolicy(
 // comparison the decoder makes. Comparing lowercased names disagrees with it
 // in both directions: it joins U+0130 to "i", which the decoder keeps apart,
 // and it separates U+017F from "s", which the decoder joins.
+//
+// Two of the contract's tables are read into maps rather than into fields —
+// the status enum and the status groups, both keyed by a name the vault
+// chooses — and a map keeps both spellings, so nothing is dropped and nothing
+// is decided by iteration order there. Those pairs are refused all the same,
+// for the other reason: the contract is the one place the vault's vocabulary
+// is written down, and two keys a reader cannot tell apart have no settled
+// reading whatever the decoder does with them.
 func validateDistinctKeys(data []byte) error {
 	var tables map[string]any
 	if _, err := toml.Decode(string(data), &tables); err != nil {
