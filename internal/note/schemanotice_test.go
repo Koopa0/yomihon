@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestNotePageNamesTheFieldAtFault is the claim this surface was built for:
@@ -28,6 +30,18 @@ func TestNotePageNamesTheFieldAtFault(t *testing.T) {
 			rel:      "Concepts/golang/Memo.md",
 			body:     "---\ntitle: Memo\ntype: memorandum\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n",
 			wantSaid: []string{"<code>type</code>", "memorandum"},
+			// The status is legal for every type the schema declares, and the
+			// schema declares no statuses at all for a type it does not know —
+			// so nothing here can rule on it. Saying it is outside the list
+			// points the reader at the one field that is fine, and it used to
+			// be said twice, beside the sentence that names the real fault.
+			wantNot: []string{wording.StatusOutsideList.In(wording.ZhHant)},
+		},
+		{
+			name:     "a declared type with a status outside its list still says so",
+			rel:      "Concepts/golang/Off.md",
+			body:     "---\ntitle: Off\ntype: concept\ndomain: golang\nstatus: nonesuch\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n",
+			wantSaid: []string{wording.StatusOutsideList.In(wording.ZhHant), "nonesuch"},
 		},
 		{
 			name:     "a slug the schema's shape rejects is reported against slug",

@@ -380,6 +380,20 @@ func (v View) KnownStatus(noteType, status string) bool {
 	return v.available() && slices.Contains(v.contract.Statuses(noteType), schema.NormalizeStatus(status))
 }
 
+// DeclaresStatuses reports whether the contract gives this note type a status
+// vocabulary at all, which is what has to be true before any answer about a
+// particular status means anything.
+//
+// KnownStatus cannot carry that distinction: it answers false both for a value
+// outside a list and for a type that has no list, and those call for opposite
+// sentences. A note whose type the schema never declared has a status that is
+// legal under every type it did declare, so telling its author the value is
+// outside the list points them at the one field that is fine — while the field
+// actually at fault is the type, which the page names separately.
+func (v View) DeclaresStatuses(noteType string) bool {
+	return v.available() && len(v.contract.Statuses(noteType)) > 0
+}
+
 // Order returns the default note group's statuses in declared order. A nil
 // result means this view is closed; an empty non-nil result is a valid empty
 // declaration.

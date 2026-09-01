@@ -734,7 +734,9 @@ func (h *Handler) governance(
 			state.status, state.writeDiagnostic = h.observedStatus(n.RelPath)
 			if state.writeDiagnostic == "" {
 				state.transitions = offeredTransitions(statusView, n.RelPath, n.Type, state.status)
-				state.statusUnknown = state.status != "" && !statusView.KnownStatus(n.Type, state.status)
+				state.statusUnknown = state.status != "" &&
+					statusView.DeclaresStatuses(n.Type) &&
+					!statusView.KnownStatus(n.Type, state.status)
 			}
 		}
 	}
