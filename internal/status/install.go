@@ -261,8 +261,25 @@ func installByExchange(ops installOps, relSlash, tmpName string, source *fileSna
 		return strandedError(relSlash, tmpName, rungExchange, fmt.Errorf("read the displaced version: %w", err))
 	}
 	if bytes.Equal(displaced, source.data) {
-		_ = ops.remove(tmpName) //nolint:errcheck // the displaced entry holds the pre-flip bytes the caller already read
-		return nil
+		// The exchange left the note's old file under the temporary name,
+		// and an editor holding that file open still writes there. Removing
+		// the entry on the strength of the read above unlinks a write that
+		// arrives between the two, and the editor is told it saved. Reading
+		// again immediately before the removal leaves only the few
+		// instructions between these lines: it narrows the window and does
+		// not close it, because no single step both compares an entry and
+		// unlinks it. A write that arrives inside what remains is handled
+		// the same way as one that arrives earlier — it goes back under the
+		// note's name and the flip is refused, never removed.
+		again, readErr := ops.read(tmpName)
+		if readErr != nil {
+			return strandedError(relSlash, tmpName, rungExchange,
+				fmt.Errorf("confirm the displaced version before removing it: %w", readErr))
+		}
+		if bytes.Equal(again, source.data) {
+			_ = ops.remove(tmpName) //nolint:errcheck // the displaced entry holds the pre-flip bytes, just read again
+			return nil
+		}
 	}
 	// Another program reached the note inside the window. Its bytes are the
 	// ones now sitting under the temporary name, so putting them back is one

@@ -582,3 +582,123 @@ func TestOnlyAMeasuredRungIsRemembered(t *testing.T) {
 		t.Errorf("selectRung after a passing swap failure = %v, want %v; the weaker answer was remembered, so every later flip on this volume takes an install that cannot see a concurrent replacement", got, earned)
 	}
 }
+
+// TestExchangeInstallKeepsAWriteThatLandsAfterTheReadBack closes the window
+// between recognizing the displaced version and removing it.
+//
+// The exchange leaves the note's old file under the temporary name, and an
+// editor that had it open still holds that same file — its next write goes
+// there. The install read the entry, recognized the pre-flip bytes, and then
+// removed the entry unconditionally, so a write arriving between those two
+// steps was unlinked along with it: the editor reported a successful save, and
+// no name in the vault held what it saved.
+//
+// The write here is made through a handle opened before the exchange, which is
+// what an editor holds, and it is placed after the read-back by the read
+// itself: the first read of the temporary entry returns the bytes the install
+// is about to trust, and the write lands the instant it does.
+func TestExchangeInstallKeepsAWriteThatLandsAfterTheReadBack(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	parent := internalRoot(t, dir)
+	const rel = "note.md"
+	path := filepath.Join(dir, rel)
+	const (
+		original = "original"
+		external = "another program's edit"
+	)
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatalf("write original: %v", err)
+	}
+	source, err := readRegularFile(parent, rel, rel)
+	if err != nil {
+		t.Fatalf("readRegularFile() error = %v", err)
+	}
+
+	held, err := os.OpenFile(path, os.O_RDWR, 0) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if err != nil {
+		t.Fatalf("open the note the way an editor holds it: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := held.Close(); closeErr != nil && !errors.Is(closeErr, os.ErrClosed) {
+			t.Errorf("close the held handle: %v", closeErr)
+		}
+	})
+
+	reads := 0
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+		rung: func() installRung { return rungExchange },
+		ops: func(base installOps) installOps {
+			read := base.read
+			base.read = func(name string) ([]byte, error) {
+				b, readErr := read(name)
+				reads++
+				if reads == 1 && readErr == nil {
+					if _, writeErr := held.WriteAt([]byte(external), 0); writeErr != nil {
+						t.Errorf("write through the held handle: %v", writeErr)
+					}
+					if truncErr := held.Truncate(int64(len(external))); truncErr != nil {
+						t.Errorf("truncate through the held handle: %v", truncErr)
+					}
+				}
+				return b, readErr
+			}
+			return base
+		},
+	}, func() error { return nil })
+
+	if !errors.Is(err, ErrConcurrentWrite) {
+		t.Fatalf("replaceRegularFile() = %v, want %v", err, ErrConcurrentWrite)
+	}
+	if reads < 2 {
+		t.Errorf("the install read the displaced entry %d time(s); a removal it has not just matched is the defect", reads)
+	}
+	got, readErr := os.ReadFile(path) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read the note: %v", readErr)
+	}
+	if string(got) != external {
+		t.Errorf("note = %q, want the other program's bytes %q put back", got, external)
+	}
+	if residue := statusEntries(t, dir); len(residue) != 0 {
+		t.Errorf("install residue = %v, want none once the other program's bytes are under the note's own name", residue)
+	}
+}
+
+// TestExchangeInstallRemovesTheDisplacedVersionItRecognized is the other side
+// of the read-back: when the entry still holds the bytes the flip was computed
+// from, it is the copy the caller already has and it goes. Without this, an
+// install that simply stopped removing anything would leave one entry beside
+// the note after every flip and no test would say so.
+func TestExchangeInstallRemovesTheDisplacedVersionItRecognized(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	parent := internalRoot(t, dir)
+	const rel = "note.md"
+	path := filepath.Join(dir, rel)
+	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+		t.Fatalf("write original: %v", err)
+	}
+	source, err := readRegularFile(parent, rel, rel)
+	if err != nil {
+		t.Fatalf("readRegularFile() error = %v", err)
+	}
+
+	if err := replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+		rung: func() installRung { return rungExchange },
+	}, func() error { return nil }); err != nil {
+		t.Fatalf("replaceRegularFile() error = %v", err)
+	}
+	got, readErr := os.ReadFile(path) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read the note: %v", readErr)
+	}
+	if string(got) != "replacement" {
+		t.Errorf("note = %q, want the rewritten bytes", got)
+	}
+	if residue := statusEntries(t, dir); len(residue) != 0 {
+		t.Errorf("install residue = %v, want the recognized version removed", residue)
+	}
+}
