@@ -42,6 +42,8 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagEmbedFragmentRepeated.In(lang)
 	case render.DiagEmbedNotExpanded:
 		return wording.DiagEmbedNotExpanded.In(lang)
+	case render.DiagRenderFailed:
+		return wording.DiagRenderFailed.In(lang)
 	case render.DiagLinkFragmentMissing:
 		return wording.DiagLinkBlockGone.In(lang)
 	case render.DiagLinkSectionMissing:
