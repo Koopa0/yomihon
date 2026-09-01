@@ -82,3 +82,16 @@ var AmbiguousTargetFmt = both(
 var EmbedRepeatedHeadingFmt = both(
 	"這篇筆記裡有 %d 個叫「%s」的小節,以下顯示第一個。",
 	"This note has %d sections called %q; the first one follows.")
+
+// UnwrittenFileFmt is a name with a file's extension and nothing behind it.
+// The author was reaching for a picture or a document to show, and saying no
+// note answers to the name sends them looking for the wrong thing to write.
+var UnwrittenFileFmt = both("還沒有「%s」這個檔案", "There is no file called %q yet")
+
+// EmbedNotExpanded is said once above an excerpt that contains a citation its
+// author wrote as an embed. The words are shown as a link instead, which still
+// leads where they pointed; what the reader would otherwise have no way to
+// know is that an excerpt was asked for and a link is what arrived.
+var EmbedNotExpanded = both(
+	"這段摘錄裡有一個嵌入，因為嵌入只展開一層，改以連結呈現。",
+	"This excerpt contains an embed of its own; embeds expand one level, so it is shown as a link.")

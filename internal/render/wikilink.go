@@ -32,13 +32,41 @@ import (
 // told a shorter name than the one they typed failed, with nothing saying
 // where the rest of it went.
 func unwrittenTarget(target, display, heading string, lang wording.Lang) string {
-	reason := fmt.Sprintf(wording.UnwrittenTargetFmt.In(lang), target)
+	fmtString := wording.UnwrittenTargetFmt
+	if namesAFile(target) {
+		fmtString = wording.UnwrittenFileFmt
+	}
+	reason := fmt.Sprintf(fmtString.In(lang), target)
 	if heading != "" {
 		reason += fmt.Sprintf(wording.UnwrittenHeadingFmt.In(lang), heading)
 	}
+	return degradedSpan("wikilink-broken", display, reason, lang)
+}
+
+// namesAFile reports whether a citation's target names a file rather than a
+// note, so an absence can be described as the thing the author was reaching
+// for. The kinds it recognises are the ones whose extension this program
+// already reads when it chooses how to display something: a name it does not
+// recognise is left a note, which is what every such name was called before.
+//
+// Nothing wider is inferred from the presence of a dot. The vault holds a note
+// called "Go sync.Pool", and a rule that took any trailing dotted word for a
+// file type would tell its author no such picture exists.
+func namesAFile(target string) bool {
+	return IsPicture(target) || IsPDF(target)
+}
+
+// degradedSpan is the one shape every citation the page could not follow takes:
+// the words the author wrote, an explanation a pause reveals, and the same
+// explanation again where a reader who is listening receives it. The two
+// carry one string because a pointer and a voice must not be told different
+// things, and the class is what says which kind of failure this was.
+func degradedSpan(class, display, reason string, lang wording.Lang) string {
 	escaped := html.EscapeString(reason)
-	return `<span class="wikilink-broken" title="` + escaped + `">` +
-		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">` + html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
+	return `<span class="` + class + `" title="` + escaped + `">` +
+		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">` +
+		html.EscapeString(wording.ParenOpen.In(lang)) + escaped +
+		html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
 }
 
 // titleOnlyTarget says the name reached a note's declared title. The note is
@@ -76,10 +104,7 @@ func titleOnlyTarget(target, display string, held []string, lang wording.Lang) s
 // is followed and arrives in several places at once.
 func ambiguousTarget(target, display string, candidates []string, lang wording.Lang) string {
 	reason := fmt.Sprintf(wording.AmbiguousTargetFmt.In(lang), target, strings.Join(candidates, ", "))
-	escaped := html.EscapeString(reason)
-	return `<span class="wikilink-ambiguous" title="` + escaped + `">` +
-		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">` +
-		html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
+	return degradedSpan("wikilink-ambiguous", display, reason, lang)
 }
 
 // offscreenNoteClass names the element the explanation above is carried out of
@@ -415,7 +440,7 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 			return html.EscapeString(link.Display)
 		}
 		if embed {
-			embedHTML := r.renderEmbed(link, allowEmbed, col)
+			embedHTML := r.renderEmbed(link, m, allowEmbed, col)
 			*inline = append(*inline, embedHTML)
 			return inlinePlaceholder(len(*inline) - 1)
 		}
@@ -644,8 +669,16 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 // filename links to the file's own page, so the reader can still open it.
 // Ambiguous/unresolved get the same diagnostic-styled treatment as a broken
 // wikilink.
-func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col *collector) string {
+func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed embedPolicy, col *collector) string {
 	if allowEmbed == embedsDenied {
+		// Transclusion stops one level down, so this excerpt's own citation is
+		// shown as a link. It leads where the author pointed, which is why it
+		// is still worth following; what is lost is that they asked for the
+		// words themselves, and the excerpt around this says so once.
+		col.report(&Diagnostic{
+			Kind: DiagEmbedNotExpanded, Target: link.Target, Section: link.Heading,
+			Message: fmt.Sprintf("embed of %q inside a transcluded body was rendered as a link", link.Target),
+		})
 		return r.renderWikilink(link, col)
 	}
 
@@ -657,15 +690,13 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 			Kind: DiagWikilinkBroken, Target: target, Section: link.Heading,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
-		return unwrittenTarget(target, "![["+target+"]]", link.Heading, col.page.lang)
+		return unwrittenTarget(target, source, link.Heading, col.page.lang)
 	case graph.Ambiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: target,
 			Message: fmt.Sprintf("embed target %q is ambiguous: %s", target, strings.Join(res.Candidates, ", ")),
 		})
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the value is already html.EscapeString'd
-		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">![[%s]]</span>`,
-			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(target))
+		return ambiguousTarget(target, source, res.Candidates, col.page.lang)
 	case graph.Unique:
 		if IsPicture(res.RelPath) {
 			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; rawHref percent-escapes the path and the name is html.EscapeString'd
@@ -683,18 +714,25 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 				Kind: DiagWikilinkBroken, Target: target,
 				Message: fmt.Sprintf("embed target %q is unavailable in the captured generation", res.RelPath),
 			})
-			return fmt.Sprintf(`<span class="wikilink-broken" title="`+html.EscapeString(wording.EmbedUnreadable.In(col.page.lang))+`">![[%s]]</span>`,
-				html.EscapeString(target))
+			return degradedSpan("wikilink-broken", source, wording.EmbedUnreadable.In(col.page.lang), col.page.lang)
 		}
 		body, unmatched, repeated := embedScope(link, res.RelPath, body, col)
 		inner := r.render(body, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
+		heldBack := false
+		for _, d := range inner.Diagnostics {
+			if d.Kind == DiagEmbedNotExpanded {
+				heldBack = true
+				break
+			}
+		}
 		// An image inside a transcluded body was written relative to the
 		// note it came from, which is rarely the note being read, so it is
 		// resolved here — where that note's own path is still known —
 		// rather than later against the host's directory.
 		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched, col.page.lang) +
-			repeatedNotice(link.Heading, repeated, col.page.lang) + resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
+			repeatedNotice(link.Heading, repeated, col.page.lang) + notExpandedNotice(heldBack, col.page.lang) +
+			resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -1088,6 +1126,18 @@ func repeatedNotice(heading string, matches int, lang wording.Lang) string {
 	return `<p class="embed__note">` +
 		html.EscapeString(fmt.Sprintf(wording.EmbedRepeatedHeadingFmt.In(lang), matches, heading)) +
 		`</p>`
+}
+
+// notExpandedNotice states that a citation inside this excerpt was written as
+// an embed and is shown as a link. It is said once for the excerpt rather than
+// beside each link, because the reason is a property of the excerpt — its
+// contents come from another file, and going a level deeper would let one
+// citation pull in a chain of them.
+func notExpandedNotice(heldBack bool, lang wording.Lang) string {
+	if !heldBack {
+		return ""
+	}
+	return `<p class="embed__note">` + html.EscapeString(wording.EmbedNotExpanded.In(lang)) + `</p>`
 }
 
 // headingAnchorMayExist reports whether any line of body could stamp the id a

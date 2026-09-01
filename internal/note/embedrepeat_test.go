@@ -25,7 +25,8 @@ func repeatedHeadingVault(t *testing.T) string {
 		}
 	}
 	write("Concepts/劑量.md", "---\ntitle: 劑量\ntype: concept\ndomain: golang\nstatus: draft\n---\n\n## 用量\n\nFIRSTTEXT\n\n## 其他\n\nx\n\n## 用量\n\nSECONDTEXT\n")
-	write("Concepts/入口.md", "---\ntitle: 入口\ntype: concept\ndomain: golang\nstatus: draft\n---\n\n![[劑量#用量]]\n")
+	write("Concepts/入口.md", "---\ntitle: 入口\ntype: concept\ndomain: golang\nstatus: draft\n---\n\n![[劑量#用量]]\n\n![[巢狀]]\n")
+	write("Concepts/巢狀.md", "---\ntitle: 巢狀\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nOUTERTEXT\n\n![[劑量]]\n")
 	return root
 }
 
@@ -59,5 +60,29 @@ func TestNoteSaysAnEmbeddedSectionNameMatchedMoreThanOne(t *testing.T) {
 	}
 	if !strings.Contains(row, "不只一個") {
 		t.Errorf("the page's account of the file does not say the name matched more than one section; row = %q", row)
+	}
+}
+
+// TestNoteSaysAnEmbedInsideAnExcerptBecameALink is the page half of the depth
+// cap. The excerpt says it once above the words; the note's own account of the
+// file has to name it too, in words rather than in the diagnostic's internal
+// name — a kind the page has no sentence for falls back to printing that slug,
+// which is a defect this vault has shipped before.
+func TestNoteSaysAnEmbedInsideAnExcerptBecameALink(t *testing.T) {
+	t.Parallel()
+	srv := newServerWithContract(t, repeatedHeadingVault(t), loadHomeContract(t))
+	code, body := get(t, srv.URL+"/notes/Concepts/%E5%85%A5%E5%8F%A3.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if !strings.Contains(body, "OUTERTEXT") {
+		t.Fatalf("the fixture's premise is wrong: the outer excerpt did not render")
+	}
+	row := diagRow(t, noteConditions(t, body), "劑量")
+	if strings.Contains(row, "embed-not-expanded") {
+		t.Errorf("the page printed the diagnostic's internal name instead of words for it; row = %q", row)
+	}
+	if !strings.Contains(row, "連結") {
+		t.Errorf("the page does not say the embed was shown as a link; row = %q", row)
 	}
 }

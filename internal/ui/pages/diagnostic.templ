@@ -60,6 +60,8 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 		return wording.DiagEmbedNote.In(lang)
 	case render.DiagEmbedFragmentRepeated:
 		return wording.DiagEmbedManyNote.In(lang)
+	case render.DiagEmbedNotExpanded:
+		return wording.DiagEmbedDepthNote.In(lang)
 	case render.DiagLinkFragmentMissing:
 		return wording.DiagBlockNote.In(lang)
 	case render.DiagLinkSectionMissing:

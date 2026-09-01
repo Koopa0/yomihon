@@ -12,6 +12,7 @@ var (
 	DiagRiskyFence            = both("程式碼區塊裡的筆記語法", "Note syntax inside a code block")
 	DiagEmbedFragmentGone     = both("找不到嵌入指定的段落", "The embedded section was not found")
 	DiagEmbedFragmentRepeated = both("嵌入指定的段落在該筆記裡不只一個", "The embedded section name belongs to more than one section")
+	DiagEmbedNotExpanded      = both("摘錄裡的嵌入改以連結呈現", "An embed inside an excerpt is shown as a link")
 	DiagLinkBlockGone         = both("找不到連結指定的區塊", "The linked block was not found")
 	DiagLinkSectionGone       = both("找不到連結指定的小節", "The linked section was not found")
 	DiagCommentUnclosed       = both("沒有配對的註解記號", "Unpaired comment marker")

@@ -122,6 +122,11 @@ const (
 	// an excerpt chosen from several looks exactly like the only one there
 	// was, and the author is the one who can tell them apart.
 	DiagEmbedFragmentRepeated DiagnosticKind = "embed-fragment-repeated"
+	// DiagEmbedNotExpanded means an embed written inside a transcluded body
+	// was rendered as an ordinary link. Transclusion stops one level down, so
+	// what the reader sees is a citation where the author wrote an excerpt —
+	// a difference nothing on the page would otherwise account for.
+	DiagEmbedNotExpanded DiagnosticKind = "embed-not-expanded"
 	// DiagLinkFragmentMissing means a plain link named a block inside its
 	// target ("[[note#^block]]") that the captured body does not carry. The
 	// link is left leading to the note itself: a block address answers to an
