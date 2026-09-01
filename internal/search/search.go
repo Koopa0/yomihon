@@ -32,13 +32,17 @@ func fold(s string) string {
 // a note, the file's own characters for anything else). Keeping the build pure
 // makes it unit-testable without a vault on disk.
 type Document struct {
-	RelPath   string
-	Title     string
-	NoteType  string
-	Domain    string
-	Status    string
-	Slug      string
-	Topics    []string
+	RelPath  string
+	Title    string
+	NoteType string
+	Domain   string
+	Status   string
+	Slug     string
+	Topics   []string
+	// Aliases are the other names the note declared. They are the names a
+	// wikilink resolves by, so leaving them out made this program findable by
+	// fewer names than it follows.
+	Aliases   []string
 	PlainText string
 
 	// File marks an entry that is not a note: a vault file yomihon shows as
@@ -70,9 +74,16 @@ type entry struct {
 	// there is nothing there reads that as the search being broken, and three
 	// of them did. Their location is something they wrote; it belongs in what
 	// they can find their notes by.
-	PathFold        string
-	Title           string
-	TitleFold       string
+	PathFold  string
+	Title     string
+	TitleFold string
+	// Aliases are the note's other declared names, held as written and folded
+	// for matching. A link resolves by these and the title is not one of them,
+	// so a note is at least as directly named by an alias as by its title —
+	// which is why a hit on one ranks with a title hit rather than below a
+	// passing mention in someone's prose.
+	Aliases         []string
+	AliasFolds      []string
 	NoteType        string
 	Domain          string
 	Status          string
@@ -163,19 +174,27 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	for i, t := range d.Topics {
 		topics[i] = vault.NormalizeNFC(t)
 	}
+	aliases := make([]string, len(d.Aliases))
+	aliasFolds := make([]string, len(d.Aliases))
+	for i, a := range d.Aliases {
+		aliases[i] = vault.NormalizeNFC(a)
+		aliasFolds[i] = fold(aliases[i])
+	}
 	return entry{
-		RelPath:   d.RelPath,
-		PathFold:  fold(vault.NormalizeNFC(d.RelPath)),
-		Title:     title,
-		TitleFold: fold(title),
-		NoteType:  vault.NormalizeNFC(d.NoteType),
-		Domain:    vault.NormalizeNFC(d.Domain),
-		Status:    vault.NormalizeNFC(d.Status),
-		Slug:      vault.NormalizeNFC(d.Slug),
-		Topics:    topics,
-		PlainText: plain,
-		PlainFold: fold(plain),
-		isFile:    d.File,
+		RelPath:    d.RelPath,
+		PathFold:   fold(vault.NormalizeNFC(d.RelPath)),
+		Title:      title,
+		TitleFold:  fold(title),
+		Aliases:    aliases,
+		AliasFolds: aliasFolds,
+		NoteType:   vault.NormalizeNFC(d.NoteType),
+		Domain:     vault.NormalizeNFC(d.Domain),
+		Status:     vault.NormalizeNFC(d.Status),
+		Slug:       vault.NormalizeNFC(d.Slug),
+		Topics:     topics,
+		PlainText:  plain,
+		PlainFold:  fold(plain),
+		isFile:     d.File,
 		// An unclaimed policy excludes nothing, so every readable note answers
 		// metadata queries over its own raw frontmatter. Whether that raw value
 		// may be *presented* as a lifecycle state is a separate question, asked
@@ -202,6 +221,7 @@ func DocumentFromNote(n *vault.Note) Document {
 		Status:    n.Status(),
 		Slug:      stringField(n, "slug"),
 		Topics:    stringsField(n, "topics"),
+		Aliases:   n.Aliases(),
 		PlainText: render.PlainText(n.Body),
 		// A diagnostic here means the block was present and did not parse. A
 		// note that simply carries no frontmatter has none, and is not this.

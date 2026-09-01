@@ -233,6 +233,7 @@ func viewResults(results []Result, governed bool, vocabulary StatusVocabulary, t
 			Snippet:     r.Snippet,
 			SnippetRuns: markHits(r.Snippet, tokens),
 			PathRuns:    markHits(r.RelPath, tokens),
+			AliasRuns:   markHits(r.Alias, tokens),
 			File:        r.File,
 		}
 		// The warning is a property of the status the row shows, so it is

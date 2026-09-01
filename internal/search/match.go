@@ -16,6 +16,13 @@ type Result struct {
 	Status  string
 	Snippet string
 
+	// Alias is the name that answered the query when it was not the title, in
+	// the note's own spelling, and empty otherwise. The row shows a title; a
+	// reader who typed one of a note's other names has to be able to see why
+	// this note came back, or the hit is as unexplained as one reached only
+	// through its path.
+	Alias string
+
 	// NoteType is the note's own declared type, carried beside Status because
 	// which values a status may take is declared per type: a value one type
 	// allows is a fault on another, and the pair is the only form of the
@@ -102,7 +109,7 @@ func (idx *Index) search(q *Query, limit int) (results []Result, total int, err 
 	}
 	results = make([]Result, len(hits))
 	for i, h := range hits {
-		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable)
+		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias)
 	}
 	return results, total, nil
 }
@@ -113,6 +120,11 @@ func (idx *Index) search(q *Query, limit int) (results []Result, total int, err 
 type hit struct {
 	entry        *entry
 	bodyEvidence bool
+	// alias is the name that answered the query when it was not the title,
+	// carried in the note's own spelling. The row shows a title, so without
+	// this a reader who searched for something else finds no trace of what
+	// they typed anywhere on it.
+	alias string
 }
 
 // resultBuckets keeps the six answer groups apart while one pass over the
@@ -134,6 +146,14 @@ func (b *resultBuckets) bucket(e *entry, tokens []string) {
 	case allContain(e.TitleFold, tokens):
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
 		b.add(hit{entry: e, bodyEvidence: bodyEvidence}, true)
+	case aliasAnswering(e, tokens) != "":
+		// A name the note answers to, standing with its title: a link written
+		// to an alias resolves and one written to a title does not, so an
+		// alias is if anything the more direct of the two. The alias that
+		// answered travels with the hit because the row shows the title, and
+		// a reader who typed something else is owed the reason it is here.
+		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
+		b.add(hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)}, true)
 	case allContain(e.PlainFold, tokens):
 		b.add(hit{entry: e, bodyEvidence: true}, false)
 	case allContain(e.PathFold, tokens):
@@ -204,6 +224,22 @@ func (idx *Index) AllowedPaths(q *Query) (map[string]struct{}, error) {
 		}
 	}
 	return paths, nil
+}
+
+// aliasAnswering returns the note's own spelling of the first alias that holds
+// every token, or empty when none does. The first is taken because an author
+// listing several has put the one they think of first at the front, and
+// naming all of them would put a list where a reason belongs.
+func aliasAnswering(e *entry, tokens []string) string {
+	if len(tokens) == 0 {
+		return ""
+	}
+	for i, folded := range e.AliasFolds {
+		if allContain(folded, tokens) {
+			return e.Aliases[i]
+		}
+	}
+	return ""
 }
 
 // allContain reports whether hay contains every token (AND). Tokens are already
@@ -356,7 +392,7 @@ func (e *entry) matchesFilter(f Filter) bool {
 
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
-func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Result {
+func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias string) Result {
 	status, noteType := e.Status, e.NoteType
 	if !metadataAvailable || !e.metadataCapable {
 		status, noteType = "", ""
@@ -370,6 +406,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool) Re
 		Title:    e.Title,
 		Status:   status,
 		Snippet:  bodySnippet,
+		Alias:    alias,
 		NoteType: noteType,
 		File:     e.isFile,
 	}

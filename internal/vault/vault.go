@@ -97,6 +97,29 @@ func (n *Note) Domain() string {
 	return ""
 }
 
+// Aliases are the other names this note answers to, in the order it declared
+// them, and nothing when it declared none or wrote them as a shape that is not
+// a list of text.
+//
+// It lives here because it is a question about the note, and because more than
+// one face asks it: a link resolves by these names, and a search has to find
+// the note by them too. Answered in each caller instead, the two would be free
+// to disagree about what a note is called, and a reader would meet that
+// disagreement as a link that works and a search that returns nothing.
+func (n *Note) Aliases() []string {
+	raw, ok := n.Frontmatter["aliases"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // Slug is the frontmatter slug, empty when absent. It is a lesson's stable
 // identity (jp-minna-lNN) and the join key to its slot sidecar — the
 // filename is never that key (lesson filenames carry a human title and are

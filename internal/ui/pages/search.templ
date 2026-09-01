@@ -80,6 +80,13 @@ type SearchResult struct {
 	// is most rows, and the address then renders exactly as it always did.
 	PathRuns []SnippetRun
 
+	// AliasRuns is the name that answered the query when it was not the title,
+	// cut the same way. The row shows a title, so a reader who searched for one
+	// of a note's other names would otherwise find nothing of what they typed
+	// anywhere on it — the same silence a path hit had, in a field they cannot
+	// even see.
+	AliasRuns []SnippetRun
+
 	// File marks a hit that is a vault file rather than a note. It is named on
 	// the row because a file has no lifecycle and never will, so a reader
 	// scanning a list of results does not read its missing status as a note
@@ -221,6 +228,19 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 								if r.File {
 									<span class="y-result__sep" aria-hidden="true">·</span>
 									<span class="y-result__kind">{ wording.ResultKindFile.In(lang) }</span>
+								}
+								if len(r.AliasRuns) > 0 {
+									<span class="y-result__sep" aria-hidden="true">·</span>
+									<span class="y-result__alias">
+										{ wording.ResultAliasLabel.In(lang) }
+										for _, run := range r.AliasRuns {
+											if run.Hit {
+												<mark>{ run.Text }</mark>
+											} else {
+												{ run.Text }
+											}
+										}
+									</span>
 								}
 							</span>
 							if len(r.SnippetRuns) > 0 {

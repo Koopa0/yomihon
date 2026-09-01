@@ -85,7 +85,7 @@ func New(notes []*vault.Note, resources []string) *Index {
 		}
 		inputs = append(inputs, NoteInput{
 			RelPath: note.RelPath,
-			Aliases: aliases(note),
+			Aliases: note.Aliases(),
 		})
 	}
 	return BuildFromNotes(inputs, resources)
@@ -223,25 +223,4 @@ func filenameStem(path string) string {
 
 func pathStem(path string) string {
 	return strings.TrimSuffix(path, ".md")
-}
-
-// aliases extracts a note's frontmatter aliases list, tolerating any
-// shape that isn't a plain list of strings — a malformed aliases
-// field costs that note its alias keys, not the whole index build.
-func aliases(n *vault.Note) []string {
-	raw, ok := n.Frontmatter["aliases"]
-	if !ok {
-		return nil
-	}
-	list, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(list))
-	for _, v := range list {
-		if s, ok := v.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
 }

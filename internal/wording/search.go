@@ -76,3 +76,8 @@ var (
 // field understands. A reader who has typed nothing cannot discover them any
 // other way, and this is the one moment saying so costs them no answer.
 var FilterKeysAvailable = both("可用的篩選器:", "Filters you can use: ")
+
+// ResultAliasLabel introduces the name a result answered to when it was not
+// the title the row shows. Without the word, the name would sit beside the
+// title looking like a second title.
+var ResultAliasLabel = both("別名:", "also called ")
