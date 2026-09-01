@@ -11,9 +11,9 @@ require (
 	// gate any future bump.
 	github.com/alecthomas/chroma/v3 v3.0.0-alpha.5
 	github.com/google/go-cmp v0.7.0
-	github.com/yuin/goldmark v1.8.4
+	github.com/yuin/goldmark v1.8.5
 	golang.org/x/sys v0.47.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
