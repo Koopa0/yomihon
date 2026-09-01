@@ -815,10 +815,40 @@ never_egress_dirs = ["Private/./Journal", "私有"]
 	}
 }
 
+// TestPrivacyPolicyKeepsDirectoriesThatOnlyLookUnusual guards the other side
+// of the parent-step refusal: a value that merely spells a plain directory in
+// a roundabout way still declares that directory. Refusing everything a
+// cleaning pass would rewrite would take these with it.
+func TestPrivacyPolicyKeepsDirectoriesThatOnlyLookUnusual(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{`./Private`, `Private/`, `Private//Journal/`, `./Private/./Journal`} {
+		t.Run(strconv.Quote(value), func(t *testing.T) {
+			t.Parallel()
+			section := fmt.Sprintf("\n[privacy]\nnever_egress_dirs = [%s]\n", strconv.Quote(value))
+			s := loadContractTextWithPrivacy(t, "", "", section)
+			policy := s.PrivacyPolicy()
+			if !policy.Available() {
+				t.Fatalf("PrivacyPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+			}
+			if policy.EgressAllowed("Private/Journal/note.md") {
+				t.Error("PrivacyPolicy().EgressAllowed(\"Private/Journal/note.md\") = true, want the declared folder held")
+			}
+		})
+	}
+}
+
 func TestPrivacyPolicyRejectsUnsafeDirectories(t *testing.T) {
 	t.Parallel()
 
-	for _, value := range []string{"", `.`, `..`, `../Private`, `/Private`, `Private\\Journal`} {
+	// A parent step inside the value is the case the four guards below the
+	// Clean call cannot see: cleaning walks it away, and what is left is an
+	// ordinary local directory that passes every one of them. The
+	// declaration then protects a folder its author never wrote down.
+	for _, value := range []string{
+		"", `.`, `..`, `../Private`, `/Private`, `Private\\Journal`,
+		`Private/../Notes`, `Private/..`, `Private/../../Notes`, `./Private/../Notes`,
+	} {
 		t.Run(strconv.Quote(value), func(t *testing.T) {
 			t.Parallel()
 			section := fmt.Sprintf("\n[privacy]\nnever_egress_dirs = [%s]\n", strconv.Quote(value))
@@ -1167,6 +1197,8 @@ func TestArtifactPolicyRejectsNonLocalNormalizedDirectory(t *testing.T) {
 		{name: "components normalize to current directory", directory: "a/.."},
 		{name: "parent prefix", directory: "../outside"},
 		{name: "components normalize to parent prefix", directory: "a/../../outside"},
+		{name: "parent step inside the value", directory: "System/../Notes"},
+		{name: "parent step after a current-directory step", directory: "./System/../Notes"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1190,23 +1222,32 @@ non_instance_dirs = [%s]
 	}
 }
 
-func TestArtifactPolicyAllowsLocalPathAfterNormalization(t *testing.T) {
+// TestArtifactPolicyKeepsDirectoriesThatOnlyLookUnusual guards the other side
+// of the parent-step refusal: a value that merely spells a plain directory in
+// a roundabout way still declares that directory. Refusing everything a
+// cleaning pass would rewrite would take these with it.
+func TestArtifactPolicyKeepsDirectoriesThatOnlyLookUnusual(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
+	for _, value := range []string{`./System/templates`, `System/templates/`, `System//./templates`} {
+		t.Run(strconv.Quote(value), func(t *testing.T) {
+			t.Parallel()
+			s := loadContractText(t, `
 [navigation]
 path_types = []
 map_types = []
-`, `
+`, fmt.Sprintf(`
 [artifacts]
-non_instance_dirs = ["a/../b"]
-`)
-	policy := s.ArtifactPolicy()
-	if !policy.Available() {
-		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
-	}
-	if !policy.IsNonInstance("b/card.md") {
-		t.Error("ArtifactPolicy().IsNonInstance(\"b/card.md\") = false, want normalized directory to match")
+non_instance_dirs = [%s]
+`, strconv.Quote(value)))
+			policy := s.ArtifactPolicy()
+			if !policy.Available() {
+				t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
+			}
+			if !policy.IsNonInstance("System/templates/card.md") {
+				t.Error("ArtifactPolicy().IsNonInstance(\"System/templates/card.md\") = false, want the declared folder held")
+			}
+		})
 	}
 }
 

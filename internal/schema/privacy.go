@@ -162,11 +162,8 @@ func derivePrivacyPolicy(section *privacySection, dirsDefined bool, source polic
 	}
 	dirs := make([]string, 0, len(section.NeverEgressDirs))
 	for _, original := range section.NeverEgressDirs {
-		if original == "" || strings.Contains(original, `\`) {
-			return invalidPrivacyPolicy(original)
-		}
-		normalized := path.Clean(vault.NormalizeNFC(original))
-		if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") || path.IsAbs(normalized) {
+		normalized, ok := normalizeDeclaredDir(original)
+		if !ok {
 			return invalidPrivacyPolicy(original)
 		}
 		dirs = append(dirs, normalized)

@@ -2,9 +2,7 @@ package schema
 
 import (
 	"fmt"
-	"path"
 	"slices"
-	"strings"
 	"sync/atomic"
 
 	"github.com/koopa0/yomihon/internal/vault"
@@ -247,11 +245,8 @@ func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool,
 	}
 	dirs := make([]string, 0, len(section.NonInstanceDirs))
 	for _, original := range section.NonInstanceDirs {
-		if original == "" || strings.Contains(original, `\`) {
-			return invalidArtifactPolicy(original)
-		}
-		normalized := path.Clean(vault.NormalizeNFC(original))
-		if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") || path.IsAbs(normalized) {
+		normalized, ok := normalizeDeclaredDir(original)
+		if !ok {
 			return invalidArtifactPolicy(original)
 		}
 		dirs = append(dirs, normalized)
