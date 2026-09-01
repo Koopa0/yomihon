@@ -41,6 +41,7 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 			contract.KnowledgeScope(),
 			contract.ArtifactPolicy(),
 			contract.ArticleLanguage(),
+			contract,
 		); err != nil {
 			b.Fatal(err)
 		}

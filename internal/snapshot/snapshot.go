@@ -150,6 +150,11 @@ type View struct {
 	notes    map[string]Note
 	markdown *render.Pipeline
 
+	// schemaFindings is what the schema said about each note when this
+	// generation read it. The verdict is reached once here rather than per
+	// request, so a page and the check command answer for the same bytes.
+	schemaFindings map[string][]judge.Finding
+
 	// parsed and sidecars are what a later build can fall back on for a source
 	// it can no longer read: the frontmatter and body this generation parsed,
 	// and the practice files a lesson is built from. Both are already held by
@@ -402,8 +407,15 @@ type Store struct {
 	scope           schema.KnowledgeScope
 	artifactPolicy  schema.ArtifactPolicy
 	articleLanguage schema.ArticleLanguage
-	prev            vault.Scan
-	retry           bool
+
+	// contract is the folder's own vocabulary, read once when the program
+	// started and unchanged after that — the same reading the four
+	// capabilities above were derived from, so nothing here is fresher or
+	// staler than they are. Each build asks it what a note's frontmatter
+	// should have said; nothing writes to it, and no View holds it.
+	contract *schema.Contract
+	prev     vault.Scan
+	retry    bool
 
 	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry
 	// loop. While rebuild attempts keep coming back incomplete over an
@@ -467,7 +479,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	view, blocked, err := buildView(ctx, source, nil, scan, log, roles, scope, policy, language)
+	view, blocked, err := buildView(ctx, source, nil, scan, log, roles, scope, policy, language, contract)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
@@ -479,6 +491,7 @@ func New(
 		scope:           scope,
 		artifactPolicy:  policy,
 		articleLanguage: language,
+		contract:        contract,
 		prev:            scan,
 		retry:           len(blocked) != 0,
 	}
@@ -563,6 +576,7 @@ func (s *Store) rescan(ctx context.Context) {
 		s.scope,
 		s.artifactPolicy,
 		s.articleLanguage,
+		s.contract,
 	)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -681,6 +695,7 @@ func buildView(
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 	languages schema.ArticleLanguage,
+	contract *schema.Contract,
 ) (*View, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy must build
 	// every projection. View retains the source-bound handle separately and
@@ -691,6 +706,7 @@ func buildView(
 	parsedNotes := make([]*vault.Note, 0, len(entries))
 	unreadableNotes := make([]*vault.Note, 0)
 	publishedNotes := make(map[string]Note)
+	schemaFindings := make(map[string][]judge.Finding)
 	indexableNotes := make(map[string]bool)
 	resources := make([]string, 0, len(entries))
 	slotFiles := make(map[string][]byte)
@@ -737,6 +753,7 @@ func buildView(
 		parsedNotes = append(parsedNotes, parsed)
 		indexableNotes[relPath] = want.indexable
 		publishedNotes[relPath] = captureNote(parsed, data, languages, want.indexable)
+		recordVerdict(schemaFindings, relPath, data, contract, log)
 	}
 
 	graphIndex := graph.New(slices.Concat(parsedNotes, unreadableNotes), resources)
@@ -770,11 +787,34 @@ func buildView(
 		artifactPolicy: policy,
 		scan:           scan,
 		notes:          publishedNotes,
+		schemaFindings: schemaFindings,
 		parsed:         parsedByPath,
 		sidecars:       slotFiles,
 	}
 	view.markdown = render.New(graphIndex, view)
 	return view, blocked, nil
+}
+
+// recordVerdict reaches the schema's verdict for one note and keeps it when
+// there is one, so the build loop stays a loop over notes rather than one that
+// also lints them. A note the schema is content with is left out rather than
+// stored empty: absent and clean read the same at the accessor, and one of
+// them is cheaper.
+//
+// The only fault it can meet is a contract whose slug pattern is written as an
+// expression nothing can compile, and that is one fault in one file rather
+// than a reason to stop reading the folder: it is said once and the build goes
+// on, leaving the note with no verdict rather than the folder with no
+// generation.
+func recordVerdict(into map[string][]judge.Finding, relPath string, data []byte, contract *schema.Contract, log *slog.Logger) {
+	findings, err := judge.LintFrontmatter(relPath, data, contract)
+	if err != nil {
+		log.Warn("schema verdict unavailable for a note", "path", relPath, "error", err)
+		return
+	}
+	if len(findings) > 0 {
+		into[relPath] = findings
+	}
 }
 
 // carriedGeneration is the reading of the folder a build falls back on, source

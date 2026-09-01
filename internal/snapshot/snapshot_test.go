@@ -708,6 +708,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				contract.KnowledgeScope(),
 				contract.ArtifactPolicy(),
 				contract.ArticleLanguage(),
+				contract,
 			)
 			if err != nil {
 				t.Errorf("buildView: %v", err)
