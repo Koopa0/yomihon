@@ -560,7 +560,7 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 			return addressed, fragmentPlaced
 		}
 		stripped, _ := stripObsidianComments(body)
-		if _, found := headingSlice(stripped, link.Heading); found {
+		if _, found := headingSlice(stripped, link.Heading); found > 0 {
 			return addressed, fragmentPlaced
 		}
 		if headingAnchorMayExist(stripped, link.Heading) {
@@ -686,14 +686,15 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 			return fmt.Sprintf(`<span class="wikilink-broken" title="`+html.EscapeString(wording.EmbedUnreadable.In(col.page.lang))+`">![[%s]]</span>`,
 				html.EscapeString(target))
 		}
-		body, unmatched := embedScope(link, res.RelPath, body, col)
+		body, unmatched, repeated := embedScope(link, res.RelPath, body, col)
 		inner := r.render(body, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		// An image inside a transcluded body was written relative to the
 		// note it came from, which is rarely the note being read, so it is
 		// resolved here — where that note's own path is still known —
 		// rather than later against the host's directory.
-		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched, col.page.lang) + resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
+		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched, col.page.lang) +
+			repeatedNotice(link.Heading, repeated, col.page.lang) + resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
 	default:
 		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
 	}
@@ -723,7 +724,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, allowEmbed embedPolicy, col 
 // page doing the citing. An excerpt that stops mid-sentence looks exactly like
 // one that ended, and the reader is looking at this page rather than at the
 // note the words came from.
-func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped, unmatched string) {
+func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped, unmatched string, repeated int) {
 	stripped, unclosed := stripObsidianComments(body)
 	if unclosed != 0 {
 		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
@@ -732,7 +733,7 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scop
 	switch {
 	case link.Block != "":
 		if slice, ok := blockSlice(stripped, link.Block); ok {
-			return slice, ""
+			return slice, "", 0
 		}
 		col.report(&Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
@@ -740,10 +741,18 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scop
 			Block:   link.Block,
 			Message: fmt.Sprintf("no block in %q matched %q; the whole note is shown", resPath, "^"+link.Block),
 		})
-		return stripped, "#^" + link.Block
+		return stripped, "#^" + link.Block, 0
 	case link.Heading != "":
-		if slice, ok := headingSlice(stripped, link.Heading); ok {
-			return slice, ""
+		if slice, matches := headingSlice(stripped, link.Heading); matches > 0 {
+			if matches > 1 {
+				col.report(&Diagnostic{
+					Kind:    DiagEmbedFragmentRepeated,
+					Target:  link.Target,
+					Section: link.Heading,
+					Message: fmt.Sprintf("%d headings in %q matched %q; the first is shown", matches, resPath, link.Heading),
+				})
+			}
+			return slice, "", matches
 		}
 		col.report(&Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
@@ -751,9 +760,9 @@ func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scop
 			Section: link.Heading,
 			Message: fmt.Sprintf("no heading in %q matched %q; the whole note is shown", resPath, link.Heading),
 		})
-		return stripped, "#" + link.Heading
+		return stripped, "#" + link.Heading, 0
 	}
-	return stripped, ""
+	return stripped, "", 0
 }
 
 // atxHeadingLine matches an ATX heading the way goldmark will read it: up to
@@ -935,7 +944,7 @@ func scanHeadings(lines []string) []sectionHeading {
 // One spelling does not survive the trip, because it is read from source
 // rather than from the rendered page: a heading carrying a markdown link keeps
 // the address the rendered heading drops. It reports, it does not truncate.
-func headingSlice(body, heading string) (string, bool) {
+func headingSlice(body, heading string) (slice string, matches int) {
 	want := slugify(heading)
 	lines := strings.Split(body, "\n")
 	headings := scanHeadings(lines)
@@ -943,14 +952,21 @@ func headingSlice(body, heading string) (string, bool) {
 		if slugify(headingSourceText(h.text)) != want {
 			continue
 		}
+		matches++
+		if matches > 1 {
+			// The later ones are counted, not cut: the excerpt is the first,
+			// and what the rest are for is to say how many there were.
+			continue
+		}
+		slice = strings.Join(lines[h.line:], "\n")
 		for _, next := range headings[i+1:] {
 			if next.level <= h.level {
-				return strings.Join(lines[h.line:next.line], "\n"), true
+				slice = strings.Join(lines[h.line:next.line], "\n")
+				break
 			}
 		}
-		return strings.Join(lines[h.line:], "\n"), true
 	}
-	return "", false
+	return slice, matches
 }
 
 // headingSourceText reduces a heading's markdown source to the text the page
@@ -1053,6 +1069,25 @@ func widenedNotice(unmatched string, lang wording.Lang) string {
 		return ""
 	}
 	return `<p class="embed__widened">` + html.EscapeString(wording.EmbedWidenedBefore.In(lang)) + `<code>` + html.EscapeString(unmatched) + `</code>` + html.EscapeString(wording.EmbedWidenedAfter.In(lang)) + `</p>`
+}
+
+// repeatedNotice states, above the excerpt, that the fragment named a section
+// the source note carries more than once and that the first of them is what
+// follows. Without it the reader has no way to tell an excerpt that was chosen
+// from an excerpt that was the only candidate, and those are different things
+// to be looking at.
+//
+// It sits where the widening notice sits and reads the same way, because both
+// answer the one question an excerpt cannot answer for itself: why these words
+// and not others. Nothing is said for a single match, which is the ordinary
+// case and would drown the notice that matters.
+func repeatedNotice(heading string, matches int, lang wording.Lang) string {
+	if matches < 2 {
+		return ""
+	}
+	return `<p class="embed__note">` +
+		html.EscapeString(fmt.Sprintf(wording.EmbedRepeatedHeadingFmt.In(lang), matches, heading)) +
+		`</p>`
 }
 
 // headingAnchorMayExist reports whether any line of body could stamp the id a
@@ -1183,11 +1218,11 @@ func headingBroughtBy(link graph.Wikilink, embedded, heading string) bool {
 			scoped = slice
 		}
 	case link.Heading != "":
-		if slice, ok := headingSlice(embedded, link.Heading); ok {
+		if slice, matches := headingSlice(embedded, link.Heading); matches > 0 {
 			scoped = slice
 		}
 	}
-	if _, found := headingSlice(scoped, heading); found {
+	if _, found := headingSlice(scoped, heading); found > 0 {
 		return true
 	}
 	return headingAnchorMayExist(scoped, heading)

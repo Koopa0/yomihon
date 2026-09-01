@@ -446,7 +446,11 @@ html, body { margin: 0; background: var(--bg); }
 button.y-freshness__action { padding: 0; border: 0; background: none; cursor: pointer; }
 .y-syl-nocourse { color: var(--fg-muted); max-width: 60ch; margin: 18px 0 0; }
 .y-prose .embed--widened { border-left-color: var(--warn); }
-.y-prose .embed__widened { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }
+/* Two remarks an excerpt can carry above itself: that its fragment found
+   nothing and the whole note stands in, and that the fragment named a
+   section the source repeats. Both answer why these words and not others,
+   so both read the same and sit in the same place. */
+.y-prose .embed__widened, .y-prose .embed__note { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }
 .y-prose .embed-media { background: var(--elevated); border: 1px dashed var(--border); border-radius: var(--r-sm); padding: 10px 14px; color: var(--fg-muted); font-family: var(--font-mono); font-size: var(--fs-12); }
 
 /* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */

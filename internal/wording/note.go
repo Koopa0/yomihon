@@ -6,14 +6,15 @@ package wording
 // The labels on the diagnostic kinds the renderer can report. Each names the
 // fault in the fewest words that still distinguish it from its neighbours.
 var (
-	DiagLinkNoTarget      = both("連結沒有目標", "Link with no target")
-	DiagLinkManyTargets   = both("連結有多個目標", "Link with several targets")
-	DiagUnknownCallout    = both("沒見過的提示框類型", "Unrecognised callout type")
-	DiagRiskyFence        = both("程式碼區塊裡的筆記語法", "Note syntax inside a code block")
-	DiagEmbedFragmentGone = both("找不到嵌入指定的段落", "The embedded section was not found")
-	DiagLinkBlockGone     = both("找不到連結指定的區塊", "The linked block was not found")
-	DiagLinkSectionGone   = both("找不到連結指定的小節", "The linked section was not found")
-	DiagCommentUnclosed   = both("沒有配對的註解記號", "Unpaired comment marker")
+	DiagLinkNoTarget          = both("連結沒有目標", "Link with no target")
+	DiagLinkManyTargets       = both("連結有多個目標", "Link with several targets")
+	DiagUnknownCallout        = both("沒見過的提示框類型", "Unrecognised callout type")
+	DiagRiskyFence            = both("程式碼區塊裡的筆記語法", "Note syntax inside a code block")
+	DiagEmbedFragmentGone     = both("找不到嵌入指定的段落", "The embedded section was not found")
+	DiagEmbedFragmentRepeated = both("嵌入指定的段落在該筆記裡不只一個", "The embedded section name belongs to more than one section")
+	DiagLinkBlockGone         = both("找不到連結指定的區塊", "The linked block was not found")
+	DiagLinkSectionGone       = both("找不到連結指定的小節", "The linked section was not found")
+	DiagCommentUnclosed       = both("沒有配對的註解記號", "Unpaired comment marker")
 )
 
 // The concept sheet a lesson's wikilinks open.

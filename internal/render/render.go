@@ -115,6 +115,13 @@ const (
 	// displayed, so falling back without saying so would present the wrong
 	// scope as the author's own choice.
 	DiagEmbedFragmentMissing DiagnosticKind = "embed-fragment-missing"
+	// DiagEmbedFragmentRepeated means an embed named a section its target
+	// carries more than once ("![[note#heading]]" where two headings reduce to
+	// the same name). The first is shown, which is what the page has always
+	// done and what the address can mean at all; the count is reported because
+	// an excerpt chosen from several looks exactly like the only one there
+	// was, and the author is the one who can tell them apart.
+	DiagEmbedFragmentRepeated DiagnosticKind = "embed-fragment-repeated"
 	// DiagLinkFragmentMissing means a plain link named a block inside its
 	// target ("[[note#^block]]") that the captured body does not carry. The
 	// link is left leading to the note itself: a block address answers to an

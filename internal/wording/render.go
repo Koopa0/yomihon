@@ -71,3 +71,14 @@ var TitleTruncatedAtHashFmt = both(
 var AmbiguousTargetFmt = both(
 	"「%s」指向不只一個檔案：%s。yomihon 不替你猜是哪一個",
 	"%q points at more than one file: %s. yomihon does not guess which")
+
+// EmbedRepeatedHeadingFmt is said above an excerpt whose fragment named a
+// section the source note carries more than once. It states the count and the
+// name, because the reader's next move is to open that note and see which of
+// them they were looking at — and the author's next move is to rename one.
+//
+// It does not offer to show the others. An embed addresses one section, and
+// which one an address means is the author's to settle in their own file.
+var EmbedRepeatedHeadingFmt = both(
+	"這篇筆記裡有 %d 個叫「%s」的小節,以下顯示第一個。",
+	"This note has %d sections called %q; the first one follows.")

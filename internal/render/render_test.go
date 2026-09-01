@@ -880,6 +880,8 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 	// target, so the choice is stated here: the first occurrence wins,
 	// matching how Obsidian's reading view resolves the same embed — a
 	// deterministic answer rather than a silent pick of a later candidate.
+	// Which one is shown is no longer left unsaid, though: the pick is
+	// reported so the note's own page can account for it.
 	t.Run("a duplicated heading embeds its first occurrence", func(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
@@ -892,8 +894,11 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 		if strings.Contains(got.HTML, "SECOND-MARKER") {
 			t.Errorf("a later occurrence leaked into the embed:\n%s", got.HTML)
 		}
-		if len(got.Diagnostics) != 0 {
-			t.Errorf("Diagnostics = %+v, want none", got.Diagnostics)
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagEmbedFragmentRepeated {
+			t.Fatalf("Diagnostics = %+v, want one DiagEmbedFragmentRepeated", got.Diagnostics)
+		}
+		if got, want := got.Diagnostics[0].Section, "Alpha"; got != want {
+			t.Errorf("Diagnostic.Section = %q, want %q", got, want)
 		}
 	})
 
