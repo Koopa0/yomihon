@@ -300,3 +300,47 @@ func TestShowReportsSizeNotCompletion(t *testing.T) {
 		t.Errorf("the part lost its size; main = %q", main)
 	}
 }
+
+// TestShowResolvesADecomposedPath holds the study-path route to the same
+// spelling rule every other path route follows. A vault's names are held in
+// composed form, and a request can carry either form for the same letter — a
+// keyboard, a paste from another program, and a filesystem all differ on which
+// they emit — so the route composes what it is given before looking anything
+// up. Without that, the one route that skipped this step answered 404 for a
+// path the reader can see in the switcher beside it.
+func TestShowResolvesADecomposedPath(t *testing.T) {
+	t.Parallel()
+
+	const (
+		composed   = "Caf\u00e9 path.md"  // one code point for the accented letter
+		decomposed = "Cafe\u0301 path.md" // the same name written as e plus a combining accent
+	)
+
+	root := t.TempDir()
+	writeVault(t, root)
+	body := "---\ntitle: Cafe path\ntype: study-path\ndomain: golang\n---\n\n" +
+		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n- [[Slices]]\n"
+	if err := os.WriteFile(filepath.Join(root, "Maps", composed), []byte(body), 0o600); err != nil {
+		t.Fatalf("write study-path: %v", err)
+	}
+	srv := newServer(t, root)
+
+	for _, tc := range []struct {
+		name string
+		rel  string
+	}{
+		{name: "composed", rel: composed},
+		{name: "decomposed", rel: decomposed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			code, page := get(t, srv.URL+"/syllabus/Maps/"+tc.rel)
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if !strings.Contains(page, "Cafe path") {
+				t.Errorf("page does not render the study-path; body = %q", page)
+			}
+		})
+	}
+}

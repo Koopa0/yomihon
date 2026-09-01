@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -40,7 +41,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // path (or an empty model, before the first scan) is a 404 — the same
 // fail-quiet stance the reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	rel := r.PathValue("path")
+	// A vault holds its names composed, and a request can carry either
+	// spelling of the same letter, so the name is composed before it is
+	// looked up — the way every other path route already reads one.
+	rel := vault.NormalizeNFC(r.PathValue("path"))
 
 	shell := h.shell()
 	current := findPath(shell.Nav, rel)
