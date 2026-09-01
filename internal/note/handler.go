@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
@@ -524,6 +525,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		NoFrontmatter:     governance.noFrontmatter,
 		StatusUnknown:     governance.statusUnknown,
+		SchemaNotices:     schemaNotices(snap.SchemaFindings(rel), n.RelPath, pages.LanguageFromRequest(r)),
 		FlippedFrom:       vouchedOrigin(statusView, n.Type, noteStatus, r.URL.Query().Get("from")),
 	}
 
@@ -535,6 +537,40 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}
+}
+
+// schemaNotices turns what the schema said about a note into sentences a
+// reader can read. The findings themselves are one program's verdict in one
+// language for another program to parse; what a page owes a reader is the same
+// verdict in their own words, with the note's own text kept intact inside it.
+//
+// The folder handed over is the one the domain rule actually compares — the
+// first one under the configured root, not the folder the note sits in. For a
+// note nested deeper the two differ, and naming the wrong one would be a fresh
+// falsehood in a sentence written to end one.
+func schemaNotices(findings []judge.Finding, relPath string, lang wording.Lang) [][]wording.SchemaPart {
+	if len(findings) == 0 {
+		return nil
+	}
+	folder := ""
+	if seg := strings.Split(relPath, "/"); len(seg) >= 3 {
+		folder = seg[1]
+	}
+	notices := make([][]wording.SchemaPart, 0, len(findings))
+	for i := range findings {
+		f := &findings[i]
+		notices = append(notices, wording.SchemaSentence(lang, f.RuleID, deref(f.Field), deref(f.Target), folder))
+	}
+	return notices
+}
+
+// deref reads an optional finding field, which is absent for every rule that
+// does not name one.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // faults keeps the rendering diagnostics that describe something wrong with the

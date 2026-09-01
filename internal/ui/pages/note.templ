@@ -191,6 +191,11 @@ type NoteView struct {
 	// the value instead of implying the schema defines nothing onward.
 	StatusUnknown bool
 
+	// SchemaNotices is what the schema said about this note's frontmatter,
+	// one sentence per fault, already in the reader's language and already
+	// broken into the words and the note's own text they sit around.
+	SchemaNotices [][]wording.SchemaPart
+
 	// Concepts are the grammar-concept notes this lesson links to, each
 	// pre-rendered for the in-app concept sheet. Empty for a non-lesson note or a
 	// lesson that references none.
@@ -909,8 +914,28 @@ templ statusPanel(v NoteView) {
 						@legalTransitionForms(v)
 					</div>
 			}
+			@schemaNotices(v)
 		}
 	</section>
+}
+
+// schemaNotices states what the schema made of this note's frontmatter. The
+// switch above chooses one notice about the status; a schema fault is not an
+// alternative to any of those — a note can carry a status worth reporting and
+// a slug worth reporting at once — so these are said alongside, and each names
+// the field it is about rather than the one that happens to be governed here.
+templ schemaNotices(v NoteView) {
+	for _, notice := range v.SchemaNotices {
+		<p class="y-statuspanel__notice y-statusflag">
+			for _, part := range notice {
+				if part.Code != "" {
+					<code>{ part.Code }</code>
+				} else {
+					{ part.Text }
+				}
+			}
+		</p>
+	}
 }
 
 // frontmatterDoorLine is the empty state's honest escape hatch: nothing leads
