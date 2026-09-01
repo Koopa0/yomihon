@@ -39,6 +39,36 @@ type readingSite struct {
 	closeErr  error
 }
 
+// logPolicyFaults says why a contract that loaded still could not be used.
+//
+// The adjudication commands refuse to print this themselves: their output is
+// written for a program to read, and stating the reason would quote the vault
+// back out under exactly the policy that is missing. What they do instead is
+// name two places the operator can read it — the page, and this log — so the
+// silence there is only defensible if the naming here is true.
+//
+// The reason is given in full. This log is written on the operator's own
+// machine, for the operator, about a file they wrote; the withholding is a
+// rule about what a program consuming the output may be shown, and nothing
+// here is that output. A policy that was read cleanly earns no line, because a
+// warning printed on every ordinary start is one nobody reads on the start
+// that matters.
+func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
+	for _, fault := range []struct {
+		capability string
+		diagnostic string
+	}{
+		{"privacy", contract.PrivacyPolicy().Diagnostic()},
+		{"artifact", contract.ArtifactPolicy().Diagnostic()},
+	} {
+		if fault.diagnostic == "" {
+			continue
+		}
+		log.Warn("vault contract policy unavailable",
+			"capability", fault.capability, "reason", fault.diagnostic)
+	}
+}
+
 func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *readingSite, resultErr error) {
 	source, err := vault.Open(root)
 	if err != nil {
@@ -73,6 +103,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	default:
 		log.Info("vault contract loaded",
 			"version", contract.Version(), "lifecycle_stages", contract.StageCount())
+		logPolicyFaults(log, contract)
 		governance = contract.Governance()
 	}
 

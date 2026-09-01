@@ -446,6 +446,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 			visibleNav.NavigationDiagnostic(),
 			visibleNav.ArtifactDiagnostic(),
 		),
+		PrivacyFault:   snap.PrivacyPolicy().Diagnostic(),
 		Degraded:       degradedNotice(&fresh, pages.LanguageFromRequest(r)),
 		DegradedDetail: blockedDetail(fresh.Blocked),
 		Recent:         recent,

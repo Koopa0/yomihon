@@ -34,6 +34,12 @@ const (
 type HomeView struct {
 	Governed bool
 	Fault    string
+	// PrivacyFault is why the vault contract's egress declaration could not be
+	// used. It is deliberately not folded into Fault: that field explains why a
+	// block on this page is missing, and a refused egress declaration closes no
+	// block here — it closes the commands that judge the vault, which state
+	// nothing themselves because their output is written for a program to read.
+	PrivacyFault string
 	// Degraded states that the vault snapshot behind this page could not read
 	// everything: some sources are blocked, so the content may be incomplete
 	// or held at an older generation. DegradedDetail carries the blocked
@@ -136,6 +142,14 @@ templ Home(v HomeView, c layouts.Chrome) {
 								@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
 								<p class="y-homeempty" data-home-fault>
 									@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+								</p>
+							</section>
+						}
+						if v.PrivacyFault != "" {
+							<section class="y-homeblock y-homeblock--faults" data-home-block="privacy" aria-labelledby="home-privacy-title">
+								@homeBlockHead("home-privacy-title", wording.HomePrivacyTitle.In(c.Lang), wording.HomePrivacyLede.In(c.Lang))
+								<p class="y-homeempty" data-home-privacy>
+									@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
 								</p>
 							</section>
 						}

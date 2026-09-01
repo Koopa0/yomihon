@@ -2054,7 +2054,11 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	srv := newServerWithContract(t, root, loadContract(t))
+	// The contract declares a usable egress policy, because this test is about
+	// a vault with nothing in it rather than a vault whose contract left an
+	// input out — the second has something to say and would fail the emptiness
+	// assertions below for a reason that has nothing to do with them.
+	srv := newServerWithContract(t, root, contractWithPrivacySection(t, "[privacy]\nnever_egress_dirs = []\n"))
 
 	code, body := get(t, srv.URL+"/")
 	if code != http.StatusOK {

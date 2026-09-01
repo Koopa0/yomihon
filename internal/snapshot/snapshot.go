@@ -145,6 +145,7 @@ type View struct {
 	backlinks      *Backlinks
 	health         Health
 	artifactPolicy schema.ArtifactPolicy
+	privacyPolicy  schema.PrivacyPolicy
 
 	scan     vault.Scan
 	notes    map[string]Note
@@ -193,6 +194,7 @@ func (v *View) Capture() *View {
 	}
 	captured := *v
 	captured.artifactPolicy = v.artifactPolicy.Capture()
+	captured.privacyPolicy = v.privacyPolicy
 	captured.search = v.search.WithArtifactPolicy(captured.artifactPolicy)
 	return &captured
 }
@@ -324,6 +326,22 @@ func (v *View) ArtifactPolicy() schema.ArtifactPolicy {
 		return schema.ArtifactPolicy{}
 	}
 	return v.artifactPolicy.Capture()
+}
+
+// PrivacyPolicy returns this View's egress authority, as the generation that
+// read the contract found it.
+//
+// Nothing this View serves consults it: egress authority governs the
+// adjudication commands, and a page is not one. It travels here so a reader
+// can be told why those commands are unusable, which is a promise the commands
+// themselves make and cannot keep — their output is written for a program, and
+// naming the fault there would quote the vault back out under the very policy
+// that is missing.
+func (v *View) PrivacyPolicy() schema.PrivacyPolicy {
+	if v == nil {
+		return schema.PrivacyPolicy{}
+	}
+	return v.privacyPolicy
 }
 
 // Files returns the regular files captured in this generation, in canonical
@@ -791,6 +809,7 @@ func buildView(
 		backlinks:      backlinks,
 		health:         newHealth(parsedNotes, graphIndex, planned, backlinks, policy, titles),
 		artifactPolicy: policy,
+		privacyPolicy:  contract.PrivacyPolicy(),
 		scan:           scan,
 		notes:          publishedNotes,
 		schemaFindings: schemaFindings,

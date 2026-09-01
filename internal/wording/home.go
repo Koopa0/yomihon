@@ -103,3 +103,19 @@ var LifecycleUnreadable = both("無法判讀", "Could not be read")
 var LifecycleUnstatedNote = both(
 	"「未標示狀態」對某些類型的筆記是合法的；「無法判讀」則是 frontmatter 需要修。",
 	"No status stated is legal for some kinds of note; could not be read means the frontmatter needs repair.")
+
+// What the home page says about an egress declaration the contract made and
+// yomihon refused. The loss is not on this page — nothing here consults egress
+// authority — so the words name what actually stopped working, in the same
+// vocabulary the commands themselves use when they decline to explain.
+var (
+	HomePrivacyTitle = both("判讀指令目前無法使用", "The adjudication commands are unavailable")
+
+	HomePrivacyLede = both(
+		"契約宣告了不得離開這台機器的目錄,而 yomihon 無法採用那份宣告,因此 check、coverage、exists 停用。閱讀與搜尋不受影響。",
+		"The contract declares which directories must never leave this machine, and yomihon could not use that declaration, so check, coverage and exists are disabled. Reading and search are unaffected.")
+
+	HomePrivacyBrowser = both(
+		"這是契約自己的說法,原文照錄:",
+		"This is what the contract itself said, reproduced as written:")
+)
