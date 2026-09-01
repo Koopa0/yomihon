@@ -232,6 +232,7 @@ func viewResults(results []Result, governed bool, vocabulary StatusVocabulary, t
 			Title:       r.Title,
 			Snippet:     r.Snippet,
 			SnippetRuns: markHits(r.Snippet, tokens),
+			PathRuns:    markHits(r.RelPath, tokens),
 			File:        r.File,
 		}
 		// The warning is a property of the status the row shows, so it is
@@ -247,8 +248,14 @@ func viewResults(results []Result, governed bool, vocabulary StatusVocabulary, t
 	return out
 }
 
-// markHits cuts a snippet into the stretches that matched and the stretches
-// that did not, so the page can show the reader why this result is here.
+// markHits cuts a piece of text into the stretches that matched and the
+// stretches that did not, so the page can show the reader why this result is
+// here.
+//
+// Nothing in it is particular to a snippet. A result can answer a query
+// through any of the names a note is known by, and the row has to be able to
+// say which — so the same cut serves the body excerpt and the path, and will
+// serve any other name that can match without being visible.
 //
 // Matching is done on the same folded form the index matched on, and the runs
 // carry slices of the original text, so what the reader sees is their own note

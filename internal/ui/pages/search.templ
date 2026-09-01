@@ -72,6 +72,14 @@ type SearchResult struct {
 	// as text, so a note can no more become markup here than it could before.
 	SnippetRuns []SnippetRun
 
+	// PathRuns is where this note lives, cut the same way, so a hit reached
+	// through its path can say so. Such a hit has no snippet — nothing in its
+	// words matched — and without a mark the reader is handed a title and an
+	// address and left to work out what either had to do with what they typed.
+	// It is empty whenever the path holds nothing the query asked for, which
+	// is most rows, and the address then renders exactly as it always did.
+	PathRuns []SnippetRun
+
 	// File marks a hit that is a vault file rather than a note. It is named on
 	// the row because a file has no lifecycle and never will, so a reader
 	// scanning a list of results does not read its missing status as a note
@@ -192,7 +200,17 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 						<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
 							<span class="y-result__title">{ r.Title }</span>
 							<span class="y-result__meta">
-								{ r.RelPath }
+								if len(r.PathRuns) > 0 {
+									for _, run := range r.PathRuns {
+										if run.Hit {
+											<mark>{ run.Text }</mark>
+										} else {
+											{ run.Text }
+										}
+									}
+								} else {
+									{ r.RelPath }
+								}
 								if r.Status != "" {
 									<span class="y-result__sep" aria-hidden="true">·</span>
 									{ r.Status }
