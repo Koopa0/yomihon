@@ -378,3 +378,32 @@ func schemaFinding(n *note, ruleID, field string, hasField bool, value, reason s
 	}
 	return f
 }
+
+// LintFrontmatter reports what the check command would say about one note's
+// frontmatter, given the note's vault-relative path and its bytes.
+//
+// It exists so the reading pages can show a reader the same verdict the
+// command reports. They had no way to reach it and went nearly silent about
+// faults the command calls errors, which left the two faces of one program
+// disagreeing about the same file.
+//
+// The note's own bytes are what this takes, rather than a frontmatter already
+// parsed elsewhere, because the two parses are deliberately different: the
+// reading parse decodes into a map and is content with what it can read, while
+// this one walks the YAML nodes so it can see a key written twice and refuse a
+// name the schema would resolve to a number. Linting the looser parse would be
+// a second, quieter set of rules — the thing that must not exist twice.
+//
+// The findings come back in the order the command puts them in, so a page and
+// a command listing the same note's faults list them the same way round.
+func LintFrontmatter(relPath string, data []byte, contract *schema.Contract) ([]Finding, error) {
+	if contract == nil {
+		return nil, nil
+	}
+	findings, err := checkSchema([]note{parseNote(relPath, data)}, contract)
+	if err != nil {
+		return nil, err
+	}
+	sortFindings(findings)
+	return findings, nil
+}
