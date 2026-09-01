@@ -1,6 +1,7 @@
 package search
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"unicode"
@@ -24,25 +25,38 @@ type Query struct {
 	tokens   []string
 	filters  []Filter
 	bareText string
+	// unknownKeys are the words written before a colon that this grammar does
+	// not accept, in input order and without repeats. They are kept apart from
+	// the tokens they also became: the term is searched for as text, and the
+	// page separately says the constraint the reader appeared to write was not
+	// one this program knows.
+	unknownKeys []string
 }
 
 // Tokens returns the folded bare terms in input order.
-func (q Query) Tokens() []string {
+func (q *Query) Tokens() []string {
 	return slices.Clone(q.tokens)
 }
 
 // Filters returns the structured constraints in input order.
-func (q Query) Filters() []Filter {
+func (q *Query) Filters() []Filter {
 	return slices.Clone(q.filters)
 }
 
+// UnknownFilterKeys returns the keys of terms shaped like filters that this
+// grammar does not accept, in input order. An empty result is the ordinary
+// case: nothing in the query looked like a constraint that was not one.
+func (q *Query) UnknownFilterKeys() []string {
+	return slices.Clone(q.unknownKeys)
+}
+
 // BareText returns the original bare terms joined by one ASCII space.
-func (q Query) BareText() string {
+func (q *Query) BareText() string {
 	return q.bareText
 }
 
 // RequiresMetadata reports whether evaluating the query needs frontmatter.
-func (q Query) RequiresMetadata() bool {
+func (q *Query) RequiresMetadata() bool {
 	for _, f := range q.filters {
 		kind, ok := classifyFilterKey(f.Key)
 		if ok && kind == filterMetadata {
@@ -60,17 +74,39 @@ const (
 	filterPath
 )
 
+// filterKeys is the grammar: every key a filter may be written with, and the
+// capability each one asks of an entry.
+//
+// It is a table rather than a switch because the page that repairs a mistyped
+// filter has to offer the reader this exact set, and a list kept beside it for
+// that purpose is a list that drifts. The drift is not hypothetical — the
+// ledger describing this very repair names four of these keys.
+var filterKeys = map[string]filterKind{
+	"type":   filterMetadata,
+	"status": filterMetadata,
+	"domain": filterMetadata,
+	"topic":  filterMetadata,
+	"slug":   filterMetadata,
+	"folder": filterPath,
+}
+
 // classifyFilterKey is the shared grammar and capability classification for
 // structured filters. Every recognized key receives a capability kind here.
 func classifyFilterKey(key string) (filterKind, bool) {
-	switch key {
-	case "type", "status", "domain", "topic", "slug":
-		return filterMetadata, true
-	case "folder":
-		return filterPath, true
-	default:
-		return filterUnknown, false
-	}
+	kind, ok := filterKeys[key]
+	return kind, ok
+}
+
+// FilterKeys names every filter this grammar accepts, in a fixed order.
+//
+// The order is alphabetical because it has to be some order and every other
+// one would be a second thing to maintain: a list curated by how often a key
+// is used is a claim about readers that nothing here can check, and it would
+// go stale silently. What matters is that the set is the parser's own.
+func FilterKeys() []string {
+	keys := slices.Collect(maps.Keys(filterKeys))
+	slices.Sort(keys)
+	return keys
 }
 
 // isFilterKey reports whether key is exactly one of the six lowercase filter
@@ -108,19 +144,23 @@ func isFilterKey(key string) bool {
 // Whitespace tokenizes outside quotes; a whitespace-only or empty query
 // yields an empty Query (nil slices), which the match layer treats as
 // "return nothing".
-func Parse(q string) Query {
+func Parse(q string) *Query {
 	var out Query
 	var bare []string
 	for _, field := range quoteFields(q) {
-		if key, value, ok := splitFilter(field.text, field.quotedFrom); ok {
+		key, value, reading := splitFilter(field.text, field.quotedFrom)
+		if reading == readAsFilter {
 			out.filters = append(out.filters, Filter{Key: key, Value: value})
 			continue
+		}
+		if reading == readAsUnknownFilter && !slices.Contains(out.unknownKeys, key) {
+			out.unknownKeys = append(out.unknownKeys, key)
 		}
 		out.tokens = append(out.tokens, fold(field.text))
 		bare = append(bare, field.text)
 	}
 	out.bareText = strings.Join(bare, " ")
-	return out
+	return &out
 }
 
 // queryField is one whitespace-delimited unit of a raw query. quotedFrom is
@@ -248,22 +288,38 @@ func groupCloser(rest string, closer rune) int {
 // when it did not. The value is NFC-normalized, and a "folder:" value drops
 // one trailing slash. A non-filter token returns ok=false so the caller folds
 // it as a bare token.
-func splitFilter(raw string, quotedFrom int) (key, value string, ok bool) {
+func splitFilter(raw string, quotedFrom int) (key, value string, reading filterReading) {
 	key, rest, found := strings.Cut(raw, ":")
 	if !found {
-		return "", "", false
+		return "", "", readAsText
 	}
 	if quotedFrom >= 0 && quotedFrom <= len(key) {
 		// The key, or the colon standing after it, came out of quotes: the
 		// reader asked for those characters, not for a constraint.
-		return "", "", false
+		return "", "", readAsText
 	}
 	if !isFilterKey(key) {
-		return "", "", false
+		// Shaped like a filter and not one. The term is still searched for as
+		// text, which is all this grammar can honestly do with it, but the
+		// reader is told — a term that looks like a constraint and quietly is
+		// not returns the same page a search for nothing returns.
+		return key, "", readAsUnknownFilter
 	}
 	value = vault.NormalizeNFC(rest)
 	if key == "folder" {
 		value = strings.TrimSuffix(value, "/")
 	}
-	return key, value, true
+	return key, value, readAsFilter
 }
+
+// filterReading is what one query field turned out to be. The three outcomes
+// are distinguished because they call for three different things: a filter is
+// applied, a term is searched for, and a term shaped like a filter is searched
+// for and said out loud.
+type filterReading uint8
+
+const (
+	readAsText filterReading = iota
+	readAsUnknownFilter
+	readAsFilter
+)

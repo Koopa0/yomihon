@@ -89,7 +89,7 @@ func paths(results []Result) []string {
 	return out
 }
 
-func searchResults(tb testing.TB, idx *Index, q Query) []Result {
+func searchResults(tb testing.TB, idx *Index, q *Query) []Result {
 	tb.Helper()
 	results, err := idx.Search(q)
 	if err != nil {

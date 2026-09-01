@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
+	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -24,6 +25,18 @@ type SearchView struct {
 	// numbers whenever the two differ.
 	Total      int
 	Diagnostic string
+
+	// UnknownFilterKeys are the words this query wrote before a colon that the
+	// search grammar does not accept. The terms were searched for as text, which
+	// is all the grammar can honestly do with them; without saying so the page
+	// that comes back is the page a search for nothing returns, and the reader
+	// is left believing a constraint ran.
+	UnknownFilterKeys []string
+	// FilterKeys are the keys the grammar does accept, so the reader can see
+	// what to write instead. They come from the parser rather than from a list
+	// kept here: a list kept here drifts, and this repository has watched that
+	// happen — the ledger describing this repair names four of six.
+	FilterKeys []string
 
 	// StepBacks are the loosened searches offered when nothing matched — each
 	// one already run and known to find something, with its count, so the page
@@ -126,7 +139,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 						<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
 					</form>
 					<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
-					@SearchResults(v.Query, v.Results, v.Total, v.Diagnostic, v.Governed, v.StepBacks, c.Lang)
+					@SearchResults(v, c.Lang)
 				</div>
 			</main>
 		</div>
@@ -139,27 +152,42 @@ templ Search(v SearchView, c layouts.Chrome) {
 // the live-search status line announces, while the list below holds at most
 // the handler's bounded opening stretch; the result links remain ordinary
 // navigation.
-templ SearchResults(query string, results []SearchResult, total int, diagnostic string, governed bool, stepBacks []SearchStepBack, lang wording.Lang) {
-	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(total) } aria-busy="false">
-		if diagnostic != "" {
+templ SearchResults(v SearchView, lang wording.Lang) {
+	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(v.Total) } aria-busy="false">
+		if len(v.UnknownFilterKeys) > 0 {
+			// Said whatever the outcome: this is about how the query was read,
+			// not about how many notes answered it, so a query that also found
+			// something still hears it.
+			<p class="y-searchpage__hint" data-unknown-filter>
+				{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, "、")) }
+				for i, key := range v.FilterKeys {
+					if i > 0 {
+						{ "、" }
+					}
+					<code>{ key + ":" }</code>
+				}
+				{ wording.UnknownFilterEnd.In(lang) }
+			</p>
+		}
+		if v.Diagnostic != "" {
 			<div class="y-searchpage__empty" data-search-diagnostic>
 				<p>{ wording.MetadataSearchUnavailable.In(lang) }</p>
 				<p class="y-searchpage__hint">
-					@browserDiagnostic(wording.GovernanceUnavailable.In(lang), diagnostic)
+					@browserDiagnostic(wording.GovernanceUnavailable.In(lang), v.Diagnostic)
 				</p>
 			</div>
-		} else if len(results) > 0 {
+		} else if len(v.Results) > 0 {
 			// The count lived only in the live region the client script writes,
 			// so a reader looking at the page saw no number and a reader without
 			// scripting got none at all. Four of them asked how many.
-			<p class="y-results__count">{ resultCount(len(results), total, lang) }</p>
+			<p class="y-results__count">{ resultCount(len(v.Results), v.Total, lang) }</p>
 			// The hits are one set, so they are marked as one: a listener is
 			// told where it starts, how many it holds, and where it ends. The
 			// role is written out because the style reset takes the markers
 			// off, and a list without markers loses its meaning outright in
 			// WebKit.
 			<ol class="y-results" role="list">
-				for _, r := range results {
+				for _, r := range v.Results {
 					<li>
 						<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
 							<span class="y-result__title">{ r.Title }</span>
@@ -194,13 +222,13 @@ templ SearchResults(query string, results []SearchResult, total int, diagnostic 
 					</li>
 				}
 			</ol>
-		} else if query != "" {
+		} else if v.Query != "" {
 			<div class="y-searchpage__empty">
-				<p>{ fmt.Sprintf(wording.NoResultsFmt.In(lang), query) }</p>
-				if len(stepBacks) > 0 {
+				<p>{ fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query) }</p>
+				if len(v.StepBacks) > 0 {
 					<p class="y-searchpage__hint">
 						{ wording.StepBackLabel.In(lang) }
-						for i, step := range stepBacks {
+						for i, step := range v.StepBacks {
 							if i > 0 {
 								<span aria-hidden="true">・</span>
 							}
@@ -209,11 +237,27 @@ templ SearchResults(query string, results []SearchResult, total int, diagnostic 
 						}
 					</p>
 				}
-				if governed {
+				if v.Governed {
 					<p class="y-searchpage__hint">{ wording.SearchScopeHintWithStatus.In(lang) }<code>status:draft</code>{ wording.SearchScopeHintAfterCommand.In(lang) }</p>
 				} else {
 					<p class="y-searchpage__hint">{ wording.SearchScopeHint.In(lang) }</p>
 				}
+			</div>
+		} else {
+			// Nothing has been asked yet. What the reader cannot know without
+			// being told is which constraints this field understands, and a
+			// blank page is the one moment there is room to say it without
+			// standing between them and an answer.
+			<div class="y-searchpage__empty" data-search-filters>
+				<p class="y-searchpage__hint">
+					{ wording.FilterKeysAvailable.In(lang) }
+					for i, key := range v.FilterKeys {
+						if i > 0 {
+							{ "、" }
+						}
+						<code>{ key + ":" }</code>
+					}
+				</p>
 			</div>
 		}
 	</div>

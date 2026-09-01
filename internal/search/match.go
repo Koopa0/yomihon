@@ -65,7 +65,7 @@ const (
 // ErrMetadataUnavailable with the contract diagnostic; text and folder queries
 // continue against the complete readable corpus. A vault that never declared
 // one excludes nothing, so those filters run over raw frontmatter.
-func (idx *Index) Search(q Query) ([]Result, error) {
+func (idx *Index) Search(q *Query) ([]Result, error) {
 	results, _, err := idx.search(q, -1)
 	return results, err
 }
@@ -76,7 +76,7 @@ func (idx *Index) Search(q Query) ([]Result, error) {
 // snippet is the per-hit cost, and skipping it is what keeps a broad query's
 // work proportional to the page rather than to the vault. The kept results are
 // exactly the opening stretch of the unbounded answer, in the same order.
-func (idx *Index) search(q Query, limit int) (results []Result, total int, err error) {
+func (idx *Index) search(q *Query, limit int) (results []Result, total int, err error) {
 	if len(q.tokens) == 0 && len(q.filters) == 0 {
 		return nil, 0, nil
 	}
@@ -188,7 +188,7 @@ func (b *resultBuckets) ordered() []hit {
 // Metadata filters retain Search's instance-capability behavior, including a
 // loud error when the artifact policy could not be honoured. With no filters,
 // every indexed path is allowed.
-func (idx *Index) AllowedPaths(q Query) (map[string]struct{}, error) {
+func (idx *Index) AllowedPaths(q *Query) (map[string]struct{}, error) {
 	requiresMetadata := q.RequiresMetadata()
 	if requiresMetadata && !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()

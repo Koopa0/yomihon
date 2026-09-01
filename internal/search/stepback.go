@@ -34,7 +34,10 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 	var bare, filters []string
 	quoted := false
 	for _, field := range quoteFields(raw) {
-		if _, _, ok := splitFilter(field.text, field.quotedFrom); ok {
+		// A term shaped like a filter this grammar does not know is one of the
+		// words being loosened, not a scope to carry along: it never narrowed
+		// anything, so keeping it would hold back the very search being widened.
+		if _, _, reading := splitFilter(field.text, field.quotedFrom); reading == readAsFilter {
 			filters = append(filters, respellFilter(field.text))
 			continue
 		}

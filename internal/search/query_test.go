@@ -17,40 +17,40 @@ func TestParse(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		want  Query
+		want  *Query
 	}{
-		{name: "1 empty", input: "", want: Query{}},
-		{name: "2 whitespace only", input: "   \t ", want: Query{}},
-		{name: "3 bare token", input: "kafka", want: Query{tokens: []string{"kafka"}, bareText: "kafka"}},
-		{name: "4 fold uppercase", input: "Kafka", want: Query{tokens: []string{"kafka"}, bareText: "Kafka"}},
-		{name: "5 two cjk tokens", input: "深度 工作", want: Query{tokens: []string{"深度", "工作"}, bareText: "深度 工作"}},
-		{name: "6 nfd token folds to nfc", input: "が", want: Query{tokens: []string{"が"}, bareText: "が"}},
-		{name: "7 type filter", input: "type:lesson", want: Query{filters: []Filter{{Key: "type", Value: "lesson"}}}},
+		{name: "1 empty", input: "", want: &Query{}},
+		{name: "2 whitespace only", input: "   \t ", want: &Query{}},
+		{name: "3 bare token", input: "kafka", want: &Query{tokens: []string{"kafka"}, bareText: "kafka"}},
+		{name: "4 fold uppercase", input: "Kafka", want: &Query{tokens: []string{"kafka"}, bareText: "Kafka"}},
+		{name: "5 two cjk tokens", input: "深度 工作", want: &Query{tokens: []string{"深度", "工作"}, bareText: "深度 工作"}},
+		{name: "6 nfd token folds to nfc", input: "が", want: &Query{tokens: []string{"が"}, bareText: "が"}},
+		{name: "7 type filter", input: "type:lesson", want: &Query{filters: []Filter{{Key: "type", Value: "lesson"}}}},
 		{
 			name:  "8 token order preserved around filter",
 			input: "深度 type:lesson 工作",
-			want:  Query{tokens: []string{"深度", "工作"}, filters: []Filter{{Key: "type", Value: "lesson"}}, bareText: "深度 工作"},
+			want:  &Query{tokens: []string{"深度", "工作"}, filters: []Filter{{Key: "type", Value: "lesson"}}, bareText: "深度 工作"},
 		},
 		{
 			name:  "9 repeated topic key is AND",
 			input: "topic:a topic:b",
-			want:  Query{filters: []Filter{{Key: "topic", Value: "a"}, {Key: "topic", Value: "b"}}},
+			want:  &Query{filters: []Filter{{Key: "topic", Value: "a"}, {Key: "topic", Value: "b"}}},
 		},
 		{
 			name:  "10 repeated type key",
 			input: "type:a type:b",
-			want:  Query{filters: []Filter{{Key: "type", Value: "a"}, {Key: "type", Value: "b"}}},
+			want:  &Query{filters: []Filter{{Key: "type", Value: "a"}, {Key: "type", Value: "b"}}},
 		},
-		{name: "11 folder drops trailing slash", input: "folder:Writing/", want: Query{filters: []Filter{{Key: "folder", Value: "Writing"}}}},
-		{name: "12 slug splits on first colon", input: "slug:a:b", want: Query{filters: []Filter{{Key: "slug", Value: "a:b"}}}},
-		{name: "13 unknown key is bare token", input: "foo:bar", want: Query{tokens: []string{"foo:bar"}, bareText: "foo:bar"}},
-		{name: "14 classify before fold", input: "Type:lesson", want: Query{tokens: []string{"type:lesson"}, bareText: "Type:lesson"}},
-		{name: "15 empty filter value", input: "status:", want: Query{filters: []Filter{{Key: "status", Value: ""}}}},
-		{name: "16 literal percent", input: "%", want: Query{tokens: []string{"%"}, bareText: "%"}},
-		{name: "17 percent inside token", input: "100%", want: Query{tokens: []string{"100%"}, bareText: "100%"}},
-		{name: "18 domain nfc value", input: "domain:日本語", want: Query{filters: []Filter{{Key: "domain", Value: "日本語"}}}},
-		{name: "19 slug value not case folded", input: "slug:ABC", want: Query{filters: []Filter{{Key: "slug", Value: "ABC"}}}},
-		{name: "20 folder empty value", input: "folder:", want: Query{filters: []Filter{{Key: "folder", Value: ""}}}},
+		{name: "11 folder drops trailing slash", input: "folder:Writing/", want: &Query{filters: []Filter{{Key: "folder", Value: "Writing"}}}},
+		{name: "12 slug splits on first colon", input: "slug:a:b", want: &Query{filters: []Filter{{Key: "slug", Value: "a:b"}}}},
+		{name: "13 unknown key is bare token and is remembered as one", input: "foo:bar", want: &Query{tokens: []string{"foo:bar"}, bareText: "foo:bar", unknownKeys: []string{"foo"}}},
+		{name: "14 classify before fold", input: "Type:lesson", want: &Query{tokens: []string{"type:lesson"}, bareText: "Type:lesson", unknownKeys: []string{"Type"}}},
+		{name: "15 empty filter value", input: "status:", want: &Query{filters: []Filter{{Key: "status", Value: ""}}}},
+		{name: "16 literal percent", input: "%", want: &Query{tokens: []string{"%"}, bareText: "%"}},
+		{name: "17 percent inside token", input: "100%", want: &Query{tokens: []string{"100%"}, bareText: "100%"}},
+		{name: "18 domain nfc value", input: "domain:日本語", want: &Query{filters: []Filter{{Key: "domain", Value: "日本語"}}}},
+		{name: "19 slug value not case folded", input: "slug:ABC", want: &Query{filters: []Filter{{Key: "slug", Value: "ABC"}}}},
+		{name: "20 folder empty value", input: "folder:", want: &Query{filters: []Filter{{Key: "folder", Value: ""}}}},
 	}
 
 	for _, tt := range tests {
@@ -77,18 +77,18 @@ func TestParseQuotedPhrase(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		want  Query
+		want  *Query
 	}{
-		{name: "quoted phrase is one token", input: `"semantic retrieval"`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "semantic retrieval"}},
-		{name: "quoted phrase still folds", input: `"Semantic Retrieval"`, want: Query{tokens: []string{"semantic retrieval"}, bareText: "Semantic Retrieval"}},
-		{name: "corner brackets quote the same way", input: "「深度 工作」", want: Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
-		{name: "white corner brackets too", input: "『深度 工作』", want: Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
-		{name: "an unclosed quote is a character, not a swallowed rest-of-query", input: `"semantic retrieval`, want: Query{tokens: []string{`"semantic`, "retrieval"}, bareText: `"semantic retrieval`}},
-		{name: "empty quotes ask nothing", input: `""`, want: Query{}},
-		{name: "whitespace-only quotes ask nothing", input: `" "`, want: Query{}},
-		{name: "a quote inside a word is part of the word", input: `don"t`, want: Query{tokens: []string{`don"t`}, bareText: `don"t`}},
-		{name: "a closing bracket with no opener is text", input: "読本」", want: Query{tokens: []string{"読本」"}, bareText: "読本」"}},
-		{name: "quoting keeps filter-shaped text literal", input: `"type:lesson"`, want: Query{tokens: []string{"type:lesson"}, bareText: "type:lesson"}},
+		{name: "quoted phrase is one token", input: `"semantic retrieval"`, want: &Query{tokens: []string{"semantic retrieval"}, bareText: "semantic retrieval"}},
+		{name: "quoted phrase still folds", input: `"Semantic Retrieval"`, want: &Query{tokens: []string{"semantic retrieval"}, bareText: "Semantic Retrieval"}},
+		{name: "corner brackets quote the same way", input: "「深度 工作」", want: &Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
+		{name: "white corner brackets too", input: "『深度 工作』", want: &Query{tokens: []string{"深度 工作"}, bareText: "深度 工作"}},
+		{name: "an unclosed quote is a character, not a swallowed rest-of-query", input: `"semantic retrieval`, want: &Query{tokens: []string{`"semantic`, "retrieval"}, bareText: `"semantic retrieval`}},
+		{name: "empty quotes ask nothing", input: `""`, want: &Query{}},
+		{name: "whitespace-only quotes ask nothing", input: `" "`, want: &Query{}},
+		{name: "a quote inside a word is part of the word", input: `don"t`, want: &Query{tokens: []string{`don"t`}, bareText: `don"t`}},
+		{name: "a closing bracket with no opener is text", input: "読本」", want: &Query{tokens: []string{"読本」"}, bareText: "読本」"}},
+		{name: "quoting keeps filter-shaped text literal", input: `"type:lesson"`, want: &Query{tokens: []string{"type:lesson"}, bareText: "type:lesson"}},
 		{
 			// The shape a reader produces by pasting a line out of their own
 			// note. Stripping the quotes spliced the span onto "cause=", and
@@ -96,7 +96,7 @@ func TestParseQuotedPhrase(t *testing.T) {
 			// was that the reader's own sentence is not there.
 			name:  "a quoted span pressed against a word stays literal",
 			input: `cause="lease epoch mismatch"`,
-			want:  Query{tokens: []string{`cause="lease`, "epoch", `mismatch"`}, bareText: `cause="lease epoch mismatch"`},
+			want:  &Query{tokens: []string{`cause="lease`, "epoch", `mismatch"`}, bareText: `cause="lease epoch mismatch"`},
 		},
 		{
 			// The same shape in the prose this vault is mostly written in,
@@ -104,7 +104,7 @@ func TestParseQuotedPhrase(t *testing.T) {
 			// there is no whitespace anywhere near them.
 			name:  "corner brackets inside chinese prose stay literal",
 			input: "他說「不得使用」的時候",
-			want:  Query{tokens: []string{"他說「不得使用」的時候"}, bareText: "他說「不得使用」的時候"},
+			want:  &Query{tokens: []string{"他說「不得使用」的時候"}, bareText: "他說「不得使用」的時候"},
 		},
 		{
 			// The opener stands at a field boundary here, so only the closing
@@ -114,43 +114,43 @@ func TestParseQuotedPhrase(t *testing.T) {
 			// 深度 工作的時候, which the note does not contain.
 			name:  "a closing bracket with a word against it closes nothing",
 			input: "「深度 工作」的時候",
-			want:  Query{tokens: []string{"「深度", "工作」的時候"}, bareText: "「深度 工作」的時候"},
+			want:  &Query{tokens: []string{"「深度", "工作」的時候"}, bareText: "「深度 工作」的時候"},
 		},
 		{
 			name:  "a filter beside a phrase stays a filter",
 			input: `type:lesson "semantic retrieval"`,
-			want:  Query{tokens: []string{"semantic retrieval"}, filters: []Filter{{Key: "type", Value: "lesson"}}, bareText: "semantic retrieval"},
+			want:  &Query{tokens: []string{"semantic retrieval"}, filters: []Filter{{Key: "type", Value: "lesson"}}, bareText: "semantic retrieval"},
 		},
-		{name: "quotes pressed against words group nothing and splice nothing", input: `sem"antic ret"rieval`, want: Query{tokens: []string{`sem"antic`, `ret"rieval`}, bareText: `sem"antic ret"rieval`}},
+		{name: "quotes pressed against words group nothing and splice nothing", input: `sem"antic ret"rieval`, want: &Query{tokens: []string{`sem"antic`, `ret"rieval`}, bareText: `sem"antic ret"rieval`}},
 		{
 			name:  "quoting a value keeps the filter and carries the space",
 			input: `topic:"functional programming"`,
-			want:  Query{filters: []Filter{{Key: "topic", Value: "functional programming"}}},
+			want:  &Query{filters: []Filter{{Key: "topic", Value: "functional programming"}}},
 		},
 		{
 			name:  "corner brackets quote a value the same way",
 			input: "topic:「深度 工作」",
-			want:  Query{filters: []Filter{{Key: "topic", Value: "深度 工作"}}},
+			want:  &Query{filters: []Filter{{Key: "topic", Value: "深度 工作"}}},
 		},
 		{
 			name:  "a quoted single-word value is still a filter",
 			input: `type:"lesson"`,
-			want:  Query{filters: []Filter{{Key: "type", Value: "lesson"}}},
+			want:  &Query{filters: []Filter{{Key: "type", Value: "lesson"}}},
 		},
 		{
 			name:  "a quoted folder value drops its trailing slash",
 			input: `folder:"My Notes/"`,
-			want:  Query{filters: []Filter{{Key: "folder", Value: "My Notes"}}},
+			want:  &Query{filters: []Filter{{Key: "folder", Value: "My Notes"}}},
 		},
 		{
 			name:  "quoting the key makes the whole field text",
 			input: `"topic:functional programming"`,
-			want:  Query{tokens: []string{"topic:functional programming"}, bareText: "topic:functional programming"},
+			want:  &Query{tokens: []string{"topic:functional programming"}, bareText: "topic:functional programming"},
 		},
 		{
 			name:  "a quoted value beside a phrase leaves the phrase a token",
 			input: `topic:"functional programming" "semantic retrieval"`,
-			want: Query{
+			want: &Query{
 				tokens:   []string{"semantic retrieval"},
 				filters:  []Filter{{Key: "topic", Value: "functional programming"}},
 				bareText: "semantic retrieval",
@@ -204,7 +204,7 @@ func TestParseFilterValueNFD(t *testing.T) {
 	t.Parallel()
 
 	got := Parse("domain:が")
-	want := Query{filters: []Filter{{Key: "domain", Value: "が"}}}
+	want := &Query{filters: []Filter{{Key: "domain", Value: "が"}}}
 	if diff := cmp.Diff(want, got, cmp.AllowUnexported(Query{})); diff != "" {
 		t.Errorf("Parse NFD filter value mismatch (-want +got):\n%s", diff)
 	}

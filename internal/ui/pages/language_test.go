@@ -34,7 +34,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 		{
 			name: "search",
 			render: func(buf *bytes.Buffer) error {
-				return SearchResults("needle", nil, 0, "technical diagnostic", true, nil, wording.ZhHant).Render(t.Context(), buf)
+				return SearchResults(SearchView{Query: "needle", Diagnostic: "technical diagnostic", Governed: true}, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{"中介資料搜尋目前無法使用", "vault schema 的治理資料無法使用", `lang="en"`},
 			forbidden: []string{"Metadata search unavailable", "Search is temporarily unavailable"},

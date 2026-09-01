@@ -69,7 +69,7 @@ func TestSearchResultsFragmentCarriesNoHeading(t *testing.T) {
 
 	var buf bytes.Buffer
 	results := []SearchResult{{Title: "First", RelPath: "Concepts/first.md"}}
-	if err := SearchResults("a", results, len(results), "", false, nil, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+	if err := SearchResults(SearchView{Query: "a", Results: results, Total: len(results)}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render search results: %v", err)
 	}
 	html := buf.String()

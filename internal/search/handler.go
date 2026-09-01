@@ -97,17 +97,35 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	lang := pages.LanguageFromRequest(r)
 	results, total, diagnostic, tokens := h.query(snap.Index, q, lang)
 
-	view := pages.SearchView{
-		Query:      q,
-		Results:    viewResults(results, snap.Shell.Governed, snap.Status, tokens),
-		Total:      total,
-		Diagnostic: diagnostic,
-		Governed:   snap.Shell.Governed,
-		StepBacks:  stepBackViews(snap.Index, q, results, diagnostic),
-		Nav:        snap.Shell.Nav,
-	}
+	view := answerView(snap, q, results, total, diagnostic, tokens)
+	view.Nav = snap.Shell.Nav
 	if err := pages.Search(view, pages.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search page", q, err)
+	}
+}
+
+// answerView is everything both faces say about one query. The full page and
+// the live region are the same answer rendered in two places, so what they say
+// is built once: a sentence added to one and forgotten in the other is a
+// difference a reader meets by typing rather than submitting.
+func answerView(
+	snap RequestSnapshot,
+	q string,
+	results []Result,
+	total int,
+	diagnostic string,
+	tokens []string,
+) pages.SearchView {
+	parsed := Parse(q)
+	return pages.SearchView{
+		Query:             q,
+		Results:           viewResults(results, snap.Shell.Governed, snap.Status, tokens),
+		Total:             total,
+		Diagnostic:        diagnostic,
+		Governed:          snap.Shell.Governed,
+		StepBacks:         stepBackViews(snap.Index, q, results, diagnostic),
+		UnknownFilterKeys: parsed.UnknownFilterKeys(),
+		FilterKeys:        FilterKeys(),
 	}
 }
 
@@ -124,8 +142,8 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	stepBacks := stepBackViews(snap.Index, q, results, diagnostic)
-	if err := pages.SearchResults(q, viewResults(results, snap.Shell.Governed, snap.Status, tokens), total, diagnostic, snap.Shell.Governed, stepBacks, pages.LanguageFromRequest(r)).Render(r.Context(), w); err != nil {
+	view := answerView(snap, q, results, total, diagnostic, tokens)
+	if err := pages.SearchResults(view, pages.LanguageFromRequest(r)).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }

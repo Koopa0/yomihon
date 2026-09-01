@@ -56,3 +56,23 @@ var (
 	QueryTooLong        = both("搜尋字串過長", "The query is too long")
 	QueryHasControlByte = both("搜尋字串含有控制字元", "The query contains a control character")
 )
+
+// What the search page says about a word written before a colon that the
+// grammar does not accept. The term was searched for as text — that is the
+// honest reading and it is what ran — and the sentence exists because without
+// it the page is indistinguishable from the one a search for nothing returns.
+//
+// The keys it goes on to offer are supplied by the parser, so the two halves
+// of the sentence cannot come to disagree about what a filter is.
+var (
+	UnknownFilterFmt = both(
+		"「%s」不是 yomihon 認得的篩選器,已當一般文字搜尋。認得的是:",
+		"%q is not a filter yomihon knows, so it was searched for as ordinary text. The ones it knows are: ")
+
+	UnknownFilterEnd = both("。", ".")
+)
+
+// FilterKeysAvailable opens the blank search page with the constraints the
+// field understands. A reader who has typed nothing cannot discover them any
+// other way, and this is the one moment saying so costs them no answer.
+var FilterKeysAvailable = both("可用的篩選器:", "Filters you can use: ")
