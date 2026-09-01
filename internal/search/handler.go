@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -289,6 +290,27 @@ func markHits(snippet string, tokens []string) []pages.SnippetRun {
 // character, and Turkish İ shrinks from two bytes to one. An offset found in
 // the folded copy therefore cannot index s directly; it has to come back
 // through this mapping.
+// sourceOffsetOfFold maps one byte offset in the lowercased copy of s back to
+// the byte offset in s of the character that produced it. It answers exactly
+// what foldWithSourceOffsets tabulates, walked to a single position instead of
+// materialized for every byte, because its caller measures a whole note rather
+// than a snippet and a table over one costs eight bytes per byte of it.
+//
+// The two are held to the same answer by a test that compares them position by
+// position; they are one rule with two shapes, and a rule with two shapes is
+// one that drifts.
+func sourceOffsetOfFold(s string, foldOff int) int {
+	folded := 0
+	for i, r := range s {
+		next := folded + utf8.RuneLen(unicode.ToLower(r))
+		if next > foldOff {
+			return i
+		}
+		folded = next
+	}
+	return len(s)
+}
+
 func foldWithSourceOffsets(s string) (fold string, src []int) {
 	var folded strings.Builder
 	folded.Grow(len(s))

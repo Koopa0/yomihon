@@ -409,18 +409,18 @@ func runesAfter(s string, off, n int) int {
 }
 
 // snippet returns a one-line window of plain around the earliest matched-token
-// offset. The offset is located on plainFold (the folded copy) and reused as a
-// byte index into plain: fold (NFC then lowercase) is length-preserving for
-// this vault's zh/ja/en corpus, but a rare non-length-preserving fold (Turkish
-// İ, etc.) could shift a boundary, so every bound below is clamped to a valid
-// rune boundary rather than trusted.
+// offset.
+//
+// The offset is found on plainFold, the folded copy, and lowercasing does not
+// preserve length: Ⱥ grows from two bytes to three and İ shrinks from two to
+// one. Reused directly as an index into plain it drifts one byte per such
+// character, and once the drift passes the window's own radius the window
+// slides clear of the term entirely — the reader is shown a result whose
+// evidence holds none of what matched, and it is still valid text, so a check
+// on the bytes alone sees nothing wrong. The offset is therefore carried back
+// through the fold's own mapping, the way the marking pass already does.
 func snippet(plain, plainFold string, tokens []string) string {
-	// The offset was located on the folded copy and is reused as an index into
-	// the original. Folding is length-preserving for this vault's scripts, but
-	// a rare fold that is not (Turkish İ, say) could land it inside a
-	// character — so it is pulled back to a boundary before anything counts
-	// characters outward from it.
-	off := clampRuneEnd(plain, min(earliestOffset(plainFold, tokens), len(plain)))
+	off := sourceOffsetOfFold(plain, earliestOffset(plainFold, tokens))
 	// Neither boundary may be moved past the match it was placed around. When a
 	// boundary lands in a run longer than the budget below, it steps clear of
 	// that run — the opening one forward off its tail, the closing one back off
@@ -526,21 +526,6 @@ func wholeWordEnd(s string, i int) int {
 // them at the punctuation would keep only the tail.
 func isWordByte(b byte) bool {
 	return b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b == '-' || b == '_'
-}
-
-// clampRuneEnd clamps i into [0,len(s)] and retreats it to a rune boundary so
-// the snippet never ends mid-rune.
-func clampRuneEnd(s string, i int) int {
-	if i >= len(s) {
-		return len(s)
-	}
-	if i <= 0 {
-		return 0
-	}
-	for i > 0 && !utf8.RuneStart(s[i]) {
-		i--
-	}
-	return i
 }
 
 // sentenceTerminators end a sentence in the scripts this corpus is written in.

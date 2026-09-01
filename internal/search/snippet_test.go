@@ -1,6 +1,7 @@
 package search
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -513,5 +514,98 @@ func TestADotInsideATokenEndsNoSentence(t *testing.T) {
 	clean := "前面一句。不得使用這個設定檔" + filler + "目標詞在這裡"
 	if got := snippet(clean, strings.ToLower(clean), []string{"目標詞"}); !strings.Contains(got, "不得") {
 		t.Errorf("the control lost 不得 too; the fixture proves nothing about dots: %q", got)
+	}
+}
+
+// TestSnippetHoldsTheMatchWhenTheFoldChangesLength holds the window on the
+// hit rather than merely on a valid boundary.
+//
+// The offset is found on the folded copy and lowercasing does not preserve
+// length: Ⱥ grows from two bytes to three and İ shrinks from two to one. Used
+// as an index into the note's own bytes, that offset drifts one byte per such
+// character, and once the drift exceeds the window's own radius the snippet
+// slides clear of the term the reader searched for — a result whose evidence
+// shows none of what matched. The sibling test beside this one asks only that
+// the snippet stay valid UTF-8, which a window that has slid off the match
+// still is.
+func TestSnippetHoldsTheMatchWhenTheFoldChangesLength(t *testing.T) {
+	t.Parallel()
+
+	const (
+		grows   = "Ⱥ" // Ⱥ, three bytes once lowercased
+		shrinks = "İ" // İ, one byte once lowercased
+	)
+	tail := strings.Repeat("x", 400)
+
+	for _, tc := range []struct {
+		name  string
+		plain string
+	}{
+		{
+			// Enough of them that the offset lands past the window's reach
+			// back: the window would open beyond the term and never show it.
+			name:  "a fold that grows pushes the window past the match",
+			plain: strings.Repeat(grows, 120) + "needle " + tail,
+		},
+		{
+			// The mirror: the offset points short of the term by more than the
+			// window reaches forward.
+			name:  "a fold that shrinks leaves the window short of the match",
+			plain: strings.Repeat(shrinks, 400) + "needle " + tail,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			idx := NewIndex([]Document{{RelPath: "a.md", Title: "t", PlainText: tc.plain}}, validArtifactPolicy(t))
+
+			got := snippetFor(t, idx, "needle")
+			if !strings.Contains(got, "needle") {
+				t.Errorf("Snippet = %q, want the window to hold the term that matched", got)
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("Snippet = %q, which is not valid UTF-8", got)
+			}
+			var marked bool
+			for _, run := range markHits(got, []string{"needle"}) {
+				if run.Hit && strings.Contains(run.Text, "needle") {
+					marked = true
+				}
+			}
+			if !marked {
+				t.Errorf("markHits(%q) marked no run holding the term", got)
+			}
+		})
+	}
+}
+
+// TestTheTwoFoldMappingsAgree holds the two shapes of one rule to the same
+// answer. foldWithSourceOffsets tabulates every byte position; the snippet
+// path walks to one position instead, because it measures a whole note. A rule
+// written twice is a rule that drifts, and this repository has already paid
+// for that once: two byte-identical copies of a directory check, only one of
+// them ever corrected.
+func TestTheTwoFoldMappingsAgree(t *testing.T) {
+	t.Parallel()
+
+	for _, s := range []string{
+		"",
+		"plain ascii",
+		"Ⱥ grows and İ shrinks",
+		strings.Repeat("Ⱥİ", 8),
+		"ǰ ﬁ ﬄ ǅ Ǆ",             // folds that change width in either direction
+		"甲乙丙丁 mixed with ASCII", // multi-byte characters that fold to themselves
+		"\xff\xfe not utf-8",    // bytes that decode as the replacement character
+		"İ",
+		"Ⱥ",
+	} {
+		t.Run(strconv.Quote(s), func(t *testing.T) {
+			t.Parallel()
+			fold, src := foldWithSourceOffsets(s)
+			for k := range len(fold) + 1 {
+				if got, want := sourceOffsetOfFold(s, k), src[k]; got != want {
+					t.Fatalf("sourceOffsetOfFold(%q, %d) = %d, want %d (the tabulated answer)", s, k, got, want)
+				}
+			}
+		})
 	}
 }
