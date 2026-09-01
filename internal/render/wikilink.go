@@ -63,6 +63,25 @@ func titleOnlyTarget(target, display string, held []string, lang wording.Lang) s
 		html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
 }
 
+// ambiguousTarget says the name placed more than one file, and which. The
+// sentence goes to both places the reader may meet it — the pause a pointer
+// makes, and the words carried out of sight for anyone listening — from one
+// source, so the two cannot come to say different things. The element stays
+// non-interactive and takes no tab stop: the route for a reader who is not
+// using a pointer is the marker they can see and the panel beside the article,
+// and a focus stop that opened nothing would be an affordance in name only.
+//
+// This is not what a citation naming a note's title is told. That name reaches
+// a note under a name links do not follow and an alias repairs it; this name
+// is followed and arrives in several places at once.
+func ambiguousTarget(target, display string, candidates []string, lang wording.Lang) string {
+	reason := fmt.Sprintf(wording.AmbiguousTargetFmt.In(lang), target, strings.Join(candidates, ", "))
+	escaped := html.EscapeString(reason)
+	return `<span class="wikilink-ambiguous" title="` + escaped + `">` +
+		html.EscapeString(display) + `<span class="` + offscreenNoteClass + `">` +
+		html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
+}
+
 // offscreenNoteClass names the element the explanation above is carried out of
 // sight in. The heading scan removes elements of this name before it reads a
 // heading's words, so the sentence explaining a link never becomes the name of
@@ -579,9 +598,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
 			Message: fmt.Sprintf("wikilink %q is ambiguous: %s", link.Target, strings.Join(res.Candidates, ", ")),
 		})
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the value is already html.EscapeString'd
-		return fmt.Sprintf(`<span class="wikilink-ambiguous" title="%s">%s</span>`,
-			html.EscapeString(strings.Join(res.Candidates, ", ")), html.EscapeString(link.Display))
+		return ambiguousTarget(link.Target, link.Display, res.Candidates, col.page.lang)
 	case graph.Unresolved:
 		// The name found nothing, which is as far as the resolver goes: a
 		// title is deliberately not a name a link follows. Whether the name is

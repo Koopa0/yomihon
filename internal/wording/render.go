@@ -58,3 +58,16 @@ var TitleOnlySeveralFmt = both(
 var TitleTruncatedAtHashFmt = both(
 	"這篇的 title「%s」恰好是檔名在空白加 # 處截斷的結果；若 title 原本要包含 #，用引號寫就能保留。",
 	"This note's title %q is exactly what its filename becomes when cut at a space followed by #; if the title was meant to carry the #, quoting it keeps it.")
+
+// AmbiguousTargetFmt is said where a name places more than one file. It is not
+// the sentence a title-only citation gets: that name reaches a note under a
+// name links do not follow, and an alias fixes it, while this name is followed
+// perfectly well and arrives at several files at once. The repair differs with
+// the cause — one note gains an alias, or one of these files is renamed — so
+// the two are never told in the same words.
+//
+// The files are named because there is no guessing between them, and a reader
+// deciding which they meant needs to see what the choices are.
+var AmbiguousTargetFmt = both(
+	"「%s」指向不只一個檔案：%s。yomihon 不替你猜是哪一個",
+	"%q points at more than one file: %s. yomihon does not guess which")

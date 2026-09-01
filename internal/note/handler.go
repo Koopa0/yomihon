@@ -365,9 +365,13 @@ func lastCompleteBuild(fresh *snapshot.Freshness) string {
 func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthCollision {
 	out := make([]pages.HealthCollision, 0, len(collisions))
 	for _, collision := range collisions {
+		// Every row of one collision would otherwise read the same word:
+		// nav.Label names a file by its base name, and these files collide
+		// precisely because they share it. The path is the only thing that
+		// separates them, and separating them is the whole point of the list.
 		candidates := make([]nav.NoteRef, 0, len(collision.Candidates))
 		for _, candidate := range collision.Candidates {
-			candidates = append(candidates, nav.NoteRef{Name: nav.Label(candidate), RelPath: candidate})
+			candidates = append(candidates, nav.NoteRef{Name: candidate, RelPath: candidate})
 		}
 		out = append(out, pages.HealthCollision{Name: collision.Name, Candidates: candidates})
 	}
