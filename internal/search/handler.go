@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -320,13 +319,13 @@ func foldWithSourceOffsets(s string) (fold string, src []int) {
 	var folded strings.Builder
 	folded.Grow(len(s))
 	src = make([]int, 0, len(s)+1)
-	for i, r := range s {
+	foldRunes(s, func(r rune, at int) {
 		n := folded.Len()
-		folded.WriteRune(unicode.ToLower(r))
+		folded.WriteRune(r)
 		for ; n < folded.Len(); n++ {
-			src = append(src, i)
+			src = append(src, at)
 		}
-	}
+	})
 	return folded.String(), append(src, len(s))
 }
 
@@ -340,13 +339,18 @@ func foldWithSourceOffsets(s string) (fold string, src []int) {
 // position; they are one rule with two shapes, and a rule with two shapes is
 // one that drifts.
 func sourceOffsetOfFold(s string, foldOff int) int {
-	folded := 0
-	for i, r := range s {
-		next := folded + utf8.RuneLen(unicode.ToLower(r))
+	folded, at := 0, len(s)
+	found := false
+	foldRunes(s, func(r rune, i int) {
+		if found {
+			return
+		}
+		next := folded + utf8.RuneLen(r)
 		if next > foldOff {
-			return i
+			at, found = i, true
+			return
 		}
 		folded = next
-	}
-	return len(s)
+	})
+	return at
 }

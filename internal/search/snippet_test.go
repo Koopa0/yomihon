@@ -597,6 +597,16 @@ func TestTheTwoFoldMappingsAgree(t *testing.T) {
 		"\xff\xfe not utf-8",    // bytes that decode as the replacement character
 		"İ",
 		"Ⱥ",
+		// A line break the fold drops, which moves every offset after it.
+		"本品不建議用於\n兒童使用。",
+		// The same break where the fold keeps it, because English parts its
+		// words with the whitespace the break is made of.
+		"not recommended for\nchildren",
+		// A break with a character of each kind on either side: kept, because
+		// only one side is a script that writes without spaces.
+		"用於\nchildren and 兒童\n使用",
+		// Consecutive breaks, and one at each end.
+		"\n甲\n\n乙\n",
 	} {
 		t.Run(strconv.Quote(s), func(t *testing.T) {
 			t.Parallel()

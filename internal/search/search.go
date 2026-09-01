@@ -13,18 +13,69 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// fold is the single definer of "what counts as a match": NFC then lowercase,
-// applied identically to stored text and to a query token. Case folding lives
-// only here — vault.NormalizeNFC supplies the shared NFC step so there is no
-// second, subtly divergent normalization in the repo.
+// fold is the single definer of "what counts as a match": NFC, then the walk
+// below, applied identically to stored text and to a query token. Case folding
+// lives only here — vault.NormalizeNFC supplies the shared NFC step so there is
+// no second, subtly divergent normalization in the repo.
 func fold(s string) string {
-	return strings.ToLower(vault.NormalizeNFC(s))
+	var out strings.Builder
+	out.Grow(len(s))
+	foldRunes(vault.NormalizeNFC(s), func(r rune, _ int) {
+		out.WriteRune(r)
+	})
+	return out.String()
+}
+
+// foldRunes walks already-NFC text and hands the caller each rune the fold
+// keeps, with the byte offset in s that it came from. It is the whole of what
+// folding does, so that the two things built from it — the folded string, and
+// the folded string with a map back to its source — cannot come to disagree
+// about what a match is.
+//
+// A line break between two characters of a script that writes without spaces
+// is dropped rather than kept. Such a script has no separator for a break to
+// stand in for, so a sentence wrapped mid-phrase is split in the index while
+// the same sentence in English is not: its words were already parted by a
+// space, and the break is one more piece of whitespace between them. Dropping
+// it there instead would fuse two words into one nobody wrote.
+func foldRunes(s string, emit func(r rune, at int)) {
+	var prev rune
+	for i, r := range s {
+		if r == '\n' && writesWithoutSpaces(prev) && writesWithoutSpaces(nextRune(s, i+1)) {
+			continue
+		}
+		emit(unicode.ToLower(r), i)
+		prev = r
+	}
+}
+
+// nextRune returns the first rune at or after i, or zero at the end of s.
+func nextRune(s string, i int) rune {
+	for _, r := range s[i:] {
+		return r
+	}
+	return 0
+}
+
+// writesWithoutSpaces reports whether a character belongs to a script that
+// does not part its words with spaces, so a line break beside it is a place
+// the text was broken rather than a place its words divide.
+//
+// Han, hiragana and katakana are those scripts here, which is what this vault
+// is written in besides English. Hangul is deliberately not among them: modern
+// Korean does space its words, so a break there is a separator and dropping it
+// would join two of them.
+func writesWithoutSpaces(r rune) bool {
+	return unicode.Is(unicode.Han, r) ||
+		unicode.Is(unicode.Hiragana, r) ||
+		unicode.Is(unicode.Katakana, r)
 }
 
 // Document is the pure, disk-free input to NewIndex: everything the index needs
