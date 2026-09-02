@@ -40,12 +40,11 @@ type RequestSnapshot struct {
 // StatusVocabulary is the minimal capability the search face needs from the
 // vault contract, declared here in the consumer so the read-only status
 // projection satisfies it without this package importing the write face.
-// That direction is load-bearing rather than stylistic: the offline
-// retrieval commands are built from this package and are the only part of
-// yomihon allowed to reach a network, and their dependency closure is held
-// to a reviewed list. Naming the write face here
-// would put the one component that edits the vault inside the closure of the
-// one component that can leave the machine.
+// That direction is load-bearing rather than stylistic: search only reads, and
+// naming the package that edits notes here would put the one component able to
+// change the vault inside the import closure of the one a reader reaches on
+// every query. What the search face needs is the read-only half of the status
+// projection, so that is what it asks for.
 type StatusVocabulary interface {
 	// Closed reports whether this view can classify a governed instance at
 	// all. A folder that declared no contract and one whose contract cannot be
