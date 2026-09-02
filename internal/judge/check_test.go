@@ -197,7 +197,7 @@ func TestCheckDropsDiaryFindings(t *testing.T) {
 	}
 	// The drop holds even when the full, unfiltered set is requested, checked
 	// against the raw paths rather than the engine's own helper.
-	all, err := check(root, nil, true)
+	all, err := runCheckAction(root, nil, true)
 	if err != nil {
 		t.Fatalf("check(--all): %v", err)
 	}
@@ -223,7 +223,7 @@ func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
 	writeTestContract(t, root, nil)
 	write(t, root, "System/reference.md", "# Reference\n\n[[Missing System Target]]\n")
 
-	defaultFindings, err := check(root, nil, false)
+	defaultFindings, err := runCheckAction(root, nil, false)
 	if err != nil {
 		t.Fatalf("check(default): %v", err)
 	}
@@ -231,7 +231,7 @@ func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
 		t.Fatalf("check(default) = %+v, want System-only finding hidden", defaultFindings)
 	}
 
-	allFindings, err := check(root, nil, true)
+	allFindings, err := runCheckAction(root, nil, true)
 	if err != nil {
 		t.Fatalf("check(--all): %v", err)
 	}

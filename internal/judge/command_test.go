@@ -541,7 +541,7 @@ func TestCheckPathFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			findings, err := check(root, tt.paths, false)
+			findings, err := runCheckAction(root, tt.paths, false)
 			if err != nil {
 				t.Fatalf("check: %v", err)
 			}
@@ -566,7 +566,7 @@ func TestCheckPathFilter(t *testing.T) {
 func TestCheckPathFilterRejectsEmpty(t *testing.T) {
 	t.Parallel()
 	for _, p := range []string{"", "/", "///"} {
-		if _, err := check("testdata/vault-report", []string{p}, false); err == nil {
+		if _, err := runCheckAction("testdata/vault-report", []string{p}, false); err == nil {
 			t.Errorf("check with path filter %q = nil error, want a tool error", p)
 		}
 	}
@@ -589,7 +589,7 @@ func TestCheckPathFilterRefusesUnobservedScope(t *testing.T) {
 		"/Users/someone/vault/Concepts", // an absolute path from somewhere else
 		"Concepts/japanese/../golang",   // unresolved traversal is not a canonical path
 	} {
-		findings, err := check("testdata/vault-report", []string{p}, false)
+		findings, err := runCheckAction("testdata/vault-report", []string{p}, false)
 		if err == nil {
 			t.Errorf("check with path filter %q = %d findings and nil error, want a tool error", p, len(findings))
 			continue

@@ -85,7 +85,7 @@ func TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope(t *testing.T) {
 
 	root := judgeFixtureRoot(t, "testdata/vault-knowledge-scope")
 	for _, all := range []bool{false, true} {
-		findings, err := check(root, nil, all)
+		findings, err := runCheckAction(root, nil, all)
 		if err != nil {
 			t.Fatalf("check(all=%v): %v", all, err)
 		}
@@ -127,7 +127,7 @@ func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
 		t.Fatalf("MkdirAll(Inbox) error = %v", mkdirErr)
 	}
 
-	findings, err := check(root, nil, false)
+	findings, err := runCheckAction(root, nil, false)
 	if err != nil {
 		t.Fatalf("check(): %v", err)
 	}

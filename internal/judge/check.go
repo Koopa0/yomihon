@@ -22,18 +22,12 @@ func Check(root string) ([]Finding, error) {
 	return runCheckAction(root, nil, false)
 }
 
-// check is the whole-engine scan behind the check command. The graph is always
-// built from the entire vault; paths and all only decide which findings are
-// kept. Findings that touch a contract-declared private path are always
-// dropped, whatever all is. Without all, findings that touch only System/ are
-// dropped, since those files cite reference material rather than carry live
-// links. When paths are given, a finding is kept only if one of the paths it
-// touches lies at or below one of them. The findings are returned in the
-// deterministic wire order.
-func check(root string, paths []string, all bool) ([]Finding, error) {
-	return runCheckAction(root, paths, all)
-}
-
+// runCheckAction is the whole-engine scan, with the two knobs a command line
+// can turn on top of what Check describes: a scope filter keeping only findings
+// that touch one of the given paths, and all, which keeps the findings touching
+// nothing outside System/. Neither widens what is read — the graph is built
+// from the whole vault either way — and neither reaches a path the contract
+// withholds, which is dropped ahead of both.
 func runCheckAction(root string, paths []string, all bool) ([]Finding, error) {
 	a, err := openAction(root, actionHooks{})
 	if err != nil {
