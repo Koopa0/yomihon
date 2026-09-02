@@ -43,7 +43,13 @@ func openAction(root string, hooks actionHooks) (*action, error) {
 	ctx := context.Background()
 	reader, err := vault.Open(root)
 	if err != nil {
-		return nil, errPrivacyAuthorityUnavailable
+		// Opening the folder fails before one vault byte is read, so there is
+		// no policy state to report and nothing observed to withhold. Answering
+		// that a privacy authority is unavailable named a fault in a contract
+		// file that, for the ordinary case of a mistyped folder, is not there to
+		// be at fault — and it carried a paragraph telling the reader where that
+		// file lives. A scan that could not start is what happened.
+		return nil, errVaultScan
 	}
 	a := &action{reader: reader}
 	a.authority, err = loadScanAuthority(ctx, reader)

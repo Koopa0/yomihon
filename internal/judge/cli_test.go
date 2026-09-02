@@ -473,3 +473,56 @@ func TestParseCommandArgsOwnsValues(t *testing.T) {
 		t.Errorf("parseCommandArgs mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// TestAFolderThatIsNotThereIsNotABrokenContract holds the one refusal these
+// commands had no case for. A vault that cannot be opened at all has been
+// answered for by the sentence about a privacy authority, followed by five
+// lines telling the reader where the contract file lives and that yomihon
+// could not use it — about a folder with no files in it, because there is no
+// folder.
+//
+// The one thing the reader needs is the one thing that was withheld. Nothing
+// has been read at this point, so there is no policy state to report and
+// nothing about the vault to withhold; a scan that could not start is the
+// honest class, and it carries no paragraph about a file that is not there.
+//
+// The refusals the sibling case covers are contract states, which is why they
+// never reached this one: the failure space was enumerated as "ways a contract
+// can be wrong", and a folder that is absent is not one of them.
+func TestAFolderThatIsNotThereIsNotABrokenContract(t *testing.T) {
+	t.Parallel()
+
+	commands := []struct {
+		name string
+		args func(string) []string
+	}{
+		{name: "check", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
+		{name: "coverage", args: func(root string) []string { return []string{"--root=" + root, "--format=json"} }},
+		{name: "exists", args: func(root string) []string {
+			return []string{"--root=" + root, "--format=json", "candidate"}
+		}},
+	}
+	for _, command := range commands {
+		t.Run(command.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := filepath.Join(t.TempDir(), "no-folder-of-this-name")
+			var stdout, stderr bytes.Buffer
+			exit := RunCommand(command.name, command.args(root), &stdout, &stderr, false)
+
+			if exit != 2 {
+				t.Errorf("RunCommand(%q) exit = %d, want 2", command.name, exit)
+			}
+			if stdout.Len() != 0 {
+				t.Errorf("RunCommand(%q) stdout = %q, want empty", command.name, stdout.String())
+			}
+			want := "yomihon: " + errVaultScan.Error() + "\n"
+			if diff := cmp.Diff(want, stderr.String()); diff != "" {
+				t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", command.name, diff)
+			}
+			if strings.Contains(stderr.String(), schema.ContractRelPath) {
+				t.Errorf("RunCommand(%q) stderr = %q, which describes a contract file in a folder that does not exist", command.name, stderr.String())
+			}
+		})
+	}
+}
