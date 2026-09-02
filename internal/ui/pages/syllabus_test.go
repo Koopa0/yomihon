@@ -13,8 +13,10 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestSyllabusUsesTheBranchTreeAsItsHeadingOutline(t *testing.T) {
@@ -423,4 +425,154 @@ func TestSyllabusSaysWhyItFoundNoCourse(t *testing.T) {
 	if strings.Contains(found, "沒有讀到任何課程結構") {
 		t.Errorf("a path that found its course still claims it found none:\n%s", found)
 	}
+}
+
+// TestSyllabusGuideClaimsNothingAboutTheNote holds the first-time invitation
+// to what the page can vouch for. It used to promise the note explains the
+// course's purpose, its daily rhythm, how its branches divide and what counts
+// as finished — four claims about a file the page never reads, printed on
+// every path including one whose structure could not be read at all. The
+// invitation may say what this page is and where the author's own text lives;
+// what that text contains is the author's to say.
+func TestSyllabusGuideClaimsNothingAboutTheNote(t *testing.T) {
+	t.Parallel()
+
+	render := func(t *testing.T, view PathView, lang wording.Lang) string {
+		t.Helper()
+		var out bytes.Buffer
+		if err := Syllabus(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &out); err != nil {
+			t.Fatalf("render syllabus: %v", err)
+		}
+		return out.String()
+	}
+	empty := PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}
+	normal := PathView{
+		Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md",
+		Parts: 1, Entries: 1,
+		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}},
+	}
+	claims := []string{
+		"課程目的", "每日節奏", "支線分工", "完成標準",
+		"what the course is for", "daily rhythm", "how the branches divide", "counts as finished",
+	}
+	for name, view := range map[string]PathView{"empty path": empty, "normal path": normal} {
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			html := render(t, view, lang)
+			for _, claim := range claims {
+				if strings.Contains(html, claim) {
+					t.Errorf("the %s page (%s) claims the note contains %q", name, lang, claim)
+				}
+			}
+		}
+	}
+
+	// The invitation itself survives: the block, its question, and the way to
+	// the note's own page — where whatever the author wrote actually lives.
+	html := render(t, normal, wording.ZhHant)
+	for _, want := range []string{
+		"第一次使用這條路徑？",
+		`<a href="/notes/Maps/Path.md">`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the guide invitation lost %q; html = %q", want, html)
+		}
+	}
+}
+
+// TestSyllabusSeparatesNoMarkerFromUnreadableMarker splits the empty course
+// page's explanation into the two repairs it stands for. A note that wrote no
+// marker gets the grammar: which markers declare structure, and that a
+// heading without one is not read as a part. A note that wrote a marker the
+// grammar could not use must not be told it wrote none — that sentence is
+// false there — so it is told what a marker may say instead. Both name the
+// three values the grammar accepts, spelled from the grammar's own code, and
+// the two texts share no claim that is true of only one of them.
+func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
+	t.Parallel()
+
+	render := func(t *testing.T, body string) string {
+		t.Helper()
+		path := buildTestPath(t, body)
+		view := BuildPathView(&path, []nav.Path{path})
+		if len(view.Branches) != 0 {
+			t.Fatalf("the fixture grew a course; the empty-state page never renders")
+		}
+		var out bytes.Buffer
+		if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &out); err != nil {
+			t.Fatalf("render syllabus: %v", err)
+		}
+		return out.String()
+	}
+
+	noMarker := render(t, "## Part\n\n- [[Slices]]\n")
+	for _, want := range []string{
+		"沒有讀到任何課程結構",
+		"<code>{sequence=primary}</code>",
+		"<code>{sequence=local}</code>",
+		"<code>{sequence=none}</code>",
+		"沒有標記的標題不會被讀成分部",
+	} {
+		if !strings.Contains(noMarker, want) {
+			t.Errorf("the no-marker page is missing %q", want)
+		}
+	}
+	if strings.Contains(noMarker, "寫了 sequence 標記") {
+		t.Errorf("the no-marker page claims a marker was written:\n%s", noMarker)
+	}
+
+	badValue := render(t, "## Part {sequence=primry}\n\n- [[Slices]]\n")
+	for _, want := range []string{
+		"寫了 sequence 標記",
+		"沒有一個分部能讀成課程結構",
+		"<code>primary</code>",
+		"<code>local</code>",
+		"<code>none</code>",
+	} {
+		if !strings.Contains(badValue, want) {
+			t.Errorf("the unreadable-marker page is missing %q", want)
+		}
+	}
+	// The claim that no marker exists is exactly what is false here.
+	if strings.Contains(badValue, "沒有標記的標題不會被讀成分部") {
+		t.Errorf("a page whose note wrote a marker still claims markers are absent:\n%s", badValue)
+	}
+	if strings.Contains(badValue, "沒有讀到任何課程結構") {
+		t.Errorf("the two empty states still share one wording:\n%s", badValue)
+	}
+}
+
+// TestMarkerWrittenDividesEveryGrammarRule pins the total division behind
+// the empty-course page's two explanations: for every rule the grammar
+// declares, whether it implies the author actually wrote a sequence marker.
+// A rule outside the division fails loudly rather than guessing, because
+// either guess prints a false sentence to somebody — and the same probe pins
+// that loudness.
+func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]bool{
+		sequence.RuleRoleMissing:        false,
+		sequence.RuleEntryOutsideBranch: false,
+		sequence.RuleEntryMultiTarget:   false,
+		sequence.RuleEntryNoncanonical:  false,
+		sequence.RuleRoleInvalid:        true,
+		sequence.RuleRoleDuplicate:      true,
+		sequence.RuleRoleMisplaced:      true,
+		sequence.RuleRoleConflict:       true,
+		sequence.RuleRoleOnEntry:        true,
+		sequence.RuleLocalOrphan:        true,
+		sequence.RuleNestingTooDeep:     true,
+	}
+	for rule, expect := range want {
+		if got := markerWritten(rule); got != expect {
+			t.Errorf("markerWritten(%q) = %t, want %t", rule, got, expect)
+		}
+	}
+
+	defer func() {
+		if recover() == nil {
+			t.Error("markerWritten() answered for a rule the grammar never declared")
+		}
+	}()
+	markerWritten("path.never_declared")
 }

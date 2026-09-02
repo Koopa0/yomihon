@@ -7,14 +7,17 @@ package wording
 var SyllabusKicker = both("課綱 · ", "Syllabus · ")
 
 // The invitation shown to a reader who has not walked this path before, and
-// the way into the guide it points at.
+// the way into the note it points at. The lede says what this page is — the
+// structural projection — and where the rest of the author's text lives. It
+// claims nothing about what that text contains: the page has not read it,
+// and the words it used to promise appeared in no note at all.
 var (
 	FirstTimeHere = both("第一次使用這條路徑？", "First time on this path?")
 	FirstTimeLede = both(
-		"先讀課程目的、每日節奏、支線分工與完成標準，再開始第一課。",
-		"Read what the course is for, the daily rhythm, how the branches divide, and what counts as finished — then start the first lesson.",
+		"這一頁只列出宣告的課程結構；結構之外作者還寫了什麼，都在筆記本文的頁面上。",
+		"This page lists only the declared course structure; whatever else the author wrote is on the note's own page.",
 	)
-	ReadTheGuide = both("閱讀完整使用方式 ", "Read the full guide ")
+	ReadTheGuide = both("閱讀筆記本文 ", "Read the note itself ")
 )
 
 // A branch's own label. Local branches carry their heading; the main line does
@@ -36,14 +39,36 @@ var (
 	ThisPath     = both("本路徑", "This path")
 )
 
-// What the page says when the note declares no structure at all: the grammar
-// that would have made one, and whose job the repair is.
+// What the page says over an empty course, split by which repair is due.
+// The first pair teaches the grammar to a note that wrote no marker: which
+// markers declare structure, and that a heading without one is not read as a
+// part — the marker forms themselves are spelled between the two halves,
+// from the grammar's own vocabulary. The second pair is for a note that did
+// write markers the grammar could not use: telling that author no marker
+// exists would be false, so it states what a marker may say instead — the
+// same closed set of values, between the same joiners. Whose job the repair
+// is stays the same sentence in both.
 var (
-	NoStructureBefore = both("這條路徑沒有讀到任何課程結構。分部與課次是由標題後面的 ", "No course structure could be read from this path. Parts and lessons are declared by the ")
-	NoStructureAfter  = both(
-		" 標記宣告的，沒有標記的標題不會被讀成分部，底下的連結也不會被讀成課。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
-		" markers after a heading. A heading without one is not read as a part, and the links under it are not read as lessons. yomihon reports and never repairs; edit this note directly.",
+	NoCourseIntro = both(
+		"這條路徑沒有讀到任何課程結構。分部與課次是由標題或開啟清單那一行行尾的 ",
+		"No course structure could be read from this path. Parts and lessons are declared by a ",
 	)
+	NoCourseNoMarkerTail = both(
+		" 標記宣告的；沒有標記的標題不會被讀成分部，底下的連結也不會被讀成課。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
+		" marker at the end of a heading, or of the row that opens a list. A heading without one is not read as a part, and the links under it are not read as lessons. yomihon reports and never repairs; edit this note directly.",
+	)
+	NoCourseMarkerFaultIntro = both(
+		"這條路徑寫了 sequence 標記，但沒有一個分部能讀成課程結構。標記的值只能是 ",
+		"This path writes sequence markers, but none of its branches could be read as course structure. A marker takes exactly one of ",
+	)
+	NoCourseMarkerFaultTail = both(
+		" 三者之一，寫在標題或開啟清單那一行的行尾。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
+		", at the end of a heading or of the row that opens a list. yomihon reports and never repairs; edit this note directly.",
+	)
+	// The joiners between the three spelled values. The two languages use
+	// different marks and different words, so they are phrases, not markup.
+	ValueJoin     = both("、", ", ")
+	ValueJoinLast = both(" 或 ", " or ")
 )
 
 // How far an entry's link got. The label is the short word beside the entry;
