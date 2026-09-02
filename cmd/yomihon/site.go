@@ -26,7 +26,14 @@ import (
 // serves. Keeping listener lifecycle out of this type lets acceptance tests
 // drive the exact production handler without opening the command's port.
 type readingSite struct {
-	handler   http.Handler
+	handler http.Handler
+	// snapshots outlives construction for the acceptance run that stops the
+	// scanner and then reads the published generation directly, so every
+	// request it makes is answered from one frozen generation. No route
+	// through the handler yields that generation — the handler returns HTML —
+	// and that run is selected by a build constraint the ordinary test command
+	// compiles but never executes, so "delete it and see what breaks" reports
+	// nothing here and is wrong.
 	snapshots *snapshot.Store
 	writer    *status.Writer
 	source    *vault.Reader
