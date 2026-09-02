@@ -32,6 +32,11 @@ var (
 	EmbedWidenedAfter  = both("，以下顯示整篇筆記。", "; the whole note follows.")
 )
 
+// EmbedSourceFrom opens an excerpt's provenance line; the source note's name
+// follows it as a link. An excerpt is another note's words, and the one thing
+// it cannot say for itself is whose.
+var EmbedSourceFrom = both("出自 ", "From ")
+
 // ReadAloud names the control beside a paragraph of Japanese.
 var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
 

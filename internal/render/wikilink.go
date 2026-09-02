@@ -168,21 +168,119 @@ func inlinePlaceholder(i int) string {
 	return fmt.Sprintf("\ue000%d\ue001", i)
 }
 
+// blockMarkupPlaceholder is the marker for first-party markup found inside a
+// line whose rendered form is nonetheless a block — a transclusion's container
+// written mid-sentence. It travels through the markdown pass exactly as the
+// inline marker does, wrapped into whatever paragraph the words around it
+// make, and the substitution pass then parts that paragraph around it. A div
+// left inside <p> is markup a browser repairs by closing the paragraph at the
+// div, which turned the rest of the sentence into a bare text node no
+// paragraph owned. The delimiters are a second pair of unassigned private-use
+// code points, so the two marker kinds can never be read as one another.
+func blockMarkupPlaceholder(i int) string {
+	return fmt.Sprintf("\ue002%d\ue003", i)
+}
+
+// placeholderFor is the one decision of which marker an inline substitution
+// travels under, asked by the pass that plants a marker and again by the pass
+// that redeems it, so the two cannot disagree. It reads the markup itself:
+// every string substituted this way is written by this renderer — authored
+// text arrives escaped — and a div is the one block element any of them opens
+// with; links, anchors, degraded citations, and inline images are phrasing and
+// stay in their sentence.
+func placeholderFor(i int, markup string) string {
+	if strings.HasPrefix(markup, "<div") {
+		return blockMarkupPlaceholder(i)
+	}
+	return inlinePlaceholder(i)
+}
+
 // inlinePlaceholderRunes are stripped from authored text before any real marker
 // exists, for the same reason the comment prefix is neutralized: a vault note
 // containing them could otherwise select or relocate renderer-owned markup.
-// They are unassigned to any character, so nothing a reader meant to see is
-// lost with them.
-const inlinePlaceholderRunes = "\ue000\ue001"
+// Both marker alphabets are covered. They are unassigned to any character, so
+// nothing a reader meant to see is lost with them.
+const inlinePlaceholderRunes = "\ue000\ue001\ue002\ue003"
+
+// blockMarkupMarker matches one planted block-markup marker in rendered HTML.
+// The runes are stripped from authored text before markers exist, so every
+// occurrence is the renderer's own.
+var blockMarkupMarker = regexp.MustCompile("\ue002\\d+\ue003")
 
 func substituteBlocks(htmlOut string, blocks, inline []string) string {
+	htmlOut = partParagraphsAtBlockMarkup(htmlOut)
 	for i, b := range blocks {
 		htmlOut = strings.Replace(htmlOut, blockPlaceholder(i), b, 1)
 	}
 	for i, b := range inline {
-		htmlOut = strings.Replace(htmlOut, inlinePlaceholder(i), b, 1)
+		htmlOut = strings.Replace(htmlOut, placeholderFor(i, b), b, 1)
 	}
 	return htmlOut
+}
+
+// partParagraphsAtBlockMarkup opens every paragraph around the block-markup
+// markers it carries: the words before the marker keep a paragraph of their
+// own, the marker stands between paragraphs where its block belongs, and the
+// words after it open another. A side that is only whitespace gets no
+// paragraph at all — an empty <p></p> is not something the author wrote.
+//
+// Only the bare <p> the markdown pass emits is read; the renderer's own
+// paragraphs carry a class and are already outside any marker. Positions
+// without a paragraph — a table cell, a tight list item — hold a div legally
+// and are left alone. A heading is also left alone: what a section title
+// containing an excerpt should even mean has no answer here, so the marker
+// stays where the author put it.
+func partParagraphsAtBlockMarkup(htmlOut string) string {
+	if !strings.Contains(htmlOut, "\ue002") {
+		return htmlOut
+	}
+	var out strings.Builder
+	rest := 0
+	for {
+		open := strings.Index(htmlOut[rest:], "<p>")
+		if open < 0 {
+			break
+		}
+		open += rest
+		closing := strings.Index(htmlOut[open:], "</p>")
+		if closing < 0 {
+			break
+		}
+		closing += open
+		inner := htmlOut[open+len("<p>") : closing]
+		out.WriteString(htmlOut[rest:open])
+		if strings.Contains(inner, "\ue002") {
+			writePartedParagraph(&out, inner)
+		} else {
+			out.WriteString(htmlOut[open : closing+len("</p>")])
+		}
+		rest = closing + len("</p>")
+	}
+	out.WriteString(htmlOut[rest:])
+	return out.String()
+}
+
+// writePartedParagraph writes one paragraph's content with each block-markup
+// marker set free between paragraph-wrapped runs of the remaining words.
+func writePartedParagraph(out *strings.Builder, inner string) {
+	last := 0
+	for _, loc := range blockMarkupMarker.FindAllStringIndex(inner, -1) {
+		writeParagraphSegment(out, inner[last:loc[0]])
+		out.WriteString(inner[loc[0]:loc[1]])
+		last = loc[1]
+	}
+	writeParagraphSegment(out, inner[last:])
+}
+
+// writeParagraphSegment wraps one run of a parted paragraph's words, and
+// writes nothing for a run that holds no words to wrap.
+func writeParagraphSegment(out *strings.Builder, segment string) {
+	if strings.TrimSpace(segment) == "" {
+		return
+	}
+	out.WriteString("<p>")
+	out.WriteString(segment)
+	out.WriteString("</p>")
 }
 
 var (
@@ -442,11 +540,11 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 		if embed {
 			embedHTML := r.renderEmbed(link, m, allowEmbed, col)
 			*inline = append(*inline, embedHTML)
-			return inlinePlaceholder(len(*inline) - 1)
+			return placeholderFor(len(*inline)-1, embedHTML)
 		}
 		linkHTML := r.renderWikilink(link, col)
 		*inline = append(*inline, linkHTML)
-		return inlinePlaceholder(len(*inline) - 1)
+		return placeholderFor(len(*inline)-1, linkHTML)
 	})
 }
 
@@ -741,7 +839,8 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 		// note it came from, which is rarely the note being read, so it is
 		// resolved here — where that note's own path is still known —
 		// rather than later against the host's directory.
-		return `<div class="` + embedClass(unmatched) + `">` + widenedNotice(unmatched, col.page.lang) +
+		return `<div class="` + embedClass(unmatched) + `">` + embedSourceLine(res.RelPath, col.page.lang) +
+			widenedNotice(unmatched, col.page.lang) +
 			repeatedNotice(link.Heading, repeated, col.page.lang) + notExpandedNotice(heldBack, col.page.lang) +
 			resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
 	default:
@@ -1105,6 +1204,19 @@ func embedClass(unmatched string) string {
 		return "embed"
 	}
 	return "embed embed--widened"
+}
+
+// embedSourceLine opens an excerpt with the name of the note its words came
+// from, as a link there. It stands with the widening and repetition notices
+// and reads like them, because it answers the same order of question — not
+// what the words say, but what this block is: an excerpt is another note's
+// words, and the page around it otherwise never says whose. The name is the
+// file's own, the one a citation resolves by, so what the reader clicks is
+// what an author would type.
+func embedSourceLine(relPath string, lang wording.Lang) string {
+	name := strings.TrimSuffix(path.Base(relPath), ".md")
+	return `<p class="embed__source">` + html.EscapeString(wording.EmbedSourceFrom.In(lang)) +
+		`<a href="` + notesHref(relPath) + `">` + html.EscapeString(name) + `</a></p>`
 }
 
 // widenedNotice states, inside the excerpt itself, that the author's fragment

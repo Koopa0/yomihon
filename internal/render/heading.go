@@ -94,6 +94,13 @@ func headingInnerText(inner string) string {
 // own natural text happens to collide with a generated "-2" form can
 // never silently duplicate an id.
 //
+// Every heading gets an id, because every heading is really on this page and
+// a link may land on it — a transcluded excerpt's included. The TOC takes
+// fewer: a heading inside an excerpt is another note's structure, so the list
+// of this page's own contents does not claim it. Obsidian's outline reads its
+// page the same way. The excerpt's headings keep taking part in id
+// disambiguation all the same, since the ids share one document.
+//
 // reserved is an id already spoken for elsewhere on the page — the anchor a
 // removed opening heading passed to the visible title — and is taken as
 // assigned before the walk begins. The title is above this HTML and outside
@@ -114,17 +121,22 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 	if reserved != "" {
 		seen[reserved] = true
 	}
-	out := headingTag.ReplaceAllStringFunc(htmlOut, func(tag string) string {
-		m := headingTag.FindStringSubmatch(tag)
-		level := int(m[1][0] - '0') // headingTag guarantees a single 1-6 digit
-		inner := m[2]
+	transcluded := embedSpans(htmlOut)
+	var out strings.Builder
+	rest := 0
+	for _, m := range headingTag.FindAllStringSubmatchIndex(htmlOut, -1) {
+		out.WriteString(htmlOut[rest:m[0]])
+		rest = m[1]
+		level := int(htmlOut[m[2]] - '0') // headingTag guarantees a single 1-6 digit
+		inner := htmlOut[m[4]:m[5]]
 
 		// A raw inline <hN> inside this heading would have made the non-greedy
 		// match stop at the inner </hN> — truncating the heading and unbalancing
 		// tags. Leave it byte-identical (no id, no TOC entry): degrade, never
 		// corrupt (mirrors tts.go's nested-<p> guard).
 		if nestedHeadingOpen.MatchString(inner) {
-			return tag
+			out.WriteString(htmlOut[m[0]:m[1]])
+			continue
 		}
 		text := headingInnerText(inner)
 
@@ -140,9 +152,68 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 		}
 		seen[id] = true
 
-		toc = append(toc, TOCEntry{Level: level, Text: text, ID: id})
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting (id is already a slugify() output — [a-z0-9-] only, no HTML-special chars)
-		return fmt.Sprintf(`<h%d id="%s">%s</h%d>`, level, id, inner, level)
-	})
-	return out, toc
+		if !withinAny(transcluded, m[0], m[1]) {
+			toc = append(toc, TOCEntry{Level: level, Text: text, ID: id})
+		}
+		fmt.Fprintf(&out, `<h%d id="%s">%s</h%d>`, level, id, inner, level)
+	}
+	out.WriteString(htmlOut[rest:])
+	return out.String(), toc
+}
+
+// embedOpeners are the exact container openings a transcluded excerpt is
+// wrapped in, spelled from the same function that writes them so the scan and
+// the writer cannot drift apart.
+var embedOpeners = []string{
+	`<div class="` + embedClass("") + `">`,
+	`<div class="` + embedClass("#miss") + `">`,
+}
+
+// embedSpans reports the byte ranges of transcluded excerpts in fully
+// assembled page HTML, each running from its container's opening tag to the
+// close that balances it. Counting div tags is sound here because authored
+// markup never reaches this scan as markup — every authored tag outside the
+// inert ruby subset arrives escaped, and code, mermaid payloads, and
+// attribute values are escaped or percent-encoded — so each literal div is
+// this renderer's own, and the renderer writes them balanced. Excerpts do not
+// nest (an embed inside one renders as a link), so the spans are disjoint.
+func embedSpans(htmlOut string) [][2]int {
+	var spans [][2]int
+	from := 0
+	for {
+		start, width := -1, 0
+		for _, opener := range embedOpeners {
+			if at := strings.Index(htmlOut[from:], opener); at >= 0 && (start < 0 || from+at < start) {
+				start, width = from+at, len(opener)
+			}
+		}
+		if start < 0 {
+			return spans
+		}
+		end := divEnd(htmlOut, start+width)
+		spans = append(spans, [2]int{start, end})
+		from = end
+	}
+}
+
+// divEnd walks from just inside one open div to just past the close that
+// balances it. A tail with no balancing close — nothing this renderer writes —
+// ends the span at the end of the document rather than walking off it.
+func divEnd(htmlOut string, from int) int {
+	depth := 1
+	for depth > 0 {
+		nextOpen := strings.Index(htmlOut[from:], "<div")
+		nextClose := strings.Index(htmlOut[from:], "</div>")
+		if nextClose < 0 {
+			return len(htmlOut)
+		}
+		if nextOpen >= 0 && nextOpen < nextClose {
+			depth++
+			from += nextOpen + len("<div")
+			continue
+		}
+		depth--
+		from += nextClose + len("</div>")
+	}
+	return from
 }

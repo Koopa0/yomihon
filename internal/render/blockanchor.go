@@ -87,5 +87,5 @@ func markBlockAnchor(line string, page *composition, inline *[]string) string {
 	anchor := `<span id="` + html.EscapeString(blockAnchorID(address)) + `">` +
 		html.EscapeString(address) + `</span>`
 	*inline = append(*inline, anchor)
-	return trimmed[:m[2]] + inlinePlaceholder(len(*inline)-1) + line[len(trimmed):]
+	return trimmed[:m[2]] + placeholderFor(len(*inline)-1, anchor) + line[len(trimmed):]
 }
