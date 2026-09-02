@@ -522,7 +522,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	artifactPolicy := snap.ArtifactPolicy()
-	governance := h.governance(&n, snap, statusView, artifactPolicy)
+	state := h.governance(&n, snap, statusView, artifactPolicy)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body, lang)
@@ -536,7 +536,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// after the request's captured authority has classified the note, so every
 	// projection in this response uses one coherent lifecycle view.
 	var concepts []lesson.ConceptDoc
-	if governance.instance && n.Type == typeLesson {
+	if state.instance() && n.Type == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML, lang)
 		pageChrome := pages.ChromeFromRequest(r, n.Title)
 		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, pages.LanguageFromRequest(r))
@@ -550,12 +550,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 
 	// The status face and the status shown beside the title are the same
 	// claim, so they come from the same read.
-	noteStatus := cmp.Or(governance.status, n.Status)
+	noteStatus := cmp.Or(state.status, n.Status)
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
-	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath)
-	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
+	sidebar := pages.NewSidebar(state.shell.Nav, n.RelPath)
+	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
 	flippedFrom := vouchedOrigin(statusView, h.deps.ConsumeReceipt, rel, n.Type, noteStatus, r.URL.Query().Get("from"))
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
@@ -583,18 +583,18 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		BodyHTML:          result.HTML,
 		TitleAnchor:       result.TitleAnchor,
 		Sidebar:           sidebar,
-		Governed:          governance.shell.Governed,
-		NonInstance:       governance.nonInstance,
-		WriteDiagnostic:   governance.writeDiagnostic,
+		Governed:          state.shell.Governed,
+		NonInstance:       state.nonInstance(),
+		WriteDiagnostic:   state.writeDiagnostic,
 		Concepts:          concepts,
-		Transitions:       governance.transitions,
+		Transitions:       state.transitions,
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.
 		TranscludedIdentity: result.TranscludedIdentity,
-		NoFrontmatter:       governance.noFrontmatter,
-		StatusUnknown:       governance.statusUnknown,
+		NoFrontmatter:       state.noFrontmatter,
+		StatusUnknown:       state.statusUnknown,
 		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, pages.LanguageFromRequest(r)),
 		FlippedFrom:         flippedFrom,
 		// The receipt for a change the face cannot walk back carries the
@@ -731,8 +731,46 @@ func titleTruncatedAtHash(relPath, title string, lang wording.Lang) (render.Diag
 	}, true
 }
 
+// governance is where the request's two authorities put one note: the folder
+// governs it, the folder holds it outside the lifecycle, or neither can be
+// asked. The three answers are exclusive and exhaustive, which is what a pair
+// of booleans could not state — the pair also admits both-true, and reads on
+// an unanswerable request as "not an artifact, therefore an instance".
+type governance uint8
+
+const (
+	// governanceUnavailable is a note nothing can be said about, because one
+	// of the two authorities has closed. It is the zero value because it is
+	// the answer that asserts least.
+	governanceUnavailable governance = iota
+	// governedInstance is a note the folder's lifecycle governs: the page
+	// offers its status face and, for a lesson, its lesson affordances.
+	governedInstance
+	// readableArtifact is a note the folder holds outside its lifecycle —
+	// readable, never adjudicated. The page says so rather than apologising
+	// for a status face that was never meant to be there.
+	readableArtifact
+)
+
+// classifyGovernance places one note against two authority samples taken at
+// different instants: the request's captured lifecycle view, and the
+// snapshot's own artifact capture. A note is placed only while both still
+// answer, whichever was taken first.
+func classifyGovernance(lifecycle status.View, policy schema.ArtifactPolicy, relPath string) governance {
+	if lifecycle.Closed() || !policy.Available() {
+		return governanceUnavailable
+	}
+	if policy.IsNonInstance(relPath) {
+		return readableArtifact
+	}
+	return governedInstance
+}
+
 type governanceState struct {
 	shell pages.Shell
+	// placement is where the request's authorities put this note. Everything
+	// below is read for a governed instance and left empty for the other two.
+	placement governance
 	// status is what the note's own file says, read for this request. It is
 	// empty unless the write face applies to this note; the page falls back to
 	// the scan's value, which is the only answer available when nothing may be
@@ -740,8 +778,6 @@ type governanceState struct {
 	status          string
 	transitions     []pages.Transition
 	writeDiagnostic string
-	instance        bool
-	nonInstance     bool
 	noFrontmatter   bool
 	// statusUnknown is set when the note's non-empty status value is not in
 	// the contract's declared list for its type, so the page can state that
@@ -749,27 +785,29 @@ type governanceState struct {
 	statusUnknown bool
 }
 
+// instance reports a note the folder's lifecycle governs.
+func (s *governanceState) instance() bool { return s.placement == governedInstance }
+
+// nonInstance reports a note the folder holds outside its lifecycle. It is
+// not the negation of instance: a note neither authority could be asked about
+// is neither.
+func (s *governanceState) nonInstance() bool { return s.placement == readableArtifact }
+
 func (h *Handler) governance(
 	n *snapshot.Reading,
 	snap *snapshot.View,
 	statusView status.View,
 	policy schema.ArtifactPolicy,
 ) governanceState {
-	pageShell := shell.Project(statusView, policy, snap)
-	// Two authority samples taken at different instants: the request's captured
-	// write view, and the snapshot's own artifact capture. A note counts as a
-	// governed instance only while both still answer, whichever was taken first.
-	authorityAvailable := !statusView.Closed() && policy.Available()
 	state := governanceState{
-		shell:       pageShell,
-		instance:    authorityAvailable && !policy.IsNonInstance(n.RelPath),
-		nonInstance: authorityAvailable && policy.IsNonInstance(n.RelPath),
+		shell:     shell.Project(statusView, policy, snap),
+		placement: classifyGovernance(statusView, policy, n.RelPath),
 	}
 	state.writeDiagnostic = statusView.WriteDiagnostic()
 	if state.writeDiagnostic == "" && !policy.Available() {
 		state.writeDiagnostic = policy.Diagnostic()
 	}
-	if state.instance && state.writeDiagnostic == "" {
+	if state.instance() && state.writeDiagnostic == "" {
 		switch {
 		case n.FMDiagnostic != "":
 			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
