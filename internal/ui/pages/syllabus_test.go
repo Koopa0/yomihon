@@ -550,7 +550,7 @@ func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
 func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 	t.Parallel()
 
-	want := map[string]bool{
+	want := map[sequence.Rule]bool{
 		sequence.RuleRoleMissing:        false,
 		sequence.RuleEntryOutsideBranch: false,
 		sequence.RuleEntryMultiTarget:   false,

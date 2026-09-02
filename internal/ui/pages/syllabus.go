@@ -359,7 +359,7 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 // The division is total over the grammar's declared rules and is pinned by a
 // test; an unknown rule is a programmer error and fails loudly here, the
 // same way the judge's own rule table does.
-func markerWritten(rule string) bool {
+func markerWritten(rule sequence.Rule) bool {
 	switch rule {
 	case sequence.RuleRoleInvalid,
 		sequence.RuleRoleDuplicate,
@@ -375,7 +375,7 @@ func markerWritten(rule string) bool {
 		sequence.RuleEntryNoncanonical:
 		return false
 	default:
-		panic("pages: unknown study-path rule: " + rule)
+		panic("pages: unknown study-path rule: " + string(rule))
 	}
 }
 
