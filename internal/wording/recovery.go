@@ -225,6 +225,13 @@ var (
 		"用下方的「在 Obsidian 開啟」直接編輯 frontmatter，依 vault schema 修正狀態值或轉換，再重新載入筆記。",
 		"Edit the frontmatter through \"Open in Obsidian\" below, correct the status or the transition to match the vault schema, then reload the note.",
 	)
+	// SchemaRefusalNextNoDoor states the same repair without naming the editor
+	// link, for a page that carries none: a sentence pointing at a door that is
+	// not below it sends the reader hunting for a control that does not exist.
+	SchemaRefusalNextNoDoor = both(
+		"直接編輯 frontmatter，依 vault schema 修正狀態值或轉換，再重新載入筆記。",
+		"Edit the frontmatter directly, correct the status or the transition to match the vault schema, then reload the note.",
+	)
 )
 
 // The recovery page itself could not be rendered, so this is all that is left

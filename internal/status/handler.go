@@ -122,11 +122,16 @@ type recovery struct {
 	noteGone bool
 	// summary and nextAction are the two sentences a refusal is made of, kept
 	// in both languages until the request that will read them is known.
-	summary         wording.Phrase
-	nextAction      wording.Phrase
-	technicalDetail string
-	logMessage      string
-	cause           error
+	summary    wording.Phrase
+	nextAction wording.Phrase
+	// nextActionNamesDoor marks a nextAction whose sentence points at the
+	// page's "Open in Obsidian" action. That link renders only when the page
+	// can build the editor address, so the sentence is swapped for one that
+	// states the same repair without the pointer wherever the door is absent.
+	nextActionNamesDoor bool
+	technicalDetail     string
+	logMessage          string
+	cause               error
 	// boundIdentity is the hex identity the refused write bound itself to, set
 	// only where a write got far enough to have one. The page carries it so its
 	// own invitation back to the note can be held until the reading generation
@@ -304,11 +309,23 @@ func recoveryForSchemaError(err error) *recovery {
 
 func schemaRecovery(summary wording.Phrase, err error) *recovery {
 	return &recovery{
-		code:            http.StatusUnprocessableEntity,
-		summary:         summary,
-		nextAction:      wording.SchemaRefusalNext,
-		technicalDetail: err.Error(),
+		code:                http.StatusUnprocessableEntity,
+		summary:             summary,
+		nextAction:          wording.SchemaRefusalNext,
+		nextActionNamesDoor: true,
+		technicalDetail:     err.Error(),
 	}
+}
+
+// recoveryNextAction picks the repair sentence a recovery page can honour:
+// one that names the "Open in Obsidian" action is kept only while the page
+// carries that door, and states the same repair without the pointer where it
+// does not.
+func recoveryNextAction(failure *recovery, obsidianHref string) wording.Phrase {
+	if failure.nextActionNamesDoor && obsidianHref == "" {
+		return wording.SchemaRefusalNextNoDoor
+	}
+	return failure.nextAction
 }
 
 func (h *Handler) respondRecovery(
@@ -326,14 +343,15 @@ func (h *Handler) respondRecovery(
 	}
 	shell := h.shell()
 	lang := pages.LanguageFromRequest(r)
+	door := pages.ObsidianHref(h.writer.VaultRoot(), notePath)
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,
 		Summary:         failure.summary.In(lang),
-		NextAction:      failure.nextAction.In(lang),
+		NextAction:      recoveryNextAction(failure, door).In(lang),
 		TechnicalDetail: failure.technicalDetail,
 		NotePath:        notePath,
 		NoteIdentity:    failure.boundIdentity,
-		ObsidianHref:    pages.ObsidianHref(h.writer.VaultRoot(), notePath),
+		ObsidianHref:    door,
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath, lang),
 	}
 	component := pages.StatusRecovery(view, pages.ChromeFromRequest(r, view.Title(lang)))

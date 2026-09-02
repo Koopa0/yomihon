@@ -262,3 +262,43 @@ func TestNormalizeRelPathKeepsOrdinaryNames(t *testing.T) {
 		}
 	}
 }
+
+// TestRecoveryNextActionDropsTheDoorItCannotShow holds the repair sentence to
+// the page that carries it: the wording that names the "Open in Obsidian"
+// action survives only alongside that action, and a page without the door
+// states the same repair without pointing below itself.
+func TestRecoveryNextActionDropsTheDoorItCannotShow(t *testing.T) {
+	t.Parallel()
+	plain := &recovery{nextAction: wording.RecoveryStartOver}
+	door := &recovery{nextAction: wording.SchemaRefusalNext, nextActionNamesDoor: true}
+	cases := []struct {
+		name    string
+		failure *recovery
+		href    string
+		want    wording.Phrase
+	}{
+		{"a door-naming sentence keeps its door", door, "obsidian://open?path=x", wording.SchemaRefusalNext},
+		{"a door-naming sentence loses a door the page lacks", door, "", wording.SchemaRefusalNextNoDoor},
+		{"a plain sentence is never swapped", plain, "", wording.RecoveryStartOver},
+		{"a plain sentence ignores the door", plain, "obsidian://open?path=x", wording.RecoveryStartOver},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := recoveryNextAction(tc.failure, tc.href); got != tc.want {
+				t.Fatalf("recoveryNextAction picked %q, want %q", got.In(wording.ZhHant), tc.want.In(wording.ZhHant))
+			}
+		})
+	}
+}
+
+// TestSchemaRecoveryNamesTheDoor pins the producing side of that swap: the
+// schema refusal is the one recovery whose sentence points at the editor
+// action, so it must arrive marked as doing so.
+func TestSchemaRecoveryNamesTheDoor(t *testing.T) {
+	t.Parallel()
+	r := schemaRecovery(wording.StatusOutsideEnum, errors.New("x"))
+	if !r.nextActionNamesDoor {
+		t.Fatal("schemaRecovery arrived without the door mark its sentence relies on")
+	}
+}
