@@ -1366,7 +1366,7 @@ func TestCalloutTypeTable(t *testing.T) {
 		{"hint", "note", "Note"}, {"abstract", "note", "Note"}, {"summary", "note", "Note"},
 		{"todo", "note", "Note"},
 		{"question", "note", "Question"}, {"help", "note", "Question"}, {"faq", "note", "Question"},
-		{"example", "note", "Example"}, {"quote", "note", "Example"}, {"cite", "note", "Example"},
+		{"example", "note", "Example"}, {"quote", "quote", "Quote"}, {"cite", "quote", "Quote"},
 		{"warning", "warning", "Warning"}, {"caution", "warning", "Warning"}, {"attention", "warning", "Warning"},
 		{"danger", "warning", "Danger"}, {"error", "warning", "Danger"}, {"bug", "warning", "Danger"},
 		{"fail", "warning", "Danger"}, {"failure", "warning", "Danger"}, {"missing", "warning", "Danger"},
@@ -1463,6 +1463,17 @@ func TestCalloutSerializationLocks(t *testing.T) {
 			body: "> [!warning] 自訂標題\n> body text\n",
 			want: `<div class="callout callout-warning"><p class="callout-title">` +
 				`<span class="callout-icon" aria-hidden="true">⚠</span>自訂標題</p>` +
+				`<div class="callout-body"><p>body text</p>` + "\n</div></div>\n",
+		},
+		{
+			// A quotation is not an aside about the text — it is someone's
+			// words. It keeps its own class and a quotation mark for an icon,
+			// the reading Obsidian gives the same type, so a spoken record
+			// stops arriving dressed as an information note.
+			name: "static quote callout with an authored title",
+			body: "> [!quote] 口述紀錄\n> body text\n",
+			want: `<div class="callout callout-quote"><p class="callout-title">` +
+				`<span class="callout-icon" aria-hidden="true">❝</span>口述紀錄</p>` +
 				`<div class="callout-body"><p>body text</p>` + "\n</div></div>\n",
 		},
 	}

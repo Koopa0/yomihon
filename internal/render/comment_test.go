@@ -220,7 +220,10 @@ func TestUnclosedCommentInsideANestedBodyReachesThePage(t *testing.T) {
 func TestATranscludedBodyIsScannedForCommentsOnce(t *testing.T) {
 	t.Parallel()
 
-	const body = "before\n\n``a%%b``%%note%%`c`\n\nafter\n"
+	// The hidden word is one that occurs nowhere else in the page — the
+	// excerpt's own provenance line carries the notes route, so a needle like
+	// "note" would match the chrome rather than the comment.
+	const body = "before\n\n``a%%b``%%hiddenword%%`c`\n\nafter\n"
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 
 	got := r.HTML("note.md", "", "![[B]]\n", wording.ZhHant)
@@ -233,7 +236,7 @@ func TestATranscludedBodyIsScannedForCommentsOnce(t *testing.T) {
 	if messages := unclosedCommentDiagnostics(&got); len(messages) != 0 {
 		t.Errorf("a body whose markers all pair was reported as leaving one open: %q", messages)
 	}
-	if strings.Contains(got.HTML, "note") {
+	if strings.Contains(got.HTML, "hiddenword") {
 		t.Errorf("the comment between the two spans was not removed:\n%s", got.HTML)
 	}
 }

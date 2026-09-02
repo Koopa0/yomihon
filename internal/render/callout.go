@@ -24,28 +24,36 @@ func calloutStart(line string) (typ, fold, title string, ok bool) {
 	return strings.ToLower(m[1]), m[2], strings.TrimSpace(m[3]), true
 }
 
-// calloutBucket is one of the two visual/semantic groups every known
-// callout type sorts into.
+// calloutBucket is one of the visual/semantic groups every known callout
+// type sorts into.
 type calloutBucket int
 
 const (
 	bucketUnknown calloutBucket = iota
 	bucketNote
 	bucketWarning
+	bucketQuote
 )
 
 // calloutBucketOf maps a callout type (already lowercased) to its bucket
 // and default English title.
 // bucketUnknown means the type is not recognized — the caller falls back
 // to a plain blockquote and records a Diagnostic.
+//
+// A quotation is its own group, as Obsidian reads the same type: it carries
+// someone's words rather than a remark about the text, and dressing it as an
+// information note told the reader the wrong thing about whose voice follows.
+// "cite" is that type's other spelling.
 func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 	switch typ {
 	case "info", "note", "tip", "hint", "abstract", "summary", "todo":
 		return bucketNote, "Note"
 	case "question", "help", "faq":
 		return bucketNote, "Question"
-	case "example", "quote", "cite":
+	case "example":
 		return bucketNote, "Example"
+	case "quote", "cite":
+		return bucketQuote, "Quote"
 	case "warning", "caution", "attention":
 		return bucketWarning, "Warning"
 	case "danger", "error", "bug", "fail", "failure", "missing":
@@ -58,10 +66,27 @@ func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 // calloutIcon is a small, dependency-free (no icon font, no SVG asset)
 // glyph per bucket.
 func calloutIcon(bucket calloutBucket) string {
-	if bucket == bucketWarning {
+	switch bucket {
+	case bucketWarning:
 		return "⚠"
+	case bucketQuote:
+		return "❝"
+	default:
+		return "ℹ"
 	}
-	return "ℹ"
+}
+
+// calloutClass is the bucket's class-name suffix, paired with calloutIcon so
+// a bucket's look is decided in one place beside its glyph.
+func calloutClass(bucket calloutBucket) string {
+	switch bucket {
+	case bucketWarning:
+		return "warning"
+	case bucketQuote:
+		return "quote"
+	default:
+		return "note"
+	}
 }
 
 // renderCallout renders one already-classified (known-bucket) callout:
@@ -76,10 +101,7 @@ func (r *Pipeline) renderCallout(bucket calloutBucket, defaultTitle, fold, title
 	inner := r.render(body, allowEmbed, col.page)
 	col.diags = append(col.diags, inner.Diagnostics...)
 
-	bucketClass := "note"
-	if bucket == bucketWarning {
-		bucketClass = "warning"
-	}
+	bucketClass := calloutClass(bucket)
 	header := fmt.Sprintf(`<span class="callout-icon" aria-hidden="true">%s</span>%s`,
 		calloutIcon(bucket), html.EscapeString(title))
 

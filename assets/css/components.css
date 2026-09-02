@@ -359,6 +359,11 @@ html, body { margin: 0; background: var(--bg); }
   font-family: var(--font-display); font-weight: var(--fw-semibold); color: var(--fg);
   letter-spacing: var(--track-snug); line-height: 1.4; scroll-margin-top: 72px; text-wrap: balance;
 }
+/* A body h1 that is not the note's title stays on the page. Preflight resets
+   headings to inherited size, so a level given no size of its own here read at
+   body size — smaller than its own subsections. This step sits between the
+   page title (--fs-ed-38) and h2. */
+.y-prose h1 { font-size: var(--fs-ed-30); margin: 48px 0 0; }
 .y-prose h2 { font-size: var(--fs-ed-24); margin: 44px 0 0; display: flex; align-items: center; gap: 10px; }
 .y-prose h2::before { content: ""; width: 4px; height: 20px; background: var(--fg-muted); border-radius: 1px; flex: none; }
 .y-prose h3 { font-size: var(--fs-ed-20); margin: 32px 0 0; }
@@ -458,17 +463,28 @@ html, body { margin: 0; background: var(--bg); }
 button.y-freshness__action { padding: 0; border: 0; background: none; cursor: pointer; }
 .y-syl-nocourse { color: var(--fg-muted); max-width: 60ch; margin: 18px 0 0; }
 .y-prose .embed--widened { border-left-color: var(--warn); }
-/* Two remarks an excerpt can carry above itself: that its fragment found
-   nothing and the whole note stands in, and that the fragment named a
-   section the source repeats. Both answer why these words and not others,
-   so both read the same and sit in the same place. */
-.y-prose .embed__widened, .y-prose .embed__note { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }
+/* The lines an excerpt carries above itself: whose note the words come from,
+   and — when it applies — that the fragment found nothing and the whole note
+   stands in, or that the fragment named a section the source repeats. All
+   answer what this block is rather than what it says, so all read the same
+   and sit in the same place; the provenance name is a link and takes the
+   prose link ink. */
+.y-prose .embed__source, .y-prose .embed__widened, .y-prose .embed__note { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }
 .y-prose .embed-media { background: var(--elevated); border: 1px dashed var(--border); border-radius: var(--r-sm); padding: 10px 14px; color: var(--fg-muted); font-family: var(--font-mono); font-size: var(--fs-12); }
 
 /* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */
 .y-prose .callout { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--fg-subtle); border-radius: 0 var(--r-md) var(--r-md) 0; padding: 14px 18px; margin: 24px 0 0; }
 .y-prose .callout-warning { border-left-color: var(--warn); }
-.y-prose .callout-title { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-subtle); cursor: default; }
+/* A quotation carries someone's words, so it takes the page's quotation
+   vocabulary — the plain strong rule a blockquote draws, on a quieter ground —
+   rather than an information note's tinted panel. */
+.y-prose .callout-quote { background: var(--elevated); border-left-color: var(--border-strong); }
+.y-prose .callout-quote .callout-body { color: var(--fg-subtle); }
+/* The title row is set in the body's serif rather than tracked-out mono
+   capitals: these titles are authored words — 口述紀錄, a person's name — and
+   uppercase-plus-letterspacing dressed them as machine labels while doing
+   nothing at all to CJK. */
+.y-prose .callout-title { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-family: var(--font-serif); font-weight: var(--fw-semibold); font-size: var(--fs-14); color: var(--fg-subtle); cursor: default; }
 .y-prose details.callout > .callout-title { cursor: pointer; }
 .y-prose .callout-warning .callout-title { color: var(--warn); }
 .y-prose .callout-icon { font-style: normal; }
