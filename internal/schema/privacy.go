@@ -53,7 +53,7 @@ func (p PrivacyPolicy) Claim() Claim {
 
 // Available reports whether the contract declared a valid privacy policy.
 func (p PrivacyPolicy) Available() bool {
-	return p.Claim().Held()
+	return p.Claim().held()
 }
 
 // Trustworthy reports whether the never-egress set may be reasoned over.
@@ -142,7 +142,7 @@ func pathHasFoldedPrefix(rel, dir string) bool {
 // agent-facing output remains unavailable until a freshly loaded Contract
 // replaces it.
 func (p PrivacyPolicy) ValidateSource() PrivacyPolicy {
-	if p.state == nil || !p.state.claim.Held() || p.state.stale.Load() {
+	if p.state == nil || !p.state.claim.held() || p.state.stale.Load() {
 		return p
 	}
 	if !p.state.source.unchanged() {

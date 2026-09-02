@@ -43,7 +43,7 @@ func (r NavigationRoles) Claim() Claim {
 
 // Available reports whether the contract declared a valid navigation role set.
 func (r NavigationRoles) Available() bool {
-	return r.claim.Held()
+	return r.claim.held()
 }
 
 // Trustworthy reports whether the role sets may be projected over: true when
@@ -108,7 +108,7 @@ func (p ArtifactPolicy) Claim() Claim {
 
 // Available reports whether the contract declared a valid artifact policy.
 func (p ArtifactPolicy) Available() bool {
-	return p.Claim().Held()
+	return p.Claim().held()
 }
 
 // Trustworthy reports whether the excluded set may be projected over: true when
@@ -151,7 +151,7 @@ func (p ArtifactPolicy) IsNonInstance(rel string) bool {
 // same one-way stale latch, so once any consumer observes drift, all instance
 // projections remain unavailable until a freshly loaded Contract replaces it.
 func (p ArtifactPolicy) ValidateSource() ArtifactPolicy {
-	if p.state == nil || !p.state.claim.Held() || p.state.frozen || p.state.stale.Load() {
+	if p.state == nil || !p.state.claim.held() || p.state.frozen || p.state.stale.Load() {
 		return p
 	}
 	if !p.state.source.unchanged() {

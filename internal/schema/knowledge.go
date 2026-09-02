@@ -26,7 +26,7 @@ func (s KnowledgeScope) Claim() Claim {
 
 // Available reports whether the contract declared a knowledge layer.
 func (s KnowledgeScope) Available() bool {
-	return s.claim.Held()
+	return s.claim.held()
 }
 
 // Includes reports whether a vault-relative path is inside the knowledge layer.

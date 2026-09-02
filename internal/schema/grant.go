@@ -65,11 +65,27 @@ func Rejected(diagnostic string) Claim {
 
 func heldClaim() Claim { return Claim{outcome: grantHeld} }
 
+// A capability asks a Claim one of two questions, and which one it asks is the
+// capability's own polarity, not a detail of its implementation.
+//
+// Trustworthy is the gate for "may I answer a projection over this set at
+// all". It holds both for a declaration read cleanly and for one nobody ever
+// made, because an undeclared set is the empty set and a projection over an
+// empty set is answerable. It fails only where an assertion was made and could
+// not be honoured, because then the set the operator intended is unknown.
+//
+// held is the narrower question, "is there a declaration here to read", and is
+// the one a capability asks when acting on silence would be inventing a rule
+// the folder's owner never wrote — egress, above all, where permission is
+// positive authority and an absent declaration is not permission. It is not
+// exported: each capability answers it as its own Available, in the words of
+// what it governs, and two exported names for one question is how a call site
+// comes to ask the other one by accident.
+
 // Claimed reports whether anything ever asserted this at all.
 func (c Claim) Claimed() bool { return c.outcome != grantUnclaimed }
 
-// Held reports whether the declaration was read cleanly and is usable.
-func (c Claim) Held() bool { return c.outcome == grantHeld }
+func (c Claim) held() bool { return c.outcome == grantHeld }
 
 // Trustworthy reports whether a projection over this declaration's set may be
 // answered. It holds for a declaration that was read cleanly and for one that
