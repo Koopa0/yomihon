@@ -13,6 +13,17 @@
 // them changes bytes that consumers match against, so they stay exactly
 // as they are even where yomihon's own text would otherwise be English
 // only.
+//
+// The commands are not the only consumer. The reading server builds its
+// pages from six things here: Finding and LintFrontmatter for the
+// notices printed beside a note, LinkTargets for the reverse of the link
+// graph, and Planned with NewPlanned and its Has for telling a link the
+// corpus has promised to write from one that is simply broken. That
+// second face is why those readings live here rather than in the
+// commands: a page and a finding that disagreed about which links exist,
+// or about which broken link is a fault, would teach the reader to
+// distrust whichever one cried wolf. It is also why they are the
+// package's exported surface while the engines' own options are not.
 package judge
 
 import (
