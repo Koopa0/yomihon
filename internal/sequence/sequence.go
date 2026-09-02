@@ -79,10 +79,12 @@ func (r Role) Declared() bool {
 	return r == RolePrimary || r == RoleLocal || r == RoleNone
 }
 
-// Span is a half-open byte range into the body a document was parsed from. It
-// is a row's stable identity: two rows naming the same note still differ by
-// where they sit in the source, which is what lets a side branch say which of
-// them it hangs from.
+// Span is a half-open byte range into the body a document was parsed from,
+// always counted from the body's first byte — every Span this package hands
+// out or stores is in that one frame, and a range measured from somewhere else
+// carries a different type. It is a row's stable identity: two rows naming the
+// same note still differ by where they sit in the source, which is what lets a
+// side branch say which of them it hangs from.
 type Span struct{ Start, Stop int }
 
 func (s Span) contains(off int) bool { return off >= s.Start && off < s.Stop }
@@ -892,12 +894,14 @@ func (p *parser) pop() {
 // visibleMarkerSpans locates the marker spans on a line that are actually
 // written: one inside code or an Obsidian comment is quoted or switched off,
 // so it neither declares nor draws a report, while a real marker on the same
-// line still does. abs is the line's start offset in the body, which is what
-// lets a line-relative span be checked against the body's zones.
-func (p *parser) visibleMarkerSpans(raw string, abs int) []Span {
-	var out []Span
+// line still does. lineStart is the line's own start offset in the body, and
+// adding it here is the one place the two frames meet — the zones are the
+// body's, the spans are the line's, and the returned spans stay the line's
+// because that is the only frame the line's own text can be sliced with.
+func (p *parser) visibleMarkerSpans(raw string, lineStart int) []lineSpan {
+	var out []lineSpan
 	for _, s := range markerSpans(raw) {
-		if inAnyZone(p.zones, abs+s.Start) {
+		if inAnyZone(p.zones, lineStart+s.Start) {
 			continue
 		}
 		out = append(out, s)
