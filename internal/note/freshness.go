@@ -152,7 +152,7 @@ type freshnessAsk struct {
 // compareNote settles the five answers for one note, against everything the
 // page carries in its ask.
 func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) freshness {
-	entry, err := h.deps.Source.Lookup(rel)
+	entry, err := h.sources.Source.Lookup(rel)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return freshGone
@@ -160,7 +160,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 		h.noteFreshnessFailure(rel, "lookup", err)
 		return freshUnreadable
 	}
-	data, err := h.deps.Source.ReadFile(r.Context(), entry)
+	data, err := h.sources.Source.ReadFile(r.Context(), entry)
 	if err != nil {
 		h.noteFreshnessFailure(rel, "read", err)
 		return freshUnreadable
@@ -171,7 +171,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 	// about the page: what decides whether a reload is worth offering is
 	// whether the generation a reload would render already holds what this
 	// read just saw.
-	snap := h.deps.Snapshot().Capture()
+	snap := h.sources.Snapshot().Capture()
 	published, ok := snap.Note(rel)
 	if !ok || published.ContentIdentity != disk {
 		return freshPreparing
@@ -219,7 +219,7 @@ func (h *Handler) transcludedNow(snap *snapshot.View, rel, body string) string {
 func (h *Handler) noteFreshnessFailure(rel, op string, err error) {
 	cause := op + ": " + err.Error()
 	if h.freshnessFailures.changed(rel, cause) {
-		h.deps.Log.Warn("freshness check could not read the note", "path", rel, "operation", op, "error", err)
+		h.sources.Log.Warn("freshness check could not read the note", "path", rel, "operation", op, "error", err)
 	}
 }
 

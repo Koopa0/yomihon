@@ -51,13 +51,13 @@ const homeRecentLimit = 7
 // under one path and rendered under another would address the wrong files.
 const homeReadmePath = "README.md"
 
-// Dependencies is everything the reading feature reads from. Grouping the providers in a
-// struct keeps the constructor within the parameter budget. Snapshot is one
-// closure because a request must read the atomic pointer once and derive its
-// navigation and counts from that coherent value. Status captures one immutable
-// lifecycle view for the request. Source changes affect the next request; a
-// write still revalidates current authority under the lifecycle lock.
-type Dependencies struct {
+// Sources names the authorities one reading request draws on, and the log the
+// routes report an operational fault to. Snapshot is one closure because a
+// request must read the atomic pointer once and derive its navigation and
+// counts from that coherent value. Status captures one immutable lifecycle
+// view for the request. Source changes affect the next request; a write still
+// revalidates current authority under the lifecycle lock.
+type Sources struct {
 	Source   *vault.Reader
 	Status   func() status.View
 	Snapshot func() *snapshot.View
@@ -79,7 +79,7 @@ type Dependencies struct {
 // Handler serves reading pages from one rooted vault capability and its
 // coherently published snapshots.
 type Handler struct {
-	deps Dependencies
+	sources Sources
 	// freshnessFailures is the only state this handler keeps between
 	// requests: what it last said about a note it could not read, so a page
 	// polling every few seconds does not repeat one fault into the log.
@@ -87,13 +87,13 @@ type Handler struct {
 }
 
 // New wires the reading feature. It defensively copies the startup-owned
-// dependency record so later field reassignment by the caller cannot rewire a
-// live handler. Every required reference and function must be non-nil: a wiring
+// record so later field reassignment by the caller cannot rewire a live
+// handler. Every required reference and function must be non-nil: a wiring
 // bug fails here, not on the first request three calls deep inside show(). A
 // fail-closed write face still provides a closed status.View.
-func New(d *Dependencies) *Handler {
+func New(d *Sources) *Handler {
 	if d == nil {
-		panic("note: New requires non-nil Dependencies")
+		panic("note: New requires a non-nil Sources")
 	}
 	if d.Source == nil {
 		panic("note: New requires a non-nil Source")
@@ -113,7 +113,7 @@ func New(d *Dependencies) *Handler {
 	if d.Log == nil {
 		panic("note: New requires a non-nil Log")
 	}
-	return &Handler{deps: *d}
+	return &Handler{sources: *d}
 }
 
 // Register mounts the feature's routes. The bare "GET /" is the last pattern
@@ -152,8 +152,8 @@ func (h *Handler) showUnreadable(w http.ResponseWriter, r *http.Request, asked s
 }
 
 func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked string, unreadable bool) {
-	snap := h.deps.Snapshot().Capture()
-	pageShell := shell.Project(h.deps.Status(), snap)
+	snap := h.sources.Snapshot().Capture()
+	pageShell := shell.Project(h.sources.Status(), snap)
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
@@ -167,7 +167,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
 	if err := pages.NotFound(view, pages.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
-		h.deps.Log.Error("write not-found page", "path", asked, "error", err)
+		h.sources.Log.Error("write not-found page", "path", asked, "error", err)
 	}
 }
 
@@ -182,8 +182,8 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dir = vault.NormalizeNFC(dir)
-	snap := h.deps.Snapshot().Capture()
-	pageShell := shell.Project(h.deps.Status(), snap)
+	snap := h.sources.Snapshot().Capture()
+	pageShell := shell.Project(h.sources.Status(), snap)
 	notes, subfolders, ok := pageShell.Nav.Directory(dir)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path)
@@ -198,7 +198,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Folder(view, pages.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
-		h.deps.Log.Error("write folder page", "dir", dir, "error", err)
+		h.sources.Log.Error("write folder page", "dir", dir, "error", err)
 	}
 }
 
@@ -206,8 +206,8 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 // it is already computed for the single-note pages; nobody opens every note, so
 // gathering them is the only way they are ever seen.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	statusView := h.deps.Status()
-	snap := h.deps.Snapshot().Capture()
+	statusView := h.sources.Status()
+	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(statusView, snap)
 	health := snap.Health()
 	fresh := snap.Freshness()
@@ -234,7 +234,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, pages.ChromeFromRequest(r, wording.HealthTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
-		h.deps.Log.Error("write health page", "error", err)
+		h.sources.Log.Error("write health page", "error", err)
 	}
 }
 
@@ -392,8 +392,8 @@ func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthColli
 // the vault README through the same markdown pipeline used by a note page. It
 // is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	statusView := h.deps.Status()
-	snap := h.deps.Snapshot().Capture()
+	statusView := h.sources.Status()
+	snap := h.sources.Snapshot().Capture()
 	// Home links to the folder's own introduction rather than reprinting it,
 	// so nothing here renders it and its absence is not news.
 	_, hasReadme := snap.Note(homeReadmePath)
@@ -473,7 +473,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Sidebar:        pages.NewSidebar(visibleNav, ""),
 	}
 	if err := pages.Home(view, pages.ChromeFromRequest(r, wording.HomeTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
-		h.deps.Log.Error("write home page", "error", err)
+		h.sources.Log.Error("write home page", "error", err)
 	}
 }
 
@@ -495,8 +495,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
-	statusView := h.deps.Status()
-	snap := h.deps.Snapshot().Capture()
+	statusView := h.sources.Status()
+	snap := h.sources.Snapshot().Capture()
 	if !vault.IsMarkdown(rel) {
 		h.showFile(w, r, rel, statusView, snap)
 		return
@@ -512,11 +512,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		// is observed by the scan too, and no permission on it can be the one
 		// the reader would be sent to clear.
 		if _, isFile := snap.Entry(rel); isFile {
-			h.deps.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
+			h.sources.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
 			h.showUnreadable(w, r, r.URL.Path)
 			return
 		}
-		h.deps.Log.Warn("note is absent from the request snapshot", "path", rel)
+		h.sources.Log.Warn("note is absent from the request snapshot", "path", rel)
 		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
@@ -544,7 +544,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		concepts = h.loadConcepts(snap, refs, lang)
 	}
 	if n.LanguageDiagnostic != "" {
-		h.deps.Log.Warn("invalid article language; the article carries no language of its own", "path", rel, "error", n.LanguageDiagnostic)
+		h.sources.Log.Warn("invalid article language; the article carries no language of its own", "path", rel, "error", n.LanguageDiagnostic)
 	}
 
 	// The status face and the status shown beside the title are the same
@@ -555,7 +555,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// never disagree about what follows this note.
 	sidebar := pages.NewSidebar(state.shell.Nav, n.RelPath)
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
-	flippedFrom := vouchedOrigin(statusView, h.deps.ConsumeReceipt, rel, n.Type,
+	flippedFrom := vouchedOrigin(statusView, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
@@ -568,7 +568,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Updated:           updatedDisplay,
 		UpdatedAt:         updatedMachine,
 		UpdatedFromFile:   updatedFromFile,
-		ObsidianHref:      pages.ObsidianHref(h.deps.Source.Name(), n.RelPath),
+		ObsidianHref:      pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,
@@ -609,7 +609,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// folder that holds no Japanese at all.
 	pageChrome.HasRuby = strings.Contains(result.HTML, "<ruby")
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
-		h.deps.Log.Error("write note page", "path", rel, "error", err)
+		h.sources.Log.Error("write note page", "path", rel, "error", err)
 	}
 }
 
@@ -897,9 +897,9 @@ func offeredTransitions(statusView status.View, relPath, noteType, current strin
 // transition offered from it is refused on arrival. Whatever prevented this
 // read is the same thing that would prevent the write.
 func (h *Handler) observedStatus(rel string) (current, blocked string) {
-	current, err := h.deps.ObservedStatus(rel)
+	current, err := h.sources.ObservedStatus(rel)
 	if err != nil {
-		h.deps.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
+		h.sources.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
 		return "", status.NoteUnreadableDiagnostic
 	}
 	return current, ""
@@ -924,7 +924,7 @@ func (h *Handler) injectSlotMachine(
 	}
 	var buf bytes.Buffer
 	if err := pages.SlotMachine(sc, nonce, lang).Render(ctx, &buf); err != nil {
-		h.deps.Log.Error("render slot machine", "path", rel, "slug", slug, "error", err)
+		h.sources.Log.Error("render slot machine", "path", rel, "slug", slug, "error", err)
 		return body
 	}
 	machine := buf.String()

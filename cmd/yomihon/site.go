@@ -134,7 +134,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	}
 
 	mux := http.NewServeMux()
-	note.New(&note.Dependencies{
+	note.New(&note.Sources{
 		Source:         source,
 		Status:         writer.View,
 		Snapshot:       store.Current,
