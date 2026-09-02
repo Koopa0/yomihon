@@ -15,7 +15,7 @@ import (
 
 // ReportView is the minimal shell a sandboxed report needs: the report's name
 // (its title, and the key its /raw endpoint resolves against the allowlist) and
-// the whole-vault Nav for the shared sidebar. A report is not a note — no TOC,
+// the shared navigation rail. A report is not a note — no TOC,
 // no status panel, no diagnostics: the briefing HTML is served verbatim inside a
 // sandboxed iframe, and yomihon styles only the frame, never the content.
 type ReportView struct {
