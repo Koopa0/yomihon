@@ -442,6 +442,18 @@ html, body { margin: 0; background: var(--bg); }
    scripting is off. Its control is a button rather than a link: what it does is
    reload this address, which no href expresses. */
 .y-freshness { color: var(--fg-muted); font-size: var(--fs-13); margin: 0 0 12px; }
+/* The moment the sentence becomes true usually finds the reader deep in the
+   prose, and the element lives at the top of the column — left in plain flow
+   it sat thousands of pixels above the viewport, detected but unseen. Sticky
+   keeps it just below the header (the 56px every pinned edge here clears)
+   without moving the reader's place; the page ground behind it, because it
+   floats over prose once stuck. Scoped to the state attribute the banner
+   carries so the recovery page's hold note, which shares the class, stays in
+   flow beside its link. No motion is added, so reduced-motion needs nothing. */
+.y-freshness[data-freshness] {
+  position: sticky; top: 56px; z-index: 5;
+  background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--border-faint);
+}
 .y-freshness__action { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 button.y-freshness__action { padding: 0; border: 0; background: none; cursor: pointer; }
 .y-syl-nocourse { color: var(--fg-muted); max-width: 60ch; margin: 18px 0 0; }

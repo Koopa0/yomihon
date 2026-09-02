@@ -5,6 +5,9 @@
       "complexity": {
         "useOptionalChain": "off"
       },
+      "correctness": {
+        "noUndeclaredVariables": "error"
+      },
       "style": {
         "useTemplate": "off"
       },

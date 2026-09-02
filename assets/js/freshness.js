@@ -11,10 +11,14 @@
 
 const POLL_MS = 5000;
 
-// bannerBeside puts the notice above the article. It is not a live region: the
-// flip receipt above it already is one, and two of them would talk over each
-// other. Once it offers the reload there is nothing further to learn, because a
-// later edit does not change what the sentence says.
+// bannerBeside puts the notice above the article, as a status live region: it
+// appears while the reader is somewhere in the prose, so a reader who is not
+// looking at the top of the column — or not looking at all — is told the same
+// way. The flip receipt is a live region too, but the two never speak at once:
+// the receipt says its sentence on arrival and never changes, while this one
+// first gets words only after the file moves under an open page. Once it
+// offers the reload there is nothing further to learn, because a later edit
+// does not change what the sentence says.
 function bannerBeside(column, article) {
   let banner = null;
   let shown = '';
@@ -22,11 +26,15 @@ function bannerBeside(column, article) {
   // keeping them here would be a second copy to translate.
   const newVersion = column.dataset.freshnessNewversion;
   const reloadLabel = column.dataset.freshnessReload;
+  const preparing = column.dataset.freshnessPreparing;
+  const gone = column.dataset.freshnessGone;
+  const searchTitleLabel = column.dataset.freshnessSearchtitle;
 
   function place() {
     if (!banner) {
       banner = document.createElement('p');
       banner.className = 'y-freshness';
+      banner.setAttribute('role', 'status');
       column.insertBefore(banner, article);
     }
     return banner;
