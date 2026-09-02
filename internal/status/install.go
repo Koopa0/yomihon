@@ -60,7 +60,7 @@ const restoreAttempts = 2
 
 // errNotSingleComponent guards the raw directory-relative syscalls: every name
 // they receive has to be one entry inside the already-confined parent.
-var errNotSingleComponent = errors.New("status: install name is not a single directory entry")
+var errNotSingleComponent = errors.New("install name is not a single directory entry")
 
 // installOps is the filesystem behind one install, named operation by
 // operation so a test can reproduce a driver that reports success without

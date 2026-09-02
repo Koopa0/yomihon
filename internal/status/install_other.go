@@ -11,7 +11,7 @@ import (
 // exchange. Flip already refuses before touching the vault on every platform
 // that cannot prove a durable install, which is the same set; the probe
 // descends on this error rather than treating it as a failure.
-var errExchangeUnavailable = errors.New("status: atomic directory-entry exchange is unavailable on this platform")
+var errExchangeUnavailable = errors.New("atomic directory-entry exchange is unavailable on this platform")
 
 func exchangeNames(int, string, string) error { return errExchangeUnavailable }
 
