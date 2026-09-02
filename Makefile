@@ -214,15 +214,20 @@ frontend-check:
 # nothing runs — which the probe runner refuses, correctly. A screenshot the
 # repository can retake is a screenshot that can be kept current; one taken by
 # hand goes stale the first time the interface moves and nobody can tell when.
-# The two pictures show the two languages the interface speaks.
+# Each picture belongs to one README, so it opens a note written in that
+# README's language: an English note under the English interface, a Traditional
+# Chinese note under the Chinese one. The script refuses to write a picture
+# where those two disagree.
 screenshots:
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-shot.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	YOMIHON_FIXTURE=examples/vault bash .github/e2e/serve.sh "$$tmp/yomihon" 19761 -- sh -c '\
-	  LANG_CHOICE=en OUT=.github/media/reading-en.png node .github/screenshot.mjs && \
-	  LANG_CHOICE=zh-Hant OUT=.github/media/reading-zh-TW.png node .github/screenshot.mjs'
+	  LANG_CHOICE=en PAGE_PATH="/notes/Notes/What%20yomihon%20is.md" \
+	    OUT=.github/media/reading-en.png node .github/screenshot.mjs && \
+	  LANG_CHOICE=zh-Hant PAGE_PATH="/notes/Notes/中文/yomihon%20是什麼.md" \
+	    OUT=.github/media/reading-zh-TW.png node .github/screenshot.mjs'
 
 e2e-http-check:
 	@set -eu; \
