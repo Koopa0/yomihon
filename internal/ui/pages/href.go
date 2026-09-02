@@ -15,32 +15,16 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// Shell is the snapshot-derived state shared by the topbar and sidebar.
-// A handler receives it as one value so navigation and the governed flag
-// cannot come from different atomic snapshot reads.
-//
-// Governed says whether anything claimed authority over this vault. It gates
-// every surface that would otherwise present a lifecycle vocabulary — a status
-// chip, the write face — because naming a status the vault never declared
-// invents a vocabulary rather than reporting one.
-type Shell struct {
-	Nav      *nav.Model
-	Governed bool
-}
-
-// WithoutInstanceProjections returns a shell whose navigation and topbar carry
-// no instance-derived state. Direct file and folder navigation remain in the
-// model; the supplied claim records why instance projections closed and, when
-// it carries one, the sentence to show.
-func (s Shell) WithoutInstanceProjections(claim schema.Claim) Shell {
-	s.Nav = s.Nav.WithoutInstanceProjections(nav.Close(claim))
-	return s
-}
+// Shell is the snapshot-derived state shared by the topbar and sidebar, and
+// it belongs to the navigation model it is made of rather than to this
+// package: a component receives one, and nothing here builds or decides
+// anything about it. The name stays reachable as pages.Shell while the call
+// sites still spell it that way.
+type Shell = nav.Shell
 
 // notesHref builds the reading-page URL for a vault-relative path,
 // percent-escaping each segment individually (so a literal "/" in an
