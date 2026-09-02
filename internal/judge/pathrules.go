@@ -15,7 +15,7 @@ import (
 // decides, and a decision only the author can make is not information.
 
 // pathRuleAction names what to do about each rule, in the author's terms.
-var pathRuleAction = map[string]string{
+var pathRuleAction = map[sequence.Rule]string{
 	sequence.RuleRoleMissing:        "declare the branch {sequence=primary}, {sequence=local} or {sequence=none}",
 	sequence.RuleRoleDuplicate:      "keep one sequence declaration on the branch",
 	sequence.RuleRoleConflict:       "move the branch out from under the one declared none, or declare it none too",
@@ -51,14 +51,14 @@ func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
 func pathFinding(n *note, d sequence.Diagnostic) Finding {
 	action, ok := pathRuleAction[d.Rule]
 	if !ok {
-		panic("judge: unknown study-path rule: " + d.Rule)
+		panic("judge: unknown study-path rule: " + string(d.Rule))
 	}
 	evidence := d.Evidence
 	if evidence == "" {
 		evidence = "the branch lists rows but declares no part in the course"
 	}
 	return Finding{
-		RuleID:          d.Rule,
+		RuleID:          string(d.Rule),
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Line:            new(d.Line),
@@ -66,7 +66,7 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 		Evidence:        evidence,
 		SuggestedAction: action,
 		SourceRule:      sourceAuthoring,
-		Fingerprint:     fingerprint(d.Rule, n.path, evidence),
+		Fingerprint:     fingerprint(string(d.Rule), n.path, evidence),
 	}
 }
 
@@ -98,7 +98,7 @@ func courseLessonLinks(n *note) map[int]bool {
 					offsets[item.Entry.TargetSpan.Start] = true
 				}
 			case item.Branch != nil:
-				if projectable || (g.Role == sequence.RoleStructural && !g.Invalid) {
+				if projectable || g.Carries() {
 					walk(item.Branch)
 				}
 			}

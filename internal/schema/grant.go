@@ -1,7 +1,5 @@
 package schema
 
-import "github.com/koopa0/yomihon/internal/wording"
-
 // grant records how far one declaration got. Absence of a declaration has two
 // meanings and only one of them is news: a folder that never carried a contract
 // asserted nothing, while a contract that exists and then omits, mangles, or
@@ -23,13 +21,35 @@ const (
 	grantHeld
 )
 
-// Claim is one declaration's outcome: how far it got, and the operator-facing
-// sentence when the outcome is news. The zero Claim is unclaimed and silent.
+// Reason names, in a value a caller can branch on, why a declaration could not
+// be honoured. Most rejections carry an operator's sentence and nothing else:
+// they are read on the machine that owns the folder, by the person who wrote
+// it. The vault-level one is different, because it is what an ordinary reader
+// is shown on an ordinary page, and a reader's page is written in the reader's
+// own language — which is a fact about a request, not about a contract that
+// was loaded before any request existed.
+type Reason uint8
+
+const (
+	// ReasonUnstated is a rejection with no machine-readable reason: the
+	// diagnostic sentence is the whole of what is known.
+	ReasonUnstated Reason = iota
+	// ReasonContractUnreadable is a contract file that exists and could not be
+	// loaded. Cause carries the loader's own error, so a surface can name the
+	// fault in whichever language it is speaking.
+	ReasonContractUnreadable
+)
+
+// Claim is one declaration's outcome: how far it got, why it failed where a
+// caller can act on the answer, and the operator-facing sentence when the
+// outcome is news. The zero Claim is unclaimed and silent.
 //
 // A Claim can be closed from outside this package but never opened: authority
 // comes from a contract that was read, never from a caller asserting it.
 type Claim struct {
 	outcome    grant
+	reason     Reason
+	cause      error
 	diagnostic string
 }
 
@@ -45,11 +65,27 @@ func Rejected(diagnostic string) Claim {
 
 func heldClaim() Claim { return Claim{outcome: grantHeld} }
 
+// A capability asks a Claim one of two questions, and which one it asks is the
+// capability's own polarity, not a detail of its implementation.
+//
+// Trustworthy is the gate for "may I answer a projection over this set at
+// all". It holds both for a declaration read cleanly and for one nobody ever
+// made, because an undeclared set is the empty set and a projection over an
+// empty set is answerable. It fails only where an assertion was made and could
+// not be honoured, because then the set the operator intended is unknown.
+//
+// held is the narrower question, "is there a declaration here to read", and is
+// the one a capability asks when acting on silence would be inventing a rule
+// the folder's owner never wrote — egress, above all, where permission is
+// positive authority and an absent declaration is not permission. It is not
+// exported: each capability answers it as its own Available, in the words of
+// what it governs, and two exported names for one question is how a call site
+// comes to ask the other one by accident.
+
 // Claimed reports whether anything ever asserted this at all.
 func (c Claim) Claimed() bool { return c.outcome != grantUnclaimed }
 
-// Held reports whether the declaration was read cleanly and is usable.
-func (c Claim) Held() bool { return c.outcome == grantHeld }
+func (c Claim) held() bool { return c.outcome == grantHeld }
 
 // Trustworthy reports whether a projection over this declaration's set may be
 // answered. It holds for a declaration that was read cleanly and for one that
@@ -60,6 +96,17 @@ func (c Claim) Trustworthy() bool { return c.outcome != grantUnresolved }
 
 // Diagnostic is the operator-facing sentence, empty unless there is news.
 func (c Claim) Diagnostic() string { return c.diagnostic }
+
+// Reason names why this declaration was rejected, where the answer is one a
+// caller can act on rather than only print. It is ReasonUnstated for a claim
+// that holds, for one nothing ever made, and for a rejection whose sentence is
+// all there is to say.
+func (c Claim) Reason() Reason { return c.reason }
+
+// Cause is the error behind the rejection, nil where there is none to hand
+// back. It travels beside Reason so a surface can name the fault in its own
+// words and still quote what the loader actually said.
+func (c Claim) Cause() error { return c.cause }
 
 // Governance is what a folder asserted about its own contract, independent of
 // whether that assertion could be honoured. It is the vault-level fact every
@@ -74,14 +121,38 @@ type Governance struct {
 func Ungoverned() Governance { return Governance{} }
 
 // Unreadable records a contract file that exists and could not be loaded. The
-// error text is the one loud sentence for the whole vault: without it, a folder
+// distinction is the one loud fact for the whole vault: without it, a folder
 // with a broken contract is indistinguishable from a folder with none.
+//
+// The claim carries the reason and the loader's error rather than a finished
+// sentence. A contract is loaded once, at startup, before any reader has asked
+// for anything — so a sentence written here would be written in whichever
+// language was guessed then, and a reader who reads in the other one would
+// find it sitting under a label in theirs. The surface that shows it knows the
+// language; this does not.
 func Unreadable(err error) Governance {
-	if err == nil {
-		return Governance{claim: Rejected(wording.ContractUnreadable.In(wording.ZhHant))}
-	}
-	return Governance{claim: Rejected(wording.ContractUnreadablePrefix.In(wording.ZhHant) + err.Error())}
+	return Governance{claim: Claim{
+		outcome:    grantUnresolved,
+		reason:     ReasonContractUnreadable,
+		cause:      err,
+		diagnostic: unreadableDiagnostic(err),
+	}}
 }
+
+// unreadableDiagnostic is the operator's own line, in the language every other
+// diagnostic this package produces is written in. A surface speaking to a
+// reader uses the reason instead.
+func unreadableDiagnostic(err error) string {
+	const sentence = "the vault contract could not be read"
+	if err == nil {
+		return sentence
+	}
+	return sentence + ": " + err.Error()
+}
+
+// Reason names why the contract could not be honoured, empty of meaning unless
+// this vault claimed governance and failed to deliver it.
+func (g Governance) Reason() Reason { return g.claim.reason }
 
 // Governance reports what this contract asserts. A nil contract governs nothing.
 func (c *Contract) Governance() Governance {
@@ -109,8 +180,19 @@ func (g Governance) Diagnostic() string { return g.claim.Diagnostic() }
 // a single declaration.
 func (g Governance) Claim() Claim { return g.claim }
 
-// Capabilities resolves the four declarations one process runs on against what
-// the folder asserted about its contract as a whole.
+// Capabilities are the four declarations one process runs on, resolved
+// together. They are resolved as a set because a consumer that combined a
+// vault-level fault with one zero capability of its own would conclude that
+// nothing was excluded — the conclusion this type exists to make unavailable.
+type Capabilities struct {
+	Navigation NavigationRoles
+	Knowledge  KnowledgeScope
+	Artifacts  ArtifactPolicy
+	Language   ArticleLanguage
+}
+
+// Capabilities resolves this contract's declarations against what the folder
+// asserted about the contract as a whole.
 //
 // A contract that loaded answers for itself. A folder with no contract answers
 // with the zero capabilities: it declared nothing, every declared set is empty,
@@ -127,17 +209,23 @@ func (g Governance) Claim() Claim { return g.claim }
 // results and saying nothing at all, and zero results is a lie. Surfaces that
 // can show two of them collapse the repetition themselves.
 //
-// ArticleLanguage is the one exception, and returns its plain zero value
-// instead: it carries no Available or Diagnostic of its own for a claim to
-// feed, so a withheld generation would leave that claim with nothing to
-// report through — the same "not declared" state Resolve already returns
-// for a folder with no contract at all.
-func (g Governance) Capabilities(c *Contract) (NavigationRoles, KnowledgeScope, ArtifactPolicy, ArticleLanguage) {
+// Language is the one exception, and returns its plain zero value instead: it
+// carries no Available or Diagnostic of its own for a claim to feed, so a
+// withheld generation would leave that claim with nothing to report through —
+// the same "not declared" state Resolve already returns for a folder with no
+// contract at all.
+func (c *Contract) Capabilities(g Governance) Capabilities {
 	if !g.Trustworthy() {
-		return NavigationRoles{claim: g.claim},
-			KnowledgeScope{claim: g.claim},
-			ArtifactPolicy{state: &artifactPolicyState{claim: g.claim}},
-			ArticleLanguage{}
+		return Capabilities{
+			Navigation: NavigationRoles{claim: g.claim},
+			Knowledge:  KnowledgeScope{claim: g.claim},
+			Artifacts:  ArtifactPolicy{state: &artifactPolicyState{claim: g.claim}},
+		}
 	}
-	return c.NavigationRoles(), c.KnowledgeScope(), c.ArtifactPolicy(), c.ArticleLanguage()
+	return Capabilities{
+		Navigation: c.NavigationRoles(),
+		Knowledge:  c.KnowledgeScope(),
+		Artifacts:  c.ArtifactPolicy(),
+		Language:   c.ArticleLanguage(),
+	}
 }

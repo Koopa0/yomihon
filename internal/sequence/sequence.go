@@ -79,10 +79,12 @@ func (r Role) Declared() bool {
 	return r == RolePrimary || r == RoleLocal || r == RoleNone
 }
 
-// Span is a half-open byte range into the body a document was parsed from. It
-// is a row's stable identity: two rows naming the same note still differ by
-// where they sit in the source, which is what lets a side branch say which of
-// them it hangs from.
+// Span is a half-open byte range into the body a document was parsed from,
+// always counted from the body's first byte — every Span this package hands
+// out or stores is in that one frame, and a range measured from somewhere else
+// carries a different type. It is a row's stable identity: two rows naming the
+// same note still differ by where they sit in the source, which is what lets a
+// side branch say which of them it hangs from.
 type Span struct{ Start, Stop int }
 
 func (s Span) contains(off int) bool { return off >= s.Start && off < s.Stop }
@@ -97,9 +99,15 @@ func (s Span) Zero() bool { return s == Span{} }
 type EntryState uint8
 
 const (
+	// EntryUnread is the state of a row nobody has judged. Parse never returns
+	// it: every candidate it records has been through canonical validation. It
+	// is the zero value so that acceptance — the verdict that lets a row be
+	// counted, walked and placed — is something a row has to be given rather
+	// than something a half-built one already holds.
+	EntryUnread EntryState = iota
 	// EntryAccepted is a canonical row: its single live link is the first
 	// visible inline, so the row is the lesson it names.
-	EntryAccepted EntryState = iota
+	EntryAccepted
 	// EntryNoncanonical is a row whose single live link comes after something
 	// else — a label, an embed, a same-file anchor, inline code. The author
 	// moves the link to the front or takes the row out of the course; choosing
@@ -118,6 +126,8 @@ const (
 // String names an entry state for a diagnostic or a consumer's log line.
 func (s EntryState) String() string {
 	switch s {
+	case EntryUnread:
+		return "unread"
 	case EntryAccepted:
 		return "accepted"
 	case EntryNoncanonical:
@@ -215,8 +225,22 @@ func (g *Group) Projectable() bool {
 	return !g.Invalid && (g.Role == RolePrimary || g.Role == RoleLocal)
 }
 
-// Entries are the rows this branch lists, in source order.
-func (g *Group) Entries() []*Candidate {
+// Carries reports whether a walk may descend through this branch to reach the
+// course beneath it. A branch that merely groups others lists nothing of its
+// own, so it never projects — but the parts under it do, and a walk that
+// stopped here would lose them. A branch carrying a structural error stops the
+// walk, because what sits under an error is not known to belong to the course.
+//
+// It is the second verdict, and it is here for the same reason as the first:
+// navigation, the judge and the rail each need it, and three hand-written
+// copies of a two-term predicate is how one of them comes to be written
+// backwards.
+func (g *Group) Carries() bool {
+	return g.Role == RoleStructural && !g.Invalid
+}
+
+// entries are the rows this branch lists, in source order.
+func (g *Group) entries() []*Candidate {
 	var out []*Candidate
 	for _, item := range g.Items {
 		if item.Entry != nil {
@@ -226,8 +250,8 @@ func (g *Group) Entries() []*Candidate {
 	return out
 }
 
-// Subgroups are the branches opened beneath this one, in source order.
-func (g *Group) Subgroups() []*Group {
+// subgroups are the branches opened beneath this one, in source order.
+func (g *Group) subgroups() []*Group {
 	var out []*Group
 	for _, item := range g.Items {
 		if item.Branch != nil {
@@ -240,27 +264,53 @@ func (g *Group) Subgroups() []*Group {
 // Diagnostic is one thing the author has to decide, addressed to the author.
 // Rule is the stable identifier; Line is 1-based in the file.
 type Diagnostic struct {
-	Rule     string
+	Rule     Rule
 	Line     int
 	Message  string
 	Evidence string
 }
 
+// Rule is the stable identifier of one thing this grammar reports. The set is
+// closed and [Rules] is all of it, so a consumer that has to advise on every
+// rule, or gate on every rule, asks for the set instead of keeping a list of
+// its own that can quietly fall behind.
+type Rule string
+
 // The rules this grammar reports. Every one names a decision only the author
 // can make: yomihon reports, and a human edits the file.
 const (
-	RuleRoleMissing        = "path.role_missing"
-	RuleRoleDuplicate      = "path.role_duplicate"
-	RuleRoleConflict       = "path.role_conflict"
-	RuleLocalOrphan        = "path.local_orphan"
-	RuleNestingTooDeep     = "path.nesting_too_deep"
-	RuleRoleOnEntry        = "path.role_on_entry"
-	RuleRoleInvalid        = "path.role_invalid"
-	RuleRoleMisplaced      = "path.role_misplaced"
-	RuleEntryOutsideBranch = "path.entry_outside_branch"
-	RuleEntryMultiTarget   = "path.entry_multi_target"
-	RuleEntryNoncanonical  = "path.entry_noncanonical"
+	RuleRoleMissing        Rule = "path.role_missing"
+	RuleRoleDuplicate      Rule = "path.role_duplicate"
+	RuleRoleConflict       Rule = "path.role_conflict"
+	RuleLocalOrphan        Rule = "path.local_orphan"
+	RuleNestingTooDeep     Rule = "path.nesting_too_deep"
+	RuleRoleOnEntry        Rule = "path.role_on_entry"
+	RuleRoleInvalid        Rule = "path.role_invalid"
+	RuleRoleMisplaced      Rule = "path.role_misplaced"
+	RuleEntryOutsideBranch Rule = "path.entry_outside_branch"
+	RuleEntryMultiTarget   Rule = "path.entry_multi_target"
+	RuleEntryNoncanonical  Rule = "path.entry_noncanonical"
 )
+
+// Rules are every rule this grammar can report, in the order they are declared
+// above — which is the order the consumers' own registries already list them
+// in, so reading the set from here changes no listing anyone has published.
+// The caller owns the returned slice.
+func Rules() []Rule {
+	return []Rule{
+		RuleRoleMissing,
+		RuleRoleDuplicate,
+		RuleRoleConflict,
+		RuleLocalOrphan,
+		RuleNestingTooDeep,
+		RuleRoleOnEntry,
+		RuleRoleInvalid,
+		RuleRoleMisplaced,
+		RuleEntryOutsideBranch,
+		RuleEntryMultiTarget,
+		RuleEntryNoncanonical,
+	}
+}
 
 // Document is a study path's whole interpretation: its branches in document
 // order, and everything that could not be determined.
@@ -292,8 +342,8 @@ func Parse(body string, bodyStartLine int) Document {
 		body:          body,
 		bodyStartLine: bodyStartLine,
 	}
-	p.zones = skipZones(body)
-	p.openers = emphasisOpeners(body)
+	p.zones = skipZones(doc, body)
+	p.openers = emphasisOpeners(doc)
 	p.rows = make(map[int]*Candidate)
 
 	// 1. Parse headings, containers and role declarations, collecting the rows
@@ -334,7 +384,7 @@ type parser struct {
 	diagnostics []Diagnostic
 }
 
-func (p *parser) report(rule string, line int, message, evidence string) {
+func (p *parser) report(rule Rule, line int, message, evidence string) {
 	p.diagnostics = append(p.diagnostics, Diagnostic{
 		Rule:     rule,
 		Line:     line,
@@ -842,7 +892,7 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 			p.report(RuleRoleMissing, g.Line,
 				"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it",
 				"a nested list carrying no declaration")
-		case len(g.Entries()) > 0:
+		case len(g.entries()) > 0:
 			g.Role = RoleUnclassified
 			p.report(RuleRoleMissing, g.Line,
 				"this branch lists lessons but never says what part it plays; declare {sequence=primary}, {sequence=local} or {sequence=none}",
@@ -850,7 +900,7 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 		default:
 			g.Role = RoleStructural
 		}
-		p.classify(g.Subgroups(), underNone || g.Role == RoleNone)
+		p.classify(g.subgroups(), underNone || g.Role == RoleNone)
 	}
 }
 
@@ -892,12 +942,14 @@ func (p *parser) pop() {
 // visibleMarkerSpans locates the marker spans on a line that are actually
 // written: one inside code or an Obsidian comment is quoted or switched off,
 // so it neither declares nor draws a report, while a real marker on the same
-// line still does. abs is the line's start offset in the body, which is what
-// lets a line-relative span be checked against the body's zones.
-func (p *parser) visibleMarkerSpans(raw string, abs int) []Span {
-	var out []Span
+// line still does. lineStart is the line's own start offset in the body, and
+// adding it here is the one place the two frames meet — the zones are the
+// body's, the spans are the line's, and the returned spans stay the line's
+// because that is the only frame the line's own text can be sliced with.
+func (p *parser) visibleMarkerSpans(raw string, lineStart int) []lineSpan {
+	var out []lineSpan
 	for _, s := range markerSpans(raw) {
-		if inAnyZone(p.zones, abs+s.Start) {
+		if inAnyZone(p.zones, lineStart+s.Start) {
 			continue
 		}
 		out = append(out, s)
@@ -1082,10 +1134,10 @@ func inAnyZone(zones []Span, off int) bool {
 
 // skipZones are the byte ranges whose brackets are not live links: code blocks
 // and code spans, where a link is being quoted, and Obsidian comments, where it
-// has been switched off.
-func skipZones(body string) []Span {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
+// has been switched off. It reads the tree the caller already has: parsing the
+// same body a second time is a second answer to what the document is, and the
+// two would disagree silently.
+func skipZones(doc ast.Node, body string) []Span {
 	var code []Span
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
 		if !entering {
@@ -1109,9 +1161,8 @@ func skipZones(body string) []Span {
 // emphasisOpeners are the opening delimiter runs of every emphasis in the body.
 // Markdown decides what an asterisk run is by finding a closer for it, so the
 // runs it paired are the ones that vanish into markup; every other run prints.
-func emphasisOpeners(body string) []Span {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
+// It reads the caller's tree for the same reason skipZones does.
+func emphasisOpeners(doc ast.Node) []Span {
 	var out []Span
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
 		if !entering {

@@ -15,6 +15,14 @@ const (
 	valueNone    = "none"
 )
 
+// lineSpan is a half-open byte range into one source line, counted from that
+// line's own first byte. It is deliberately not [Span]: a Span is measured from
+// the start of the body, and the two frames differ by wherever the line begins.
+// Keeping them apart is what stops a range measured on a line from being asked
+// a question only the body can answer — which zone it falls in, which row owns
+// it — where it would silently name the wrong bytes.
+type lineSpan struct{ Start, Stop int }
+
 // declKind is what a line's marker turned out to be. Every kind but declValid
 // declares nothing: an unreadable declaration is not a declaration, so the
 // branch stays undeclared and the author is told which way it failed.
@@ -37,7 +45,7 @@ const (
 // part of what the branch is called; the file's own bytes are never touched.
 // Anything unrecognized leaves the text exactly as written, so a reader sees
 // what the author typed and can find it.
-func readMarker(line string, spans []Span) (name string, role Role, decl declKind) {
+func readMarker(line string, spans []lineSpan) (name string, role Role, decl declKind) {
 	switch len(spans) {
 	case 0:
 		return line, RoleStructural, declNone
@@ -80,8 +88,8 @@ func markerValue(marker string) (Role, bool) {
 // markerSpans locates every "{sequence...}" on a line. A marker with no closing
 // brace is not a marker at all — it is text the author wrote — so an unclosed
 // opener ends the scan rather than swallowing the rest of the line.
-func markerSpans(line string) []Span {
-	var spans []Span
+func markerSpans(line string) []lineSpan {
+	var spans []lineSpan
 	for off := 0; ; {
 		rel := strings.Index(line[off:], markerOpen)
 		if rel < 0 {
@@ -93,7 +101,7 @@ func markerSpans(line string) []Span {
 			return spans
 		}
 		stop := start + relEnd + len(markerClose)
-		spans = append(spans, Span{start, stop})
+		spans = append(spans, lineSpan{start, stop})
 		off = stop
 	}
 }

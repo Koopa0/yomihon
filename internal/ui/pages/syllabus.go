@@ -246,7 +246,7 @@ func drawable(g *nav.PathGroup) bool {
 	if g.Projectable {
 		return true
 	}
-	if g.Invalid || g.Role != sequence.RoleStructural {
+	if !g.Carries {
 		return false
 	}
 	for _, item := range g.Items {

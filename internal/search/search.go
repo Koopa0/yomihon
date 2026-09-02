@@ -165,12 +165,16 @@ type Index struct {
 // instance metadata while the artifact policy is unavailable.
 var ErrMetadataUnavailable = errors.New("search metadata unavailable")
 
+// metadataUnavailableError carries the whole declaration outcome, not a
+// finished sentence: the reason and the loader's own error are what let the
+// page say why in the language its reader chose. Error stays the operator's
+// line, for a log and for a caller that only prints.
 type metadataUnavailableError struct {
-	diagnostic string
+	claim schema.Claim
 }
 
 func (e metadataUnavailableError) Error() string {
-	return e.diagnostic
+	return e.claim.Diagnostic()
 }
 
 func (e metadataUnavailableError) Unwrap() error {
@@ -178,7 +182,7 @@ func (e metadataUnavailableError) Unwrap() error {
 }
 
 func (idx *Index) metadataUnavailableError() error {
-	return metadataUnavailableError{diagnostic: idx.policy.Diagnostic()}
+	return metadataUnavailableError{claim: idx.policy.Claim()}
 }
 
 // NewIndex builds an Index from already-extracted note data and a startup-

@@ -288,7 +288,7 @@ func TestZeroValueIndexAnswersNothingWithoutInventingAFault(t *testing.T) {
 func TestWithheldCapabilitiesRefuseMetadataWithSomethingToSay(t *testing.T) {
 	t.Parallel()
 
-	_, _, policy, _ := schema.Unreadable(errors.New("toml: line 42: expected a key separator")).Capabilities(nil)
+	policy := (*schema.Contract)(nil).Capabilities(schema.Unreadable(errors.New("toml: line 42: expected a key separator"))).Artifacts
 	idx := NewIndex([]Document{
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft"},
 	}, policy)

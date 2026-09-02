@@ -3,6 +3,7 @@ package search
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestSearchHandler exercises GET /search end to end: route registration, the
@@ -524,5 +526,64 @@ func TestEmptyResultsNameTheCorpusAndFilesAreLabelled(t *testing.T) {
 	file := strings.Index(body, "Notes/todo.txt")
 	if note < 0 || file < 0 || note > file {
 		t.Errorf("the note hit is not answered before the file hit; note at %d, file at %d", note, file)
+	}
+}
+
+// TestAnUnreadableContractSpeaksTheReadersLanguage holds the one vault-level
+// fault to the same rule as every other sentence on the page. It is settled at
+// startup, before anyone has asked for anything, so the language it is said in
+// cannot be decided there — and the label beside it on this very page is
+// already chosen per reader, which is how a reader came to see one of them in
+// each language.
+func TestAnUnreadableContractSpeaksTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+
+	const loaderFault = "toml: line 42: expected a key separator"
+	policy := (*schema.Contract)(nil).
+		Capabilities(schema.Unreadable(errors.New(loaderFault))).Artifacts
+	idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, policy)
+
+	tests := []struct {
+		name   string
+		lang   string
+		want   string
+		absent string
+	}{
+		{
+			name:   "the default reader reads the default language",
+			want:   wording.ContractUnreadablePrefix.In(wording.ZhHant) + loaderFault,
+			absent: wording.ContractUnreadablePrefix.In(wording.En),
+		},
+		{
+			name:   "a reader who chose english reads english",
+			lang:   string(wording.En),
+			want:   wording.ContractUnreadablePrefix.In(wording.En) + loaderFault,
+			absent: wording.ContractUnreadablePrefix.In(wording.ZhHant),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := NewHandler(func() RequestSnapshot {
+				return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
+			}, slog.New(slog.DiscardHandler))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=type:concept", http.NoBody)
+			if tt.lang != "" {
+				req.Header.Set("Cookie", wording.CookieName+"="+tt.lang)
+			}
+			rr := httptest.NewRecorder()
+			h.search(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rr.Code)
+			}
+			body := html.UnescapeString(rr.Body.String())
+			if !strings.Contains(body, tt.want) {
+				t.Errorf("the page does not say %q; body = %q", tt.want, body)
+			}
+			if strings.Contains(body, tt.absent) {
+				t.Errorf("the page says %q, which this reader did not ask for", tt.absent)
+			}
+		})
 	}
 }

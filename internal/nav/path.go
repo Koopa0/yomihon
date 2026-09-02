@@ -87,9 +87,14 @@ type PathGroup struct {
 	Role  sequence.Role
 	// Container is true for a branch opened by a nested list row.
 	Container bool
-	// Projectable is the sequence grammar's one verdict: only a declared
+	// Projectable is the sequence grammar's first verdict: only a declared
 	// primary or local branch free of structural error projects.
 	Projectable bool
+	// Carries is the grammar's second verdict: a sound branch that merely
+	// groups others, which a walk descends through to reach the course beneath
+	// it. Like Projectable it is copied from the interpretation, never
+	// re-derived here from Role and Invalid.
+	Carries bool
 	// Invalid carries the sequence grammar's structural-error verdict. An
 	// invalid branch keeps its rows for the author; nothing projects from it.
 	Invalid bool
@@ -196,6 +201,7 @@ func buildPathGroup(
 		Role:         g.Role,
 		Container:    g.Container,
 		Projectable:  g.Projectable(),
+		Carries:      g.Carries(),
 		Invalid:      g.Invalid,
 		AnchorTarget: g.AnchorTarget,
 		AnchorSpan:   g.AnchorSpan,
@@ -316,7 +322,7 @@ func (w *stopWalk) walk(g *PathGroup) {
 		w.primary(g)
 	case g.Projectable && g.Role == sequence.RoleLocal:
 		w.locals = append(w.locals, localStops(g))
-	case g.Role == sequence.RoleStructural && !g.Invalid:
+	case g.Carries:
 		w.descend(g)
 	}
 }
@@ -387,7 +393,7 @@ func pathPlacements(index map[string][]Placement, p *Path) {
 // placeGroup records one branch's lessons and recurses. A branch the course
 // does not include contributes nothing: being listed there is not membership.
 func placeGroup(index map[string][]Placement, pathRel string, g *PathGroup, chain []string) {
-	if !g.Projectable && (g.Role != sequence.RoleStructural || g.Invalid) {
+	if !g.Projectable && !g.Carries {
 		return
 	}
 	here := chain

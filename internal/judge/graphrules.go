@@ -355,7 +355,7 @@ func provenanceUnresolved(
 }
 
 func supersessionForNote(contract *schema.Contract, n *note) (schema.Supersession, bool) {
-	if contract == nil || contract.StatusGroup(n.noteType) == "" {
+	if contract.StatusGroup(n.noteType) == "" {
 		return schema.Supersession{}, false
 	}
 	return contract.Supersession()

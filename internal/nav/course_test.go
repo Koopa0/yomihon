@@ -85,12 +85,12 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 	// The third part is undeclared, so nothing in it projects however it is
 	// written — and each row shape is refused for its own stated reason.
 	doc := sequence.Parse(string(body), note.BodyLine)
-	wantRules := map[string]int{
+	wantRules := map[sequence.Rule]int{
 		sequence.RuleRoleMissing:       2, // the undeclared part, and the nested list inside it
 		sequence.RuleEntryNoncanonical: 1, // "補充：[[L01]]" does not open with its link
 		sequence.RuleEntryMultiTarget:  1, // a row naming two lessons
 	}
-	got := make(map[string]int)
+	got := make(map[sequence.Rule]int)
 	for _, d := range doc.Diagnostics {
 		got[d.Rule]++
 	}

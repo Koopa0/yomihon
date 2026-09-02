@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1878,4 +1879,214 @@ never_egress_dirs = ["Private"]
 	if contract.PrivacyPolicy().ValidateSource().Available() {
 		t.Error("the privacy policy stayed open after the contract's bytes changed")
 	}
+}
+
+// TestANilContractAnswersAsAnUngovernedVault states the type's nil policy as
+// one table, over every exported method rather than the ones somebody thought
+// of. Both reachable ways a vault ends up ungoverned — no contract file, and a
+// contract file that could not be read — hand every consumer a nil *Contract,
+// so a method that panicked on one would be a fault reachable from a folder
+// with nothing wrong with it.
+//
+// The method list is read out of the package source, so a method added without
+// a row here fails at this test rather than at whichever consumer meets the
+// nil first.
+func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
+	t.Parallel()
+
+	var c *schema.Contract
+	// Each row answers with the complaint to make, or empty when the method
+	// answered as a vault no contract governs.
+	answers := map[string]func() string{
+		"Version": func() string {
+			if got := c.Version(); got != "" {
+				return fmt.Sprintf("Version() = %q, want empty", got)
+			}
+			return ""
+		},
+		"Definition": func() string {
+			if diff := cmp.Diff(schema.Definition{}, c.Definition()); diff != "" {
+				return "Definition() mismatch (-want +got):\n" + diff
+			}
+			return ""
+		},
+		"StageCount": func() string {
+			if got := c.StageCount(); got != 0 {
+				return fmt.Sprintf("StageCount() = %d, want 0", got)
+			}
+			return ""
+		},
+		"Supersession": func() string {
+			if got, declared := c.Supersession(); declared || got != (schema.Supersession{}) {
+				return fmt.Sprintf("Supersession() = (%+v, %t), want the zero vocabulary and false", got, declared)
+			}
+			return ""
+		},
+		"ConceptType": func() string {
+			if _, declared := c.ConceptType(); declared {
+				return "ConceptType() reports a declared concept corpus"
+			}
+			return ""
+		},
+		"InboxRequiredFields": func() string {
+			if _, fields, declared := c.InboxRequiredFields(); declared || fields != nil {
+				return fmt.Sprintf("InboxRequiredFields() = (%v, %t), want no fields and false", fields, declared)
+			}
+			return ""
+		},
+		"RequiresFrontmatter": func() string {
+			if c.RequiresFrontmatter() {
+				return "RequiresFrontmatter() faults a note that carries none"
+			}
+			return ""
+		},
+		"DeclaresType": func() string {
+			if c.DeclaresType("lesson") {
+				return "DeclaresType() claims a type vocabulary"
+			}
+			return ""
+		},
+		"Capabilities": func() string {
+			caps := c.Capabilities(schema.Ungoverned())
+			if caps.Navigation.Available() || caps.Knowledge.Available() || caps.Artifacts.Available() {
+				return "Capabilities() claims a declared set for a vault nothing governs"
+			}
+			if caps.Navigation.Claim().Claimed() || caps.Artifacts.Claim().Claimed() {
+				return "Capabilities() reports a withheld declaration where none was ever made"
+			}
+			return ""
+		},
+		"Governance": func() string {
+			if c.Governance().Governed() {
+				return "Governance() claims authority over the vault"
+			}
+			return ""
+		},
+		"NavigationRoles": func() string {
+			roles := c.NavigationRoles()
+			if roles.Available() || roles.IsPathType("study-path") || roles.IsMapType("moc") {
+				return "NavigationRoles() claims a declared role set"
+			}
+			return ""
+		},
+		"KnowledgeScope": func() string {
+			if c.KnowledgeScope().Available() {
+				return "KnowledgeScope() claims a declared knowledge layer"
+			}
+			return ""
+		},
+		"ArtifactPolicy": func() string {
+			policy := c.ArtifactPolicy()
+			if policy.Available() || policy.IsNonInstance("System/templates/x.md") {
+				return "ArtifactPolicy() claims a declared exclusion set"
+			}
+			return ""
+		},
+		"PrivacyPolicy": func() string {
+			policy := c.PrivacyPolicy()
+			if policy.Available() || policy.EgressAllowed("Notes/a.md") {
+				return "PrivacyPolicy() permits egress with no declaration behind it"
+			}
+			return ""
+		},
+		"ArticleLanguage": func() string {
+			tag, err := c.ArticleLanguage().Resolve(map[string]any{"lang": "ja"})
+			if tag != "" || err != nil {
+				return fmt.Sprintf("ArticleLanguage().Resolve() = (%q, %v), want no tag and no fault: the field has no authority here", tag, err)
+			}
+			return ""
+		},
+		"StatusGroup": func() string {
+			if got := c.StatusGroup("lesson"); got != "" {
+				return fmt.Sprintf("StatusGroup() = %q, want empty", got)
+			}
+			if got := c.StatusGroup(""); got != "" {
+				return fmt.Sprintf("StatusGroup(%q) = %q, want empty", "", got)
+			}
+			return ""
+		},
+		"Statuses": func() string {
+			if got := c.Statuses("lesson"); got != nil {
+				return fmt.Sprintf("Statuses() = %v, want nil", got)
+			}
+			return ""
+		},
+		"Stage": func() string {
+			if got, ok := c.Stage("lesson", "draft"); ok {
+				return fmt.Sprintf("Stage() = (%+v, true), want no lifecycle row", got)
+			}
+			return ""
+		},
+		"Transition": func() string {
+			if err := c.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
+				return fmt.Sprintf("Transition() error = %v, want one wrapping ErrUnknownStatus", err)
+			}
+			if err := c.Transition("lesson", "", "draft"); !errors.Is(err, schema.ErrUnknownStatus) {
+				return fmt.Sprintf("Transition() into an initial status error = %v, want one wrapping ErrUnknownStatus", err)
+			}
+			return ""
+		},
+	}
+
+	for _, name := range exportedContractMethods(t) {
+		check, covered := answers[name]
+		if !covered {
+			t.Errorf("(*Contract).%s has no row here: state what it answers for a vault no contract governs", name)
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if complaint := check(); complaint != "" {
+				t.Error(complaint)
+			}
+		})
+	}
+	for name := range answers {
+		if !slices.Contains(exportedContractMethods(t), name) {
+			t.Errorf("this table states an answer for (*Contract).%s, which the package does not declare", name)
+		}
+	}
+}
+
+// exportedContractMethods reads the names of every exported method on
+// *Contract out of the package source, so no hand-kept list can fall behind
+// the type.
+func exportedContractMethods(t *testing.T) []string {
+	t.Helper()
+	fset := token.NewFileSet()
+	dir, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("list the package source: %v", err)
+	}
+	var names []string
+	for _, entry := range dir {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, parseErr := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", name, parseErr)
+		}
+		for _, decl := range parsed.Decls {
+			fn, isFunc := decl.(*ast.FuncDecl)
+			if !isFunc || fn.Recv == nil || len(fn.Recv.List) != 1 || !fn.Name.IsExported() {
+				continue
+			}
+			star, isStar := fn.Recv.List[0].Type.(*ast.StarExpr)
+			if !isStar {
+				continue
+			}
+			ident, isIdent := star.X.(*ast.Ident)
+			if !isIdent || ident.Name != "Contract" {
+				continue
+			}
+			names = append(names, fn.Name.Name)
+		}
+	}
+	if len(names) == 0 {
+		t.Fatal("no exported *Contract methods were found; the scan would prove nothing")
+	}
+	slices.Sort(names)
+	return names
 }
