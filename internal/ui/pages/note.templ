@@ -55,6 +55,16 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	}
 }
 
+// noteDateLabel names the claim the metarow's date makes: the author's own
+// declared update, or the file's recorded change time when the note declares
+// none a date can be read from.
+func noteDateLabel(v NoteView) string {
+	if v.UpdatedFromFile {
+		return wording.FileChangedOn.In(v.Lang)
+	}
+	return wording.UpdatedOn.In(v.Lang)
+}
+
 // articleLanguageAttrs states an article's language only where the note
 // declared one and the vault contract gave that declaration authority. A note
 // that declared nothing contributes no attribute, so the article inherits the
@@ -143,8 +153,18 @@ type NoteView struct {
 	// built, so the words below are the last ones yomihon did read. Nothing
 	// else on the page differs, and a reader comparing it against what they
 	// last wrote would conclude the edit was lost rather than unread.
-	Stale    bool
-	BodyHTML string
+	Stale bool
+	// Updated is the display date the metarow carries and UpdatedAt its
+	// machine-readable value. The date is the author's declared update when
+	// the frontmatter has a readable one, and the file's recorded change
+	// time otherwise — UpdatedFromFile then picks the label that says so.
+	// Both empty renders no date at all: the one way there is nothing to
+	// show is a file identity this generation could not produce, and a blank
+	// is better than a claim.
+	Updated         string
+	UpdatedAt       string
+	UpdatedFromFile bool
+	BodyHTML        string
 	// TitleAnchor is the id the title carries, set when the note opened with a
 	// heading saying the same thing and the renderer dropped it as a
 	// duplicate. A link may be written at that section, and the title is where
@@ -345,10 +365,17 @@ templ articleHead(v NoteView) {
 	} else {
 		<h1 class="y-title">{ v.Title }</h1>
 	}
-	if v.Type != "" || v.Status != "" || v.RelPath != "" {
+	if v.Type != "" || v.Status != "" || v.RelPath != "" || v.Updated != "" {
 		<div class="y-metarow">
 			if v.Type != "" {
 				<span class="ui-type">{ v.Type }</span>
+			}
+			// The date is a fact about the note like its type, so it sits with
+			// the facts, before the links that act. Which label it carries is
+			// which claim it makes: the author's declared update, or the file's
+			// recorded change when the note declares none.
+			if v.Updated != "" {
+				<span>{ noteDateLabel(v) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
 			}
 			if v.RelPath != "" {
 				<span>{ v.RelPath }</span>

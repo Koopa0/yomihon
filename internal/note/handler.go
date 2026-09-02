@@ -460,6 +460,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		DegradedDetail: blockedDetail(fresh.Blocked),
 		Recent:         recent,
 		RecentOrdered:  recentOrdered,
+		RecentScoped:   visibleNav.KnowledgeScoped(),
 		Lifecycle:      lifecycle,
 		Unstated:       unstated,
 		Paths:          paths,
@@ -554,6 +555,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
 	flippedFrom := vouchedOrigin(statusView, h.deps.ConsumeReceipt, rel, n.Type, noteStatus, r.URL.Query().Get("from"))
+	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
 		Lang:              pages.LanguageFromRequest(r),
 		Title:             n.Title,
@@ -561,6 +563,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Language:          n.Language,
 		Type:              n.Type,
 		Status:            noteStatus,
+		Updated:           updatedDisplay,
+		UpdatedAt:         updatedMachine,
+		UpdatedFromFile:   updatedFromFile,
 		ObsidianHref:      pages.ObsidianHref(h.deps.Source.Name(), n.RelPath),
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
@@ -604,6 +609,28 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write note page", "path", rel, "error", err)
 	}
+}
+
+// metarowDate picks the one date the reading page shows and the strings the
+// time element carries. The note's declared update wins when it is readable:
+// it is the author's own claim, shown as the date it is. Otherwise the file's
+// recorded change time answers, keeping its clock in the machine-readable
+// value because a clock is what was observed — and fromFile then picks the
+// label naming that different claim.
+//
+// Every note this page serves was observed by the generation's scan, so the
+// fallback is expected to answer; should the scan hold no identity for the
+// path anyway, the page goes dateless rather than dated by invention.
+func metarowDate(updated time.Time, snap *snapshot.View, rel string) (display, machine string, fromFile bool) {
+	if !updated.IsZero() {
+		return updated.Format(time.DateOnly), updated.Format(time.DateOnly), false
+	}
+	entry, ok := snap.Entry(rel)
+	if !ok || entry.ModTime().IsZero() {
+		return "", "", false
+	}
+	mod := entry.ModTime()
+	return mod.Format(time.DateOnly), mod.Format(time.RFC3339), true
 }
 
 // schemaNotices turns what the schema said about a note into sentences a
@@ -1138,7 +1165,10 @@ func recentHomeNotes(
 	}
 	// One shared timestamp across everything shown means the times separated
 	// nothing: what the reader is looking at is the tie-break, not recency.
-	ordered = len(notes) > 1 && !notes[0].Modified.Equal(notes[len(notes)-1].Modified)
+	// A single note is ordered by itself — it is trivially the most recently
+	// changed thing listed, and the tie notice would speak of files that are
+	// not there.
+	ordered = len(notes) < 2 || !notes[0].Modified.Equal(notes[len(notes)-1].Modified)
 
 	out := make([]pages.HomeNote, 0, len(notes))
 	for _, n := range notes {
@@ -1180,6 +1210,10 @@ func homePaths(paths []nav.Path) []pages.HomePath {
 			Title:   studyPath.Title,
 			RelPath: studyPath.RelPath,
 			Total:   total,
+			// A zero with grammar diagnostics behind it is a fault to
+			// repair; a zero without them is the author's answer. Only the
+			// first is marked, so the two stop looking alike.
+			Undetermined: total == 0 && len(studyPath.Diagnostics) > 0,
 		})
 	}
 	return out

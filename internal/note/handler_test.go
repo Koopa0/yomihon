@@ -3666,3 +3666,358 @@ func unstatedCounts(t *testing.T, block string) []int {
 		rest = rest[shut:]
 	}
 }
+
+// TestNoteMetarowCarriesADate holds the reading page's one date: the author's
+// declared update when the frontmatter carries a readable one, and the file's
+// own recorded change time when it does not. The two are different claims and
+// each carries its own label — a fresh checkout stamps every file with one
+// moment, and calling that moment the author's update would put words in their
+// mouth. The declared date renders as the date it is; the file time keeps its
+// clock in the machine-readable value, because that is what was observed.
+func TestNoteMetarowCarriesADate(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for rel, content := range map[string]string{
+		"Writing/Declared.md":   "---\ntitle: Declared\ntype: writing\nstatus: draft\nupdated: 2026-07-12\n---\n\nbody\n",
+		"Writing/Undeclared.md": "---\ntitle: Undeclared\ntype: writing\nstatus: draft\n---\n\nbody\n",
+	} {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	undeclared := filepath.Join(root, "Writing", "Undeclared.md")
+	stamp := time.Date(2026, time.June, 3, 8, 30, 0, 0, time.UTC)
+	if err := os.Chtimes(undeclared, stamp, stamp); err != nil {
+		t.Fatalf("set mtime: %v", err)
+	}
+	// The recorded time is read back rather than trusted: a filesystem may
+	// round what it was handed, and the page prints what the scan observed.
+	info, err := os.Stat(undeclared)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	srv := newServer(t, root)
+
+	code, body := get(t, srv.URL+"/notes/Writing/Declared.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET declared note status = %d, want 200", code)
+	}
+	if want := `更新於 <time datetime="2026-07-12">2026-07-12</time>`; !strings.Contains(body, want) {
+		t.Errorf("a note declaring its update does not show it; want %q in page", want)
+	}
+	if strings.Contains(body, "檔案變更於") {
+		t.Error("a note declaring its update is dated by the file as well")
+	}
+
+	code, body = get(t, srv.URL+"/notes/Writing/Undeclared.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET undeclared note status = %d, want 200", code)
+	}
+	mod := info.ModTime()
+	want := `檔案變更於 <time datetime="` + mod.Format(time.RFC3339) + `">` + mod.Format(time.DateOnly) + `</time>`
+	if !strings.Contains(body, want) {
+		t.Errorf("a note declaring no update is not dated by the file; want %q in page", want)
+	}
+	if strings.Contains(body, "更新於 <time") {
+		t.Error("a note declaring no update still claims an authored one")
+	}
+}
+
+// TestNoteMetarowDateSpeaksTheInterfaceLanguage holds the date's label in the
+// second language the chrome speaks. The words come from the dictionary, so an
+// English page must not fall back to the default half of the pair.
+func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	full := filepath.Join(root, "Writing", "Declared.md")
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	content := "---\ntitle: Declared\ntype: writing\nstatus: draft\nupdated: 2026-07-12\n---\n\nbody\n"
+	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	srv := newServer(t, root)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/notes/Writing/Declared.md", http.NoBody)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Cookie", wording.CookieName+"="+string(wording.En))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET note: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	body := string(raw)
+	if want := `Updated <time datetime="2026-07-12">2026-07-12</time>`; !strings.Contains(body, want) {
+		t.Errorf("the English page does not label the date in English; want %q", want)
+	}
+	if strings.Contains(body, "更新於") {
+		t.Error("the English page carries the default-language date label")
+	}
+}
+
+// TestHomeRecentStatesItsKnowledgeScope holds the two dashboard blocks to
+// their own scopes, stated where the reader compares them. The recent list
+// shows the declared knowledge folders; the distribution counts every indexed
+// note. On a vault holding one draft inside the layer and one outside, the
+// page used to show one recent note beside "draft 2" with nothing explaining
+// the difference — both numbers true, and the pair reading as a contradiction.
+// Each block now says what it counts, and neither is forced onto the other's
+// set.
+func TestHomeRecentStatesItsKnowledgeScope(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	for rel, at := range map[string]time.Time{
+		"Writing/Inside.md": base.Add(24 * time.Hour),
+		"Attic/Outside.md":  base,
+	} {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		title := strings.TrimSuffix(filepath.Base(rel), ".md")
+		content := "---\ntitle: " + title + "\ntype: writing\nstatus: draft\n---\n\nbody\n"
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+		if err := os.Chtimes(full, at, at); err != nil {
+			t.Fatalf("set %s mtime: %v", rel, err)
+		}
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+
+	recent := homeSection(t, body, `data-home-block="recent"`)
+	if !strings.Contains(recent, "Inside") {
+		t.Fatalf("the recent block does not list the knowledge-layer note; section = %q", recent)
+	}
+	if strings.Contains(recent, "Outside") {
+		t.Errorf("the recent block lists a note outside the knowledge layer; section = %q", recent)
+	}
+	if !strings.Contains(recent, "知識層資料夾中最近改動過的筆記") {
+		t.Errorf("the recent block does not state its scope; section = %q", recent)
+	}
+	if strings.Contains(recent, "時間戳一模一樣") {
+		t.Errorf("distinct times still read as a tie; section = %q", recent)
+	}
+
+	lifecycleBlock := homeSection(t, body, `data-home-block="lifecycle"`)
+	row := homeLifecycleRow(t, lifecycleBlock, "draft")
+	if !strings.Contains(row, ">2<") {
+		t.Errorf("the distribution does not count both drafts; row = %q", row)
+	}
+	if !strings.Contains(lifecycleBlock, "書庫中每篇已索引筆記落在哪裡") {
+		t.Errorf("the distribution does not state its own scope; section = %q", lifecycleBlock)
+	}
+}
+
+// TestHomeSingleNoteClaimsNoTimestampTie holds the tie notice to vaults where
+// it is true. With one note there is one recorded time and nothing for it to
+// equal, yet the page said "these files carry identical timestamps" — a
+// sentence about files that do not exist. One note is trivially the most
+// recently changed thing, so the ordinary heading stands and the tie sentence
+// stays off the page.
+func TestHomeSingleNoteClaimsNoTimestampTie(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	content := "---\ntitle: Only\ntype: writing\nstatus: draft\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(root, "Only.md"), []byte(content), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	srv := newServer(t, root)
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, body, `data-home-block="recent"`)
+	if strings.Contains(recent, "時間戳一模一樣") || strings.Contains(recent, "identical timestamps") {
+		t.Errorf("a single-note vault claims a timestamp tie; section = %q", recent)
+	}
+	if !strings.Contains(recent, `<h2 id="home-recent-title">最近變更</h2>`) {
+		t.Errorf("a single-note vault does not carry the ordinary recency heading; section = %q", recent)
+	}
+}
+
+// TestHomeTiedTimesStillSaySoWithinTheirScope pins the tie notice itself: on
+// a knowledge-scoped vault whose files all carry one moment, the block still
+// says the times separate nothing — and now names the scope it lists, since
+// the tie changes nothing about which files these are.
+func TestHomeTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	stamp := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	for _, rel := range []string{"Writing/A.md", "Writing/B.md"} {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		title := strings.TrimSuffix(filepath.Base(rel), ".md")
+		content := "---\ntitle: " + title + "\ntype: writing\nstatus: draft\n---\n\nbody\n"
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+		if err := os.Chtimes(full, stamp, stamp); err != nil {
+			t.Fatalf("set %s mtime: %v", rel, err)
+		}
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, body, `data-home-block="recent"`)
+	if !strings.Contains(recent, "知識層資料夾中的筆記。這些檔案的時間戳一模一樣") {
+		t.Errorf("tied times in a scoped list do not say both facts; section = %q", recent)
+	}
+}
+
+// TestHomeUnscopedVaultClaimsNoKnowledgeLayer holds the scope phrase to
+// vaults that declared one. A folder without a contract lists everything, and
+// a lede naming a knowledge layer there would invent a rule its owner never
+// wrote.
+func TestHomeUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	for rel, at := range map[string]time.Time{"A.md": base, "B.md": base.Add(time.Hour)} {
+		content := "---\ntitle: " + strings.TrimSuffix(rel, ".md") + "\ntype: writing\n---\n\nbody\n"
+		full := filepath.Join(root, rel)
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+		if err := os.Chtimes(full, at, at); err != nil {
+			t.Fatalf("set %s mtime: %v", rel, err)
+		}
+	}
+	srv := newServer(t, root)
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, body, `data-home-block="recent"`)
+	if strings.Contains(recent, "知識層") {
+		t.Errorf("an unscoped vault's recent block names a knowledge layer; section = %q", recent)
+	}
+	if !strings.Contains(recent, "最近改動過的筆記") {
+		t.Errorf("the unscoped lede is gone; section = %q", recent)
+	}
+}
+
+// TestHomeStudyPathCardSeparatesTheTwoZeroes tells apart the two courses that
+// plan nothing. A path whose note lists lessons the grammar could not read is
+// marked — the zero is a fault to repair, and the card used to look exactly
+// like an empty course. A path whose note simply declares no course stays
+// unmarked: its zero is the author's answer, and a flag on it would send them
+// hunting for a fault that does not exist. A course that reads fine keeps its
+// count and no mark.
+func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	files := map[string]string{
+		"Maps/broken.md":  "---\ntitle: Broken course\ntype: study-path\n---\n\n## Part\n\n- [[Open]]\n",
+		"Maps/prose.md":   "---\ntitle: Prose only\ntype: study-path\n---\n\nNothing here lists a lesson.\n",
+		"Maps/working.md": "---\ntitle: Working course\ntype: study-path\n---\n\n## Part {sequence=primary}\n\n- [[Open]]\n",
+		"Writing/Open.md": "---\ntitle: Open\ntype: lesson\nstatus: draft\n---\n\nbody\n",
+	}
+	for rel, content := range files {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	paths := homeSection(t, body, `data-home-block="study-paths"`)
+	card := func(title string) string {
+		t.Helper()
+		at := strings.Index(paths, title)
+		if at < 0 {
+			t.Fatalf("no card for %q; section = %q", title, paths)
+		}
+		end := strings.Index(paths[at:], "</a>")
+		if end < 0 {
+			t.Fatalf("unterminated card for %q", title)
+		}
+		return paths[at : at+end]
+	}
+
+	broken := card("Broken course")
+	if !strings.Contains(broken, "0 課") {
+		t.Errorf("the unreadable course does not show its zero; card = %q", broken)
+	}
+	if !strings.Contains(broken, "未讀到課程結構") {
+		t.Errorf("the unreadable course's zero is not marked; card = %q", broken)
+	}
+
+	prose := card("Prose only")
+	if !strings.Contains(prose, "0 課") {
+		t.Errorf("the courseless note does not show its zero; card = %q", prose)
+	}
+	if strings.Contains(prose, "未讀到課程結構") {
+		t.Errorf("a note that declares no course is marked as unreadable; card = %q", prose)
+	}
+
+	working := card("Working course")
+	if !strings.Contains(working, "1 課") {
+		t.Errorf("the working course lost its count; card = %q", working)
+	}
+	if strings.Contains(working, "未讀到課程結構") {
+		t.Errorf("a working course is marked as unreadable; card = %q", working)
+	}
+}
+
+// TestHomeUnscopedTieKeepsThePlainNotice completes the lede's four states: a
+// folder that declared no knowledge layer and whose files carry one moment
+// gets the tie notice exactly as before, with no scope phrase — every clause
+// of the sentence true of the page it sits on.
+func TestHomeUnscopedTieKeepsThePlainNotice(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	stamp := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	for _, rel := range []string{"A.md", "B.md"} {
+		content := "---\ntitle: " + strings.TrimSuffix(rel, ".md") + "\ntype: writing\n---\n\nbody\n"
+		full := filepath.Join(root, rel)
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+		if err := os.Chtimes(full, stamp, stamp); err != nil {
+			t.Fatalf("set %s mtime: %v", rel, err)
+		}
+	}
+	srv := newServer(t, root)
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, body, `data-home-block="recent"`)
+	if !strings.Contains(recent, "<p>這些檔案的時間戳一模一樣") {
+		t.Errorf("an unscoped tie lost its plain notice; section = %q", recent)
+	}
+	if strings.Contains(recent, "知識層") {
+		t.Errorf("an unscoped tie names a knowledge layer; section = %q", recent)
+	}
+}

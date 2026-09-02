@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -118,6 +119,25 @@ func (n *Note) Aliases() []string {
 		}
 	}
 	return out
+}
+
+// Updated is the note's declared update date, or the zero time when the
+// frontmatter carries none or carries a shape no date can be read from.
+// YAML hands an unquoted date over as a time and a quoted one as text, so
+// both shapes are read — a date alone, or a full timestamp; anything else
+// falls to the caller's fallback rather than being guessed at.
+func (n *Note) Updated() time.Time {
+	switch v := n.Frontmatter["updated"].(type) {
+	case time.Time:
+		return v
+	case string:
+		for _, layout := range []string{time.DateOnly, time.RFC3339} {
+			if t, err := time.Parse(layout, v); err == nil {
+				return t
+			}
+		}
+	}
+	return time.Time{}
 }
 
 // Slug is the frontmatter slug, empty when absent. It is a lesson's stable

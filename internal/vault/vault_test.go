@@ -3,6 +3,7 @@ package vault_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -372,5 +373,65 @@ func TestIsMarkdownAcceptsOnlyTheExactLowercaseFinalExtension(t *testing.T) {
 		if got := vault.IsMarkdown(tt.path); got != tt.want {
 			t.Errorf("IsMarkdown(%q) = %v, want %v", tt.path, got, tt.want)
 		}
+	}
+}
+
+// TestUpdated pins the charitable reading of the declared update date. YAML
+// hands an unquoted date over as a time and a quoted one as text; both read,
+// as does a full timestamp in either shape. Everything else — absence, prose,
+// a shape that is not a scalar — is the zero time, so the caller falls back
+// to the file's own recorded change rather than showing a guess.
+func TestUpdated(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		raw  string
+		want time.Time
+	}{
+		{
+			name: "unquoted date",
+			raw:  "---\nupdated: 2026-07-12\n---\nbody\n",
+			want: time.Date(2026, time.July, 12, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "quoted date",
+			raw:  "---\nupdated: \"2026-07-12\"\n---\nbody\n",
+			want: time.Date(2026, time.July, 12, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "unquoted timestamp keeps its clock",
+			raw:  "---\nupdated: 2026-07-12T10:30:00Z\n---\nbody\n",
+			want: time.Date(2026, time.July, 12, 10, 30, 0, 0, time.UTC),
+		},
+		{
+			name: "quoted timestamp keeps its clock",
+			raw:  "---\nupdated: \"2026-07-12T10:30:00Z\"\n---\nbody\n",
+			want: time.Date(2026, time.July, 12, 10, 30, 0, 0, time.UTC),
+		},
+		{
+			name: "absent is the zero time",
+			raw:  "---\ntitle: A\n---\nbody\n",
+		},
+		{
+			name: "prose is the zero time",
+			raw:  "---\nupdated: last week\n---\nbody\n",
+		},
+		{
+			name: "a list is the zero time",
+			raw:  "---\nupdated:\n  - 2026-07-12\n---\nbody\n",
+		},
+		{
+			name: "no frontmatter is the zero time",
+			raw:  "body only\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := vault.Parse("A.md", []byte(tt.raw)).Updated()
+			if !got.Equal(tt.want) {
+				t.Errorf("Updated() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

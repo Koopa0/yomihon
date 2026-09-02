@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"crypto/sha256"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -21,6 +22,11 @@ type Note struct {
 	Language           string
 	LanguageDiagnostic string
 	HasFrontmatter     bool
+	// Updated is the note's own declared update date, zero when the
+	// frontmatter carries none a date can be read from. The reading page
+	// shows it, falling back to the file's recorded change time — a
+	// different claim, which the page labels differently.
+	Updated time.Time
 	// ContentIdentity is vault.ContentIdentity over the source bytes this
 	// projection was captured from: everything but the status line, which the
 	// reading page reads live and binds separately. The page embeds it in each
@@ -60,6 +66,7 @@ func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLangua
 		Language:           language,
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.Frontmatter != nil,
+		Updated:            parsed.Updated(),
 		ContentIdentity:    vault.ContentIdentity(data),
 		Searchable:         searchable,
 	}

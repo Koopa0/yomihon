@@ -31,6 +31,16 @@ var (
 	OpenInObsidian = both("在 Obsidian 開啟", "Open in Obsidian")
 )
 
+// The label on the metarow's date. The two are two different claims: the
+// first is the author's own declared update, the second the file's recorded
+// change time, shown when the note declares no readable update date. They are
+// kept apart because a fresh checkout stamps every file with one moment, and
+// calling that moment the author's update would put words in their mouth.
+var (
+	UpdatedOn     = both("更新於", "Updated")
+	FileChangedOn = both("檔案變更於", "File changed")
+)
+
 // NoteTooLargeToIndex says a note is readable and unsearchable, which is a
 // promise the folder would otherwise appear to break.
 var NoteTooLargeToIndex = both(
