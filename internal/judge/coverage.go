@@ -220,7 +220,7 @@ func resolveTargets(idx *graph.Index, value string) []string {
 	case graph.KindUnresolved:
 		return nil
 	default:
-		panic("judge: unknown graph.Kind: " + strconv.Itoa(int(res.Kind)))
+		panic("judge: unknown graph.Kind: " + res.Kind.String())
 	}
 }
 

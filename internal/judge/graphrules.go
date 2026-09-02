@@ -479,7 +479,7 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 		case graph.KindUnresolved:
 			out = append(out, syllabusListsMissing(syllabus, link))
 		default:
-			panic("judge: unknown graph.Kind: " + strconv.Itoa(int(res.Kind)))
+			panic("judge: unknown graph.Kind: " + res.Kind.String())
 		}
 	}
 	if syllabus.domain == "" {

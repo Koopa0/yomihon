@@ -910,7 +910,7 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 		})
 		return unwrittenTarget(link.Target, link.Display, link.Heading, col.page.lang)
 	default:
-		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
+		panic("render: unknown graph.Kind: " + res.Kind.String())
 	}
 }
 
@@ -1007,7 +1007,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			repeatedNotice(link.Heading, repeated, col.page.lang) + notExpandedNotice(heldBack, col.page.lang) +
 			resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
 	default:
-		panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))
+		panic("render: unknown graph.Kind: " + res.Kind.String())
 	}
 }
 

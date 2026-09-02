@@ -24,6 +24,7 @@ package sequence
 
 import (
 	"cmp"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -69,7 +70,7 @@ func (r Role) String() string {
 	case RoleNone:
 		return "none"
 	default:
-		panic("sequence: unknown Role")
+		panic("sequence: unknown Role: " + strconv.Itoa(int(r)))
 	}
 }
 
@@ -137,7 +138,7 @@ func (s EntryState) String() string {
 	case EntryRoleOnEntry:
 		return "role-on-entry"
 	default:
-		panic("sequence: unknown EntryState")
+		panic("sequence: unknown EntryState: " + strconv.Itoa(int(s)))
 	}
 }
 

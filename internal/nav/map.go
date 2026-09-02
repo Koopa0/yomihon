@@ -1,7 +1,6 @@
 package nav
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -308,6 +307,6 @@ func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, p
 		// dropping the row would quietly break the promise that a map loses
 		// no entry, and misfiling it would present a guess as a fact. A new
 		// kind has to be met here by name.
-		panic(fmt.Sprintf("nav: unknown graph.Kind %d", res.Kind))
+		panic("nav: unknown graph.Kind: " + res.Kind.String())
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -78,6 +79,11 @@ func productionLines(t *testing.T) []site {
 
 	var sites []site
 	for _, path := range productionFiles(t, ".go") {
+		// A <type>_string.go is a stringer's output. The checks over text are
+		// about how this repository writes, and nobody writes that file.
+		if strings.HasSuffix(path, "_string.go") {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
@@ -143,33 +149,79 @@ func findLines(t *testing.T, accept func(string) bool) []site {
 // TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow keeps the last arm of a
 // switch over a closed set useful. A panic that says only which type it was
 // holding leaves whoever meets it in a log with no way to tell which value the
-// vault produced, and a %d says a number for something that reads as a word
-// everywhere else.
+// vault produced, and a number says a number for something that reads as a word
+// everywhere else — so a message the reader has to decode against a constant
+// block they do not have open is only half an answer.
+//
+// The one place a number is the whole answer is the method that produces the
+// names. It is exempted by shape rather than by a list: a panic over the
+// receiver of the method it sits in is that method, and it cannot ask itself
+// for a name it is in the middle of failing to supply.
 func TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "the switch-panic shapes are being changed by another line of this work; " +
-			"when its change lands, these lines stop matching and belong deleted",
-		keys: []string{
-			`internal/nav/map.go | panic(fmt.Sprintf("nav: unknown graph.Kind %d", res.Kind))`,
-			`internal/render/wikilink.go | panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))`,
-			`internal/sequence/sequence.go | panic("sequence: unknown Role")`,
-			`internal/sequence/sequence.go | panic("sequence: unknown EntryState")`,
-		},
+	naming := panicsOverTheirOwnReceiver(t)
+	var found []site
+	conforming := 0
+	for _, s := range productionLines(t) {
+		if !strings.Contains(s.text, "panic(") || !strings.Contains(s.text, "unknown") {
+			continue
+		}
+		if naming[s.path+":"+strconv.Itoa(s.line)] {
+			continue
+		}
+		namesTheValue := strings.Contains(s.text, ".String()") || strings.Contains(s.text, "+ string(")
+		asANumber := strings.Contains(s.text, "strconv.Itoa(int(") || strings.Contains(s.text, "%d")
+		if namesTheValue && !asANumber {
+			conforming++
+			continue
+		}
+		found = append(found, s)
 	}
-	found := findLines(t, func(line string) bool {
-		return strings.Contains(line, "panic(") && strings.Contains(line, "unknown") &&
-			!strings.Contains(line, `: " +`)
-	})
-	conforming := findLines(t, func(line string) bool {
-		return strings.Contains(line, "panic(") && strings.Contains(line, "unknown") &&
-			strings.Contains(line, `: " +`)
-	})
-	if len(conforming) == 0 {
+	if conforming == 0 {
 		t.Fatal("no panic in the tree uses the shape this check asks for, so it is checking a rule nobody follows")
 	}
-	report(t, `an exhaustive-switch panic must end with the value: panic("pkg: unknown Type: " + v.String())`, open.stillOpen(t, found))
+	report(t, `an exhaustive-switch panic must end with the value's own name: panic("pkg: unknown Type: " + v.String())`, found)
+}
+
+// panicsOverTheirOwnReceiver locates, as "path:line", every panic whose message
+// mentions the receiver of the method it is written in. Those are the sites
+// asked for a value's name, so a number there is the honest answer rather than
+// an unread one.
+func panicsOverTheirOwnReceiver(t *testing.T) map[string]bool {
+	t.Helper()
+
+	sites := make(map[string]bool)
+	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || fn.Recv == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+				continue
+			}
+			receiver := fn.Recv.List[0].Names[0].Name
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok || len(call.Args) != 1 {
+					return true
+				}
+				if name, ok := call.Fun.(*ast.Ident); !ok || name.Name != "panic" {
+					return true
+				}
+				mentions := false
+				ast.Inspect(call.Args[0], func(arg ast.Node) bool {
+					if id, ok := arg.(*ast.Ident); ok && id.Name == receiver {
+						mentions = true
+					}
+					return true
+				})
+				if mentions {
+					sites[path+":"+strconv.Itoa(fset.Position(call.Pos()).Line)] = true
+				}
+				return true
+			})
+		}
+	})
+	return sites
 }
 
 // TestAConstructorGuardSaysWhichDependencyWasNil keeps the one message a wiring
@@ -262,6 +314,11 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 // Without it a log line, a panic and a rendered fault all fall back to the
 // number, and a number means nothing to anyone who does not have the constant
 // block open beside them.
+//
+// The method is looked for across the whole package rather than beside the type,
+// because a package is the unit a method belongs to: a hand-written one in a
+// role-named file and a generated one in <type>_string.go both answer for the
+// type, and requiring the same file would report a type that already has a name.
 func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 	t.Parallel()
 
@@ -277,17 +334,20 @@ func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 		"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
 	}
 
-	var found []site
-	total := 0
-	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		stringers := make(map[string]bool)
+	stringers := make(map[string]bool)
+	forEachProductionFile(t, func(path string, _ *token.FileSet, file *ast.File) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Name.Name != "String" || fn.Recv == nil || len(fn.Recv.List) != 1 {
 				continue
 			}
-			stringers[receiverTypeName(fn.Recv.List[0].Type)] = true
+			stringers[filepath.Dir(path)+"."+receiverTypeName(fn.Recv.List[0].Type)] = true
 		}
+	})
+
+	var found []site
+	total := 0
+	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.TYPE {
@@ -303,7 +363,7 @@ func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 					continue
 				}
 				total++
-				if !stringers[ts.Name.Name] {
+				if !stringers[filepath.Dir(path)+"."+ts.Name.Name] {
 					found = append(found, site{path: path, line: fset.Position(ts.Pos()).Line, text: ts.Name.Name})
 				}
 			}

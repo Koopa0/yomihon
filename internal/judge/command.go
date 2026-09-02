@@ -210,7 +210,7 @@ func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHoo
 	case FormatMarkdown:
 		stdout = []byte(markdownReport(findings))
 	default:
-		panic("judge: unknown Format: " + strconv.Itoa(int(o.Format)))
+		panic("judge: unknown Format: " + o.Format.String())
 	}
 	exit := 0
 	if gated(findings, o.Deny) {
