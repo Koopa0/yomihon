@@ -1,15 +1,18 @@
 package note
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -216,4 +219,58 @@ func (s *countingSeeker) Seek(offset int64, whence int) (int64, error) {
 	}
 	s.offset = next
 	return next, nil
+}
+
+// opaqueWriter forwards a response and names no way back to what it wrapped,
+// which is how a raw file's sandbox would be lost: the commit boundary that
+// carries the policy sits underneath it, out of reach.
+type opaqueWriter struct{ http.ResponseWriter }
+
+// TestServeRawWithholdsBytesItCannotConfine is the promise the raw route's
+// sandbox is made of. An authored SVG or HTML file served from this origin
+// runs in it, and only the policy stops that — so a response whose policy will
+// be replaced at the commit boundary has to carry no vault bytes at all.
+func TestServeRawWithholdsBytesItCannotConfine(t *testing.T) {
+	t.Parallel()
+
+	const document = `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`
+
+	tests := []struct {
+		name        string
+		wrap        func(http.ResponseWriter) http.ResponseWriter
+		wantRefusal bool
+	}{
+		{
+			// The control: the same call through the commit boundary alone
+			// serves the document, so the refusal below is the wrapper's doing.
+			name: "the commit boundary itself",
+			wrap: func(w http.ResponseWriter) http.ResponseWriter { return w },
+		},
+		{
+			name:        "a wrapper that names no way back",
+			wrap:        func(w http.ResponseWriter) http.ResponseWriter { return opaqueWriter{w} },
+			wantRefusal: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var served error
+			handler := origin.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				served = serveRaw(tt.wrap(w), r, "icon.svg", time.Unix(1, 0), strings.NewReader(document))
+			}))
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequestWithContext(
+				t.Context(), http.MethodGet, "/raw/icon.svg", http.NoBody))
+
+			if got := errors.Is(served, errSandboxUnavailable); got != tt.wantRefusal {
+				t.Errorf("serveRaw() refused the sandbox = %v (err = %v), want %v", got, served, tt.wantRefusal)
+			}
+			if leaked := strings.Contains(rec.Body.String(), "<script"); leaked == tt.wantRefusal {
+				t.Errorf("the file's own bytes in the response = %v, want %v; body = %q",
+					leaked, !tt.wantRefusal, rec.Body.String())
+			}
+		})
+	}
 }

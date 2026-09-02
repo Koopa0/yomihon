@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -27,7 +27,7 @@ const langCookieMaxAgeSeconds = 31536000
 func (h *Handler) language(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, langFormMaxBytes)
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, wording.LanguageFormUnreadable.In(pages.LanguageFromRequest(r)), http.StatusBadRequest)
+		http.Error(w, wording.LanguageFormUnreadable.In(layouts.LanguageFromRequest(r)), http.StatusBadRequest)
 		return
 	}
 	choice := r.PostFormValue("lang")
@@ -37,7 +37,7 @@ func (h *Handler) language(w http.ResponseWriter, r *http.Request) {
 		// redirect would hand back a receipt for a change nothing made. The
 		// rendered form only ever offers the two spoken values, so this
 		// answer is for hand-built requests.
-		http.Error(w, wording.LanguageUnknown.In(pages.LanguageFromRequest(r)), http.StatusUnprocessableEntity)
+		http.Error(w, wording.LanguageUnknown.In(layouts.LanguageFromRequest(r)), http.StatusUnprocessableEntity)
 		return
 	}
 	// #nosec G124 -- deliberately neither Secure nor HttpOnly: the server is

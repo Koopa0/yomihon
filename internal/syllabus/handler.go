@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -37,8 +38,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 // show renders the study-path whose vault path matches the request. An unknown
-// path (or an empty model, before the first scan) is a 404 — the same
-// fail-quiet stance the reading page takes for a missing note.
+// path (or an empty model, before the first scan) is a 404 — the same page the
+// reading surface answers a missing note with, for the same reason: whoever
+// arrives here mistyped an address or followed a link into a course that is no
+// longer there, and needs the folder tree, the search and the way home they
+// were already using rather than one line of text and a dead end.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// A vault holds its names composed, and a request can carry either
 	// spelling of the same letter, so the name is composed before it is
@@ -48,12 +52,21 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	shell := h.shell()
 	current := shell.Nav.Path(rel)
 	if current == nil {
-		http.Error(w, wording.PathNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		lang := layouts.LanguageFromRequest(r)
+		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
+		// The title names which route refused, because the address alone does
+		// not say and the page below it speaks for every one of them.
+		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		if err := pages.NotFound(view, chrome).Render(r.Context(), w); err != nil {
+			h.log.Error("write study-path not-found page", "path", rel, "error", err)
+		}
 		return
 	}
 
 	view := pages.BuildPathView(current, shell.Nav.Paths())
-	if err := pages.Syllabus(view, pages.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
+	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Error("write syllabus page", "path", rel, "error", err)
 	}
 }

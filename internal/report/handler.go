@@ -5,11 +5,16 @@ import (
 	"net/http"
 
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const rawContentSecurityPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+// briefingSandbox is what an agent-authored briefing is served under. It is
+// the vault-file sandbox with one difference: data: fonts, images and media
+// are admitted, because a briefing carries its own charts and pictures inline
+// and would otherwise render as a page full of holes.
+const briefingSandbox = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
 	"font-src data:; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
 	"img-src data:; media-src data:; object-src 'none'; " +
 	"script-src 'none'; script-src-attr 'none'; " +
@@ -28,10 +33,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // an enumerated briefing) is a localized 404 — the same fail-quiet stance the
 // reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
+	lang := layouts.LanguageFromRequest(r)
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 	shell := h.shell(snap)
@@ -48,7 +54,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Sidebar:     pages.NewSidebar(shell.Nav, rep.RelPath),
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
 	}
-	if err := pages.Report(view, pages.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
+	if err := pages.Report(view, layouts.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
 		h.log.Error("write report page", "name", rep.Name, "error", err)
 	}
 }
@@ -62,17 +68,18 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // 404, not a 500: the report list is a snapshot, so a gone file is a not-found,
 // fail-quiet response rather than a server failure.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
+	lang := layouts.LanguageFromRequest(r)
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 
 	b, err := readReport(r.Context(), h.source, snap, rep.RelPath)
 	if err != nil {
 		h.log.Warn("read report", "name", rep.Name, "path", rep.RelPath, "error", err)
-		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 
@@ -94,6 +101,17 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	// frame-ancestors 'self' also
 	// refuses cross-origin framing of raw vault HTML — yomihon's own shell is the
 	// only legitimate embedder.
-	origin.SetContentSecurityPolicy(w, rawContentSecurityPolicy)
+	//
+	// The briefing is written by an agent and served verbatim, so the sandbox
+	// is the whole of its containment: it is written out only once that policy
+	// is known to reach the reader, and withheld otherwise. Under the reading
+	// shell's own policy this same document would be a first-party page with
+	// script access to the surface around it.
+	if !origin.SetContentSecurityPolicy(r.Context(), w, briefingSandbox) {
+		h.log.Error("withhold a report whose sandbox could not be established",
+			"name", rep.Name, "path", rep.RelPath)
+		http.Error(w, wording.SandboxUnavailable.In(lang), http.StatusInternalServerError)
+		return
+	}
 	_, _ = w.Write(b) //nolint:errcheck // response is committed and Handler has no later recovery channel
 }

@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -93,12 +94,12 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	lang := pages.LanguageFromRequest(r)
+	lang := layouts.LanguageFromRequest(r)
 	results, total, diagnostic, tokens := h.query(snap.Index, q, lang)
 
 	view := answerView(snap, q, results, total, diagnostic, tokens)
 	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
-	if err := pages.Search(view, pages.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
+	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search page", q, err)
 	}
 }
@@ -136,13 +137,13 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, total, diagnostic, tokens := h.query(snap.Index, q, pages.LanguageFromRequest(r))
+	results, total, diagnostic, tokens := h.query(snap.Index, q, layouts.LanguageFromRequest(r))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	view := answerView(snap, q, results, total, diagnostic, tokens)
-	if err := pages.SearchResults(view, pages.LanguageFromRequest(r)).Render(r.Context(), w); err != nil {
+	if err := pages.SearchResults(view, layouts.LanguageFromRequest(r)).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search results", q, err)
 	}
 }
@@ -213,13 +214,13 @@ func (h *Handler) logQueryError(message, rawQuery string, err error) {
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 	q := r.URL.Query().Get("q")
 	if len(q) > maxQueryBytes {
-		http.Error(w, wording.QueryTooLong.In(pages.LanguageFromRequest(r)), http.StatusBadRequest)
+		http.Error(w, wording.QueryTooLong.In(layouts.LanguageFromRequest(r)), http.StatusBadRequest)
 		return "", false
 	}
 	if strings.IndexFunc(q, func(r rune) bool {
 		return r <= 0x1f || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 	}) >= 0 {
-		http.Error(w, wording.QueryHasControlByte.In(pages.LanguageFromRequest(r)), http.StatusBadRequest)
+		http.Error(w, wording.QueryHasControlByte.In(layouts.LanguageFromRequest(r)), http.StatusBadRequest)
 		return "", false
 	}
 	return q, true

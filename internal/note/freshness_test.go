@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const freshRel = "Writing/watched.md"
@@ -729,4 +730,84 @@ func TestOwnFlipRefreshesTheStampThroughTheRedirect(t *testing.T) {
 	if got != "unchanged" {
 		t.Errorf("freshness right after the page's own flip re-rendered it = %q, want %q", got, "unchanged")
 	}
+}
+
+// TestTheFreshnessEndpointRefusesInTheReadersLanguage covers the three ways
+// this endpoint answers nothing. A page never reads these bodies — the client
+// stops at the status — so the only person who ever meets one arrived by
+// assembling the address, and answering them in the router's own English, or
+// in a language the reader has already switched away from, is the same
+// discourtesy every page here was built to stop.
+func TestTheFreshnessEndpointRefusesInTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeFreshNote(t, root, "# Watched\n\nBody.\n")
+	srv := newServer(t, root)
+	good := identityOf("# Watched\n\nBody.\n")
+
+	tests := []struct {
+		name   string
+		target string
+		code   int
+		want   string
+	}{
+		{
+			name:   "an address that names no note to watch",
+			target: srv.URL + "/freshness/Writing/absent.txt?identity=" + good,
+			code:   http.StatusNotFound,
+			want:   wording.FreshnessNotWatchable.In(wording.En),
+		},
+		{
+			name:   "an identity that is not a digest",
+			target: srv.URL + "/freshness/" + freshRel + "?identity=nonsense",
+			code:   http.StatusBadRequest,
+			want:   "identity must be 64 hex digits",
+		},
+		{
+			name:   "an embed stamp that is not a digest",
+			target: srv.URL + "/freshness/" + freshRel + "?identity=" + good + "&embeds=nonsense",
+			code:   http.StatusBadRequest,
+			want:   "embeds must be 64 hex digits",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			code, body := askFreshnessInLanguage(t, tt.target, wording.En)
+			if code != tt.code {
+				t.Fatalf("status = %d, want %d (body %q)", code, tt.code, body)
+			}
+			if !strings.Contains(body, tt.want) {
+				t.Errorf("body = %q, want it to contain %q", body, tt.want)
+			}
+			if strings.Contains(body, "404 page not found") {
+				t.Errorf("body = %q, which is the router's own English", body)
+			}
+		})
+	}
+}
+
+// askFreshnessInLanguage asks as a reader who has chosen one, which is the
+// only way the wiring under test is reached at all.
+func askFreshnessInLanguage(t *testing.T, full string, lang wording.Lang) (code int, answer string) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, full, http.NoBody)
+	if err != nil {
+		t.Fatalf("NewRequest error = %v", err)
+	}
+	req.Header.Set("Cookie", wording.CookieName+"="+string(lang))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET %s error = %v", full, err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("Body.Close() error = %v", closeErr)
+		}
+	}()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body error = %v", err)
+	}
+	return resp.StatusCode, string(body)
 }

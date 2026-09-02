@@ -1,6 +1,7 @@
 package note_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
@@ -119,7 +120,7 @@ func newServerWithGovernance(
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, governance)
 	writer := openStatusWriter(t, source, contract, governance)
-	h := note.New(&note.Dependencies{
+	h := note.New(&note.Sources{
 		Source:         source,
 		Status:         writer.View,
 		Snapshot:       store.Current,
@@ -243,7 +244,7 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 	}
 
 	mux := http.NewServeMux()
-	handler := note.New(&note.Dependencies{
+	handler := note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
@@ -337,7 +338,7 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 			}
 
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
@@ -431,7 +432,7 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			}
 
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
@@ -508,7 +509,7 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	statusCaptures := 0
 	mux := http.NewServeMux()
-	note.New(&note.Dependencies{
+	note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
@@ -1543,7 +1544,7 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			current.Store(firstStore.Current())
 			calls := 0
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         firstSource,
@@ -1602,7 +1603,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			t.Parallel()
 			calls := 0
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
@@ -1844,7 +1845,7 @@ body
 		return writer.View()
 	}
 	mux := http.NewServeMux()
-	handler := note.New(&note.Dependencies{
+	handler := note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
@@ -2815,44 +2816,44 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// nilDeps passes a nil *Dependencies instead of clearing one field.
+		// nilDeps passes a nil *Sources instead of clearing one field.
 		nilDeps bool
-		clear   func(*note.Dependencies)
+		clear   func(*note.Sources)
 		want    string
 	}{
 		{
 			name:    "no dependencies at all",
 			nilDeps: true,
-			want:    "note: New requires non-nil Dependencies",
+			want:    "note: New requires a non-nil Sources",
 		},
 		{
 			name:  "source",
-			clear: func(d *note.Dependencies) { d.Source = nil },
+			clear: func(d *note.Sources) { d.Source = nil },
 			want:  "note: New requires a non-nil Source",
 		},
 		{
 			name:  "status view",
-			clear: func(d *note.Dependencies) { d.Status = nil },
+			clear: func(d *note.Sources) { d.Status = nil },
 			want:  "note: New requires a non-nil Status",
 		},
 		{
 			name:  "snapshot provider",
-			clear: func(d *note.Dependencies) { d.Snapshot = nil },
+			clear: func(d *note.Sources) { d.Snapshot = nil },
 			want:  "note: New requires a non-nil Snapshot provider",
 		},
 		{
 			name:  "observed status provider",
-			clear: func(d *note.Dependencies) { d.ObservedStatus = nil },
+			clear: func(d *note.Sources) { d.ObservedStatus = nil },
 			want:  "note: New requires a non-nil ObservedStatus provider",
 		},
 		{
 			name:  "consume receipt provider",
-			clear: func(d *note.Dependencies) { d.ConsumeReceipt = nil },
+			clear: func(d *note.Sources) { d.ConsumeReceipt = nil },
 			want:  "note: New requires a non-nil ConsumeReceipt provider",
 		},
 		{
 			name:  "log",
-			clear: func(d *note.Dependencies) { d.Log = nil },
+			clear: func(d *note.Sources) { d.Log = nil },
 			want:  "note: New requires a non-nil Log",
 		},
 	}
@@ -2874,7 +2875,7 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			writer := openStatusWriter(t, source, nil, schema.Ungoverned())
-			deps := note.Dependencies{
+			deps := note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
@@ -2888,7 +2889,7 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 	}
 }
 
-func TestNewCopiesDependencies(t *testing.T) {
+func TestNewCopiesItsSources(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const body = "constructor ownership sentinel\n"
@@ -2898,7 +2899,7 @@ func TestNewCopiesDependencies(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
-	deps := note.Dependencies{
+	deps := note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
@@ -3159,11 +3160,11 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 	}
 	store, source := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
 	mux := http.NewServeMux()
-	note.New(&note.Dependencies{
+	note.New(&note.Sources{
 		Source:         source,
 		Status:         func() status.View { return status.View{} },
 		Snapshot:       store.Current,
-		ObservedStatus: func(string) (string, error) { return "", nil },
+		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
 		ConsumeReceipt: func(string, string) bool { return false },
 		Log:            slog.New(slog.DiscardHandler),
 	}).Register(mux)

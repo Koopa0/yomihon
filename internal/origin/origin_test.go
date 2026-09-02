@@ -17,6 +17,7 @@ import (
 const (
 	wireCORPHeader = "Cross-Origin-Resource-Policy"
 	wireCORPValue  = "same-origin"
+	wireCSPHeader  = "Content-Security-Policy"
 )
 
 func TestFinalResponseStatus(t *testing.T) {
@@ -236,8 +237,8 @@ func TestProtectOnlyAcceptsExplicitContentSecurityPolicyOverrides(t *testing.T) 
 		},
 		{
 			name: "an explicit raw policy survives",
-			inner: func(w http.ResponseWriter, _ *http.Request) {
-				SetContentSecurityPolicy(w, "sandbox; default-src 'none'; frame-ancestors 'self'")
+			inner: func(w http.ResponseWriter, r *http.Request) {
+				SetContentSecurityPolicy(r.Context(), w, "sandbox; default-src 'none'; frame-ancestors 'self'")
 				w.WriteHeader(http.StatusOK)
 			},
 			wantPolicy: "sandbox; default-src 'none'; frame-ancestors 'self'",
@@ -452,5 +453,102 @@ func TestLoopbackOnly(t *testing.T) {
 				t.Errorf("Host %q reached the handler = %v, want %v", tt.host, reached, want)
 			}
 		})
+	}
+}
+
+// unwrappingWriter is the shape every well-behaved response wrapper in the
+// standard library has: it adds behaviour and hands the writer beneath it back
+// on request, so an optional capability behind it stays reachable.
+type unwrappingWriter struct{ http.ResponseWriter }
+
+func (w unwrappingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// opaqueWriter is the shape that loses the capability: it forwards writes and
+// names no way back to what it wrapped.
+type opaqueWriter struct{ http.ResponseWriter }
+
+// TestAStricterPolicySurvivesEveryWrapperThatUnwraps is the contract two
+// routes serving vault bytes rest on. Each hands the browser a document that
+// would otherwise run in yomihon's own origin, and the policy is the whole of
+// its confinement — so a middleware added between the commit boundary and the
+// handler must not be able to cost them that policy without either of them
+// noticing.
+func TestAStricterPolicySurvivesEveryWrapperThatUnwraps(t *testing.T) {
+	t.Parallel()
+
+	const strict = "sandbox; default-src 'none'; frame-ancestors 'self'"
+
+	tests := []struct {
+		name       string
+		wrap       func(http.ResponseWriter) http.ResponseWriter
+		wantPinned bool
+		wantPolicy string
+	}{
+		{
+			name:       "the commit boundary itself",
+			wrap:       func(w http.ResponseWriter) http.ResponseWriter { return w },
+			wantPinned: true, wantPolicy: strict,
+		},
+		{
+			name:       "one wrapper that unwraps",
+			wrap:       func(w http.ResponseWriter) http.ResponseWriter { return unwrappingWriter{w} },
+			wantPinned: true, wantPolicy: strict,
+		},
+		{
+			name: "two wrappers that unwrap",
+			wrap: func(w http.ResponseWriter) http.ResponseWriter {
+				return unwrappingWriter{unwrappingWriter{w}}
+			},
+			wantPinned: true, wantPolicy: strict,
+		},
+		{
+			// The case the answer exists for: nothing leads back to the
+			// commit boundary, so it reasserts the reading shell's own
+			// policy over the strict one and the caller is told.
+			name:       "a wrapper that names no way back",
+			wrap:       func(w http.ResponseWriter) http.ResponseWriter { return opaqueWriter{w} },
+			wantPinned: false, wantPolicy: "script-src 'nonce-",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var pinned bool
+			handler := Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				pinned = SetContentSecurityPolicy(r.Context(), tt.wrap(w), strict)
+				w.WriteHeader(http.StatusOK)
+			}))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/raw/icon.svg", http.NoBody)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if pinned != tt.wantPinned {
+				t.Errorf("SetContentSecurityPolicy() = %v, want %v", pinned, tt.wantPinned)
+			}
+			if got := rec.Result().Header.Get(wireCSPHeader); !strings.Contains(got, tt.wantPolicy) {
+				t.Errorf("committed policy = %q, want it to contain %q", got, tt.wantPolicy)
+			}
+		})
+	}
+}
+
+// TestAStricterPolicyStandsWhereNothingWouldRewriteIt keeps the answer from
+// meaning "a commit boundary was found" rather than "the policy reaches the
+// reader". A response served outside Protect has nothing that will rewrite the
+// header afterwards, so the plain header set is the whole mechanism and the
+// caller has no reason to withhold its bytes.
+func TestAStricterPolicyStandsWhereNothingWouldRewriteIt(t *testing.T) {
+	t.Parallel()
+
+	const strict = "sandbox; default-src 'none'"
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/raw/icon.svg", http.NoBody)
+	rec := httptest.NewRecorder()
+
+	if !SetContentSecurityPolicy(req.Context(), rec, strict) {
+		t.Error("SetContentSecurityPolicy() = false outside Protect, where the header it just set is final")
+	}
+	if got := rec.Header().Get(wireCSPHeader); got != strict {
+		t.Errorf("header = %q, want %q", got, strict)
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -95,7 +96,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.writer.Flip(path, from, to, contentIdentity)
+	err := h.writer.Flip(r.Context(), path, from, to, contentIdentity)
 	if err == nil {
 		// The target names the status this note just left. The parameter only
 		// addresses the sentence: whether the reading page prints it is
@@ -109,6 +110,14 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		// #nosec G710 -- Flip succeeded only after its vault-local path check;
 		// the prefix is a fixed same-origin literal and the value is escaped.
 		http.Redirect(w, r, notesHref(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
+		return
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// The request went away before the flip reached the write face's
+		// lock, so nothing was attempted, the note is as it was, and nobody
+		// is left to read a page about it. Falling through would put a failed
+		// write in the operator's log for a write that never started, and
+		// render a recovery page into a connection that has already closed.
 		return
 	}
 	failure := recoveryFor(err)
@@ -361,7 +370,7 @@ func (h *Handler) respondRecovery(
 		notePath = ""
 	}
 	shell := h.shell()
-	lang := pages.LanguageFromRequest(r)
+	lang := layouts.LanguageFromRequest(r)
 	door := pages.ObsidianHref(h.writer.VaultRoot(), notePath)
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,
@@ -373,7 +382,7 @@ func (h *Handler) respondRecovery(
 		ObsidianHref:    door,
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
-	chrome := pages.ChromeFromRequest(r, view.Title(lang))
+	chrome := layouts.ChromeFromRequest(r, view.Title(lang))
 	// The recovery page knows a better place to return to than the generic
 	// fallback for a POST-rendered page: the note this refusal was about,
 	// whenever the refusal still has one.
@@ -381,7 +390,7 @@ func (h *Handler) respondRecovery(
 		chrome.ReturnTo = notesHref(notePath)
 	}
 	component := pages.StatusRecovery(view, chrome)
-	if err := writeRecovery(w, r.Context(), failure.code, failure.changed, component, lang); err != nil {
+	if err := writeRecovery(r.Context(), w, failure.code, failure.changed, component, lang); err != nil {
 		h.log.Error("render status recovery", "path", path, "changed", failure.changed, "error", err)
 	}
 }
@@ -395,8 +404,8 @@ func recoveryNotePath(path string) string {
 }
 
 func writeRecovery(
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	code int,
 	changed bool,
 	component templ.Component,

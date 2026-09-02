@@ -108,7 +108,7 @@ func TestProjectOpensInstanceStateOnAGovernedLifecycle(t *testing.T) {
 	}
 	snap := snapshotView(t, contract, notes)
 
-	got := Project(lifecycleView(t, contract), contract.ArtifactPolicy().Capture(), snap)
+	got := Project(lifecycleView(t, contract), snap)
 	if got.Nav.ArtifactClosure().Closed() {
 		t.Error("Project() closed instance projections on an open lifecycle")
 	}
@@ -149,7 +149,7 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Project(tt.lifecycle, tt.snap.ArtifactPolicy(), tt.snap)
+			got := Project(tt.lifecycle, tt.snap)
 			// The recent-notes summary is plain reading and survives the
 			// refusal; what the refusal removes is the knowledge-layer
 			// citation, which is the refused contract's own claim.
@@ -186,7 +186,7 @@ func TestProjectKeepsProjectionsOpenForAnUngovernedFolder(t *testing.T) {
 	view := governedLifecycleView(t, nil, schema.Ungoverned())
 	snap := governedSnapshotView(t, nil, schema.Ungoverned(), notes)
 
-	got := Project(view, snap.ArtifactPolicy(), snap)
+	got := Project(view, snap)
 	if got.Governed {
 		t.Error("Project() reports an ungoverned folder as governed")
 	}

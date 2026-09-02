@@ -69,9 +69,13 @@ var (
 	ModuleCountMany = both("%d 模組", "%d modules")
 )
 
-// What the raw-bytes route says when it cannot answer. These reach a reader as
-// a plain-text body rather than a page, so they are one line each.
+// What the raw-bytes routes say when they cannot answer. These reach a reader
+// as a plain-text body rather than a page, so they are one line each.
+// SandboxUnavailable is the refusal both of those routes share: the file read
+// perfectly well and the isolation its bytes are served under could not be
+// established, so the bytes were withheld instead.
 var (
-	FileNotFound   = both("找不到指定的檔案", "That file was not found")
-	FileUnreadable = both("無法讀取檔案", "That file could not be read")
+	FileNotFound       = both("找不到指定的檔案", "That file was not found")
+	FileUnreadable     = both("無法讀取檔案", "That file could not be read")
+	SandboxUnavailable = both("無法為此內容建立隔離，因此沒有提供", "This content's isolation could not be established, so it was not served")
 )

@@ -8,13 +8,11 @@ package pages
 import (
 	"cmp"
 	"fmt"
-	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -155,14 +153,4 @@ type LifecycleItem struct {
 	// status the folder declares, so the status name and the words shown do
 	// not have to be the same string.
 	Label string
-}
-
-// LanguageFromRequest and ChromeFromRequest read one request's presentation
-// state. Both live with the type they fill, beside the document they are
-// stamped onto; these two names stay reachable here while the call sites still
-// spell them this way.
-func LanguageFromRequest(r *http.Request) wording.Lang { return layouts.LanguageFromRequest(r) }
-
-func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
-	return layouts.ChromeFromRequest(r, title)
 }

@@ -9,6 +9,7 @@ package status
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
@@ -34,44 +35,44 @@ var (
 	// failed to load or its pinned root capability has been closed. Fault
 	// tolerance is asymmetric by direction — reading tolerates a missing
 	// contract, but a write without one could destroy a file, so writing refuses.
-	ErrClosed = errors.New("status: write face is closed")
+	ErrClosed = errors.New("write face is closed")
 	// ErrArtifactPolicyUnavailable means the core contract loaded but its
 	// artifact policy is unavailable, so instance writes cannot be classified.
-	ErrArtifactPolicyUnavailable = errors.New("status: artifact policy unavailable")
+	ErrArtifactPolicyUnavailable = errors.New("artifact policy unavailable")
 	// ErrNonInstance means the requested path is a readable artifact rather
 	// than a governed note instance.
-	ErrNonInstance = errors.New("status: target is not a governable artifact")
+	ErrNonInstance = errors.New("target is not a governable artifact")
 	// ErrInvalidPath means a status request did not name a local vault-relative
 	// slash path.
-	ErrInvalidPath = errors.New("status: invalid vault-relative path")
+	ErrInvalidPath = errors.New("invalid vault-relative path")
 	// ErrStale means the submitted form's "from" no longer matches the
 	// note's on-disk status: the page was loaded before someone else
 	// changed the file.
-	ErrStale = errors.New("status: note is stale, reload and try again")
+	ErrStale = errors.New("note is stale, reload and try again")
 	// ErrConcurrentWrite means the named regular file, its parent identity,
 	// mode, mtime, or exact bytes changed between Flip's descriptor read and
 	// its pre-write recheck. An external tool such as Obsidian raced the flip
 	// itself. Distinct from ErrStale: the two cases carry different user-facing
 	// presentations and this sentinel must not satisfy errors.Is(err, ErrStale).
-	ErrConcurrentWrite = errors.New("status: note changed while flipping")
+	ErrConcurrentWrite = errors.New("note changed while flipping")
 	// ErrContentChanged means the note's bytes on disk no longer carry the
 	// content identity the caller read: something outside the status line was
 	// edited between the page render and the flip, so the ruling was made
 	// against content the disk no longer holds. The status line itself is
 	// bound through "from" and its divergence reports as ErrStale; this
 	// sentinel covers every other byte, which the stale check cannot see.
-	ErrContentChanged = errors.New("status: note content changed after it was read")
+	ErrContentChanged = errors.New("note content changed after it was read")
 	// ErrStatusLine means the frontmatter block does not contain exactly
 	// one line beginning with "status:" — a schema violation yomihon does
 	// not repair. yomihon only reports faults; fixing the file belongs to
 	// a human editor.
-	ErrStatusLine = errors.New("status: frontmatter does not have exactly one status line")
+	ErrStatusLine = errors.New("frontmatter does not have exactly one status line")
 	// ErrPublishedReserved means the flip named published as its target.
 	// That status records a completed publication — a receipt-backed fact
 	// about the world outside the vault — and nothing in yomihon can attest
 	// one, so the write face refuses before touching the note. The value
 	// enters a note only by hand.
-	ErrPublishedReserved = errors.New("status: published records a completed publication and no publisher exists to attest one")
+	ErrPublishedReserved = errors.New("published records a completed publication and no publisher exists to attest one")
 	// ErrStatusSyntaxUnsupported means the reader understands the note's
 	// status, but the frontmatter writes that field in a form the surgical
 	// single-line rewriter does not support — an explicit or quoted key, a
@@ -79,12 +80,12 @@ var (
 	// refused unchanged: rewriting here would either be impossible or leave
 	// frontmatter the reader can no longer parse, and yomihon reports the
 	// fault for a human to edit rather than guessing.
-	ErrStatusSyntaxUnsupported = errors.New("status: frontmatter writes status in a syntax the surgical rewriter does not support")
+	ErrStatusSyntaxUnsupported = errors.New("frontmatter writes status in a syntax the surgical rewriter does not support")
 	// ErrDurabilityUnsupported means the running platform cannot prove that an
 	// atomic rename's directory entry reached durable storage. The write face
 	// refuses before reading or creating any vault path rather than changing a
 	// note whose new bytes a crash could silently discard.
-	ErrDurabilityUnsupported = errors.New("status: durable install is unsupported on this platform")
+	ErrDurabilityUnsupported = errors.New("durable install is unsupported on this platform")
 	// ErrInstallStranded means another program edited the note inside the
 	// install window and the write face could not finish putting that edit
 	// back under the note's own name. Both versions are on disk — one under the
@@ -92,11 +93,11 @@ var (
 	// removed. It is deliberately distinct from ErrConcurrentWrite: that
 	// refusal leaves the note as the other program wrote it, while this one
 	// cannot say which of the two the note carries.
-	ErrInstallStranded = errors.New("status: an edit raced the flip and both versions were left on disk")
+	ErrInstallStranded = errors.New("an edit raced the flip and both versions were left on disk")
 	// ErrInstallUncertain means the atomic replacement completed, but the
 	// containing directory could not be synchronized. The new bytes are visible
 	// now, but their survival across an immediate crash was not confirmed.
-	ErrInstallUncertain = errors.New("status: note rewritten but durability was not confirmed")
+	ErrInstallUncertain = errors.New("note rewritten but durability was not confirmed")
 )
 
 // The reading page's stable explanations for a closed write face. They read
@@ -116,8 +117,8 @@ var (
 // on the way. Two sentinels because the operator repairs them in the same
 // way but the error should name which part of the path was not plain.
 var (
-	errNotRegular     = errors.New("status: target is not a regular file")
-	errPathNotRegular = errors.New("status: path passes through a non-directory or symbolic link")
+	errNotRegular     = errors.New("target is not a regular file")
+	errPathNotRegular = errors.New("path passes through a non-directory or symbolic link")
 )
 
 // ArtifactPolicyUnavailableError carries the contract-derived diagnostic for
@@ -155,6 +156,15 @@ type Writer struct {
 	// operation. One lock for the whole writer is deliberately simpler than
 	// per-file locking: this is a local, single-operator tool where correctness
 	// matters far more than throughput.
+	//
+	// The wait is therefore unbounded in principle — a flip holds it across
+	// two synchronizations — so Flip and ObservedStatus consult the request's
+	// context before they queue for it. Nothing has been touched at that
+	// point, so a reader who has gone away is answered rather than parked.
+	// View takes the same lock and has no context to consult: it is reached
+	// through provider closures the composition point builds before any
+	// request exists, and honouring one there means every closure carrying a
+	// context through to here.
 	mu sync.Mutex
 	// receipts is the write face's short-lived memory of flips it performed
 	// whose confirmation no reading page has shown yet, keyed by the note's
@@ -207,18 +217,18 @@ type fileSnapshot struct {
 // contract.Governance().
 func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
 	if source == nil {
-		return nil, errors.New("status: open writer: vault reader is nil")
+		panic("status: Open requires a non-nil Reader")
 	}
 	root, err := os.OpenRoot(source.Name())
 	if err != nil {
-		return nil, fmt.Errorf("status: open writer root: %w", err)
+		return nil, fmt.Errorf("open writer root: %w", err)
 	}
 	same, err := source.SameRoot(root)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("status: compare writer root: %w", err), root.Close())
+		return nil, errors.Join(fmt.Errorf("compare writer root: %w", err), root.Close())
 	}
 	if !same {
-		return nil, errors.Join(errors.New("status: vault root changed while opening writer"), root.Close())
+		return nil, errors.Join(errors.New("vault root changed while opening writer"), root.Close())
 	}
 	var policy schema.ArtifactPolicy
 	if contract != nil {
@@ -491,10 +501,17 @@ func (w *Writer) VaultRoot() string {
 // page that shows an older value offers a transition from a state the note has
 // already left — most visibly right after a write, when the reader is looking
 // straight at the thing they just did.
-func (w *Writer) ObservedStatus(rel string) (string, error) {
+func (w *Writer) ObservedStatus(ctx context.Context, rel string) (string, error) {
 	relSlash, osPath, err := normalizeRelPath(rel)
 	if err != nil {
 		return "", err
+	}
+	// The lock this read is about to take can be held by a flip across two
+	// synchronizations, so a reader who navigated away is refused here rather
+	// than parked behind one. Nothing has been touched at this point, so
+	// refusing costs the caller only the answer it no longer wants.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return "", ctxErr
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -517,8 +534,15 @@ func (w *Writer) ObservedStatus(rel string) (string, error) {
 //
 // Flip holds the Writer's lock for its entire duration (see the mu field
 // doc): concurrent callers are serialized, never interleaved.
-func (w *Writer) Flip(rel, from, to string, contentIdentity [sha256.Size]byte) error {
-	return w.flip(rel, from, to, contentIdentity, flipHooks{})
+//
+// ctx is honoured up to the moment the lock is taken and not after. A caller
+// who has gone away before then is refused with the file untouched, which is
+// the whole of what cancellation can safely mean here: past that point the
+// note is being replaced under its own name, and a write abandoned partway is
+// the one outcome this package exists to make impossible. The install runs to
+// completion, or refuses and leaves the file as it found it.
+func (w *Writer) Flip(ctx context.Context, rel, from, to string, contentIdentity [sha256.Size]byte) error {
+	return w.flip(ctx, rel, from, to, contentIdentity, flipHooks{})
 }
 
 type flipHooks struct {
@@ -534,7 +558,12 @@ type flipHooks struct {
 	afterInstall func()
 }
 
-func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, hooks flipHooks) error {
+func (w *Writer) flip(
+	ctx context.Context,
+	rel, from, to string,
+	contentIdentity [sha256.Size]byte,
+	hooks flipHooks,
+) error {
 	relSlash, rel, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
@@ -544,6 +573,9 @@ func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, h
 	}
 	if hooks.beforeLock != nil {
 		hooks.beforeLock()
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -577,7 +609,7 @@ func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, h
 	}
 
 	if err = w.contract.Transition(n.Type(), from, to); err != nil {
-		return fmt.Errorf("status: %s %s -> %s: %w", relSlash, from, to, err)
+		return fmt.Errorf("move %s from %s to %s: %w", relSlash, from, to, err)
 	}
 
 	rewritten, err := rewriteStatusChecked(relSlash, data, n.Status() != "", to)
@@ -661,7 +693,8 @@ func (w *Writer) install(
 		relSlash,
 		source,
 		rewritten,
-		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, log: w.log},
+		w.log,
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall},
 		func() error {
 			_, authorityErr := w.validatedArtifactPolicy()
 			return authorityErr
@@ -671,7 +704,7 @@ func (w *Writer) install(
 		if errors.Is(err, ErrArtifactPolicyUnavailable) {
 			return err
 		}
-		return fmt.Errorf("status: write %s: %w", relSlash, err)
+		return fmt.Errorf("write %s: %w", relSlash, err)
 	}
 	if hooks.afterInstall != nil {
 		hooks.afterInstall()
@@ -730,12 +763,12 @@ func (w *Writer) targetSpelledAsRequested(rel, relSlash string) error {
 	}
 	dir, err := parent.Open(".")
 	if err != nil {
-		return fmt.Errorf("status: confirm the name of %s: %w", relSlash, err)
+		return fmt.Errorf("confirm the name of %s: %w", relSlash, err)
 	}
 	names, err := dir.Readdirnames(-1)
 	_ = dir.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
 	if err != nil {
-		return fmt.Errorf("status: confirm the name of %s: %w", relSlash, err)
+		return fmt.Errorf("confirm the name of %s: %w", relSlash, err)
 	}
 	if !slices.Contains(names, name) {
 		return ErrNonInstance
@@ -759,12 +792,12 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 	parentInfo, err := parent.Stat(".")
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: stat parent of %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("stat parent of %s: %w", relSlash, err)
 	}
 	before, err := parent.Lstat(name)
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: stat %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("stat %s: %w", relSlash, err)
 	}
 	if !before.Mode().IsRegular() {
 		closeRoot(parent)
@@ -773,13 +806,13 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 	file, err := parent.Open(name)
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: %w", relSlash, err)
 	}
 	opened, err := file.Stat()
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the stat error is the actionable failure
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: stat open file: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: stat open file: %w", relSlash, err)
 	}
 	if !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
 		_ = file.Close() //nolint:errcheck // the identity mismatch is the actionable failure
@@ -790,16 +823,16 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the read error is the actionable failure
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: %w", relSlash, err)
 	}
 	if err = file.Close(); err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: close: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: close: %w", relSlash, err)
 	}
 	after, err := parent.Lstat(name)
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: stat %s after read: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("stat %s after read: %w", relSlash, err)
 	}
 	if !after.Mode().IsRegular() || !os.SameFile(opened, after) {
 		closeRoot(parent)
@@ -819,7 +852,7 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, parentPath, name string, err error) {
 	current, err := root.OpenRoot(".")
 	if err != nil {
-		return nil, "", "", fmt.Errorf("status: duplicate vault root for %s: %w", relSlash, err)
+		return nil, "", "", fmt.Errorf("duplicate vault root for %s: %w", relSlash, err)
 	}
 	parentPath, name = filepath.Split(rel)
 	parentPath = filepath.Clean(parentPath)
@@ -831,7 +864,7 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 		before, statErr := current.Lstat(component)
 		if statErr != nil {
 			closeRoot(current)
-			return nil, "", "", fmt.Errorf("status: stat directory of %s: %w", relSlash, statErr)
+			return nil, "", "", fmt.Errorf("stat directory of %s: %w", relSlash, statErr)
 		}
 		if !before.IsDir() || before.Mode()&os.ModeSymlink != 0 {
 			closeRoot(current)
@@ -840,19 +873,19 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 		next, openErr := current.OpenRoot(component)
 		if openErr != nil {
 			closeRoot(current)
-			return nil, "", "", fmt.Errorf("status: open directory of %s: %w", relSlash, openErr)
+			return nil, "", "", fmt.Errorf("open directory of %s: %w", relSlash, openErr)
 		}
 		opened, openStatErr := next.Stat(".")
 		after, afterErr := current.Lstat(component)
 		if openStatErr != nil {
 			closeRoot(current)
 			closeRoot(next)
-			return nil, "", "", fmt.Errorf("status: stat open directory of %s: %w", relSlash, openStatErr)
+			return nil, "", "", fmt.Errorf("stat open directory of %s: %w", relSlash, openStatErr)
 		}
 		if afterErr != nil {
 			closeRoot(current)
 			closeRoot(next)
-			return nil, "", "", fmt.Errorf("status: restat directory of %s: %w", relSlash, afterErr)
+			return nil, "", "", fmt.Errorf("restat directory of %s: %w", relSlash, afterErr)
 		}
 		if !after.IsDir() || after.Mode()&os.ModeSymlink != 0 || !os.SameFile(before, opened) || !os.SameFile(opened, after) {
 			closeRoot(current)
@@ -861,7 +894,7 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 		}
 		if closeErr := current.Close(); closeErr != nil {
 			closeRoot(next)
-			return nil, "", "", fmt.Errorf("status: close directory of %s: %w", relSlash, closeErr)
+			return nil, "", "", fmt.Errorf("close directory of %s: %w", relSlash, closeErr)
 		}
 		current = next
 	}
@@ -954,6 +987,10 @@ func rewriteStatusLine(data []byte, to string) ([]byte, error) {
 	return out, nil
 }
 
+// installHooks is a seam set, and nothing else: every field is a place a test
+// can stand inside an install that no temporary directory could otherwise
+// reach. Production sets exactly the two that carry a flip's own hooks, and
+// leaves the rest nil.
 type installHooks struct {
 	beforeAuthority func()
 	afterAuthority  func()
@@ -964,9 +1001,6 @@ type installHooks struct {
 	beforeInstall func()
 	syncTemp      func(*os.File) error
 	syncParent    func(*os.Root) error
-	// log receives the sweep's account of a file it set aside. Nil is legal:
-	// an install with no logger simply says nothing.
-	log *slog.Logger
 	// rung, when set, replaces the per-filesystem probe for this install.
 	// The probe's answer is cached for the whole process, so a test that needs
 	// a particular rung says so for its own call instead of deciding for every
@@ -988,6 +1022,7 @@ func replaceRegularFile(
 	rel, relSlash string,
 	source *fileSnapshot,
 	data []byte,
+	log *slog.Logger,
 	hooks installHooks,
 	authorize func() error,
 ) error {
@@ -995,7 +1030,7 @@ func replaceRegularFile(
 	if err != nil {
 		return err
 	}
-	quarantineStaleTemps(preparedParent, relSlash, hooks.log)
+	quarantineStaleTemps(preparedParent, relSlash, log)
 	rung := selectRung(preparedParent, hooks)
 	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp)
 	if err != nil {
@@ -1063,7 +1098,7 @@ func openSameParent(root *os.Root, rel, relSlash string, source *fileSnapshot) (
 	parentInfo, err := parent.Stat(".")
 	if err != nil {
 		closeRoot(parent)
-		return nil, fmt.Errorf("status: stat parent of %s: %w", relSlash, err)
+		return nil, fmt.Errorf("stat parent of %s: %w", relSlash, err)
 	}
 	if parentPath != source.parentPath || name != source.name || !os.SameFile(parentInfo, source.parent) {
 		closeRoot(parent)
@@ -1093,19 +1128,19 @@ func readCurrentSource(parent *os.Root, relSlash string, source *fileSnapshot) (
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil, fmt.Errorf("%w: %s was removed while flipping", ErrConcurrentWrite, relSlash)
 		}
-		return nil, nil, fmt.Errorf("status: stat %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("stat %s before write: %w", relSlash, err)
 	}
 	if !before.Mode().IsRegular() || !os.SameFile(before, source.file) {
 		return nil, nil, fmt.Errorf("%w: %s changed identity while flipping", ErrConcurrentWrite, relSlash)
 	}
 	file, err := parent.Open(source.name)
 	if err != nil {
-		return nil, nil, fmt.Errorf("status: reopen %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("reopen %s before write: %w", relSlash, err)
 	}
 	opened, err := file.Stat()
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the stat error is the actionable failure
-		return nil, nil, fmt.Errorf("status: stat open %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("stat open %s before write: %w", relSlash, err)
 	}
 	if !opened.Mode().IsRegular() || !os.SameFile(opened, source.file) {
 		_ = file.Close() //nolint:errcheck // the identity mismatch is the actionable failure
@@ -1114,10 +1149,10 @@ func readCurrentSource(parent *os.Root, relSlash string, source *fileSnapshot) (
 	current, err := io.ReadAll(file)
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the read error is the actionable failure
-		return nil, nil, fmt.Errorf("status: reread %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("reread %s before write: %w", relSlash, err)
 	}
 	if err = file.Close(); err != nil {
-		return nil, nil, fmt.Errorf("status: close %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("close %s before write: %w", relSlash, err)
 	}
 	return current, opened, nil
 }

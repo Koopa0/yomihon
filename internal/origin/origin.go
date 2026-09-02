@@ -40,13 +40,38 @@ func Nonce(ctx context.Context) string {
 }
 
 // SetContentSecurityPolicy replaces the reading shell's default policy for a
-// response whose content owns a stricter, distinct sandbox. Calling Header.Set
-// directly is intentionally insufficient: Protect overwrites accidental or
-// local policy changes at the commit boundary.
-func SetContentSecurityPolicy(w http.ResponseWriter, policy string) {
+// response whose content owns a stricter, distinct sandbox, and reports
+// whether that policy will reach the reader.
+//
+// Calling Header.Set alone is intentionally insufficient: Protect reasserts
+// the shell's own policy at the commit boundary, over any header a handler
+// wrote. So the stricter policy has to reach the response writer Protect
+// installed, which this locates by walking the Unwrap chain the way
+// net/http.ResponseController does. A single type assertion would have missed
+// it behind any middleware added later, and missed it silently.
+//
+// A false answer means this response is inside Protect and that writer could
+// not be reached: the commit boundary will replace the stricter policy with
+// the reading shell's own, which by comparison grants scripts, frames and
+// same-origin fetches. Bytes that needed the stricter one must then not be
+// written at all — an error page under a permissive policy is safe, the
+// content is not. Outside Protect nothing rewrites the header afterwards, so
+// the plain Header.Set above stands and the answer is true.
+func SetContentSecurityPolicy(ctx context.Context, w http.ResponseWriter, policy string) bool {
 	w.Header().Set(cspHeader, policy)
-	if setter, ok := w.(interface{ setContentSecurityPolicy(string) }); ok {
-		setter.setContentSecurityPolicy(policy)
+	for {
+		switch writer := w.(type) {
+		case interface{ setContentSecurityPolicy(string) }:
+			writer.setContentSecurityPolicy(policy)
+			return true
+		case interface{ Unwrap() http.ResponseWriter }:
+			w = writer.Unwrap()
+		default:
+			// The nonce is issued by Protect and by nothing else, so its
+			// absence is what distinguishes a response no commit boundary
+			// will touch from one whose boundary this walk failed to find.
+			return Nonce(ctx) == ""
+		}
 	}
 }
 
