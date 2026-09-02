@@ -377,17 +377,3 @@ func retainNew(findings []Finding, baseline map[string]bool) []Finding {
 		return baseline[f.Fingerprint]
 	})
 }
-
-// marshalWire encodes v as a compact JSON object and a trailing newline, the
-// on-wire form for coverage and exists. It matches the JSONL encoder's two
-// departures from the encoder's defaults: HTML characters are left unescaped,
-// and the two line-separator code points are carried as raw UTF-8.
-func marshalWire(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	return unescapeLineSeparators(buf.Bytes()), nil
-}

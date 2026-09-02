@@ -137,6 +137,8 @@ const (
 // switch for, so those two escape sequences are rewritten after
 // encoding. A plain json.Marshal elsewhere would reintroduce both
 // divergences and corrupt, for example, every message containing "->".
+// The coverage and exists payloads are not findings and go out through
+// marshalWire below, which makes the same two departures.
 func WriteJSONL(w io.Writer, findings []Finding) error {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -151,6 +153,23 @@ func WriteJSONL(w io.Writer, findings []Finding) error {
 		}
 	}
 	return nil
+}
+
+// marshalWire encodes v as a compact JSON object and a trailing newline, the
+// on-wire form for the coverage and exists payloads. It sits here because it
+// makes the same two departures from the encoder's defaults that WriteJSONL
+// documents above — HTML characters left unescaped, the two line-separator code
+// points carried as raw UTF-8 — and those two departures are the whole reason
+// this package encodes anything by hand. A third payload type reaches for this
+// rather than growing a third copy of them in a third file.
+func marshalWire(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return unescapeLineSeparators(buf.Bytes()), nil
 }
 
 // sortFindings orders findings into the deterministic total order the wire
