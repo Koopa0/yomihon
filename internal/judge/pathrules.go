@@ -98,7 +98,7 @@ func courseLessonLinks(n *note) map[int]bool {
 					offsets[item.Entry.TargetSpan.Start] = true
 				}
 			case item.Branch != nil:
-				if projectable || (g.Role == sequence.RoleStructural && !g.Invalid) {
+				if projectable || g.Carries() {
 					walk(item.Branch)
 				}
 			}

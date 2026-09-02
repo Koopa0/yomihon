@@ -981,3 +981,49 @@ func TestRulesListsEveryDeclaredRule(t *testing.T) {
 		}
 	}
 }
+
+// TestTheTwoBranchVerdictsOverEveryDeclaration states both verdicts for every
+// combination of declared role and structural error, so a consumer reading
+// either one has the whole table in front of it rather than a sentence about
+// the cases somebody thought of. The two are disjoint by construction — a
+// branch that projects lists rows of its own, one that carries merely groups
+// others — and an error stops both.
+func TestTheTwoBranchVerdictsOverEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		role            Role
+		invalid         bool
+		wantProjectable bool
+		wantCarries     bool
+	}{
+		{role: RoleStructural, invalid: false, wantProjectable: false, wantCarries: true},
+		{role: RoleStructural, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RoleUnclassified, invalid: false, wantProjectable: false, wantCarries: false},
+		{role: RoleUnclassified, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RolePrimary, invalid: false, wantProjectable: true, wantCarries: false},
+		{role: RolePrimary, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RoleLocal, invalid: false, wantProjectable: true, wantCarries: false},
+		{role: RoleLocal, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RoleNone, invalid: false, wantProjectable: false, wantCarries: false},
+		{role: RoleNone, invalid: true, wantProjectable: false, wantCarries: false},
+	}
+	for _, tt := range tests {
+		name := tt.role.String()
+		if tt.invalid {
+			name += " carrying a structural error"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := &Group{Role: tt.role, Invalid: tt.invalid}
+			if got := g.Projectable(); got != tt.wantProjectable {
+				t.Errorf("Projectable() = %t, want %t", got, tt.wantProjectable)
+			}
+			if got := g.Carries(); got != tt.wantCarries {
+				t.Errorf("Carries() = %t, want %t", got, tt.wantCarries)
+			}
+			if g.Projectable() && g.Carries() {
+				t.Error("one branch both projects and merely carries; the two verdicts overlap")
+			}
+		})
+	}
+}

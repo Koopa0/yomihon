@@ -8,7 +8,6 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -378,7 +377,7 @@ func pathGroupDrawn(g *nav.PathGroup) bool {
 	if g.Projectable {
 		return true
 	}
-	if g.Invalid || g.Role != sequence.RoleStructural {
+	if !g.Carries {
 		return false
 	}
 	for _, item := range g.Items {

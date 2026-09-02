@@ -225,6 +225,20 @@ func (g *Group) Projectable() bool {
 	return !g.Invalid && (g.Role == RolePrimary || g.Role == RoleLocal)
 }
 
+// Carries reports whether a walk may descend through this branch to reach the
+// course beneath it. A branch that merely groups others lists nothing of its
+// own, so it never projects — but the parts under it do, and a walk that
+// stopped here would lose them. A branch carrying a structural error stops the
+// walk, because what sits under an error is not known to belong to the course.
+//
+// It is the second verdict, and it is here for the same reason as the first:
+// navigation, the judge and the rail each need it, and three hand-written
+// copies of a two-term predicate is how one of them comes to be written
+// backwards.
+func (g *Group) Carries() bool {
+	return g.Role == RoleStructural && !g.Invalid
+}
+
 // entries are the rows this branch lists, in source order.
 func (g *Group) entries() []*Candidate {
 	var out []*Candidate
