@@ -112,6 +112,14 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, notesHref(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
 		return
 	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// The request went away before the flip reached the write face's
+		// lock, so nothing was attempted, the note is as it was, and nobody
+		// is left to read a page about it. Falling through would put a failed
+		// write in the operator's log for a write that never started, and
+		// render a recovery page into a connection that has already closed.
+		return
+	}
 	failure := recoveryFor(err)
 	failure.boundIdentity = hex.EncodeToString(contentIdentity[:])
 	h.respondRecovery(w, r, path, from, to, failure)

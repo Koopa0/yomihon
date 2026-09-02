@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"context"
 	"encoding/hex"
 	"html"
 	"io"
@@ -489,5 +490,54 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	// something this interface offers no control for.
 	if !strings.Contains(decoded, "「在 Obsidian 開啟」") {
 		t.Errorf("the way on does not name the editor door the page already carries: %q", body)
+	}
+}
+
+// TestAFlipNobodyIsWaitingForIsNotReportedAsAFailedWrite closes a hole the
+// cancellable write face opened. A reader who double-presses the status form
+// makes the browser drop the first request, and that request's flip now comes
+// back as a cancellation with the note untouched. Sent down the ordinary
+// refusal path it would render a recovery page into a closed connection and
+// leave "status flip failed" in the operator's log for a write that never
+// started — a fault where there was none, which is the one thing a diagnostic
+// must never be.
+func TestAFlipNobodyIsWaitingForIsNotReportedAsAFailedWrite(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writer := newWriter(t, root, loadContract(t))
+	writeNote(t, root, lessonContent("draft"))
+
+	var reported strings.Builder
+	mux := http.NewServeMux()
+	status.NewHandler(writer, func() pages.Shell { return pages.Shell{} },
+		slog.New(slog.NewTextHandler(&reported, nil))).Register(mux)
+
+	form := url.Values{
+		"path":             {"Writing/lessons/japanese/L05.md"},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {formIdentity(lessonContent("draft"))},
+	}
+	gone, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(gone, http.MethodPost, "/status", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, req)
+
+	if body := recorder.Body.String(); body != "" {
+		t.Errorf("a page was written for a request that had gone away: %q", body)
+	}
+	if log := reported.String(); strings.Contains(log, "status flip failed") {
+		t.Errorf("a flip that never started was logged as a failed write: %q", log)
+	}
+	// The control on the whole test: the note is exactly as it was, so the
+	// silence above is a refusal and not a completed write nobody described.
+	onDisk, err := os.ReadFile(filepath.Join(root, filepath.FromSlash("Writing/lessons/japanese/L05.md"))) // #nosec G304 -- a fixed path under this test's TempDir
+	if err != nil {
+		t.Fatalf("read the note back: %v", err)
+	}
+	if got, want := string(onDisk), lessonContent("draft"); got != want {
+		t.Errorf("the note changed under a cancelled request:\n got %q\nwant %q", got, want)
 	}
 }

@@ -108,8 +108,8 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	// shell's own policy this same document would be a first-party page with
 	// script access to the surface around it.
 	if !origin.SetContentSecurityPolicy(r.Context(), w, briefingSandbox) {
-		h.log.Error("serve report bytes", "name", rep.Name, "path", rep.RelPath,
-			"error", "the response sandbox could not be established")
+		h.log.Error("withhold a report whose sandbox could not be established",
+			"name", rep.Name, "path", rep.RelPath)
 		http.Error(w, wording.SandboxUnavailable.In(lang), http.StatusInternalServerError)
 		return
 	}
