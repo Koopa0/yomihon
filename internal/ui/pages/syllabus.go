@@ -177,6 +177,7 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 		Entries:    current.Planned,
+		Ready:      current.Ready,
 	}
 	for _, d := range current.Diagnostics {
 		if markerWritten(d.Rule) {
@@ -193,7 +194,6 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		v.Parts++
 		v.Modules += countModules(&sv)
 	}
-	v.Ready = countReady(v.Branches)
 	return v
 }
 
@@ -204,7 +204,7 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 // position is not decided here: navigation's walk already numbered every row
 // it reaches, and the view only copies that answer.
 func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
-	if !drawable(g) {
+	if !g.Drawn() {
 		return PathBranchView{}, false
 	}
 	sv := PathBranchView{
@@ -222,7 +222,7 @@ func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	for _, item := range g.Items {
 		switch {
 		case item.Entry != nil:
-			if !g.Projectable || item.Entry.State != sequence.EntryAccepted {
+			if !g.Teaches(item.Entry) {
 				continue
 			}
 			entry := buildPathEntry(item.Entry)
@@ -240,28 +240,6 @@ func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	return sv, true
 }
 
-// drawable reports whether a surface shows this branch of a course: one the
-// grammar projects, or a structural heading that carries one. The course page
-// and the navigation rail draw the same branches and have to agree about which,
-// so they ask one predicate rather than each keeping its own.
-//
-// A branch the grammar does not project is not a way to a lesson, so it is not
-// a way through the rail either.
-func drawable(g *nav.PathGroup) bool {
-	if g.Projectable {
-		return true
-	}
-	if !g.Carries {
-		return false
-	}
-	for _, item := range g.Items {
-		if item.Group != nil && drawable(item.Group) {
-			return true
-		}
-	}
-	return false
-}
-
 // countModules is how many branches sit beneath a part, at any depth. The
 // metarow says "modules", and a side branch is one of them.
 func countModules(sv *PathBranchView) int {
@@ -269,25 +247,6 @@ func countModules(sv *PathBranchView) int {
 	for _, item := range sv.Items {
 		if item.Branch != nil {
 			n += 1 + countModules(item.Branch)
-		}
-	}
-	return n
-}
-
-// countReady counts the lessons sitting at ready — never a measure of
-// progress, because a lesson finished and published leaves it.
-func countReady(branches []PathBranchView) int {
-	n := 0
-	for _, sv := range branches {
-		for _, item := range sv.Items {
-			switch {
-			case item.Entry != nil:
-				if item.Entry.Sealed {
-					n++
-				}
-			case item.Branch != nil:
-				n += countReady([]PathBranchView{*item.Branch})
-			}
 		}
 	}
 	return n

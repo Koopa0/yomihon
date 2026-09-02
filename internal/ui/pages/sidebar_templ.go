@@ -13,7 +13,6 @@ import (
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -60,7 +59,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.LibraryNavigation.In(sb.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 28, Col: 92}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 27, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -73,7 +72,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.FilterNavigation.In(sb.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 32, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 31, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -86,7 +85,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.FilterNavigationLabel.In(sb.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 33, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 32, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -99,7 +98,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(wording.FilterNoMatch.In(sb.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 39, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 38, Col: 88}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -118,7 +117,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.CurrentFolder.In(sb.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 43, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 42, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -131,7 +130,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var7 templ.SafeURL
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(folderHref(sb.HereDir)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 44, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 43, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -144,7 +143,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(hereLabel(sb.HereDir, sb.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 44, Col: 105}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 43, Col: 105}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -180,7 +179,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var11 templ.SafeURL
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(n.RelPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 48, Col: 45}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 47, Col: 45}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -201,7 +200,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(n.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 50, Col: 15}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 49, Col: 15}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -220,7 +219,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var13 templ.SafeURL
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(folderHref(sb.HereDir)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 53, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 52, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -233,7 +232,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.Itoa(sb.HereTrimmed))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 53, Col: 121}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 52, Col: 121}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 					if templ_7745c5c3_Err != nil {
@@ -246,7 +245,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(sb.HereDir)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 53, Col: 150}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 52, Col: 150}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 					if templ_7745c5c3_Err != nil {
@@ -259,7 +258,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(wording.MoreInFolder.In(sb.Lang), sb.HereTrimmed))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 53, Col: 216}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 52, Col: 216}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -287,7 +286,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(wording.PathsAndMaps.In(sb.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 66, Col: 128}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 65, Col: 128}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -350,7 +349,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Paths.In(sb.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 79, Col: 33}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 78, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -368,7 +367,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(wording.CourseOrderOf.In(sb.Lang), step.PathTitle))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 83, Col: 109}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 82, Col: 109}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 					if templ_7745c5c3_Err != nil {
@@ -386,7 +385,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(step.PathTitle)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 85, Col: 58}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 84, Col: 58}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -405,7 +404,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var21 templ.SafeURL
 						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(step.Prev.RelPath)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 88, Col: 77}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 87, Col: 77}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 						if templ_7745c5c3_Err != nil {
@@ -418,7 +417,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var22 string
 						templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(wording.RailPreviousLesson.In(sb.Lang))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 88, Col: 124}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 87, Col: 124}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 						if templ_7745c5c3_Err != nil {
@@ -427,7 +426,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var23 string
 						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(step.Prev.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 88, Col: 142}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 87, Col: 142}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -446,7 +445,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var24 templ.SafeURL
 						templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(step.Next.RelPath)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 91, Col: 77}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 90, Col: 77}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 						if templ_7745c5c3_Err != nil {
@@ -459,7 +458,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var25 string
 						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(wording.RailNextLesson.In(sb.Lang))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 91, Col: 116}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 90, Col: 116}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 						if templ_7745c5c3_Err != nil {
@@ -468,7 +467,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var26 string
 						templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(step.Next.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 91, Col: 134}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 90, Col: 134}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 						if templ_7745c5c3_Err != nil {
@@ -529,7 +528,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Maps.In(sb.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 106, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 105, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -584,7 +583,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Journal.In(sb.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 120, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 119, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -620,7 +619,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var31 templ.SafeURL
 					templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(entry.RelPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 124, Col: 125}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 123, Col: 125}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 					if templ_7745c5c3_Err != nil {
@@ -641,7 +640,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 					var templ_7745c5c3_Var32 string
 					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 124, Col: 214}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 123, Col: 214}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 					if templ_7745c5c3_Err != nil {
@@ -691,7 +690,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Reports.In(sb.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 134, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 133, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -710,7 +709,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var34 templ.SafeURL
 						templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(reportHref(rep.Name)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 139, Col: 68}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 138, Col: 68}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 						if templ_7745c5c3_Err != nil {
@@ -723,7 +722,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var35 string
 						templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(rep.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 140, Col: 19}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 139, Col: 19}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 						if templ_7745c5c3_Err != nil {
@@ -741,7 +740,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 							var templ_7745c5c3_Var36 string
 							templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Newest.In(sb.Lang))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 142, Col: 62}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 141, Col: 62}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 							if templ_7745c5c3_Err != nil {
@@ -764,7 +763,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var37 templ.SafeURL
 						templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(rep.RelPath)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 146, Col: 70}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 145, Col: 70}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 						if templ_7745c5c3_Err != nil {
@@ -777,7 +776,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 						var templ_7745c5c3_Var38 string
 						templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(rep.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 147, Col: 19}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 146, Col: 19}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 						if templ_7745c5c3_Err != nil {
@@ -819,7 +818,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 			var templ_7745c5c3_Var39 string
 			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Folders.In(sb.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 158, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 157, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -845,7 +844,7 @@ func sidebar(sb Sidebar, nonce string) templ.Component {
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(nonce)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 171, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 170, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 		if templ_7745c5c3_Err != nil {
@@ -936,7 +935,7 @@ func folderList(sb Sidebar) templ.Component {
 			var templ_7745c5c3_Var45 templ.SafeURL
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(n.RelPath)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 210, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 209, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -957,7 +956,7 @@ func folderList(sb Sidebar) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(n.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 212, Col: 11}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 211, Col: 11}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -1029,7 +1028,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(f.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 228, Col: 12}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 227, Col: 12}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -1071,7 +1070,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 				var templ_7745c5c3_Var51 templ.SafeURL
 				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(n.RelPath)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 237, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 236, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 				if templ_7745c5c3_Err != nil {
@@ -1092,7 +1091,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 				var templ_7745c5c3_Var52 string
 				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(n.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 239, Col: 14}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 238, Col: 14}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 				if templ_7745c5c3_Err != nil {
@@ -1111,7 +1110,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 				var templ_7745c5c3_Var53 templ.SafeURL
 				templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(folderHref(f.RelPath)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 242, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 241, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 				if templ_7745c5c3_Err != nil {
@@ -1124,7 +1123,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 				var templ_7745c5c3_Var54 string
 				templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.Itoa(trimmed))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 242, Col: 112}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 241, Col: 112}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
 				if templ_7745c5c3_Err != nil {
@@ -1137,7 +1136,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 				var templ_7745c5c3_Var55 string
 				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(f.RelPath)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 242, Col: 140}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 241, Col: 140}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 				if templ_7745c5c3_Err != nil {
@@ -1150,7 +1149,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 				var templ_7745c5c3_Var56 string
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(wording.MoreInFolder.In(sb.Lang), trimmed))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 242, Col: 199}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 241, Col: 199}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
@@ -1173,7 +1172,7 @@ func folderNode(sb Sidebar, f nav.Folder) templ.Component {
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(f.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 247, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 246, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
@@ -1229,7 +1228,7 @@ func mapTree(sb Sidebar, m nav.Map, href string) templ.Component {
 		var templ_7745c5c3_Var59 string
 		templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.ResolveAttributeValue(m.RelPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 255, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 254, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var59)
 		if templ_7745c5c3_Err != nil {
@@ -1258,7 +1257,7 @@ func mapTree(sb Sidebar, m nav.Map, href string) templ.Component {
 		var templ_7745c5c3_Var60 string
 		templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(m.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 258, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 257, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 		if templ_7745c5c3_Err != nil {
@@ -1271,7 +1270,7 @@ func mapTree(sb Sidebar, m nav.Map, href string) templ.Component {
 		var templ_7745c5c3_Var61 templ.SafeURL
 		templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(href))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 261, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 260, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 		if templ_7745c5c3_Err != nil {
@@ -1284,7 +1283,7 @@ func mapTree(sb Sidebar, m nav.Map, href string) templ.Component {
 		var templ_7745c5c3_Var62 string
 		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(wording.OpenMap.In(sb.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 261, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 260, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 		if templ_7745c5c3_Err != nil {
@@ -1350,7 +1349,7 @@ func pathTree(sb Sidebar, p nav.Path) templ.Component {
 		var templ_7745c5c3_Var64 string
 		templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.RelPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 274, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 273, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var64)
 		if templ_7745c5c3_Err != nil {
@@ -1379,7 +1378,7 @@ func pathTree(sb Sidebar, p nav.Path) templ.Component {
 		var templ_7745c5c3_Var65 string
 		templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 277, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 276, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 		if templ_7745c5c3_Err != nil {
@@ -1392,7 +1391,7 @@ func pathTree(sb Sidebar, p nav.Path) templ.Component {
 		var templ_7745c5c3_Var66 templ.SafeURL
 		templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(syllabusHref(p.RelPath)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 280, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 279, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 		if templ_7745c5c3_Err != nil {
@@ -1405,7 +1404,7 @@ func pathTree(sb Sidebar, p nav.Path) templ.Component {
 		var templ_7745c5c3_Var67 string
 		templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(wording.OpenSyllabus.In(sb.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 280, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 279, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 		if templ_7745c5c3_Err != nil {
@@ -1453,7 +1452,7 @@ func pathGroupNode(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup)
 			templ_7745c5c3_Var68 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		if drawable(g) {
+		if g.Drawn() {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, "<details")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -1479,7 +1478,7 @@ func pathGroupNode(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup)
 			var templ_7745c5c3_Var69 string
 			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(g.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 296, Col: 12}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 295, Col: 12}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 			if templ_7745c5c3_Err != nil {
@@ -1526,7 +1525,7 @@ func pathGroupItems(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup
 		ctx = templ.ClearChildren(ctx)
 		for _, item := range g.Items {
 			if item.Entry != nil {
-				if g.Projectable && item.Entry.State == sequence.EntryAccepted {
+				if g.Teaches(item.Entry) {
 					templ_7745c5c3_Err = pathEntryLink(sb, item.Entry).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -1600,7 +1599,7 @@ func pathEntryLink(sb Sidebar, entry *nav.PathEntry) templ.Component {
 			var templ_7745c5c3_Var74 templ.SafeURL
 			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(entry.RelPath)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 332, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 331, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 			if templ_7745c5c3_Err != nil {
@@ -1621,7 +1620,7 @@ func pathEntryLink(sb Sidebar, entry *nav.PathEntry) templ.Component {
 			var templ_7745c5c3_Var75 string
 			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 336, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 335, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 			if templ_7745c5c3_Err != nil {
@@ -1639,7 +1638,7 @@ func pathEntryLink(sb Sidebar, entry *nav.PathEntry) templ.Component {
 				var templ_7745c5c3_Var76 string
 				templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Status)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 338, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 337, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 				if templ_7745c5c3_Err != nil {
@@ -1662,7 +1661,7 @@ func pathEntryLink(sb Sidebar, entry *nav.PathEntry) templ.Component {
 			var templ_7745c5c3_Var77 string
 			templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionCode(entry.Kind))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 344, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 343, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var77)
 			if templ_7745c5c3_Err != nil {
@@ -1675,7 +1674,7 @@ func pathEntryLink(sb Sidebar, entry *nav.PathEntry) templ.Component {
 			var templ_7745c5c3_Var78 string
 			templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionTitle(entry.Kind, sb.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 345, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 344, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var78)
 			if templ_7745c5c3_Err != nil {
@@ -1688,7 +1687,7 @@ func pathEntryLink(sb Sidebar, entry *nav.PathEntry) templ.Component {
 			var templ_7745c5c3_Var79 string
 			templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 348, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 347, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 			if templ_7745c5c3_Err != nil {
@@ -1701,7 +1700,7 @@ func pathEntryLink(sb Sidebar, entry *nav.PathEntry) templ.Component {
 			var templ_7745c5c3_Var80 string
 			templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(entryResolutionLabel(entry.Kind, sb.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 349, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 348, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 			if templ_7745c5c3_Err != nil {
@@ -1764,7 +1763,7 @@ func branchNode(sb Sidebar, mapPath string, chain []string, branch nav.Branch) t
 		var templ_7745c5c3_Var82 string
 		templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(branch.Heading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 360, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 359, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 		if templ_7745c5c3_Err != nil {
@@ -1843,7 +1842,7 @@ func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 			var templ_7745c5c3_Var86 templ.SafeURL
 			templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(entry.RelPath)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 379, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 378, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 			if templ_7745c5c3_Err != nil {
@@ -1864,7 +1863,7 @@ func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 			var templ_7745c5c3_Var87 string
 			templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 383, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 382, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 			if templ_7745c5c3_Err != nil {
@@ -1882,7 +1881,7 @@ func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 				var templ_7745c5c3_Var88 string
 				templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Status)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 385, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 384, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 				if templ_7745c5c3_Err != nil {
@@ -1905,7 +1904,7 @@ func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 			var templ_7745c5c3_Var89 string
 			templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionCode(entry.Kind))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 391, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 390, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var89)
 			if templ_7745c5c3_Err != nil {
@@ -1918,7 +1917,7 @@ func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 			var templ_7745c5c3_Var90 string
 			templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionTitle(entry.Kind, sb.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 392, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 391, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var90)
 			if templ_7745c5c3_Err != nil {
@@ -1931,7 +1930,7 @@ func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 			var templ_7745c5c3_Var91 string
 			templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 395, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 394, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 			if templ_7745c5c3_Err != nil {
@@ -1944,7 +1943,7 @@ func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 			var templ_7745c5c3_Var92 string
 			templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(entryResolutionLabel(entry.Kind, sb.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 396, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sidebar.templ`, Line: 395, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 			if templ_7745c5c3_Err != nil {

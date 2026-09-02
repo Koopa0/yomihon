@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -289,7 +288,7 @@ templ pathTree(sb Sidebar, p nav.Path) {
 // way to the current note. A branch the grammar does not project draws nothing:
 // it is not part of the course, so it is not a way to a lesson.
 templ pathGroupNode(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup) {
-	if drawable(g) {
+	if g.Drawn() {
 		<details open?={ sb.branchOpen(pathRel, chain) } { disclosureAttrs("mapbranch:"+branchKey(pathRel, chain), sb.branchOpen(pathRel, chain))... }>
 			<summary class="y-treeitem">
 				@chevron()
@@ -306,7 +305,7 @@ templ pathGroupNode(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup
 templ pathGroupItems(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup) {
 	for _, item := range g.Items {
 		if item.Entry != nil {
-			if g.Projectable && item.Entry.State == sequence.EntryAccepted {
+			if g.Teaches(item.Entry) {
 				@pathEntryLink(sb, item.Entry)
 			}
 		} else if item.Group != nil {
