@@ -302,8 +302,8 @@ func Parse(body string, bodyStartLine int) Document {
 		body:          body,
 		bodyStartLine: bodyStartLine,
 	}
-	p.zones = skipZones(body)
-	p.openers = emphasisOpeners(body)
+	p.zones = skipZones(doc, body)
+	p.openers = emphasisOpeners(doc)
 	p.rows = make(map[int]*Candidate)
 
 	// 1. Parse headings, containers and role declarations, collecting the rows
@@ -1094,10 +1094,10 @@ func inAnyZone(zones []Span, off int) bool {
 
 // skipZones are the byte ranges whose brackets are not live links: code blocks
 // and code spans, where a link is being quoted, and Obsidian comments, where it
-// has been switched off.
-func skipZones(body string) []Span {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
+// has been switched off. It reads the tree the caller already has: parsing the
+// same body a second time is a second answer to what the document is, and the
+// two would disagree silently.
+func skipZones(doc ast.Node, body string) []Span {
 	var code []Span
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
 		if !entering {
@@ -1121,9 +1121,8 @@ func skipZones(body string) []Span {
 // emphasisOpeners are the opening delimiter runs of every emphasis in the body.
 // Markdown decides what an asterisk run is by finding a closer for it, so the
 // runs it paired are the ones that vanish into markup; every other run prints.
-func emphasisOpeners(body string) []Span {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
+// It reads the caller's tree for the same reason skipZones does.
+func emphasisOpeners(doc ast.Node) []Span {
 	var out []Span
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
 		if !entering {
