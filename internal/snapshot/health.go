@@ -143,7 +143,7 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 		for _, target := range judge.LinkTargets(n.Body) {
 			res := idx.Resolve(target)
 			switch {
-			case res.Kind != graph.Unresolved || planned.Has(target) || seen[target]:
+			case res.Kind != graph.KindUnresolved || planned.Has(target) || seen[target]:
 				// Resolved, owed, or already reported for this note.
 			// One holder only: naming a note out of several would be a
 			// guess, and this page does not make those. The whole-vault index

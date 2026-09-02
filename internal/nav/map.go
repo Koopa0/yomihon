@@ -292,14 +292,14 @@ func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, p
 	}
 	res := idx.Resolve(target)
 	switch res.Kind {
-	case graph.Unique:
+	case graph.KindUnique:
 		if policy.IsNonInstance(res.RelPath) {
 			return MapEntry{Text: display, Target: target, Kind: EntryNonInstance}, true
 		}
 		return MapEntry{Text: display, Target: target, RelPath: res.RelPath, Status: statusByPath[res.RelPath], Kind: EntryResolved}, true
-	case graph.Ambiguous:
+	case graph.KindAmbiguous:
 		return MapEntry{Text: display, Target: target, Kind: EntryAmbiguous, Candidates: slices.Clone(res.Candidates)}, true
-	case graph.Unresolved:
+	case graph.KindUnresolved:
 		return MapEntry{Text: display, Target: target, Kind: EntryUnresolved}, true
 	default:
 		// The resolver's kind set is closed — unresolved, unique, ambiguous —

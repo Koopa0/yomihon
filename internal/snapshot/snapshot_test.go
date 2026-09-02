@@ -161,7 +161,7 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 	}
 
 	resolution := view.Graph().Resolve("Foo")
-	if resolution.Kind != graph.Ambiguous || len(resolution.Candidates) != 2 {
+	if resolution.Kind != graph.KindAmbiguous || len(resolution.Candidates) != 2 {
 		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", resolution)
 	}
 	resolution.Candidates[0] = "mutated"
@@ -468,7 +468,7 @@ func TestNewBuildsSnapshot(t *testing.T) {
 	if got := snapshotSearch(t, snap.Search(), "kafka"); len(got) == 0 {
 		t.Error("kafka not found in the freshly built snapshot")
 	}
-	if got := snap.Graph().Resolve("Alpha"); got.Kind != graph.Unique {
+	if got := snap.Graph().Resolve("Alpha"); got.Kind != graph.KindUnique {
 		t.Errorf("graph.Resolve(Alpha).Kind = %v, want Unique", got.Kind)
 	}
 	if got := snap.Navigation().KnowledgeNotes(); len(got) != 1 || got[0].Modified.IsZero() {

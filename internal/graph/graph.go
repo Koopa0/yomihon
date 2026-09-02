@@ -16,6 +16,7 @@ package graph
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/vault"
@@ -44,19 +45,37 @@ type Kind int
 
 // Resolution kinds distinguish absence, one exact answer, and ambiguity.
 const (
-	Unresolved Kind = iota
-	Unique
-	Ambiguous
+	KindUnresolved Kind = iota
+	KindUnique
+	KindAmbiguous
 )
 
 // Resolution is the outcome of resolving one wikilink target.
 type Resolution struct {
 	Kind Kind
-	// RelPath holds the resolved vault-relative path when Kind == Unique.
+	// RelPath holds the resolved vault-relative path when Kind is
+	// KindUnique.
 	RelPath string
-	// Candidates holds every candidate path, sorted, when Kind ==
-	// Ambiguous — never guessed at, the caller decides how to present it.
+	// Candidates holds every candidate path, sorted, when Kind is
+	// KindAmbiguous — never guessed at, the caller decides how to present
+	// it.
 	Candidates []string
+}
+
+// String names a resolution kind for a diagnostic, a log line or a panic. A
+// kind outside the three constants is a programming error, and it prints as a
+// number here because this is the method every other site prints through.
+func (k Kind) String() string {
+	switch k {
+	case KindUnresolved:
+		return "unresolved"
+	case KindUnique:
+		return "unique"
+	case KindAmbiguous:
+		return "ambiguous"
+	default:
+		panic("graph: unknown Kind: " + strconv.Itoa(int(k)))
+	}
 }
 
 // Index maps every normalized name a note or resource is resolvable by to
@@ -123,11 +142,11 @@ func (idx *Index) Resolve(name string) Resolution {
 	members := idx.names[NormalizeKey(name)]
 	switch len(members) {
 	case 0:
-		return Resolution{Kind: Unresolved}
+		return Resolution{Kind: KindUnresolved}
 	case 1:
-		return Resolution{Kind: Unique, RelPath: members[0]}
+		return Resolution{Kind: KindUnique, RelPath: members[0]}
 	default:
-		return Resolution{Kind: Ambiguous, Candidates: slices.Clone(members)}
+		return Resolution{Kind: KindAmbiguous, Candidates: slices.Clone(members)}
 	}
 }
 

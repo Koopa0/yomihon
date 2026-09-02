@@ -93,7 +93,7 @@ func archivedNavigationTargets(
 		}
 		for _, link := range navigationLinks(source, roles) {
 			resolution := idx.Resolve(link.target)
-			if resolution.Kind != graph.Unique {
+			if resolution.Kind != graph.KindUnique {
 				continue
 			}
 			target := byPath[resolution.RelPath]

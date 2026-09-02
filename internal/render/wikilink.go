@@ -878,20 +878,20 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
-	case graph.Unique:
+	case graph.KindUnique:
 		href, miss := r.sectionHref(res.RelPath, link, col)
 		if miss != fragmentPlaced {
 			return degradedLink(href, link, miss, col.page.lang)
 		}
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref returns an attribute-safe string, path and fragment both percent-escaped
 		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, href, html.EscapeString(link.Display))
-	case graph.Ambiguous:
+	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
 			Message: fmt.Sprintf("wikilink %q is ambiguous: %s", link.Target, strings.Join(res.Candidates, ", ")),
 		})
 		return ambiguousTarget(link.Target, link.Display, res.Candidates, col.page.lang)
-	case graph.Unresolved:
+	case graph.KindUnresolved:
 		// The name found nothing, which is as far as the resolver goes: a
 		// title is deliberately not a name a link follows. Whether the name is
 		// nonetheless some note's title changes what the reader should do —
@@ -946,19 +946,19 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 	target := link.Target
 	res := r.idx.Resolve(target)
 	switch res.Kind {
-	case graph.Unresolved:
+	case graph.KindUnresolved:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkBroken, Target: target, Section: link.Heading,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
 		return unwrittenTarget(target, source, link.Heading, col.page.lang)
-	case graph.Ambiguous:
+	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: target,
 			Message: fmt.Sprintf("embed target %q is ambiguous: %s", target, strings.Join(res.Candidates, ", ")),
 		})
 		return ambiguousTarget(target, source, res.Candidates, col.page.lang)
-	case graph.Unique:
+	case graph.KindUnique:
 		if IsPicture(res.RelPath) {
 			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; rawHref percent-escapes the path and the name is html.EscapeString'd
 			return fmt.Sprintf(`<img src="%s" alt="%s">`,
@@ -1524,7 +1524,7 @@ func (r *Pipeline) embedBringsHeading(body, heading string) bool {
 			continue
 		}
 		res := r.idx.Resolve(link.Target)
-		if res.Kind != graph.Unique || !vault.IsMarkdown(res.RelPath) {
+		if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 			continue
 		}
 		embedded, ok := r.transclusions.Transclusion(res.RelPath)
