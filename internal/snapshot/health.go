@@ -213,7 +213,7 @@ func groupByFolder(notes []nav.NoteRef) []HealthIslandGroup {
 		groups = append(groups, HealthIslandGroup{Dir: dir, Name: name, Notes: members})
 	}
 	slices.SortFunc(groups, func(a, b HealthIslandGroup) int {
-		return cmp.Or(cmp.Compare(len(b.Notes), len(a.Notes)), cmp.Compare(a.Dir, b.Dir))
+		return cmp.Or(cmp.Compare(len(b.Notes), len(a.Notes)), vault.ComparePaths(a.Dir, b.Dir))
 	})
 	return groups
 }
@@ -223,12 +223,12 @@ func groupByFolder(notes []nav.NoteRef) []HealthIslandGroup {
 // where they left it.
 func sortHealth(h *Health) {
 	slices.SortFunc(h.Unwritten, func(a, b HealthLink) int {
-		return cmp.Or(cmp.Compare(a.From.RelPath, b.From.RelPath), cmp.Compare(a.Target, b.Target))
+		return cmp.Or(vault.ComparePaths(a.From.RelPath, b.From.RelPath), vault.ComparePaths(a.Target, b.Target))
 	})
 	slices.SortFunc(h.TitleOnly, func(a, b HealthTitleLink) int {
-		return cmp.Or(cmp.Compare(a.From.RelPath, b.From.RelPath), cmp.Compare(a.Target, b.Target))
+		return cmp.Or(vault.ComparePaths(a.From.RelPath, b.From.RelPath), vault.ComparePaths(a.Target, b.Target))
 	})
 	slices.SortFunc(h.Collisions, func(a, b HealthCollision) int {
-		return cmp.Compare(a.Name, b.Name)
+		return vault.ComparePaths(a.Name, b.Name)
 	})
 }

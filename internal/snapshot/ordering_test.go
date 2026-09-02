@@ -60,6 +60,25 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 		}
 	})
 
+	t.Run("the citations that land nowhere", func(t *testing.T) {
+		t.Parallel()
+		notes := []*vault.Note{
+			parse(t, "Writing/第10課.md", "see [[no such name]]\n"),
+			parse(t, "Writing/第9課.md", "see [[no such name]]\n"),
+		}
+		idx := graph.New(notes, nil)
+		h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+
+		want := []string{"Writing/第9課.md", "Writing/第10課.md"}
+		got := make([]string, 0, len(h.Unwritten))
+		for _, link := range h.Unwritten {
+			got = append(got, link.From.RelPath)
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("unwritten-citation order mismatch (-want +got):\n%s", diff)
+		}
+	})
+
 	t.Run("the notes sharing one declared title", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
