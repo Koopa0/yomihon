@@ -438,6 +438,36 @@ func TestSearchOrdering(t *testing.T) {
 	}
 }
 
+// TestTheSixAnswerGroupsComeBackInRankedOrder pins the whole of the result
+// order in one query. The six groups are the contract — a note's title, a
+// note's body, the same two over vault files, then the notes and files matched
+// only by where they live — and the six fixtures are laid out so their path
+// order is the exact reverse of their group order, which is what makes the
+// assertion discriminate between the two.
+func TestTheSixAnswerGroupsComeBackInRankedOrder(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "a-kafka/data.txt", Title: "data.txt", PlainText: "opaque", File: true},
+		{RelPath: "b-kafka/inside.md", Title: "Inside", PlainText: "unrelated"},
+		{RelPath: "c/notes.txt", Title: "notes.txt", PlainText: "mentions kafka once", File: true},
+		{RelPath: "d/kafka.txt", Title: "kafka.txt", PlainText: "plain", File: true},
+		{RelPath: "e/note.md", Title: "Streaming", PlainText: "a kafka pipeline"},
+		{RelPath: "f/note.md", Title: "Kafka guide", PlainText: "nothing else"},
+	}, validArtifactPolicy(t))
+
+	want := []string{
+		"f/note.md",         // a note named by the query
+		"e/note.md",         // a note whose prose says it
+		"d/kafka.txt",       // a file named by the query
+		"c/notes.txt",       // a file whose characters say it
+		"b-kafka/inside.md", // a note only its address matches
+		"a-kafka/data.txt",  // a file only its address matches
+	}
+	if diff := cmp.Diff(want, paths(searchResults(t, idx, Parse("kafka")))); diff != "" {
+		t.Errorf("Search(kafka) group order mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestSearchNFDContent pins that NFC-form query text matches NFD-form content.
 // The body holds NFD が ("が" = か + U+3099); the query is NFC が ("が"). Both
 // sides fold to NFC, so the match succeeds — this is the whole reason fold
