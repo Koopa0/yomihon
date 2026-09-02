@@ -8,7 +8,6 @@
 package search
 
 import (
-	"cmp"
 	"errors"
 	"path"
 	"slices"
@@ -150,8 +149,9 @@ type entry struct {
 	frontmatterUnreadable bool
 }
 
-// Index is the whole in-memory search index: entries kept sorted by RelPath so
-// each result bucket is naturally rel_path-ordered without a sort call.
+// Index is the whole in-memory search index: entries kept in the vault's
+// reading order (vault.ComparePaths) so each result bucket inherits that order
+// without a sort call.
 // Read-only once built. Each entry records whether its frontmatter is instance
 // metadata, while the index records whether metadata projections are available
 // at all. Entries are held by pointer so a query iterates 8-byte pointers rather
@@ -188,8 +188,9 @@ func (idx *Index) metadataUnavailableError() error {
 // NewIndex builds an Index from already-extracted note data and a startup-
 // derived artifact policy, with no disk access. Every document remains in the
 // text and folder corpus; policy marks which entries may answer metadata
-// projections. Entries are sorted by RelPath at build time, which is the sole
-// source of result ordering. docs is expected to carry one entry per RelPath;
+// projections. Entries are sorted into the vault's reading order at build
+// time, which is the sole source of result ordering. docs is expected to carry
+// one entry per RelPath;
 // the sort is stable so that if a caller ever violates that and passes two
 // documents sharing a RelPath, their relative order is at least their input
 // order rather than an unspecified one.
@@ -200,7 +201,7 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 		entries = append(entries, &e)
 	}
 	slices.SortStableFunc(entries, func(a, b *entry) int {
-		return cmp.Compare(a.RelPath, b.RelPath)
+		return vault.ComparePaths(a.RelPath, b.RelPath)
 	})
 	return &Index{entries: entries, policy: policy}
 }
@@ -365,7 +366,7 @@ type StatusHolder struct {
 }
 
 // StatusHolders lists every metadata-capable note carrying a status, in the
-// index's own RelPath order, so a caller can rule on each one against the
+// index's own reading order, so a caller can rule on each one against the
 // contract and reach the file it found. It applies exactly the tests
 // CountByTypeStatus applies, and returns the same notes that tally counts —
 // a page deriving both a number and a list from one call cannot state a

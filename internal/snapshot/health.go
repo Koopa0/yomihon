@@ -205,7 +205,7 @@ func groupByFolder(notes []nav.NoteRef) []HealthIslandGroup {
 	}
 	groups := make([]HealthIslandGroup, 0, len(byDir))
 	for dir, members := range byDir {
-		slices.SortFunc(members, func(a, b nav.NoteRef) int { return cmp.Compare(a.RelPath, b.RelPath) })
+		slices.SortFunc(members, func(a, b nav.NoteRef) int { return vault.ComparePaths(a.RelPath, b.RelPath) })
 		name := dir
 		if name == "" {
 			name = vaultRootLabel

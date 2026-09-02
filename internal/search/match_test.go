@@ -468,6 +468,24 @@ func TestTheSixAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 	}
 }
 
+// TestResultsSortTheWayTheirNumbersRead holds the results list to the same
+// reading order the sidebar shows a course in. Comparing code points puts 第10課
+// between 第1課 and 第2課, so a reader who found their lessons in one order in
+// the rail found them in another in the results, with nothing on either page to
+// say which was right.
+func TestResultsSortTheWayTheirNumbersRead(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "Writing/第10課.md", Title: "第10課", PlainText: "動詞"},
+		{RelPath: "Writing/第9課.md", Title: "第9課", PlainText: "動詞"},
+	}, validArtifactPolicy(t))
+
+	want := []string{"Writing/第9課.md", "Writing/第10課.md"}
+	if diff := cmp.Diff(want, paths(searchResults(t, idx, Parse("動詞")))); diff != "" {
+		t.Errorf("Search(動詞) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestSearchNFDContent pins that NFC-form query text matches NFD-form content.
 // The body holds NFD が ("が" = か + U+3099); the query is NFC が ("が"). Both
 // sides fold to NFC, so the match succeeds — this is the whole reason fold

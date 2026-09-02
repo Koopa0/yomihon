@@ -53,9 +53,9 @@ const (
 // token in TitleFold) first, then a note's body hits (every token in PlainFold,
 // not already a title hit), then the same two groups over vault files that are
 // not notes, and last the path-only hits — entries whose tokens matched nothing
-// but where they live — notes again before files. Because entries are kept
-// sorted by RelPath, each group is already rel_path-ordered, so concatenation
-// is the whole order — no sort call.
+// but where they live — notes again before files. Because entries are kept in
+// the vault's reading order, each group already carries it, so concatenation is
+// the whole order — no sort call.
 //
 // Notes come before files under each kind of evidence, and every text hit
 // outranks every path-only hit: matched words are a better answer than a
@@ -66,7 +66,7 @@ const (
 //
 // An empty query (no tokens and no filters) returns nothing. A pure-filter
 // query is legal: with no tokens the title-bucket token test is vacuously true,
-// so every filter match lands in the (rel_path-ordered) title bucket.
+// so every filter match lands in the title bucket, in reading order.
 // Metadata filters exclude non-instance artifacts. If the artifact policy was
 // declared and could not be honoured, a query containing such a filter returns
 // ErrMetadataUnavailable with the contract diagnostic; text and folder queries
@@ -149,7 +149,8 @@ const (
 
 // resultBuckets keeps the answer groups apart while one pass over the entries
 // fills them, so the final order is a concatenation rather than a sort:
-// entries are already kept in rel-path order, and each group inherits it.
+// entries are already kept in the vault's reading order, and each group
+// inherits it.
 type resultBuckets struct {
 	groups [bucketCount][]hit
 }

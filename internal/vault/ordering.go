@@ -1,20 +1,10 @@
-package nav
+package vault
 
 import (
 	"cmp"
 	"strings"
 	"unicode"
 )
-
-// Vault paths are sorted for a reader, not for a machine, and a reader who
-// numbered their notes expects them in that order. Comparing code points puts
-// 第三課 before 第二課, because 三 is U+4E09 and 二 is U+4E8C — an order with no
-// meaning on screen, and one that gets worse with every lesson added. Arabic
-// numerals fare no better: 第10課 lands between 第1課 and 第2課.
-//
-// So a run of digits is compared as the number it spells, and everything else
-// by its code points, which leaves every path carrying no number exactly where
-// it was.
 
 // chineseDigits maps the numeral characters that can open or continue a number.
 // 零 and 〇 both appear in written vault paths for the same zero.
@@ -28,10 +18,24 @@ var chineseDigits = map[rune]int{
 // treating it as ordinary text is better than guessing at it.
 var chineseUnits = map[rune]int{'十': 10, '百': 100, '千': 1000}
 
-// comparePathsForReading orders two vault paths the way their reader would.
+// ComparePaths orders two vault paths the way their reader would, and is the
+// one order every list of them is sorted by: a course in the rail, a results
+// page, a backlinks panel and a folder's uncited notes all answer with the
+// same lessons in the same sequence.
+//
+// Paths are sorted for a reader, not for a machine, and a reader who numbered
+// their notes expects them in that order. Comparing code points puts 第三課
+// before 第二課, because 三 is U+4E09 and 二 is U+4E8C — an order with no meaning
+// on screen, and one that gets worse with every lesson added. Arabic numerals
+// fare no better: 第10課 lands between 第1課 and 第2課. So a run of digits is
+// compared as the number it spells, and everything else by its code points,
+// which leaves every path carrying no number exactly where it was.
+//
 // It falls back to a code-point comparison whenever the numbers are equal, so
 // the order stays total and two paths never compare equal unless they are.
-func comparePathsForReading(a, b string) int {
+// Names derived from a path — the label a list shows for one — read the same
+// way, so they are compared through here too.
+func ComparePaths(a, b string) int {
 	ar, br := []rune(a), []rune(b)
 	i, j := 0, 0
 	for i < len(ar) && j < len(br) {

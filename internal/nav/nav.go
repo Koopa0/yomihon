@@ -333,7 +333,7 @@ func New(
 
 	observed := slices.Clone(entries)
 	slices.SortFunc(observed, func(a, b vault.Entry) int {
-		return comparePathsForReading(a.Path(), b.Path())
+		return vault.ComparePaths(a.Path(), b.Path())
 	})
 	files := make([]capturedFile, 0, len(observed))
 	for _, entry := range observed {
@@ -505,7 +505,7 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 	// journal answers: a clone stamps every entry with one moment, and an
 	// entry edited today is not today's entry.
 	slices.SortStableFunc(entries, func(a, b JournalEntry) int {
-		return comparePathsForReading(b.RelPath, a.RelPath)
+		return vault.ComparePaths(b.RelPath, a.RelPath)
 	})
 	if len(entries) > limit {
 		entries = entries[:limit]

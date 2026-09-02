@@ -1,4 +1,4 @@
-package nav
+package vault
 
 import (
 	"slices"
@@ -58,7 +58,7 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := slices.Clone(tt.paths)
-			slices.SortFunc(got, comparePathsForReading)
+			slices.SortFunc(got, ComparePaths)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("sorted %v mismatch (-want +got):\n%s", tt.paths, diff)
 			}
@@ -74,7 +74,7 @@ func TestComparisonIsTotal(t *testing.T) {
 	paths := []string{"第一課.md", "第1課.md", "第01課.md", "第一課.md", "abc", "", "十", "十十", "百"}
 	for _, a := range paths {
 		for _, b := range paths {
-			ab, ba := comparePathsForReading(a, b), comparePathsForReading(b, a)
+			ab, ba := ComparePaths(a, b), ComparePaths(b, a)
 			if ab != -ba {
 				t.Errorf("compare(%q,%q) = %d but compare(%q,%q) = %d; not antisymmetric", a, b, ab, b, a, ba)
 			}
