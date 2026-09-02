@@ -375,3 +375,64 @@ func runSchema(t *testing.T, root string) []byte {
 	}
 	return buf.Bytes()
 }
+
+// TestTheProvenanceRuleFollowsTheContractsOwnConceptType holds the frontmatter
+// rules to the vocabulary the contract layer owns. The rule that asks a
+// distilled idea where it came from is written for a corpus of them, and
+// whether this vault keeps such a corpus is the contract's answer, not a word
+// spelled here — the coverage face already asks it that way, and this file
+// asked instead whether one note happened to be typed with the same letters.
+//
+// The cost of the literal is a rule that fires where there is no corpus for it
+// to be about: the type already draws its own finding for being undeclared,
+// and a second one demanding provenance of it holds the author to a rule their
+// contract never claimed covered anything. The same reading builds the notices
+// the reading page prints beside a note, so the wrong answer was shown on the
+// page as well as printed by the command.
+func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
+	t.Parallel()
+
+	const body = "---\ntitle: Idea\ntype: concept\ndomain: golang\n" +
+		"status: seedling\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\nbody\n"
+	const relPath = "Concepts/golang/Idea.md"
+
+	tests := []struct {
+		name         string
+		replacements [][2]string
+		want         []string
+	}{
+		{
+			name: "a vault whose contract declares a concept corpus",
+			want: []string{"schema.provenance"},
+		},
+		{
+			name: "a vault whose contract declares none",
+			replacements: [][2]string{
+				{`"source-note", "concept", "writing"`, `"source-note", "writing"`},
+				{"[[lifecycle]]\nstatus = \"seedling\"\napplies_to = [\"concept\"]\ninitial = false\nfrom = [\"cleaned\"]\nowner = [\"hermes\", \"claude\"]\n\n", ""},
+			},
+			want: []string{"schema.enum"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, contractFixture(t, nil, tt.replacements...))
+			contract := loadTestAuthority(t, root).contract
+
+			findings, err := LintFrontmatter(relPath, []byte(body), contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			var rules []string
+			for _, f := range findings {
+				rules = append(rules, f.RuleID)
+			}
+			if diff := cmp.Diff(tt.want, rules); diff != "" {
+				t.Errorf("rules reported (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

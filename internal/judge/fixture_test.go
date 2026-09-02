@@ -75,19 +75,38 @@ func collectNotes(root string) ([]note, error) {
 
 func writeTestContract(tb testing.TB, root string, privateDirs []string) {
 	tb.Helper()
+	write(tb, root, schema.ContractRelPath, contractFixture(tb, privateDirs,
+		[2]string{
+			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			"knowledge_dirs = []",
+		}))
+}
+
+// contractFixture is the loader's own contract with each old-to-new
+// substitution applied in turn and a privacy section appended, so a test that
+// needs a vault declaring something different can vary one line of it instead
+// of carrying a second copy that will drift from this one.
+//
+// A substitution matching nothing is fatal. Without that, a test naming a vault
+// which declares no concepts would go on quietly exercising a vault that does,
+// and would pass for the wrong reason for as long as nobody read it.
+func contractFixture(tb testing.TB, privateDirs []string, replacements ...[2]string) string {
+	tb.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		tb.Fatalf("ReadFile(schema fixture) error = %v", err)
 	}
-	const knowledgeDirs = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
-	text := strings.Replace(string(data), knowledgeDirs, "knowledge_dirs = []", 1)
-	if text == string(data) {
-		tb.Fatalf("schema fixture does not contain %q", knowledgeDirs)
+	text := string(data)
+	for _, replacement := range replacements {
+		next := strings.Replace(text, replacement[0], replacement[1], 1)
+		if next == text {
+			tb.Fatalf("the contract fixture does not contain %q", replacement[0])
+		}
+		text = next
 	}
 	quoted := make([]string, len(privateDirs))
 	for i, dir := range privateDirs {
 		quoted[i] = strconv.Quote(dir)
 	}
-	text += "\n[privacy]\nnever_egress_dirs = [" + strings.Join(quoted, ", ") + "]\n"
-	write(tb, root, schema.ContractRelPath, text)
+	return text + "\n[privacy]\nnever_egress_dirs = [" + strings.Join(quoted, ", ") + "]\n"
 }

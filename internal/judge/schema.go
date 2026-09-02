@@ -38,6 +38,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 	}
 	policy := contractPolicy{requiresFrontmatter: contract.RequiresFrontmatter()}
 	policy.inboxType, policy.inboxRequired, policy.inboxDeclared = contract.InboxRequiredFields()
+	policy.conceptType, policy.conceptDeclared = contract.ConceptType()
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -47,7 +48,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 		})
 		skipped := slices.Contains(definition.Scan.SkipBasenames, seg[len(seg)-1])
 		if inScope && !skipped {
-			out = append(out, lintNote(n, contract, &definition, policy, seg, slug)...)
+			out = append(out, lintNote(n, contract, &definition, &policy, seg, slug)...)
 		}
 	}
 	return out, nil
@@ -118,13 +119,17 @@ func unmatchedKnowledgeDir(dir string) Finding {
 
 // contractPolicy is the part of the contract the frontmatter rules ask for by
 // name instead of spelling themselves, resolved once for a whole run: whether a
-// note has to carry a frontmatter block at all, and what a capture of undecided
-// shape is required to carry.
+// note has to carry a frontmatter block at all, what a capture of undecided
+// shape is required to carry, and which type this vault files its distilled
+// ideas under — together with whether it keeps such a corpus at all, since a
+// vault that keeps none has nothing for the provenance rule to be about.
 type contractPolicy struct {
 	requiresFrontmatter bool
 	inboxType           string
 	inboxRequired       []string
 	inboxDeclared       bool
+	conceptType         string
+	conceptDeclared     bool
 }
 
 // lintNote returns the frontmatter findings for one in-scope note, in the
@@ -132,7 +137,7 @@ type contractPolicy struct {
 // language, the lesson-only rules, then either the light system-document rules or the full
 // knowledge-note rules. That order is the tiebreak the stable sort preserves
 // among findings that share a path and rule id.
-func lintNote(n *note, contract *schema.Contract, definition *schema.Definition, policy contractPolicy, seg []string, slug *regexp.Regexp) []Finding {
+func lintNote(n *note, contract *schema.Contract, definition *schema.Definition, policy *contractPolicy, seg []string, slug *regexp.Regexp) []Finding {
 	if n.noFrontmatter {
 		if policy.requiresFrontmatter {
 			return []Finding{schemaFinding(n, "schema.frontmatter", "", false, "", "is missing")}
@@ -221,7 +226,7 @@ func lintSystemStatus(n *note, definition *schema.Definition) []Finding {
 // lintKnowledge reports the full knowledge-note rules, in reading order:
 // required fields, the note status enum, the remaining value enums, then the
 // structural rules.
-func lintKnowledge(n *note, contract *schema.Contract, definition *schema.Definition, policy contractPolicy, seg []string) []Finding {
+func lintKnowledge(n *note, contract *schema.Contract, definition *schema.Definition, policy *contractPolicy, seg []string) []Finding {
 	var out []Finding
 	out = append(out, lintRequired(n, definition, policy)...)
 	// The contract resolves a declared type's group; a type outside the
@@ -238,7 +243,7 @@ func lintKnowledge(n *note, contract *schema.Contract, definition *schema.Defini
 		out = append(out, schemaFinding(n, "schema.enum", "status", true, st, reason))
 	}
 	out = append(out, lintEnumFields(n, definition)...)
-	out = append(out, lintStructural(n, definition, seg)...)
+	out = append(out, lintStructural(n, definition, policy, seg)...)
 	return out
 }
 
@@ -248,7 +253,7 @@ func lintKnowledge(n *note, contract *schema.Contract, definition *schema.Defini
 // general set with the domain requirement waived, since such a capture is not
 // classified by knowledge domain. The same waiver covers the types the contract
 // exempts (system docs, research briefs).
-func lintRequired(n *note, definition *schema.Definition, policy contractPolicy) []Finding {
+func lintRequired(n *note, definition *schema.Definition, policy *contractPolicy) []Finding {
 	ty, hasType := fmScalar(n.frontmatter, "type")
 	isInbox := hasType && ty == policy.inboxType
 	noDomain := isInbox || (hasType && slices.Contains(definition.Fields.DomainExempt, ty))
@@ -293,8 +298,9 @@ func lintEnumFields(n *note, definition *schema.Definition) []Finding {
 }
 
 // lintStructural reports the structural rules: a domain that does not match
-// its folder, a slash-bearing legacy tag, and a concept missing provenance.
-func lintStructural(n *note, definition *schema.Definition, seg []string) []Finding {
+// its folder, a slash-bearing legacy tag, and a distilled idea missing
+// provenance.
+func lintStructural(n *note, definition *schema.Definition, policy *contractPolicy, seg []string) []Finding {
 	var out []Finding
 	// A domain must equal the first folder under the configured roots, e.g.
 	// Concepts/<domain>/….
@@ -311,7 +317,12 @@ func lintStructural(n *note, definition *schema.Definition, seg []string) []Find
 			}
 		}
 	}
-	if ty, ok := fmScalar(n.frontmatter, "type"); ok && ty == "concept" &&
+	// Asking a distilled idea where it came from presupposes a corpus of them,
+	// and which type holds that corpus — and whether this vault keeps one at
+	// all — is the contract's to say. A vault that declares none has nothing
+	// for this rule to be about, and its notes already carry the finding that
+	// says the type is not one the contract lists.
+	if ty, ok := fmScalar(n.frontmatter, "type"); ok && policy.conceptDeclared && ty == policy.conceptType &&
 		!hasProvenance(n.frontmatter, definition.Rules.ConceptRequiresProvenance) {
 		out = append(out, schemaFinding(n, "schema.provenance", "", false, "", "concept has neither based_on nor source_locator"))
 	}
