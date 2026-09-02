@@ -117,6 +117,17 @@ func unmatchedKnowledgeDir(dir string) Finding {
 	}
 }
 
+// systemDocumentGroup is the status group whose members are a vault's own
+// working documents — its templates, guides and system notes — rather than
+// knowledge it wrote. Membership is the contract's answer, one type at a time;
+// only the name of the group is this face's, and it is a word rather than a
+// derivation because nothing in the contract marks a group as holding
+// documents. That is a gap in the contract's vocabulary, and until it is
+// closed, a vault filing its documents under a group of another name has the
+// full knowledge-note rules applied to its templates. Naming it once at least
+// keeps the routing and the enum the routed rule reads from drifting apart.
+const systemDocumentGroup = "system"
+
 // contractPolicy is the part of the contract the frontmatter rules ask for by
 // name instead of spelling themselves, resolved once for a whole run: whether a
 // note has to carry a frontmatter block at all, what a capture of undecided
@@ -161,10 +172,12 @@ func lintNote(n *note, contract *schema.Contract, definition *schema.Definition,
 		out = append(out, lintLesson(n, slug)...)
 	}
 
-	// System documents (system / template / guide) carry only the light
+	// A vault's templates, guides and system documents carry only the light
 	// status rule; the full knowledge-note rules below do not apply to them.
-	if hasType && contract.StatusGroup(ty) == "system" {
-		return append(out, lintSystemStatus(n, definition)...)
+	// The group the type belongs to is resolved once and travels to the rule,
+	// so the enum the rule reads is the group it was routed by.
+	if hasType && contract.StatusGroup(ty) == systemDocumentGroup {
+		return append(out, lintSystemStatus(n, definition, systemDocumentGroup)...)
 	}
 	return append(out, lintKnowledge(n, contract, definition, policy, seg)...)
 }
@@ -214,10 +227,12 @@ func lintLesson(n *note, slug *regexp.Regexp) []Finding {
 	return out
 }
 
-// lintSystemStatus reports a system document's status outside the system
-// status set.
-func lintSystemStatus(n *note, definition *schema.Definition) []Finding {
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(definition.Enums.Status["system"], st) {
+// lintSystemStatus reports a document's status outside the status set its own
+// group declares. The group is the one the caller routed by rather than a
+// second spelling of it, so the enum checked here is always the enum that
+// decided this note is a document.
+func lintSystemStatus(n *note, definition *schema.Definition, group string) []Finding {
+	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(definition.Enums.Status[group], st) {
 		return []Finding{schemaFinding(n, "schema.enum", "status", true, st, "is not a valid system status")}
 	}
 	return nil

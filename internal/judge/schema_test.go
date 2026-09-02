@@ -436,3 +436,63 @@ func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
 		})
 	}
 }
+
+// TestADocumentsStatusIsJudgedAgainstItsOwnGroup holds the light rule that
+// templates, guides and system notes answer to. Which statuses that group
+// allows is the contract's declaration, and the rule reads the group the note
+// was routed by rather than naming a set of its own — the routing and the enum
+// were two separate spellings of the same word, and two spellings drift.
+//
+// The vault's own working documents keep a short lifecycle that has nothing in
+// common with the one a written note travels, so a status legal for a template
+// is illegal for an essay and the reverse. A rule reading the wrong group would
+// therefore be wrong in both directions at once, which is what the last case
+// here varies the contract to show.
+func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		status       string
+		replacements [][2]string
+		want         []string
+	}{
+		{
+			name:   "a status the contract lists for documents",
+			status: "active",
+		},
+		{
+			name:   "a status the contract lists only for written notes",
+			status: "draft",
+			want:   []string{"schema.enum"},
+		},
+		{
+			name:         "a vault that lists other statuses for its documents",
+			status:       "active",
+			replacements: [][2]string{{`system = ["active", "archived"]`, `system = ["operational", "archived"]`}},
+			want:         []string{"schema.enum"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, contractFixture(t, nil, tt.replacements...))
+			contract := loadTestAuthority(t, root).contract
+
+			body := "---\ntitle: Template\ntype: template\nstatus: " + tt.status + "\n---\nbody\n"
+			findings, err := LintFrontmatter("Concepts/golang/Template.md", []byte(body), contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			var rules []string
+			for _, f := range findings {
+				rules = append(rules, f.RuleID)
+			}
+			if diff := cmp.Diff(tt.want, rules); diff != "" {
+				t.Errorf("rules reported (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
