@@ -544,31 +544,31 @@ func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
 }
 
 // TestMarkerWrittenDividesEveryGrammarRule pins the total division behind
-// the empty-course page's two explanations: for every rule the grammar
-// declares, whether it implies the author actually wrote a sequence marker.
+// the empty-course page's explanations: for every rule the grammar declares,
+// whether it implies the author actually wrote a sequence marker.
 //
 // The expectation is keyed by rule and its keys are compared against the
 // grammar's own list, so a rule declared later arrives here uncovered and this
 // test says so. That is where a new rule has to be caught, because the page
 // itself does not abort on one: the grammar owns the set and may grow it, and a
 // course page that crashed on a rule it had not met would be the reporter
-// breaking on the news. An unclassified rule reads as "no marker written",
-// which is the reading that claims less about what the author did.
+// breaking on the news. Such a rule reads as neither verdict — both of those
+// are claims about what the author wrote, and one of them would be false.
 func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 	t.Parallel()
 
-	want := map[sequence.Rule]bool{
-		sequence.RuleRoleMissing:        false,
-		sequence.RuleEntryOutsideBranch: false,
-		sequence.RuleEntryMultiTarget:   false,
-		sequence.RuleEntryNoncanonical:  false,
-		sequence.RuleRoleInvalid:        true,
-		sequence.RuleRoleDuplicate:      true,
-		sequence.RuleRoleMisplaced:      true,
-		sequence.RuleRoleConflict:       true,
-		sequence.RuleRoleOnEntry:        true,
-		sequence.RuleLocalOrphan:        true,
-		sequence.RuleNestingTooDeep:     true,
+	want := map[sequence.Rule]markerVerdict{
+		sequence.RuleRoleMissing:        markerNotWritten,
+		sequence.RuleEntryOutsideBranch: markerNotWritten,
+		sequence.RuleEntryMultiTarget:   markerNotWritten,
+		sequence.RuleEntryNoncanonical:  markerNotWritten,
+		sequence.RuleRoleInvalid:        markerWritten,
+		sequence.RuleRoleDuplicate:      markerWritten,
+		sequence.RuleRoleMisplaced:      markerWritten,
+		sequence.RuleRoleConflict:       markerWritten,
+		sequence.RuleRoleOnEntry:        markerWritten,
+		sequence.RuleLocalOrphan:        markerWritten,
+		sequence.RuleNestingTooDeep:     markerWritten,
 	}
 	declared := sequence.Rules()
 	if len(declared) == 0 {
@@ -580,8 +580,8 @@ func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 			t.Errorf("the grammar declares %q and this division does not classify it: decide whether it implies a written marker and add it here", rule)
 			continue
 		}
-		if got := markerWritten(rule); got != expect {
-			t.Errorf("markerWritten(%q) = %t, want %t", rule, got, expect)
+		if got := markerVerdictFor(rule); got != expect {
+			t.Errorf("markerVerdictFor(%q) = %d, want %d", rule, got, expect)
 		}
 	}
 	for rule := range want {
@@ -589,8 +589,71 @@ func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 			t.Errorf("this division classifies %q, which the grammar no longer declares", rule)
 		}
 	}
-	if got := markerWritten("path.never_declared"); got {
-		t.Error("a rule the grammar never declared reads as a written marker, so the page would tell an author about a marker nobody wrote")
+	if got := markerVerdictFor("path.never_declared"); got != markerUnknownRule {
+		t.Errorf("markerVerdictFor(an undeclared rule) = %d, want markerUnknownRule: neither answer about the author's file is evidenced by a rule name nobody here recognises", got)
+	}
+}
+
+// TestAnUnexplainedRuleClaimsNothingAboutTheAuthor holds the third empty-course
+// sentence to what it must not say. The page reaches it when the grammar
+// reports a rule it has not been told about, and the two sentences it would
+// otherwise choose between are both assertions about a file this page has not
+// read: that markers are absent, or that markers were written and refused.
+func TestAnUnexplainedRuleClaimsNothingAboutTheAuthor(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		t.Run(string(lang), func(t *testing.T) {
+			t.Parallel()
+
+			var page bytes.Buffer
+			view := PathView{Title: "A path", RelPath: "Maps/p.md", NoCourse: markerUnknownRule}
+			if err := Syllabus(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &page); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			body := page.String()
+			if !strings.Contains(body, wording.NoCourseUnexplained.In(lang)) {
+				t.Errorf("the page does not say it has no explanation; want %q", wording.NoCourseUnexplained.In(lang))
+			}
+			for name, claim := range map[string]wording.Phrase{
+				"no marker was written": wording.NoCourseIntro,
+				"a marker was refused":  wording.NoCourseMarkerFaultIntro,
+			} {
+				if strings.Contains(body, claim.In(lang)) {
+					t.Errorf("the page claims %s about a note it read no rule for", name)
+				}
+			}
+		})
+	}
+}
+
+// TestAnUnknownRuleDoesNotSilenceAWrittenMarker holds the order the two
+// verdicts are read in. A path can report several rules at once, and one that
+// says a marker was written is the one claim the page can make from what the
+// grammar reported: an unrecognised rule beside it is not evidence against it.
+func TestAnUnknownRuleDoesNotSilenceAWrittenMarker(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name  string
+		rules []sequence.Rule
+		want  markerVerdict
+	}{
+		{name: "a written marker among rules nobody here knows", rules: []sequence.Rule{"path.never_declared", sequence.RuleRoleInvalid}, want: markerWritten},
+		{name: "an unknown rule beside one that implies no marker", rules: []sequence.Rule{sequence.RuleRoleMissing, "path.never_declared"}, want: markerUnknownRule},
+		{name: "rules that all imply no marker", rules: []sequence.Rule{sequence.RuleRoleMissing, sequence.RuleEntryNoncanonical}, want: markerNotWritten},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := nav.Path{Title: "A path", RelPath: "Maps/p.md"}
+			for _, rule := range tt.rules {
+				path.Diagnostics = append(path.Diagnostics, sequence.Diagnostic{Rule: rule})
+			}
+			if got := BuildPathView(&path, nil).NoCourse; got != tt.want {
+				t.Errorf("NoCourse = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 

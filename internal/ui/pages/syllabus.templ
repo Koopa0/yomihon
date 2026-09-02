@@ -24,7 +24,7 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 				<div class="y-syl">
 					@syllabusHead(v, c.Lang)
 					if len(v.Branches) == 0 {
-						@syllabusNoCourse(v.MarkerFault, c.Lang)
+						@syllabusNoCourse(v.NoCourse, c.Lang)
 					}
 					for _, sec := range v.Branches {
 						@partBlock(sec, c.Lang)
@@ -246,19 +246,26 @@ templ pathIcon() {
 // the repair for that is nothing like the repair for the ordinary case, a note
 // that lists its lessons in prose and never declares them.
 //
-// The two empty states get two explanations, because one sentence cannot be
-// true of both. A note that wrote no marker is taught the grammar: which
-// markers declare structure, and that a heading without one is not read as a
-// part. A note that wrote a marker the grammar could not use is told what a
-// marker may say — telling that author no marker exists would be false. Both
-// spell the three values the grammar accepts, from the grammar's own
-// vocabulary, and both stop short of naming which heading a marker belongs
-// on: that would be yomihon deciding what the author meant, and the file is
-// the author's to edit.
-templ syllabusNoCourse(markerFault bool, lang wording.Lang) {
-	if markerFault {
-		<p class="y-syl-nocourse">{ wording.NoCourseMarkerFaultIntro.In(lang) }<code>{ sequence.RolePrimary.String() }</code>{ wording.ValueJoin.In(lang) }<code>{ sequence.RoleLocal.String() }</code>{ wording.ValueJoinLast.In(lang) }<code>{ sequence.RoleNone.String() }</code>{ wording.NoCourseMarkerFaultTail.In(lang) }</p>
-	} else {
-		<p class="y-syl-nocourse">{ wording.NoCourseIntro.In(lang) }<code>{ markerForm(sequence.RolePrimary) }</code>{ wording.ValueJoin.In(lang) }<code>{ markerForm(sequence.RoleLocal) }</code>{ wording.ValueJoinLast.In(lang) }<code>{ markerForm(sequence.RoleNone) }</code>{ wording.NoCourseNoMarkerTail.In(lang) }</p>
+// The empty states get three explanations, because no one sentence is true of
+// all of them. A note that wrote no marker is taught the grammar: which markers
+// declare structure, and that a heading without one is not read as a part. A
+// note that wrote a marker the grammar could not use is told what a marker may
+// say — telling that author no marker exists would be false. Both spell the
+// three values the grammar accepts, from the grammar's own vocabulary, and both
+// stop short of naming which heading a marker belongs on: that would be yomihon
+// deciding what the author meant, and the file is the author's to edit.
+//
+// The third says only that the page has no explanation. It is reached when the
+// grammar reports a rule this page has not been told about, and the honest
+// answer there is neither of the other two: each of those is a claim about what
+// the author wrote, and one of them would be wrong.
+templ syllabusNoCourse(verdict markerVerdict, lang wording.Lang) {
+	switch verdict {
+		case markerWritten:
+			<p class="y-syl-nocourse">{ wording.NoCourseMarkerFaultIntro.In(lang) }<code>{ sequence.RolePrimary.String() }</code>{ wording.ValueJoin.In(lang) }<code>{ sequence.RoleLocal.String() }</code>{ wording.ValueJoinLast.In(lang) }<code>{ sequence.RoleNone.String() }</code>{ wording.NoCourseMarkerFaultTail.In(lang) }</p>
+		case markerUnknownRule:
+			<p class="y-syl-nocourse">{ wording.NoCourseUnexplained.In(lang) }</p>
+		default:
+			<p class="y-syl-nocourse">{ wording.NoCourseIntro.In(lang) }<code>{ markerForm(sequence.RolePrimary) }</code>{ wording.ValueJoin.In(lang) }<code>{ markerForm(sequence.RoleLocal) }</code>{ wording.ValueJoinLast.In(lang) }<code>{ markerForm(sequence.RoleNone) }</code>{ wording.NoCourseNoMarkerTail.In(lang) }</p>
 	}
 }
