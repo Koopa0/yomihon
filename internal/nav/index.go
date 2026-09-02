@@ -35,6 +35,29 @@ func (m *Model) Placements(relPath string) []Placement {
 	return placements
 }
 
+// IsPath reports whether relPath names one of the study paths, and IsMap the
+// same for a general map. A page asking whether the note it is showing is
+// itself one of them asks by name, so neither has to copy a tree to answer.
+func (m *Model) IsPath(relPath string) bool {
+	return m.indexOfPath(relPath) >= 0
+}
+
+// IsMap reports whether relPath names one of the general maps.
+func (m *Model) IsMap(relPath string) bool {
+	if m == nil {
+		return false
+	}
+	return slices.IndexFunc(m.maps, func(x Map) bool { return x.RelPath == relPath }) >= 0
+}
+
+// indexOfPath is where relPath sits among the study paths, or -1.
+func (m *Model) indexOfPath(relPath string) int {
+	if m == nil {
+		return -1
+	}
+	return slices.IndexFunc(m.paths, func(p Path) bool { return p.RelPath == relPath })
+}
+
 // Siblings returns the files sharing a directory with the note at relPath — the
 // "here" list the sidebar shows — together with that directory's vault-relative
 // path (empty for a vault-root note). The note at relPath is itself in the list,

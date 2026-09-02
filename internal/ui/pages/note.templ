@@ -461,7 +461,7 @@ templ sidebar(sb Sidebar, nonce string) {
 					}
 				</section>
 			}
-			if len(sb.Model.Paths()) > 0 {
+			if sb.Model.PathCount() > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 					<summary class="y-railsummary">
@@ -488,7 +488,7 @@ templ sidebar(sb Sidebar, nonce string) {
 					</div>
 				</details>
 			}
-			if len(sb.Model.Maps()) > 0 {
+			if sb.Model.MapCount() > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<details open?={ sb.mapsChainOpen() } data-sidebar-group="maps" { disclosureAttrs("maps", sb.mapsChainOpen())... }>
 					<summary class="y-railsummary">

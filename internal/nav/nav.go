@@ -163,6 +163,26 @@ func (m *Model) RootNotes() []NoteRef {
 	return slices.Clone(m.rootNotes)
 }
 
+// PathCount reports how many study paths the model holds. It is here so that
+// asking whether there is a course to show costs a length rather than a copy
+// of every branch tree: Paths hands the caller its own tree, which is the
+// right answer to "walk them" and a heavy one to "are there any".
+func (m *Model) PathCount() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.paths)
+}
+
+// MapCount reports how many general maps the model holds, under PathCount's
+// rule.
+func (m *Model) MapCount() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.maps)
+}
+
 // Paths returns the study paths in vault path order. Everything the caller
 // receives is its own: the model is read by every request at once, so a caller
 // that could reach into it would change what the next reader sees.
