@@ -69,7 +69,7 @@ func NewSidebar(model *nav.Model, currentPath string, lang wording.Lang) Sidebar
 
 	sb.HereDir, sb.Here = model.Siblings(currentPath)
 	sb.Here, sb.HereTrimmed = windowAround(sb.Here, currentPath)
-	sb.Steps = model.Neighbors(currentPath)
+	sb.Steps = model.PathNeighbors(currentPath)
 
 	// Open every map branch that lists the current note, down to the
 	// branch it sits in (each heading prefix, so the ancestors open too).
@@ -344,10 +344,10 @@ func FooterSequence(model *nav.Model, relPath string, lang wording.Lang) (prev, 
 	if model == nil || relPath == "" {
 		return prev, next, "", false
 	}
-	if steps := model.Neighbors(relPath); len(steps) == 1 {
+	if steps := model.PathNeighbors(relPath); len(steps) == 1 {
 		return steps[0].Prev, steps[0].Next, fmt.Sprintf(wording.CourseOrderOf.In(lang), steps[0].PathTitle), true
 	}
-	prev, next = model.Adjacent(relPath)
+	prev, next = model.FolderStep(relPath)
 	return prev, next, wording.FolderAdjacency.In(lang), false
 }
 

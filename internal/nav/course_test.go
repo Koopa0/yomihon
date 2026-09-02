@@ -59,7 +59,7 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 		Prev: ref("L02 咖啡豆基礎", "Writing/L02 咖啡豆基礎.md"),
 		Next: ref("L04 水溫", "Writing/L04 水溫.md"),
 	}}
-	if diff := cmp.Diff(wantL03, m.Neighbors("Writing/L03 研磨.md")); diff != "" {
+	if diff := cmp.Diff(wantL03, m.PathNeighbors("Writing/L03 研磨.md")); diff != "" {
 		t.Errorf("the main line steps into the side branch (-want +got):\n%s", diff)
 	}
 
@@ -68,7 +68,7 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 		PathTitle: "手沖咖啡", PathRelPath: "Maps/Course.md",
 		Prev: ref("L06 比例與時間", "Writing/L06 比例與時間.md"),
 	}}
-	if diff := cmp.Diff(wantL07, m.Neighbors("Writing/L07 品飲.md")); diff != "" {
+	if diff := cmp.Diff(wantL07, m.PathNeighbors("Writing/L07 品飲.md")); diff != "" {
 		t.Errorf("a trailing planned lesson gave the one before it a next (-want +got):\n%s", diff)
 	}
 

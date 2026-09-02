@@ -14,7 +14,7 @@ import (
 // lessons the reader can open, so a warning row keeps its place on the page
 // and contributes no stop — and a note two paths both teach gets one answer
 // per path, never a guess about which course the reader is walking.
-func TestNeighbors(t *testing.T) {
+func TestPathNeighbors(t *testing.T) {
 	t.Parallel()
 
 	ref := func(name, rel string) NoteRef { return NoteRef{Name: name, RelPath: rel} }
@@ -110,9 +110,9 @@ func TestNeighbors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := m.Neighbors(tt.relPath)
+			got := m.PathNeighbors(tt.relPath)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("Neighbors(%q) mismatch (-want +got):\n%s", tt.relPath, diff)
+				t.Errorf("PathNeighbors(%q) mismatch (-want +got):\n%s", tt.relPath, diff)
 			}
 		})
 	}
@@ -122,7 +122,7 @@ func TestNeighbors(t *testing.T) {
 // next one. Until this existed the only way to take that step was back into
 // the rail: a diarist reading a week retyped the same seven-character filter
 // once per entry, because opening a day cleared it.
-func TestAdjacent(t *testing.T) {
+func TestFolderStep(t *testing.T) {
 	t.Parallel()
 
 	m := &Model{dirNotes: map[string][]NoteRef{
@@ -162,12 +162,12 @@ func TestAdjacent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			prev, next := m.Adjacent(tt.relPath)
+			prev, next := m.FolderStep(tt.relPath)
 			if diff := cmp.Diff(tt.wantPrev, prev); diff != "" {
-				t.Errorf("Adjacent(%q) prev mismatch (-want +got):\n%s", tt.relPath, diff)
+				t.Errorf("FolderStep(%q) prev mismatch (-want +got):\n%s", tt.relPath, diff)
 			}
 			if diff := cmp.Diff(tt.wantNext, next); diff != "" {
-				t.Errorf("Adjacent(%q) next mismatch (-want +got):\n%s", tt.relPath, diff)
+				t.Errorf("FolderStep(%q) next mismatch (-want +got):\n%s", tt.relPath, diff)
 			}
 		})
 	}
@@ -178,7 +178,7 @@ func TestAdjacent(t *testing.T) {
 // being read. From a note, prev and next step over assets so the reading walk
 // stays note to note; the assets keep their place in the sibling rail and on
 // the folder page, and reading an asset itself still walks the whole folder.
-func TestAdjacentFromANoteStepsOverAssets(t *testing.T) {
+func TestFolderStepFromANoteStepsOverAssets(t *testing.T) {
 	t.Parallel()
 
 	m := &Model{dirNotes: map[string][]NoteRef{
@@ -224,12 +224,12 @@ func TestAdjacentFromANoteStepsOverAssets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			prev, next := m.Adjacent(tt.relPath)
+			prev, next := m.FolderStep(tt.relPath)
 			if diff := cmp.Diff(tt.wantPrev, prev); diff != "" {
-				t.Errorf("Adjacent(%q) prev mismatch (-want +got):\n%s", tt.relPath, diff)
+				t.Errorf("FolderStep(%q) prev mismatch (-want +got):\n%s", tt.relPath, diff)
 			}
 			if diff := cmp.Diff(tt.wantNext, next); diff != "" {
-				t.Errorf("Adjacent(%q) next mismatch (-want +got):\n%s", tt.relPath, diff)
+				t.Errorf("FolderStep(%q) next mismatch (-want +got):\n%s", tt.relPath, diff)
 			}
 		})
 	}

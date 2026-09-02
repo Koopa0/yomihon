@@ -12,8 +12,9 @@ type Neighbors struct {
 	Next        NoteRef
 }
 
-// Neighbors returns, for each study path that walks the note at relPath, the
-// readable lessons immediately before and after it in that path's own order.
+// PathNeighbors returns, for each study path that walks the note at relPath,
+// the readable lessons immediately before and after it in that path's own
+// order. It is the course's answer; the folder's is FolderStep.
 //
 // The order is the declared one: each path's components were built from the
 // sequence grammar — one main line joining the projectable primary groups, and
@@ -29,7 +30,7 @@ type Neighbors struct {
 // reading, not a guess. A note two paths both list gets one answer per path,
 // because the server cannot know which course the reader is walking and this
 // vault never guesses — it reports in full.
-func (m *Model) Neighbors(relPath string) []Neighbors {
+func (m *Model) PathNeighbors(relPath string) []Neighbors {
 	if m == nil || relPath == "" {
 		return nil
 	}

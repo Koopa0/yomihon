@@ -162,8 +162,10 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
 }
 
-// Adjacent returns the neighbors on either side of relPath inside its own
-// folder, in the folder's captured order. A folder of dated entries is a line,
+// FolderStep returns the neighbors on either side of relPath inside its own
+// folder, in the folder's captured order — the folder's answer to what is
+// near this note, where PathNeighbors gives a course's. A folder of dated
+// entries is a line,
 // and a reader walking it wants the next one — which the rail can only offer
 // as a scroll through everything the folder holds.
 //
@@ -174,7 +176,7 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 // own page. From a file that is not a note, the walk is the whole folder,
 // because a run of scans or figures is its own line. A course's lessons, a
 // month of entries, and a book's chapters remain the same shape on disk.
-func (m *Model) Adjacent(relPath string) (prev, next NoteRef) {
+func (m *Model) FolderStep(relPath string) (prev, next NoteRef) {
 	if m == nil || relPath == "" {
 		return NoteRef{}, NoteRef{}
 	}
