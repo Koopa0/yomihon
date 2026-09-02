@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 
@@ -89,7 +90,7 @@ type rawLink struct {
 // gap-section context. bodyStartLine is the file line the body begins on.
 func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 	codeZones, headings := structure(body)
-	skip := append(slicesConcat(codeZones), commentZones(body, codeZones)...)
+	skip := slices.Concat(codeZones, commentZones(body, codeZones))
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
 		if inAnyZone(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
@@ -149,7 +150,7 @@ func extractPlannedNames(body string) []string {
 	var names []string
 	var item *string
 	offset := 0
-	for _, raw := range splitAfterNewline(body) {
+	for raw := range strings.Lines(body) {
 		line := strings.TrimRight(raw, "\r\n")
 		inCode := inAnyZone(codeZones, offset)
 		inGap := inGapSection(headings, offset) && !inCode
@@ -193,7 +194,7 @@ func advancePlannedItem(item *string, names []string, line string, inGap bool) (
 // inlinePlannedTargets appends the [[X]] targets on a line beside an inline
 // planned marker.
 func inlinePlannedTargets(line string, names []string) []string {
-	if !containsAny(line, inlinePlannedMarkers[:]) {
+	if !containsAnySubstring(line, inlinePlannedMarkers[:]) {
 		return names
 	}
 	for _, r := range rawWikilinks(line) {
@@ -549,34 +550,15 @@ func inAnyZone(zones []byteRange, off int) bool {
 	return false
 }
 
-// containsAny reports whether s contains any of the marks as a substring.
-func containsAny(s string, marks []string) bool {
+// containsAnySubstring reports whether s contains any of the marks as a
+// substring. The name says substring because the standard library's
+// ContainsAny asks the opposite question — whether any single rune of a set
+// occurs — and a reader who knows that one would read this call site backwards.
+func containsAnySubstring(s string, marks []string) bool {
 	for _, m := range marks {
 		if strings.Contains(s, m) {
 			return true
 		}
 	}
 	return false
-}
-
-// splitAfterNewline splits s into lines each keeping its trailing newline; the
-// last piece has none when s does not end in a newline.
-func splitAfterNewline(s string) []string {
-	var out []string
-	for s != "" {
-		i := strings.IndexByte(s, '\n')
-		if i < 0 {
-			out = append(out, s)
-			break
-		}
-		out = append(out, s[:i+1])
-		s = s[i+1:]
-	}
-	return out
-}
-
-// slicesConcat returns a fresh copy of a range slice, so appending comment
-// zones to code zones never mutates the code-zone slice's backing array.
-func slicesConcat(zones []byteRange) []byteRange {
-	return append([]byteRange(nil), zones...)
 }
