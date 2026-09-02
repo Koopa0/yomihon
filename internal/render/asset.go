@@ -27,6 +27,15 @@ var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)(")`)
 // against its host. A destination that leaves the vault, or that is not
 // vault-local in the first place, is left exactly as it was — this resolves
 // paths, and refusing them belongs to the routes that serve them.
+//
+// That last sentence is also why this reads an emitted <img> rather than an
+// image node. Which note a source was written in is the question, and it has a
+// different answer for each body a page assembles, while every one of those
+// bodies is parsed on its own; a renderer hung on the image node would be asked
+// the question by a document that cannot answer it. Reading what was emitted
+// also means one rule covers both writers of an <img> here — a markdown image
+// and an authored one the inert-markup subset kept — instead of two that agree
+// only while someone keeps them agreeing.
 func resolveAssetHrefs(htmlOut, noteRelPath string) string {
 	noteDir := pathpkg.Dir(noteRelPath)
 	if noteDir == "." {
@@ -107,12 +116,8 @@ func rawAssetHref(src, noteDir string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	var escaped strings.Builder
-	for i, segment := range strings.Split(joined, "/") {
-		if i > 0 {
-			escaped.WriteByte('/')
-		}
-		escaped.WriteString(url.PathEscape(segment))
-	}
-	return "/raw/" + escaped.String() + suffix, true
+	// The escaping is rawHref's, not a second copy of it: the route that serves
+	// these bytes decodes one spelling, and a rule written twice in one package
+	// is one a later change fixes in one of its two places.
+	return rawHref(joined) + suffix, true
 }

@@ -35,77 +35,6 @@ import (
 // for it would ever find.
 var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote)).Parser()
 
-// PlainBlock is one top-level markdown block's searchable text. Code reports
-// whether it came from a fenced or indented code block so a downstream bounded
-// chunker can preserve code-line boundaries without parsing Markdown again.
-type PlainBlock struct {
-	Text string
-	Code bool
-}
-
-// PlainSection is the preamble or one heading-bounded section in document
-// order. Headings is the active document heading path. Text and Blocks use the
-// same extraction rules as PlainText; heading scaffolding itself is carried in
-// Headings rather than duplicated into Text.
-type PlainSection struct {
-	Headings []string
-	Text     string
-	Blocks   []PlainBlock
-}
-
-type headingFrame struct {
-	level int
-	text  string
-}
-
-// PlainSections returns the preamble followed by every heading-bounded section
-// in body. Empty sections are retained so the semantic chunker, not the
-// Markdown layer, owns the explicit drop rule. Frontmatter must already be
-// removed, exactly as for PlainText.
-func PlainSections(body string) []PlainSection {
-	src := []byte(plainPreprocess(body))
-	doc := plainParser.Parse(text.NewReader(src))
-
-	sections := make([]PlainSection, 0, 1)
-	current := PlainSection{}
-	var headings []headingFrame
-	flush := func() {
-		parts := make([]string, 0, len(current.Blocks))
-		for _, block := range current.Blocks {
-			parts = append(parts, block.Text)
-		}
-		current.Text = strings.TrimSpace(strings.Join(parts, "\n"))
-		sections = append(sections, current)
-	}
-
-	for node := doc.FirstChild(); node != nil; node = node.NextSibling() {
-		if heading, ok := node.(*ast.Heading); ok {
-			flush()
-			for len(headings) > 0 && headings[len(headings)-1].level >= heading.Level {
-				headings = headings[:len(headings)-1]
-			}
-			headings = append(headings, headingFrame{level: heading.Level, text: plainNode(node, src)})
-			path := make([]string, len(headings))
-			for i, frame := range headings {
-				path[i] = frame.text
-			}
-			current = PlainSection{Headings: path}
-			continue
-		}
-
-		blockText := plainNode(node, src)
-		if blockText == "" {
-			continue
-		}
-		current.Blocks = append(current.Blocks, PlainBlock{
-			Text: blockText,
-			Code: node.Kind() == ast.KindFencedCodeBlock || node.Kind() == ast.KindCodeBlock,
-		})
-	}
-	flush()
-	return sections
-}
-
 // PlainText returns the searchable plain text of a note body: body
 // text, headings, table cells,
 // task text, code-fence contents, and the base+rt of hand-written <ruby>
@@ -131,16 +60,6 @@ func PlainText(body string) string {
 		// goldmark change ever makes Walk itself fail, fall back to the raw
 		// body (whitespace-collapsed) so a note is never left unsearchable.
 		return strings.Join(strings.Fields(body), " ")
-	}
-	return strings.TrimSpace(b.String())
-}
-
-func plainNode(node ast.Node, source []byte) string {
-	var b strings.Builder
-	if err := ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		return walkPlain(&b, n, entering, source)
-	}); err != nil {
-		return ""
 	}
 	return strings.TrimSpace(b.String())
 }

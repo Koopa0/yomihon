@@ -301,14 +301,6 @@ func TestFootnoteTextIsSearchable(t *testing.T) {
 	if got := render.PlainText(body); !strings.Contains(got, definition) {
 		t.Errorf("PlainText() = %q, want it to carry the footnote's own words %q — the reading page shows them", got, definition)
 	}
-
-	var sectionText strings.Builder
-	for _, section := range render.PlainSections(body) {
-		sectionText.WriteString(section.Text)
-	}
-	if got := sectionText.String(); !strings.Contains(got, definition) {
-		t.Errorf("PlainSections() text = %q, want it to carry the footnote's own words %q", got, definition)
-	}
 }
 
 // TestFootnoteWithoutDefinitionStaysLiteral is the honesty half: a reference
