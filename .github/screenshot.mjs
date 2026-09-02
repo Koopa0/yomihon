@@ -3,16 +3,31 @@
 // somebody once took. The three things that make two runs comparable are fixed
 // here: the window, the note, and the light ground.
 //
+// A picture is for a reader of one README, so the note in it has to be written
+// in the language that README is in. The interface language alone cannot show
+// that: a note stays in its author's language while the frame around it
+// changes, so the frame can read Chinese over an English article and look
+// right. Both languages are checked below, and they have to agree.
+//
+// Which note each picture opens is named by the caller and nowhere else. A
+// default here would be a second copy of that choice, and the copy that goes
+// stale is always the one nobody passes.
+//
 // Env: YOMIHON_BASE, LANG_CHOICE (zh-Hant | en), OUT, PAGE_PATH.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/notes/Notes/What%20yomihon%20is.md';
+const PAGE = process.env.PAGE_PATH;
 const LANG = process.env.LANG_CHOICE || 'zh-Hant';
 const OUT = process.env.OUT;
 
 if (!OUT) {
   console.error('screenshot: set OUT to the file to write');
+  process.exit(2);
+}
+
+if (!PAGE) {
+  console.error('screenshot: set PAGE_PATH to the note to open');
   process.exit(2);
 }
 
@@ -38,6 +53,13 @@ try {
   const declared = await page.evaluate(() => document.documentElement.lang);
   if (declared !== LANG) {
     console.error(`screenshot: the page declares ${JSON.stringify(declared)}, want ${JSON.stringify(LANG)}: the picture would show the wrong language`);
+    process.exit(1);
+  }
+  const authored = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
+  );
+  if (authored.length !== 1 || authored[0] !== LANG) {
+    console.error(`screenshot: ${PAGE} carries note languages ${JSON.stringify(authored)}, want exactly ["${LANG}"]: the picture would show a note nobody reading this README can read`);
     process.exit(1);
   }
   await page.screenshot({ path: OUT });
