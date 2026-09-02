@@ -1,7 +1,6 @@
 package nav
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -158,7 +157,7 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 		seen[child] = true
 		subfolders = append(subfolders, NoteRef{Name: child, RelPath: prefix + child})
 	}
-	slices.SortFunc(subfolders, func(a, b NoteRef) int { return cmp.Compare(a.Name, b.Name) })
+	slices.SortFunc(subfolders, func(a, b NoteRef) int { return vault.ComparePaths(a.Name, b.Name) })
 	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
 }
 

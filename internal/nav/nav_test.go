@@ -1583,3 +1583,27 @@ func groupShapes(groups []*PathGroup) []groupShape {
 	}
 	return out
 }
+
+// A folder page shows what one folder holds: its files, and the folders inside
+// it. Both halves come from one call, so they cannot be in two orders — a
+// reader who numbered their weeks would find the notes in reading order and
+// the folders below them shuffled, on one screen.
+func TestAFolderPageOrdersItsSubfoldersTheWayItOrdersItsNotes(t *testing.T) {
+	t.Parallel()
+	model := &Model{dirNotes: map[string][]NoteRef{
+		"Writing/第9週":  {{Name: "a", RelPath: "Writing/第9週/a.md"}},
+		"Writing/第10週": {{Name: "b", RelPath: "Writing/第10週/b.md"}},
+	}}
+
+	_, subfolders, ok := model.Directory("Writing")
+	if !ok {
+		t.Fatal("Directory(Writing) reported no such folder")
+	}
+	want := []NoteRef{
+		{Name: "第9週", RelPath: "Writing/第9週"},
+		{Name: "第10週", RelPath: "Writing/第10週"},
+	}
+	if diff := cmp.Diff(want, subfolders); diff != "" {
+		t.Errorf("Directory(Writing) subfolder order mismatch (-want +got):\n%s", diff)
+	}
+}
