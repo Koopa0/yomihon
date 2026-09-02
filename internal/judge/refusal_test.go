@@ -190,8 +190,8 @@ func TestAScanThatCannotEnterADirectoryFailsClosed(t *testing.T) {
 	for _, command := range everyCommand {
 		t.Run(command, func(t *testing.T) {
 			err := refuse(t.Context(), t, command, root)
-			if !errors.Is(err, errVaultScan) && !strings.HasPrefix(err.Error(), "vault scan failed: ") {
-				t.Errorf("%s error = %v, want a scan refusal", command, err)
+			if !strings.HasPrefix(err.Error(), "vault scan failed: ") {
+				t.Errorf("%s error = %v, want a scan refusal naming what it stopped on", command, err)
 			}
 			// The operating system's word for the operation varies by platform,
 			// so the assertion holds the two parts that carry the meaning: the

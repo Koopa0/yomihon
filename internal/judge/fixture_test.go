@@ -163,7 +163,10 @@ func refuse(ctx context.Context, tb testing.TB, command, root string) error {
 	tb.Helper()
 	payload, err := runPrepared(ctx, tb, command, root, "candidate", actionHooks{}, nil)
 	if err == nil {
-		tb.Errorf("%s produced %d bytes for a folder it cannot judge, and no refusal", command, len(payload))
+		// Fatal rather than an error: every caller reads the refusal's own
+		// words, so returning a nil here would end the run in a dereference
+		// panic instead of the report that says what changed.
+		tb.Fatalf("%s produced %d bytes for a folder it cannot judge, and no refusal", command, len(payload))
 	}
 	if payload != nil {
 		tb.Errorf("%s produced a payload alongside its refusal: %q", command, payload)
