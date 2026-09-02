@@ -89,6 +89,8 @@ func checkScopeDenying(ctx context.Context, root string, scopes ...string) (exit
 // names a vault and is not the mistake: a reader standing in the vault who
 // writes "." means the whole of it, which is what no filter already means.
 func TestCheckStillAcceptsTheVaultRootAsItsOwnScope(t *testing.T) {
+	t.Parallel()
+
 	vault := writeCheckableVault(t, t.TempDir())
 
 	if exit, err := checkScope(t.Context(), vault, "."); err != nil || exit != 0 {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 var errVaultScan = errors.New("vault scan failed")
@@ -37,15 +38,15 @@ type actionHooks struct {
 // reader, contract authority, file membership, and parsed notes all belong to
 // the same selected vault directory.
 type action struct {
-	reader    *vault.Reader
-	scan      vault.Scan
+	reader    *vaultfs.Reader
+	scan      vaultfs.Scan
 	authority scanAuthority
 	notes     []note
 	resources []string
 }
 
 func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		// Opening the folder fails before one vault byte is read, so there is
 		// no policy state to report and nothing observed to withhold. Answering

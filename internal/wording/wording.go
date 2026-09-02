@@ -10,6 +10,8 @@
 // markup that shows it; what it buys is that no sentence can be half-written.
 package wording
 
+import "net/http"
+
 // Lang is the language the interface speaks. It is also what the document's own
 // language attribute says, so the two cannot drift.
 type Lang string
@@ -29,14 +31,31 @@ const CookieName = "yomihon_lang"
 // FromCookieValue reads a stored choice. Only the one value that is not the
 // default is honoured; anything else — a language yomihon does not speak, a
 // truncated value, something a hand wrote — leaves the interface where it
-// started rather than somewhere unpredictable. Reading the cookie itself
-// belongs to whoever already reads this request's other preferences; this
-// package holds no capability of its own and imports nothing.
+// started rather than somewhere unpredictable.
 func FromCookieValue(value string) Lang {
 	if value == string(En) {
 		return En
 	}
 	return ZhHant
+}
+
+// LanguageFromRequest reads which language this request asked the interface to
+// speak, falling back to the default when the reader has chosen none or has
+// sent a value this dictionary does not know.
+//
+// It lives here, beside the cookie's name and the values that cookie may
+// carry, because three surfaces outside the page layer answer a reader in
+// their language too — the static-file route, the origin guard, and the
+// composition root's own refusal — and none of them can import the layout
+// package: the layout imports the origin guard, so that edge only runs one
+// way. Reading one cookie is the whole of what this adds; the sentences below
+// stay sentences.
+func LanguageFromRequest(r *http.Request) Lang {
+	c, err := r.Cookie(CookieName)
+	if err != nil {
+		return ZhHant
+	}
+	return FromCookieValue(c.Value)
 }
 
 // What the language endpoint says when a hand-built request asks for

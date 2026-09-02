@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // TestAResultFoundByItsPathShowsWhereItMatched covers the row that answers
@@ -18,7 +18,7 @@ import (
 func TestAResultFoundByItsPathShowsWhereItMatched(t *testing.T) {
 	t.Parallel()
 
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		// The term is in the path and nowhere in the words, which is the whole
 		// shape being tested: a hit with no snippet to explain it.
 		{RelPath: "Pharmacology/Notes.md", Title: "Opening", NoteType: "concept", Status: "draft",
@@ -30,7 +30,7 @@ func TestAResultFoundByItsPathShowsWhereItMatched(t *testing.T) {
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

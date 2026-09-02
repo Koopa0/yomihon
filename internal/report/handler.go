@@ -33,14 +33,15 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // an enumerated briefing) is a localized 404 — the same fail-quiet stance the
 // reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
-	snap := h.current().Capture()
+	lang := wording.LanguageFromRequest(r)
+	request := h.snapshot()
+	snap := request.Generation
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
 		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
-	shell := h.shell(snap)
+	shell := request.Shell
 
 	// The frame refuses scripts, which is right — a briefing that fetches from a
 	// CDN would be reaching off this machine. Reading the bytes here is what
@@ -68,8 +69,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // 404, not a 500: the report list is a snapshot, so a gone file is a not-found,
 // fail-quiet response rather than a server failure.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
-	snap := h.current().Capture()
+	lang := wording.LanguageFromRequest(r)
+	snap := h.snapshot().Generation
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
 		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)

@@ -74,11 +74,35 @@ func TestServeHelpNamesEveryWayToChooseTheFolder(t *testing.T) {
 	}
 }
 
+// TestServeHelpNamesThePortTheServerBinds ties the help line to the port the
+// configuration actually falls back to. The number used to be written in both
+// places independently, so nothing caught a change to one of them, and a help
+// line naming a port the server does not listen on is worse than no help line
+// at all: the operator trusts it over the source.
+func TestServeHelpNamesThePortTheServerBinds(t *testing.T) {
+	// Not parallel: the fallback only runs when the environment names no
+	// port, and t.Setenv cannot run inside a parallel test.
+	t.Setenv("YOMIHON_PORT", "")
+
+	cfg, err := loadConfig(t.TempDir())
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.port != defaultPort {
+		t.Fatalf("loadConfig() port = %q, want the default %q", cfg.port, defaultPort)
+	}
+	if want := "(default " + cfg.port + ")"; !strings.Contains(commandHelp["serve"], want) {
+		t.Errorf("serve help does not contain %q; text = %q", want, commandHelp["serve"])
+	}
+}
+
 // Naming no folder means the one the reader is standing in. It used to mean a
 // path compiled into the binary, which is the author's own setup wearing the
 // costume of a default: anyone else's first run read a directory they had
 // never mentioned.
 func TestServeRootDefaultsToHere(t *testing.T) {
+	// Not parallel: it clears an environment variable, and t.Setenv cannot
+	// run inside a parallel test.
 	t.Setenv("YOMIHON_ROOT", "")
 	here, err := os.Getwd()
 	if err != nil {

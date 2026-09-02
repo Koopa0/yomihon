@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -18,7 +18,7 @@ import (
 // be seen succeeding as text.
 func unknownFilterServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		// The body carries the query verbatim, so "the literal search ran" can
 		// be told apart from "the literal search ran and this corpus has
 		// nothing". Without a note that really contains the characters, an
@@ -28,7 +28,7 @@ func unknownFilterServer(t *testing.T) *httptest.Server {
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -60,7 +60,7 @@ func TestAQueryShapedLikeAFilterIsNotSilentlyReadAsText(t *testing.T) {
 		t.Errorf("the literal search did not run, so the reader got a refusal instead of results:\n%s", body)
 	}
 	// Every key the grammar does know is offered, so the reader can repair it.
-	for _, key := range FilterKeys() {
+	for _, key := range lexical.FilterKeys() {
 		if !strings.Contains(body, key+":") {
 			t.Errorf("the hint does not offer %q, so a reader cannot see what to write instead", key)
 		}
@@ -81,32 +81,6 @@ func TestAQueryShapedLikeAFilterIsNotSilentlyReadAsText(t *testing.T) {
 	}
 }
 
-// TestTheFilterKeysOfferedAreTheOnesTheGrammarAccepts holds the two halves
-// together. A list written for the page is a list that drifts from the parser,
-// and this repository has already seen that happen: the batch ledger describing
-// this work names four filter keys where the grammar accepts six.
-func TestTheFilterKeysOfferedAreTheOnesTheGrammarAccepts(t *testing.T) {
-	t.Parallel()
-
-	offered := FilterKeys()
-	if len(offered) == 0 {
-		t.Fatal("no filter keys are offered at all, so nothing below checks anything")
-	}
-	for _, key := range offered {
-		if !isFilterKey(key) {
-			t.Errorf("the page offers %q, which the parser does not accept", key)
-		}
-	}
-	for _, key := range []string{"type", "status", "domain", "topic", "slug", "folder"} {
-		if !isFilterKey(key) {
-			t.Errorf("%q stopped being a filter key; this test's own list is stale", key)
-		}
-		if !strings.Contains(strings.Join(offered, " "), key) {
-			t.Errorf("the parser accepts %q and the page never offers it", key)
-		}
-	}
-}
-
 // TestTheBlankSearchPageSaysWhatItUnderstands covers the moment a reader has
 // nothing to go on. The field accepts constraints that are discoverable
 // nowhere else, and a blank page is the one time naming them costs nobody an
@@ -119,7 +93,7 @@ func TestTheBlankSearchPageSaysWhatItUnderstands(t *testing.T) {
 	if !strings.Contains(blank, "data-search-filters") {
 		t.Errorf("the blank search page offers nothing to go on:\n%s", blank)
 	}
-	for _, key := range FilterKeys() {
+	for _, key := range lexical.FilterKeys() {
 		if !strings.Contains(blank, key+":") {
 			t.Errorf("the blank page does not name the %q filter", key)
 		}

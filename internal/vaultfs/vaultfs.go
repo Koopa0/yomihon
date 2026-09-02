@@ -1,4 +1,14 @@
-package vault
+// Package vaultfs pins one vault directory as a read capability and answers
+// questions about the files under it: what is there, what each one was when it
+// was observed, and what its bytes are now. It never writes.
+//
+// Every read descends the recorded path component by component and refuses the
+// moment the object under a component stops being the one that was observed,
+// so a rename or a swapped-in file under a reader's feet costs the read rather
+// than handing over bytes from somewhere else. What a note's bytes mean once
+// they are read is the note model's question, in the vault package this one
+// depends on for the single spelling of a path.
+package vaultfs
 
 import (
 	"context"
@@ -12,6 +22,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // ErrSourceChanged means the filesystem object a vault entry selected is no
@@ -61,6 +73,11 @@ type Reader struct {
 // keeps referring to the selected filesystem object if its path is renamed or
 // atomically replaced. Like os.File, it does not freeze bytes written through
 // another descriptor to that same object.
+//
+// It wraps the *os.File beneath it rather than returning it, so a caller can
+// reach Read, Seek and Close and nothing else. Nothing in this package writes
+// to the vault, and a value that also carried Write, Chmod and Truncate would
+// make the first breach of that a caller's slip instead of a compile error.
 type File struct {
 	file *os.File
 }
@@ -249,7 +266,7 @@ func cloneEntry(entry Entry) Entry {
 }
 
 func validCanonicalPath(relPath string) bool {
-	return fs.ValidPath(relPath) && relPath == NormalizeNFC(relPath)
+	return fs.ValidPath(relPath) && relPath == vault.NormalizeNFC(relPath)
 }
 
 type sourceObservation struct {
@@ -376,15 +393,6 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 	}}, nil
 }
 
-// Entries returns every regular, non-dot entry in canonical path order.
-func (r *Reader) Entries(ctx context.Context) ([]Entry, error) {
-	scan, err := r.ScanComplete(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return scan.Files(), nil
-}
-
 type scanCompleteness uint8
 
 const (
@@ -418,7 +426,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		}
 		return nil
 	}
-	canonical := NormalizeNFC(filepath.ToSlash(raw))
+	canonical := vault.NormalizeNFC(filepath.ToSlash(raw))
 	if err := recordCanonicalPath(w.seen, raw, canonical); err != nil {
 		return err
 	}
@@ -447,7 +455,7 @@ func (w *sourceWalk) problem(raw string, d fs.DirEntry, err error) error {
 	if raw == "." || w.completeness == scanComplete {
 		return err
 	}
-	canonical := NormalizeNFC(filepath.ToSlash(raw))
+	canonical := vault.NormalizeNFC(filepath.ToSlash(raw))
 	if collisionErr := recordCanonicalPath(w.seen, raw, canonical); collisionErr != nil {
 		return collisionErr
 	}
@@ -485,7 +493,7 @@ func recordCanonicalPath(seen map[string]string, raw, canonical string) error {
 
 // Lookup resolves one canonical vault-relative path without reading its bytes.
 func (r *Reader) Lookup(relPath string) (Entry, error) {
-	if r == nil || r.root == nil || relPath == "." || !fs.ValidPath(relPath) || relPath != NormalizeNFC(relPath) {
+	if r == nil || r.root == nil || relPath == "." || !fs.ValidPath(relPath) || relPath != vault.NormalizeNFC(relPath) {
 		return Entry{}, errors.New("invalid vault entry path")
 	}
 	return r.observe(relPath)
@@ -558,7 +566,7 @@ func (r *Reader) observe(relPath string) (entry Entry, resultErr error) {
 	return Entry{
 		token:    r.token,
 		rawPath:  relPath,
-		path:     NormalizeNFC(filepath.ToSlash(relPath)),
+		path:     vault.NormalizeNFC(filepath.ToSlash(relPath)),
 		observed: observed,
 	}, nil
 }
@@ -678,7 +686,7 @@ func (r *Reader) readEntry(
 
 func (r *Reader) owns(e Entry) bool {
 	if r == nil || r.root == nil || e.token != r.token || e.rawPath == "" ||
-		!fs.ValidPath(e.rawPath) || e.path != NormalizeNFC(filepath.ToSlash(e.rawPath)) {
+		!fs.ValidPath(e.rawPath) || e.path != vault.NormalizeNFC(filepath.ToSlash(e.rawPath)) {
 		return false
 	}
 	components := strings.Split(e.rawPath, "/")
@@ -717,8 +725,7 @@ func (r *Reader) openParent(entry Entry, hook readHook) (parent *os.Root, opened
 		}
 		opened, openErr := child.Stat(".")
 		after, afterErr := current.Lstat(name)
-		if openErr != nil || afterErr != nil || !opened.IsDir() || !after.IsDir() ||
-			after.Mode()&os.ModeSymlink != 0 || !sameObject(before, opened) ||
+		if openErr != nil || afterErr != nil || !opened.IsDir() || !sameObject(before, opened) ||
 			!sameObject(before, after) {
 			return nil, openedRoots, closeChangedRoot(child)
 		}
@@ -911,13 +918,4 @@ func OutsideScan(relPath string) bool {
 		}
 	}
 	return false
-}
-
-// IsMarkdown reports whether relPath names a Markdown note: the path ends in
-// the exact extension ".md". The match is case-sensitive, so "Note.MD" names
-// a resource rather than a note. Every reader splits note from resource
-// through this one test; a reader folding case on its own would quietly widen
-// what it alone treats as a note.
-func IsMarkdown(relPath string) bool {
-	return strings.HasSuffix(relPath, ".md")
 }

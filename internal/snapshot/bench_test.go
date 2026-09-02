@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // BenchmarkBuildSnapshot measures one scan-and-rebuild of all three derived
@@ -20,7 +20,7 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 	}
 	log := discardLogger()
 	contract := testContract(b, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		b.Fatal(err)
 	}

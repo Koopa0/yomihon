@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/report"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -40,8 +41,7 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
-	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func TestHelpIsSideEffectFree(t *testing.T) {
@@ -302,9 +302,9 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	before := hashTree(t, root)
 
 	log := slog.New(slog.DiscardHandler)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -331,17 +331,18 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
-	shellForSnapshot := func(snap *snapshot.View) pages.Shell {
-		return shell.Project(writer.View(), snap)
+	reportProvider := func() report.RequestSnapshot {
+		snap := store.Current().Capture()
+		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
 	}
-	shellProvider := func() pages.Shell {
-		statusView := writer.View()
-		return shell.Project(statusView, store.Current().Capture())
+	shellProvider := func() nav.Shell {
+		authority := writer.Authority()
+		return shell.Project(authority, store.Current().Capture())
 	}
 	searchProvider := func() search.RequestSnapshot {
-		statusView := writer.View()
+		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(statusView, snap), Status: statusView}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
 	}
 
 	mux := http.NewServeMux()
@@ -349,13 +350,13 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         reader,
-		Status:         writer.View,
+		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		Log:            log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(shellProvider, log).Register(mux)
-	report.New(reader, store.Current, shellForSnapshot, log).Register(mux)
+	report.New(reader, reportProvider, log).Register(mux)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

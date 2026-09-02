@@ -1,4 +1,4 @@
-package search
+package lexical
 
 import (
 	"strconv"
@@ -7,8 +7,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // A snippet window lands wherever the byte count puts it, and where that was
@@ -125,13 +123,13 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 		name    string
 		snippet string
 		tokens  []string
-		want    []pages.SnippetRun
+		want    []HitRun
 	}{
 		{
 			name:    "the matched stretch is marked and the rest is not",
 			snippet: "2026-07-30 錄音回聽",
 			tokens:  []string{"錄音"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "2026-07-30 "},
 				{Text: "錄音", Hit: true},
 				{Text: "回聽"},
@@ -141,7 +139,7 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 			name:    "a match found by folded case keeps the text the note wrote",
 			snippet: "B-tree vs GIN",
 			tokens:  []string{"gin"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "B-tree vs "},
 				{Text: "GIN", Hit: true},
 			},
@@ -150,7 +148,7 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 			name:    "two tokens covering the same words produce one mark, not nested ones",
 			snippet: "索引 index 說明",
 			tokens:  []string{"索引 index", "index"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "索引 index", Hit: true},
 				{Text: " 說明"},
 			},
@@ -170,7 +168,7 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 			name:    "a phrase spaced differently in the query still marks the words",
 			snippet: "daily semantic retrieval log",
 			tokens:  []string{"semantic　retrieval"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "daily "},
 				{Text: "semantic retrieval", Hit: true},
 				{Text: " log"},
@@ -186,9 +184,9 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := markHits(tt.snippet, tt.tokens)
+			got := MarkHits(tt.snippet, tt.tokens)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("markHits(%q, %v) mismatch (-want +got):\n%s", tt.snippet, tt.tokens, diff)
+				t.Errorf("MarkHits(%q, %v) mismatch (-want +got):\n%s", tt.snippet, tt.tokens, diff)
 			}
 			// Whatever the runs are, reassembling them must give back exactly
 			// the snippet: a mark that drops or duplicates text is worse than
@@ -198,7 +196,7 @@ func TestSnippetRunsMarkWhatMatched(t *testing.T) {
 				rebuilt.WriteString(r.Text)
 			}
 			if len(got) > 0 && rebuilt.String() != tt.snippet {
-				t.Errorf("markHits() runs rebuild to %q, want %q", rebuilt.String(), tt.snippet)
+				t.Errorf("MarkHits() runs rebuild to %q, want %q", rebuilt.String(), tt.snippet)
 			}
 		})
 	}
@@ -250,7 +248,7 @@ func snippetFor(t *testing.T, idx *Index, query string) string {
 	return results[0].Snippet
 }
 
-// markHits locates matches on a lowercased copy of the snippet, and
+// MarkHits locates matches on a lowercased copy of the snippet, and
 // lowercasing does not preserve length: Ⱥ grows from two bytes to three, a
 // byte that is not valid UTF-8 becomes the three-byte replacement character,
 // and Turkish İ shrinks from two bytes to one. An offset found on the folded
@@ -264,13 +262,13 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 		name    string
 		snippet string
 		tokens  []string
-		want    []pages.SnippetRun
+		want    []HitRun
 	}{
 		{
 			name:    "a letter whose lowercase is longer does not push the match off the end",
 			snippet: "Ⱥ zap",
 			tokens:  []string{"zap"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "Ⱥ "},
 				{Text: "zap", Hit: true},
 			},
@@ -279,7 +277,7 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 			name:    "a byte that is not valid UTF-8 does not push the match off the end",
 			snippet: "\x80 zap",
 			tokens:  []string{"zap"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "\x80 "},
 				{Text: "zap", Hit: true},
 			},
@@ -288,7 +286,7 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 			name:    "a letter whose lowercase is shorter does not drag the mark onto the wrong bytes",
 			snippet: "İİİİ zap",
 			tokens:  []string{"zap"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "İİİİ "},
 				{Text: "zap", Hit: true},
 			},
@@ -297,7 +295,7 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 			name:    "a match on the shrinking letter itself marks the whole character",
 			snippet: "İ 筆記",
 			tokens:  []string{"i"},
-			want: []pages.SnippetRun{
+			want: []HitRun{
 				{Text: "İ", Hit: true},
 				{Text: " 筆記"},
 			},
@@ -306,16 +304,16 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := markHits(tt.snippet, tt.tokens)
+			got := MarkHits(tt.snippet, tt.tokens)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("markHits(%q, %v) mismatch (-want +got):\n%s", tt.snippet, tt.tokens, diff)
+				t.Errorf("MarkHits(%q, %v) mismatch (-want +got):\n%s", tt.snippet, tt.tokens, diff)
 			}
 			var rebuilt strings.Builder
 			for _, r := range got {
 				rebuilt.WriteString(r.Text)
 			}
 			if rebuilt.String() != tt.snippet {
-				t.Errorf("markHits() runs rebuild to %q, want %q", rebuilt.String(), tt.snippet)
+				t.Errorf("MarkHits() runs rebuild to %q, want %q", rebuilt.String(), tt.snippet)
 			}
 		})
 	}
@@ -566,13 +564,13 @@ func TestSnippetHoldsTheMatchWhenTheFoldChangesLength(t *testing.T) {
 				t.Errorf("Snippet = %q, which is not valid UTF-8", got)
 			}
 			var marked bool
-			for _, run := range markHits(got, []string{"needle"}) {
+			for _, run := range MarkHits(got, []string{"needle"}) {
 				if run.Hit && strings.Contains(run.Text, "needle") {
 					marked = true
 				}
 			}
 			if !marked {
-				t.Errorf("markHits(%q) marked no run holding the term", got)
+				t.Errorf("MarkHits(%q) marked no run holding the term", got)
 			}
 		})
 	}

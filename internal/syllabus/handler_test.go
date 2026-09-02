@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/syllabus"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // newServer builds a real nav.Model from a temp vault (real-first: no fakes)
@@ -24,7 +24,7 @@ func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
 	model := loadModel(t, root)
 	mux := http.NewServeMux()
-	syllabus.New(func() pages.Shell { return pages.Shell{Nav: model} }, slog.New(slog.DiscardHandler)).Register(mux)
+	syllabus.New(func() nav.Shell { return nav.Shell{Nav: model} }, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -32,9 +32,9 @@ func newServer(t *testing.T, root string) *httptest.Server {
 
 func loadModel(t *testing.T, root string) *nav.Model {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -215,9 +215,9 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	model := loadModel(t, root)
 	calls := 0
 	mux := http.NewServeMux()
-	syllabus.New(func() pages.Shell {
+	syllabus.New(func() nav.Shell {
 		calls++
-		return pages.Shell{Nav: model, Governed: true}
+		return nav.Shell{Nav: model, Governed: true}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/Go%20path.md", http.NoBody))

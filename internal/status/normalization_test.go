@@ -78,7 +78,7 @@ func TestStatusVerdictsDoNotDependOnHowTheWordIsSpelled(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writer := newWriter(t, root, loadContractWithComposedStatus(t))
-	view := writer.View()
+	view := writer.Authority()
 
 	if !view.KnownStatus("doc", statusNFC) {
 		t.Fatalf("the contract's own spelling is not recognised; the fixture is wrong")
@@ -122,7 +122,7 @@ func TestADecomposedContractAnswersAComposedNote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writer := newWriter(t, root, loadContractDeclaring(t, statusNFD))
-	view := writer.View()
+	view := writer.Authority()
 
 	if !view.KnownStatus("doc", statusNFD) {
 		t.Fatalf("the contract's own spelling is not recognised; the fixture is wrong")

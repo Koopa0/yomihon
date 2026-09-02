@@ -3,17 +3,11 @@ package schema
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
-	"hash"
 	"os"
-	"path/filepath"
-	"slices"
 
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
-
-const corpusPolicyFingerprintVersion = "yomihon-semantic-corpus-policy-v1"
 
 // policySource binds a startup-derived capability to the exact contract file
 // it came from. Keeping the source path with the digest avoids reconstructing
@@ -25,8 +19,8 @@ type policySource struct {
 }
 
 type pinnedPolicySource struct {
-	reader *vault.Reader
-	entry  vault.Entry
+	reader *vaultfs.Reader
+	entry  vaultfs.Entry
 }
 
 func (s policySource) unchanged() bool {
@@ -39,7 +33,7 @@ func (s policySource) unchanged() bool {
 	)
 	if s.pinned != nil {
 		data, err = s.pinned.reader.ReadFile(context.Background(), s.pinned.entry)
-		if errors.Is(err, vault.ErrSourceChanged) {
+		if errors.Is(err, vaultfs.ErrSourceChanged) {
 			// The pinned entry records which file this was at startup, and the
 			// identity it records includes the modification time — so a git
 			// checkout, a pull, a restored backup or an editor that saves by
@@ -68,68 +62,4 @@ func (s policySource) rereadCurrent() ([]byte, error) {
 		return nil, err
 	}
 	return s.pinned.reader.ReadFile(context.Background(), current)
-}
-
-// CorpusPolicyFingerprint hashes only the normalized capability semantics
-// that decide membership in the embedding corpus. Contract byte identity is a
-// separate freshness gate: irrelevant TOML edits do not create a new corpus,
-// while any artifact/privacy membership change does.
-func CorpusPolicyFingerprint(artifact ArtifactPolicy, privacy PrivacyPolicy) ([sha256.Size]byte, bool) {
-	if !artifact.Available() || !privacy.Available() {
-		return [sha256.Size]byte{}, false
-	}
-	h := sha256.New()
-	writeFingerprintString(h, corpusPolicyFingerprintVersion)
-	writeFingerprintSet(h, "non-instance", artifact.state.nonInstanceDirs)
-	writeFingerprintSet(h, "never-egress", privacy.state.neverEgressDirs)
-	var result [sha256.Size]byte
-	copy(result[:], h.Sum(nil))
-	return result, true
-}
-
-// PolicySourceFingerprint returns the exact contract-byte digest shared by the
-// artifact and privacy capabilities only when both were loaded through the
-// exact selected vault Reader. Path-loaded capabilities are deliberately
-// insufficient: their freshness could follow a replacement at the same root
-// name while corpus bytes remain bound to the Reader's original root. It is
-// deliberately separate from
-// CorpusPolicyFingerprint: irrelevant contract edits keep active corpus
-// compatibility, while an incomplete staging generation must not resume under
-// authority derived from different source bytes or another vault's contract.
-func PolicySourceFingerprint(reader *vault.Reader, artifact ArtifactPolicy, privacy PrivacyPolicy) ([sha256.Size]byte, bool) {
-	if reader == nil || !artifact.Available() || !privacy.Available() || artifact.state.source.path == "" ||
-		artifact.state.source != privacy.state.source {
-		return [sha256.Size]byte{}, false
-	}
-	source := artifact.state.source
-	if source.pinned == nil || source.pinned.reader != reader {
-		return [sha256.Size]byte{}, false
-	}
-	expected := filepath.Clean(filepath.Join(reader.Name(), filepath.FromSlash(ContractRelPath)))
-	if source.path != expected {
-		return [sha256.Size]byte{}, false
-	}
-	return source.digest, true
-}
-
-func writeFingerprintSet(h hash.Hash, label string, values []string) {
-	writeFingerprintString(h, label)
-	canonical := slices.Clone(values)
-	slices.Sort(canonical)
-	canonical = slices.Compact(canonical)
-	writeFingerprintUint64(h, uint64(len(canonical))) // #nosec G115 -- slice length is non-negative and encoded as uint64
-	for _, value := range canonical {
-		writeFingerprintString(h, value)
-	}
-}
-
-func writeFingerprintString(h hash.Hash, value string) {
-	writeFingerprintUint64(h, uint64(len(value))) // #nosec G115 -- string length is non-negative and encoded as uint64
-	_, _ = h.Write([]byte(value))
-}
-
-func writeFingerprintUint64(h hash.Hash, value uint64) {
-	var encoded [8]byte
-	binary.BigEndian.PutUint64(encoded[:], value)
-	_, _ = h.Write(encoded[:])
 }

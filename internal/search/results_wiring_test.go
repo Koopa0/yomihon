@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // The count and the marked terms are both things a reader looked for and did
@@ -20,13 +20,13 @@ import (
 func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 	t.Parallel()
 
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "notes/Kafka.md", Title: "Kafka Basics", PlainText: "kafka is a distributed log"},
 		{RelPath: "notes/Streams.md", Title: "Streams", PlainText: "kafka streams build on the log"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -68,12 +68,12 @@ func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	t.Parallel()
 
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "臨床/利尿劑調整.md", Title: "利尿劑", PlainText: "Furosemide 起始 20-40mg"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

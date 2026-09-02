@@ -23,6 +23,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func internalVault(t *testing.T) (string, *Writer) {
@@ -46,9 +47,9 @@ func internalVaultWithMutableContract(t *testing.T) (root, contractPath string, 
 	if err != nil {
 		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -232,14 +233,14 @@ func TestWriterProjectionsCloseWhenContractChanges(t *testing.T) {
 		t.Fatalf("change contract source: %v", err)
 	}
 
-	if !writer.View().Closed() {
+	if !writer.Authority().Closed() {
 		t.Error("Closed() = false after contract source change, want true")
 	}
 	const want = "vault artifact policy source changed after startup; instance projections disabled until restart"
-	if got := writer.View().Diagnostic(); got != want {
+	if got := writer.Authority().Diagnostic(); got != want {
 		t.Errorf("WriteDiagnostic() = %q, want %q", got, want)
 	}
-	if got := writer.View().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
+	if got := writer.Authority().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
 		t.Errorf("Transitions() after contract source change = %v, want nil", got)
 	}
 }
@@ -248,7 +249,7 @@ func TestWriterViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 	t.Parallel()
 
 	_, contractPath, writer := internalVaultWithMutableContract(t)
-	view := writer.View()
+	view := writer.Authority()
 	if diagnostic := view.Diagnostic(); diagnostic != "" {
 		t.Fatalf("initial View() diagnostic = %q, want open", diagnostic)
 	}
@@ -276,7 +277,7 @@ func TestWriterViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 		t.Errorf("captured View().Diagnostic() after source drift = %q, want immutable open view", diagnostic)
 	}
 
-	next := writer.View()
+	next := writer.Authority()
 	if diagnostic := next.Diagnostic(); diagnostic == "" {
 		t.Fatal("next View() after source drift remained open")
 	}
@@ -299,21 +300,21 @@ func TestWriterLatchesContractChangeUntilRestart(t *testing.T) {
 	if err = os.WriteFile(contractPath, append(original, '\n'), 0o600); err != nil { // #nosec G703 -- helper returns a fixed basename under this test's TempDir
 		t.Fatalf("change contract source: %v", err)
 	}
-	if !writer.View().Closed() {
+	if !writer.Authority().Closed() {
 		t.Fatal("Closed() = false after contract source change, want latched closure")
 	}
 	if err = os.WriteFile(contractPath, original, 0o600); err != nil { // #nosec G703 -- helper returns a fixed basename under this test's TempDir
 		t.Fatalf("restore original contract bytes: %v", err)
 	}
 
-	if !writer.View().Closed() {
+	if !writer.Authority().Closed() {
 		t.Error("Closed() = false after restoring contract bytes, want closure until restart")
 	}
 	const want = "vault artifact policy source changed after startup; instance projections disabled until restart"
-	if got := writer.View().Diagnostic(); got != want {
+	if got := writer.Authority().Diagnostic(); got != want {
 		t.Errorf("WriteDiagnostic() after restore = %q, want %q", got, want)
 	}
-	if got := writer.View().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
+	if got := writer.Authority().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
 		t.Errorf("Transitions() after restore = %v, want nil until restart", got)
 	}
 
@@ -321,16 +322,16 @@ func TestWriterLatchesContractChangeUntilRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile(restored contract) = %v", err)
 	}
-	if restarted := internalOpenWriter(t, root, reloaded); restarted.View().Closed() {
-		t.Errorf("new Writer after restored contract remained closed: %s", restarted.View().Diagnostic())
+	if restarted := internalOpenWriter(t, root, reloaded); restarted.Authority().Closed() {
+		t.Errorf("new Writer after restored contract remained closed: %s", restarted.Authority().Diagnostic())
 	}
 }
 
 func internalOpenWriter(t *testing.T, root string, contract *schema.Contract) *Writer {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -452,7 +453,7 @@ func TestWriterCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	if err := writer.Flip(t.Context(), rel, schema.SealStatus, "archived", [sha256.Size]byte{}); !errors.Is(err, ErrClosed) {
 		t.Errorf("Flip() after Close = %v, want %v", err, ErrClosed)
 	}
-	if !writer.View().Closed() {
+	if !writer.Authority().Closed() {
 		t.Error("View().Closed() after Close = false, want true")
 	}
 }
@@ -728,6 +729,8 @@ func TestReadRegularFileRefusesNonRegularBeforeOpen(t *testing.T) {
 }
 
 func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
+	t.Parallel()
+
 	root, writer := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
@@ -770,6 +773,8 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 }
 
 func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
+	t.Parallel()
+
 	root, writer := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
@@ -836,7 +841,7 @@ func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat contract: %v", err)
 	}
-	if writer.View().Closed() {
+	if writer.Authority().Closed() {
 		t.Fatal("the write face was already closed before the contract was touched")
 	}
 	original, err := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
@@ -866,7 +871,7 @@ func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 		t.Fatal("the contract's bytes changed, so this is the other test")
 	}
 
-	view := writer.View()
+	view := writer.Authority()
 	if view.Closed() {
 		t.Errorf("the write face closed after a touch: %s", view.Diagnostic())
 	}

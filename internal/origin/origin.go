@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // corpHeader names the refusal, in one place, so the two spots that must agree
@@ -149,7 +151,7 @@ func Protect(next http.Handler) http.Handler {
 func LoopbackOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !loopbackHost(r.Host) {
-			http.Error(w, "yomihon serves this machine only", http.StatusForbidden)
+			http.Error(w, wording.ServerIsForThisMachine.In(wording.LanguageFromRequest(r)), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)

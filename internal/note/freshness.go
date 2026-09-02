@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -101,7 +100,7 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // bytes are level — so a page that transcluded nothing keeps exactly the ask
 // and the answer it always had.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) || !vault.IsMarkdown(rel) {
 		http.Error(w, wording.FreshnessNotWatchable.In(lang), http.StatusNotFound)
@@ -218,7 +217,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 // of the body, keeping the digest and discarding the page. The language is
 // pinned because the digest covers source bytes pulled from other notes,
 // which no language of the interface's own sentences can reach.
-func (h *Handler) transcludedNow(snap *snapshot.View, rel, body string) string {
+func (h *Handler) transcludedNow(snap *snapshot.Generation, rel, body string) string {
 	return snap.Render(rel, body, wording.ZhHant).TranscludedIdentity
 }
 

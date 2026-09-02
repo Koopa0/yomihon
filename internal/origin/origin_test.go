@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // The refusal exactly as it must appear on the wire. These are spelled out
@@ -550,5 +552,47 @@ func TestAStricterPolicyStandsWhereNothingWouldRewriteIt(t *testing.T) {
 	}
 	if got := rec.Header().Get(wireCSPHeader); got != strict {
 		t.Errorf("header = %q, want %q", got, strict)
+	}
+}
+
+// TestALoopbackRefusalSpeaksTheReadersLanguage covers the one sentence this
+// package writes for a person. It used to be an English literal, which a
+// reader working in the other language met as the only untranslated line the
+// interface ever showed them — and on a refusal, where being understood
+// matters most.
+func TestALoopbackRefusalSpeaksTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		cookie string
+		want   wording.Lang
+	}{
+		{name: "no choice means the default", want: wording.ZhHant},
+		{name: "a reader who chose English", cookie: string(wording.En), want: wording.En},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := LoopbackOnly(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Error("a refused request reached the handler")
+			}))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			request.Host = "evil.example"
+			if tt.cookie != "" {
+				request.Header.Set("Cookie", wording.CookieName+"="+tt.cookie)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d", response.Code, http.StatusForbidden)
+			}
+			want := wording.ServerIsForThisMachine.In(tt.want)
+			if got := strings.TrimSpace(response.Body.String()); got != want {
+				t.Errorf("refusal = %q, want %q", got, want)
+			}
+		})
 	}
 }

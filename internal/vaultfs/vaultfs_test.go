@@ -1,4 +1,4 @@
-package vault
+package vaultfs
 
 import (
 	"context"
@@ -952,12 +952,13 @@ func TestReaderReadsObservedRegularFile(t *testing.T) {
 	writeReaderFixture(t, root, "Notes/one.md", "one")
 
 	reader := openTestReader(t, root)
-	entries, err := reader.Entries(t.Context())
+	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
-		t.Fatalf("Entries() error = %v", err)
+		t.Fatalf("ScanComplete() error = %v", err)
 	}
+	entries := scan.Files()
 	if len(entries) != 1 || entries[0].Path() != "Notes/one.md" {
-		t.Fatalf("Entries() = %#v, want Notes/one.md", entries)
+		t.Fatalf("ScanComplete().Files() = %#v, want Notes/one.md", entries)
 	}
 	got, err := reader.ReadFile(t.Context(), entries[0])
 	if err != nil {
@@ -1081,12 +1082,13 @@ func TestReaderRejectsEnumeratedLeafReplacementBeforeRead(t *testing.T) {
 	root := t.TempDir()
 	writeReaderFixture(t, root, "Notes/one.md", "public")
 	reader := openTestReader(t, root)
-	entries, err := reader.Entries(t.Context())
+	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
-		t.Fatalf("Entries() error = %v", err)
+		t.Fatalf("ScanComplete() error = %v", err)
 	}
+	entries := scan.Files()
 	if len(entries) != 1 {
-		t.Fatalf("Entries() len = %d, want 1", len(entries))
+		t.Fatalf("ScanComplete().Files() len = %d, want 1", len(entries))
 	}
 
 	path := filepath.Join(root, "Notes", "one.md")
@@ -1107,12 +1109,13 @@ func TestReaderRejectsEnumeratedParentReplacementBeforeRead(t *testing.T) {
 	root := t.TempDir()
 	writeReaderFixture(t, root, "Notes/one.md", "public")
 	reader := openTestReader(t, root)
-	entries, err := reader.Entries(t.Context())
+	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
-		t.Fatalf("Entries() error = %v", err)
+		t.Fatalf("ScanComplete() error = %v", err)
 	}
+	entries := scan.Files()
 	if len(entries) != 1 {
-		t.Fatalf("Entries() len = %d, want 1", len(entries))
+		t.Fatalf("ScanComplete().Files() len = %d, want 1", len(entries))
 	}
 
 	if renameErr := os.Rename(filepath.Join(root, "Notes"), filepath.Join(root, "old-notes")); renameErr != nil {
@@ -1130,12 +1133,13 @@ func TestReaderRejectsEnumeratedLeafMutationBeforeRead(t *testing.T) {
 	root := t.TempDir()
 	writeReaderFixture(t, root, "Notes/one.md", "public")
 	reader := openTestReader(t, root)
-	entries, err := reader.Entries(t.Context())
+	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
-		t.Fatalf("Entries() error = %v", err)
+		t.Fatalf("ScanComplete() error = %v", err)
 	}
+	entries := scan.Files()
 	if len(entries) != 1 {
-		t.Fatalf("Entries() len = %d, want 1", len(entries))
+		t.Fatalf("ScanComplete().Files() len = %d, want 1", len(entries))
 	}
 
 	path := filepath.Join(root, "Notes", "one.md")
@@ -1295,12 +1299,13 @@ func TestReaderPreservesRawNFDLookupWithCanonicalNFCPath(t *testing.T) {
 	raw := "Notes/Cafe\u0301.md"
 	writeReaderFixture(t, root, raw, "decomposed")
 	reader := openTestReader(t, root)
-	entries, err := reader.Entries(t.Context())
+	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
-		t.Fatalf("Entries() error = %v", err)
+		t.Fatalf("ScanComplete() error = %v", err)
 	}
+	entries := scan.Files()
 	if len(entries) != 1 || entries[0].Path() != "Notes/Caf\u00e9.md" {
-		t.Fatalf("Entries() = %#v, want canonical NFC path", entries)
+		t.Fatalf("ScanComplete().Files() = %#v, want canonical NFC path", entries)
 	}
 	got, err := reader.ReadFile(t.Context(), entries[0])
 	if err != nil {

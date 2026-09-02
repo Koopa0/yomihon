@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -88,8 +89,8 @@ func servable(rel string) bool {
 //
 // No status face, no ready accent, no diagnostics: a source file is not a
 // note, and the write face has no opinion about it.
-func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
-	lang := layouts.LanguageFromRequest(r)
+func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, authority status.Authority, snap *snapshot.Generation) {
+	lang := wording.LanguageFromRequest(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path)
@@ -106,7 +107,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 	}
 
 	name := path.Base(rel)
-	pageShell := shell.Project(statusView, snap)
+	pageShell := shell.Project(authority, snap)
 	view := pages.FileView{
 		Title:   name,
 		RelPath: rel,
@@ -165,7 +166,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 // or HTML document meets. Without it, opening one top-level would give it read
 // of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
@@ -246,7 +247,7 @@ func serveRaw(
 }
 
 func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation string, err error, lang wording.Lang) {
-	if errors.Is(err, vault.ErrSourceChanged) {
+	if errors.Is(err, vaultfs.ErrSourceChanged) {
 		h.sources.Log.Warn(operation, "path", rel, "error", err)
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return

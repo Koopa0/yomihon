@@ -1,11 +1,17 @@
-// Package search is the vault's in-memory search index and query engine. It
-// holds one entry per note — only the fields search actually reads, nothing
+// Package lexical is the vault's in-memory search index and query engine. It
+// holds one entry per note — only the fields a query actually reads, nothing
 // speculative — and answers a deterministic, NFC-folded substring query plus
-// six structured filters. It owns the index and the query; it does NOT own
+// six structured filters. It owns the index and the query; it does not own
 // freshness: the index is one projection in the shared reading generation,
 // rebuilt from the vault on change. There is no database and no persistent
 // state — the truth is the vault files, the index only accelerates.
-package search
+//
+// It is deliberately reachable without the reading interface. The generation
+// store builds one of these for every reading generation, so an import of the
+// engine must not drag templates, a page shell or a security header into the
+// build graph of the thing every face reads from. The page that puts a query
+// to it is the search package, and the dependency runs that way only.
+package lexical
 
 import (
 	"errors"
@@ -181,6 +187,18 @@ func (e metadataUnavailableError) Unwrap() error {
 	return ErrMetadataUnavailable
 }
 
+// MetadataClaim reports the authority claim behind a metadata refusal, so a
+// surface holding one of these errors can write the reason in the language its
+// reader chose rather than printing the operator's line. It answers false for
+// any other error, including a metadata refusal that carries no claim.
+func MetadataClaim(err error) (schema.Claim, bool) {
+	unavailable, ok := errors.AsType[metadataUnavailableError](err)
+	if !ok {
+		return schema.Claim{}, false
+	}
+	return unavailable.claim, true
+}
+
 func (idx *Index) metadataUnavailableError() error {
 	return metadataUnavailableError{claim: idx.policy.Claim()}
 }
@@ -273,10 +291,10 @@ func DocumentFromNote(n *vault.Note) Document {
 		RelPath:   n.RelPath,
 		Title:     n.Title(),
 		NoteType:  n.Type(),
-		Domain:    stringField(n, "domain"),
+		Domain:    n.Domain(),
 		Status:    n.Status(),
-		Slug:      stringField(n, "slug"),
-		Topics:    stringsField(n, "topics"),
+		Slug:      n.Slug(),
+		Topics:    n.Strings("topics"),
 		Aliases:   n.Aliases(),
 		PlainText: render.PlainText(n.Body),
 		// A diagnostic here means the block was present and did not parse. A
@@ -387,29 +405,4 @@ func (idx *Index) StatusHolders() ([]StatusHolder, error) {
 		})
 	}
 	return out, nil
-}
-
-// stringField reads a string frontmatter value, empty when absent or not a
-// string (a malformed field costs that field, never the build).
-func stringField(n *vault.Note, key string) string {
-	if v, ok := n.Frontmatter[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-// stringsField reads a list-of-strings frontmatter value (e.g. topics),
-// tolerating any non-list-of-strings shape by returning nil.
-func stringsField(n *vault.Note, key string) []string {
-	raw, ok := n.Frontmatter[key].([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(raw))
-	for _, v := range raw {
-		if s, ok := v.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
 }

@@ -1,4 +1,4 @@
-package search
+package lexical
 
 import (
 	"strings"
@@ -64,7 +64,7 @@ func TestTheJoinLeavesTheSnippetPointingAtTheRightCharacters(t *testing.T) {
 	t.Parallel()
 
 	const body = "本品不建議用於\n兒童使用。"
-	runs := markHits(body, Parse("不建議用於兒童").Tokens())
+	runs := MarkHits(body, Parse("不建議用於兒童").Tokens())
 	if len(runs) == 0 {
 		t.Fatal("the phrase was not marked at all, so nothing below checks where the marks landed")
 	}

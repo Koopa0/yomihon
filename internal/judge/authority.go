@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // The two refusals a caller has to be able to tell apart. Both mean the same
@@ -36,7 +36,7 @@ type scanAuthority struct {
 	privacy  schema.PrivacyPolicy
 }
 
-func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
+func loadScanAuthority(ctx context.Context, reader *vaultfs.Reader) (scanAuthority, error) {
 	contract, err := schema.LoadReader(ctx, reader)
 	if err != nil {
 		if schema.ContractAbsent(err) {

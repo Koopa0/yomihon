@@ -29,7 +29,7 @@ import (
 // Instance-derived navigation and counts close together when either authority
 // can no longer be honoured — not merely when it is absent, because a folder
 // that declared nothing excluded nothing and its projections are answerable.
-func Project(lifecycle status.View, snap *snapshot.View) nav.Shell {
+func Project(lifecycle status.Authority, snap *snapshot.Generation) nav.Shell {
 	policy := snap.ArtifactPolicy()
 	governed := lifecycle.Governed()
 	projected := nav.Shell{Nav: snap.Navigation(), Governed: governed}

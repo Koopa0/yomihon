@@ -23,6 +23,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 const (
@@ -245,12 +246,16 @@ func ContractAbsent(err error) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
 
-// Load reads the contract from the vault rooted at root.
+// Load reads the contract from the vault rooted at root, and LoadFile from an
+// explicit path. Neither is on the served path: a running yomihon always holds
+// the rooted read capability and loads through LoadReader, which is what binds
+// a capability to the exact file it came from. These two are for a caller that
+// has only a path — a fixture, a one-off — and they are kept because the third
+// one cannot serve that caller without a capability it has no way to make.
 func Load(root string) (*Contract, error) {
 	return LoadFile(filepath.Join(root, filepath.FromSlash(ContractRelPath)))
 }
 
-// LoadFile reads the contract from an explicit path.
 func LoadFile(path string) (*Contract, error) {
 	sourcePath, err := filepath.Abs(path)
 	if err != nil {
@@ -270,7 +275,7 @@ func LoadFile(path string) (*Contract, error) {
 
 // LoadReader reads the contract through the same pinned vault capability that
 // an agent-facing action uses for note collection and source revalidation.
-func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
+func LoadReader(ctx context.Context, reader *vaultfs.Reader) (*Contract, error) {
 	if reader == nil {
 		return nil, errors.New("read vault contract: vault reader is nil")
 	}

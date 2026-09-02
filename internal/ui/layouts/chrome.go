@@ -48,18 +48,6 @@ func textSizeLabel(size string, lang wording.Lang) string {
 	}
 }
 
-// LanguageFromRequest reads which language this request asked the interface to
-// speak. It sits beside the other preference reads rather than in the
-// dictionary, so the dictionary stays a set of sentences with no capability of
-// its own and no import at all.
-func LanguageFromRequest(r *http.Request) wording.Lang {
-	c, err := r.Cookie(wording.CookieName)
-	if err != nil {
-		return wording.ZhHant
-	}
-	return wording.FromCookieValue(c.Value)
-}
-
 // ChromeFromRequest builds the page chrome from the request: the page title
 // plus the persisted theme, furigana, and single-key-shortcut cookies, so the
 // root element renders the correct state on the first byte (no FOUC). Each
@@ -93,7 +81,7 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 	}
 	return Chrome{
 		Title:                     title,
-		Lang:                      LanguageFromRequest(r),
+		Lang:                      wording.LanguageFromRequest(r),
 		Nonce:                     origin.Nonce(r.Context()),
 		Theme:                     theme,
 		Ruby:                      ruby,

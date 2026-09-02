@@ -20,11 +20,12 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -63,10 +64,10 @@ const reconcileEvery = 150
 
 // Source is the rooted read capability required to construct a generation.
 // The interface is defined by its only consumer so tests can count scans and
-// reads without weakening vault.Reader's production identity checks.
+// reads without weakening vaultfs.Reader's production identity checks.
 type Source interface {
-	ScanAvailable(context.Context) (vault.Scan, error)
-	ReadFile(context.Context, vault.Entry) ([]byte, error)
+	ScanAvailable(context.Context) (vaultfs.Scan, error)
+	ReadFile(context.Context, vaultfs.Entry) ([]byte, error)
 }
 
 // Freshness is the published account of how the reading generation relates to
@@ -130,15 +131,15 @@ type BlockedSource struct {
 	Reason string
 }
 
-// View is one immutable reading generation. Every projection is built from the
+// Generation is one immutable reading generation. Every projection is built from the
 // same scan and captured bytes and remains behind read-only package APIs. The
 // artifact policy is a source-bound revocation capability: callers capture it
 // once per request, so contract drift closes later requests without changing a
 // response already being rendered.
-type View struct {
+type Generation struct {
 	graph          *graph.Index
 	navigation     *nav.Model
-	search         *search.Index
+	search         *lexical.Index
 	slots          lesson.SlotIndex
 	concepts       lesson.ConceptIndex
 	planned        judge.Planned
@@ -147,7 +148,7 @@ type View struct {
 	artifactPolicy schema.ArtifactPolicy
 	privacyPolicy  schema.PrivacyPolicy
 
-	scan     vault.Scan
+	scan     vaultfs.Scan
 	notes    map[string]Reading
 	markdown *render.Pipeline
 
@@ -188,7 +189,7 @@ type View struct {
 // authority. Immutable generation data remains shared; the search index is a
 // shallow functional copy so its metadata operations use that same authority
 // even if the contract changes while the response is being rendered.
-func (v *View) Capture() *View {
+func (v *Generation) Capture() *Generation {
 	if v == nil {
 		return nil
 	}
@@ -200,7 +201,7 @@ func (v *View) Capture() *View {
 }
 
 // Graph returns the immutable wikilink resolver for this generation.
-func (v *View) Graph() *graph.Index {
+func (v *Generation) Graph() *graph.Index {
 	if v == nil {
 		return nil
 	}
@@ -210,7 +211,7 @@ func (v *View) Graph() *graph.Index {
 // CitedBy returns the notes citing relPath in this generation, sorted by the
 // name each shows. Nothing citing a note is an answer rather than a gap: it is
 // how a note nothing depends on becomes visible.
-func (v *View) CitedBy(relPath string) []nav.NoteRef {
+func (v *Generation) CitedBy(relPath string) []nav.NoteRef {
 	if v == nil {
 		return nil
 	}
@@ -226,7 +227,7 @@ func (v *View) CitedBy(relPath string) []nav.NoteRef {
 // read and what the attempt running now cannot read, which lets the account
 // name more trouble than the reader is suffering but never less. The returned
 // value is the caller's own copy.
-func (v *View) Freshness() Freshness {
+func (v *Generation) Freshness() Freshness {
 	if v == nil {
 		return Freshness{}
 	}
@@ -254,7 +255,7 @@ func (v *View) Freshness() Freshness {
 
 // Health returns the whole-folder view of what needs attention in this
 // generation.
-func (v *View) Health() Health {
+func (v *Generation) Health() Health {
 	if v == nil {
 		return Health{}
 	}
@@ -262,7 +263,7 @@ func (v *View) Health() Health {
 }
 
 // AnyCitations reports whether any note in this generation cites another.
-func (v *View) AnyCitations() bool {
+func (v *Generation) AnyCitations() bool {
 	return v != nil && v.backlinks.Any()
 }
 
@@ -278,7 +279,7 @@ func (v *View) AnyCitations() bool {
 // can still fail to render for reasons that have nothing to do with planning —
 // an embed whose body this generation did not capture, say — and a name-only
 // test would quietly swallow that.
-func (v *View) TrackedForwardReference(target string) bool {
+func (v *Generation) TrackedForwardReference(target string) bool {
 	if v == nil || v.graph == nil {
 		return false
 	}
@@ -286,7 +287,7 @@ func (v *View) TrackedForwardReference(target string) bool {
 }
 
 // Navigation returns the immutable navigation model for this generation.
-func (v *View) Navigation() *nav.Model {
+func (v *Generation) Navigation() *nav.Model {
 	if v == nil {
 		return nil
 	}
@@ -294,7 +295,7 @@ func (v *View) Navigation() *nav.Model {
 }
 
 // Search returns the immutable lexical index for this generation.
-func (v *View) Search() *search.Index {
+func (v *Generation) Search() *lexical.Index {
 	if v == nil {
 		return nil
 	}
@@ -302,7 +303,7 @@ func (v *View) Search() *search.Index {
 }
 
 // Slots returns the immutable lesson-slot index for this generation.
-func (v *View) Slots() lesson.SlotIndex {
+func (v *Generation) Slots() lesson.SlotIndex {
 	if v == nil {
 		return lesson.SlotIndex{}
 	}
@@ -310,7 +311,7 @@ func (v *View) Slots() lesson.SlotIndex {
 }
 
 // Concepts returns the immutable concept-sheet index for this generation.
-func (v *View) Concepts() lesson.ConceptIndex {
+func (v *Generation) Concepts() lesson.ConceptIndex {
 	if v == nil {
 		return lesson.ConceptIndex{}
 	}
@@ -321,7 +322,7 @@ func (v *View) Concepts() lesson.ConceptIndex {
 // handlers must call Capture at entry before combining it with other View
 // projections; on that request-local View this method returns the same frozen
 // authority for the whole response.
-func (v *View) ArtifactPolicy() schema.ArtifactPolicy {
+func (v *Generation) ArtifactPolicy() schema.ArtifactPolicy {
 	if v == nil {
 		return schema.ArtifactPolicy{}
 	}
@@ -337,7 +338,7 @@ func (v *View) ArtifactPolicy() schema.ArtifactPolicy {
 // themselves make and cannot keep — their output is written for a program, and
 // naming the fault there would quote the vault back out under the very policy
 // that is missing.
-func (v *View) PrivacyPolicy() schema.PrivacyPolicy {
+func (v *Generation) PrivacyPolicy() schema.PrivacyPolicy {
 	if v == nil {
 		return schema.PrivacyPolicy{}
 	}
@@ -346,7 +347,7 @@ func (v *View) PrivacyPolicy() schema.PrivacyPolicy {
 
 // Files returns the regular files captured in this generation, in canonical
 // path order. The returned slice and entries are independent of the View.
-func (v *View) Files() []vault.Entry {
+func (v *Generation) Files() []vaultfs.Entry {
 	if v == nil {
 		return nil
 	}
@@ -354,21 +355,21 @@ func (v *View) Files() []vault.Entry {
 }
 
 // Entry returns the captured regular-file identity for canonicalPath.
-func (v *View) Entry(canonicalPath string) (vault.Entry, bool) {
+func (v *Generation) Entry(canonicalPath string) (vaultfs.Entry, bool) {
 	if v == nil {
-		return vault.Entry{}, false
+		return vaultfs.Entry{}, false
 	}
 	return v.scan.Entry(canonicalPath)
 }
 
 // Contains reports whether canonicalPath was a file or directory in this
 // generation.
-func (v *View) Contains(canonicalPath string) bool {
+func (v *Generation) Contains(canonicalPath string) bool {
 	return v != nil && v.scan.Contains(canonicalPath)
 }
 
 // Note returns an immutable Markdown reading projection by value.
-func (v *View) Note(canonicalPath string) (Reading, bool) {
+func (v *Generation) Note(canonicalPath string) (Reading, bool) {
 	if v == nil {
 		return Reading{}, false
 	}
@@ -384,7 +385,7 @@ func (v *View) Note(canonicalPath string) (Reading, bool) {
 // relPath is where the body lives in the vault. It is the caller's answer to
 // "relative to what", which every note body needs and which nothing in the
 // body itself supplies.
-func (v *View) Render(relPath, body string, lang wording.Lang) render.Result {
+func (v *Generation) Render(relPath, body string, lang wording.Lang) render.Result {
 	return v.RenderIn("", relPath, body, lang)
 }
 
@@ -392,7 +393,7 @@ func (v *View) Render(relPath, body string, lang wording.Lang) render.Result {
 // naming the region this one occupies so the two cannot both call their first
 // footnote the same thing. The region qualifies footnote ids only — heading
 // ids stay unique within a body rather than across the page.
-func (v *View) RenderIn(region, relPath, body string, lang wording.Lang) render.Result {
+func (v *Generation) RenderIn(region, relPath, body string, lang wording.Lang) render.Result {
 	if v == nil || v.markdown == nil {
 		return render.Result{}
 	}
@@ -404,7 +405,7 @@ func (v *View) RenderIn(region, relPath, body string, lang wording.Lang) render.
 // Transclusion returns the immutable body captured for canonicalPath. It is
 // render.Transclusions' consumer-owned capability and deliberately exposes no
 // parsed note or mutable map.
-func (v *View) Transclusion(canonicalPath string) (string, bool) {
+func (v *Generation) Transclusion(canonicalPath string) (string, bool) {
 	note, ok := v.Note(canonicalPath)
 	return note.Body, ok
 }
@@ -413,7 +414,7 @@ func (v *View) Transclusion(canonicalPath string) (string, bool) {
 // prev, retry, and the backoff fields are owned by that one loop; Current is
 // safe for concurrent request use.
 type Store struct {
-	ptr atomic.Pointer[View]
+	ptr atomic.Pointer[Generation]
 
 	// fresh is the live account of the latest build attempt: the sources it
 	// could not have and how many attempts in a row have come back incomplete.
@@ -434,7 +435,7 @@ type Store struct {
 	// are. Each build asks it what a note's frontmatter
 	// should have said; nothing writes to it, and no View holds it.
 	contract *schema.Contract
-	prev     vault.Scan
+	prev     vaultfs.Scan
 	retry    bool
 
 	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry
@@ -445,7 +446,7 @@ type Store struct {
 	// immediate as the scan interval.
 	consecutiveIncomplete int
 	nextRetry             time.Time
-	incompleteScan        vault.Scan
+	incompleteScan        vaultfs.Scan
 
 	// incompleteSincePublish counts the build attempts that have come back
 	// incomplete since the last generation that read everything it wanted, and
@@ -535,7 +536,7 @@ func New(
 }
 
 // Current returns the published generation. It is non-nil after New succeeds.
-func (s *Store) Current() *View { return s.ptr.Load() }
+func (s *Store) Current() *Generation { return s.ptr.Load() }
 
 // Run reconciles the vault until ctx is cancelled.
 func (s *Store) Run(ctx context.Context) {
@@ -622,7 +623,7 @@ func (s *Store) rescan(ctx context.Context) {
 	s.incompleteSincePublish = 0
 	s.lastComplete = builtAt
 	s.nextRetry = time.Time{}
-	s.incompleteScan = vault.Scan{}
+	s.incompleteScan = vaultfs.Scan{}
 	s.logBuild("vault snapshot rebuilt", candidate, scan)
 }
 
@@ -640,7 +641,7 @@ func (s *Store) rescan(ctx context.Context) {
 // The retry state is untouched: the folder keeps trying for a whole read on
 // the same schedule, and every later incomplete attempt publishes too, so work
 // written during the failure appears as soon as the scan sees it.
-func (s *Store) publishOnceDegraded(candidate *View, scan vault.Scan, blocked []BlockedSource) {
+func (s *Store) publishOnceDegraded(candidate *Generation, scan vaultfs.Scan, blocked []BlockedSource) {
 	if s.incompleteSincePublish < degradeAfter {
 		return
 	}
@@ -663,7 +664,7 @@ func (s *Store) publishOnceDegraded(candidate *View, scan vault.Scan, blocked []
 // running failure count go to the live record, which is how the pages serving
 // the retained generation can say the folder has moved on without it; that
 // generation's own build facts are already fixed in the view being served.
-func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
+func (s *Store) noteIncomplete(scan vaultfs.Scan, blocked []BlockedSource) {
 	if !s.incompleteScan.SameFiles(scan) {
 		s.consecutiveIncomplete = 0
 	}
@@ -702,8 +703,8 @@ func retryDelay(consecutive int) time.Duration {
 func buildView(
 	ctx context.Context,
 	source Source,
-	previous *View,
-	scan vault.Scan,
+	previous *Generation,
+	scan vaultfs.Scan,
 	log *slog.Logger,
 	//nolint:gocritic // hugeParam: the copy is the point and it replaces four heavier
 	// parameters. One generation builds from one reading of the capabilities;
@@ -711,7 +712,7 @@ func buildView(
 	// build already in progress.
 	capabilities schema.Capabilities,
 	contract *schema.Contract,
-) (*View, []BlockedSource, error) {
+) (*Generation, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy must build
 	// every projection. View retains the source-bound handle separately and
 	// Capture rebinds request-time metadata access to the current authority.
@@ -759,7 +760,7 @@ func buildView(
 	graphIndex := graph.New(slices.Concat(g.notes, g.unreadable), g.resources)
 	titles := titlesByName(g.notes)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy)
-	searchIndex := search.NewIndex(indexDocuments(g.notes, g.indexable, g.files), projectionPolicy)
+	searchIndex := lexical.NewIndex(indexDocuments(g.notes, g.indexable, g.files), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
@@ -776,7 +777,7 @@ func buildView(
 
 	planned := judge.NewPlanned(noteBodies(g.notes))
 	backlinks := newBacklinks(g.notes, graphIndex)
-	view := &View{
+	view := &Generation{
 		graph:          graphIndex,
 		navigation:     navigation,
 		search:         searchIndex,
@@ -822,7 +823,7 @@ type generation struct {
 	// sidecars are the practice files the lesson parser reads.
 	sidecars map[string][]byte
 	// files are the index documents for vault files that are not notes.
-	files []search.Document
+	files []lexical.Document
 	// resources are every non-note path, whether or not its bytes were read:
 	// a wikilink may point at any of them.
 	resources []string
@@ -840,7 +841,7 @@ func newGeneration(entries int) *generation {
 		published:  make(map[string]Reading),
 		indexable:  make(map[string]bool),
 		sidecars:   make(map[string][]byte),
-		files:      make([]search.Document, 0, entries),
+		files:      make([]lexical.Document, 0, entries),
 		resources:  make([]string, 0, entries),
 		findings:   make(map[string][]judge.Finding),
 	}
@@ -891,7 +892,7 @@ type carriedGeneration struct {
 // carriedFrom takes the fallback reading from the generation currently
 // published. A nil generation — startup, where the folder has never been read
 // — yields empty maps, so a source that fails its first read is simply absent.
-func carriedFrom(previous *View) carriedGeneration {
+func carriedFrom(previous *Generation) carriedGeneration {
 	if previous == nil {
 		return carriedGeneration{}
 	}
@@ -960,7 +961,7 @@ func (g *generation) carryFile(from carriedGeneration, relPath string, want byte
 // blockedFromProblems carries the scan's unobservable paths into the build's
 // blocked-source list, so a directory that cannot be opened is reported the
 // same way as a file that cannot be read.
-func blockedFromProblems(problems []vault.Problem) []BlockedSource {
+func blockedFromProblems(problems []vaultfs.Problem) []BlockedSource {
 	if len(problems) == 0 {
 		return nil
 	}
@@ -1011,7 +1012,7 @@ func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
 	if !indexable || !render.IsText(data) {
 		return
 	}
-	g.files = append(g.files, search.DocumentFromFile(relPath, data))
+	g.files = append(g.files, lexical.DocumentFromFile(relPath, data))
 }
 
 // bytesWanted is why a generation reads one vault file, and what follows if it
@@ -1029,7 +1030,7 @@ type bytesWanted struct {
 }
 
 // wantedBytes decides what this generation needs from one scanned entry.
-func wantedBytes(entry vault.Entry, note bool) bytesWanted {
+func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 	if note {
 		// A note is always read: every file in the folder stays readable, and
 		// its page renders whatever its size. Only the index has a bound, and
@@ -1054,12 +1055,12 @@ func wantedBytes(entry vault.Entry, note bool) bytesWanted {
 func indexDocuments(
 	notes []*vault.Note,
 	indexable map[string]bool,
-	files []search.Document,
-) []search.Document {
-	documents := make([]search.Document, 0, len(notes)+len(files))
+	files []lexical.Document,
+) []lexical.Document {
+	documents := make([]lexical.Document, 0, len(notes)+len(files))
 	for _, note := range notes {
 		if indexable[note.RelPath] {
-			documents = append(documents, search.DocumentFromNote(note))
+			documents = append(documents, lexical.DocumentFromNote(note))
 		}
 	}
 	return append(documents, files...)
@@ -1070,7 +1071,7 @@ func indexDocuments(
 // small enough that its own page shows its characters rather than an
 // information card. The predicates are the page's, so one rule holds across
 // both faces — if yomihon shows it to you as text, you can find it.
-func readableAsText(entry vault.Entry) bool {
+func readableAsText(entry vaultfs.Entry) bool {
 	relPath := entry.Path()
 	return !render.IsPicture(relPath) &&
 		!render.IsPDF(relPath) &&
@@ -1080,11 +1081,11 @@ func readableAsText(entry vault.Entry) bool {
 // withinSourceCap reports whether a file is small enough for its characters to
 // be held. It is the same ceiling the file page shows its own readers, so what
 // yomihon will search and what it will display as text answer to one rule.
-func withinSourceCap(entry vault.Entry) bool {
+func withinSourceCap(entry vaultfs.Entry) bool {
 	return entry.Size() <= render.MaxSourceBytes
 }
 
-func (s *Store) logBuild(message string, view *View, scan vault.Scan) {
+func (s *Store) logBuild(message string, view *Generation, scan vaultfs.Scan) {
 	s.log.Info(message,
 		"files", len(scan.Files()),
 		"scan_problems", len(scan.Problems()),

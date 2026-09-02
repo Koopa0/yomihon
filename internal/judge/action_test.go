@@ -23,6 +23,8 @@ import (
 )
 
 func TestJudgeActionPinsOneRootAcrossRenameAndReplacement(t *testing.T) {
+	t.Parallel()
+
 	parent := t.TempDir()
 	root := filepath.Join(parent, "vault")
 	writeTestContract(t, root, nil)
@@ -177,6 +179,8 @@ func TestScanStoppedNamesOnlyAPathItCanAskAbout(t *testing.T) {
 // ground it never read — but the operator was told only that a scan failed, so
 // on a folder of any size there was nowhere to start looking.
 func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
 	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
@@ -203,6 +207,8 @@ func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
 // either would answer questions about what is in there. The sentence is fixed,
 // so every such file and every cause produce the same line.
 func TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeTestContract(t, root, []string{"Diary"})
 	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
@@ -231,6 +237,8 @@ func TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory(t *testing.T) {
 // composing it first, would answer about a directory nobody declared and hand
 // the private name to the caller.
 func TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeTestContract(t, root, []string{"だ体"})
 	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
@@ -252,6 +260,8 @@ func TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter(t *testing.T) {
 }
 
 func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
+	t.Parallel()
+
 	swaps := []struct {
 		name string
 		swap func(*testing.T, string)
@@ -289,8 +299,12 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 	}
 	for _, swap := range swaps {
 		t.Run(swap.name, func(t *testing.T) {
+			t.Parallel()
+
 			for _, command := range commands {
 				t.Run(command.name, func(t *testing.T) {
+					t.Parallel()
+
 					root := t.TempDir()
 					writeTestContract(t, root, nil)
 					write(t, root, "Notes/Target.md", "---\ntitle: Target\n---\n")
@@ -317,6 +331,8 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 }
 
 func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		command string
 		args    func(string) []string
@@ -327,6 +343,8 @@ func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
+			t.Parallel()
+
 			root := t.TempDir()
 			writeTestContract(t, root, nil)
 			write(t, root, "Notes/A.md", "---\ntitle: A\n---\n")
@@ -355,6 +373,8 @@ func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
 }
 
 func TestCheckDiskReferencesUseCapturedMembership(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
 	write(t, root, "Notes/Source.md", "[late](../Attachments/late.md)\n")
@@ -419,7 +439,7 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 			if owner != nil {
 				qualified := owner.Name + "." + selector.Sel.Name
 				switch qualified {
-				case "vault.Open", "schema.LoadReader":
+				case "vaultfs.Open", "schema.LoadReader":
 					counts[qualified]++
 				case "os.ReadFile":
 					counts[qualified]++
@@ -451,7 +471,7 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 		t.Errorf("production path bypasses = %v, want none", forbidden)
 	}
 	wantCounts := map[string]int{
-		"vault.Open":        1,
+		"vaultfs.Open":      1,
 		"schema.LoadReader": 1,
 		"ScanComplete":      1,
 		"ReadFile":          1,

@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -56,18 +56,19 @@ func newHandler(t *testing.T, root string) http.Handler {
 	mux := http.NewServeMux()
 	New(
 		source,
-		func() *snapshot.View { return view },
-		func(snap *snapshot.View) pages.Shell { return pages.Shell{Nav: snap.Navigation()} },
+		func() RequestSnapshot {
+			return RequestSnapshot{Generation: view, Shell: nav.Shell{Nav: view.Navigation()}}
+		},
 		slog.New(slog.DiscardHandler),
 	).Register(mux)
 	return mux
 }
 
-func rootedReportView(t *testing.T, root string) (*vault.Reader, *snapshot.View) {
+func rootedReportView(t *testing.T, root string) (*vaultfs.Reader, *snapshot.Generation) {
 	t.Helper()
-	source, err := vault.Open(root)
+	source, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error: %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error: %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := source.Close(); closeErr != nil {
@@ -98,12 +99,12 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 			mux := http.NewServeMux()
 			New(
 				source,
-				func() *snapshot.View {
+				func() RequestSnapshot {
 					calls++
-					return view
-				},
-				func(snap *snapshot.View) pages.Shell {
-					return pages.Shell{Nav: snap.Navigation(), Governed: true}
+					return RequestSnapshot{
+						Generation: view,
+						Shell:      nav.Shell{Nav: view.Navigation(), Governed: true},
+					}
 				},
 				slog.New(slog.DiscardHandler),
 			).Register(mux)

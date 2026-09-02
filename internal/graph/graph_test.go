@@ -11,13 +11,14 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func capturedGraph(t *testing.T, root string) *graph.Index {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

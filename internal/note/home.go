@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -36,8 +36,8 @@ const homeReadmePath = "README.md"
 // the vault README through the same markdown pipeline used by a note page. It
 // is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
-	statusView := h.sources.Status()
+	lang := wording.LanguageFromRequest(r)
+	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	// Home links to the folder's own introduction rather than reprinting it,
 	// so nothing here renders it and its absence is not news.
@@ -48,8 +48,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// technical detail beside it lists.
 	fresh := snap.Freshness()
 	artifactPolicy := snap.ArtifactPolicy()
-	pageShell := shell.Project(statusView, snap)
-	lifecycle, unstated, lifecycleClosed := h.lifecycle(statusView, snap, lang)
+	pageShell := shell.Project(authority, snap)
+	lifecycle, unstated, lifecycleClosed := h.lifecycle(authority, snap, lang)
 	// The lifecycle block is derived from the write authority while the counts
 	// under it come from the snapshot's own artifact sample, and the two are
 	// taken at different instants. This does not fire today: the request-local
@@ -68,7 +68,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// declaration could not be honoured. A vault whose contract broke must not
 	// show less than one that never carried a contract, because mending the
 	// toml is done while reading the vault it governs.
-	recent, recentOrdered := recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed, statusView)
+	recent, recentOrdered := recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed, authority)
 	pathsClosed := visibleNav.NavigationClosure().Closed() || visibleNav.ArtifactClosure().Closed()
 	var paths []pages.HomePath
 	if !pathsClosed {
@@ -98,7 +98,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		// closed a block here has to reach this column, not only the one the
 		// write authority happens to know about.
 		Fault: statedOnce(
-			statusView.Diagnostic(),
+			authority.Diagnostic(),
 			visibleNav.NavigationClosure().Diagnostic(),
 			visibleNav.ArtifactClosure().Diagnostic(),
 		),
@@ -129,14 +129,14 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 // vault has no statuses. A vault whose notes carry none yields an open,
 // empty block.
 func (h *Handler) lifecycle(
-	statusView status.View,
-	snap *snapshot.View,
+	authority status.Authority,
+	snap *snapshot.Generation,
 	lang wording.Lang,
 ) (items, unstated []pages.LifecycleItem, closed bool) {
-	if !statusView.Governed() {
+	if !authority.Governed() {
 		return nil, nil, false
 	}
-	if statusView.Closed() {
+	if authority.Closed() {
 		return nil, nil, true
 	}
 	counts, err := snap.Search().CountByTypeStatus()
@@ -166,7 +166,7 @@ func (h *Handler) lifecycle(
 			continue
 		}
 		byStatus[ts.Status] += n
-		if statusView.KnownStatus(ts.Type, ts.Status) {
+		if authority.KnownStatus(ts.Type, ts.Status) {
 			declared[ts.Status] = true
 		}
 	}
@@ -179,7 +179,7 @@ func (h *Handler) lifecycle(
 			Unknown: !declared[s],
 		})
 	}
-	for _, s := range statusView.Order() {
+	for _, s := range authority.Order() {
 		if byStatus[s] == 0 {
 			continue
 		}
@@ -270,13 +270,13 @@ func (c homeContent) subtitle(lang wording.Lang) string {
 // A withheld block counts as content. Its absence already has a reason stated
 // once for the whole page, and a cheerful fact beside that reason would be a
 // second, contradictory account of the same hole.
-func homeStandIn(snap *snapshot.View, content homeContent) pages.HomeStandIn {
+func homeStandIn(snap *snapshot.Generation, content homeContent) pages.HomeStandIn {
 	if content.recent || content.lifecycle || content.paths || content.withheld {
 		return pages.HomeStandIn{}
 	}
 	files := snap.Files()
 	standIn := pages.HomeStandIn{Shown: true, Files: len(files)}
-	var newest vault.Entry
+	var newest vaultfs.Entry
 	for _, entry := range files {
 		if newest.Path() == "" || entry.ModTime().After(newest.ModTime()) {
 			newest = entry
@@ -354,9 +354,9 @@ func statedOnce(causes ...string) string {
 func recentHomeNotes(
 	notes []nav.NoteSummary,
 	governed bool,
-	statusView status.View,
+	authority status.Authority,
 ) (recent []pages.HomeNote, ordered bool) {
-	rules := !statusView.Closed()
+	rules := !authority.Closed()
 	notes = slices.Clone(notes)
 	slices.SortStableFunc(notes, func(a, b nav.NoteSummary) int {
 		switch {
@@ -388,7 +388,7 @@ func recentHomeNotes(
 		if governed {
 			item.Status = n.Status
 			if rules && n.Status != "" {
-				item.StatusOutsideEnum = !statusView.KnownStatus(n.Type, n.Status)
+				item.StatusOutsideEnum = !authority.KnownStatus(n.Type, n.Status)
 			}
 		}
 		if !n.Modified.IsZero() {

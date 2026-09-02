@@ -1,4 +1,4 @@
-package search
+package lexical
 
 import (
 	"slices"
@@ -81,7 +81,7 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		// A candidate is only offered for its count, so no result — and no
 		// snippet — is ever materialized for it, and the count is the true
 		// tally rather than the bounded page's opening stretch.
-		_, total, err := idx.search(Parse(full), 0)
+		_, total, err := idx.SearchN(Parse(full), 0)
 		if err != nil || total == 0 {
 			continue
 		}

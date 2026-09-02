@@ -11,20 +11,20 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
-func lifecycleView(t *testing.T, contract *schema.Contract) status.View {
+func lifecycleView(t *testing.T, contract *schema.Contract) status.Authority {
 	t.Helper()
 	return governedLifecycleView(t, contract, contract.Governance())
 }
 
-func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
+func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.Authority {
 	t.Helper()
 	root := t.TempDir()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -40,10 +40,10 @@ func governedLifecycleView(t *testing.T, contract *schema.Contract, governance s
 			t.Errorf("Lifecycle.Close() error = %v", closeErr)
 		}
 	})
-	return lifecycle.View()
+	return lifecycle.Authority()
 }
 
-func snapshotView(t *testing.T, contract *schema.Contract, notes map[string]string) *snapshot.View {
+func snapshotView(t *testing.T, contract *schema.Contract, notes map[string]string) *snapshot.Generation {
 	t.Helper()
 	return governedSnapshotView(t, contract, contract.Governance(), notes)
 }
@@ -53,7 +53,7 @@ func governedSnapshotView(
 	contract *schema.Contract,
 	governance schema.Governance,
 	notes map[string]string,
-) *snapshot.View {
+) *snapshot.Generation {
 	t.Helper()
 	root := t.TempDir()
 	for relPath, body := range notes {
@@ -65,9 +65,9 @@ func governedSnapshotView(
 			t.Fatalf("writing %q: %v", relPath, err)
 		}
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -139,8 +139,8 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 
 	tests := []struct {
 		name      string
-		lifecycle status.View
-		snap      *snapshot.View
+		lifecycle status.Authority
+		snap      *snapshot.Generation
 	}{
 		{name: "lifecycle", lifecycle: unreadable, snap: openSnapshot},
 		{name: "artifact policy", lifecycle: open, snap: rejectedSnapshot},

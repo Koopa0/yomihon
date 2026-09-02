@@ -30,41 +30,43 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 const briefingRoot = "System/reports/daily-briefing"
 
+// RequestSnapshot is the reading generation and the shell state bound to one
+// request capture of an atomic vault generation and its artifact authority.
+//
+// Both arrive together because a report page states two things about one
+// vault: which briefings exist, and what the rail beside them shows. Taken
+// from two calls they could be taken from two generations, and the page would
+// then name a report the rail has never heard of.
+type RequestSnapshot struct {
+	Generation *snapshot.Generation
+	Shell      nav.Shell
+}
+
 // Handler serves the reports face through one process-owned vault Reader.
 type Handler struct {
-	source  *vault.Reader
-	current func() *snapshot.View
-	shell   func(*snapshot.View) pages.Shell
-	log     *slog.Logger
+	source   *vaultfs.Reader
+	snapshot func() RequestSnapshot
+	log      *slog.Logger
 }
 
 // New wires the reports feature. Every dependency must be non-nil: a nil is a
 // wiring bug that must fail here, not on the first request.
-func New(
-	source *vault.Reader,
-	current func() *snapshot.View,
-	shell func(*snapshot.View) pages.Shell,
-	log *slog.Logger,
-) *Handler {
+func New(source *vaultfs.Reader, snapshotProvider func() RequestSnapshot, log *slog.Logger) *Handler {
 	if source == nil {
 		panic("report: New requires a non-nil Source")
 	}
-	if current == nil {
+	if snapshotProvider == nil {
 		panic("report: New requires a non-nil Snapshot provider")
-	}
-	if shell == nil {
-		panic("report: New requires a non-nil Shell provider")
 	}
 	if log == nil {
 		panic("report: New requires a non-nil Log")
 	}
-	return &Handler{source: source, current: current, shell: shell, log: log}
+	return &Handler{source: source, snapshot: snapshotProvider, log: log}
 }
 
 // resolveReport looks a requested report name up against the report allowlist:
@@ -88,8 +90,8 @@ func resolveReport(model *nav.Model, name string) (nav.Report, bool) {
 
 func readReport(
 	ctx context.Context,
-	source *vault.Reader,
-	view *snapshot.View,
+	source *vaultfs.Reader,
+	view *snapshot.Generation,
 	relPath string,
 ) ([]byte, error) {
 	name, ok := strings.CutPrefix(relPath, briefingRoot+"/")

@@ -20,7 +20,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 	root := t.TempDir()
 	writer := newWriter(t, root, loadContract(t))
 
-	view := writer.View()
+	view := writer.Authority()
 	if view.Closed() {
 		t.Fatalf("View().Closed() = true, want read authority preserved: %s", view.Diagnostic())
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -344,9 +345,9 @@ func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Pa
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

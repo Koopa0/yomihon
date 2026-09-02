@@ -368,6 +368,9 @@ func TestExchangeRefusesANameThatIsNotOneEntry(t *testing.T) {
 // plain rename, and every later flip on that volume, on any note, would take
 // the weakest install for the life of the process.
 func TestProbeFailureDoesNotPinTheFilesystem(t *testing.T) {
+	// Not parallel: it owns the process-wide probe cache for its duration,
+	// and every flip in this package writes to that cache under the same
+	// device key.
 	dir := t.TempDir()
 	parent, err := os.OpenRoot(dir)
 	if err != nil {
@@ -543,6 +546,9 @@ func TestInstallRungMatrix(t *testing.T) {
 // process-wide probe cache for their duration, and every flip in this package
 // writes to it under the same device key.
 func TestOnlyAMeasuredRungIsRemembered(t *testing.T) {
+	// Not parallel: it owns the process-wide probe cache for its duration,
+	// and every flip in this package writes to that cache under the same
+	// device key.
 	dir := t.TempDir()
 	parent, err := os.OpenRoot(dir)
 	if err != nil {

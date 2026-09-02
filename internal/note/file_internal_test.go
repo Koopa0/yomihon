@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/origin"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // TestServable pins the route boundary's own rule. filepath.IsLocal is not
@@ -145,9 +145,9 @@ func TestServeRawKeepsOpenedObjectAcrossAtomicReplacement(t *testing.T) {
 	if err := os.WriteFile(path, []byte("selected"), 0o600); err != nil {
 		t.Fatalf("write selected file: %v", err)
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

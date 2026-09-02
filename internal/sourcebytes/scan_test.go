@@ -1,6 +1,3 @@
-// Package sourcebytes checks repository text for bytes that are invisible or
-// structurally ambiguous in reviews and ordinary search tools. The scanner is
-// test-only because it verifies this repository; it is not product runtime.
 package sourcebytes
 
 import (
