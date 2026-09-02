@@ -66,6 +66,14 @@ var (
 
 // Contract is the validated, immutable vault authority. Its zero value carries
 // no authority; load one with [Load], [LoadFile], or [LoadReader].
+//
+// A nil *Contract answers as an ungoverned vault: every method on it is safe
+// to call and returns what a folder that never declared anything declares —
+// no version, no vocabulary, no capability, no legal transition. That is not a
+// convenience, it is the reachable case: a vault with no contract file and a
+// vault whose contract could not be read both hand their consumers a nil
+// pointer, and a type that answered some of its questions and panicked on the
+// rest would make every consumer rediscover which were which.
 type Contract struct {
 	version    string
 	definition Definition
@@ -1221,19 +1229,30 @@ func validateSupersessionType(contract *Contract, noteType, archivedStatus strin
 	return nil
 }
 
-// Version returns the contract format version.
+// Version returns the contract format version, empty for a vault no contract
+// governs.
 func (c *Contract) Version() string {
+	if c == nil {
+		return ""
+	}
 	return c.version
 }
 
 // Definition returns a detached copy of the contract's declarative
-// vocabulary and validation policy.
+// vocabulary and validation policy. A vault no contract governs declares an
+// empty vocabulary.
 func (c *Contract) Definition() Definition {
+	if c == nil {
+		return Definition{}
+	}
 	return cloneDefinition(&c.definition)
 }
 
 // StageCount returns the number of lifecycle rows declared by the contract.
 func (c *Contract) StageCount() int {
+	if c == nil {
+		return 0
+	}
 	return len(c.stages)
 }
 
@@ -1284,6 +1303,9 @@ func cloneStringSliceMap(source map[string][]string) map[string][]string {
 // Supersession returns the configured replacement-ledger vocabulary, or false
 // when the contract declares none.
 func (c *Contract) Supersession() (Supersession, bool) {
+	if c == nil {
+		return Supersession{}, false
+	}
 	section := c.metadata.supersession
 	if section == nil {
 		return Supersession{}, false
@@ -1382,7 +1404,7 @@ func (c *Contract) PrivacyPolicy() PrivacyPolicy {
 // An empty note type selects the default "note" group for aggregate views.
 // An undeclared non-empty type returns "".
 func (c *Contract) StatusGroup(noteType string) string {
-	if c.version == "" {
+	if c == nil || c.version == "" {
 		return ""
 	}
 	if noteType == "" {
@@ -1395,8 +1417,12 @@ func (c *Contract) StatusGroup(noteType string) string {
 }
 
 // Statuses returns the legal status values for a declared note type. An empty
-// note type selects the default "note" group; an undeclared type returns nil.
+// note type selects the default "note" group; an undeclared type returns nil,
+// and so does a vault no contract governs.
 func (c *Contract) Statuses(noteType string) []string {
+	if c == nil {
+		return nil
+	}
 	return slices.Clone(c.statusesByGroup[c.StatusGroup(noteType)])
 }
 
@@ -1430,6 +1456,9 @@ func (c *Contract) Stage(noteType, status string) (Stage, bool) {
 }
 
 func (c *Contract) stage(noteType, status string) (Stage, bool) {
+	if c == nil {
+		return Stage{}, false
+	}
 	stage, ok := c.stageByTypeStatus[lifecycleKey{noteType: noteType, status: NormalizeStatus(status)}]
 	return stage, ok
 }
@@ -1438,6 +1467,9 @@ func (c *Contract) stage(noteType, status string) (Stage, bool) {
 // status to another. An empty from means the note is being given its initial
 // status. Lifecycle owner lists are declarative data and play no part in the
 // answer. The returned error wraps one of the package sentinels.
+//
+// A vault no contract governs declares no status, so every move out of it is
+// refused as an unknown status rather than allowed by default.
 func (c *Contract) Transition(noteType, from, to string) error {
 	// Both ends are folded before anything is compared: one arrives from a
 	// note's own line as the filesystem spelled it, the other from a form or
