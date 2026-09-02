@@ -21,6 +21,10 @@ Everything in this vault, grouped by what it is about.
 - [[Wikilinks in this dialect]]
 - [[Diagnostics are reports]]
 
+## In another language
+
+- [[讀懂 yomihon]] — the same four ideas, written in Traditional Chinese
+
 ## Seen working
 
 - [[A published note]] — a status yomihon will not set
