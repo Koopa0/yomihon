@@ -1,6 +1,7 @@
 package note_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
@@ -3163,7 +3164,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 		Source:         source,
 		Status:         func() status.View { return status.View{} },
 		Snapshot:       store.Current,
-		ObservedStatus: func(string) (string, error) { return "", nil },
+		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
 		ConsumeReceipt: func(string, string) bool { return false },
 		Log:            slog.New(slog.DiscardHandler),
 	}).Register(mux)

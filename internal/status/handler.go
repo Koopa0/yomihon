@@ -95,7 +95,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.writer.Flip(path, from, to, contentIdentity)
+	err := h.writer.Flip(r.Context(), path, from, to, contentIdentity)
 	if err == nil {
 		// The target names the status this note just left. The parameter only
 		// addresses the sentence: whether the reading page prints it is

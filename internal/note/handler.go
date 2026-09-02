@@ -75,7 +75,10 @@ type Sources struct {
 	// folder by a couple of seconds, which a body and a link graph can afford
 	// and an adjudication state cannot: the reader arrives here straight from a
 	// write, and a status that lags is one they have already changed.
-	ObservedStatus func(rel string) (string, error)
+	//
+	// It takes the request's context because the read queues behind the write
+	// face's own lock, which one flip can hold across two synchronizations.
+	ObservedStatus func(ctx context.Context, rel string) (string, error)
 	// ConsumeReceipt is a closure over the write face's attestation that it
 	// recently flipped the note at rel out of status from, spending the
 	// attestation when it answers true. The transition receipt renders only
@@ -530,7 +533,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state := h.governance(&n, snap, statusView)
+	state := h.governance(r.Context(), &n, snap, statusView)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body, lang)
@@ -802,7 +805,12 @@ func (s *governanceState) instance() bool { return s.placement == governedInstan
 // is neither.
 func (s *governanceState) nonInstance() bool { return s.placement == readableArtifact }
 
-func (h *Handler) governance(n *snapshot.Reading, snap *snapshot.View, statusView status.View) governanceState {
+func (h *Handler) governance(
+	ctx context.Context,
+	n *snapshot.Reading,
+	snap *snapshot.View,
+	statusView status.View,
+) governanceState {
 	policy := snap.ArtifactPolicy()
 	state := governanceState{
 		shell:     shell.Project(statusView, snap),
@@ -821,7 +829,7 @@ func (h *Handler) governance(n *snapshot.Reading, snap *snapshot.View, statusVie
 			// Legally no frontmatter (e.g. drills): no keys either.
 			state.noFrontmatter = true
 		default:
-			state.status, state.writeDiagnostic = h.observedStatus(n.RelPath)
+			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath)
 			if state.writeDiagnostic == "" {
 				state.transitions = offeredTransitions(statusView, n.RelPath, n.Type, state.status)
 				state.statusUnknown = state.status != "" &&
@@ -905,10 +913,16 @@ func offeredTransitions(statusView status.View, relPath, noteType, current strin
 // holds may be exactly the one the reader has already moved away from, and a
 // transition offered from it is refused on arrival. Whatever prevented this
 // read is the same thing that would prevent the write.
-func (h *Handler) observedStatus(rel string) (current, blocked string) {
-	current, err := h.sources.ObservedStatus(rel)
+func (h *Handler) observedStatus(ctx context.Context, rel string) (current, blocked string) {
+	current, err := h.sources.ObservedStatus(ctx, rel)
 	if err != nil {
-		h.sources.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
+		// A reader who navigated away is not a fault to report: the read was
+		// refused because nobody is waiting for it, and logging that as a
+		// failure teaches an operator to distrust a log that is telling the
+		// truth about everything else.
+		if ctx.Err() == nil {
+			h.sources.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
+		}
 		return "", status.NoteUnreadableDiagnostic
 	}
 	return current, ""

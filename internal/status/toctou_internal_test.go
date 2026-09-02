@@ -139,7 +139,7 @@ func TestFlipRejectsChangedContractBeforeFilesystem(t *testing.T) {
 		t.Fatalf("write reclassified contract: %v", err)
 	}
 
-	err = writer.Flip("Writing/missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
+	err = writer.Flip(t.Context(), "Writing/missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
 	if !errors.Is(err, ErrArtifactPolicyUnavailable) {
 		t.Fatalf("Flip() after contract change = %v, want %v before target access", err, ErrArtifactPolicyUnavailable)
 	}
@@ -176,7 +176,7 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	secondErr := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		firstErr <- writer.flip(
+		firstErr <- writer.flip(t.Context(),
 			firstRel,
 			"draft",
 			schema.SealStatus,
@@ -189,7 +189,7 @@ func TestQueuedFlipRechecksAuthorityBeforeTargetAccess(t *testing.T) {
 	})
 	<-firstAtAuthority
 	wg.Go(func() {
-		secondErr <- writer.flip(
+		secondErr <- writer.flip(t.Context(),
 			secondRel,
 			"draft",
 			schema.SealStatus,
@@ -363,7 +363,7 @@ func TestFlipRejectsContractChangeBeforeInstall(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 
-	err := writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
+	err := writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		data, readErr := os.ReadFile(contractPath) // #nosec G304 -- helper returns a fixed basename under this test's TempDir
 		if readErr != nil {
 			t.Fatalf("read mutable contract: %v", readErr)
@@ -416,7 +416,7 @@ func TestWriterCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	closeResult := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		flipResult <- writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+		flipResult <- writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
 			afterLock: func() {
 				close(flipLocked)
 				<-releaseFlip
@@ -449,7 +449,7 @@ func TestWriterCloseWaitsForFlipAndLaterOperationsFail(t *testing.T) {
 	default:
 		t.Fatal("Close never acquired Writer.mu after Flip returned")
 	}
-	if err := writer.Flip(rel, schema.SealStatus, "archived", [sha256.Size]byte{}); !errors.Is(err, ErrClosed) {
+	if err := writer.Flip(t.Context(), rel, schema.SealStatus, "archived", [sha256.Size]byte{}); !errors.Is(err, ErrClosed) {
 		t.Errorf("Flip() after Close = %v, want %v", err, ErrClosed)
 	}
 	if !writer.View().Closed() {
@@ -748,7 +748,7 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 		t.Fatalf("replacement length = %d, want same as original %d", len(replacement), len(original))
 	}
 
-	err = writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
+	err = writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		if writeErr := os.WriteFile(path, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("replace note bytes: %v", writeErr)
 		}
@@ -786,7 +786,7 @@ func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
 	}
 	replacement := strings.Replace(original, "\nbody\n", "\nreplacement\n", 1)
 
-	err = writer.flip(rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
+	err = writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{beforeAuthority: func() {
 		tmp := filepath.Join(filepath.Dir(path), ".external-replacement.tmp")
 		if writeErr := os.WriteFile(tmp, []byte(replacement), before.Mode().Perm()); writeErr != nil {
 			t.Fatalf("write replacement: %v", writeErr)

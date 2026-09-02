@@ -37,7 +37,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 		t.Errorf("View().Transitions() = %v, want none on a platform without a durable install", got)
 	}
 
-	err := writer.Flip(testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrDurabilityUnsupported) {
 		t.Fatalf("Flip() = %v, want %v before opening the target", err, status.ErrDurabilityUnsupported)
 	}

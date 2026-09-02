@@ -9,6 +9,7 @@ package status
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
@@ -155,6 +156,15 @@ type Writer struct {
 	// operation. One lock for the whole writer is deliberately simpler than
 	// per-file locking: this is a local, single-operator tool where correctness
 	// matters far more than throughput.
+	//
+	// The wait is therefore unbounded in principle — a flip holds it across
+	// two synchronizations — so Flip and ObservedStatus consult the request's
+	// context before they queue for it. Nothing has been touched at that
+	// point, so a reader who has gone away is answered rather than parked.
+	// View takes the same lock and has no context to consult: it is reached
+	// through provider closures the composition point builds before any
+	// request exists, and honouring one there means every closure carrying a
+	// context through to here.
 	mu sync.Mutex
 	// receipts is the write face's short-lived memory of flips it performed
 	// whose confirmation no reading page has shown yet, keyed by the note's
@@ -491,10 +501,17 @@ func (w *Writer) VaultRoot() string {
 // page that shows an older value offers a transition from a state the note has
 // already left — most visibly right after a write, when the reader is looking
 // straight at the thing they just did.
-func (w *Writer) ObservedStatus(rel string) (string, error) {
+func (w *Writer) ObservedStatus(ctx context.Context, rel string) (string, error) {
 	relSlash, osPath, err := normalizeRelPath(rel)
 	if err != nil {
 		return "", err
+	}
+	// The lock this read is about to take can be held by a flip across two
+	// synchronizations, so a reader who navigated away is refused here rather
+	// than parked behind one. Nothing has been touched at this point, so
+	// refusing costs the caller only the answer it no longer wants.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return "", ctxErr
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -517,8 +534,15 @@ func (w *Writer) ObservedStatus(rel string) (string, error) {
 //
 // Flip holds the Writer's lock for its entire duration (see the mu field
 // doc): concurrent callers are serialized, never interleaved.
-func (w *Writer) Flip(rel, from, to string, contentIdentity [sha256.Size]byte) error {
-	return w.flip(rel, from, to, contentIdentity, flipHooks{})
+//
+// ctx is honoured up to the moment the lock is taken and not after. A caller
+// who has gone away before then is refused with the file untouched, which is
+// the whole of what cancellation can safely mean here: past that point the
+// note is being replaced under its own name, and a write abandoned partway is
+// the one outcome this package exists to make impossible. The install runs to
+// completion, or refuses and leaves the file as it found it.
+func (w *Writer) Flip(ctx context.Context, rel, from, to string, contentIdentity [sha256.Size]byte) error {
+	return w.flip(ctx, rel, from, to, contentIdentity, flipHooks{})
 }
 
 type flipHooks struct {
@@ -534,7 +558,12 @@ type flipHooks struct {
 	afterInstall func()
 }
 
-func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, hooks flipHooks) error {
+func (w *Writer) flip(
+	ctx context.Context,
+	rel, from, to string,
+	contentIdentity [sha256.Size]byte,
+	hooks flipHooks,
+) error {
 	relSlash, rel, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
@@ -544,6 +573,9 @@ func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, h
 	}
 	if hooks.beforeLock != nil {
 		hooks.beforeLock()
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
