@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -42,13 +43,27 @@ func assertSearchArtifactPolicy(tb testing.TB, snap *View) {
 	if got := snapshotSearch(tb, snap.Search(), "Card"); len(got) != 1 || got[0].RelPath != "System/templates/Card.md" {
 		tb.Errorf("plain search = %+v, want readable template", got)
 	}
-	counts, err := snap.Search().CountByStatus()
-	if err != nil {
-		tb.Fatalf("CountByStatus() error: %v", err)
-	}
+	counts := searchStatusCounts(tb, snap.Search())
 	if counts["ready"] != 0 || counts["draft"] != 1 {
 		tb.Errorf("status counts = %v, want draft instance only", counts)
 	}
+}
+
+// searchStatusCounts folds the index's (type, status) tally down to a
+// status-keyed one, which is the shape these assertions read. The index counts
+// the pair because a status means something different per note type; a test
+// naming one status across every type wants the flattened sum.
+func searchStatusCounts(tb testing.TB, idx *search.Index) map[string]int {
+	tb.Helper()
+	pairs, err := idx.CountByTypeStatus()
+	if err != nil {
+		tb.Fatalf("CountByTypeStatus() error: %v", err)
+	}
+	counts := make(map[string]int, len(pairs))
+	for pair, n := range pairs {
+		counts[pair.Status] += n
+	}
+	return counts
 }
 
 func testContract(tb testing.TB, root string) *schema.Contract {
@@ -162,29 +177,20 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 	if got := snapshotSearch(t, view.Search(), "Foo")[0].Title; got != "Foo" {
 		t.Errorf("Search(Foo) after mutation starts with title %q, want %q", got, "Foo")
 	}
-	counts, err := view.Search().CountByStatus()
+	counts, err := view.Search().CountByTypeStatus()
 	if err != nil {
-		t.Fatalf("CountByStatus() error = %v", err)
+		t.Fatalf("CountByTypeStatus() error = %v", err)
 	}
-	counts["draft"] = 0
-	counts, err = view.Search().CountByStatus()
+	before := maps.Clone(counts)
+	for pair := range counts {
+		counts[pair] = 0
+	}
+	counts, err = view.Search().CountByTypeStatus()
 	if err != nil {
-		t.Fatalf("CountByStatus() after mutation error = %v", err)
+		t.Fatalf("CountByTypeStatus() after mutation error = %v", err)
 	}
-	if counts["draft"] != 2 {
-		t.Errorf("CountByStatus()[draft] after mutation = %d, want 2", counts["draft"])
-	}
-	allowed, err := view.Search().AllowedPaths(search.Parse("folder:A"))
-	if err != nil {
-		t.Fatalf("AllowedPaths(folder:A) error = %v", err)
-	}
-	delete(allowed, "A/Foo.md")
-	allowed, err = view.Search().AllowedPaths(search.Parse("folder:A"))
-	if err != nil {
-		t.Fatalf("AllowedPaths(folder:A) after mutation error = %v", err)
-	}
-	if _, ok := allowed["A/Foo.md"]; !ok {
-		t.Error("AllowedPaths(folder:A) lost A/Foo.md after caller mutation")
+	if diff := cmp.Diff(before, counts); diff != "" {
+		t.Errorf("CountByTypeStatus() after caller mutation (-before +after):\n%s", diff)
 	}
 
 	slot, ok := view.Slots().Lookup("lesson-l01")
@@ -224,8 +230,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if !requestA.ArtifactPolicy().Available() {
 		t.Error("request-captured ArtifactPolicy changed while the response was in flight")
 	}
-	if _, err := requestA.Search().CountByStatus(); err != nil {
-		t.Errorf("request-captured Search.CountByStatus() error = %v, want stable authority", err)
+	if _, err := requestA.Search().CountByTypeStatus(); err != nil {
+		t.Errorf("request-captured Search.CountByTypeStatus() error = %v, want stable authority", err)
 	}
 	// Notes are answered before files, and the contract is a vault file whose
 	// characters a reader can open, so it joins the text corpus and can share a
@@ -238,8 +244,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if requestB.ArtifactPolicy().Available() {
 		t.Error("next ArtifactPolicy capture remained available after its source changed")
 	}
-	if _, err := requestB.Search().CountByStatus(); !errors.Is(err, search.ErrMetadataUnavailable) {
-		t.Errorf("next Search.CountByStatus() error = %v, want ErrMetadataUnavailable", err)
+	if _, err := requestB.Search().CountByTypeStatus(); !errors.Is(err, search.ErrMetadataUnavailable) {
+		t.Errorf("next Search.CountByTypeStatus() error = %v, want ErrMetadataUnavailable", err)
 	}
 	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
 		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Status != "" {
@@ -258,7 +264,7 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 		{name: "captured before the source changed", view: requestA},
 		{name: "captured after the source changed", view: requestB},
 	} {
-		_, countErr := tt.view.Search().CountByStatus()
+		_, countErr := tt.view.Search().CountByTypeStatus()
 		if got, want := tt.view.ArtifactPolicy().Available(), countErr == nil; got != want {
 			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers counts = %t; "+
 				"one request would combine two disagreeing authorities", tt.name, got, want)
@@ -559,7 +565,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	store, _ := newTestStore(t, root, contract)
 
 	first := store.Current()
-	if len(first.Navigation().Paths()) != 1 || first.Navigation().ArtifactDiagnostic() != "" || first.Navigation().NavigationDiagnostic() != "" {
+	if len(first.Navigation().Paths()) != 1 || first.Navigation().ArtifactClosure().Diagnostic() != "" || first.Navigation().NavigationClosure().Diagnostic() != "" {
 		t.Fatalf("initial navigation = %+v, want one available path", first.Navigation())
 	}
 	if !first.ArtifactPolicy().IsNonInstance("System/templates/Card.md") {
@@ -577,7 +583,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if got == first {
 		t.Fatal("rescan did not publish a new snapshot after the contract file appeared")
 	}
-	if len(got.Navigation().Paths()) != 0 || got.Navigation().ArtifactDiagnostic() == "" || got.Navigation().NavigationDiagnostic() != "" {
+	if len(got.Navigation().Paths()) != 0 || got.Navigation().ArtifactClosure().Diagnostic() == "" || got.Navigation().NavigationClosure().Diagnostic() != "" {
 		t.Errorf("rescanned navigation = %+v, want artifact-dependent projection unavailable", got.Navigation())
 	}
 	if got.ArtifactPolicy().Available() || got.ArtifactPolicy().IsNonInstance("System/templates/Card.md") {
@@ -607,10 +613,10 @@ func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 	if snap.ArtifactPolicy().Available() {
 		t.Fatal("Snapshot.ArtifactPolicy().Available() = true, want no held declaration")
 	}
-	if snap.Navigation().NavigationDiagnostic() != "" || snap.Navigation().ArtifactDiagnostic() != "" {
-		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationDiagnostic(), snap.Navigation().ArtifactDiagnostic())
+	if snap.Navigation().NavigationClosure().Diagnostic() != "" || snap.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationClosure().Diagnostic(), snap.Navigation().ArtifactClosure().Diagnostic())
 	}
-	if snap.Navigation().InstanceProjectionsClosed() {
+	if snap.Navigation().ArtifactClosure().Closed() {
 		t.Error("instance projections closed for a folder that never claimed governance")
 	}
 	if len(snap.Navigation().Paths()) != 0 || len(snap.Navigation().Maps()) != 0 {
@@ -655,7 +661,7 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	}
 	snap := store.Current()
 
-	if !snap.Navigation().InstanceProjectionsClosed() {
+	if !snap.Navigation().ArtifactClosure().Closed() {
 		t.Error("instance projections stayed open under a contract that could not be read")
 	}
 	if len(snap.Navigation().KnowledgeNotes()) != 0 {
@@ -1183,6 +1189,17 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	}
 	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
 		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
+	}
+	// The carried copy has to answer everywhere the note it replaces did. Its
+	// own page says the words are searchable, and a generation that said so
+	// while leaving them out of the index would answer "nothing found" about
+	// text it is showing on screen at the same moment.
+	if !kept.Searchable {
+		t.Fatalf("the carried copy says its words are not searchable: %+v", kept)
+	}
+	found := snapshotSearch(t, degraded.Search(), "the words read before the file shut")
+	if len(found) != 1 || found[0].RelPath != carried {
+		t.Errorf("searching the carried copy's own words = %+v, want the note whose page is showing them", found)
 	}
 	if unread, ok := degraded.Note(never); ok {
 		t.Errorf("a file the folder has never had a reading of was published with a body: %+v", unread)

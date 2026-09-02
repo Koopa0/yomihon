@@ -422,7 +422,7 @@ func TestSlotIndexZeroValue(t *testing.T) {
 }
 
 // problemMessages flattens a generation's sidecar problems for assertion.
-func problemMessages(problems lesson.Problems) []string {
+func problemMessages(problems []lesson.Problem) []string {
 	out := make([]string, 0, len(problems))
 	for _, p := range problems {
 		out = append(out, p.Message)

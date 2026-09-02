@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -47,7 +46,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 
 	shell := h.shell()
-	current := findPath(shell.Nav, rel)
+	current := shell.Nav.Path(rel)
 	if current == nil {
 		http.Error(w, wording.PathNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
 		return
@@ -57,19 +56,4 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if err := pages.Syllabus(view, pages.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Error("write syllabus page", "path", rel, "error", err)
 	}
-}
-
-// findPath returns the study-path with the given vault-relative path, or nil
-// when the model is nil or none matches.
-func findPath(model *nav.Model, rel string) *nav.Path {
-	if model == nil {
-		return nil
-	}
-	paths := model.Paths()
-	for i := range paths {
-		if paths[i].RelPath == rel {
-			return &paths[i]
-		}
-	}
-	return nil
 }

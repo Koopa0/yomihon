@@ -69,7 +69,7 @@ func NewSidebar(model *nav.Model, currentPath string, lang wording.Lang) Sidebar
 
 	sb.HereDir, sb.Here = model.Siblings(currentPath)
 	sb.Here, sb.HereTrimmed = windowAround(sb.Here, currentPath)
-	sb.Steps = model.Neighbors(currentPath)
+	sb.Steps = model.PathNeighbors(currentPath)
 
 	// Open every map branch that lists the current note, down to the
 	// branch it sits in (each heading prefix, so the ancestors open too).
@@ -84,16 +84,8 @@ func NewSidebar(model *nav.Model, currentPath string, lang wording.Lang) Sidebar
 	// A map or study path being read is its own wayfinding: the drawer
 	// holding it opens with its tree, the same as for a note the map places.
 	// Placements cannot say this — a map does not place itself.
-	for _, m := range model.Maps() {
-		if m.RelPath == currentPath {
-			sb.openMaps[currentPath] = true
-		}
-	}
-	paths := model.Paths()
-	for i := range paths {
-		if paths[i].RelPath == currentPath {
-			sb.openMaps[currentPath] = true
-		}
+	if model.IsMap(currentPath) || model.IsPath(currentPath) {
+		sb.openMaps[currentPath] = true
 	}
 
 	// Expand the folder branches on the path down to the current note.
@@ -139,10 +131,7 @@ func currentAttr(isCurrent bool) templ.Attributes {
 // pathsChainOpen reports whether a study path holds the current note, which
 // makes the surrounding group part of the wayfinding chain.
 func (s *Sidebar) pathsChainOpen() bool {
-	if s.Model == nil {
-		return false
-	}
-	return slices.ContainsFunc(s.Model.Paths(), func(path nav.Path) bool { return s.openMaps[path.RelPath] })
+	return s.chainOpen(s.Model.IsPath)
 }
 
 // The type drawers open to meet the page the reader is on: the journal drawer
@@ -157,10 +146,20 @@ func (s *Sidebar) pathsChainOpen() bool {
 // mapsChainOpen reports whether a general map holds — or is — the current
 // note, which makes the surrounding group part of the wayfinding chain.
 func (s *Sidebar) mapsChainOpen() bool {
-	if s.Model == nil {
-		return false
+	return s.chainOpen(s.Model.IsMap)
+}
+
+// chainOpen reports whether anything the wayfinding opened is of the kind
+// belongs answers for. The open set is the handful of maps and courses that
+// place the current note, plus the note itself when it is one of them, so the
+// question is asked of those names rather than of every tree in the model.
+func (s *Sidebar) chainOpen(belongs func(relPath string) bool) bool {
+	for relPath := range s.openMaps {
+		if belongs(relPath) {
+			return true
+		}
 	}
-	return slices.ContainsFunc(s.Model.Maps(), func(m nav.Map) bool { return s.openMaps[m.RelPath] })
+	return false
 }
 
 // journalOpen reports whether the page being read lives in the journal.
@@ -298,8 +297,8 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 	if s.Model == nil {
 		return nil
 	}
-	navigation := s.Model.NavigationDiagnostic()
-	artifact := s.Model.ArtifactDiagnostic()
+	navigation := s.Model.NavigationClosure().Diagnostic()
+	artifact := s.Model.ArtifactClosure().Diagnostic()
 	switch {
 	case navigation != "" && navigation == artifact:
 		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(s.Lang), Detail: navigation}}
@@ -345,10 +344,10 @@ func FooterSequence(model *nav.Model, relPath string, lang wording.Lang) (prev, 
 	if model == nil || relPath == "" {
 		return prev, next, "", false
 	}
-	if steps := model.Neighbors(relPath); len(steps) == 1 {
+	if steps := model.PathNeighbors(relPath); len(steps) == 1 {
 		return steps[0].Prev, steps[0].Next, fmt.Sprintf(wording.CourseOrderOf.In(lang), steps[0].PathTitle), true
 	}
-	prev, next = model.Adjacent(relPath)
+	prev, next = model.FolderStep(relPath)
 	return prev, next, wording.FolderAdjacency.In(lang), false
 }
 

@@ -4,10 +4,10 @@
 package shell
 
 import (
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
 // Project derives one shell from one vault snapshot and the two immutable
@@ -20,9 +20,9 @@ func Project(
 	lifecycle status.View,
 	policy schema.ArtifactPolicy,
 	snap *snapshot.View,
-) pages.Shell {
+) nav.Shell {
 	governed := lifecycle.Governed()
-	projected := pages.Shell{Nav: snap.Navigation(), Governed: governed}
+	projected := nav.Shell{Nav: snap.Navigation(), Governed: governed}
 	// The two authorities are sampled at different instants, so a projection
 	// stays open only while both are still answerable. Either one refusing
 	// closes the shared navigation, whichever was captured first.

@@ -8,7 +8,6 @@
 package search
 
 import (
-	"cmp"
 	"errors"
 	"path"
 	"slices"
@@ -150,8 +149,9 @@ type entry struct {
 	frontmatterUnreadable bool
 }
 
-// Index is the whole in-memory search index: entries kept sorted by RelPath so
-// each result bucket is naturally rel_path-ordered without a sort call.
+// Index is the whole in-memory search index: entries kept in the vault's
+// reading order (vault.ComparePaths) so each result bucket inherits that order
+// without a sort call.
 // Read-only once built. Each entry records whether its frontmatter is instance
 // metadata, while the index records whether metadata projections are available
 // at all. Entries are held by pointer so a query iterates 8-byte pointers rather
@@ -188,8 +188,9 @@ func (idx *Index) metadataUnavailableError() error {
 // NewIndex builds an Index from already-extracted note data and a startup-
 // derived artifact policy, with no disk access. Every document remains in the
 // text and folder corpus; policy marks which entries may answer metadata
-// projections. Entries are sorted by RelPath at build time, which is the sole
-// source of result ordering. docs is expected to carry one entry per RelPath;
+// projections. Entries are sorted into the vault's reading order at build
+// time, which is the sole source of result ordering. docs is expected to carry
+// one entry per RelPath;
 // the sort is stable so that if a caller ever violates that and passes two
 // documents sharing a RelPath, their relative order is at least their input
 // order rather than an unspecified one.
@@ -200,7 +201,7 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 		entries = append(entries, &e)
 	}
 	slices.SortStableFunc(entries, func(a, b *entry) int {
-		return cmp.Compare(a.RelPath, b.RelPath)
+		return vault.ComparePaths(a.RelPath, b.RelPath)
 	})
 	return &Index{entries: entries, policy: policy}
 }
@@ -302,45 +303,13 @@ func (idx *Index) Len() int {
 	return len(idx.entries)
 }
 
-// CountByStatus tallies indexed notes by their canonical (NFC) status in a
-// single pass; notes with no status land in the "" bucket. It is the primitive
-// Home's Lifecycle block uses to show a live count beside each schema
-// status, instead of running a full Search per status value. The status
-// vocabulary the caller displays still comes from the schema contract;
-// this only counts metadata-capable entries the index already holds. An
-// artifact policy that was declared and could not be honoured returns
-// ErrMetadataUnavailable with its contract diagnostic instead of a misleading
-// empty map; one that was never declared excludes nothing and counts normally.
-func (idx *Index) CountByStatus() (map[string]int, error) {
-	if !idx.policy.Trustworthy() {
-		return nil, idx.metadataUnavailableError()
-	}
-	counts := make(map[string]int, len(idx.entries))
-	for _, e := range idx.entries {
-		if !e.metadataCapable {
-			continue
-		}
-		counts[e.Status]++
-	}
-	return counts, nil
-}
-
 // TypeStatus is a note's (type, status) pair. Which onward transitions a status
 // allows depends on the note type, so a caller that weighs those transitions
-// needs both together — something CountByStatus, keyed on status alone, cannot
-// supply.
+// needs both together — a tally keyed on status alone cannot supply it.
 type TypeStatus struct {
 	Type   string
 	Status string
 }
-
-// CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
-// in a single pass. It is the primitive the reading page uses to weigh each note's
-// onward transitions against the schema contract without re-reading the vault:
-// the transition rules key on type as well as status, so the flatter
-// CountByStatus does not carry enough. A note missing either field lands in that
-// field's "" bucket. An artifact policy that was declared and could not be
-// honoured returns ErrMetadataUnavailable with its contract diagnostic.
 
 // CountUnreadableFrontmatter reports how many of the notes this index counts
 // had a frontmatter block that could not be parsed.
@@ -365,6 +334,13 @@ func (idx *Index) CountUnreadableFrontmatter() (int, error) {
 	return unreadable, nil
 }
 
+// CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
+// in a single pass. It is the primitive the reading page uses to weigh each note's
+// onward transitions against the schema contract without re-reading the vault:
+// the transition rules key on type as well as status, so a tally keyed on
+// status alone does not carry enough. A note missing either field lands in that
+// field's "" bucket. An artifact policy that was declared and could not be
+// honoured returns ErrMetadataUnavailable with its contract diagnostic.
 func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
 	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()
@@ -390,7 +366,7 @@ type StatusHolder struct {
 }
 
 // StatusHolders lists every metadata-capable note carrying a status, in the
-// index's own RelPath order, so a caller can rule on each one against the
+// index's own reading order, so a caller can rule on each one against the
 // contract and reach the file it found. It applies exactly the tests
 // CountByTypeStatus applies, and returns the same notes that tally counts —
 // a page deriving both a number and a list from one call cannot state a

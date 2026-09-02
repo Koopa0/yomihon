@@ -50,7 +50,7 @@ func newBacklinks(notes []*vault.Note, idx *graph.Index) *Backlinks {
 	}
 	for path := range b.byTarget {
 		slices.SortFunc(b.byTarget[path], func(a, c nav.NoteRef) int {
-			return cmp.Or(cmp.Compare(a.Name, c.Name), cmp.Compare(a.RelPath, c.RelPath))
+			return cmp.Or(vault.ComparePaths(a.Name, c.Name), vault.ComparePaths(a.RelPath, c.RelPath))
 		})
 	}
 	return b

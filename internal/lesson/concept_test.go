@@ -277,3 +277,27 @@ func TestDocumentRendersAgainstTheConceptsOwnPath(t *testing.T) {
 		t.Errorf("doc.HTML = %q, want the concept's own path %q as the render base", doc.HTML, want)
 	}
 }
+
+// A miswired renderer is not an answer about a path. Reported as "this is not
+// a concept" it emptied every sheet in the vault at once and logged nothing,
+// so the page rendered as though nobody had written a concept note.
+func TestAMiswiredRendererIsAFaultRatherThanAnAnswer(t *testing.T) {
+	t.Parallel()
+
+	idx, err := lesson.NewConceptIndex([]*vault.Note{
+		conceptNote("japanese", "は.md", "---\ntitle: は\n---\n\nthe topic particle\n"),
+	})
+	if err != nil {
+		t.Fatalf("NewConceptIndex() error = %v", err)
+	}
+	if _, ok := idx.IDForPath("Concepts/japanese/は.md"); !ok {
+		t.Fatal("the fixture is not in the index, so the assertion below would pass vacuously")
+	}
+
+	defer func() {
+		if recover() == nil {
+			t.Error("Document(nil, …) answered that a concept note is not a concept")
+		}
+	}()
+	idx.Document(nil, "Concepts/japanese/は.md")
+}

@@ -34,19 +34,13 @@ func titlesByName(notes []*vault.Note) map[string][]nav.NoteRef {
 	}
 	for key := range byTitle {
 		slices.SortFunc(byTitle[key], func(a, b nav.NoteRef) int {
-			if a.RelPath == b.RelPath {
-				return 0
-			}
-			if a.RelPath < b.RelPath {
-				return -1
-			}
-			return 1
+			return vault.ComparePaths(a.RelPath, b.RelPath)
 		})
 	}
 	return byTitle
 }
 
-// TitledBy names every note whose declared title is name, in path order, and
+// TitledBy names every note whose declared title is name, in reading order, and
 // returns nothing when no note declares it.
 //
 // It answers the question the resolver is built not to answer, and it answers

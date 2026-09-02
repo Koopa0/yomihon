@@ -53,9 +53,9 @@ const (
 // token in TitleFold) first, then a note's body hits (every token in PlainFold,
 // not already a title hit), then the same two groups over vault files that are
 // not notes, and last the path-only hits — entries whose tokens matched nothing
-// but where they live — notes again before files. Because entries are kept
-// sorted by RelPath, each group is already rel_path-ordered, so concatenation
-// is the whole order — no sort call.
+// but where they live — notes again before files. Because entries are kept in
+// the vault's reading order, each group already carries it, so concatenation is
+// the whole order — no sort call.
 //
 // Notes come before files under each kind of evidence, and every text hit
 // outranks every path-only hit: matched words are a better answer than a
@@ -66,7 +66,7 @@ const (
 //
 // An empty query (no tokens and no filters) returns nothing. A pure-filter
 // query is legal: with no tokens the title-bucket token test is vacuously true,
-// so every filter match lands in the (rel_path-ordered) title bucket.
+// so every filter match lands in the title bucket, in reading order.
 // Metadata filters exclude non-instance artifacts. If the artifact policy was
 // declared and could not be honoured, a query containing such a filter returns
 // ErrMetadataUnavailable with the contract diagnostic; text and folder queries
@@ -100,7 +100,7 @@ func (idx *Index) search(q *Query, limit int) (results []Result, total int, err 
 		if !e.matchesFilters(q.filters) {
 			continue
 		}
-		answers.bucket(e, q.tokens)
+		answers.place(e, q.tokens)
 	}
 	hits := answers.ordered()
 	total = len(hits)
@@ -127,25 +127,41 @@ type hit struct {
 	alias string
 }
 
-// resultBuckets keeps the six answer groups apart while one pass over the
-// entries fills them, so the final order is a concatenation rather than a sort:
-// entries are already kept in rel-path order, and each group inherits it.
+// bucket names one answer group. This declaration order is the result order,
+// and it is the only statement of it: ordered() reads the groups as they are
+// declared here, so a group moves by moving its constant.
+//
+// Notes come before files under each kind of evidence, and both kinds of text
+// evidence come before an address: a note whose words match is a better answer
+// than one that merely lives in a folder of that name, so widening what can be
+// found moves nothing that could be found already.
+type bucket uint8
+
+const (
+	titleNote bucket = iota
+	bodyNote
+	titleFile
+	bodyFile
+	pathNote
+	pathFile
+	bucketCount
+)
+
+// resultBuckets keeps the answer groups apart while one pass over the entries
+// fills them, so the final order is a concatenation rather than a sort:
+// entries are already kept in the vault's reading order, and each group
+// inherits it.
 type resultBuckets struct {
-	titleNotes []hit
-	bodyNotes  []hit
-	titleFiles []hit
-	bodyFiles  []hit
-	pathNotes  []hit
-	pathFiles  []hit
+	groups [bucketCount][]hit
 }
 
-// bucket files one filter-matching entry into its answer group by what the
+// place files one filter-matching entry into its answer group by what the
 // tokens matched: the title, the body, or only the path.
-func (b *resultBuckets) bucket(e *entry, tokens []string) {
+func (b *resultBuckets) place(e *entry, tokens []string) {
 	switch {
 	case allContain(e.TitleFold, tokens):
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.add(hit{entry: e, bodyEvidence: bodyEvidence}, true)
+		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence})
 	case aliasAnswering(e, tokens) != "":
 		// A name the note answers to, standing with its title: a link written
 		// to an alias resolves and one written to a title does not, so an
@@ -153,77 +169,30 @@ func (b *resultBuckets) bucket(e *entry, tokens []string) {
 		// answered travels with the hit because the row shows the title, and
 		// a reader who typed something else is owed the reason it is here.
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.add(hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)}, true)
+		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
-		b.add(hit{entry: e, bodyEvidence: true}, false)
+		b.add(bodyNote, bodyFile, hit{entry: e, bodyEvidence: true})
 	case allContain(e.PathFold, tokens):
-		// Last, and appended after every other group, so widening what can
-		// be found still moves nothing that could be found already. A note
-		// whose words match is always the better answer than one that
-		// merely lives in a folder of that name.
-		b.addPathHit(hit{entry: e})
+		b.add(pathNote, pathFile, hit{entry: e})
 	}
 }
 
-// addPathHit files a hit matched only by where the note lives.
-func (b *resultBuckets) addPathHit(h hit) {
+// add files one hit under the group its evidence and its kind put it in. Each
+// kind of evidence has two groups — one for a note, one for a vault file — and
+// the hit already carries which of the two it is, so the caller names the pair
+// and never chooses between them.
+func (b *resultBuckets) add(note, file bucket, h hit) {
+	g := note
 	if h.entry.isFile {
-		b.pathFiles = append(b.pathFiles, h)
-		return
+		g = file
 	}
-	b.pathNotes = append(b.pathNotes, h)
+	b.groups[g] = append(b.groups[g], h)
 }
 
-func (b *resultBuckets) add(h hit, titleMatch bool) {
-	switch {
-	case titleMatch && !h.entry.isFile:
-		b.titleNotes = append(b.titleNotes, h)
-	case titleMatch:
-		b.titleFiles = append(b.titleFiles, h)
-	case !h.entry.isFile:
-		b.bodyNotes = append(b.bodyNotes, h)
-	default:
-		b.bodyFiles = append(b.bodyFiles, h)
-	}
-}
-
-// ordered flattens the groups into the answer: a note's title hits, a note's
-// body hits, the same two over files, then the path-only hits, notes before
-// files.
+// ordered flattens the groups into the answer, in the order the constants are
+// declared in.
 func (b *resultBuckets) ordered() []hit {
-	out := make([]hit, 0,
-		len(b.titleNotes)+len(b.bodyNotes)+len(b.titleFiles)+len(b.bodyFiles)+len(b.pathNotes)+len(b.pathFiles))
-	out = append(out, b.titleNotes...)
-	out = append(out, b.bodyNotes...)
-	out = append(out, b.titleFiles...)
-	out = append(out, b.bodyFiles...)
-	out = append(out, b.pathNotes...)
-	out = append(out, b.pathFiles...)
-	return out
-}
-
-// AllowedPaths returns the paths that satisfy q's structured filters. Bare
-// text tokens are deliberately ignored: callers use this set to constrain a
-// separate retrieval channel before that channel applies its own ranking.
-// Metadata filters retain Search's instance-capability behavior, including a
-// loud error when the artifact policy could not be honoured. With no filters,
-// every indexed path is allowed.
-func (idx *Index) AllowedPaths(q *Query) (map[string]struct{}, error) {
-	requiresMetadata := q.RequiresMetadata()
-	if requiresMetadata && !idx.policy.Trustworthy() {
-		return nil, idx.metadataUnavailableError()
-	}
-
-	paths := make(map[string]struct{}, len(idx.entries))
-	for _, e := range idx.entries {
-		if requiresMetadata && !e.metadataCapable {
-			continue
-		}
-		if e.matchesFilters(q.filters) {
-			paths[e.RelPath] = struct{}{}
-		}
-	}
-	return paths, nil
+	return slices.Concat(b.groups[:]...)
 }
 
 // aliasAnswering returns the note's own spelling of the first alias that holds

@@ -81,12 +81,14 @@ func TestViewConcurrentReadersCannotMutateGeneration(t *testing.T) {
 						continue
 					}
 					results[0].Title = "mutated"
-					counts, err := request.Search().CountByStatus()
+					counts, err := request.Search().CountByTypeStatus()
 					if err != nil {
-						t.Errorf("CountByStatus() error = %v", err)
+						t.Errorf("CountByTypeStatus() error = %v", err)
 						continue
 					}
-					counts["draft"] = 0
+					for pair := range counts {
+						counts[pair] = 0
+					}
 
 					slot, ok := request.Slots().Lookup("lesson-l01")
 					if !ok {

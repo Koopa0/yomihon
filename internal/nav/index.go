@@ -1,7 +1,6 @@
 package nav
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -33,6 +32,42 @@ func (m *Model) Placements(relPath string) []Placement {
 		placements[i].Headings = slices.Clone(placements[i].Headings)
 	}
 	return placements
+}
+
+// IsPath reports whether relPath names one of the study paths, and IsMap the
+// same for a general map. A page asking whether the note it is showing is
+// itself one of them asks by name, so neither has to copy a tree to answer.
+func (m *Model) IsPath(relPath string) bool {
+	return m.indexOfPath(relPath) >= 0
+}
+
+// IsMap reports whether relPath names one of the general maps.
+func (m *Model) IsMap(relPath string) bool {
+	if m == nil {
+		return false
+	}
+	return slices.IndexFunc(m.maps, func(x Map) bool { return x.RelPath == relPath }) >= 0
+}
+
+// Path returns the study path at relPath, or nil when no course in this
+// generation answers to that name. What comes back is the caller's own, under
+// the rule Paths states — one course copied rather than every one of them,
+// which is what a page showing a single syllabus was reaching for.
+func (m *Model) Path(relPath string) *Path {
+	at := m.indexOfPath(relPath)
+	if at < 0 {
+		return nil
+	}
+	cloned := m.paths[at].clone()
+	return &cloned
+}
+
+// indexOfPath is where relPath sits among the study paths, or -1.
+func (m *Model) indexOfPath(relPath string) int {
+	if m == nil {
+		return -1
+	}
+	return slices.IndexFunc(m.paths, func(p Path) bool { return p.RelPath == relPath })
 }
 
 // Siblings returns the files sharing a directory with the note at relPath — the
@@ -122,12 +157,14 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 		seen[child] = true
 		subfolders = append(subfolders, NoteRef{Name: child, RelPath: prefix + child})
 	}
-	slices.SortFunc(subfolders, func(a, b NoteRef) int { return cmp.Compare(a.Name, b.Name) })
+	slices.SortFunc(subfolders, func(a, b NoteRef) int { return vault.ComparePaths(a.Name, b.Name) })
 	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
 }
 
-// Adjacent returns the neighbors on either side of relPath inside its own
-// folder, in the folder's captured order. A folder of dated entries is a line,
+// FolderStep returns the neighbors on either side of relPath inside its own
+// folder, in the folder's captured order — the folder's answer to what is
+// near this note, where PathNeighbors gives a course's. A folder of dated
+// entries is a line,
 // and a reader walking it wants the next one — which the rail can only offer
 // as a scroll through everything the folder holds.
 //
@@ -138,7 +175,7 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 // own page. From a file that is not a note, the walk is the whole folder,
 // because a run of scans or figures is its own line. A course's lessons, a
 // month of entries, and a book's chapters remain the same shape on disk.
-func (m *Model) Adjacent(relPath string) (prev, next NoteRef) {
+func (m *Model) FolderStep(relPath string) (prev, next NoteRef) {
 	if m == nil || relPath == "" {
 		return NoteRef{}, NoteRef{}
 	}

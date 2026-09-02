@@ -109,8 +109,8 @@ func TestPrimaryAndLocalNeverLinkToEachOther(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tt.want, m.Neighbors(tt.at)); diff != "" {
-				t.Errorf("Neighbors(%q) mismatch (-want +got):\n%s", tt.at, diff)
+			if diff := cmp.Diff(tt.want, m.PathNeighbors(tt.at)); diff != "" {
+				t.Errorf("PathNeighbors(%q) mismatch (-want +got):\n%s", tt.at, diff)
 			}
 		})
 	}

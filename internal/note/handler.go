@@ -416,7 +416,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		lifecycleClosed = true
 	}
 	visibleNav := pageShell.Nav
-	recentClosed := visibleNav.InstanceProjectionsClosed()
+	recentClosed := visibleNav.ArtifactClosure().Closed()
 	var recent []pages.HomeNote
 	recentOrdered := false
 	if !recentClosed {
@@ -452,8 +452,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		// write authority happens to know about.
 		Fault: statedOnce(
 			statusView.Diagnostic(),
-			visibleNav.NavigationDiagnostic(),
-			visibleNav.ArtifactDiagnostic(),
+			visibleNav.NavigationClosure().Diagnostic(),
+			visibleNav.ArtifactClosure().Diagnostic(),
 		),
 		PrivacyFault:   snap.PrivacyPolicy().Diagnostic(),
 		Degraded:       degradedNotice(&fresh, pages.LanguageFromRequest(r)),
@@ -748,7 +748,7 @@ type governanceState struct {
 }
 
 func (h *Handler) governance(
-	n *snapshot.Note,
+	n *snapshot.Reading,
 	snap *snapshot.View,
 	statusView status.View,
 	policy schema.ArtifactPolicy,

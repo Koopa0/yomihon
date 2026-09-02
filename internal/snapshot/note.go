@@ -8,10 +8,12 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Note is the immutable reading projection of one Markdown file captured in a
-// View. It contains no map, slice, filesystem handle, or live contract
-// reference, so returning it by value cannot mutate a published generation.
-type Note struct {
+// Reading is the immutable projection of one Markdown file captured in a View,
+// as a reading page shows it. It contains no map, slice, filesystem handle, or
+// live contract reference, so returning it by value cannot mutate a published
+// generation. It is named for what it is rather than for the file, because the
+// parsed source of that same file is a vault.Note and a build loop holds both.
+type Reading struct {
 	RelPath            string
 	Title              string
 	Body               string
@@ -46,16 +48,16 @@ type Note struct {
 	Stale bool
 }
 
-func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, searchable bool) Note {
+func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, searchable bool) Reading {
 	if parsed == nil {
-		return Note{}
+		return Reading{}
 	}
 	language, err := languages.Resolve(parsed.Frontmatter)
 	diagnostic := ""
 	if err != nil {
 		diagnostic = err.Error()
 	}
-	return Note{
+	return Reading{
 		RelPath:            parsed.RelPath,
 		Title:              parsed.Title(),
 		Body:               parsed.Body,

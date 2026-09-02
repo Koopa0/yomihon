@@ -2,6 +2,7 @@ package lesson
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 )
 
@@ -114,7 +115,12 @@ func PatternJSON(p Pattern) string {
 	}
 	b, err := json.Marshal(js)
 	if err != nil {
-		return `{"keys":[]}` // unreachable: jsPattern has no unmarshalable fields
+		// The wire struct is this package's own and holds only strings,
+		// slices of them and a string-keyed map, so nothing in it can refuse
+		// to encode. Returning an empty pattern instead would draw a slot card
+		// with no slots — a lesson quietly missing its practice panel, which
+		// reads as an authoring mistake rather than as the fault it is.
+		panic(fmt.Sprintf("lesson: pattern %q cannot be encoded: %v", p.ID, err))
 	}
 	return string(b)
 }

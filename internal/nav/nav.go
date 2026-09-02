@@ -40,6 +40,16 @@ import (
 // sentence worth printing, and a projection that is simply empty must stay
 // distinguishable from one that was withheld. The zero Closure is open — the
 // contents are the vault's true answer.
+//
+// It is a type of its own rather than the declaration outcome it holds
+// because the two answer different questions about the same value. What the
+// vault declared may be untrustworthy — that is a fact about a declaration,
+// and it is the declaring package's word. Whether this navigation projection
+// was withheld is a fact about a list a reader is looking at, and it is the
+// only form of the question a page can act on: show the sidebar's courses, or
+// say why there are none. One follows from the other today, and naming them
+// apart is what lets a projection be withheld for a reason that is not a bad
+// declaration without every page having to be rewritten.
 type Closure struct {
 	claim schema.Claim
 }
@@ -124,28 +134,6 @@ func (m *Model) ArtifactClosure() Closure {
 	return m.artifact
 }
 
-// NavigationDiagnostic explains why contract-derived paths and maps could not
-// be built. It is empty when navigation roles were read cleanly, empty when
-// nothing declared them, and empty when a broader fault owns the sentence — ask
-// NavigationClosure whether the projection was withheld.
-func (m *Model) NavigationDiagnostic() string {
-	return m.NavigationClosure().Diagnostic()
-}
-
-// ArtifactDiagnostic explains why instance projections could not be built,
-// under the same rule as NavigationDiagnostic.
-func (m *Model) ArtifactDiagnostic() string {
-	return m.ArtifactClosure().Diagnostic()
-}
-
-// InstanceProjectionsClosed reports whether the artifact-dependent projections
-// were withheld rather than genuinely empty. Without it a vault whose
-// exclusions could not be read is indistinguishable from a vault that has no
-// study paths, which is the conflation this model exists to keep apart.
-func (m *Model) InstanceProjectionsClosed() bool {
-	return m.ArtifactClosure().Closed()
-}
-
 // Folders returns the top-level lifecycle folders in vault order. The complete
 // returned tree is independent of the model.
 func (m *Model) Folders() []Folder {
@@ -161,6 +149,26 @@ func (m *Model) RootNotes() []NoteRef {
 		return nil
 	}
 	return slices.Clone(m.rootNotes)
+}
+
+// PathCount reports how many study paths the model holds. It is here so that
+// asking whether there is a course to show costs a length rather than a copy
+// of every branch tree: Paths hands the caller its own tree, which is the
+// right answer to "walk them" and a heavy one to "are there any".
+func (m *Model) PathCount() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.paths)
+}
+
+// MapCount reports how many general maps the model holds, under PathCount's
+// rule.
+func (m *Model) MapCount() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.maps)
 }
 
 // Paths returns the study paths in vault path order. Everything the caller
@@ -333,7 +341,7 @@ func New(
 
 	observed := slices.Clone(entries)
 	slices.SortFunc(observed, func(a, b vault.Entry) int {
-		return comparePathsForReading(a.Path(), b.Path())
+		return vault.ComparePaths(a.Path(), b.Path())
 	})
 	files := make([]capturedFile, 0, len(observed))
 	for _, entry := range observed {
@@ -505,7 +513,7 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 	// journal answers: a clone stamps every entry with one moment, and an
 	// entry edited today is not today's entry.
 	slices.SortStableFunc(entries, func(a, b JournalEntry) int {
-		return comparePathsForReading(b.RelPath, a.RelPath)
+		return vault.ComparePaths(b.RelPath, a.RelPath)
 	})
 	if len(entries) > limit {
 		entries = entries[:limit]

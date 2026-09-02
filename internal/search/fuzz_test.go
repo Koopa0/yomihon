@@ -48,7 +48,7 @@ func FuzzParse(f *testing.F) {
 		if first.RequiresMetadata() != metadata {
 			t.Errorf("Parse(%q).RequiresMetadata() = %v, want %v", raw, first.RequiresMetadata(), metadata)
 		}
-		if utf8.ValidString(raw) && (!utf8.ValidString(first.bareText) || !allValidStrings(first.tokens) || !validFilters(first.filters)) {
+		if utf8.ValidString(raw) && (!allValidStrings(first.tokens) || !validFilters(first.filters)) {
 			t.Errorf("Parse(valid UTF-8 %q) emitted invalid UTF-8: %#v", raw, first)
 		}
 

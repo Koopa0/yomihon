@@ -407,9 +407,9 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 	)
-	if model.NavigationDiagnostic() == "" || model.ArtifactDiagnostic() == "" {
+	if model.NavigationClosure().Diagnostic() == "" || model.ArtifactClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no capability fault: navigation %q artifact %q",
-			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
 	}
 	var buf bytes.Buffer
 	if err := sidebar(NewSidebar(model, "", wording.ZhHant), "response-nonce").Render(t.Context(), &buf); err != nil {
@@ -421,8 +421,8 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		"路徑與地圖",
 		"治理項目投影目前無法使用",
 		// The sentences themselves, HTML-escaped exactly as the page writes them.
-		htmlEscape(model.NavigationDiagnostic()),
-		htmlEscape(model.ArtifactDiagnostic()),
+		htmlEscape(model.NavigationClosure().Diagnostic()),
+		htmlEscape(model.ArtifactClosure().Diagnostic()),
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered degraded sidebar is missing %q", want)
@@ -647,7 +647,7 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 		"map branch row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
-			entry := nav.Entry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
+			entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
 			if err := entryLink(sb, entry).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}

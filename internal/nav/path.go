@@ -44,14 +44,14 @@ type Path struct {
 // it does can reach the model every other request is reading from at the same
 // time. The model is built once per snapshot and shared; handing out a pointer
 // into it would let one reader change what the next one sees.
+//
+// The walkable sequences are shared rather than copied. They are unexported
+// and no caller outside this package can name them, so a copy would defend
+// nothing; the walk itself reads them off the model and never off a clone.
 func (p *Path) clone() Path {
 	out := *p
 	out.Groups = cloneGroups(p.Groups)
 	out.Diagnostics = slices.Clone(p.Diagnostics)
-	out.components = make([][]NoteRef, len(p.components))
-	for i, comp := range p.components {
-		out.components[i] = slices.Clone(comp)
-	}
 	return out
 }
 
