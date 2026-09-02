@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // freshness is what a reading page can be told about the note it is showing.
@@ -90,6 +92,13 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // answer covers the pair — a flip of the one value the identity leaves out is
 // stale like any other change a reload would deliver. A caller that carries no
 // status, as the recovery page does not, is compared on its identity alone.
+//
+// A page whose render pulled words in from other notes carries a third value:
+// the identity of the excerpts it transcluded, which the host's own identity
+// cannot cover because those bytes live in other files. It is compared the
+// same way the status is — only when carried, and only once the host's own
+// bytes are level — so a page that transcluded nothing keeps exactly the ask
+// and the answer it always had.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) || !vault.IsMarkdown(rel) {
@@ -102,26 +111,47 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "identity must be "+strconv.Itoa(identityHexLen)+" hex digits", http.StatusBadRequest)
 		return
 	}
+	ask := freshnessAsk{
+		rendered:      rendered,
+		printedStatus: query.Get("status"),
+		statusCarried: query.Has("status"),
+	}
+	if query.Has("embeds") {
+		transcluded, ok := parseIdentity(query.Get("embeds"))
+		if !ok {
+			http.Error(w, "embeds must be "+strconv.Itoa(identityHexLen)+" hex digits", http.StatusBadRequest)
+			return
+		}
+		ask.transcluded, ask.transcludedCarried = transcluded, true
+	}
 	// A polled state has no cache: an answer held from a previous tick is the
 	// one thing this endpoint must never give.
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	answer := h.compareNote(r, rel, rendered, query.Get("status"), query.Has("status"))
+	answer := h.compareNote(r, rel, &ask)
 	if _, err := w.Write([]byte(answer)); err != nil {
 		return
 	}
 }
 
+// freshnessAsk is everything one polling page states about itself: the
+// identity of the bytes it rendered, the status it printed beside the title,
+// and the identity of what it transcluded. The two optional halves each
+// travel with their own carried flag because absence and emptiness are
+// different claims — a page that printed no status stamps an empty one, while
+// the recovery page carries none at all, and a page that transcluded nothing
+// carries no stamp rather than a digest of nothing.
+type freshnessAsk struct {
+	rendered           [sha256.Size]byte
+	printedStatus      string
+	statusCarried      bool
+	transcluded        [sha256.Size]byte
+	transcludedCarried bool
+}
+
 // compareNote settles the five answers for one note, against everything the
-// page carries: the identity of the bytes it rendered, and — when statusCarried
-// — the status it printed beside the title.
-func (h *Handler) compareNote(
-	r *http.Request,
-	rel string,
-	rendered [sha256.Size]byte,
-	printedStatus string,
-	statusCarried bool,
-) freshness {
+// page carries in its ask.
+func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) freshness {
 	entry, err := h.deps.Source.Lookup(rel)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -141,21 +171,42 @@ func (h *Handler) compareNote(
 	// about the page: what decides whether a reload is worth offering is
 	// whether the generation a reload would render already holds what this
 	// read just saw.
-	published, ok := h.deps.Snapshot().Capture().Note(rel)
+	snap := h.deps.Snapshot().Capture()
+	published, ok := snap.Note(rel)
 	if !ok || published.ContentIdentity != disk {
 		return freshPreparing
 	}
-	if disk != rendered {
+	if disk != ask.rendered {
 		return freshStale
 	}
 	// The printed status settles the answer only when a caller carried one and
 	// the bytes are level. The disk's side of the pair comes from the same
 	// parse that decides what a page prints, so the two sides cannot disagree
 	// about what a status line means.
-	if statusCarried && vault.Parse(rel, data).Status() != printedStatus {
+	if ask.statusCarried && vault.Parse(rel, data).Status() != ask.printedStatus {
+		return freshStale
+	}
+	// The transcluded stamp is settled last and from the generation alone: an
+	// embedded source's edit reaches an open page only once a reload would
+	// actually render it, and the render below reads the same captured bodies
+	// a reload would. Until the generation catches such an edit up, the
+	// honest answer is that nothing a reload could deliver has changed. The
+	// recomputation runs only for a page that carried a stamp, so a page that
+	// transcluded nothing costs this endpoint nothing new.
+	if ask.transcludedCarried &&
+		hex.EncodeToString(ask.transcluded[:]) != h.transcludedNow(snap, rel, published.Body) {
 		return freshStale
 	}
 	return freshUnchanged
+}
+
+// transcludedNow is the transcluded identity a reload would stamp right now:
+// the same render the reading page performs, over the generation's own copy
+// of the body, keeping the digest and discarding the page. The language is
+// pinned because the digest covers source bytes pulled from other notes,
+// which no language of the interface's own sentences can reach.
+func (h *Handler) transcludedNow(snap *snapshot.View, rel, body string) string {
+	return snap.Render(rel, body, wording.ZhHant).TranscludedIdentity
 }
 
 // noteFreshnessFailure records a read failure once per change of cause. A

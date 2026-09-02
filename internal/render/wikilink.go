@@ -717,6 +717,17 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			return degradedSpan("wikilink-broken", source, wording.EmbedUnreadable.In(col.page.lang), col.page.lang)
 		}
 		body, unmatched, repeated := embedScope(link, res.RelPath, body, col)
+		// The excerpt is recorded exactly as cut, at the one point where
+		// expansion happens: the freshness stamp derives from these entries,
+		// and an entry wider or narrower than what is spliced in would move
+		// the stamp for words the page never showed, or hold it still while
+		// they changed.
+		col.page.transcluded = append(col.page.transcluded, transcludedExcerpt{
+			path:      res.RelPath,
+			unmatched: unmatched,
+			repeated:  repeated,
+			slice:     body,
+		})
 		inner := r.render(body, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		heldBack := false

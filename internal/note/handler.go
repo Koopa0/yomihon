@@ -572,10 +572,14 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Concepts:          concepts,
 		Transitions:       governance.transitions,
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
-		NoFrontmatter:     governance.noFrontmatter,
-		StatusUnknown:     governance.statusUnknown,
-		SchemaNotices:     schemaNotices(snap.SchemaFindings(rel), n.RelPath, pages.LanguageFromRequest(r)),
-		FlippedFrom:       vouchedOrigin(statusView, n.Type, noteStatus, r.URL.Query().Get("from")),
+		// The identity above covers the note's own bytes; what the render
+		// pulled in from other notes is bound by its own stamp, so an edit to
+		// an embedded source can reach this page while it is open.
+		TranscludedIdentity: result.TranscludedIdentity,
+		NoFrontmatter:       governance.noFrontmatter,
+		StatusUnknown:       governance.statusUnknown,
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, pages.LanguageFromRequest(r)),
+		FlippedFrom:         vouchedOrigin(statusView, n.Type, noteStatus, r.URL.Query().Get("from")),
 	}
 
 	pageChrome := pages.ChromeFromRequest(r, n.Title)

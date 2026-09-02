@@ -26,4 +26,13 @@ var (
 		"This note changed on disk and the reading page has not caught up. This link restores itself once it has.",
 	)
 	FreshnessHoldGoneTitle = both("筆記已不在原處", "The note has moved")
+	// FreshnessWriteHold is said beside the status controls once the watch has
+	// learned the page no longer matches the file. A press from here would ask
+	// for a ruling over bytes the reader has not seen, and the write face would
+	// refuse it on arrival; the sentence names the way back instead of leaving
+	// a dead control unexplained.
+	FreshnessWriteHold = both(
+		"此頁已與檔案不同步，狀態按鈕已停用；請先重新載入。",
+		"This page no longer matches the file; the status controls are disabled. Reload first.",
+	)
 )

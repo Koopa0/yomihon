@@ -148,6 +148,37 @@ function holdInvitation(column) {
   };
 }
 
+// holdRulings parks the status controls once the page knows its words are
+// behind the file or the file is not there any more: a press from there would
+// ask for a ruling over bytes the reader has not seen. The controls keep
+// their explanation beside them, read off the column like every other
+// sentence of the watch, and a reload re-renders them live — which is what
+// the sentence asks for. Both answers that park them are latched by the
+// banner, so nothing here needs a way back.
+function holdRulings(column) {
+  const explanation = column.dataset.freshnessWritehold;
+  let held = false;
+  return (state) => {
+    if (held || (state !== 'stale' && state !== 'gone')) return;
+    held = true;
+    const faces = new Set();
+    for (const form of document.querySelectorAll('form.y-statusform')) {
+      for (const button of form.querySelectorAll('button')) button.disabled = true;
+      const face = form.closest('.y-statuspanel, .y-sealbar');
+      if (face) faces.add(face);
+    }
+    if (!explanation) return;
+    for (const face of faces) {
+      const note = document.createElement('p');
+      note.className = face.classList.contains('y-sealbar')
+        ? 'y-sealbar__notice y-statusflag'
+        : 'y-statuspanel__notice y-statusflag';
+      note.textContent = explanation;
+      face.append(note);
+    }
+  };
+}
+
 export function initFreshness() {
   const column = document.querySelector('[data-freshness-path][data-freshness-identity]');
   if (!column) return;
@@ -158,15 +189,22 @@ export function initFreshness() {
   // identity leaves that one value out, so the ask carries it separately; the
   // recovery column stamps no status and asks about its identity alone.
   const printedStatus = column.dataset.freshnessStatus;
+  // The identity of what the render pulled in from other notes, stamped only
+  // on a page that actually did. The host's identity cannot cover those
+  // bytes, so without this half of the ask an edit to an embedded source
+  // never reaches an open page.
+  const transcluded = column.dataset.freshnessEmbeds;
 
   const article = column.querySelector('.y-article');
   const present = article ? bannerBeside(column, article) : holdInvitation(column);
   if (!present) return;
+  const rulings = article ? holdRulings(column) : null;
 
   const segments = path.split('/').map(encodeURIComponent).join('/');
   const statusQuery =
     printedStatus === undefined ? '' : `&status=${encodeURIComponent(printedStatus)}`;
-  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}${statusQuery}`;
+  const embedsQuery = transcluded ? `&embeds=${encodeURIComponent(transcluded)}` : '';
+  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}${statusQuery}${embedsQuery}`;
   let latched = false;
   let timer = null;
 
@@ -199,6 +237,7 @@ export function initFreshness() {
     // 'unreadable', a failed request, and any answer a later server might add
     // leave the page as it stands and keep the question open.
     if (state === null || state === 'unreadable') return;
+    if (rulings) rulings(state);
     if (present(state)) {
       latched = true;
       stop();

@@ -91,7 +91,7 @@ func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
 	// dictionary is the server's, and a second copy of these words inside a
 	// JavaScript file would be a second place to translate them and a second
 	// place for them to fall out of step.
-	return templ.Attributes{
+	attrs := templ.Attributes{
 		"data-freshness-path":        v.RelPath,
 		"data-freshness-identity":    v.ContentIdentity,
 		"data-freshness-status":      v.Status,
@@ -103,7 +103,15 @@ func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
 		"data-freshness-holdtitle":   wording.FreshnessHoldPreparingTitle.In(lang),
 		"data-freshness-holddetail":  wording.FreshnessHoldPreparingDetail.In(lang),
 		"data-freshness-gonetitle":   wording.FreshnessHoldGoneTitle.In(lang),
+		"data-freshness-writehold":   wording.FreshnessWriteHold.In(lang),
 	}
+	// The transcluded stamp is absent, not empty, for a page that pulled in
+	// nothing: absence is what keeps that page's polling ask — and the
+	// server's answer to it — exactly as narrow as before the stamp existed.
+	if v.TranscludedIdentity != "" {
+		attrs["data-freshness-embeds"] = v.TranscludedIdentity
+	}
+	return attrs
 }
 
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
@@ -187,6 +195,12 @@ type NoteView struct {
 	// rendered, carried in every transition form so the write face can refuse
 	// a ruling that was read against content the disk no longer holds.
 	ContentIdentity string
+	// TranscludedIdentity is the render's digest over the excerpts this page
+	// pulled in from other notes, empty when it pulled in none. It rides only
+	// the freshness watch — the transition forms keep carrying the content
+	// identity alone, because a ruling binds the note's own bytes and an
+	// embedded source is not among them.
+	TranscludedIdentity string
 	NonInstance     bool
 	WriteDiagnostic string
 	NoFrontmatter   bool

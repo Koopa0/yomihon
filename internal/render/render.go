@@ -36,6 +36,9 @@ package render
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"html"
 	"slices"
@@ -208,6 +211,17 @@ type Result struct {
 	// now are. It is empty when no such heading was written, because there is
 	// then nothing for it to be evidence of.
 	TitleAnchor string
+	// TranscludedIdentity is one digest over everything this render pulled in
+	// from other notes: the excerpts actually expanded, in the order the page
+	// shows them, each bound to the note it came from and to the scope
+	// decision that cut it. Empty when nothing was transcluded. The reading
+	// page stamps it beside its content identity so the freshness answer can
+	// recompute the same digest against the current generation and say
+	// whether a reload would deliver different transcluded words. It covers
+	// exactly what the render expanded: a picture, an unresolved name, and an
+	// embed inside an already-transcluded body all contribute nothing,
+	// because none of them puts another note's words on this page.
+	TranscludedIdentity string
 }
 
 // embedPolicy caps embed transclusion at exactly one level deep: an
@@ -326,6 +340,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 	res.HTML = resolveAssetHrefs(htmlOut, relPath)
 	res.TOC = toc
 	res.TitleAnchor = titleAnchor
+	res.TranscludedIdentity = transcludedIdentity(page.transcluded)
 	return res
 }
 
@@ -362,11 +377,59 @@ type composition struct {
 	base    string
 	regions int
 	blocks  map[string]bool
+	// transcluded records every excerpt this assembly expanded, in document
+	// order. It belongs to the page for the same reason the block-anchor set
+	// does: the bodies are parsed separately and spliced together, and only
+	// something they share can account for all of them at once.
+	transcluded []transcludedExcerpt
 	// lang is the language this render's own sentences are written in. It sits
 	// here rather than on the pipeline because a pipeline belongs to a scan and
 	// a language belongs to a request: one pipeline serves every reader, and
 	// each of them may have chosen differently.
 	lang wording.Lang
+}
+
+// transcludedExcerpt is one embed a render actually expanded, recorded the way
+// the page consumed it: the note the words came from, the scope decision that
+// cut them — the fragment that matched nothing and the number of headings that
+// answered to one name are both visible in the rendered block — and the sliced
+// source bytes themselves. Identical bytes from two different notes are two
+// different excerpts, because an image inside each resolves against its own
+// note's directory.
+type transcludedExcerpt struct {
+	path      string
+	unmatched string
+	repeated  int
+	slice     string
+}
+
+// transcludedIdentity is one digest over everything a render pulled in from
+// other notes. Every value is length-delimited before hashing, so two
+// different collections can never frame the same byte stream. Nothing
+// transcluded yields the empty string rather than a digest of an empty list:
+// the reading page withholds its stamp exactly where there is nothing for a
+// stamp to cover, and the polling ask stays as narrow as it always was.
+func transcludedIdentity(excerpts []transcludedExcerpt) string {
+	if len(excerpts) == 0 {
+		return ""
+	}
+	var framed []byte
+	for i := range excerpts {
+		e := &excerpts[i]
+		framed = frameValue(framed, e.path)
+		framed = frameValue(framed, e.unmatched)
+		framed = frameValue(framed, strconv.Itoa(e.repeated))
+		framed = frameValue(framed, e.slice)
+	}
+	sum := sha256.Sum256(framed)
+	return hex.EncodeToString(sum[:])
+}
+
+// frameValue appends one length-delimited value to the byte stream the digest
+// reads, so a value can never bleed into its neighbour.
+func frameValue(framed []byte, value string) []byte {
+	framed = binary.BigEndian.AppendUint64(framed, uint64(len(value)))
+	return append(framed, value...)
 }
 
 func (c *composition) nextRegion() string {

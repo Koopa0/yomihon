@@ -58,3 +58,46 @@ func TestFreshnessAttrsWithholdTheWatchWhereItWouldDouble(t *testing.T) {
 		})
 	}
 }
+
+// TestFreshnessAttrsStampTranscludedContentOnlyWhereItExists pins the third
+// stamp's shape: a page that pulled words in from other notes stamps their
+// identity beside its own, and a page that pulled in none carries no such
+// attribute at all — absent, not empty, so its polling ask stays exactly as
+// narrow as it was before the stamp existed.
+func TestFreshnessAttrsStampTranscludedContentOnlyWhereItExists(t *testing.T) {
+	t.Parallel()
+	with := freshnessAttrs(NoteView{
+		RelPath:             "Writing/note.md",
+		ContentIdentity:     "3f2a",
+		TranscludedIdentity: "0a1b",
+	}, wording.ZhHant)
+	if with["data-freshness-embeds"] != "0a1b" {
+		t.Errorf("data-freshness-embeds = %v, want %q", with["data-freshness-embeds"], "0a1b")
+	}
+	without := freshnessAttrs(NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, wording.ZhHant)
+	if got, ok := without["data-freshness-embeds"]; ok {
+		t.Errorf("a page that transcluded nothing stamps data-freshness-embeds = %v; the attribute must be absent", got)
+	}
+}
+
+// TestFreshnessAttrsCarryTheWriteHoldSentence pins the sentence the status
+// faces show beside their disabled controls once the watch has learned the
+// page is behind the file. The client reads it off the column like every other
+// sentence of the watch, so a column without it would disable the controls
+// and explain nothing.
+func TestFreshnessAttrsCarryTheWriteHoldSentence(t *testing.T) {
+	t.Parallel()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		t.Run(string(lang), func(t *testing.T) {
+			t.Parallel()
+			attrs := freshnessAttrs(NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, lang)
+			want := wording.FreshnessWriteHold.In(lang)
+			if want == "" {
+				t.Fatal("the write-hold sentence is empty in this language, so the assertion below cannot mean anything")
+			}
+			if attrs["data-freshness-writehold"] != want {
+				t.Errorf("data-freshness-writehold = %v, want %q", attrs["data-freshness-writehold"], want)
+			}
+		})
+	}
+}
