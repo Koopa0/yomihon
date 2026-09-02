@@ -151,3 +151,72 @@ func TestHealthDoesNotCallEveryMissingTargetANote(t *testing.T) {
 		}
 	}
 }
+
+// TestHomeNamesTheGenerationItCouldNotFinish holds Home's own degraded block.
+// The three fault blocks look alike and each is gated on its own field, so a
+// page assembled from a reading that could not finish has to say which of them
+// is speaking — and a folder whose reading did finish must not carry the
+// apology at all.
+func TestHomeNamesTheGenerationItCouldNotFinish(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		view     HomeView
+		degraded bool
+	}{
+		{name: "a reading that finished", view: HomeView{}},
+		{
+			name:     "a reading that could not read every file",
+			view:     HomeView{Degraded: "有檔案讀不進來", DegradedDetail: "permission denied"},
+			degraded: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Home(tt.view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := buf.String()
+			if got := strings.Contains(html, "data-home-degraded"); got != tt.degraded {
+				t.Errorf("Home's degraded notice present = %t, want %t", got, tt.degraded)
+			}
+			if tt.degraded && !strings.Contains(html, "permission denied") {
+				t.Errorf("Home's degraded notice drops the reason the reading gave; html = %q", html)
+			}
+		})
+	}
+}
+
+// TestAReportSaysWhatItCannotDraw holds the report shell's one honest
+// admission. A briefing that draws part of itself with a script arrives here
+// with scripting shut off, so that part is simply absent — and a hole with
+// nothing beside it reads as a broken report rather than as the boundary
+// working. A report that draws itself entirely in markup says nothing.
+func TestAReportSaysWhatItCannotDraw(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name        string
+		needsScript bool
+	}{
+		{name: "a report written entirely in markup"},
+		{name: "a report that draws part of itself with a script", needsScript: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			view := ReportView{Name: "daily-briefing.html", Nav: &nav.Model{}, NeedsScript: tt.needsScript}
+			if err := Report(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := buf.String()
+			if got := strings.Contains(html, "data-report-inert"); got != tt.needsScript {
+				t.Errorf("the report's inert notice present = %t, want %t", got, tt.needsScript)
+			}
+			if !strings.Contains(html, `sandbox=""`) {
+				t.Errorf("the report frame lost its bare sandbox; html = %q", html)
+			}
+		})
+	}
+}
