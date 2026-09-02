@@ -162,3 +162,33 @@ func TestTheWriteFaceStatesOverrideInOneOrder(t *testing.T) {
 		})
 	}
 }
+
+// TestTheNonInstanceNoticeSpeaksTheReadersLanguage holds the one sentence that
+// used to be resolved once at start-up, in the default language, for every
+// reader. Both status faces show it, and both are handed a view that says which
+// language the page is written in.
+func TestTheNonInstanceNoticeSpeaksTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+
+	if wording.NonInstanceReason.In(wording.ZhHant) == wording.NonInstanceReason.In(wording.En) {
+		t.Fatal("the notice reads the same in both languages, so nothing below can tell them apart")
+	}
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		t.Run(string(lang), func(t *testing.T) {
+			t.Parallel()
+			view := NoteView{Lang: lang, Governed: true, NonInstance: true, RelPath: "System/templates/T.md"}
+			for faceName, component := range map[string]templ.Component{
+				"the rail panel": statusPanel(view),
+				"the foot bar":   statusBar(view),
+			} {
+				var buf bytes.Buffer
+				if err := component.Render(t.Context(), &buf); err != nil {
+					t.Fatalf("render %s: %v", faceName, err)
+				}
+				if got := buf.String(); !strings.Contains(got, wording.NonInstanceReason.In(lang)) {
+					t.Errorf("%s does not say why in %q; html = %q", faceName, lang, got)
+				}
+			}
+		})
+	}
+}

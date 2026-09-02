@@ -11,12 +11,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// nonInstanceReason reads from the dictionary so the sentence has one source.
-// It resolves to the default language because the two panels that show it are
-// assembled without one; giving them the reader's choice is part of moving
-// the rest of this page's copy.
-var nonInstanceReason = wording.NonInstanceReason.In(wording.ZhHant)
-
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
 // and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
 // what it found, and a human edits the file.
@@ -426,7 +420,7 @@ templ statusPanel(v NoteView) {
 	{{ face := statusFace(&v) }}
 	<section class="y-statuspanel" data-status-state={ face.token() }>
 		if face == faceNonInstance {
-			<p class="y-statuspanel__notice">{ nonInstanceReason }</p>
+			<p class="y-statuspanel__notice">{ wording.NonInstanceReason.In(v.Lang) }</p>
 		} else {
 			<div class="y-statuspanel__head">
 				<div class="y-statuspanel__row">
@@ -627,7 +621,7 @@ templ statusBar(v NoteView) {
 		<div class="y-sealbar" data-status-state={ face.token() }>
 			switch face {
 				case faceNonInstance:
-					<p class="y-sealbar__notice">{ nonInstanceReason }</p>
+					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(v.Lang) }</p>
 				case faceWriteUnavailable:
 					<p class="y-sealbar__notice">
 						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
