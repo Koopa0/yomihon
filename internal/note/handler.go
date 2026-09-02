@@ -748,7 +748,7 @@ type governanceState struct {
 }
 
 func (h *Handler) governance(
-	n *snapshot.Note,
+	n *snapshot.Reading,
 	snap *snapshot.View,
 	statusView status.View,
 	policy schema.ArtifactPolicy,

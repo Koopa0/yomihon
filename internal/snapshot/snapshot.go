@@ -148,7 +148,7 @@ type View struct {
 	privacyPolicy  schema.PrivacyPolicy
 
 	scan     vault.Scan
-	notes    map[string]Note
+	notes    map[string]Reading
 	markdown *render.Pipeline
 
 	// schemaFindings is what the schema said about each note when this
@@ -368,9 +368,9 @@ func (v *View) Contains(canonicalPath string) bool {
 }
 
 // Note returns an immutable Markdown reading projection by value.
-func (v *View) Note(canonicalPath string) (Note, bool) {
+func (v *View) Note(canonicalPath string) (Reading, bool) {
 	if v == nil {
-		return Note{}, false
+		return Reading{}, false
 	}
 	note, ok := v.notes[canonicalPath]
 	return note, ok
@@ -720,7 +720,7 @@ func buildView(
 	parsedByPath := make(map[string]*vault.Note)
 	parsedNotes := make([]*vault.Note, 0, len(entries))
 	unreadableNotes := make([]*vault.Note, 0)
-	publishedNotes := make(map[string]Note)
+	publishedNotes := make(map[string]Reading)
 	schemaFindings := make(map[string][]judge.Finding)
 	indexableNotes := make(map[string]bool)
 	resources := make([]string, 0, len(entries))
@@ -841,7 +841,7 @@ func recordVerdict(into map[string][]judge.Finding, relPath string, data []byte,
 // and never written here.
 type carriedGeneration struct {
 	parsed   map[string]*vault.Note
-	captured map[string]Note
+	captured map[string]Reading
 	sidecars map[string][]byte
 }
 
@@ -870,7 +870,7 @@ func (c carriedGeneration) lastCopyOf(
 	want bytesWanted,
 	parsedNotes, unreadableNotes []*vault.Note,
 	parsedByPath map[string]*vault.Note,
-	publishedNotes map[string]Note,
+	publishedNotes map[string]Reading,
 	indexableNotes map[string]bool,
 	slotFiles map[string][]byte,
 	fileDocuments []search.Document,
@@ -899,7 +899,7 @@ func (c carriedGeneration) carryNote(
 	relPath string,
 	parsedNotes, unreadableNotes []*vault.Note,
 	parsedByPath map[string]*vault.Note,
-	publishedNotes map[string]Note,
+	publishedNotes map[string]Reading,
 	indexableNotes map[string]bool,
 ) (parsed, unreadable []*vault.Note) {
 	lastKnown, lastKnownOK := c.parsed[relPath]
