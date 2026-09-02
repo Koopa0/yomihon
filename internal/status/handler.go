@@ -97,10 +97,12 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 
 	err := h.writer.Flip(path, from, to, contentIdentity)
 	if err == nil {
-		// The target names the status this note just left. The reading page
-		// states the change once, in a live region, and states it only when
-		// that value differs from the status the note now carries — so this
-		// parameter can report a transition and cannot invent one. Without it
+		// The target names the status this note just left. The parameter only
+		// addresses the sentence: whether the reading page prints it is
+		// decided by the receipt the completed flip just minted server-side,
+		// which that page spends on its first render — so a reloaded,
+		// bookmarked, or hand-typed ?from finds nothing left to vouch for a
+		// change this write face did not just perform. Without the parameter
 		// the whole confirmation was the re-rendered chip, which reads the
 		// same whether the press worked or somebody else's did, and which a
 		// reader who cannot see it never receives at all.
@@ -169,6 +171,16 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusUnprocessableEntity,
 			summary:    wording.NonInstanceReason,
 			nextAction: wording.NotGoverned,
+		}
+	case errors.Is(err, errNotRegular), errors.Is(err, errPathNotRegular):
+		// A refusal the operator repairs by hand, like every other refused
+		// target — not a fault worth a log hunt. Both sentinels are produced
+		// before any byte is written, so the unchanged page is truthful.
+		return &recovery{
+			code:            http.StatusUnprocessableEntity,
+			summary:         wording.TargetNotRegular,
+			nextAction:      wording.TargetNotRegularNext,
+			technicalDetail: err.Error(),
 		}
 	case errors.Is(err, ErrStale):
 		return &recovery{

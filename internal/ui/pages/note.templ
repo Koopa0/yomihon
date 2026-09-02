@@ -201,17 +201,23 @@ type NoteView struct {
 	// identity alone, because a ruling binds the note's own bytes and an
 	// embedded source is not among them.
 	TranscludedIdentity string
-	NonInstance     bool
-	WriteDiagnostic string
-	NoFrontmatter   bool
+	NonInstance         bool
+	WriteDiagnostic     string
+	NoFrontmatter       bool
 	// FlippedFrom is the status the transition form said it was leaving, when
-	// this reading is the one a successful flip redirected to. It is the only
-	// thing the write face carries across that redirect, and the page repeats
-	// it only when the contract declares it for this note's type and legalises
-	// the move from it to the status the note carries now. So the page states a
-	// move this contract admits, not one it witnessed: a bookmarked or
-	// back-button address naming a legal predecessor gets the same sentence.
+	// this reading is the one a successful flip redirected to. The address
+	// only carries the name: before handing the value over, the handler checks
+	// the contract declares it for this note's type and legalises the move to
+	// the status the note carries now, and then spends the one-time receipt
+	// the completed flip minted server-side. A bookmarked, reloaded, or
+	// hand-typed address finds that receipt already spent — or never minted —
+	// and gets no sentence.
 	FlippedFrom string
+	// FlipNoReturn is set when the change the receipt states is one the
+	// offered controls cannot walk back, so the receipt also says how
+	// recovery happens — the same hand edit of the frontmatter the
+	// zero-transition state names.
+	FlipNoReturn bool
 
 	// StatusUnknown is set when the note's non-empty status value is not in
 	// the contract's declared list for its type. Both status faces then flag
@@ -230,11 +236,12 @@ type NoteView struct {
 }
 
 // Transition is one offered lifecycle target and how its control behaves. A
-// terminal target — one the write face offers nothing onward from — submits
-// only behind a second interaction; every other target is a single press.
+// no-return target — one the write face could not walk the note back from —
+// submits only behind a second interaction; every other target is a single
+// press.
 type Transition struct {
 	To       string
-	Terminal bool
+	NoReturn bool
 }
 
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
@@ -905,9 +912,9 @@ templ inlineAids(v NoteView) {
 
 // statusPanel is the rail status face: one plain POST form per legal
 // transition (the PRG pattern, no JS dependency) — a single press for a
-// reversible target, a two-step confirm for a terminal one. The fixed-bottom
-// status bar is the second status face. The legal set is only what the schema
-// contract returns — never a fabricated key.
+// target the reader can walk back from, a two-step confirm for a no-return
+// one. The fixed-bottom status bar is the second status face. The legal set
+// is only what the schema contract returns — never a fabricated key.
 templ statusPanel(v NoteView) {
 	<section class="y-statuspanel" data-status-state={ statusState(v) }>
 		if v.NonInstance {
@@ -1015,21 +1022,22 @@ templ statusUnreadableFlag(v NoteView, noticeClass string) {
 // hidden content identity states which version of the note the reader saw,
 // so the write face can refuse a press that outlived the content.
 //
-// A non-terminal target is a quiet single press. A terminal target — nothing
-// leads onward from it here — keeps its submit behind a closed native
-// disclosure: the first interaction opens the confirm and states what makes
-// this press different, the second one submits. The disclosure needs no
-// script and no dialog; a reader without JavaScript walks the same two steps.
+// A target the reader could walk back from is a quiet single press. A
+// no-return target — the offered controls lead nowhere that returns to the
+// status the note carries now — keeps its submit behind a closed native
+// disclosure: the first interaction opens the confirm and states what is
+// lost, the second one submits. The disclosure needs no script and no
+// dialog; a reader without JavaScript walks the same two steps.
 templ transitionForm(v NoteView, t Transition) {
 	<form class="y-statusform" method="post" action="/status">
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
 		<input type="hidden" name="to" value={ t.To }/>
 		<input type="hidden" name="content_identity" value={ v.ContentIdentity }/>
-		if t.Terminal {
+		if t.NoReturn {
 			<details class="y-statusconfirm">
 				<summary class="y-xbtn y-statusconfirm__summary">{ t.To }</summary>
-				<p class="y-statusconfirm__note">{ wording.TerminalTargetBefore.In(v.Lang) }{ t.To }{ wording.TerminalTargetAfter.In(v.Lang) }</p>
+				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(v.Lang) }{ t.To }{ wording.NoReturnTargetAfter.In(v.Lang) }</p>
 				<button class="y-xbtn y-statusconfirm__submit" type="submit">{ wording.ConfirmSetBefore.In(v.Lang) }{ t.To }{ wording.ConfirmSetAfter.In(v.Lang) }</button>
 			</details>
 		} else {
@@ -1185,16 +1193,20 @@ func statusState(v NoteView) string {
 //
 // It is a live region so it reaches a reader on arrival rather than waiting to
 // be found, and it is the first thing in the main column for the same reason.
-// What the page vouches for is narrower than the sentence sounds: the reported
-// move is one this contract legalises from the status the note carries now, and
-// no address can manufacture a move the contract does not admit. It is not a
-// witness that the move happened. Reaching this reading again — from history,
-// from a bookmark, from the back button — repeats the sentence, because nothing
-// in a redirect target distinguishes the first arrival from a later one.
+// The sentence is doubly gated before it reaches this template: the reported
+// move is one the contract legalises from the status the note carries now, and
+// the write face held an unspent receipt for a flip it recently performed out
+// of that origin — spent by this render. So the sentence appears once, on the
+// reading the redirect lands, and reaching the same address again — from
+// history, from a bookmark, from the back button — states nothing, because
+// there is no longer a write to vouch for it.
 templ flipReceipt(v NoteView) {
 	if v.showsFlipReceipt() {
 		<p class="y-flipreceipt" role="status">
 			{ wording.FlipReceiptBefore.In(v.Lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(v.Lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(v.Lang) }
+			if v.FlipNoReturn {
+				{ frontmatterDoorLine(v) }
+			}
 		</p>
 	}
 }

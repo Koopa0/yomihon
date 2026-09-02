@@ -114,13 +114,16 @@ var (
 	StatusValuePrefix = both("狀態值 ", "The status ")
 )
 
-// The two-step confirmation a terminal target carries: what it costs, and the
-// press that accepts it. Both name the target, so both are formats.
-// Each is split around the value it names, because the value is marked up
-// where it appears and a format string cannot carry an element.
+// The two-step confirmation a no-return target carries: what it costs, and
+// the press that accepts it. The cost it names is the reader's own footing —
+// no offered transition leads from there back to the status the note carries
+// now — not whether the destination offers anything onward.
+// Both name the target, so both are formats. Each is split around the value
+// it names, because the value is marked up where it appears and a format
+// string cannot carry an element.
 var (
-	TerminalTargetBefore = both("設為 ", "After ")
-	TerminalTargetAfter  = both(" 之後，這裡不會再提供任何狀態轉換。", ", this offers no further transition.")
+	NoReturnTargetBefore = both("設為 ", "After ")
+	NoReturnTargetAfter  = both(" 之後，這裡不再有回到目前狀態的路。", ", this offers no way back to the current status.")
 	ConfirmSetBefore     = both("確認設為 ", "Confirm ")
 	ConfirmSetAfter      = both("", "")
 )

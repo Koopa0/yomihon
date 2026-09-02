@@ -67,6 +67,12 @@ type Dependencies struct {
 	// and an adjudication state cannot: the reader arrives here straight from a
 	// write, and a status that lags is one they have already changed.
 	ObservedStatus func(rel string) (string, error)
+	// ConsumeReceipt is a closure over the write face's attestation that it
+	// recently flipped the note at rel out of status from, spending the
+	// attestation when it answers true. The transition receipt renders only
+	// on that answer, so the page's sentence about a change is backed by the
+	// one component that performed it rather than by whatever a URL claims.
+	ConsumeReceipt func(rel, from string) bool
 	Log            *slog.Logger
 }
 
@@ -100,6 +106,9 @@ func New(d *Dependencies) *Handler {
 	}
 	if d.ObservedStatus == nil {
 		panic("note: New requires a non-nil ObservedStatus provider")
+	}
+	if d.ConsumeReceipt == nil {
+		panic("note: New requires a non-nil ConsumeReceipt provider")
 	}
 	if d.Log == nil {
 		panic("note: New requires a non-nil Log")
@@ -544,6 +553,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// never disagree about what follows this note.
 	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
+	flippedFrom := vouchedOrigin(statusView, h.deps.ConsumeReceipt, rel, n.Type, noteStatus, r.URL.Query().Get("from"))
 	view := pages.NoteView{
 		Lang:              pages.LanguageFromRequest(r),
 		Title:             n.Title,
@@ -579,7 +589,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		NoFrontmatter:       governance.noFrontmatter,
 		StatusUnknown:       governance.statusUnknown,
 		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, pages.LanguageFromRequest(r)),
-		FlippedFrom:         vouchedOrigin(statusView, n.Type, noteStatus, r.URL.Query().Get("from")),
+		FlippedFrom:         flippedFrom,
+		// The receipt for a change the face cannot walk back carries the
+		// recovery sentence; a reversible one leaves undoing to the controls
+		// already on the page.
+		FlipNoReturn: flippedFrom != "" && !statusView.CanReturn(n.Type, flippedFrom, noteStatus),
 	}
 
 	pageChrome := pages.ChromeFromRequest(r, n.Title)
@@ -753,12 +767,21 @@ func (h *Handler) governance(
 // happened, from a status the contract does not declare, or to one this write
 // face refuses to perform at all.
 //
-// The page may state only what it can stand behind, so the claim is checked
-// against the same contract the write face obeys: the named origin has to be a
-// declared status for this note's type, and the move from it to the status the
-// note now carries has to be one the contract legalises. A value that fails
-// either is dropped and the page says nothing, which is what it knows.
-func vouchedOrigin(statusView status.View, noteType, current, claimed string) string {
+// The page may state only what it can stand behind, and that is two separate
+// facts. The contract has to admit the sentence: the named origin is a
+// declared status for this note's type, and the move from it to the status
+// the note now carries is one the contract legalises. And the write face has
+// to attest the event: consume answers true only while it holds an unspent
+// record of a flip it recently performed out of the named origin on this
+// note, and spends that record on answering. So the receipt appears on the
+// one reading the redirect lands, and a reload, a bookmark, or a hand-typed
+// address finds nothing left to vouch for it. The contract checks run first,
+// so a claim the page could never repeat spends nothing.
+func vouchedOrigin(
+	statusView status.View,
+	consume func(rel, from string) bool,
+	rel, noteType, current, claimed string,
+) string {
 	if claimed == "" || current == "" || claimed == current {
 		return ""
 	}
@@ -768,12 +791,15 @@ func vouchedOrigin(statusView status.View, noteType, current, claimed string) st
 	if !statusView.LegalTransition(noteType, claimed, current) {
 		return ""
 	}
+	if !consume(rel, claimed) {
+		return ""
+	}
 	return claimed
 }
 
-// offeredTransitions pairs each legal target with whether it is terminal —
-// nothing leads onward from it here — which is what decides between the
-// single-press control and the two-step confirm.
+// offeredTransitions pairs each legal target with whether the face could
+// walk the note back from it to the status it carries now — which is what
+// decides between the single-press control and the two-step confirm.
 func offeredTransitions(statusView status.View, relPath, noteType, current string) []pages.Transition {
 	targets := statusView.Transitions(relPath, noteType, current)
 	if len(targets) == 0 {
@@ -781,7 +807,7 @@ func offeredTransitions(statusView status.View, relPath, noteType, current strin
 	}
 	offered := make([]pages.Transition, 0, len(targets))
 	for _, to := range targets {
-		offered = append(offered, pages.Transition{To: to, Terminal: statusView.Terminal(noteType, to)})
+		offered = append(offered, pages.Transition{To: to, NoReturn: !statusView.CanReturn(noteType, current, to)})
 	}
 	return offered
 }

@@ -127,6 +127,21 @@ var (
 	)
 )
 
+// The named path does not lead to a regular file the surgical rewrite
+// could bind to. A symbolic link is deliberately never followed: the write
+// face rewrites exactly the entry the path names, and a link's target can
+// sit outside the vault entirely.
+var (
+	TargetNotRegular = both(
+		"這個路徑不是一般檔案：筆記本身或途中的目錄是 symlink 或其他特殊項目，狀態寫入不跟隨 symlink。",
+		"This path is not a regular file: the note itself, or a directory on the way, is a symlink or another special entry, and the status write does not follow symlinks.",
+	)
+	TargetNotRegularNext = both(
+		"請直接用編輯器修改 symlink 指向的實際檔案；yomihon 只改寫 vault 內的一般檔案。",
+		"Edit the actual file the link points at in your editor; yomihon only rewrites regular files inside the vault.",
+	)
+)
+
 // The note named by the form is not where it was.
 var (
 	NoteGone = both(
@@ -203,9 +218,12 @@ var (
 		"vault schema 不允許這個狀態轉換。",
 		"The vault schema does not allow this transition.",
 	)
+	// The repair is a hand edit, and the page's own actions carry the door to
+	// where editing happens — so the way on names that door instead of asking
+	// the reader to correct something this interface offers no control for.
 	SchemaRefusalNext = both(
-		"依照 vault schema 修正狀態值或轉換，再重新載入筆記。",
-		"Correct the status or the transition to match the vault schema, then reload the note.",
+		"用下方的「在 Obsidian 開啟」直接編輯 frontmatter，依 vault schema 修正狀態值或轉換，再重新載入筆記。",
+		"Edit the frontmatter through \"Open in Obsidian\" below, correct the status or the transition to match the vault schema, then reload the note.",
 	)
 )
 

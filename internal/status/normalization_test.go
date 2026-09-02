@@ -46,7 +46,7 @@ non_instance_dirs = []
 [[lifecycle]]
 status = "` + statusNFC + `"
 applies_to = ["doc"]
-from = []
+from = ["archived"]
 owner = ["koopa"]
 
 [[lifecycle]]
@@ -97,8 +97,11 @@ func TestStatusVerdictsDoNotDependOnHowTheWordIsSpelled(t *testing.T) {
 		t.Errorf("Transitions from the decomposed spelling = %v, from the composed one = %v; the same note offers different controls depending on how its word is stored", decomposed, composed)
 	}
 
-	if view.Terminal("doc", statusNFC) != view.Terminal("doc", statusNFD) {
-		t.Errorf("Terminal disagrees across the two spellings of one status")
+	if view.CanReturn("doc", statusNFC, "archived") != view.CanReturn("doc", statusNFD, "archived") {
+		t.Errorf("CanReturn disagrees across the two spellings of the origin status")
+	}
+	if !view.CanReturn("doc", statusNFD, statusNFC) {
+		t.Errorf("CanReturn does not read the two spellings as the same stop: a move that stays put reads as a one-way door")
 	}
 
 	// The control: a word that is genuinely not declared stays undeclared, or

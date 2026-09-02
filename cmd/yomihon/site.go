@@ -142,6 +142,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		Status:         writer.View,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
 		Log:            log,
 	}).Register(mux)
 	status.NewHandler(writer, shellProvider, log).Register(mux)

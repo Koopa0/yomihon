@@ -110,7 +110,15 @@ var (
 	NoteUnreadableDiagnostic            = wording.NoteStatusUnreadable.In(wording.ZhHant)
 )
 
-var errNotRegular = errors.New("status: target is not a regular file")
+// The write face rewrites exactly the regular file a vault-relative path
+// names, so a symbolic link — whose target can sit outside the vault — and
+// every other special entry is refused, at the leaf and at every directory
+// on the way. Two sentinels because the operator repairs them in the same
+// way but the error should name which part of the path was not plain.
+var (
+	errNotRegular     = errors.New("status: target is not a regular file")
+	errPathNotRegular = errors.New("status: path passes through a non-directory or symbolic link")
+)
 
 // ArtifactPolicyUnavailableError carries the contract-derived diagnostic for
 // a write refused because instance classification is unavailable.
@@ -148,7 +156,32 @@ type Writer struct {
 	// per-file locking: this is a local, single-operator tool where correctness
 	// matters far more than throughput.
 	mu sync.Mutex
+	// receipts is the write face's short-lived memory of flips it performed
+	// whose confirmation no reading page has shown yet, keyed by the note's
+	// normalized vault-relative path. Only the write face can attest that a
+	// transition actually ran, so the attestation lives here rather than in
+	// any address a hand can type. At most one receipt per note: a second
+	// flip before the first receipt is read replaces it, and the page then
+	// states the change the note most recently made.
+	receipts map[string]receipt
+	// receiptMu guards receipts on its own, so a reading page consuming a
+	// receipt never waits behind a flip holding mu across a full write. It
+	// is always taken alone or inside mu, never the other way around.
+	receiptMu sync.Mutex
 }
+
+// receipt is one unshown attestation: which status a completed flip left,
+// and when, so a receipt that was never read does not vouch forever.
+type receipt struct {
+	from string
+	at   time.Time
+}
+
+// receiptTTL bounds how long a completed flip vouches for its receipt. A
+// browser follows the redirect within moments; minutes of slack cover a
+// throttled or backgrounded tab without leaving a stale attestation around
+// for the rest of the process's life.
+const receiptTTL = 2 * time.Minute
 
 type fileSnapshot struct {
 	data       []byte
@@ -337,26 +370,51 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 	return legal
 }
 
-// Terminal reports whether status is a final interactive stop for noteType:
-// the captured contract legalizes no onward transition the write face could
-// offer from it. It is derived from the same transition rules Transitions
-// reads, never configured on its own. The published status does not count as
-// a way onward — it records a completed publication no interactive control
-// can attest — so a status whose only onward edge is published is terminal
-// here. A closed view claims nothing and reports false.
-func (v View) Terminal(noteType, status string) bool {
-	if !v.available() || status == "" {
+// CanReturn reports whether, after a note of this type moves from one status
+// to another, the write face could still walk it back: whether some chain of
+// contract-legal transitions leads from "to" back to "from". It is derived
+// from the same transition rules Transitions reads, never configured on its
+// own, and it is what decides between a quiet single press and a two-step
+// confirm — the press worth confirming is the one the reader cannot undo
+// from where it lands, not the one whose destination happens to offer
+// nothing onward.
+//
+// The walk never passes through the published status: it records a completed
+// publication no interactive control can attest, so no offered chain can
+// enter it, and a return that would exist only by way of it does not exist
+// here. Both spellings of a status name the same stop, matching how every
+// other verdict over the captured contract reads them. A closed view claims
+// nothing and reports false.
+func (v View) CanReturn(noteType, from, to string) bool {
+	if !v.available() || from == "" || to == "" {
 		return false
 	}
-	for _, to := range v.contract.Statuses(noteType) {
-		if to == schema.PublishedStatus {
-			continue
-		}
-		if v.contract.Transition(noteType, status, to) == nil {
-			return false
+	from = schema.NormalizeStatus(from)
+	to = schema.NormalizeStatus(to)
+	if from == to {
+		return true
+	}
+	statuses := v.contract.Statuses(noteType)
+	visited := map[string]bool{to: true}
+	frontier := []string{to}
+	for len(frontier) > 0 {
+		current := frontier[0]
+		frontier = frontier[1:]
+		for _, next := range statuses {
+			if next == schema.PublishedStatus || visited[next] {
+				continue
+			}
+			if v.contract.Transition(noteType, current, next) != nil {
+				continue
+			}
+			if next == from {
+				return true
+			}
+			visited[next] = true
+			frontier = append(frontier, next)
 		}
 	}
-	return true
+	return false
 }
 
 // LegalTransition reports whether the contract legalises moving a note of this
@@ -526,7 +584,65 @@ func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, h
 	if err != nil {
 		return err
 	}
-	return w.install(rel, relSlash, &source, rewritten, hooks)
+	if err := w.install(rel, relSlash, &source, rewritten, hooks); err != nil {
+		return err
+	}
+	// The durable install is the fact the receipt attests, so the receipt is
+	// minted only after it, still under the writer's lock: a racing second
+	// flip of the same note cannot interleave, and the later mint wins.
+	w.vouchReceipt(relSlash, from)
+	return nil
+}
+
+// vouchReceipt records that a completed flip left status "from" on the note
+// at relSlash, replacing any receipt not yet read. Receipts other notes never
+// collected are swept once they expire, so the map never outgrows the handful
+// of notes flipped in the last couple of minutes.
+func (w *Writer) vouchReceipt(relSlash, from string) {
+	w.receiptMu.Lock()
+	defer w.receiptMu.Unlock()
+	if w.receipts == nil {
+		w.receipts = make(map[string]receipt)
+	}
+	for key, entry := range w.receipts {
+		if time.Since(entry.at) > receiptTTL {
+			delete(w.receipts, key)
+		}
+	}
+	w.receipts[relSlash] = receipt{from: from, at: time.Now()}
+}
+
+// ConsumeReceipt reports whether this write face recently completed a flip
+// that left status "from" on the note at rel, and spends the receipt when it
+// does: the first reading that asks gets true, every later one false. A
+// mismatched origin spends nothing, so a hand-typed address cannot burn the
+// receipt the real redirect is about to collect; an expired receipt answers
+// false and is dropped. The reading page keeps its own contract checks — this
+// method only attests that the write happened, not that repeating it is a
+// sentence the page can stand behind.
+func (w *Writer) ConsumeReceipt(rel, from string) bool {
+	if w == nil || from == "" {
+		return false
+	}
+	relSlash, _, err := normalizeRelPath(rel)
+	if err != nil {
+		return false
+	}
+	w.receiptMu.Lock()
+	defer w.receiptMu.Unlock()
+	entry, ok := w.receipts[relSlash]
+	if !ok {
+		return false
+	}
+	if time.Since(entry.at) > receiptTTL {
+		delete(w.receipts, relSlash)
+		return false
+	}
+	if entry.from != from {
+		return false
+	}
+	delete(w.receipts, relSlash)
+	return true
 }
 
 // install crosses Flip's irreversible boundary. It revalidates the current
@@ -719,7 +835,7 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 		}
 		if !before.IsDir() || before.Mode()&os.ModeSymlink != 0 {
 			closeRoot(current)
-			return nil, "", "", fmt.Errorf("status: open %s: path contains a non-directory or symbolic link", relSlash)
+			return nil, "", "", fmt.Errorf("%w: %s", errPathNotRegular, relSlash)
 		}
 		next, openErr := current.OpenRoot(component)
 		if openErr != nil {

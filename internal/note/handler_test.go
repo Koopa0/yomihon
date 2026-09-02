@@ -124,6 +124,7 @@ func newServerWithGovernance(
 		Status:         writer.View,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
 		Log:            log,
 	})
 	h.Register(mux)
@@ -244,6 +245,7 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 	mux := http.NewServeMux()
 	handler := note.New(&note.Dependencies{
 		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
 		Status:         statusProvider,
 		Snapshot:       store.Current,
@@ -337,6 +339,7 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
 				ObservedStatus: writer.ObservedStatus,
+				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
 				Status:         func() status.View { return statusView },
 				Snapshot:       func() *snapshot.View { return captured },
@@ -430,6 +433,7 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
 				ObservedStatus: writer.ObservedStatus,
+				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
 				Status:         func() status.View { return statusView },
 				Snapshot:       func() *snapshot.View { return captured },
@@ -506,6 +510,7 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
 		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
 		Status: func() status.View {
 			statusCaptures++
@@ -1538,6 +1543,7 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
 				ObservedStatus: writer.ObservedStatus,
+				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         firstSource,
 				Status:         writer.View,
 				Snapshot: func() *snapshot.View {
@@ -1596,6 +1602,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			mux := http.NewServeMux()
 			note.New(&note.Dependencies{
 				ObservedStatus: writer.ObservedStatus,
+				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
 				Status:         writer.View,
 				Snapshot: func() *snapshot.View {
@@ -1837,6 +1844,7 @@ body
 	mux := http.NewServeMux()
 	handler := note.New(&note.Dependencies{
 		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
 		Status:         requestStatus,
 		Snapshot:       store.Current,
@@ -2618,6 +2626,158 @@ func TestShowTransitions(t *testing.T) {
 	}
 }
 
+// transitionFormFor cuts the transition form whose hidden "to" field carries
+// target out of a rendered page body.
+func transitionFormFor(t *testing.T, body, target string) string {
+	t.Helper()
+	before, _, found := strings.Cut(body, `name="to" value="`+target+`"`)
+	if !found {
+		t.Fatalf("page has no transition form for target %q", target)
+	}
+	start := strings.LastIndex(before, "<form")
+	if start < 0 {
+		t.Fatalf("transition target %q is not inside a form", target)
+	}
+	end := strings.Index(body[start:], "</form>")
+	if end < 0 {
+		t.Fatalf("transition form for %q is unterminated", target)
+	}
+	return body[start : start+end]
+}
+
+// flipViaPage drives the page's own transition form for target and returns
+// the redirect Location, so the POST carries exactly the hidden fields the
+// page rendered.
+func flipViaPage(t *testing.T, srv *httptest.Server, pageBody, target string) string {
+	t.Helper()
+	form := transitionFormFor(t, pageBody, target)
+	values := url.Values{
+		"path":             {hiddenValue(t, form, "path")},
+		"from":             {hiddenValue(t, form, "from")},
+		"to":               {hiddenValue(t, form, "to")},
+		"content_identity": {hiddenValue(t, form, "content_identity")},
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(values.Encode()))
+	if err != nil {
+		t.Fatalf("new status request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /status: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	if resp.StatusCode != http.StatusSeeOther {
+		b, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			t.Fatalf("read failed status response: %v", readErr)
+		}
+		t.Fatalf("POST /status = %d, want %d; body = %q", resp.StatusCode, http.StatusSeeOther, b)
+	}
+	return resp.Header.Get("Location")
+}
+
+// TestFlipReceiptRequiresTheWriteItReports holds the receipt to the one
+// reading a successful flip redirects to. The origin arrives in the URL,
+// where anything can put anything: before this lock, a note born ready — no
+// POST ever made — printed "the status changed from draft" on every load of
+// ?from=draft, because the sentence was gated only on the contract admitting
+// such a move. The receipt must be spent by the write that mints it: shown on
+// the arrival that follows the redirect, gone on refresh, and never available
+// to a hand-typed address.
+func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
+	t.Parallel()
+	const receiptMarker = "狀態已從"
+
+	t.Run("a hand typed origin on a note never flipped prints nothing", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeLesson(t, root, lessonWithStatus(schema.SealStatus))
+		srv := newServerWithContract(t, root, loadContract(t))
+
+		// draft -> ready is a move the contract admits, which used to be the
+		// whole gate.
+		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md?from=draft")
+		if strings.Contains(page, receiptMarker) {
+			t.Errorf("a hand typed ?from=draft printed a receipt for a write that never happened")
+		}
+	})
+
+	t.Run("the redirected reading shows the receipt once", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeLesson(t, root, lessonWithStatus("draft"))
+		srv := newServerWithContract(t, root, loadContract(t))
+
+		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+		location := flipViaPage(t, srv, page, schema.SealStatus)
+		landingCode, landing := get(t, srv.URL+location)
+		if landingCode != http.StatusOK {
+			t.Fatalf("GET the redirect target = %d, want 200", landingCode)
+		}
+		if !strings.Contains(landing, receiptMarker) {
+			t.Fatalf("the reading a flip redirects to does not state the change")
+		}
+		_, refreshed := get(t, srv.URL+location)
+		if strings.Contains(refreshed, receiptMarker) {
+			t.Errorf("reloading the same address printed the receipt again")
+		}
+	})
+
+	t.Run("two flips of one note each buy exactly one receipt", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeLesson(t, root, lessonWithStatus("draft"))
+		srv := newServerWithContract(t, root, loadContract(t))
+
+		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+		firstLocation := flipViaPage(t, srv, page, schema.SealStatus)
+		_, firstLanding := get(t, srv.URL+firstLocation)
+		if !strings.Contains(firstLanding, receiptMarker) {
+			t.Fatalf("the first flip's landing does not state the change")
+		}
+
+		secondLocation := flipViaPage(t, srv, firstLanding, "archived")
+		_, secondLanding := get(t, srv.URL+secondLocation)
+		if !strings.Contains(secondLanding, receiptMarker) {
+			t.Fatalf("the second flip's landing does not state the change")
+		}
+		for name, address := range map[string]string{
+			"the first flip's address":  firstLocation,
+			"the second flip's address": secondLocation,
+		} {
+			_, page := get(t, srv.URL+address)
+			if strings.Contains(page, receiptMarker) {
+				t.Errorf("revisiting %s printed a receipt again", name)
+			}
+		}
+	})
+}
+
+// writeLesson writes the one lesson fixture these tests read, L01.md under
+// the contract's knowledge directory.
+func writeLesson(t *testing.T, root, content string) {
+	t.Helper()
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(content), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+}
+
+// lessonWithStatus is a minimal legal lesson note carrying one status line.
+func lessonWithStatus(noteStatus string) string {
+	return "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: " + noteStatus +
+		"\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+}
+
 // TestNewPanicsOnAMissingDependency covers every guard New has, one row per
 // guard. A wiring bug has to fail at construction with the field named, not
 // three calls deep inside the first request, so each row asserts the exact
@@ -2659,6 +2819,11 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			want:  "note: New requires a non-nil ObservedStatus provider",
 		},
 		{
+			name:  "consume receipt provider",
+			clear: func(d *note.Dependencies) { d.ConsumeReceipt = nil },
+			want:  "note: New requires a non-nil ConsumeReceipt provider",
+		},
+		{
 			name:  "log",
 			clear: func(d *note.Dependencies) { d.Log = nil },
 			want:  "note: New requires a non-nil Log",
@@ -2684,6 +2849,7 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 			deps := note.Dependencies{
 				ObservedStatus: writer.ObservedStatus,
+				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
 				Status:         writer.View,
 				Snapshot:       store.Current,
@@ -2707,6 +2873,7 @@ func TestNewCopiesDependencies(t *testing.T) {
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	deps := note.Dependencies{
 		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
 		Status:         writer.View,
 		Snapshot:       store.Current,
@@ -2970,6 +3137,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 		Status:         func() status.View { return status.View{} },
 		Snapshot:       store.Current,
 		ObservedStatus: func(string) (string, error) { return "", nil },
+		ConsumeReceipt: func(string, string) bool { return false },
 		Log:            slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	srv := httptest.NewServer(mux)

@@ -350,6 +350,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	mux := http.NewServeMux()
 	note.New(&note.Dependencies{
 		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         reader,
 		Status:         writer.View,
 		Snapshot:       store.Current,

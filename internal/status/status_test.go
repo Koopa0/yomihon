@@ -831,20 +831,27 @@ func TestTransitions(t *testing.T) {
 // out-of-enum flag rests on: a value in the type's list is known, everything
 // else — an unlisted value, an undeclared type, an empty value, a closed
 // view — is not.
-func TestTerminal(t *testing.T) {
+func TestCanReturn(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
 		closed   bool // a view opened with no contract answers nothing at all
 		noteType string
-		status   string
+		from     string
+		to       string
 		want     bool
 	}{
-		{name: "archived has no way onward", noteType: "lesson", status: "archived", want: true},
-		{name: "ready still has the archived edge out", noteType: "lesson", status: "ready", want: false},
-		{name: "draft moves on to ready", noteType: "lesson", status: "draft", want: false},
-		{name: "an empty status claims nothing", noteType: "lesson", status: "", want: false},
-		{name: "a closed view claims nothing", closed: true, noteType: "lesson", status: "archived", want: false},
+		// Cross-checked by hand against testdata/contract.toml's lifecycle
+		// table: draft is entered from imported and ready, ready from draft,
+		// archived from anywhere, and nothing enters imported or leaves
+		// archived.
+		{name: "ready walks straight back to draft", noteType: "lesson", from: "draft", to: "ready", want: true},
+		{name: "nothing walks back from archived to draft", noteType: "lesson", from: "draft", to: "archived", want: false},
+		{name: "nothing re-enters imported", noteType: "lesson", from: "imported", to: "draft", want: false},
+		{name: "staying put is trivially returnable", noteType: "lesson", from: "draft", to: "draft", want: true},
+		{name: "an empty origin claims nothing", noteType: "lesson", from: "", to: "archived", want: false},
+		{name: "an empty destination claims nothing", noteType: "lesson", from: "draft", to: "", want: false},
+		{name: "a closed view claims nothing", closed: true, noteType: "lesson", from: "draft", to: "ready", want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -854,17 +861,50 @@ func TestTerminal(t *testing.T) {
 				contract = nil
 			}
 			view := newWriter(t, t.TempDir(), contract).View()
-			if got := view.Terminal(tt.noteType, tt.status); got != tt.want {
-				t.Errorf("Terminal(%q, %q) = %t, want %t", tt.noteType, tt.status, got, tt.want)
+			if got := view.CanReturn(tt.noteType, tt.from, tt.to); got != tt.want {
+				t.Errorf("CanReturn(%q, %q, %q) = %t, want %t", tt.noteType, tt.from, tt.to, got, tt.want)
 			}
 		})
 	}
 }
 
-// TestTerminalExcludesPublishedAsAWayOnward pins the one subtlety in the
-// derivation: an edge to published is not a way onward the write face could
-// ever offer, so a status whose only onward edge is published is terminal.
-func TestTerminalExcludesPublishedAsAWayOnward(t *testing.T) {
+// TestCanReturnFollowsAChainOfTransitions pins that the answer is
+// reachability, not the presence of a direct reverse edge: trade draft's
+// entry from ready for one from archived, and the walk back from ready runs
+// through archived — two offered presses — so ready stays returnable even
+// though no edge points from ready to draft any more.
+func TestCanReturnFollowsAChainOfTransitions(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	modified := strings.Replace(string(data), `from = ["imported", "ready"]`, `from = ["imported", "archived"]`, 1)
+	if modified == string(data) {
+		t.Fatal("return-path edge replacement did not apply")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(path, []byte(modified), 0o600); writeErr != nil { // #nosec G703 -- fixed basename under t.TempDir
+		t.Fatalf("write modified contract: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	view := newWriter(t, t.TempDir(), contract).View()
+	if !view.CanReturn("lesson", "draft", "ready") {
+		t.Error(`CanReturn("lesson", "draft", "ready") = false, want true: ready walks back through archived to draft`)
+	}
+	if !view.CanReturn("lesson", "draft", "archived") {
+		t.Error(`CanReturn("lesson", "draft", "archived") = false, want true: archived walks straight back to draft`)
+	}
+}
+
+// TestCanReturnExcludesPublishedAsAPath pins the one subtlety in the walk: an
+// edge into published is not a step the write face could ever offer, so a
+// return that exists only by way of published does not exist here — even
+// where the contract legalises both halves of that detour.
+func TestCanReturnExcludesPublishedAsAPath(t *testing.T) {
 	t.Parallel()
 	const contractText = `schema_version = "1"
 
@@ -872,15 +912,21 @@ func TestTerminalExcludesPublishedAsAWayOnward(t *testing.T) {
 type = ["doc"]
 
 [enums.status]
-note = ["ready", "published"]
+note = ["draft", "ready", "published"]
 
 [artifacts]
 non_instance_dirs = []
 
 [[lifecycle]]
+status = "draft"
+applies_to = ["doc"]
+from = ["published"]
+owner = ["agent"]
+
+[[lifecycle]]
 status = "ready"
 applies_to = ["doc"]
-from = []
+from = ["draft"]
 owner = ["agent"]
 
 [[lifecycle]]
@@ -898,8 +944,8 @@ owner = ["agent"]
 		t.Fatalf("LoadFile(%q) = %v", path, err)
 	}
 	view := newWriter(t, t.TempDir(), contract).View()
-	if !view.Terminal("doc", "ready") {
-		t.Error(`Terminal("doc", "ready") = false, want true: its only onward edge is published, which no control can attest`)
+	if view.CanReturn("doc", "draft", "ready") {
+		t.Error(`CanReturn("doc", "draft", "ready") = true, want false: the only walk back runs through published, which no control can enter`)
 	}
 }
 

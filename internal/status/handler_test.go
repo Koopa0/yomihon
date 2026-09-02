@@ -357,6 +357,101 @@ func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 	}
 }
 
+// TestHandlerSymlinkTargetIsRefusedAsUnprocessable locks the response for a
+// path the write face refuses to follow. The refusal itself is pinned at the
+// Writer level (nothing on either side of a symlink changes); what this test
+// holds is what the operator is told: the same 422 every other refused target
+// gets, with the reason stated, never a 500 that sends them to the log for a
+// condition the page can name.
+func TestHandlerSymlinkTargetIsRefusedAsUnprocessable(t *testing.T) {
+	t.Parallel()
+
+	original := lessonContent("draft")
+	tests := []struct {
+		name string
+		// plant creates the symlink shape under root and returns the path of
+		// the real file that must stay untouched.
+		plant func(t *testing.T, root string) string
+	}{
+		{
+			name: "the note itself is a symlink",
+			plant: func(t *testing.T, root string) string {
+				t.Helper()
+				outside := filepath.Join(t.TempDir(), "outside.md")
+				if err := os.WriteFile(outside, []byte(original), 0o600); err != nil {
+					t.Fatalf("write outside target: %v", err)
+				}
+				notePath := filepath.Join(root, filepath.FromSlash(testRel))
+				if err := os.MkdirAll(filepath.Dir(notePath), 0o750); err != nil {
+					t.Fatalf("mkdir note parent: %v", err)
+				}
+				if err := os.Symlink(outside, notePath); err != nil {
+					t.Fatalf("symlink note: %v", err)
+				}
+				return outside
+			},
+		},
+		{
+			name: "a directory on the way is a symlink",
+			plant: func(t *testing.T, root string) string {
+				t.Helper()
+				outsideWriting := filepath.Join(t.TempDir(), "Writing")
+				notePath := filepath.Join(outsideWriting, "lessons", "japanese", "L05.md")
+				if err := os.MkdirAll(filepath.Dir(notePath), 0o750); err != nil {
+					t.Fatalf("mkdir outside note parent: %v", err)
+				}
+				if err := os.WriteFile(notePath, []byte(original), 0o600); err != nil {
+					t.Fatalf("write outside target: %v", err)
+				}
+				if err := os.Symlink(outsideWriting, filepath.Join(root, "Writing")); err != nil {
+					t.Fatalf("symlink Writing: %v", err)
+				}
+				return notePath
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writer := newWriter(t, root, loadContract(t))
+			target := tt.plant(t, root)
+			srv := newHandlerServer(t, writer)
+
+			code, _, body := postStatus(t, srv, url.Values{
+				"path":             {testRel},
+				"from":             {"draft"},
+				"to":               {schema.SealStatus},
+				"content_identity": {formIdentity(original)},
+			})
+			if code != http.StatusUnprocessableEntity {
+				t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
+			}
+			for _, want := range []string{
+				wording.TargetNotRegular.In(wording.ZhHant),
+				"狀態尚未變更",
+			} {
+				if !strings.Contains(body, want) {
+					t.Errorf("body is missing %q: %q", want, body)
+				}
+			}
+			// The old shape for this refusal was the catch-all failure page,
+			// which sends the operator to the log for a condition the page can
+			// state itself.
+			if strings.Contains(body, wording.WriteFailedNext.In(wording.ZhHant)) {
+				t.Errorf("body still sends the operator to the log: %q", body)
+			}
+			got, readErr := os.ReadFile(target) // #nosec G304 -- target is a test-owned path under t.TempDir
+			if readErr != nil {
+				t.Fatalf("read the file behind the link: %v", readErr)
+			}
+			if got := string(got); got != original {
+				t.Errorf("the file behind the link changed:\ngot:  %q\nwant: %q", got, original)
+			}
+		})
+	}
+}
+
 func TestHandlerIllegalTransition(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -380,5 +475,12 @@ func TestHandlerIllegalTransition(t *testing.T) {
 		if !strings.Contains(decoded, want) {
 			t.Errorf("body = %q, want it to contain the schema's own rejection reason (missing %q)", body, want)
 		}
+	}
+	// The repair for a schema refusal is a hand edit, and the page already
+	// carries the door to where editing happens. The way on must point at
+	// that door by its own name rather than asking the reader to correct
+	// something this interface offers no control for.
+	if !strings.Contains(decoded, "「在 Obsidian 開啟」") {
+		t.Errorf("the way on does not name the editor door the page already carries: %q", body)
 	}
 }
