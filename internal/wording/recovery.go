@@ -128,13 +128,20 @@ var (
 )
 
 // The named path does not lead to a regular file the surgical rewrite
-// could bind to. A symbolic link is deliberately never followed: the write
-// face rewrites exactly the entry the path names, and a link's target can
-// sit outside the vault entirely.
+// could bind to, and the two summaries name where the shape broke — the
+// note's own entry, or a step on the way to it — because the repair is a
+// hand edit and the operator's first question is which entry to look at.
+// A symbolic link is deliberately never followed: the write face rewrites
+// exactly the entry the path names, and a link's target can sit outside
+// the vault entirely.
 var (
 	TargetNotRegular = both(
-		"這個路徑不是一般檔案：筆記本身或途中的目錄是 symlink 或其他特殊項目，狀態寫入不跟隨 symlink。",
-		"This path is not a regular file: the note itself, or a directory on the way, is a symlink or another special entry, and the status write does not follow symlinks.",
+		"這個路徑的目標不是一般檔案：筆記本身是 symlink 或其他特殊項目，狀態寫入不跟隨 symlink。",
+		"The target of this path is not a regular file: the note itself is a symlink or another special entry, and the status write does not follow symlinks.",
+	)
+	PathNotRegular = both(
+		"路徑中途經過的不是資料夾：途中有 symlink 或其他特殊項目，狀態寫入不跟隨 symlink。",
+		"A step on the way to this note is not a plain directory: the path passes through a symlink or another special entry, and the status write does not follow symlinks.",
 	)
 	TargetNotRegularNext = both(
 		"請直接用編輯器修改 symlink 指向的實際檔案；yomihon 只改寫 vault 內的一般檔案。",

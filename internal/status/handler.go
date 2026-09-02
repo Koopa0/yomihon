@@ -147,6 +147,9 @@ func recoveryFor(err error) *recovery {
 	if r := recoveryForInstall(err); r != nil {
 		return r
 	}
+	if r := recoveryForIrregularEntry(err); r != nil {
+		return r
+	}
 	switch {
 	case errors.Is(err, ErrInvalidPath):
 		return &recovery{
@@ -176,16 +179,6 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusUnprocessableEntity,
 			summary:    wording.NonInstanceReason,
 			nextAction: wording.NotGoverned,
-		}
-	case errors.Is(err, errNotRegular), errors.Is(err, errPathNotRegular):
-		// A refusal the operator repairs by hand, like every other refused
-		// target — not a fault worth a log hunt. Both sentinels are produced
-		// before any byte is written, so the unchanged page is truthful.
-		return &recovery{
-			code:            http.StatusUnprocessableEntity,
-			summary:         wording.TargetNotRegular,
-			nextAction:      wording.TargetNotRegularNext,
-			technicalDetail: err.Error(),
 		}
 	case errors.Is(err, ErrStale):
 		return &recovery{
@@ -241,6 +234,32 @@ func recoveryFor(err error) *recovery {
 			logMessage: "status flip failed",
 			cause:      err,
 		}
+	}
+}
+
+// recoveryForIrregularEntry maps the two refusals for a path whose shape the
+// write face declines to follow, or nil when err is neither. A refusal the
+// operator repairs by hand, like every other refused target — not a fault
+// worth a log hunt — and both sentinels are produced before any byte is
+// written, so the unchanged page is truthful. The two part over which entry
+// broke the shape — the note's own, or a step on the way to it — because the
+// repair is a hand edit and the operator's first question is which entry to
+// look at.
+func recoveryForIrregularEntry(err error) *recovery {
+	var summary wording.Phrase
+	switch {
+	case errors.Is(err, errNotRegular):
+		summary = wording.TargetNotRegular
+	case errors.Is(err, errPathNotRegular):
+		summary = wording.PathNotRegular
+	default:
+		return nil
+	}
+	return &recovery{
+		code:            http.StatusUnprocessableEntity,
+		summary:         summary,
+		nextAction:      wording.TargetNotRegularNext,
+		technicalDetail: err.Error(),
 	}
 }
 

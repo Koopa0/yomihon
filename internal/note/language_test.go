@@ -146,6 +146,9 @@ func TestLanguagePostKeepsTheRedirectLocal(t *testing.T) {
 		{name: "a protocol-relative address falls to Home", next: "//example.com/", want: "/"},
 		{name: "a backslash pair falls to Home", next: `/\example.com`, want: "/"},
 		{name: "a relative path falls to Home", next: "notes/A.md", want: "/"},
+		{name: "a decoded tab falls to Home", next: "/\t/evil.example", want: "/"},
+		{name: "a decoded newline falls to Home", next: "/\n/evil.example", want: "/"},
+		{name: "a delete byte falls to Home", next: "/\x7f/evil.example", want: "/"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

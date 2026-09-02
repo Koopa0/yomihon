@@ -148,13 +148,16 @@ function holdInvitation(column) {
   };
 }
 
-// holdRulings parks the status controls once the page knows its words are
-// behind the file or the file is not there any more: a press from there would
-// ask for a ruling over bytes the reader has not seen. The controls keep
-// their explanation beside them, read off the column like every other
-// sentence of the watch, and a reload re-renders them live — which is what
-// the sentence asks for. Both answers that park them are latched by the
-// banner, so nothing here needs a way back.
+// holdRulings parks the status controls once the page knows the words it
+// shows have moved on — in its own file, or in a note it excerpts — or the
+// file is not there any more: a press from there would make a ruling over
+// words the reader has not seen. Where only an excerpt moved, the host's
+// identity still matches and the write face would accept the press, so
+// parking here is the only guard. The controls keep their explanation
+// beside them, read off the column like every other sentence of the watch,
+// and a reload re-renders them live — which is what the sentence asks for.
+// Both answers that park them are latched by the banner, so nothing here
+// needs a way back.
 function holdRulings(column) {
   const explanation = column.dataset.freshnessWritehold;
   let held = false;

@@ -372,9 +372,15 @@ func TestHandlerSymlinkTargetIsRefusedAsUnprocessable(t *testing.T) {
 		// plant creates the symlink shape under root and returns the path of
 		// the real file that must stay untouched.
 		plant func(t *testing.T, root string) string
+		// wantSummary is the sentence for where the shape broke. The note's
+		// own entry and a step on the way to it are repaired at different
+		// places, so the two refusals name their place rather than sharing
+		// one sentence the operator has to disambiguate by hand.
+		wantSummary wording.Phrase
 	}{
 		{
-			name: "the note itself is a symlink",
+			name:        "the note itself is a symlink",
+			wantSummary: wording.TargetNotRegular,
 			plant: func(t *testing.T, root string) string {
 				t.Helper()
 				outside := filepath.Join(t.TempDir(), "outside.md")
@@ -392,7 +398,8 @@ func TestHandlerSymlinkTargetIsRefusedAsUnprocessable(t *testing.T) {
 			},
 		},
 		{
-			name: "a directory on the way is a symlink",
+			name:        "a directory on the way is a symlink",
+			wantSummary: wording.PathNotRegular,
 			plant: func(t *testing.T, root string) string {
 				t.Helper()
 				outsideWriting := filepath.Join(t.TempDir(), "Writing")
@@ -428,7 +435,7 @@ func TestHandlerSymlinkTargetIsRefusedAsUnprocessable(t *testing.T) {
 				t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
 			}
 			for _, want := range []string{
-				wording.TargetNotRegular.In(wording.ZhHant),
+				tt.wantSummary.In(wording.ZhHant),
 				"狀態尚未變更",
 			} {
 				if !strings.Contains(body, want) {

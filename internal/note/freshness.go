@@ -186,13 +186,17 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 	if ask.statusCarried && vault.Parse(rel, data).Status() != ask.printedStatus {
 		return freshStale
 	}
-	// The transcluded stamp is settled last and from the generation alone: an
-	// embedded source's edit reaches an open page only once a reload would
-	// actually render it, and the render below reads the same captured bodies
-	// a reload would. Until the generation catches such an edit up, the
-	// honest answer is that nothing a reload could deliver has changed. The
-	// recomputation runs only for a page that carried a stamp, so a page that
-	// transcluded nothing costs this endpoint nothing new.
+	// The transcluded stamp is settled last and from the generation alone: a
+	// change to an excerpt the page already expanded reaches it only once a
+	// reload would actually render that change, and the render below reads
+	// the same captured bodies a reload would. Until the generation catches
+	// such an edit up, the honest answer is that nothing a reload could
+	// deliver has changed. What the stamp covers is exactly what was
+	// expanded: an embed that resolved to nothing on the open page is not in
+	// it, so a source that has since become embeddable is news only a reader
+	// who reloads on their own receives. The recomputation runs only for a
+	// page that carried a stamp, so a page that transcluded nothing costs
+	// this endpoint nothing new.
 	if ask.transcludedCarried &&
 		hex.EncodeToString(ask.transcluded[:]) != h.transcludedNow(snap, rel, published.Body) {
 		return freshStale
