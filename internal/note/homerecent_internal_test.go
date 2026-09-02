@@ -40,10 +40,10 @@ func homeStatusView(t *testing.T, contract *schema.Contract, governance schema.G
 
 // A vault whose contract file exists and cannot be read is governed and shut at
 // the same time: it asserted a vocabulary and then failed to deliver one, so it
-// answers "not declared" to every value put to it. The landing page happens not
-// to render the recent block in that state today, which means nothing here —
-// whether these rows accuse anyone is this function's own contract, not a
-// property borrowed from whichever caller decides the block is shown.
+// answers "not declared" to every value put to it. The landing page renders the
+// recent block in that state — plain reading survives a broken contract — so
+// these rows are on screen exactly when no vocabulary can back a finding, and
+// whether they accuse anyone is this function's own contract.
 func TestRecentHomeNotesAccuseNothingWhenTheContractCannotBeRead(t *testing.T) {
 	t.Parallel()
 	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))

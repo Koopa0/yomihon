@@ -39,6 +39,14 @@ func FromCookieValue(value string) Lang {
 	return ZhHant
 }
 
+// What the language endpoint says when a hand-built request asks for
+// something the rendered form never offers. The form itself carries only the
+// two spoken values, so neither sentence appears in ordinary use.
+var (
+	LanguageFormUnreadable = both("表單無法解讀。", "The form could not be read.")
+	LanguageUnknown        = both("這個介面只說 zh-Hant 與 en。", "This interface speaks only zh-Hant and en.")
+)
+
 // Tag is the language tag a document declares. It answers for the zero value
 // too, which is what a chrome assembled without a language carries: the
 // interface has a default, and a document that declared none at all would be

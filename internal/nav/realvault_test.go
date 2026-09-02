@@ -73,9 +73,13 @@ func TestNewRealVault(t *testing.T) {
 	if !roles.Available() && len(model.Paths())+len(model.Maps()) != 0 {
 		t.Error("unavailable navigation roles produced map projections")
 	}
-	if !policy.Available() &&
-		(len(model.Paths())+len(model.Maps()) != 0 || len(model.KnowledgeNotes()) != 0) {
-		t.Error("unavailable artifact policy produced instance projections")
+	if !policy.Available() && len(model.Paths())+len(model.Maps()) != 0 {
+		t.Error("unavailable artifact policy produced map projections")
+	}
+	// The recent-notes summary is plain reading and is built in every policy
+	// state; only the layer citation follows the declaration.
+	if !contract.KnowledgeScope().Available() && model.KnowledgeScoped() {
+		t.Error("real-vault model cites a knowledge layer no held declaration backs")
 	}
 
 	t.Logf(

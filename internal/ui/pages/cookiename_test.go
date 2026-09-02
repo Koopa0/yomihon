@@ -8,14 +8,15 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// TestClientWritesTheCookieTheServerReads holds the two halves of one name
-// together. The server reads the language cookie by a constant and the client
-// writes it by a literal, and nothing until now compared them: they agreed
-// because both were typed the same day, which is not a mechanism. Renaming one
-// leaves the other reading a cookie nobody writes, and the symptom is a control
-// that appears to do nothing — the click stores a choice, the reload asks for
-// the page, and the page comes back in the language it was already in.
-func TestClientWritesTheCookieTheServerReads(t *testing.T) {
+// TestClientReadsTheCookieTheServerWrites holds the two halves of one name
+// together. The server stores the language choice under a constant and the
+// client's cache-restore check reads it by a literal, and nothing else
+// compares them: they agree because both were typed the same day, which is not
+// a mechanism. Renaming one leaves the restore check reading a cookie nobody
+// writes, and the symptom is quiet — every revived page compares the document
+// against the default language and a reader who chose English gets silently
+// returned to a page the cookie says they left.
+func TestClientReadsTheCookieTheServerWrites(t *testing.T) {
 	t.Parallel()
 
 	const path = "../../../assets/js/preferences.js"
@@ -24,10 +25,16 @@ func TestClientWritesTheCookieTheServerReads(t *testing.T) {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
 	script := string(source)
-	if !strings.Contains(script, "data-lang-toggle") {
-		t.Fatalf("%s no longer carries the language control, so this test asserts nothing about it", path)
+	if !strings.Contains(script, "pageshow") {
+		t.Fatalf("%s no longer watches cache restores, so this test asserts nothing about them", path)
 	}
-	if !strings.Contains(script, wording.CookieName+"=") {
-		t.Errorf("%s writes no cookie named %q; the server reads that name and would never see the choice", path, wording.CookieName)
+	if !strings.Contains(script, `readCookie('`+wording.CookieName+`')`) {
+		t.Errorf("%s does not read the cookie named %q; the restore check would compare against a value nobody stores", path, wording.CookieName)
+	}
+	// The choice itself is stored by the server now: a client-side write here
+	// would be a second author for the same fact, and the two could disagree
+	// about the value's shape.
+	if strings.Contains(script, wording.CookieName+"=") {
+		t.Errorf("%s still writes the %q cookie; the language endpoint owns that write", path, wording.CookieName)
 	}
 }

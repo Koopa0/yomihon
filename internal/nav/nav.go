@@ -97,9 +97,13 @@ type Model struct {
 	reports []Report
 	// knowledgeNotes are typed markdown notes in vault path order. Home sorts a
 	// copy by Modified for its recent-changes block; the time is the scanner's
-	// captured value, so rendering never stats a note. This projection is
-	// withheld when the artifact declaration could not be honoured, and built
-	// over every readable note when none was ever made.
+	// captured value, so rendering never stats a note. It is plain reading, so
+	// it is built in every contract state: over the declared knowledge layer
+	// when the declarations were read cleanly, and over every readable note
+	// both when none was ever made and when what was made could not be
+	// honoured — an unknown exclusion set may not silently hide files, and a
+	// folder whose contract broke must not show less than one that never had a
+	// contract at all.
 	knowledgeNotes []NoteSummary
 	// knowledgeScoped records that the contract declared a knowledge layer,
 	// so knowledgeNotes lists less than the whole folder. Home's recent block
@@ -229,6 +233,12 @@ func (m *Model) KnowledgeScoped() bool {
 // browsing surfaces but closes every artifact-policy-dependent projection. The
 // closure travels with the model so a later reader can tell a withheld
 // projection from an empty one.
+//
+// The recent-notes summary is plain reading and stays: its titles, paths and
+// times come from the scan, not from any declaration. What it loses is the
+// knowledge-layer citation — the layer is the contract's own claim, and a
+// view built because an authority refused may not keep repeating that claim
+// beside the refusal.
 func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 	if m == nil {
 		return &Model{artifact: closure}
@@ -237,7 +247,7 @@ func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 	degraded.artifact = closure
 	degraded.paths = nil
 	degraded.maps = nil
-	degraded.knowledgeNotes = nil
+	degraded.knowledgeScoped = false
 	degraded.placementIndex = nil
 	return &degraded
 }
@@ -390,14 +400,17 @@ func newModel(
 	m.dirNotes = buildDirNotes(paths)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
-	if m.artifact.Closed() {
-		return m
-	}
-
+	// The recent-notes summary is collected in every contract state: a scope
+	// that cannot be trusted includes everything and claims no layer, and a
+	// policy that cannot be trusted excludes nothing, so a broken declaration
+	// degrades this list to the same all-inclusive answer an undeclared one
+	// gives. The projections below it are different: paths and maps exist only
+	// as a contract's own classification, so either closed declaration ends
+	// the build here with none.
 	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
 	m.knowledgeNotes = knowledgeNotes
 	m.knowledgeScoped = scope.Available()
-	if m.navigation.Closed() {
+	if m.artifact.Closed() || m.navigation.Closed() {
 		return m
 	}
 

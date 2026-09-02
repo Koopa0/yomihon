@@ -632,9 +632,11 @@ func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 }
 
 // TestNewClosesEveryProjectionForAnUnreadableContract is the companion: the
-// folder claimed governance and then could not deliver it, so the same
-// projections that stay open above must close here. Without this the two
-// folders render identically and a real fault is invisible.
+// folder claimed governance and then could not deliver it, so the
+// contract-derived projections that stay open above must close here — with a
+// diagnostic, so the fault is visible. The recent-notes summary is plain
+// reading and survives, over everything readable: a folder whose contract
+// broke must not show less than one that never had a contract.
 func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	t.Parallel()
 
@@ -664,8 +666,14 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	if !snap.Navigation().ArtifactClosure().Closed() {
 		t.Error("instance projections stayed open under a contract that could not be read")
 	}
-	if len(snap.Navigation().KnowledgeNotes()) != 0 {
-		t.Error("knowledge notes were projected from a contract that could not be read")
+	if got := len(snap.Navigation().KnowledgeNotes()); got != 1 {
+		t.Errorf("KnowledgeNotes = %d, want 1: plain reading survives an unreadable contract", got)
+	}
+	if snap.Navigation().KnowledgeScoped() {
+		t.Error("KnowledgeScoped() = true under an unreadable contract; the layer is that contract's own claim")
+	}
+	if len(snap.Navigation().Paths()) != 0 {
+		t.Error("study paths were projected from a contract that could not be read")
 	}
 	if len(snap.Navigation().Folders()) == 0 {
 		t.Error("ordinary folder browsing closed with the contract")

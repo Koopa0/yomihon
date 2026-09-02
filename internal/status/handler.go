@@ -354,7 +354,14 @@ func (h *Handler) respondRecovery(
 		ObsidianHref:    door,
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath, lang),
 	}
-	component := pages.StatusRecovery(view, pages.ChromeFromRequest(r, view.Title(lang)))
+	chrome := pages.ChromeFromRequest(r, view.Title(lang))
+	// The recovery page knows a better place to return to than the generic
+	// fallback for a POST-rendered page: the note this refusal was about,
+	// whenever the refusal still has one.
+	if notePath != "" {
+		chrome.ReturnTo = notesHref(notePath)
+	}
+	component := pages.StatusRecovery(view, chrome)
 	if err := writeRecovery(w, r.Context(), failure.code, failure.changed, component, lang); err != nil {
 		h.log.Error("render status recovery", "path", path, "changed", failure.changed, "error", err)
 	}

@@ -128,6 +128,65 @@
   color-scheme: dark;
 }
 
+/* The same ink-stone, entered by the system's preference instead of the
+   reader's: a root carrying no stored choice follows a dark desk. A stored
+   choice keeps beating the system either way — an explicit light escapes
+   this block through the :not() guard, and an explicit dark repeats these
+   values. This body must stay declaration-for-declaration identical to
+   [data-theme="dark"] above; a Go test compares the two and names any token
+   that drifts. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:            oklch(0.153 0.006 107);
+    --panel:         oklch(0.210 0.011 107);
+    --elevated:      oklch(0.262 0.013 107);
+    --overlay:       oklch(0.305 0.014 107);
+
+    --fg:            oklch(0.962 0.004 106);
+    --fg-muted:      oklch(0.760 0.010 106);
+    --fg-subtle:     oklch(0.720 0.014 107);
+    --fg-faint:      oklch(0.680 0.012 72);
+
+    --border:        oklch(0.300 0.012 107);
+    --border-strong: oklch(0.400 0.014 107);
+    --border-faint:  oklch(0.235 0.010 107);
+
+    --accent:        oklch(0.820 0.150 34);
+    --accent-strong: oklch(0.880 0.130 34);
+    --accent-muted:  oklch(0.660 0.170 34 / 0.16);
+    --accent-faint:  oklch(0.660 0.170 34 / 0.07);
+    --on-accent:     oklch(0.150 0.010 60);
+    --link:          oklch(0.740 0.150 34);
+
+    --warn:          oklch(0.860 0.120 82);
+    --warn-bg:       oklch(0.800 0.130 80 / 0.14);
+    --gold:          oklch(0.735 0.098 84);
+    --gold-ink:      oklch(0.775 0.098 84);
+
+    --sage:          oklch(0.820 0.065 148);
+    --sage-bg:       oklch(0.680 0.060 148 / 0.13);
+
+    --success:       oklch(0.740 0.120 155);
+    --success-bg:    oklch(0.740 0.120 155 / 0.14);
+
+    /* Slot roles, brightened for the dark ink-stone (same hues as light). */
+    --slot-topic: oklch(0.780 0.120 250);
+    --slot-pred:  oklch(0.800 0.115 65);
+    --slot-poss:  oklch(0.820 0.065 250);
+    --slot-obj:   oklch(0.790 0.095 185);
+    --slot-place: oklch(0.790 0.110 305);
+    --slot-time:  oklch(0.810 0.090 45);
+    --slot-verb:  oklch(0.795 0.090 150);
+    --slot-num:   oklch(0.790 0.115 350);
+
+    --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
+    --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
+
+    color-scheme: dark;
+  }
+}
+
+
 /* ---- Non-colour tokens (theme-independent) ---- */
 :root {
   /* Type families — Latin (Geist/Newsreader) leads; CJK resolves to Noto when

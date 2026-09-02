@@ -190,19 +190,23 @@ func LanguageFromRequest(r *http.Request) wording.Lang {
 }
 
 // ChromeFromRequest builds the page chrome from the request: the page title
-// plus the persisted theme, furigana, and single-key-shortcut cookies (default
-// light / on / on), so the root element renders the correct state on the first
-// byte (no FOUC). Each
+// plus the persisted theme, furigana, and single-key-shortcut cookies, so the
+// root element renders the correct state on the first byte (no FOUC). Each
 // cookie honors only its known values; anything else falls to the default —
 // input hygiene, since a cookie is user-controllable.
+//
+// The theme's default is deliberately empty rather than light: a reader who
+// never chose has expressed no preference here, and the stylesheet answers an
+// unstamped root with the system's own preference. Both stored values are
+// honored, because an explicit light choice must keep beating a dark system.
 //
 // It takes no shell: what the chrome is built from is the request and nothing
 // else, and a snapshot projection passed alongside would say the two were
 // related when they never were.
 func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
-	theme := "light"
-	if c, err := r.Cookie("yomihon_theme"); err == nil && c.Value == "dark" {
-		theme = "dark"
+	theme := ""
+	if c, err := r.Cookie("yomihon_theme"); err == nil && (c.Value == "dark" || c.Value == "light") {
+		theme = c.Value
 	}
 	ruby := "on"
 	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
@@ -224,5 +228,21 @@ func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
 		Ruby:                      ruby,
 		TextSize:                  textSize,
 		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
+		// The request's own address, so the language form can bring the reader
+		// back to this page after the switch. Only an address a GET can revisit
+		// qualifies: a page rendered by a POST names a target, not a place, so
+		// the form falls back to Home — and a page that knows a better return,
+		// as the recovery page knows its note, overrides this afterwards.
+		ReturnTo: returnableAddress(r),
 	}
+}
+
+// returnableAddress is the address the language form sends a reader back to: a
+// GET request's own URI, and Home for everything else, because re-fetching a
+// POST target with a GET lands on no page at all.
+func returnableAddress(r *http.Request) string {
+	if r.Method == http.MethodGet {
+		return r.URL.RequestURI()
+	}
+	return "/"
 }

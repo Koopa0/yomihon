@@ -476,23 +476,29 @@ map_types = ["moc"]
 			wantNavigation:     `missing required key "map_types"`,
 			wantKnowledgeNotes: 2,
 		},
+		// The artifact rows keep their knowledge notes: the summary is plain
+		// reading, and a policy that cannot be honoured excludes nothing
+		// rather than hiding everything.
 		{
-			name:         "undeclared artifact policy",
-			roles:        validRoles,
-			policy:       undeclaredArtifact.ArtifactPolicy(),
-			wantArtifact: "contract declares no artifact policy",
+			name:               "undeclared artifact policy",
+			roles:              validRoles,
+			policy:             undeclaredArtifact.ArtifactPolicy(),
+			wantArtifact:       "contract declares no artifact policy",
+			wantKnowledgeNotes: 2,
 		},
 		{
-			name:         "invalid artifact policy",
-			roles:        validRoles,
-			policy:       invalidArtifact.ArtifactPolicy(),
-			wantArtifact: `../templates`,
+			name:               "invalid artifact policy",
+			roles:              validRoles,
+			policy:             invalidArtifact.ArtifactPolicy(),
+			wantArtifact:       `../templates`,
+			wantKnowledgeNotes: 2,
 		},
 		{
-			name:         "incomplete artifact policy",
-			roles:        validRoles,
-			policy:       incompleteArtifact.ArtifactPolicy(),
-			wantArtifact: `missing required key "non_instance_dirs"`,
+			name:               "incomplete artifact policy",
+			roles:              validRoles,
+			policy:             incompleteArtifact.ArtifactPolicy(),
+			wantArtifact:       `missing required key "non_instance_dirs"`,
+			wantKnowledgeNotes: 2,
 		},
 	}
 	for _, tt := range tests {
@@ -560,11 +566,14 @@ func TestUngovernedFolderProjectsOverTheEmptyDeclaredSet(t *testing.T) {
 
 // TestUnreadableContractClosesEveryProjectionWithOneSentence pins the other
 // half: a folder whose contract exists and cannot be parsed did claim
-// governance, so every projection under it closes. Each closure carries the
-// same sentence rather than none, so a surface that can report through only one
-// of them still has something true to say — and because the sentences are
-// identical, a surface showing both collapses them to one line instead of
-// reading as two separate faults.
+// governance, so every contract-derived projection under it closes. Each
+// closure carries the same sentence rather than none, so a surface that can
+// report through only one of them still has something true to say — and
+// because the sentences are identical, a surface showing both collapses them
+// to one line instead of reading as two separate faults. The recent-notes
+// summary is not contract-derived and stays, over everything readable: a
+// folder whose contract broke must not show less than one that never had a
+// contract.
 func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
 	t.Parallel()
 
@@ -591,8 +600,14 @@ func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
 	if !strings.Contains(model.NavigationClosure().Diagnostic(), "line 42") {
 		t.Errorf("the closure does not carry the parse error: %q", model.NavigationClosure().Diagnostic())
 	}
-	if len(model.KnowledgeNotes()) != 0 {
-		t.Error("instance projections survived an unreadable contract")
+	if got := len(model.KnowledgeNotes()); got != 1 {
+		t.Errorf("KnowledgeNotes = %d, want 1: plain reading survives an unreadable contract", got)
+	}
+	if model.KnowledgeScoped() {
+		t.Error("KnowledgeScoped() = true under an unreadable contract; the layer is that contract's own claim")
+	}
+	if len(model.Paths()) != 0 || len(model.Maps()) != 0 {
+		t.Errorf("contract-derived projections survived: %d paths, %d maps", len(model.Paths()), len(model.Maps()))
 	}
 	if len(model.Folders()) == 0 {
 		t.Error("ordinary folder browsing closed with the contract")
@@ -1222,25 +1237,34 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 	t.Parallel()
 
 	original := &Model{
-		navigation:     Close(schema.Rejected("navigation diagnostic")),
-		folders:        []Folder{{Name: "Concepts", RelPath: "Concepts"}},
-		rootNotes:      []NoteRef{{Name: "README", RelPath: "README.md"}},
-		paths:          []Path{{Title: "Path"}},
-		maps:           []Map{{Title: "Map"}},
-		journal:        []JournalEntry{{Title: "Today"}},
-		reports:        []Report{{Name: "report.md"}},
-		knowledgeNotes: []NoteSummary{{Title: "A"}},
-		placementIndex: map[string][]Placement{"A.md": {{MapRelPath: "Maps/A.md"}}},
-		dirNotes:       map[string][]NoteRef{"Concepts": {{Name: "A", RelPath: "Concepts/A.md"}}},
+		navigation:      Close(schema.Rejected("navigation diagnostic")),
+		folders:         []Folder{{Name: "Concepts", RelPath: "Concepts"}},
+		rootNotes:       []NoteRef{{Name: "README", RelPath: "README.md"}},
+		paths:           []Path{{Title: "Path"}},
+		maps:            []Map{{Title: "Map"}},
+		journal:         []JournalEntry{{Title: "Today"}},
+		reports:         []Report{{Name: "report.md"}},
+		knowledgeNotes:  []NoteSummary{{Title: "A"}},
+		knowledgeScoped: true,
+		placementIndex:  map[string][]Placement{"A.md": {{MapRelPath: "Maps/A.md"}}},
+		dirNotes:        map[string][]NoteRef{"Concepts": {{Name: "A", RelPath: "Concepts/A.md"}}},
 	}
 	degraded := original.WithoutInstanceProjections(Close(schema.Rejected("artifact unavailable")))
 
 	if degraded == original {
 		t.Fatal("WithoutInstanceProjections() returned the mutable source model")
 	}
-	if len(degraded.Paths()) != 0 || len(degraded.Maps()) != 0 || len(degraded.KnowledgeNotes()) != 0 || degraded.placementIndex != nil {
-		t.Errorf("instance projections remain: paths=%d maps=%d notes=%d placements=%v",
-			len(degraded.Paths()), len(degraded.Maps()), len(degraded.KnowledgeNotes()), degraded.placementIndex)
+	if len(degraded.Paths()) != 0 || len(degraded.Maps()) != 0 || degraded.placementIndex != nil {
+		t.Errorf("instance projections remain: paths=%d maps=%d placements=%v",
+			len(degraded.Paths()), len(degraded.Maps()), degraded.placementIndex)
+	}
+	// The recent-notes summary is plain reading and survives the refusal; the
+	// knowledge-layer citation is the contract's own claim and does not.
+	if len(degraded.KnowledgeNotes()) != 1 {
+		t.Errorf("degraded KnowledgeNotes = %d, want 1: plain reading survives a refusing authority", len(degraded.KnowledgeNotes()))
+	}
+	if degraded.KnowledgeScoped() {
+		t.Error("KnowledgeScoped() = true on a degraded view; the layer is the refused contract's own claim")
 	}
 	if degraded.ArtifactClosure().Diagnostic() != "artifact unavailable" {
 		t.Errorf("ArtifactClosure().Diagnostic() = %q, want %q", degraded.ArtifactClosure().Diagnostic(), "artifact unavailable")
@@ -1266,7 +1290,7 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 	if dir, notes := degraded.Siblings("Concepts/A.md"); dir != "Concepts" || len(notes) != 1 {
 		t.Errorf("Siblings() = (%q, %v), want ordinary folder browse preserved", dir, notes)
 	}
-	if len(original.Paths()) != 1 || len(original.Maps()) != 1 || len(original.KnowledgeNotes()) != 1 || original.placementIndex == nil {
+	if len(original.Paths()) != 1 || len(original.Maps()) != 1 || len(original.KnowledgeNotes()) != 1 || !original.KnowledgeScoped() || original.placementIndex == nil {
 		t.Error("WithoutInstanceProjections() mutated the source model")
 	}
 }
