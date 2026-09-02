@@ -464,8 +464,8 @@ templ schemaNotices(v NoteView) {
 	for _, notice := range v.SchemaNotices {
 		<p class="y-statuspanel__notice y-statusflag">
 			for _, part := range notice {
-				if part.Code != "" {
-					<code>{ part.Code }</code>
+				if part.Code {
+					<code>{ part.Text }</code>
 				} else {
 					{ part.Text }
 				}

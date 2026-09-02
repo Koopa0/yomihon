@@ -6,10 +6,12 @@ package wording
 //
 // The sentence arrives in pieces because the note's words are the reader's
 // evidence and have to survive as text rather than be folded into a sentence
-// built elsewhere. Exactly one of the two fields is set.
+// built elsewhere. Code says which kind of piece this is; the text is the same
+// field either way, so there is no piece carrying two texts and none carrying
+// none — a shape a page could only render as silence.
 type SchemaPart struct {
 	Text string
-	Code string
+	Code bool
 }
 
 // SchemaSentence is what a page says about one schema finding, given the rule
@@ -27,7 +29,7 @@ type SchemaPart struct {
 // because a page that goes quiet about a fault is the fault this whole surface
 // exists to end.
 func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPart {
-	code := func(s string) SchemaPart { return SchemaPart{Code: s} }
+	code := func(s string) SchemaPart { return SchemaPart{Text: s, Code: true} }
 	text := func(p Phrase) SchemaPart { return SchemaPart{Text: p.In(lang)} }
 
 	switch ruleID {

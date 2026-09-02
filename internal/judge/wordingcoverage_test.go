@@ -51,7 +51,6 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 				var said strings.Builder
 				for _, part := range parts {
 					said.WriteString(part.Text)
-					said.WriteString(part.Code)
 				}
 				if said.Len() == 0 {
 					t.Errorf("rule %q in %s says nothing", id, lang)
@@ -79,7 +78,6 @@ func TestAnUnknownSchemaRuleStillSaysSomething(t *testing.T) {
 		var said strings.Builder
 		for _, part := range wording.SchemaSentence(lang, invented, "", "", "") {
 			said.WriteString(part.Text)
-			said.WriteString(part.Code)
 		}
 		if !strings.Contains(said.String(), invented) {
 			t.Errorf("an unknown rule in %s said %q, which does not name the rule a reader would have to ask about", lang, said.String())
