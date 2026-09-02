@@ -868,3 +868,25 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 		})
 	}
 }
+
+// TestARowNobodyJudgedIsNotAccepted holds the zero value of the validation
+// outcome to the safe answer. Acceptance is what lets a row be counted, walked
+// and placed, so a Candidate that reached nobody's judgement claiming it was
+// accepted would hand every hand-built or partially-copied row the strongest
+// verdict the grammar has.
+func TestARowNobodyJudgedIsNotAccepted(t *testing.T) {
+	t.Parallel()
+	var unjudged Candidate
+	if unjudged.State != EntryUnread {
+		t.Errorf("the zero Candidate's state = %v, want %v", unjudged.State, EntryUnread)
+	}
+	if unjudged.Accepted() {
+		t.Error("a Candidate nobody judged reports itself accepted")
+	}
+	// The control: the state validation does assign still means what it said,
+	// so the guard above cannot be "nothing is ever accepted".
+	judged := Candidate{State: EntryAccepted}
+	if !judged.Accepted() {
+		t.Error("a row validation accepted does not report itself accepted")
+	}
+}

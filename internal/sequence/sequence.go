@@ -99,9 +99,15 @@ func (s Span) Zero() bool { return s == Span{} }
 type EntryState uint8
 
 const (
+	// EntryUnread is the state of a row nobody has judged. Parse never returns
+	// it: every candidate it records has been through canonical validation. It
+	// is the zero value so that acceptance — the verdict that lets a row be
+	// counted, walked and placed — is something a row has to be given rather
+	// than something a half-built one already holds.
+	EntryUnread EntryState = iota
 	// EntryAccepted is a canonical row: its single live link is the first
 	// visible inline, so the row is the lesson it names.
-	EntryAccepted EntryState = iota
+	EntryAccepted
 	// EntryNoncanonical is a row whose single live link comes after something
 	// else — a label, an embed, a same-file anchor, inline code. The author
 	// moves the link to the front or takes the row out of the course; choosing
@@ -120,6 +126,8 @@ const (
 // String names an entry state for a diagnostic or a consumer's log line.
 func (s EntryState) String() string {
 	switch s {
+	case EntryUnread:
+		return "unread"
 	case EntryAccepted:
 		return "accepted"
 	case EntryNoncanonical:
