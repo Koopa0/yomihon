@@ -127,8 +127,8 @@ func validateRealVaultMaps(t *testing.T, category string, maps []Map) int {
 	return entryCount
 }
 
-func flattenRealVaultEntries(branches []Branch) []Entry {
-	var entries []Entry
+func flattenRealVaultEntries(branches []Branch) []MapEntry {
+	var entries []MapEntry
 	for _, branch := range branches {
 		entries = append(entries, branch.Entries...)
 		entries = append(entries, flattenRealVaultEntries(branch.Subbranches)...)
