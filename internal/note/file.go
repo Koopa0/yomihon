@@ -105,7 +105,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 	}
 
 	name := path.Base(rel)
-	pageShell := shell.Project(statusView, snap.ArtifactPolicy(), snap)
+	pageShell := shell.Project(statusView, snap)
 	view := pages.FileView{
 		Title:   name,
 		RelPath: rel,

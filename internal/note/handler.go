@@ -153,7 +153,7 @@ func (h *Handler) showUnreadable(w http.ResponseWriter, r *http.Request, asked s
 
 func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked string, unreadable bool) {
 	snap := h.deps.Snapshot().Capture()
-	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
+	pageShell := shell.Project(h.deps.Status(), snap)
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
@@ -183,7 +183,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 	}
 	dir = vault.NormalizeNFC(dir)
 	snap := h.deps.Snapshot().Capture()
-	pageShell := shell.Project(h.deps.Status(), snap.ArtifactPolicy(), snap)
+	pageShell := shell.Project(h.deps.Status(), snap)
 	notes, subfolders, ok := pageShell.Nav.Directory(dir)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path)
@@ -208,7 +208,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	statusView := h.deps.Status()
 	snap := h.deps.Snapshot().Capture()
-	pageShell := shell.Project(statusView, snap.ArtifactPolicy(), snap)
+	pageShell := shell.Project(statusView, snap)
 	health := snap.Health()
 	fresh := snap.Freshness()
 	unreadableFrontmatter, schemaFaults := schemaFaultLists(snap)
@@ -403,7 +403,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// technical detail beside it lists.
 	fresh := snap.Freshness()
 	artifactPolicy := snap.ArtifactPolicy()
-	pageShell := shell.Project(statusView, artifactPolicy, snap)
+	pageShell := shell.Project(statusView, snap)
 	lifecycle, unstated, lifecycleClosed := h.lifecycle(statusView, snap, pages.LanguageFromRequest(r))
 	// The lifecycle block is derived from the write authority while the counts
 	// under it come from the snapshot's own artifact sample, and the two are
@@ -521,8 +521,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artifactPolicy := snap.ArtifactPolicy()
-	state := h.governance(&n, snap, statusView, artifactPolicy)
+	state := h.governance(&n, snap, statusView)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body, lang)
@@ -793,14 +792,10 @@ func (s *governanceState) instance() bool { return s.placement == governedInstan
 // is neither.
 func (s *governanceState) nonInstance() bool { return s.placement == readableArtifact }
 
-func (h *Handler) governance(
-	n *snapshot.Reading,
-	snap *snapshot.View,
-	statusView status.View,
-	policy schema.ArtifactPolicy,
-) governanceState {
+func (h *Handler) governance(n *snapshot.Reading, snap *snapshot.View, statusView status.View) governanceState {
+	policy := snap.ArtifactPolicy()
 	state := governanceState{
-		shell:     shell.Project(statusView, policy, snap),
+		shell:     shell.Project(statusView, snap),
 		placement: classifyGovernance(statusView, policy, n.RelPath),
 	}
 	state.writeDiagnostic = statusView.WriteDiagnostic()
