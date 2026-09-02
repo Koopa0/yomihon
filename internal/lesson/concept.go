@@ -108,10 +108,18 @@ type ConceptDoc struct {
 // because the sheet opens over a different note and a body rendered against
 // the reader's location would address the wrong files. The ID comes from the
 // index so it matches the trigger the post-pass wrote.
+//
+// It panics on a nil renderBody, because that is a wiring fault and not an
+// answer about this path. Reported as "not a concept" it would empty every
+// sheet in the vault silently, and the page would render as though nothing
+// had ever been written.
 func (x ConceptIndex) Document(renderBody func(relPath, body string) string, relPath string) (ConceptDoc, bool) {
+	if renderBody == nil {
+		panic("lesson: Document requires a non-nil renderBody")
+	}
 	key := vault.NormalizeNFC(relPath)
 	source, ok := x.byPath[key]
-	if !ok || renderBody == nil {
+	if !ok {
 		return ConceptDoc{}, false
 	}
 	return ConceptDoc{ID: source.id, Title: source.title, HTML: renderBody(key, source.body)}, true
