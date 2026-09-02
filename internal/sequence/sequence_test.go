@@ -65,7 +65,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 
 	// "Home reads 8 課" — the main line lists eight lessons, every one
 	// canonical, and the side branch's three are not among them.
-	entries := main.Entries()
+	entries := main.entries()
 	if got := len(entries); got != 8 {
 		t.Errorf("the main line lists %d lessons, want 8: %+v", got, entries)
 	}
@@ -75,7 +75,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 		}
 	}
 	// "The side branch shows as three, hanging under L03."
-	subgroups := main.Subgroups()
+	subgroups := main.subgroups()
 	if len(subgroups) != 1 {
 		t.Fatalf("the main line holds %d child branches, want 1: %+v", len(subgroups), subgroups)
 	}
@@ -86,8 +86,8 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 	if !side.Projectable() {
 		t.Errorf("a valid declared side branch is not projectable; nothing else may decide this but the type")
 	}
-	if got := len(side.Entries()); got != 3 {
-		t.Errorf("the side branch lists %d lessons, want 3: %+v", got, side.Entries())
+	if got := len(side.entries()); got != 3 {
+		t.Errorf("the side branch lists %d lessons, want 3: %+v", got, side.entries())
 	}
 	if side.AnchorTarget != "L03 研磨" {
 		t.Errorf("the side branch hangs from %q, want %q", side.AnchorTarget, "L03 研磨")
@@ -119,8 +119,8 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 	// The routine block reads normally on the page but lists nothing for the
 	// course; its rows are still recognized, which is why the branch is `none`
 	// rather than structural — and none never projects.
-	if got := len(routine.Entries()); got != 2 {
-		t.Errorf("the routine block lists %d rows, want 2: %+v", got, routine.Entries())
+	if got := len(routine.entries()); got != 2 {
+		t.Errorf("the routine block lists %d rows, want 2: %+v", got, routine.entries())
 	}
 	if routine.Projectable() {
 		t.Errorf("a branch declared out of the course reports itself projectable")
@@ -136,7 +136,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 		t.Errorf("main line order mismatch (-want +got):\n%s", diff)
 	}
 	wantSide := []string{"磨豆機校正基礎", "粒徑分布判讀", "校正實作"}
-	if diff := cmp.Diff(wantSide, targets(side.Entries())); diff != "" {
+	if diff := cmp.Diff(wantSide, targets(side.entries())); diff != "" {
 		t.Errorf("side branch order mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -149,7 +149,7 @@ func TestOrderedAndUnorderedRowsAreTheSameCandidate(t *testing.T) {
 	ordered := Parse("## P {sequence=primary}\n\n1. [[A]]\n2. [[B]]\n", 1)
 	unordered := Parse("## P {sequence=primary}\n\n- [[A]]\n* [[B]]\n", 1)
 
-	if diff := cmp.Diff(targets(ordered.Groups[0].Entries()), targets(unordered.Groups[0].Entries())); diff != "" {
+	if diff := cmp.Diff(targets(ordered.Groups[0].entries()), targets(unordered.Groups[0].entries())); diff != "" {
 		t.Errorf("ordered and unordered rows disagree (-ordered +unordered):\n%s", diff)
 	}
 	if len(ordered.Diagnostics) != 0 || len(unordered.Diagnostics) != 0 {
@@ -251,7 +251,7 @@ func TestNoncanonicalRowsAreCandidatesButNeverEntries(t *testing.T) {
 			t.Parallel()
 			doc := Parse("## P {sequence=primary}\n\n"+tt.body, 1)
 
-			entries := doc.Groups[0].Entries()
+			entries := doc.Groups[0].entries()
 			if len(entries) != 1 {
 				t.Fatalf("the branch lists %d rows, want 1; a noncanonical row is still a row", len(entries))
 			}
@@ -293,7 +293,7 @@ func TestTargetScopeReadsTheWholeItem(t *testing.T) {
 	if d.Line != 3 {
 		t.Errorf("%s reported on line %d, want 3, the row it is about", RuleEntryMultiTarget, d.Line)
 	}
-	entries := doc.Groups[0].Entries()
+	entries := doc.Groups[0].entries()
 	if len(entries) != 1 || entries[0].State != EntryMultiTarget {
 		t.Errorf("row = %+v, want one multi-target candidate", entries)
 	}
@@ -305,7 +305,7 @@ func TestTargetScopeReadsTheWholeItem(t *testing.T) {
 	if findRule(control, RuleEntryMultiTarget) != nil {
 		t.Fatalf("the nested list's own link was counted into the enclosing row's scope: %+v", control.Diagnostics)
 	}
-	got := control.Groups[0].Entries()
+	got := control.Groups[0].entries()
 	if len(got) != 1 || !got[0].Accepted() || got[0].Target != "A" {
 		t.Errorf("control row = %+v, want one accepted entry for A", got)
 	}
@@ -322,7 +322,7 @@ func TestCheckboxNeverAnchorsALocalBranch(t *testing.T) {
 	if findRule(doc, RuleLocalOrphan) == nil {
 		t.Fatalf("a side branch under a checkbox row was not reported as an orphan: %+v", doc.Diagnostics)
 	}
-	subgroups := doc.Groups[0].Subgroups()
+	subgroups := doc.Groups[0].subgroups()
 	if len(subgroups) != 1 {
 		t.Fatalf("branch holds %d subgroups, want the orphaned side branch alone: %+v", len(subgroups), subgroups)
 	}
@@ -333,7 +333,7 @@ func TestCheckboxNeverAnchorsALocalBranch(t *testing.T) {
 	if side.AnchorTarget != "" || !side.AnchorSpan.Zero() {
 		t.Errorf("orphaned side branch still carries anchor (%q, %+v); a checkbox row is not an anchor", side.AnchorTarget, side.AnchorSpan)
 	}
-	if got := len(doc.Groups[0].Entries()); got != 0 {
+	if got := len(doc.Groups[0].entries()); got != 0 {
 		t.Errorf("the checkbox row itself was counted as a row: %d entries", got)
 	}
 }
@@ -360,7 +360,7 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	if findRule(doc, RuleRoleMissing) == nil {
 		t.Errorf("an undeclared branch whose only row is conflicted was not asked to declare itself: %+v", doc.Diagnostics)
 	}
-	entries := branch.Entries()
+	entries := branch.entries()
 	if len(entries) != 1 {
 		t.Fatalf("branch lists %d rows, want 1: %+v", len(entries), entries)
 	}
@@ -370,7 +370,7 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	if entries[0].Target != "B" {
 		t.Errorf("conflicted row target = %q, want %q kept for identity", entries[0].Target, "B")
 	}
-	subgroups := branch.Subgroups()
+	subgroups := branch.subgroups()
 	if len(subgroups) != 1 {
 		t.Fatalf("branch holds %d subgroups, want the conflicted container alone", len(subgroups))
 	}
@@ -389,7 +389,7 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 	t.Run("a role conflict does not project", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n", 1)
-		inner := doc.Groups[0].Subgroups()[0]
+		inner := doc.Groups[0].subgroups()[0]
 		if !inner.Invalid || inner.Projectable() {
 			t.Errorf("conflicted branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
 		}
@@ -398,7 +398,7 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 	t.Run("an orphaned side branch does not project", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n", 1)
-		side := doc.Groups[0].Subgroups()[0]
+		side := doc.Groups[0].subgroups()[0]
 		if !side.Invalid || side.Projectable() {
 			t.Errorf("orphaned branch = (invalid %t, projectable %t), want (true, false)", side.Invalid, side.Projectable())
 		}
@@ -407,11 +407,11 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 	t.Run("a side branch nested too deep does not project, and the outer one still does", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n", 1)
-		outer := doc.Groups[0].Subgroups()[0]
+		outer := doc.Groups[0].subgroups()[0]
 		if outer.Invalid || !outer.Projectable() {
 			t.Errorf("outer side branch = (invalid %t, projectable %t), want (false, true); the error is the inner one's", outer.Invalid, outer.Projectable())
 		}
-		inner := outer.Subgroups()[0]
+		inner := outer.subgroups()[0]
 		if !inner.Invalid || inner.Projectable() {
 			t.Errorf("inner side branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
 		}
@@ -425,14 +425,14 @@ func TestCandidateIdentityDisambiguatesRepeatedTargets(t *testing.T) {
 	t.Parallel()
 	doc := Parse("## P {sequence=primary}\n\n- [[A]]\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n", 1)
 
-	entries := doc.Groups[0].Entries()
+	entries := doc.Groups[0].entries()
 	if len(entries) != 2 {
 		t.Fatalf("branch lists %d rows, want the two that both name A", len(entries))
 	}
 	if entries[0].Span == entries[1].Span {
 		t.Fatalf("two distinct rows share one span %+v; a span that cannot tell rows apart identifies nothing", entries[0].Span)
 	}
-	side := doc.Groups[0].Subgroups()[0]
+	side := doc.Groups[0].subgroups()[0]
 	if side.AnchorSpan != entries[1].Span {
 		t.Errorf("side branch anchor span = %+v, want the second A row's span %+v", side.AnchorSpan, entries[1].Span)
 	}
@@ -463,7 +463,7 @@ func TestBranchStateComesFromCandidatesNotFromResolution(t *testing.T) {
 	if !hasRule(doc, RuleEntryMultiTarget) {
 		t.Errorf("a row naming two notes was not reported: %+v", doc.Diagnostics)
 	}
-	entries := doc.Groups[0].Entries()
+	entries := doc.Groups[0].entries()
 	if len(entries) != 1 || entries[0].State != EntryMultiTarget || entries[0].Target != "" {
 		t.Errorf("row = %+v, want one multi-target candidate with no target; naming one of two notes would be a guess", entries)
 	}
@@ -858,7 +858,7 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 			}
 			var got []string
 			for _, g := range doc.Groups {
-				for _, e := range g.Entries() {
+				for _, e := range g.entries() {
 					got = append(got, e.Target)
 				}
 			}

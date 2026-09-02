@@ -225,8 +225,8 @@ func (g *Group) Projectable() bool {
 	return !g.Invalid && (g.Role == RolePrimary || g.Role == RoleLocal)
 }
 
-// Entries are the rows this branch lists, in source order.
-func (g *Group) Entries() []*Candidate {
+// entries are the rows this branch lists, in source order.
+func (g *Group) entries() []*Candidate {
 	var out []*Candidate
 	for _, item := range g.Items {
 		if item.Entry != nil {
@@ -236,8 +236,8 @@ func (g *Group) Entries() []*Candidate {
 	return out
 }
 
-// Subgroups are the branches opened beneath this one, in source order.
-func (g *Group) Subgroups() []*Group {
+// subgroups are the branches opened beneath this one, in source order.
+func (g *Group) subgroups() []*Group {
 	var out []*Group
 	for _, item := range g.Items {
 		if item.Branch != nil {
@@ -852,7 +852,7 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 			p.report(RuleRoleMissing, g.Line,
 				"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it",
 				"a nested list carrying no declaration")
-		case len(g.Entries()) > 0:
+		case len(g.entries()) > 0:
 			g.Role = RoleUnclassified
 			p.report(RuleRoleMissing, g.Line,
 				"this branch lists lessons but never says what part it plays; declare {sequence=primary}, {sequence=local} or {sequence=none}",
@@ -860,7 +860,7 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 		default:
 			g.Role = RoleStructural
 		}
-		p.classify(g.Subgroups(), underNone || g.Role == RoleNone)
+		p.classify(g.subgroups(), underNone || g.Role == RoleNone)
 	}
 }
 
