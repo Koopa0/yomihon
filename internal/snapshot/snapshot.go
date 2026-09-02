@@ -423,18 +423,15 @@ type Store struct {
 	// through View.Freshness.
 	fresh atomic.Pointer[liveAttempt]
 
-	source          Source
-	log             *slog.Logger
-	now             func() time.Time
-	roles           schema.NavigationRoles
-	scope           schema.KnowledgeScope
-	artifactPolicy  schema.ArtifactPolicy
-	articleLanguage schema.ArticleLanguage
+	source       Source
+	log          *slog.Logger
+	now          func() time.Time
+	capabilities schema.Capabilities
 
 	// contract is the folder's own vocabulary, read once when the program
-	// started and unchanged after that — the same reading the four
-	// capabilities above were derived from, so nothing here is fresher or
-	// staler than they are. Each build asks it what a note's frontmatter
+	// started and unchanged after that — the same reading the capabilities
+	// above were derived from, so nothing here is fresher or staler than they
+	// are. Each build asks it what a note's frontmatter
 	// should have said; nothing writes to it, and no View holds it.
 	contract *schema.Contract
 	prev     vault.Scan
@@ -496,27 +493,24 @@ func New(
 		panic("snapshot: New requires a non-nil Logger")
 	}
 
-	roles, scope, policy, language := governance.Capabilities(contract)
-	policy = policy.ValidateSource()
+	capabilities := contract.Capabilities(governance)
+	capabilities.Artifacts = capabilities.Artifacts.ValidateSource()
 	scan, err := source.ScanAvailable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	view, blocked, err := buildView(ctx, source, nil, scan, log, roles, scope, policy, language, contract)
+	view, blocked, err := buildView(ctx, source, nil, scan, log, capabilities, contract)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
 	store := &Store{
-		source:          source,
-		log:             log,
-		now:             time.Now,
-		roles:           roles,
-		scope:           scope,
-		artifactPolicy:  policy,
-		articleLanguage: language,
-		contract:        contract,
-		prev:            scan,
-		retry:           len(blocked) != 0,
+		source:       source,
+		log:          log,
+		now:          time.Now,
+		capabilities: capabilities,
+		contract:     contract,
+		prev:         scan,
+		retry:        len(blocked) != 0,
 	}
 	builtAt := store.now()
 	view.built = buildFacts{
@@ -586,8 +580,8 @@ func (s *Store) rescan(ctx context.Context) {
 	if s.retry && s.now().Before(s.nextRetry) && s.incompleteScan.SameFiles(scan) {
 		return
 	}
-	if s.artifactPolicy.Available() {
-		s.artifactPolicy = s.artifactPolicy.ValidateSource()
+	if s.capabilities.Artifacts.Available() {
+		s.capabilities.Artifacts = s.capabilities.Artifacts.ValidateSource()
 	}
 	candidate, blocked, err := buildView(
 		ctx,
@@ -595,10 +589,7 @@ func (s *Store) rescan(ctx context.Context) {
 		s.ptr.Load(),
 		scan,
 		s.log,
-		s.roles,
-		s.scope,
-		s.artifactPolicy,
-		s.articleLanguage,
+		s.capabilities,
 		s.contract,
 	)
 	if err != nil {
@@ -714,16 +705,17 @@ func buildView(
 	previous *View,
 	scan vault.Scan,
 	log *slog.Logger,
-	roles schema.NavigationRoles,
-	scope schema.KnowledgeScope,
-	policy schema.ArtifactPolicy,
-	languages schema.ArticleLanguage,
+	//nolint:gocritic // hugeParam: the copy is the point and it replaces four heavier
+	// parameters. One generation builds from one reading of the capabilities;
+	// a pointer would let the reconciliation loop's next revalidation reach a
+	// build already in progress.
+	capabilities schema.Capabilities,
 	contract *schema.Contract,
 ) (*View, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy must build
 	// every projection. View retains the source-bound handle separately and
 	// Capture rebinds request-time metadata access to the current authority.
-	projectionPolicy := policy.Capture()
+	projectionPolicy := capabilities.Artifacts.Capture()
 	entries := scan.Files()
 	parsedByPath := make(map[string]*vault.Note)
 	parsedNotes := make([]*vault.Note, 0, len(entries))
@@ -775,13 +767,13 @@ func buildView(
 		parsedByPath[relPath] = parsed
 		parsedNotes = append(parsedNotes, parsed)
 		indexableNotes[relPath] = want.indexable
-		publishedNotes[relPath] = captureNote(parsed, data, languages, want.indexable)
+		publishedNotes[relPath] = captureNote(parsed, data, capabilities.Language, want.indexable)
 		recordVerdict(schemaFindings, relPath, data, contract, log)
 	}
 
 	graphIndex := graph.New(slices.Concat(parsedNotes, unreadableNotes), resources)
 	titles := titlesByName(parsedNotes)
-	navigation := nav.New(entries, parsedByPath, graphIndex, roles, scope, projectionPolicy)
+	navigation := nav.New(entries, parsedByPath, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy)
 	searchIndex := search.NewIndex(indexDocuments(parsedNotes, indexableNotes, fileDocuments), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(slotFiles)
@@ -807,8 +799,8 @@ func buildView(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
-		health:         newHealth(parsedNotes, graphIndex, planned, backlinks, policy, titles),
-		artifactPolicy: policy,
+		health:         newHealth(parsedNotes, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
+		artifactPolicy: capabilities.Artifacts,
 		privacyPolicy:  contract.PrivacyPolicy(),
 		scan:           scan,
 		notes:          publishedNotes,

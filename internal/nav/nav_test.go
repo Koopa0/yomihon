@@ -534,8 +534,8 @@ func TestUngovernedFolderProjectsOverTheEmptyDeclaredSet(t *testing.T) {
 	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
 	writeNavFixture(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: draft\n---\nbody\n")
 
-	roles, _, policy, _ := schema.Ungoverned().Capabilities(nil)
-	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	capabilities := (*schema.Contract)(nil).Capabilities(schema.Ungoverned())
+	model := capturedModel(t, root, capabilities.Navigation, schema.KnowledgeScope{}, capabilities.Artifacts, nil)
 
 	if model.NavigationDiagnostic() != "" || model.ArtifactDiagnostic() != "" {
 		t.Errorf("ungoverned diagnostics = navigation %q artifact %q, want both silent",
@@ -578,8 +578,8 @@ func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
 	// could not be read: unresolved, not zero. Deriving them here rather than
 	// hand-building them is the point — a consumer that reached for the zero
 	// value instead would conclude that nothing was ever excluded.
-	roles, _, policy, _ := schema.Unreadable(errors.New("toml: line 42: expected a key separator")).Capabilities(nil)
-	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	capabilities := (*schema.Contract)(nil).Capabilities(schema.Unreadable(errors.New("toml: line 42: expected a key separator")))
+	model := capturedModel(t, root, capabilities.Navigation, schema.KnowledgeScope{}, capabilities.Artifacts, nil)
 
 	if !model.NavigationClosure().Closed() || !model.ArtifactClosure().Closed() {
 		t.Error("an unreadable contract left a projection open; its declared sets are unknown, not empty")

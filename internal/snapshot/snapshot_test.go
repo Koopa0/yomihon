@@ -704,10 +704,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				nil,
 				scan,
 				discardLogger(),
-				contract.NavigationRoles(),
-				contract.KnowledgeScope(),
-				contract.ArtifactPolicy(),
-				contract.ArticleLanguage(),
+				contract.Capabilities(contract.Governance()),
 				contract,
 			)
 			if err != nil {

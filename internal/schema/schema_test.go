@@ -1946,6 +1946,16 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"Capabilities": func() string {
+			caps := c.Capabilities(schema.Ungoverned())
+			if caps.Navigation.Available() || caps.Knowledge.Available() || caps.Artifacts.Available() {
+				return "Capabilities() claims a declared set for a vault nothing governs"
+			}
+			if caps.Navigation.Claim().Claimed() || caps.Artifacts.Claim().Claimed() {
+				return "Capabilities() reports a withheld declaration where none was ever made"
+			}
+			return ""
+		},
 		"Governance": func() string {
 			if c.Governance().Governed() {
 				return "Governance() claims authority over the vault"

@@ -109,8 +109,19 @@ func (g Governance) Diagnostic() string { return g.claim.Diagnostic() }
 // a single declaration.
 func (g Governance) Claim() Claim { return g.claim }
 
-// Capabilities resolves the four declarations one process runs on against what
-// the folder asserted about its contract as a whole.
+// Capabilities are the four declarations one process runs on, resolved
+// together. They are resolved as a set because a consumer that combined a
+// vault-level fault with one zero capability of its own would conclude that
+// nothing was excluded — the conclusion this type exists to make unavailable.
+type Capabilities struct {
+	Navigation NavigationRoles
+	Knowledge  KnowledgeScope
+	Artifacts  ArtifactPolicy
+	Language   ArticleLanguage
+}
+
+// Capabilities resolves this contract's declarations against what the folder
+// asserted about the contract as a whole.
 //
 // A contract that loaded answers for itself. A folder with no contract answers
 // with the zero capabilities: it declared nothing, every declared set is empty,
@@ -127,17 +138,23 @@ func (g Governance) Claim() Claim { return g.claim }
 // results and saying nothing at all, and zero results is a lie. Surfaces that
 // can show two of them collapse the repetition themselves.
 //
-// ArticleLanguage is the one exception, and returns its plain zero value
-// instead: it carries no Available or Diagnostic of its own for a claim to
-// feed, so a withheld generation would leave that claim with nothing to
-// report through — the same "not declared" state Resolve already returns
-// for a folder with no contract at all.
-func (g Governance) Capabilities(c *Contract) (NavigationRoles, KnowledgeScope, ArtifactPolicy, ArticleLanguage) {
+// Language is the one exception, and returns its plain zero value instead: it
+// carries no Available or Diagnostic of its own for a claim to feed, so a
+// withheld generation would leave that claim with nothing to report through —
+// the same "not declared" state Resolve already returns for a folder with no
+// contract at all.
+func (c *Contract) Capabilities(g Governance) Capabilities {
 	if !g.Trustworthy() {
-		return NavigationRoles{claim: g.claim},
-			KnowledgeScope{claim: g.claim},
-			ArtifactPolicy{state: &artifactPolicyState{claim: g.claim}},
-			ArticleLanguage{}
+		return Capabilities{
+			Navigation: NavigationRoles{claim: g.claim},
+			Knowledge:  KnowledgeScope{claim: g.claim},
+			Artifacts:  ArtifactPolicy{state: &artifactPolicyState{claim: g.claim}},
+		}
 	}
-	return c.NavigationRoles(), c.KnowledgeScope(), c.ArtifactPolicy(), c.ArticleLanguage()
+	return Capabilities{
+		Navigation: c.NavigationRoles(),
+		Knowledge:  c.KnowledgeScope(),
+		Artifacts:  c.ArtifactPolicy(),
+		Language:   c.ArticleLanguage(),
+	}
 }
