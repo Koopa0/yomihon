@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -145,6 +146,19 @@ func degradedLink(href string, link graph.Wikilink, miss fragmentMiss, lang word
 		html.EscapeString(link.Display) + `<span class="` + offscreenNoteClass + `">` + html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></a>`
 }
 
+// The marker delimiters below are written by the placeholder builders and
+// read back by the substitution pass, and they live in one place so the two
+// sides cannot drift: a marker planted under one spelling and sought under
+// another would leave renderer-owned markup unredeemed on the page.
+const (
+	blockMarkOpen   = "<!--yomihon-block:"
+	blockMarkClose  = "-->"
+	inlineMarkOpen  = "\ue000"
+	inlineMarkClose = "\ue001"
+	wideMarkOpen    = "\ue002"
+	wideMarkClose   = "\ue003"
+)
+
 // blockPlaceholder is the reserved marker substituted into markdown source for
 // first-party markup that stands on its own line — a transclusion, a callout.
 // An HTML comment is one indivisible raw node, so it reaches the reader as the
@@ -153,7 +167,7 @@ func degradedLink(href string, link graph.Wikilink, miss fragmentMiss, lang word
 // neutralizes authored copies of this prefix before preprocess can create real
 // placeholders.
 func blockPlaceholder(i int) string {
-	return fmt.Sprintf(`<!--yomihon-block:%d-->`, i)
+	return blockMarkOpen + strconv.Itoa(i) + blockMarkClose
 }
 
 // inlinePlaceholder is the marker for first-party markup that belongs inside a
@@ -165,7 +179,7 @@ func blockPlaceholder(i int) string {
 // exactly as it wraps the words beside them. The index is delimited at both
 // ends so one marker can never be found inside another.
 func inlinePlaceholder(i int) string {
-	return fmt.Sprintf("\ue000%d\ue001", i)
+	return inlineMarkOpen + strconv.Itoa(i) + inlineMarkClose
 }
 
 // blockMarkupPlaceholder is the marker for first-party markup found inside a
@@ -178,18 +192,24 @@ func inlinePlaceholder(i int) string {
 // paragraph owned. The delimiters are a second pair of unassigned private-use
 // code points, so the two marker kinds can never be read as one another.
 func blockMarkupPlaceholder(i int) string {
-	return fmt.Sprintf("\ue002%d\ue003", i)
+	return wideMarkOpen + strconv.Itoa(i) + wideMarkClose
 }
 
-// placeholderFor is the one decision of which marker an inline substitution
-// travels under, asked by the pass that plants a marker and again by the pass
-// that redeems it, so the two cannot disagree. It reads the markup itself:
-// every string substituted this way is written by this renderer — authored
-// text arrives escaped — and a div is the one block element any of them opens
-// with; links, anchors, degraded citations, and inline images are phrasing and
-// stay in their sentence.
+// markerIsBlockShaped is the one decision of which marker pair an inline
+// substitution travels under, asked by the pass that plants a marker and
+// again by the pass that redeems it, so the two cannot disagree. It reads the
+// markup itself: every string substituted this way is written by this
+// renderer — authored text arrives escaped — and a div is the one block
+// element any of them opens with; links, anchors, degraded citations, and
+// inline images are phrasing and stay in their sentence.
+func markerIsBlockShaped(markup string) bool {
+	return strings.HasPrefix(markup, "<div")
+}
+
+// placeholderFor spells the marker an inline substitution is planted under,
+// putting the index between the delimiter pair its markup's shape selects.
 func placeholderFor(i int, markup string) string {
-	if strings.HasPrefix(markup, "<div") {
+	if markerIsBlockShaped(markup) {
 		return blockMarkupPlaceholder(i)
 	}
 	return inlinePlaceholder(i)
@@ -207,15 +227,158 @@ const inlinePlaceholderRunes = "\ue000\ue001\ue002\ue003"
 // occurrence is the renderer's own.
 var blockMarkupMarker = regexp.MustCompile("\ue002\\d+\ue003")
 
+// substituteBlocks redeems every marker the preprocessing passes planted, in
+// one walk over the rendered document. It used to redeem them one at a time,
+// each substitution rescanning and reallocating the whole document, which
+// priced a page at its citation count multiplied by its length — a heavily
+// cited note took seconds to render, and its cost quadrupled each time it
+// doubled. One walk prices the page at its length.
+//
+// What is redeemed is unchanged by the walk's shape: each planted index once,
+// at its first occurrence in the document — goldmark decides where that is; a
+// link inside a footnote definition renders at the foot of the document
+// however early it was planted — and
+// only under the marker pair the markup's own shape selects. Bytes that
+// merely resemble a marker pass through as written: an index nothing planted,
+// digits no builder spells (the builders write canonical decimal), a pair
+// whose shape disagrees with its markup. Redeemed markup is spliced and never
+// rescanned — nothing the renderer substitutes carries a marker of its own,
+// because nested bodies redeem theirs before arriving and authored text has
+// the marker alphabet stripped and the comment prefix neutralized before any
+// marker exists.
 func substituteBlocks(htmlOut string, blocks, inline []string) string {
 	htmlOut = partParagraphsAtBlockMarkup(htmlOut)
-	for i, b := range blocks {
-		htmlOut = strings.Replace(htmlOut, blockPlaceholder(i), b, 1)
+	if len(blocks) == 0 && len(inline) == 0 {
+		return htmlOut
 	}
-	for i, b := range inline {
-		htmlOut = strings.Replace(htmlOut, placeholderFor(i, b), b, 1)
+	var out strings.Builder
+	grown := len(htmlOut)
+	for _, b := range blocks {
+		grown += len(b)
 	}
-	return htmlOut
+	for _, b := range inline {
+		grown += len(b)
+	}
+	out.Grow(grown)
+
+	usedBlock := make([]bool, len(blocks))
+	usedInline := make([]bool, len(inline))
+	pos := 0
+	nextComment := strings.Index(htmlOut, blockMarkOpen)
+	nextInline := strings.Index(htmlOut, inlineMarkOpen)
+	nextWide := strings.Index(htmlOut, wideMarkOpen)
+	splice := func(cand, end int, markup string) {
+		out.WriteString(htmlOut[pos:cand])
+		out.WriteString(markup)
+		pos = end
+	}
+	for {
+		cand := leftmostMark(nextComment, nextInline, nextWide)
+		if cand < 0 {
+			break
+		}
+		// Each family's cursor is re-aimed only past its own consumed or
+		// refused opening: no family's opening delimiter can occur inside
+		// another family's marker — the comment marker is plain text with no
+		// private-use rune in it, and the two rune pairs put their runes only
+		// at a marker's ends, around plain digits — so redeeming one family's
+		// marker never steps over another's pending opening.
+		switch cand {
+		case nextComment:
+			if markup, end, ok := redeemBlockAt(htmlOut, cand, blocks, usedBlock); ok {
+				splice(cand, end, markup)
+			}
+			nextComment = nextMark(htmlOut, blockMarkOpen, max(pos, cand+1))
+		case nextInline:
+			if markup, end, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, false); ok {
+				splice(cand, end, markup)
+			}
+			nextInline = nextMark(htmlOut, inlineMarkOpen, max(pos, cand+1))
+		default:
+			if markup, end, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, true); ok {
+				splice(cand, end, markup)
+			}
+			nextWide = nextMark(htmlOut, wideMarkOpen, max(pos, cand+1))
+		}
+	}
+	out.WriteString(htmlOut[pos:])
+	return out.String()
+}
+
+// leftmostMark picks the leftmost pending marker opening among the three
+// families, each -1 when its family has no further occurrence; -1 means the
+// document holds no candidate at all.
+func leftmostMark(a, b, c int) int {
+	best := a
+	if b >= 0 && (best < 0 || b < best) {
+		best = b
+	}
+	if c >= 0 && (best < 0 || c < best) {
+		best = c
+	}
+	return best
+}
+
+// nextMark reports where a family's opening delimiter next occurs at or after
+// from, -1 when it never does again.
+func nextMark(doc, open string, from int) int {
+	i := strings.Index(doc[from:], open)
+	if i < 0 {
+		return -1
+	}
+	return from + i
+}
+
+// markerIndex reads the planted index and closing delimiter that complete a
+// marker whose opening delimiter ends just before after. The builders write
+// indexes in canonical decimal, so any other spelling — an empty run, a
+// leading zero, a run longer than any planted count — is document text that
+// happens to open like a marker, and names none. end is the offset just past
+// the closing delimiter, relative to after.
+func markerIndex(after, closing string) (idx, end int, ok bool) {
+	w := 0
+	for w < len(after) && '0' <= after[w] && after[w] <= '9' {
+		w++
+	}
+	if w == 0 || w > 9 || (after[0] == '0' && w > 1) {
+		return 0, 0, false
+	}
+	if !strings.HasPrefix(after[w:], closing) {
+		return 0, 0, false
+	}
+	for _, c := range []byte(after[:w]) {
+		idx = idx*10 + int(c-'0')
+	}
+	return idx, w + len(closing), true
+}
+
+// redeemBlockAt redeems the block marker opening at cand when it completes
+// with an index that was planted and not yet redeemed, marking it redeemed
+// and returning its markup with the document offset just past the marker.
+func redeemBlockAt(doc string, cand int, blocks []string, used []bool) (markup string, end int, ok bool) {
+	idx, n, matched := markerIndex(doc[cand+len(blockMarkOpen):], blockMarkClose)
+	if !matched || idx >= len(blocks) || used[idx] {
+		return "", 0, false
+	}
+	used[idx] = true
+	return blocks[idx], cand + len(blockMarkOpen) + n, true
+}
+
+// redeemInlineAt is redeemBlockAt for the two private-use marker pairs. wide
+// selects which pair is being read, and the marker redeems only when its
+// markup's own shape agrees — an index that travels under one pair is never
+// surrendered to the other's spelling.
+func redeemInlineAt(doc string, cand int, inline []string, used []bool, wide bool) (markup string, end int, ok bool) {
+	open, closing := inlineMarkOpen, inlineMarkClose
+	if wide {
+		open, closing = wideMarkOpen, wideMarkClose
+	}
+	idx, n, matched := markerIndex(doc[cand+len(open):], closing)
+	if !matched || idx >= len(inline) || used[idx] || markerIsBlockShaped(inline[idx]) != wide {
+		return "", 0, false
+	}
+	used[idx] = true
+	return inline[idx], cand + len(open) + n, true
 }
 
 // partParagraphsAtBlockMarkup opens every paragraph around the block-markup
