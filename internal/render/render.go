@@ -1,6 +1,14 @@
-// Package render owns projections of Obsidian-dialect markdown. Pipeline turns
-// it into HTML for reading; PlainText and PlainSections expose the same parsed
-// dialect to lexical and semantic retrieval without duplicating a parser.
+// Package render answers three questions about one vault file, in one place so
+// that every face of the program answers them alike. How does this note read:
+// Pipeline turns Obsidian-dialect markdown into a reading page's HTML. What
+// words does it contribute to a search: PlainText walks the same parsed
+// dialect, so the corpus and the page cannot come to disagree about what a note
+// says. And what kind of file is this at all: IsPicture, IsPDF, IsText and
+// IsTextPrefix answer from the name or the leading bytes, MaxSourceBytes says
+// how much of one is worth showing as characters, and SourceHTML highlights
+// what is shown. That third set is shared on purpose — the scan deciding what
+// to index and the page deciding which viewer to open must not each keep their
+// own idea of what a picture is.
 //
 // Fault-tolerant by contract over note content: it renders what it can and
 // reports what it can't via Diagnostics — it never fixes a note, never fails
@@ -15,9 +23,10 @@
 // content can produce, so reaching one is this package's own bug rather
 // than a fault in what it read, and it panics there instead of rendering
 // past it silently.
-// Authored HTML is inert display
-// input: the Japanese lesson dialect's ruby/rt/rp/br subset survives, while
-// executable or automatically loading markup is shown as text.
+//
+// Authored HTML is inert display input: the Japanese lesson dialect's
+// ruby/rt/rp/br subset survives, while executable or automatically loading
+// markup is shown as text.
 //
 // Wikilinks, embeds, and callouts are not CommonMark syntax, so they are
 // handled as string/line-based passes over the markdown source before
