@@ -148,14 +148,29 @@ func loadContractTextWithPrivacy(t *testing.T, navigation, artifacts, privacy st
 	return s
 }
 
-func loadSemanticRootContract(t *testing.T, artifacts, privacy string) (string, *schema.Contract) {
+// The two sections below are what every caller of loadSemanticRootContract
+// writes. They stopped being parameters when the fingerprint tests that varied
+// them went with the corpus they fingerprinted; a caller that needs a different
+// contract writes one rather than passing the same two strings back in.
+const (
+	semanticArtifactSection = `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`
+	semanticPrivacySection = `
+[privacy]
+never_egress_dirs = ["Private"]
+`
+)
+
+func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 	t.Helper()
 	root := t.TempDir()
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("MkdirAll(%q) = %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(contractText("", artifacts, privacy)), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
+	if err := os.WriteFile(path, []byte(contractText("", semanticArtifactSection, semanticPrivacySection)), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
 		t.Fatalf("WriteFile(%q) = %v", path, err)
 	}
 	s, err := schema.Load(root)
@@ -241,93 +256,7 @@ never_egress_dirs = ["Private"]
 	}
 }
 
-func TestCorpusPolicyFingerprintHashesNormalizedSemantics(t *testing.T) {
-	t.Parallel()
-
-	firstRoot, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates", "System/./generated", "System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private/journal", "Private", "Private/journal"]
-`)
-	firstReader, first := loadPinnedSemanticContract(t, firstRoot)
-	secondRoot, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/generated", "System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private", "Private/journal"]
-`)
-	secondReader, second := loadPinnedSemanticContract(t, secondRoot)
-	firstHash, firstOK := schema.CorpusPolicyFingerprint(first.ArtifactPolicy(), first.PrivacyPolicy())
-	secondHash, secondOK := schema.CorpusPolicyFingerprint(second.ArtifactPolicy(), second.PrivacyPolicy())
-	if !firstOK || !secondOK {
-		t.Fatal("CorpusPolicyFingerprint() unavailable for valid capabilities")
-	}
-	if firstHash != secondHash {
-		t.Error("equivalent normalized policy sets produced different fingerprints")
-	}
-	firstSource, firstSourceOK := schema.PolicySourceFingerprint(firstReader, first.ArtifactPolicy(), first.PrivacyPolicy())
-	secondSource, secondSourceOK := schema.PolicySourceFingerprint(secondReader, second.ArtifactPolicy(), second.PrivacyPolicy())
-	if !firstSourceOK || !secondSourceOK {
-		t.Fatal("PolicySourceFingerprint() unavailable for capabilities from one valid contract")
-	}
-	if firstSource == secondSource {
-		t.Error("different exact contract bytes produced the same policy-source fingerprint")
-	}
-	if got, ok := schema.PolicySourceFingerprint(firstReader, first.ArtifactPolicy(), second.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Errorf("mixed-source policy fingerprint = (%x, %v), want zero, false", got, ok)
-	}
-
-	changed := loadContractTextWithPrivacy(t, "", `
-[artifacts]
-non_instance_dirs = ["System/generated", "System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Other"]
-`)
-	changedHash, changedOK := schema.CorpusPolicyFingerprint(changed.ArtifactPolicy(), changed.PrivacyPolicy())
-	if !changedOK || changedHash == firstHash {
-		t.Error("eligibility change did not change corpus-policy fingerprint")
-	}
-
-	if got, ok := schema.CorpusPolicyFingerprint(schema.ArtifactPolicy{}, first.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Errorf("unavailable capability fingerprint = (%x, %v), want zero, false", got, ok)
-	}
-}
-
-func TestPolicySourceFingerprintRejectsCapabilitiesLoadedFromAnotherRoot(t *testing.T) {
-	t.Parallel()
-
-	root, pathLoaded := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	reader, loaded := loadPinnedSemanticContract(t, root)
-	if _, ok := schema.PolicySourceFingerprint(reader, loaded.ArtifactPolicy(), loaded.PrivacyPolicy()); !ok {
-		t.Fatal("PolicySourceFingerprint() rejected capabilities loaded from the selected root")
-	}
-	if got, ok := schema.PolicySourceFingerprint(reader, pathLoaded.ArtifactPolicy(), pathLoaded.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Fatalf("PolicySourceFingerprint(path-loaded policies) = (%x, %t), want zero, false", got, ok)
-	}
-	otherRoot, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	otherReader, _ := loadPinnedSemanticContract(t, otherRoot)
-	if got, ok := schema.PolicySourceFingerprint(otherReader, loaded.ArtifactPolicy(), loaded.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Fatalf("PolicySourceFingerprint(other root) = (%x, %t), want zero, false", got, ok)
-	}
-}
-
-func loadPinnedSemanticContract(t *testing.T, root string) (*vaultfs.Reader, *schema.Contract) {
+func loadPinnedSemanticContract(t *testing.T, root string) *schema.Contract {
 	t.Helper()
 	reader, err := vaultfs.Open(root)
 	if err != nil {
@@ -342,18 +271,12 @@ func loadPinnedSemanticContract(t *testing.T, root string) (*vaultfs.Reader, *sc
 	if err != nil {
 		t.Fatalf("LoadReader(%q) error = %v", root, err)
 	}
-	return reader, contract
+	return contract
 }
 
 func TestLoadReaderPinsContractAuthorityToTheSelectedVault(t *testing.T) {
 	t.Parallel()
-	root, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, _ := loadSemanticRootContract(t)
 	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatalf("vaultfs.Open() error = %v", err)
@@ -427,13 +350,7 @@ func TestLoadReaderRejectsSymlinkedContract(t *testing.T) {
 func TestArtifactPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -470,13 +387,7 @@ never_egress_dirs = ["Private"]
 func TestArtifactPolicyCaptureIsAnImmutableRequestSnapshot(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	captured := contract.ArtifactPolicy().Capture()
 	if !captured.Available() || !captured.IsNonInstance("System/templates/Example.md") {
 		t.Fatalf("Capture() did not preserve the valid artifact classification")
@@ -501,13 +412,7 @@ never_egress_dirs = ["Private"]
 func TestArtifactPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -550,13 +455,7 @@ never_egress_dirs = ["Private"]
 func TestPrivacyPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -593,13 +492,7 @@ never_egress_dirs = ["Private"]
 func TestPrivacyPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -1802,14 +1695,8 @@ func TestTransition(t *testing.T) {
 // the write face until restart while reporting a change that had not happened.
 func TestTouchingTheContractLeavesThePolicyAvailable(t *testing.T) {
 	t.Parallel()
-	root, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	_, contract := loadPinnedSemanticContract(t, root)
+	root, _ := loadSemanticRootContract(t)
+	contract := loadPinnedSemanticContract(t, root)
 	if !contract.ArtifactPolicy().ValidateSource().Available() {
 		t.Fatal("the policy was unavailable before anything touched the contract")
 	}
@@ -1855,14 +1742,8 @@ never_egress_dirs = ["Private"]
 // process is a contract this process cannot vouch for.
 func TestRewritingTheContractClosesThePolicy(t *testing.T) {
 	t.Parallel()
-	root, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	_, contract := loadPinnedSemanticContract(t, root)
+	root, _ := loadSemanticRootContract(t)
+	contract := loadPinnedSemanticContract(t, root)
 
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
