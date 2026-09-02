@@ -235,22 +235,38 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	}
 }
 
+// TestShowNotFound also holds this route to the way out every other refusal
+// here offers. A reader who mistyped a course address, or followed a link into
+// one that has since gone, is mid-navigation: the page they land on carries
+// the search and the way home, which one line of text does not.
 func TestShowNotFound(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeVault(t, root)
 	srv := newServer(t, root)
 
-	// A real note path, but not a study-path → 404 (this route serves only
-	// study-paths; the note lives at /notes/...).
-	code, _ := get(t, srv.URL+"/syllabus/Writing/lessons/golang/Slices.md")
-	if code != http.StatusNotFound {
-		t.Errorf("GET /syllabus/<a note> status = %d, want 404", code)
-	}
-
-	code, _ = get(t, srv.URL+"/syllabus/Maps/Nope.md")
-	if code != http.StatusNotFound {
-		t.Errorf("GET /syllabus/<missing> status = %d, want 404", code)
+	for _, tt := range []struct {
+		name   string
+		target string
+	}{
+		// A real note path, but not a study-path: this route serves only
+		// study-paths, and the note itself lives under /notes/.
+		{name: "a note that is not a course", target: "/syllabus/Writing/lessons/golang/Slices.md"},
+		{name: "an address nothing is at", target: "/syllabus/Maps/Nope.md"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			code, body := get(t, srv.URL+tt.target)
+			if code != http.StatusNotFound {
+				t.Errorf("GET %s status = %d, want 404", tt.target, code)
+			}
+			if !strings.Contains(body, `href="/search"`) || !strings.Contains(body, `href="/"`) {
+				t.Errorf("GET %s answered with no way onward; body = %q", tt.target, body)
+			}
+			if !strings.Contains(body, tt.target) {
+				t.Errorf("GET %s did not echo the address asked for; body = %q", tt.target, body)
+			}
+		})
 	}
 }
 
