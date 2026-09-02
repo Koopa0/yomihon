@@ -42,6 +42,10 @@ var (
 		"檔案存在，但這一次讀取沒有成功——可能是權限設定，或另一個程式正擋住它。排除之後，過幾秒重新整理就會看到內容。",
 		"The file is there, but this read did not succeed — a permission, or another program holding it. Once that clears, reloading in a few seconds shows it.",
 	)
+	// NothingHere titles the page. It says what is true of the place rather
+	// than what the reader did wrong: the address may be a typo, and it may be
+	// a note nobody has written yet, and this page cannot tell which.
+	NothingHere    = both("這裡沒有東西", "Nothing is here")
 	NotFoundKicker = both("找不到", "Not found")
 	NotFoundLede   = both(
 		"這個位置沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。",
