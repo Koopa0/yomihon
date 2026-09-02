@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/asset"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/report"
@@ -18,7 +19,6 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
@@ -127,10 +127,10 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	if err != nil {
 		return nil, err
 	}
-	shellForSnapshot := func(snap *snapshot.Generation) pages.Shell {
+	shellForSnapshot := func(snap *snapshot.Generation) nav.Shell {
 		return shell.Project(writer.Authority(), snap)
 	}
-	shellProvider := func() pages.Shell {
+	shellProvider := func() nav.Shell {
 		authority := writer.Authority()
 		return shell.Project(authority, store.Current().Capture())
 	}

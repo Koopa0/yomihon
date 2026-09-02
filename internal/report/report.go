@@ -30,7 +30,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
@@ -40,7 +39,7 @@ const briefingRoot = "System/reports/daily-briefing"
 type Handler struct {
 	source  *vaultfs.Reader
 	current func() *snapshot.Generation
-	shell   func(*snapshot.Generation) pages.Shell
+	shell   func(*snapshot.Generation) nav.Shell
 	log     *slog.Logger
 }
 
@@ -49,7 +48,7 @@ type Handler struct {
 func New(
 	source *vaultfs.Reader,
 	current func() *snapshot.Generation,
-	shell func(*snapshot.Generation) pages.Shell,
+	shell func(*snapshot.Generation) nav.Shell,
 	log *slog.Logger,
 ) *Handler {
 	if source == nil {

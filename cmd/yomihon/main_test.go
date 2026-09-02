@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/report"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -40,7 +41,6 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
@@ -331,10 +331,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
-	shellForSnapshot := func(snap *snapshot.Generation) pages.Shell {
+	shellForSnapshot := func(snap *snapshot.Generation) nav.Shell {
 		return shell.Project(writer.Authority(), snap)
 	}
-	shellProvider := func() pages.Shell {
+	shellProvider := func() nav.Shell {
 		authority := writer.Authority()
 		return shell.Project(authority, store.Current().Capture())
 	}

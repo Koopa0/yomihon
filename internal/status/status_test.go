@@ -16,9 +16,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
@@ -1559,7 +1559,7 @@ func TestConstructorsRefuseAWiringBugTheSameWay(t *testing.T) {
 			name: "a route with no writer behind it",
 			call: func(t *testing.T) {
 				t.Helper()
-				status.NewHandler(nil, func() pages.Shell { return pages.Shell{} }, slog.New(slog.DiscardHandler))
+				status.NewHandler(nil, func() nav.Shell { return nav.Shell{} }, slog.New(slog.DiscardHandler))
 			},
 			want: "status: NewHandler requires a non-nil Writer",
 		},
@@ -1575,7 +1575,7 @@ func TestConstructorsRefuseAWiringBugTheSameWay(t *testing.T) {
 			name: "a route with nowhere to report",
 			call: func(t *testing.T) {
 				t.Helper()
-				status.NewHandler(&status.Writer{}, func() pages.Shell { return pages.Shell{} }, nil)
+				status.NewHandler(&status.Writer{}, func() nav.Shell { return nav.Shell{} }, nil)
 			},
 			want: "status: NewHandler requires a non-nil logger",
 		},

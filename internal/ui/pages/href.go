@@ -12,16 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
-
-// Shell is the snapshot-derived state shared by the topbar and sidebar, and
-// it belongs to the navigation model it is made of rather than to this
-// package: a component receives one, and nothing here builds or decides
-// anything about it. The name stays reachable as pages.Shell while the call
-// sites still spell it that way.
-type Shell = nav.Shell
 
 // vaultHref builds a URL for a vault-relative path under prefix,
 // percent-escaping each segment individually — so a literal "/" inside an

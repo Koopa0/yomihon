@@ -20,12 +20,12 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/lexical"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -129,7 +129,7 @@ func newServerWithGovernance(
 		Log:            log,
 	})
 	h.Register(mux)
-	status.NewHandler(writer, func() pages.Shell { return pages.Shell{} }, log).Register(mux)
+	status.NewHandler(writer, func() nav.Shell { return nav.Shell{} }, log).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv

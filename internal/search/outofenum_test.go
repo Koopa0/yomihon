@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
@@ -81,7 +80,7 @@ func TestSearchRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	body := searchResultsBody(t, func() RequestSnapshot {
 		return RequestSnapshot{
 			Index:  idx,
-			Shell:  pages.Shell{Nav: &nav.Model{}, Governed: true},
+			Shell:  nav.Shell{Nav: &nav.Model{}, Governed: true},
 			Status: view,
 		}
 	}, "needle")
@@ -176,7 +175,7 @@ func TestSearchRowAccusesNothingWhenTheWriteFaceIsClosed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			idx := outOfEnumIndex(t)
-			snap := RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+			snap := RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 			if tt.authority != nil {
 				snap.Status = tt.authority(t)
 			}

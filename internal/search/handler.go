@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/lexical"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -36,7 +37,7 @@ const maxRenderedResults = 200
 // capture of an atomic vault generation and its artifact authority.
 type RequestSnapshot struct {
 	Index *lexical.Index
-	Shell pages.Shell
+	Shell nav.Shell
 
 	// Status is the read-only status vocabulary the row rules against. A
 	// result row states a note's status, and a status is a value drawn from a

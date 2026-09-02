@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -57,7 +57,7 @@ func newHandler(t *testing.T, root string) http.Handler {
 	New(
 		source,
 		func() *snapshot.Generation { return view },
-		func(snap *snapshot.Generation) pages.Shell { return pages.Shell{Nav: snap.Navigation()} },
+		func(snap *snapshot.Generation) nav.Shell { return nav.Shell{Nav: snap.Navigation()} },
 		slog.New(slog.DiscardHandler),
 	).Register(mux)
 	return mux
@@ -102,8 +102,8 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 					calls++
 					return view
 				},
-				func(snap *snapshot.Generation) pages.Shell {
-					return pages.Shell{Nav: snap.Navigation(), Governed: true}
+				func(snap *snapshot.Generation) nav.Shell {
+					return nav.Shell{Nav: snap.Navigation(), Governed: true}
 				},
 				slog.New(slog.DiscardHandler),
 			).Register(mux)

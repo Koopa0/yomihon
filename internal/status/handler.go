@@ -16,6 +16,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -29,7 +30,7 @@ const maxFormBytes = 4096
 // Handler serves the write face's single HTTP endpoint.
 type Handler struct {
 	writer *Writer
-	shell  func() pages.Shell
+	shell  func() nav.Shell
 	log    *slog.Logger
 }
 
@@ -37,7 +38,7 @@ type Handler struct {
 // Writer. A fail-closed write face is still a non-nil Writer whose View
 // is closed. shell is sampled once only after a failed write, so the recovery
 // page uses one coherent reading snapshot.
-func NewHandler(writer *Writer, shell func() pages.Shell, log *slog.Logger) *Handler {
+func NewHandler(writer *Writer, shell func() nav.Shell, log *slog.Logger) *Handler {
 	if writer == nil {
 		panic("status: NewHandler requires a non-nil Writer")
 	}

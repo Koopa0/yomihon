@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -33,7 +32,7 @@ func TestSearchHandler(t *testing.T) {
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -101,7 +100,7 @@ func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			h := NewHandler(func() RequestSnapshot {
-				return RequestSnapshot{Index: tt.idx, Shell: pages.Shell{Nav: &nav.Model{}}}
+				return RequestSnapshot{Index: tt.idx, Shell: nav.Shell{Nav: &nav.Model{}}}
 			}, slog.New(slog.DiscardHandler))
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=type:concept", http.NoBody)
 			rr := httptest.NewRecorder()
@@ -131,7 +130,7 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 		calls++
 		return RequestSnapshot{
 			Index: idx,
-			Shell: pages.Shell{Nav: &nav.Model{}, Governed: true},
+			Shell: nav.Shell{Nav: &nav.Model{}, Governed: true},
 		}
 	}, slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
@@ -158,7 +157,7 @@ func TestSearchResultsFragment(t *testing.T) {
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -212,7 +211,7 @@ func TestSearchHitStatusChipFollowsGovernance(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			h := NewHandler(func() RequestSnapshot {
-				return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: tt.governed}}
+				return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: tt.governed}}
 			}, slog.New(slog.DiscardHandler))
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=kafka", http.NoBody)
 			rr := httptest.NewRecorder()
@@ -248,7 +247,7 @@ func TestSearchResponseIsBounded(t *testing.T) {
 	}
 	idx := lexical.NewIndex(docs, validArtifactPolicy(t))
 	h := NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler))
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=needle", http.NoBody)
@@ -291,7 +290,7 @@ func TestSearchResultsSurviveFoldLengtheningNote(t *testing.T) {
 		{RelPath: "Notes/stroke.md", Title: "Stroke", PlainText: "Ⱥ body qfindq"},
 	}, validArtifactPolicy(t))
 	h := NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=qfindq", http.NoBody)
 	rr := httptest.NewRecorder()
@@ -313,7 +312,7 @@ func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"},
 	}, policy)
 	h := NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}}}
 	}, slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=type:concept", http.NoBody)
 	rr := httptest.NewRecorder()
@@ -338,7 +337,7 @@ func TestSearchHandlerRejectsInvalidQuery(t *testing.T) {
 
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: lexical.NewIndex(nil, validArtifactPolicy(t)), Shell: pages.Shell{Nav: &nav.Model{}}}
+		return RequestSnapshot{Index: lexical.NewIndex(nil, validArtifactPolicy(t)), Shell: nav.Shell{Nav: &nav.Model{}}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -383,7 +382,7 @@ func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 
 			var recordedLogs bytes.Buffer
 			h := NewHandler(func() RequestSnapshot {
-				return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
+				return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}}}
 			}, slog.New(slog.NewJSONHandler(&recordedLogs, nil)))
 			writer := http.ResponseWriter(&failingResponseWriter{header: make(http.Header)})
 			if tt.writer != nil {
@@ -501,7 +500,7 @@ func TestEmptyResultsNameTheCorpusAndFilesAreLabelled(t *testing.T) {
 		lexical.DocumentFromFile("Notes/todo.txt", []byte("needle in a file")),
 	}, validArtifactPolicy(t))
 	h := NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler))
 
 	const corpusHint = "圖片、PDF 與其他二進位檔案只在導覽中列出"
@@ -566,7 +565,7 @@ func TestAnUnreadableContractSpeaksTheReadersLanguage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			h := NewHandler(func() RequestSnapshot {
-				return RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}}}
+				return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}}}
 			}, slog.New(slog.DiscardHandler))
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=type:concept", http.NoBody)
 			if tt.lang != "" {

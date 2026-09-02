@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -35,7 +35,7 @@ const wellFormedIdentity = "0000000000000000000000000000000000000000000000000000
 func newHandlerServer(t *testing.T, writer *status.Writer) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	status.NewHandler(writer, func() pages.Shell { return pages.Shell{} }, slog.New(slog.DiscardHandler)).Register(mux)
+	status.NewHandler(writer, func() nav.Shell { return nav.Shell{} }, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -509,7 +509,7 @@ func TestAFlipNobodyIsWaitingForIsNotReportedAsAFailedWrite(t *testing.T) {
 
 	var reported strings.Builder
 	mux := http.NewServeMux()
-	status.NewHandler(writer, func() pages.Shell { return pages.Shell{} },
+	status.NewHandler(writer, func() nav.Shell { return nav.Shell{} },
 		slog.New(slog.NewTextHandler(&reported, nil))).Register(mux)
 
 	form := url.Values{

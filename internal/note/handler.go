@@ -493,7 +493,7 @@ func classifyGovernance(lifecycle status.Authority, policy schema.ArtifactPolicy
 }
 
 type governanceState struct {
-	shell pages.Shell
+	shell nav.Shell
 	// placement is where the request's authorities put this note. Everything
 	// below is read for a governed instance and left empty for the other two.
 	placement governance

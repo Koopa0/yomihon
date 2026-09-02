@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -16,13 +17,13 @@ import (
 
 // Handler serves the study-path page.
 type Handler struct {
-	shell func() pages.Shell
+	shell func() nav.Shell
 	log   *slog.Logger
 }
 
 // New wires the syllabus feature. Every dependency must be non-nil: a nil
 // is a wiring bug that must fail here, not on the first request.
-func New(shell func() pages.Shell, log *slog.Logger) *Handler {
+func New(shell func() nav.Shell, log *slog.Logger) *Handler {
 	if shell == nil {
 		panic("syllabus: New requires a non-nil Shell provider")
 	}
