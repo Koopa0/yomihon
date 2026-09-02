@@ -33,9 +33,12 @@ type Note struct {
 
 // Parse splits raw file bytes into frontmatter and body and decodes the
 // frontmatter. rel is stored on the returned Note as-is (callers pass a
-// slash-form vault-relative path). This is the one place that decides what a
-// captured note's frontmatter means, so read and write projections cannot
-// disagree about the current status.
+// slash-form vault-relative path). This is the one place the reading and
+// writing faces decide what a captured note's frontmatter means, so those two
+// projections cannot disagree about the current status. It is not the only
+// decode in the program: the check command reads the same bytes through the
+// YAML node tree, because it has to see duplicate keys and the line each field
+// sits on, and a map erases both.
 func Parse(rel string, data []byte) *Note {
 	n := &Note{RelPath: rel}
 	block, found := SplitFrontmatter(data)
