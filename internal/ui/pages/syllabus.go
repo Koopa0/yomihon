@@ -36,6 +36,13 @@ type PathView struct {
 	Modules int
 	Entries int
 	Ready   int
+
+	// MarkerFault says at least one written sequence marker is among what
+	// the grammar reported: a value it could not read, a placement it could
+	// not use, or a declared branch it had to refuse. The empty-course page
+	// switches its explanation on this, because telling the author of a
+	// written marker that markers are absent is false exactly there.
+	MarkerFault bool
 }
 
 // PathBranchView is one branch of the course as the page draws it. A top-level
@@ -170,6 +177,12 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 		Entries:    current.Planned,
+	}
+	for _, d := range current.Diagnostics {
+		if markerWritten(d.Rule) {
+			v.MarkerFault = true
+			break
+		}
 	}
 	for _, g := range current.Groups {
 		sv, ok := buildPathBranch(g, 0, v.Parts+1)
@@ -337,11 +350,47 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 	}
 }
 
+// markerWritten reports whether one grammar rule implies the author actually
+// wrote a sequence marker: a marker with an unreadable value, doubled or
+// misplaced, or a declared role the grammar had to refuse — a conflict, an
+// orphaned side branch, one nested too deep, a role on a lesson row. The
+// rules on the other side arise with no marker anywhere near them.
+//
+// The division is total over the grammar's declared rules and is pinned by a
+// test; an unknown rule is a programmer error and fails loudly here, the
+// same way the judge's own rule table does.
+func markerWritten(rule string) bool {
+	switch rule {
+	case sequence.RuleRoleInvalid,
+		sequence.RuleRoleDuplicate,
+		sequence.RuleRoleMisplaced,
+		sequence.RuleRoleConflict,
+		sequence.RuleRoleOnEntry,
+		sequence.RuleLocalOrphan,
+		sequence.RuleNestingTooDeep:
+		return true
+	case sequence.RuleRoleMissing,
+		sequence.RuleEntryOutsideBranch,
+		sequence.RuleEntryMultiTarget,
+		sequence.RuleEntryNoncanonical:
+		return false
+	default:
+		panic("pages: unknown study-path rule: " + rule)
+	}
+}
+
+// markerForm spells the full marker for one role, from the grammar's own
+// vocabulary, so the page cannot drift from what the parser accepts.
+func markerForm(role sequence.Role) string {
+	return "{sequence=" + role.String() + "}"
+}
+
 // buildPaths builds the switcher: every study-path in vault order, each with
 // its whole-path entry count and whether it is the one currently shown.
 func buildPaths(currentRel string, all []nav.Path) []PathLink {
 	links := make([]PathLink, 0, len(all))
-	for _, s := range all {
+	for i := range all {
+		s := &all[i]
 		links = append(links, PathLink{
 			Title:   s.Title,
 			RelPath: s.RelPath,

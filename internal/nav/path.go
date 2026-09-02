@@ -26,6 +26,12 @@ type Path struct {
 	// still one of the course's lessons. Nothing outside the projectable
 	// primary line counts here.
 	Planned int
+	// Diagnostics is everything the grammar left the author to decide, as
+	// the parse reported it. The judge reads its own parse; this copy is for
+	// the reading surfaces, which need to tell a course that plans nothing
+	// from one whose structure could not be read — and, on the course page,
+	// whether a written marker is among the faults.
+	Diagnostics []sequence.Diagnostic
 
 	// components are the walkable sequences, precomputed at build: the main
 	// line first when it has any openable stop, then each projectable local
@@ -41,6 +47,7 @@ type Path struct {
 func (p *Path) clone() Path {
 	out := *p
 	out.Groups = cloneGroups(p.Groups)
+	out.Diagnostics = slices.Clone(p.Diagnostics)
 	out.components = make([][]NoteRef, len(p.components))
 	for i, comp := range p.components {
 		out.components[i] = slices.Clone(comp)
@@ -149,10 +156,11 @@ func buildPath(
 ) Path {
 	doc := sequence.Parse(n.Body, n.BodyLine)
 	p := Path{
-		Title:   n.Title(),
-		RelPath: n.RelPath,
-		Domain:  n.Domain(),
-		Type:    n.Type(),
+		Title:       n.Title(),
+		RelPath:     n.RelPath,
+		Domain:      n.Domain(),
+		Type:        n.Type(),
+		Diagnostics: doc.Diagnostics,
 	}
 	for _, g := range doc.Groups {
 		p.Groups = append(p.Groups, buildPathGroup(g, idx, statusByPath, policy))

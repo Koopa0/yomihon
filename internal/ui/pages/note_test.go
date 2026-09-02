@@ -461,3 +461,34 @@ func TestFlipReceiptStatesTheChangeItCanVouchFor(t *testing.T) {
 		})
 	}
 }
+
+// TestNoteMetarowOmitsAMissingDate holds the one dateless case: a view built
+// with no date at all renders no time element and neither label, rather than
+// an empty claim. Every served note has a scanned file behind it, so the case
+// is a generation that could not produce the file's identity — and a blank
+// beats a fabricated moment.
+func TestNoteMetarowOmitsAMissingDate(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	view := NoteView{Title: "A", RelPath: "Writing/A.md"}
+	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render note: %v", err)
+	}
+	html := buf.String()
+	at := strings.Index(html, `class="y-metarow"`)
+	if at < 0 {
+		t.Fatalf("the page carries no metarow; html = %q", html)
+	}
+	metarow := html[at:]
+	if end := strings.Index(metarow, "</div>"); end >= 0 {
+		metarow = metarow[:end]
+	}
+	if strings.Contains(metarow, "<time") {
+		t.Errorf("a dateless view still renders a time element; metarow = %q", metarow)
+	}
+	for _, label := range []string{"更新於", "檔案變更於", "Updated", "File changed"} {
+		if strings.Contains(metarow, label) {
+			t.Errorf("a dateless view still carries the label %q; metarow = %q", label, metarow)
+		}
+	}
+}

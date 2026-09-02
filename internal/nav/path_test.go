@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 // TestHomeCountsTheMainLineOnly holds the ruling Home's number rests on: the
@@ -238,5 +240,32 @@ func TestReversePlacementTakesOnlyCourseMembership(t *testing.T) {
 		if got := index[rel]; len(got) != 0 {
 			t.Errorf("placements for %s = %v, want none: it is listed, but not as part of the course", rel, got)
 		}
+	}
+}
+
+// TestAPathCarriesTheGrammarsDiagnostics holds the parse's report on the
+// path it came from. Home tells a course that plans nothing from one whose
+// structure could not be read by exactly this, and the course page decides
+// its empty-state wording by it — dropped here, both surfaces would call
+// every broken course an empty one. The clone hands out its own copy, so a
+// holder cannot reach what other requests are reading.
+func TestAPathCarriesTheGrammarsDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Writing/L01.md")
+	body := "## Part\n\n- [[L01]]\n"
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+
+	if len(p.Diagnostics) == 0 {
+		t.Fatal("an undeclared branch with rows left no diagnostic on the path")
+	}
+	if p.Diagnostics[0].Rule != sequence.RuleRoleMissing {
+		t.Errorf("Diagnostics[0].Rule = %q, want %q", p.Diagnostics[0].Rule, sequence.RuleRoleMissing)
+	}
+
+	cloned := p.clone()
+	cloned.Diagnostics[0].Rule = "written-by-a-holder"
+	if p.Diagnostics[0].Rule != sequence.RuleRoleMissing {
+		t.Error("a clone's diagnostics alias the original's")
 	}
 }

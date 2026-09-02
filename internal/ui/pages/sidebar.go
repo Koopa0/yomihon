@@ -90,8 +90,9 @@ func NewSidebar(model *nav.Model, currentPath string, lang wording.Lang) Sidebar
 			sb.openMaps[currentPath] = true
 		}
 	}
-	for _, p := range model.Paths() {
-		if p.RelPath == currentPath {
+	paths := model.Paths()
+	for i := range paths {
+		if paths[i].RelPath == currentPath {
 			sb.openMaps[currentPath] = true
 		}
 	}

@@ -91,6 +91,12 @@ type Model struct {
 	// withheld when the artifact declaration could not be honoured, and built
 	// over every readable note when none was ever made.
 	knowledgeNotes []NoteSummary
+	// knowledgeScoped records that the contract declared a knowledge layer,
+	// so knowledgeNotes lists less than the whole folder. Home's recent block
+	// says so beside its heading, because the status distribution next to it
+	// counts every indexed note and the two would otherwise read as a
+	// contradiction.
+	knowledgeScoped bool
 
 	// placementIndex maps a note's rel-path to every map placement that lists it,
 	// built once so the sidebar can open each containing branch without re-walking
@@ -201,6 +207,14 @@ func (m *Model) KnowledgeNotes() []NoteSummary {
 		return nil
 	}
 	return slices.Clone(m.knowledgeNotes)
+}
+
+// KnowledgeScoped reports whether KnowledgeNotes lists less than the whole
+// folder: the contract declared a knowledge layer, so files outside it are
+// not among them. Where nothing was declared, nothing is out of scope and
+// this is false.
+func (m *Model) KnowledgeScoped() bool {
+	return m != nil && m.knowledgeScoped
 }
 
 // WithoutInstanceProjections returns a request-local view that keeps ordinary
@@ -374,6 +388,7 @@ func newModel(
 
 	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
 	m.knowledgeNotes = knowledgeNotes
+	m.knowledgeScoped = scope.Available()
 	if m.navigation.Closed() {
 		return m
 	}

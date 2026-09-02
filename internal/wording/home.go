@@ -23,10 +23,24 @@ var (
 	HomeDegradedLede  = both("有檔案這次沒有讀進來", "Some files could not be read this time")
 	HomeRecentTitle   = both("最近變更", "Recently changed")
 	HomeRecentLede    = both("最近改動過的筆記", "Notes changed most recently")
-	HomeTiedTitle     = both("筆記", "Notes")
-	HomeTiedLede      = both(
+	// The scoped ledes name the set the block lists — the contract's declared
+	// knowledge layer — because the status distribution beside it counts
+	// every indexed note, and two true numbers over unstated sets read as a
+	// contradiction. A folder that declared no layer lists everything and
+	// keeps the plain ledes: naming a layer there would invent a rule its
+	// owner never wrote.
+	HomeRecentLedeScoped = both(
+		"知識層資料夾中最近改動過的筆記",
+		"Notes in the declared knowledge folders changed most recently",
+	)
+	HomeTiedTitle = both("筆記", "Notes")
+	HomeTiedLede  = both(
 		"這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」",
 		"These files carry identical timestamps, so nothing here is more recent than anything else",
+	)
+	HomeTiedLedeScoped = both(
+		"知識層資料夾中的筆記。這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」",
+		"Notes in the declared knowledge folders. These files carry identical timestamps, so nothing here is more recent than anything else",
 	)
 	HomeLifecycleTitle = both("依狀態分組", "By status")
 	HomeLifecycleLede  = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
@@ -54,6 +68,12 @@ var (
 	LessonCountOne  = both("%d 課", "%d lesson")
 	LessonCountMany = both("%d 課", "%d lessons")
 )
+
+// NoStructureRead marks a study-path card whose zero is a fault rather than
+// an answer: the note lists things the grammar could not read as a course.
+// A path that genuinely plans nothing carries no mark, so the two zeroes
+// stop looking alike.
+var NoStructureRead = both("未讀到課程結構", "No course structure read")
 
 // SearchSubmit is the button on the desk's own search field.
 var SearchSubmit = both("搜尋", "Search")

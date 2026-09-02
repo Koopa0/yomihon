@@ -63,6 +63,12 @@ type HomeView struct {
 	// with whatever name sorts first under a heading promising recency — so
 	// when the times separate nothing, the block says so instead.
 	RecentOrdered bool
+	// RecentScoped says the recent list covers the contract's declared
+	// knowledge layer rather than the whole folder. The block's lede then
+	// names that scope, because the status distribution beside it counts
+	// every indexed note and two true numbers over unstated sets read as a
+	// contradiction.
+	RecentScoped bool
 	Lifecycle     []LifecycleItem
 	// Unstated are the cells for notes the block must account for that carry no
 	// status to be grouped by. They are kept apart from Lifecycle rather than
@@ -112,11 +118,43 @@ type HomeNote struct {
 	StatusOutsideEnum bool
 }
 
-// HomePath is one study-path card with its total lesson count.
+// HomePath is one study-path card with its total lesson count. Undetermined
+// marks the zero that is a fault rather than an answer: the note lists
+// things the course grammar could not read, so the card says so instead of
+// looking like an empty course. A path that genuinely plans nothing keeps a
+// bare zero.
 type HomePath struct {
-	Title   string
-	RelPath string
-	Total   int
+	Title        string
+	RelPath      string
+	Total        int
+	Undetermined bool
+}
+
+// homeRecentTitle picks the recent block's heading: the recency heading when
+// the recorded times actually order the list, and the tie notice's plain one
+// when they separate nothing.
+func homeRecentTitle(v HomeView, lang wording.Lang) string {
+	if v.RecentOrdered {
+		return wording.HomeRecentTitle.In(lang)
+	}
+	return wording.HomeTiedTitle.In(lang)
+}
+
+// homeRecentLede picks the sentence under that heading. Each of the four is
+// the one whose every clause is true of the page it sits on: ordered or
+// tied, and naming the knowledge layer exactly when the list is scoped to
+// one.
+func homeRecentLede(v HomeView, lang wording.Lang) string {
+	switch {
+	case v.RecentOrdered && v.RecentScoped:
+		return wording.HomeRecentLedeScoped.In(lang)
+	case v.RecentOrdered:
+		return wording.HomeRecentLede.In(lang)
+	case v.RecentScoped:
+		return wording.HomeTiedLedeScoped.In(lang)
+	default:
+		return wording.HomeTiedLede.In(lang)
+	}
 }
 
 // Home renders the landing page inside the standard shell. The four
@@ -172,11 +210,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						if v.ShowRecent {
 							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
-								if v.RecentOrdered {
-									@homeBlockHead("home-recent-title", wording.HomeRecentTitle.In(c.Lang), wording.HomeRecentLede.In(c.Lang))
-								} else {
-									@homeBlockHead("home-recent-title", wording.HomeTiedTitle.In(c.Lang), wording.HomeTiedLede.In(c.Lang))
-								}
+								@homeBlockHead("home-recent-title", homeRecentTitle(v, c.Lang), homeRecentLede(v, c.Lang))
 								<div class="y-homerecent">
 									for _, n := range v.Recent {
 										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
@@ -236,6 +270,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
 											<span class="y-homepath__title">{ p.Title }</span>
 											<span class="y-homepath__progress">{ plural(p.Total, wording.LessonCountOne, wording.LessonCountMany, c.Lang) }</span>
+											if p.Undetermined {
+												<span class="y-navmark y-navmark--warn">{ wording.NoStructureRead.In(c.Lang) }</span>
+											}
 										</a>
 									}
 								</div>
