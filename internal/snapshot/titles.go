@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"cmp"
 	"slices"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -34,13 +35,7 @@ func titlesByName(notes []*vault.Note) map[string][]nav.NoteRef {
 	}
 	for key := range byTitle {
 		slices.SortFunc(byTitle[key], func(a, b nav.NoteRef) int {
-			if a.RelPath == b.RelPath {
-				return 0
-			}
-			if a.RelPath < b.RelPath {
-				return -1
-			}
-			return 1
+			return cmp.Compare(a.RelPath, b.RelPath)
 		})
 	}
 	return byTitle
