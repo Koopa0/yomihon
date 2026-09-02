@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
@@ -20,7 +21,7 @@ import (
 func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 	t.Parallel()
 
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "notes/Kafka.md", Title: "Kafka Basics", PlainText: "kafka is a distributed log"},
 		{RelPath: "notes/Streams.md", Title: "Streams", PlainText: "kafka streams build on the log"},
 	}, validArtifactPolicy(t))
@@ -68,7 +69,7 @@ func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	t.Parallel()
 
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "臨床/利尿劑調整.md", Title: "利尿劑", PlainText: "Furosemide 起始 20-40mg"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()

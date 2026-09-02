@@ -17,18 +17,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-func snapshotSearch(tb testing.TB, idx *search.Index, query string) []search.Result {
+func snapshotSearch(tb testing.TB, idx *lexical.Index, query string) []lexical.Result {
 	tb.Helper()
-	results, err := idx.Search(search.Parse(query))
+	results, err := idx.Search(lexical.Parse(query))
 	if err != nil {
 		tb.Fatalf("Search(%q) error: %v", query, err)
 	}
@@ -53,7 +53,7 @@ func assertSearchArtifactPolicy(tb testing.TB, snap *View) {
 // status-keyed one, which is the shape these assertions read. The index counts
 // the pair because a status means something different per note type; a test
 // naming one status across every type wants the flattened sum.
-func searchStatusCounts(tb testing.TB, idx *search.Index) map[string]int {
+func searchStatusCounts(tb testing.TB, idx *lexical.Index) map[string]int {
 	tb.Helper()
 	pairs, err := idx.CountByTypeStatus()
 	if err != nil {
@@ -244,7 +244,7 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if requestB.ArtifactPolicy().Available() {
 		t.Error("next ArtifactPolicy capture remained available after its source changed")
 	}
-	if _, err := requestB.Search().CountByTypeStatus(); !errors.Is(err, search.ErrMetadataUnavailable) {
+	if _, err := requestB.Search().CountByTypeStatus(); !errors.Is(err, lexical.ErrMetadataUnavailable) {
 		t.Errorf("next Search.CountByTypeStatus() error = %v, want ErrMetadataUnavailable", err)
 	}
 	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
@@ -592,7 +592,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if result := snapshotSearch(t, got.Search(), "Card"); len(result) != 1 || result[0].RelPath != "System/templates/Card.md" {
 		t.Errorf("plain lexical search after artifact drift = %+v, want locally readable template", result)
 	}
-	if _, err := got.Search().Search(search.Parse("status:ready")); err == nil {
+	if _, err := got.Search().Search(lexical.Parse("status:ready")); err == nil {
 		t.Error("metadata search succeeded under source-stale artifact policy")
 	}
 }
@@ -1548,7 +1548,7 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := store.Current().Search().Search(search.Parse("rarespelunker"))
+	results, err := store.Current().Search().Search(lexical.Parse("rarespelunker"))
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -1580,7 +1580,7 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := store.Current().Search().Search(search.Parse("rarespelunker"))
+	results, err := store.Current().Search().Search(lexical.Parse("rarespelunker"))
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -1636,7 +1636,7 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 		t.Error("a note under the cap reports itself unsearchable")
 	}
 
-	results, err := view.Search().Search(search.Parse(needle))
+	results, err := view.Search().Search(lexical.Parse(needle))
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}

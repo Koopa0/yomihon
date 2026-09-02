@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
@@ -18,7 +19,7 @@ import (
 func TestAResultFoundByItsPathShowsWhereItMatched(t *testing.T) {
 	t.Parallel()
 
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		// The term is in the path and nowhere in the words, which is the whole
 		// shape being tested: a hit with no snippet to explain it.
 		{RelPath: "Pharmacology/Notes.md", Title: "Opening", NoteType: "concept", Status: "draft",

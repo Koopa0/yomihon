@@ -20,10 +20,10 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -139,7 +139,7 @@ type BlockedSource struct {
 type View struct {
 	graph          *graph.Index
 	navigation     *nav.Model
-	search         *search.Index
+	search         *lexical.Index
 	slots          lesson.SlotIndex
 	concepts       lesson.ConceptIndex
 	planned        judge.Planned
@@ -295,7 +295,7 @@ func (v *View) Navigation() *nav.Model {
 }
 
 // Search returns the immutable lexical index for this generation.
-func (v *View) Search() *search.Index {
+func (v *View) Search() *lexical.Index {
 	if v == nil {
 		return nil
 	}
@@ -760,7 +760,7 @@ func buildView(
 	graphIndex := graph.New(slices.Concat(g.notes, g.unreadable), g.resources)
 	titles := titlesByName(g.notes)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy)
-	searchIndex := search.NewIndex(indexDocuments(g.notes, g.indexable, g.files), projectionPolicy)
+	searchIndex := lexical.NewIndex(indexDocuments(g.notes, g.indexable, g.files), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
@@ -823,7 +823,7 @@ type generation struct {
 	// sidecars are the practice files the lesson parser reads.
 	sidecars map[string][]byte
 	// files are the index documents for vault files that are not notes.
-	files []search.Document
+	files []lexical.Document
 	// resources are every non-note path, whether or not its bytes were read:
 	// a wikilink may point at any of them.
 	resources []string
@@ -841,7 +841,7 @@ func newGeneration(entries int) *generation {
 		published:  make(map[string]Reading),
 		indexable:  make(map[string]bool),
 		sidecars:   make(map[string][]byte),
-		files:      make([]search.Document, 0, entries),
+		files:      make([]lexical.Document, 0, entries),
 		resources:  make([]string, 0, entries),
 		findings:   make(map[string][]judge.Finding),
 	}
@@ -1012,7 +1012,7 @@ func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
 	if !indexable || !render.IsText(data) {
 		return
 	}
-	g.files = append(g.files, search.DocumentFromFile(relPath, data))
+	g.files = append(g.files, lexical.DocumentFromFile(relPath, data))
 }
 
 // bytesWanted is why a generation reads one vault file, and what follows if it
@@ -1055,12 +1055,12 @@ func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 func indexDocuments(
 	notes []*vault.Note,
 	indexable map[string]bool,
-	files []search.Document,
-) []search.Document {
-	documents := make([]search.Document, 0, len(notes)+len(files))
+	files []lexical.Document,
+) []lexical.Document {
+	documents := make([]lexical.Document, 0, len(notes)+len(files))
 	for _, note := range notes {
 		if indexable[note.RelPath] {
-			documents = append(documents, search.DocumentFromNote(note))
+			documents = append(documents, lexical.DocumentFromNote(note))
 		}
 	}
 	return append(documents, files...)

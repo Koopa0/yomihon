@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
 )
@@ -55,7 +56,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 
 	search := httptest.NewRecorder()
 	site.ServeHTTP(search, siteRequest(t, http.MethodGet, "/search?q=Study", nil))
-	searchResult := search.Result()
+	searchResult := lexical.Result()
 	searchBody := responseBody(t, searchResult)
 	if searchResult.StatusCode != http.StatusOK {
 		t.Errorf("GET /search?q=Study = %d, want %d", searchResult.StatusCode, http.StatusOK)

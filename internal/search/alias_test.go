@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
@@ -16,7 +17,7 @@ import (
 // produced it.
 func aliasServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/Goroutine.md", Title: "Goroutine", NoteType: "concept", Status: "draft",
 			Aliases: []string{"green thread"}, PlainText: "a unit of concurrency"},
 		{RelPath: "Concepts/Pointer.md", Title: "Pointer", NoteType: "concept", Status: "draft",
@@ -119,14 +120,14 @@ func TestAnAliasHitSaysWhichNameAnsweredTheQuery(t *testing.T) {
 func TestAnAliasHitRanksWithTheTitleItStandsFor(t *testing.T) {
 	t.Parallel()
 
-	idx := NewIndex([]Document{
+	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/Mentions.md", Title: "Mentions", NoteType: "concept", Status: "draft",
 			PlainText: "this body happens to say green thread in passing"},
 		{RelPath: "Concepts/Named.md", Title: "Named", NoteType: "concept", Status: "draft",
 			Aliases: []string{"green thread"}, PlainText: "unrelated words"},
 	}, validArtifactPolicy(t))
 
-	results, err := idx.Search(Parse("green thread"))
+	results, err := idx.Search(lexical.Parse("green thread"))
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}

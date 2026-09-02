@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -3182,7 +3182,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 			if shown != f.wantText {
 				t.Errorf("GET /notes/%s renders its characters = %v, want %v", f.rel, shown, f.wantText)
 			}
-			results, err := store.Current().Search().Search(search.Parse(f.term))
+			results, err := store.Current().Search().Search(lexical.Parse(f.term))
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", f.term, err)
 			}

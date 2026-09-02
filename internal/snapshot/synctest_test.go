@@ -7,7 +7,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/lexical"
 )
 
 // TestRunScannerTicksAndStops pins only the scanner loop's clock, cancellation,
@@ -75,7 +75,7 @@ func TestViewConcurrentReadersCannotMutateGeneration(t *testing.T) {
 					folders := request.Navigation().Folders()
 					folders[0].Name = "mutated"
 
-					results, err := request.Search().Search(search.Parse("Foo"))
+					results, err := request.Search().Search(lexical.Parse("Foo"))
 					if err != nil {
 						t.Errorf("Search(Foo) error = %v", err)
 						continue

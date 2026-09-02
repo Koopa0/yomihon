@@ -1,4 +1,4 @@
-package search
+package lexical
 
 import (
 	"errors"
@@ -14,7 +14,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -817,7 +816,7 @@ func TestBoundedSearchKeepsTheOpeningStretch(t *testing.T) {
 		t.Fatalf("unbounded answer = %d results opening with %q, want 10 opening with the title hit", len(all), all[0].RelPath)
 	}
 
-	bounded, total, err := idx.search(Parse("needle"), 4)
+	bounded, total, err := idx.SearchN(Parse("needle"), 4)
 	if err != nil {
 		t.Fatalf("search() error = %v", err)
 	}
@@ -828,7 +827,7 @@ func TestBoundedSearchKeepsTheOpeningStretch(t *testing.T) {
 		t.Errorf("bounded results are not the opening stretch (-unbounded[:4] +bounded):\n%s", diff)
 	}
 
-	if _, countOnly, countErr := idx.search(Parse("needle"), 0); countErr != nil || countOnly != 10 {
+	if _, countOnly, countErr := idx.SearchN(Parse("needle"), 0); countErr != nil || countOnly != 10 {
 		t.Errorf("count-only search = (total %d, %v), want (10, nil)", countOnly, countErr)
 	}
 }
@@ -1005,13 +1004,13 @@ func TestQuotedPhraseCrossesALineBreak(t *testing.T) {
 	if wrapped.Snippet != "daily semantic retrieval log" {
 		t.Errorf("snippet = %q, want the wrapped sentence on one line", wrapped.Snippet)
 	}
-	want := []pages.SnippetRun{
+	want := []HitRun{
 		{Text: "daily "},
 		{Text: "semantic retrieval", Hit: true},
 		{Text: " log"},
 	}
-	if diff := cmp.Diff(want, markHits(wrapped.Snippet, query.Tokens())); diff != "" {
-		t.Errorf("markHits over the wrapped hit mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, MarkHits(wrapped.Snippet, query.Tokens())); diff != "" {
+		t.Errorf("MarkHits over the wrapped hit mismatch (-want +got):\n%s", diff)
 	}
 }
 

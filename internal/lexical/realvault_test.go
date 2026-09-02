@@ -1,6 +1,6 @@
 //go:build realvault
 
-package search
+package lexical
 
 import (
 	"errors"

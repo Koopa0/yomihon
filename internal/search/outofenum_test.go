@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
@@ -31,9 +32,9 @@ func governedStatusView(t *testing.T) status.View {
 
 // outOfEnumIndex holds two concept notes the query "needle" finds: one whose
 // status the default group declares, one whose status it does not.
-func outOfEnumIndex(t *testing.T) *Index {
+func outOfEnumIndex(t *testing.T) *lexical.Index {
 	t.Helper()
-	return NewIndex([]Document{
+	return lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/legal.md", Title: "Legal", NoteType: "concept", Status: "draft", PlainText: "needle body"},
 		{RelPath: "Concepts/outside.md", Title: "Outside", NoteType: "concept", Status: "reviewing", PlainText: "needle body"},
 	}, validArtifactPolicy(t))
