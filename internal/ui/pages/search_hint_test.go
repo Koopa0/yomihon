@@ -67,3 +67,35 @@ func TestEmptySearchOffersStepBacks(t *testing.T) {
 		t.Error("SearchResults() with no step-backs still renders the offer heading")
 	}
 }
+
+// TestTheFilterListReadsAsASentenceInBothLanguages holds the separator between
+// the filter keys the page offers. It was an ideographic comma whatever the
+// reader had chosen, so an English reader was handed "status:、type:、path:".
+func TestTheFilterListReadsAsASentenceInBothLanguages(t *testing.T) {
+	t.Parallel()
+
+	view := SearchView{FilterKeys: []string{"status", "type"}, UnknownFilterKeys: []string{"tag", "kind"}}
+	for lang, want := range map[wording.Lang]string{
+		wording.ZhHant: "、",
+		wording.En:     ", ",
+	} {
+		t.Run(string(lang), func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := SearchResults(view, lang).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := buf.String()
+			if !strings.Contains(html, "tag"+want+"kind") {
+				t.Errorf("the unrecognised filters are not joined with %q in %q; html = %q", want, lang, html)
+			}
+			// The offered keys sit in separate elements, so the separator is
+			// asserted by its presence rather than by its neighbours: an
+			// English page has no business carrying an ideographic comma at
+			// all, and a Traditional Chinese one is written with it.
+			if got := strings.Contains(html, "、"); got != (lang == wording.ZhHant) {
+				t.Errorf("the ideographic comma appears = %t in %q; html = %q", got, lang, html)
+			}
+		})
+	}
+}

@@ -164,10 +164,10 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 			// not about how many notes answered it, so a query that also found
 			// something still hears it.
 			<p class="y-searchpage__hint" data-unknown-filter>
-				{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, "、")) }
+				{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, wording.ListSeparator.In(lang))) }
 				for i, key := range v.FilterKeys {
 					if i > 0 {
-						{ "、" }
+						{ wording.ListSeparator.In(lang) }
 					}
 					<code>{ key + ":" }</code>
 				}
@@ -281,7 +281,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 					{ wording.FilterKeysAvailable.In(lang) }
 					for i, key := range v.FilterKeys {
 						if i > 0 {
-							{ "、" }
+							{ wording.ListSeparator.In(lang) }
 						}
 						<code>{ key + ":" }</code>
 					}
