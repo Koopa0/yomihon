@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
 // The theme cookie has three honest answers, not two. A reader who chose gets
@@ -32,7 +34,7 @@ func TestChromeFromRequestReadsThemeChoice(t *testing.T) {
 			if tt.cookieValue != "" {
 				r.Header.Set("Cookie", "yomihon_theme="+tt.cookieValue)
 			}
-			if got := ChromeFromRequest(r, "測試").Theme; got != tt.want {
+			if got := layouts.ChromeFromRequest(r, "測試").Theme; got != tt.want {
 				t.Errorf("ChromeFromRequest theme = %q, want %q", got, tt.want)
 			}
 		})

@@ -35,6 +35,7 @@ import (
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -171,14 +172,14 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 		Unreadable: unreadable,
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
-	lang := pages.LanguageFromRequest(r)
+	lang := layouts.LanguageFromRequest(r)
 	title := wording.NotFoundKicker.In(lang)
 	if unreadable {
 		title = wording.NotReadableKicker.In(lang)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
-	if err := pages.NotFound(view, pages.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
+	if err := pages.NotFound(view, layouts.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("write not-found page", "path", asked, "error", err)
 	}
 }
@@ -209,7 +210,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Notes:      notes,
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
-	if err := pages.Folder(view, pages.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
+	if err := pages.Folder(view, layouts.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("write folder page", "path", dir, "error", err)
 	}
 }
@@ -245,7 +246,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		LastComplete:       lastCompleteBuild(&fresh),
 		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}
-	if err := pages.Health(view, pages.ChromeFromRequest(r, wording.HealthTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
+	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(layouts.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("write health page", "error", err)
 	}
 }
@@ -416,7 +417,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, snap)
-	lifecycle, unstated, lifecycleClosed := h.lifecycle(statusView, snap, pages.LanguageFromRequest(r))
+	lifecycle, unstated, lifecycleClosed := h.lifecycle(statusView, snap, layouts.LanguageFromRequest(r))
 	// The lifecycle block is derived from the write authority while the counts
 	// under it come from the snapshot's own artifact sample, and the two are
 	// taken at different instants. This does not fire today: the request-local
@@ -449,7 +450,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.HomeView{
 		Governed: pageShell.Governed,
-		Subtitle: content.subtitle(pages.LanguageFromRequest(r)),
+		Subtitle: content.subtitle(layouts.LanguageFromRequest(r)),
 		StandIn:  homeStandIn(snap, content),
 		// The reason a block is missing, stated where the reader is looking. One
 		// cause reaches several blocks — a contract that cannot be read closes
@@ -470,7 +471,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 			visibleNav.ArtifactClosure().Diagnostic(),
 		),
 		PrivacyFault:   snap.PrivacyPolicy().Diagnostic(),
-		Degraded:       degradedNotice(&fresh, pages.LanguageFromRequest(r)),
+		Degraded:       degradedNotice(&fresh, layouts.LanguageFromRequest(r)),
 		DegradedDetail: blockedDetail(fresh.Blocked),
 		Recent:         recent,
 		RecentOrdered:  recentOrdered,
@@ -484,7 +485,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		ReadmeMissing:  !hasReadme,
 		Sidebar:        pages.NewSidebar(visibleNav, ""),
 	}
-	if err := pages.Home(view, pages.ChromeFromRequest(r, wording.HomeTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
+	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(layouts.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("write home page", "error", err)
 	}
 }
@@ -501,7 +502,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 // to the browser through the sandboxed raw endpoint, never poured into this
 // page as live markup.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	lang := pages.LanguageFromRequest(r)
+	lang := layouts.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		h.showNotFound(w, r, r.URL.Path)
@@ -549,8 +550,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	var concepts []lesson.ConceptDoc
 	if state.instance() && n.Type == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML, lang)
-		pageChrome := pages.ChromeFromRequest(r, n.Title)
-		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, pages.LanguageFromRequest(r))
+		pageChrome := layouts.ChromeFromRequest(r, n.Title)
+		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, layouts.LanguageFromRequest(r))
 		var refs []string
 		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
 		concepts = h.loadConcepts(snap, refs, lang)
@@ -566,12 +567,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
 	sidebar := pages.NewSidebar(state.shell.Nav, n.RelPath)
-	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
+	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, layouts.LanguageFromRequest(r))
 	flippedFrom := vouchedOrigin(statusView, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
-		Lang:              pages.LanguageFromRequest(r),
+		Lang:              layouts.LanguageFromRequest(r),
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,
@@ -584,7 +585,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,
-		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, pages.LanguageFromRequest(r)),
+		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, layouts.LanguageFromRequest(r)),
 		CitedBy:           snap.CitedBy(rel),
 		VaultHasLinks:     snap.AnyCitations(),
 		Prev:              footPrev,
@@ -607,7 +608,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		TranscludedIdentity: result.TranscludedIdentity,
 		NoFrontmatter:       state.noFrontmatter,
 		StatusUnknown:       state.statusUnknown,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, pages.LanguageFromRequest(r)),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, layouts.LanguageFromRequest(r)),
 		FlippedFrom:         flippedFrom,
 		// The receipt for a change the face cannot walk back carries the
 		// recovery sentence; a reversible one leaves undoing to the controls
@@ -615,7 +616,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		FlipNoReturn: flippedFrom != "" && !statusView.CanReturn(n.Type, flippedFrom, noteStatus),
 	}
 
-	pageChrome := pages.ChromeFromRequest(r, n.Title)
+	pageChrome := layouts.ChromeFromRequest(r, n.Title)
 	// The furigana control switches readings off. A page with none has nothing
 	// to switch, so it does not carry the button — which is most pages in a
 	// folder that holds no Japanese at all.

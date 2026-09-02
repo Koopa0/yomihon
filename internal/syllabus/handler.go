@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -51,11 +52,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	shell := h.shell()
 	current := shell.Nav.Path(rel)
 	if current == nil {
-		lang := pages.LanguageFromRequest(r)
+		lang := layouts.LanguageFromRequest(r)
 		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
 		// The title names which route refused, because the address alone does
 		// not say and the page below it speaks for every one of them.
-		chrome := pages.ChromeFromRequest(r, wording.PathNotFound.In(lang))
+		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)
 		if err := pages.NotFound(view, chrome).Render(r.Context(), w); err != nil {
@@ -65,7 +66,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := pages.BuildPathView(current, shell.Nav.Paths())
-	if err := pages.Syllabus(view, pages.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
+	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Error("write syllabus page", "path", rel, "error", err)
 	}
 }

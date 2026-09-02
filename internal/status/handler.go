@@ -17,6 +17,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -361,7 +362,7 @@ func (h *Handler) respondRecovery(
 		notePath = ""
 	}
 	shell := h.shell()
-	lang := pages.LanguageFromRequest(r)
+	lang := layouts.LanguageFromRequest(r)
 	door := pages.ObsidianHref(h.writer.VaultRoot(), notePath)
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,
@@ -373,7 +374,7 @@ func (h *Handler) respondRecovery(
 		ObsidianHref:    door,
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
-	chrome := pages.ChromeFromRequest(r, view.Title(lang))
+	chrome := layouts.ChromeFromRequest(r, view.Title(lang))
 	// The recovery page knows a better place to return to than the generic
 	// fallback for a POST-rendered page: the note this refusal was about,
 	// whenever the refusal still has one.

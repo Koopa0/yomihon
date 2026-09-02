@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -35,7 +36,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(layouts.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 	shell := h.shell(snap)
@@ -52,7 +53,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Sidebar:     pages.NewSidebar(shell.Nav, rep.RelPath),
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
 	}
-	if err := pages.Report(view, pages.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
+	if err := pages.Report(view, layouts.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
 		h.log.Error("write report page", "name", rep.Name, "error", err)
 	}
 }
@@ -69,14 +70,14 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(layouts.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 
 	b, err := readReport(r.Context(), h.source, snap, rep.RelPath)
 	if err != nil {
 		h.log.Warn("read report", "name", rep.Name, "path", rep.RelPath, "error", err)
-		http.Error(w, wording.ReportNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(layouts.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 
@@ -107,7 +108,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	if !origin.SetContentSecurityPolicy(r.Context(), w, briefingSandbox) {
 		h.log.Error("serve report bytes", "name", rep.Name, "path", rep.RelPath,
 			"error", "the response sandbox could not be established")
-		http.Error(w, wording.SandboxUnavailable.In(pages.LanguageFromRequest(r)), http.StatusInternalServerError)
+		http.Error(w, wording.SandboxUnavailable.In(layouts.LanguageFromRequest(r)), http.StatusInternalServerError)
 		return
 	}
 	_, _ = w.Write(b) //nolint:errcheck // response is committed and Handler has no later recovery channel

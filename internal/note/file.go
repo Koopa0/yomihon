@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -88,7 +89,7 @@ func servable(rel string) bool {
 // No status face, no ready accent, no diagnostics: a source file is not a
 // note, and the write face has no opinion about it.
 func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
-	lang := pages.LanguageFromRequest(r)
+	lang := layouts.LanguageFromRequest(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path)
@@ -145,7 +146,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		view.SourceHTML = render.SourceHTML(name, string(data))
 	}
 
-	if err := pages.File(view, pages.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
+	if err := pages.File(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("render file page", "path", rel, "error", err)
 	}
 }
@@ -164,7 +165,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 // or HTML document meets. Without it, opening one top-level would give it read
 // of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	lang := pages.LanguageFromRequest(r)
+	lang := layouts.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
