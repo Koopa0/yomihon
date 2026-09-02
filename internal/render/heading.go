@@ -170,12 +170,20 @@ var embedOpeners = []string{
 // nest (an embed inside one renders as a link), so the spans are disjoint.
 func embedSpans(htmlOut string) [][2]int {
 	var spans [][2]int
-	from := 0
+	// Each opener keeps a cursor to its own next occurrence, and only a
+	// cursor a chosen span has passed is re-aimed — the same walk the marker
+	// substitution pass takes over its three delimiter families — so the scan
+	// prices the page at its length rather than at its excerpt count
+	// multiplied by its length.
+	next := make([]int, len(embedOpeners))
+	for i, opener := range embedOpeners {
+		next[i] = nextMark(htmlOut, opener, 0)
+	}
 	for {
 		start, width := -1, 0
-		for _, opener := range embedOpeners {
-			if at := strings.Index(htmlOut[from:], opener); at >= 0 && (start < 0 || from+at < start) {
-				start, width = from+at, len(opener)
+		for i, at := range next {
+			if at >= 0 && (start < 0 || at < start) {
+				start, width = at, len(embedOpeners[i])
 			}
 		}
 		if start < 0 {
@@ -183,7 +191,11 @@ func embedSpans(htmlOut string) [][2]int {
 		}
 		end := divEnd(htmlOut, start+width)
 		spans = append(spans, [2]int{start, end})
-		from = end
+		for i, at := range next {
+			if at >= 0 && at < end {
+				next[i] = nextMark(htmlOut, embedOpeners[i], end)
+			}
+		}
 	}
 }
 

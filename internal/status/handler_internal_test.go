@@ -25,13 +25,17 @@ func TestRecoveryClassification(t *testing.T) {
 		changed    bool
 		wantDetail string
 		noDetail   bool
+		// wantSummary, when set, pins which sentence this refusal opens with —
+		// asked where two sentinels are near neighbours and sharing one
+		// sentence would hide which entry the operator has to repair.
+		wantSummary wording.Phrase
 	}{
 		{name: "invalid path", err: ErrInvalidPath, code: http.StatusUnprocessableEntity, noDetail: true},
 		{name: "closed", err: ErrClosed, code: http.StatusServiceUnavailable, noDetail: true},
 		{name: "artifact policy", err: errors.Join(ErrArtifactPolicyUnavailable, errors.New("policy detail")), code: http.StatusServiceUnavailable, wantDetail: "policy detail"},
 		{name: "non instance", err: ErrNonInstance, code: http.StatusUnprocessableEntity, noDetail: true},
-		{name: "target not regular", err: errors.Join(errNotRegular, errors.New("leaf detail")), code: http.StatusUnprocessableEntity, wantDetail: "leaf detail"},
-		{name: "path not regular", err: errors.Join(errPathNotRegular, errors.New("component detail")), code: http.StatusUnprocessableEntity, wantDetail: "component detail"},
+		{name: "target not regular", err: errors.Join(errNotRegular, errors.New("leaf detail")), code: http.StatusUnprocessableEntity, wantDetail: "leaf detail", wantSummary: wording.TargetNotRegular},
+		{name: "path not regular", err: errors.Join(errPathNotRegular, errors.New("component detail")), code: http.StatusUnprocessableEntity, wantDetail: "component detail", wantSummary: wording.PathNotRegular},
 		{name: "stale", err: ErrStale, code: http.StatusConflict, noDetail: true},
 		{name: "concurrent write", err: ErrConcurrentWrite, code: http.StatusConflict, noDetail: true},
 		{name: "status line", err: ErrStatusLine, code: http.StatusUnprocessableEntity, noDetail: true},
@@ -56,6 +60,9 @@ func TestRecoveryClassification(t *testing.T) {
 			}
 			if got.summary == (wording.Phrase{}) || got.nextAction == (wording.Phrase{}) {
 				t.Errorf("recovery must include summary and next action: %#v", got)
+			}
+			if tt.wantSummary != (wording.Phrase{}) && got.summary != tt.wantSummary {
+				t.Errorf("summary = %q, want %q", got.summary.In(wording.En), tt.wantSummary.In(wording.En))
 			}
 			if got.code >= http.StatusInternalServerError && (got.logMessage == "" || got.cause == nil) {
 				t.Errorf("server failure must retain a log message and cause: %#v", got)

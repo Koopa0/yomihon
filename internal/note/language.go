@@ -61,6 +61,17 @@ func (h *Handler) language(w http.ResponseWriter, r *http.Request) {
 // backslashed address a browser would read as one — falls back to Home rather
 // than carrying the reader somewhere the form never stood.
 func localNext(next string) string {
+	// A control byte is refused before any shape check. This side writes the
+	// value into a header where a tab or a delete survives, and the WHATWG URL
+	// parser on the receiving side strips such bytes before it reads the
+	// shape — so "/\t/host" leaves here as a same-site path and arrives as a
+	// protocol-relative address. No address a page's own form carries contains
+	// one, so the fallback refuses no honest request.
+	for i := range len(next) {
+		if next[i] < 0x20 || next[i] == 0x7f {
+			return "/"
+		}
+	}
 	if next == "" || next[0] != '/' {
 		return "/"
 	}
