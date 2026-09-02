@@ -124,28 +124,6 @@ func (m *Model) ArtifactClosure() Closure {
 	return m.artifact
 }
 
-// NavigationDiagnostic explains why contract-derived paths and maps could not
-// be built. It is empty when navigation roles were read cleanly, empty when
-// nothing declared them, and empty when a broader fault owns the sentence — ask
-// NavigationClosure whether the projection was withheld.
-func (m *Model) NavigationDiagnostic() string {
-	return m.NavigationClosure().Diagnostic()
-}
-
-// ArtifactDiagnostic explains why instance projections could not be built,
-// under the same rule as NavigationDiagnostic.
-func (m *Model) ArtifactDiagnostic() string {
-	return m.ArtifactClosure().Diagnostic()
-}
-
-// InstanceProjectionsClosed reports whether the artifact-dependent projections
-// were withheld rather than genuinely empty. Without it a vault whose
-// exclusions could not be read is indistinguishable from a vault that has no
-// study paths, which is the conflation this model exists to keep apart.
-func (m *Model) InstanceProjectionsClosed() bool {
-	return m.ArtifactClosure().Closed()
-}
-
 // Folders returns the top-level lifecycle folders in vault order. The complete
 // returned tree is independent of the model.
 func (m *Model) Folders() []Folder {

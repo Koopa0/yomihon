@@ -297,8 +297,8 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 	if s.Model == nil {
 		return nil
 	}
-	navigation := s.Model.NavigationDiagnostic()
-	artifact := s.Model.ArtifactDiagnostic()
+	navigation := s.Model.NavigationClosure().Diagnostic()
+	artifact := s.Model.ArtifactClosure().Diagnostic()
 	switch {
 	case navigation != "" && navigation == artifact:
 		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(s.Lang), Detail: navigation}}

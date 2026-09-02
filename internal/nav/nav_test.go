@@ -499,15 +499,15 @@ map_types = ["moc"]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			model := capturedModel(t, root, tt.roles, schema.KnowledgeScope{}, tt.policy, nil)
-			if tt.wantNavigation == "" && model.NavigationDiagnostic() != "" {
-				t.Errorf("NavigationDiagnostic = %q, want exactly empty while artifact policy is unavailable", model.NavigationDiagnostic())
-			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationDiagnostic(), tt.wantNavigation) {
-				t.Errorf("NavigationDiagnostic = %q, want substring %q", model.NavigationDiagnostic(), tt.wantNavigation)
+			if tt.wantNavigation == "" && model.NavigationClosure().Diagnostic() != "" {
+				t.Errorf("NavigationClosure().Diagnostic() = %q, want exactly empty while artifact policy is unavailable", model.NavigationClosure().Diagnostic())
+			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationClosure().Diagnostic(), tt.wantNavigation) {
+				t.Errorf("NavigationClosure().Diagnostic() = %q, want substring %q", model.NavigationClosure().Diagnostic(), tt.wantNavigation)
 			}
-			if tt.wantArtifact == "" && model.ArtifactDiagnostic() != "" {
-				t.Errorf("ArtifactDiagnostic = %q, want exactly empty while navigation roles are unavailable", model.ArtifactDiagnostic())
-			} else if tt.wantArtifact != "" && !strings.Contains(model.ArtifactDiagnostic(), tt.wantArtifact) {
-				t.Errorf("ArtifactDiagnostic = %q, want substring %q", model.ArtifactDiagnostic(), tt.wantArtifact)
+			if tt.wantArtifact == "" && model.ArtifactClosure().Diagnostic() != "" {
+				t.Errorf("ArtifactClosure().Diagnostic() = %q, want exactly empty while navigation roles are unavailable", model.ArtifactClosure().Diagnostic())
+			} else if tt.wantArtifact != "" && !strings.Contains(model.ArtifactClosure().Diagnostic(), tt.wantArtifact) {
+				t.Errorf("ArtifactClosure().Diagnostic() = %q, want substring %q", model.ArtifactClosure().Diagnostic(), tt.wantArtifact)
 			}
 			if len(model.Paths()) != 0 || len(model.Maps()) != 0 {
 				t.Errorf("degraded navigation = %d paths, %d maps; want unavailable", len(model.Paths()), len(model.Maps()))
@@ -537,15 +537,12 @@ func TestUngovernedFolderProjectsOverTheEmptyDeclaredSet(t *testing.T) {
 	capabilities := (*schema.Contract)(nil).Capabilities(schema.Ungoverned())
 	model := capturedModel(t, root, capabilities.Navigation, schema.KnowledgeScope{}, capabilities.Artifacts, nil)
 
-	if model.NavigationDiagnostic() != "" || model.ArtifactDiagnostic() != "" {
+	if model.NavigationClosure().Diagnostic() != "" || model.ArtifactClosure().Diagnostic() != "" {
 		t.Errorf("ungoverned diagnostics = navigation %q artifact %q, want both silent",
-			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
 	}
 	if model.NavigationClosure().Closed() || model.ArtifactClosure().Closed() {
 		t.Error("ungoverned projections are closed; an undeclared set is empty, not unanswerable")
-	}
-	if model.InstanceProjectionsClosed() {
-		t.Error("InstanceProjectionsClosed() = true for a folder that never claimed governance")
 	}
 	// Nothing declared an exclusion, so the template is an ordinary readable
 	// note rather than a governed artifact carved out of the corpus.
@@ -584,15 +581,15 @@ func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
 	if !model.NavigationClosure().Closed() || !model.ArtifactClosure().Closed() {
 		t.Error("an unreadable contract left a projection open; its declared sets are unknown, not empty")
 	}
-	if model.NavigationDiagnostic() == "" {
+	if model.NavigationClosure().Diagnostic() == "" {
 		t.Error("a closed projection says nothing; a surface that can only report through this one would have to invent an answer")
 	}
-	if model.NavigationDiagnostic() != model.ArtifactDiagnostic() {
+	if model.NavigationClosure().Diagnostic() != model.ArtifactClosure().Diagnostic() {
 		t.Errorf("one cause produced two sentences: navigation %q artifact %q",
-			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
 	}
-	if !strings.Contains(model.NavigationDiagnostic(), "line 42") {
-		t.Errorf("the closure does not carry the parse error: %q", model.NavigationDiagnostic())
+	if !strings.Contains(model.NavigationClosure().Diagnostic(), "line 42") {
+		t.Errorf("the closure does not carry the parse error: %q", model.NavigationClosure().Diagnostic())
 	}
 	if len(model.KnowledgeNotes()) != 0 {
 		t.Error("instance projections survived an unreadable contract")
@@ -1245,13 +1242,13 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 		t.Errorf("instance projections remain: paths=%d maps=%d notes=%d placements=%v",
 			len(degraded.Paths()), len(degraded.Maps()), len(degraded.KnowledgeNotes()), degraded.placementIndex)
 	}
-	if degraded.ArtifactDiagnostic() != "artifact unavailable" {
-		t.Errorf("ArtifactDiagnostic = %q, want %q", degraded.ArtifactDiagnostic(), "artifact unavailable")
+	if degraded.ArtifactClosure().Diagnostic() != "artifact unavailable" {
+		t.Errorf("ArtifactClosure().Diagnostic() = %q, want %q", degraded.ArtifactClosure().Diagnostic(), "artifact unavailable")
 	}
-	if !degraded.InstanceProjectionsClosed() {
-		t.Error("InstanceProjectionsClosed() = false after WithoutInstanceProjections; a withheld projection must stay distinguishable from an empty one")
+	if !degraded.ArtifactClosure().Closed() {
+		t.Error("ArtifactClosure().Closed() = false after WithoutInstanceProjections; a withheld projection must stay distinguishable from an empty one")
 	}
-	if original.InstanceProjectionsClosed() {
+	if original.ArtifactClosure().Closed() {
 		t.Error("WithoutInstanceProjections() closed the source model")
 	}
 	if diff := cmp.Diff(original.Folders(), degraded.Folders()); diff != "" {

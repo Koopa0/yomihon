@@ -565,7 +565,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	store, _ := newTestStore(t, root, contract)
 
 	first := store.Current()
-	if len(first.Navigation().Paths()) != 1 || first.Navigation().ArtifactDiagnostic() != "" || first.Navigation().NavigationDiagnostic() != "" {
+	if len(first.Navigation().Paths()) != 1 || first.Navigation().ArtifactClosure().Diagnostic() != "" || first.Navigation().NavigationClosure().Diagnostic() != "" {
 		t.Fatalf("initial navigation = %+v, want one available path", first.Navigation())
 	}
 	if !first.ArtifactPolicy().IsNonInstance("System/templates/Card.md") {
@@ -583,7 +583,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if got == first {
 		t.Fatal("rescan did not publish a new snapshot after the contract file appeared")
 	}
-	if len(got.Navigation().Paths()) != 0 || got.Navigation().ArtifactDiagnostic() == "" || got.Navigation().NavigationDiagnostic() != "" {
+	if len(got.Navigation().Paths()) != 0 || got.Navigation().ArtifactClosure().Diagnostic() == "" || got.Navigation().NavigationClosure().Diagnostic() != "" {
 		t.Errorf("rescanned navigation = %+v, want artifact-dependent projection unavailable", got.Navigation())
 	}
 	if got.ArtifactPolicy().Available() || got.ArtifactPolicy().IsNonInstance("System/templates/Card.md") {
@@ -613,10 +613,10 @@ func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 	if snap.ArtifactPolicy().Available() {
 		t.Fatal("Snapshot.ArtifactPolicy().Available() = true, want no held declaration")
 	}
-	if snap.Navigation().NavigationDiagnostic() != "" || snap.Navigation().ArtifactDiagnostic() != "" {
-		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationDiagnostic(), snap.Navigation().ArtifactDiagnostic())
+	if snap.Navigation().NavigationClosure().Diagnostic() != "" || snap.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationClosure().Diagnostic(), snap.Navigation().ArtifactClosure().Diagnostic())
 	}
-	if snap.Navigation().InstanceProjectionsClosed() {
+	if snap.Navigation().ArtifactClosure().Closed() {
 		t.Error("instance projections closed for a folder that never claimed governance")
 	}
 	if len(snap.Navigation().Paths()) != 0 || len(snap.Navigation().Maps()) != 0 {
@@ -661,7 +661,7 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	}
 	snap := store.Current()
 
-	if !snap.Navigation().InstanceProjectionsClosed() {
+	if !snap.Navigation().ArtifactClosure().Closed() {
 		t.Error("instance projections stayed open under a contract that could not be read")
 	}
 	if len(snap.Navigation().KnowledgeNotes()) != 0 {

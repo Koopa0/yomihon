@@ -58,10 +58,10 @@ func TestNewRealVault(t *testing.T) {
 		noteList = append(noteList, note)
 	}
 	model := New(scan.Files(), notes, graph.New(noteList, resources), roles, contract.KnowledgeScope(), policy)
-	if roles.Available() == (model.NavigationDiagnostic() != "") {
+	if roles.Available() == (model.NavigationClosure().Diagnostic() != "") {
 		t.Error("real-vault navigation diagnostic disagrees with capability availability")
 	}
-	if policy.Available() == (model.ArtifactDiagnostic() != "") {
+	if policy.Available() == (model.ArtifactClosure().Diagnostic() != "") {
 		t.Error("real-vault artifact diagnostic disagrees with capability availability")
 	}
 

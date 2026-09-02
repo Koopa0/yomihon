@@ -109,7 +109,7 @@ func TestProjectOpensInstanceStateOnAGovernedLifecycle(t *testing.T) {
 	snap := snapshotView(t, contract, notes)
 
 	got := Project(lifecycleView(t, contract), contract.ArtifactPolicy().Capture(), snap)
-	if got.Nav.InstanceProjectionsClosed() {
+	if got.Nav.ArtifactClosure().Closed() {
 		t.Error("Project() closed instance projections on an open lifecycle")
 	}
 	if !got.Governed {
@@ -153,12 +153,12 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 			if len(got.Nav.KnowledgeNotes()) != 0 {
 				t.Errorf("Project() retained %d instance notes", len(got.Nav.KnowledgeNotes()))
 			}
-			if !got.Nav.InstanceProjectionsClosed() {
+			if !got.Nav.ArtifactClosure().Closed() {
 				t.Error("Project() left instance projections open under a refusing authority")
 			}
 			// The closure carries the refusing authority's own sentence, so a
 			// surface reading only this model still has something true to say.
-			if got.Nav.ArtifactDiagnostic() == "" {
+			if got.Nav.ArtifactClosure().Diagnostic() == "" {
 				t.Error("Project() closed the projection and gave no reason")
 			}
 		})
@@ -181,12 +181,12 @@ func TestProjectKeepsProjectionsOpenForAnUngovernedFolder(t *testing.T) {
 	if got.Governed {
 		t.Error("Project() reports an ungoverned folder as governed")
 	}
-	if got.Nav.InstanceProjectionsClosed() {
+	if got.Nav.ArtifactClosure().Closed() {
 		t.Error("Project() closed instance projections for a folder that declared no exclusions")
 	}
-	if got.Nav.ArtifactDiagnostic() != "" || got.Nav.NavigationDiagnostic() != "" {
+	if got.Nav.ArtifactClosure().Diagnostic() != "" || got.Nav.NavigationClosure().Diagnostic() != "" {
 		t.Errorf("Project() reported a fault on an ungoverned folder: artifact %q navigation %q",
-			got.Nav.ArtifactDiagnostic(), got.Nav.NavigationDiagnostic())
+			got.Nav.ArtifactClosure().Diagnostic(), got.Nav.NavigationClosure().Diagnostic())
 	}
 	if len(got.Nav.KnowledgeNotes()) != 1 {
 		t.Errorf("Project() KnowledgeNotes = %d, want 1: nothing was excluded", len(got.Nav.KnowledgeNotes()))
