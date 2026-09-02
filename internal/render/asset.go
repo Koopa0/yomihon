@@ -107,12 +107,8 @@ func rawAssetHref(src, noteDir string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	var escaped strings.Builder
-	for i, segment := range strings.Split(joined, "/") {
-		if i > 0 {
-			escaped.WriteByte('/')
-		}
-		escaped.WriteString(url.PathEscape(segment))
-	}
-	return "/raw/" + escaped.String() + suffix, true
+	// The escaping is rawHref's, not a second copy of it: the route that serves
+	// these bytes decodes one spelling, and a rule written twice in one package
+	// is one a later change fixes in one of its two places.
+	return rawHref(joined) + suffix, true
 }
