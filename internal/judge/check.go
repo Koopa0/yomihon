@@ -84,13 +84,9 @@ func buildIndex(notes []note, resources []string) *graph.Index {
 // any collision member — lies under System/. A finding is kept when at least
 // one path it touches is outside System/.
 func dropSystemScoped(findings []Finding) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if touchesOutsideSystem(&findings[i]) {
-			out = append(out, findings[i])
-		}
-	}
-	return out
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return !touchesOutsideSystem(&f)
+	})
 }
 
 // touchesOutsideSystem reports whether a finding touches any path outside
@@ -106,13 +102,9 @@ func touchesOutsideSystem(f *Finding) bool {
 // a public link resolves consistently, but their paths never surface in a
 // finding and the drop holds even for the full, unfiltered set.
 func dropEgressDenied(findings []Finding, authority scanAuthority) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if !touchesEgressDenied(&findings[i], authority) {
-			out = append(out, findings[i])
-		}
-	}
-	return out
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return touchesEgressDenied(&f, authority)
+	})
 }
 
 // touchesEgressDenied reports whether a finding's resolution touches a
@@ -165,13 +157,9 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 			return nil, fmt.Errorf("path filter %q names nothing in this vault; give a vault-relative path such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)
 		}
 	}
-	out := findings[:0]
-	for i := range findings {
-		if anyTouchedPath(&findings[i], func(p string) bool { return underAnyPrefix(p, prefixes) }) {
-			out = append(out, findings[i])
-		}
-	}
-	return out, nil
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return !anyTouchedPath(&f, func(p string) bool { return underAnyPrefix(p, prefixes) })
+	}), nil
 }
 
 // vaultRelativeExample stands in for a real path in the refusal above. It is a

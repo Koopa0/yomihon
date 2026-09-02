@@ -373,13 +373,9 @@ func parseBaseline(jsonl string) map[string]bool {
 // retainNew drops findings whose fingerprint is already in the baseline,
 // leaving only what this run newly introduced.
 func retainNew(findings []Finding, baseline map[string]bool) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if !baseline[findings[i].Fingerprint] {
-			out = append(out, findings[i])
-		}
-	}
-	return out
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return baseline[f.Fingerprint]
+	})
 }
 
 // marshalWire encodes v as a compact JSON object and a trailing newline, the
