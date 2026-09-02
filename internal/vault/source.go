@@ -717,8 +717,7 @@ func (r *Reader) openParent(entry Entry, hook readHook) (parent *os.Root, opened
 		}
 		opened, openErr := child.Stat(".")
 		after, afterErr := current.Lstat(name)
-		if openErr != nil || afterErr != nil || !opened.IsDir() || !after.IsDir() ||
-			after.Mode()&os.ModeSymlink != 0 || !sameObject(before, opened) ||
+		if openErr != nil || afterErr != nil || !opened.IsDir() || !sameObject(before, opened) ||
 			!sameObject(before, after) {
 			return nil, openedRoots, closeChangedRoot(child)
 		}
