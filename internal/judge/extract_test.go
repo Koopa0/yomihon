@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -278,5 +279,33 @@ func TestPathRefsSplitNoteFromResourceOnTheExactExtension(t *testing.T) {
 				t.Errorf("extractPathRefs(%q) targets (-want +got):\n%s", tt.body, diff)
 			}
 		})
+	}
+}
+
+// TestThePlannedSetIsOnlyEnteredThroughTheHarvest holds the one guarantee the
+// set exists to make. Its names are folded the way the resolver folds a link,
+// so asking about a name answers what resolution would have answered had the
+// note been written — and both faces have to reach the same verdict about a
+// link that resolves to nothing, or the reader learns to distrust whichever one
+// cried wolf.
+//
+// The set is carried by value through both of them, so a caller reaching one
+// before the harvest has run holds the zero set. That is a corpus which
+// declared nothing, and reading it must not be a way to bring down the face
+// drawing a broken link.
+func TestThePlannedSetIsOnlyEnteredThroughTheHarvest(t *testing.T) {
+	t.Parallel()
+
+	var unharvested Planned
+	if unharvested.Has("一致性雜湊") {
+		t.Error("a set nobody harvested reports a name as planned; the zero value means a corpus that declared nothing")
+	}
+
+	set := NewPlanned(slices.Values([]string{"接下來 [[Consistent Hashing]] 待整理。\n"}))
+	if !set.Has("consistent hashing") {
+		t.Error("NewPlanned did not fold the harvested name the way the resolver folds a link to it")
+	}
+	if set.Has("一致性雜湊") {
+		t.Error("the set claims a name nothing declared")
 	}
 }
