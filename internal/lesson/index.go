@@ -24,9 +24,9 @@ type SlotIndex struct {
 // its byte slices. A malformed sidecar is a build fault to surface, not
 // reader-facing content to tolerate. Two files claiming the same slug are
 // likewise an error because the join would be ambiguous.
-func NewSlotIndex(files map[string][]byte) (SlotIndex, Problems) {
+func NewSlotIndex(files map[string][]byte) (SlotIndex, []Problem) {
 	sidecars := make(map[string]*Sidecar, len(files))
-	var problems Problems
+	var problems []Problem
 	for _, relPath := range slices.Sorted(maps.Keys(files)) {
 		if !IsSlotSidecar(relPath) {
 			continue
@@ -55,13 +55,10 @@ type Problem struct {
 	Message string
 }
 
-// Problems is every sidecar that could not be used in one generation.
-type Problems []Problem
-
-func indexSidecars(sidecars map[string]*Sidecar) (SlotIndex, Problems) {
+func indexSidecars(sidecars map[string]*Sidecar) (SlotIndex, []Problem) {
 	idx := SlotIndex{bySlug: make(map[string]*Sidecar, len(sidecars))}
 	sources := make(map[string]string, len(sidecars))
-	var problems Problems
+	var problems []Problem
 	for _, relPath := range slices.Sorted(maps.Keys(sidecars)) {
 		name, _ := slotSidecarName(relPath)
 		s := sidecars[relPath]
