@@ -266,10 +266,8 @@ func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 	t.Parallel()
 
 	open := openSites{
-		why: "giving these four their String method is another line of this work",
+		why: "giving these two their String method is another line of this work",
 		keys: []string{
-			"internal/judge/command.go | Format",
-			"internal/judge/judge.go | Severity",
 			"internal/nav/entry.go | EntryKind",
 			"internal/schema/grant.go | Reason",
 		},

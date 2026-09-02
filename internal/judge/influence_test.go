@@ -56,13 +56,13 @@ func TestCheckExcludesJournalPlannedNames(t *testing.T) {
 	journalPlanned := findBroken(t, findings, "Concepts/golang/Journal Planned Link.md", "Planned Only In Journal")
 	if journalPlanned.Severity != SeverityWarn {
 		t.Errorf("journal-planned broken link severity = %s, want warn; a name planned only in the journal must not downgrade it",
-			journalPlanned.Severity.name())
+			journalPlanned.Severity.String())
 	}
 
 	publicPlanned := findBroken(t, findings, "Concepts/golang/Public Planned Link.md", "Planned In Public")
 	if publicPlanned.Severity != SeverityInfo {
 		t.Errorf("public-planned broken link severity = %s, want info; a name a public note plans still tracks it",
-			publicPlanned.Severity.name())
+			publicPlanned.Severity.String())
 	}
 }
 

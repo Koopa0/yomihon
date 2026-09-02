@@ -80,6 +80,23 @@ const (
 	FormatMarkdown
 )
 
+// String names a format with the spelling ParseFormat accepts, so a message
+// about a format and the flag a reader would type to ask for it are the same
+// word. A value outside the three constants is a programming error and has no
+// spelling, so it panics rather than inventing one a reader could not type.
+func (f Format) String() string {
+	switch f {
+	case FormatJSON:
+		return "json"
+	case FormatHuman:
+		return "human"
+	case FormatMarkdown:
+		return "md"
+	default:
+		panic("judge: unknown Format: " + strconv.Itoa(int(f)))
+	}
+}
+
 // ParseFormat maps a --format value to a Format, reporting false for a value
 // that is none of json, human, or md.
 func ParseFormat(s string) (Format, bool) {
