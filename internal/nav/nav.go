@@ -40,6 +40,16 @@ import (
 // sentence worth printing, and a projection that is simply empty must stay
 // distinguishable from one that was withheld. The zero Closure is open — the
 // contents are the vault's true answer.
+//
+// It is a type of its own rather than the declaration outcome it holds
+// because the two answer different questions about the same value. What the
+// vault declared may be untrustworthy — that is a fact about a declaration,
+// and it is the declaring package's word. Whether this navigation projection
+// was withheld is a fact about a list a reader is looking at, and it is the
+// only form of the question a page can act on: show the sidebar's courses, or
+// say why there are none. One follows from the other today, and naming them
+// apart is what lets a projection be withheld for a reason that is not a bad
+// declaration without every page having to be rewritten.
 type Closure struct {
 	claim schema.Claim
 }
