@@ -161,7 +161,7 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 	switch {
 	case allContain(e.TitleFold, tokens):
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.add(e.kindOf(titleNote, titleFile), hit{entry: e, bodyEvidence: bodyEvidence})
+		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence})
 	case aliasAnswering(e, tokens) != "":
 		// A name the note answers to, standing with its title: a link written
 		// to an alias resolves and one written to a title does not, so an
@@ -169,24 +169,23 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 		// answered travels with the hit because the row shows the title, and
 		// a reader who typed something else is owed the reason it is here.
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.add(e.kindOf(titleNote, titleFile), hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
+		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
-		b.add(e.kindOf(bodyNote, bodyFile), hit{entry: e, bodyEvidence: true})
+		b.add(bodyNote, bodyFile, hit{entry: e, bodyEvidence: true})
 	case allContain(e.PathFold, tokens):
-		b.add(e.kindOf(pathNote, pathFile), hit{entry: e})
+		b.add(pathNote, pathFile, hit{entry: e})
 	}
 }
 
-// kindOf picks between the two groups one kind of evidence has, by whether the
-// entry is a vault file rather than a note.
-func (e *entry) kindOf(note, file bucket) bucket {
-	if e.isFile {
-		return file
+// add files one hit under the group its evidence and its kind put it in. Each
+// kind of evidence has two groups — one for a note, one for a vault file — and
+// the hit already carries which of the two it is, so the caller names the pair
+// and never chooses between them.
+func (b *resultBuckets) add(note, file bucket, h hit) {
+	g := note
+	if h.entry.isFile {
+		g = file
 	}
-	return note
-}
-
-func (b *resultBuckets) add(g bucket, h hit) {
 	b.groups[g] = append(b.groups[g], h)
 }
 
