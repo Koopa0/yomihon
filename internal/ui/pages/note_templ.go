@@ -2649,7 +2649,7 @@ func branchNode(sb Sidebar, mapPath string, chain []string, branch nav.Branch) t
 
 // entryLink renders one map row: governed unique targets link and may mark the
 // current note; study-path warning rows remain non-interactive.
-func entryLink(sb Sidebar, entry nav.Entry) templ.Component {
+func entryLink(sb Sidebar, entry nav.MapEntry) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

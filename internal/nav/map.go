@@ -34,28 +34,15 @@ type Branch struct {
 	// Level is the markdown heading level (2 for a part, 3 for a module),
 	// kept so a renderer can indent by depth without re-deriving it.
 	Level       int
-	Entries     []Entry
+	Entries     []MapEntry
 	Subbranches []Branch
 }
 
-// EntryKind distinguishes a linked entry from each warning-row reason.
-type EntryKind uint8
-
-const (
-	// EntryResolved is a unique wikilink target that can be navigated to.
-	EntryResolved EntryKind = iota
-	// EntryUnresolved has no matching vault target.
-	EntryUnresolved
-	// EntryAmbiguous has several candidates and deliberately names none of them.
-	EntryAmbiguous
-	// EntryNonInstance resolves uniquely to a readable artifact that is outside
-	// the governed instance set.
-	EntryNonInstance
-)
-
-// Entry is one wikilink list-item. Study paths retain warning rows for honest
-// sequencing; general maps contain only governed, resolved entries.
-type Entry struct {
+// MapEntry is one wikilink list-item of a general map, the sibling of
+// PathEntry rather than a general form of it: a map keeps only governed,
+// resolved rows, while a study path retains its warning rows because their
+// order is a curriculum.
+type MapEntry struct {
 	Text       string
 	Target     string
 	RelPath    string
@@ -109,7 +96,7 @@ func parseMap(
 type branchNode struct {
 	heading string
 	level   int
-	entries []Entry
+	entries []MapEntry
 	sub     []*branchNode
 }
 
@@ -129,7 +116,7 @@ type branchNode struct {
 //
 // That predicate is what distinguishes the two files' non-navigation
 // branches without naming them: the Go map's parts/modules hold plain
-// "- [[Entry]]" bullets (all kept); the 大家 map's warm-up part holds direct
+// "- [[MapEntry]]" bullets (all kept); the 大家 map's warm-up part holds direct
 // "- **P01** ... [[P01 ...]]" entries and its course-sequence levels hold
 // "- **L1** ... · [[L01 ...]]" entries (both kept), while its daily-loop
 // branch uses an ordered list (excluded — not a bullet), its learning-level
@@ -263,7 +250,7 @@ func parseEntryItem(line string) (inner string, ok bool) {
 // isTaskMarker reports whether s (a bullet item's text, after the marker)
 // begins with a GFM task checkbox: "[ ]", "[x]", or "[X]" followed by end
 // of string or a space. A "[[" wikilink opener is not a checkbox (its
-// second byte is "[", not a space or x), so "- [[Entry]]" is never
+// second byte is "[", not a space or x), so "- [[MapEntry]]" is never
 // mistaken for a task item.
 func isTaskMarker(s string) bool {
 	if len(s) < 3 || s[0] != '[' || s[2] != ']' {
@@ -298,22 +285,22 @@ func firstWikilink(s string) (inner string, ok bool) {
 // (a same-file anchor such as [[#heading]]). Unresolved, ambiguous, and unique
 // non-instance targets return distinct warning kinds so the caller can preserve
 // or omit them according to map role.
-func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, policy schema.ArtifactPolicy) (Entry, bool) {
+func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, policy schema.ArtifactPolicy) (MapEntry, bool) {
 	target, display, ok := graph.SplitWikilink(inner)
 	if !ok {
-		return Entry{}, false
+		return MapEntry{}, false
 	}
 	res := idx.Resolve(target)
 	switch res.Kind {
 	case graph.Unique:
 		if policy.IsNonInstance(res.RelPath) {
-			return Entry{Text: display, Target: target, Kind: EntryNonInstance}, true
+			return MapEntry{Text: display, Target: target, Kind: EntryNonInstance}, true
 		}
-		return Entry{Text: display, Target: target, RelPath: res.RelPath, Status: statusByPath[res.RelPath], Kind: EntryResolved}, true
+		return MapEntry{Text: display, Target: target, RelPath: res.RelPath, Status: statusByPath[res.RelPath], Kind: EntryResolved}, true
 	case graph.Ambiguous:
-		return Entry{Text: display, Target: target, Kind: EntryAmbiguous, Candidates: slices.Clone(res.Candidates)}, true
+		return MapEntry{Text: display, Target: target, Kind: EntryAmbiguous, Candidates: slices.Clone(res.Candidates)}, true
 	case graph.Unresolved:
-		return Entry{Text: display, Target: target, Kind: EntryUnresolved}, true
+		return MapEntry{Text: display, Target: target, Kind: EntryUnresolved}, true
 	default:
 		// The resolver's kind set is closed — unresolved, unique, ambiguous —
 		// so a value outside it is a programming error in the resolver, not a

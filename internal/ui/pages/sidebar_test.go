@@ -647,7 +647,7 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 		"map branch row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
-			entry := nav.Entry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
+			entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
 			if err := entryLink(sb, entry).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}

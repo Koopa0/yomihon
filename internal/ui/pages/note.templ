@@ -762,7 +762,7 @@ templ branchNode(sb Sidebar, mapPath string, chain []string, branch nav.Branch) 
 
 // entryLink renders one map row: governed unique targets link and may mark the
 // current note; study-path warning rows remain non-interactive.
-templ entryLink(sb Sidebar, entry nav.Entry) {
+templ entryLink(sb Sidebar, entry nav.MapEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a
 			class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }

@@ -288,7 +288,7 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 	resolvedBranches := []Branch{{
 		Heading: "Shelf",
 		Level:   2,
-		Entries: []Entry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
+		Entries: []MapEntry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
 	}}
 	wantPaths := []pathShape{{
 		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path", Planned: 3,
@@ -387,7 +387,7 @@ func TestNewOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	if len(model.Maps()) != 1 || len(model.Maps()[0].Branches) != 1 {
 		t.Fatalf("New Maps = %+v, want one general-map branch", model.Maps())
 	}
-	wantEntries := []Entry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
+	wantEntries := []MapEntry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
 	if diff := cmp.Diff(wantEntries, model.Maps()[0].Branches[0].Entries); diff != "" {
 		t.Errorf("New general-map entries mismatch (-want +got):\n%s", diff)
 	}
@@ -710,7 +710,7 @@ func resolver(t *testing.T, paths ...string) *graph.Index {
 
 // TestParseBranchesGoShape covers the pipe-format Go map shape: H2/H3
 // headings "slug | English | Chinese" (the English column becomes the
-// label) and "- [[Entry]]" bullets, with prose lines (範圍/★) between
+// label) and "- [[MapEntry]]" bullets, with prose lines (範圍/★) between
 // headings that must NOT become entries, and a trailing part with no
 // entries that must be pruned away.
 func TestParseBranchesGoShape(t *testing.T) {
@@ -751,7 +751,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 				{
 					Heading: "Text as Bytes",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Status: "draft"},
 						{Text: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
 					},
@@ -759,7 +759,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 				{
 					Heading: "Alignment",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "Entry C", Target: "Entry C", RelPath: "L/Entry C.md"},
 					},
 				},
@@ -831,7 +831,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		{
 			Heading: "Kana warm-up (order = lines)",
 			Level:   2,
-			Entries: []Entry{
+			Entries: []MapEntry{
 				{Text: "P01 Kana", Target: "P01 Kana", RelPath: "jp/P01 Kana.md", Status: "draft"},
 			},
 		},
@@ -842,7 +842,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 				{
 					Heading: "Decode",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Status: "draft"},
 						{Text: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Status: "draft"},
 					},
@@ -850,7 +850,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 				{
 					Heading: "Verbs",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus},
 					},
 				},
@@ -895,7 +895,7 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 				{
 					Heading: "Module",
 					Level:   3,
-					Entries: []Entry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
+					Entries: []MapEntry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
 				},
 			},
 		},
@@ -1111,12 +1111,12 @@ func TestPlacements(t *testing.T) {
 			Title: "Go", RelPath: "Maps/go-path.md",
 			Branches: []Branch{
 				{Heading: "Part A", Level: 2, Subbranches: []Branch{
-					{Heading: "Module 1", Level: 3, Entries: []Entry{
+					{Heading: "Module 1", Level: 3, Entries: []MapEntry{
 						{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
 						{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 					}},
 				}},
-				{Heading: "Part B", Level: 2, Entries: []Entry{
+				{Heading: "Part B", Level: 2, Entries: []MapEntry{
 					{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 				}},
 			},
@@ -1124,7 +1124,7 @@ func TestPlacements(t *testing.T) {
 		{
 			Title: "JP", RelPath: "Maps/jp-path.md",
 			Branches: []Branch{
-				{Heading: "Unit 1", Level: 2, Entries: []Entry{
+				{Heading: "Unit 1", Level: 2, Entries: []MapEntry{
 					{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
 				}},
 			},
