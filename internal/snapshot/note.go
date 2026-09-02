@@ -48,7 +48,7 @@ type Reading struct {
 	Stale bool
 }
 
-func captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, searchable bool) Reading {
+func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, searchable bool) Reading {
 	if parsed == nil {
 		return Reading{}
 	}

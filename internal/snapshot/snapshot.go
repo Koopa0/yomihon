@@ -717,15 +717,7 @@ func buildView(
 	// Capture rebinds request-time metadata access to the current authority.
 	projectionPolicy := capabilities.Artifacts.Capture()
 	entries := scan.Files()
-	parsedByPath := make(map[string]*vault.Note)
-	parsedNotes := make([]*vault.Note, 0, len(entries))
-	unreadableNotes := make([]*vault.Note, 0)
-	publishedNotes := make(map[string]Reading)
-	schemaFindings := make(map[string][]judge.Finding)
-	indexableNotes := make(map[string]bool)
-	resources := make([]string, 0, len(entries))
-	slotFiles := make(map[string][]byte)
-	fileDocuments := make([]search.Document, 0, len(entries))
+	g := newGeneration(len(entries))
 	blocked := blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 
@@ -739,7 +731,7 @@ func buildView(
 		if !note {
 			// A wikilink may point at any vault file, so the resolver is told
 			// about every one of them whether or not its bytes are read.
-			resources = append(resources, relPath)
+			g.resources = append(g.resources, relPath)
 			if !want.read {
 				continue
 			}
@@ -753,44 +745,37 @@ func buildView(
 			if want.holdsBackGeneration {
 				blocked = append(blocked, BlockedSource{Path: relPath, Reason: err.Error()})
 			}
-			parsedNotes, unreadableNotes, fileDocuments = carried.lastCopyOf(
-				relPath, note, want,
-				parsedNotes, unreadableNotes, parsedByPath, publishedNotes, indexableNotes,
-				slotFiles, fileDocuments)
+			g.carry(carried, relPath, note, want)
 			continue
 		}
 		if !note {
-			fileDocuments = captureFile(relPath, data, want.indexable, slotFiles, fileDocuments)
+			g.captureFile(relPath, data, want.indexable)
 			continue
 		}
-		parsed := vault.Parse(relPath, data)
-		parsedByPath[relPath] = parsed
-		parsedNotes = append(parsedNotes, parsed)
-		indexableNotes[relPath] = want.indexable
-		publishedNotes[relPath] = captureNote(parsed, data, capabilities.Language, want.indexable)
-		recordVerdict(schemaFindings, relPath, data, contract, log)
+		g.captureNote(vault.Parse(relPath, data), data, capabilities.Language, want.indexable)
+		g.recordVerdict(relPath, data, contract, log)
 	}
 
-	graphIndex := graph.New(slices.Concat(parsedNotes, unreadableNotes), resources)
-	titles := titlesByName(parsedNotes)
-	navigation := nav.New(entries, parsedByPath, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy)
-	searchIndex := search.NewIndex(indexDocuments(parsedNotes, indexableNotes, fileDocuments), projectionPolicy)
+	graphIndex := graph.New(slices.Concat(g.notes, g.unreadable), g.resources)
+	titles := titlesByName(g.notes)
+	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy)
+	searchIndex := search.NewIndex(indexDocuments(g.notes, g.indexable, g.files), projectionPolicy)
 
-	slots, slotProblems := lesson.NewSlotIndex(slotFiles)
+	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
 		// One unusable sidecar is one lesson without its practice panel, not
 		// the whole feature, so the generation keeps the ones that read.
 		log.Warn("slot sidecar unusable in snapshot generation",
 			"path", problem.Source, "problem", problem.Message)
 	}
-	concepts, err := lesson.NewConceptIndex(parsedNotes)
+	concepts, err := lesson.NewConceptIndex(g.notes)
 	if err != nil {
 		log.Warn("concept sheets unavailable in snapshot generation", "error", err)
 		concepts = lesson.ConceptIndex{}
 	}
 
-	planned := judge.NewPlanned(noteBodies(parsedNotes))
-	backlinks := newBacklinks(parsedNotes, graphIndex)
+	planned := judge.NewPlanned(noteBodies(g.notes))
+	backlinks := newBacklinks(g.notes, graphIndex)
 	view := &View{
 		graph:          graphIndex,
 		navigation:     navigation,
@@ -799,18 +784,76 @@ func buildView(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
-		health:         newHealth(parsedNotes, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
+		health:         newHealth(g.notes, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
 		artifactPolicy: capabilities.Artifacts,
 		privacyPolicy:  contract.PrivacyPolicy(),
 		scan:           scan,
-		notes:          publishedNotes,
-		schemaFindings: schemaFindings,
+		notes:          g.published,
+		schemaFindings: g.findings,
 		titles:         titles,
-		parsed:         parsedByPath,
-		sidecars:       slotFiles,
+		parsed:         g.parsed,
+		sidecars:       g.sidecars,
 	}
 	view.markdown = render.New(graphIndex, view, view)
 	return view, blocked, nil
+}
+
+// generation is the set of collections one reading of the folder fills, owned
+// together because every one of them is filled from two places: the source
+// this reading opened, and the copy the last generation held for a source it
+// could not. Held apart, the fallback took five of them as parameters and
+// wrote into four more that its signature never named, so the call site could
+// not see what had changed. A projection added here is added to a receiver
+// both paths already have.
+type generation struct {
+	// parsed is every note this generation holds, by path — what the resolver
+	// and the navigation model are built from.
+	parsed map[string]*vault.Note
+	// notes is the same set as a list, in the order the folder was read.
+	notes []*vault.Note
+	// unreadable are the stubs standing for notes with no copy at all, so a
+	// citation to one lands on a file that exists rather than on nothing.
+	unreadable []*vault.Note
+	// published is the reading projection each page renders.
+	published map[string]Reading
+	// indexable records, per note, the decision its own entry was judged by,
+	// so the index and the note's page describe the same bytes.
+	indexable map[string]bool
+	// sidecars are the practice files the lesson parser reads.
+	sidecars map[string][]byte
+	// files are the index documents for vault files that are not notes.
+	files []search.Document
+	// resources are every non-note path, whether or not its bytes were read:
+	// a wikilink may point at any of them.
+	resources []string
+	// findings are the schema's verdicts, kept only for the notes that drew
+	// one.
+	findings map[string][]judge.Finding
+}
+
+// newGeneration opens an empty generation sized for a folder of entries files.
+func newGeneration(entries int) *generation {
+	return &generation{
+		parsed:     make(map[string]*vault.Note),
+		notes:      make([]*vault.Note, 0, entries),
+		unreadable: make([]*vault.Note, 0),
+		published:  make(map[string]Reading),
+		indexable:  make(map[string]bool),
+		sidecars:   make(map[string][]byte),
+		files:      make([]search.Document, 0, entries),
+		resources:  make([]string, 0, entries),
+		findings:   make(map[string][]judge.Finding),
+	}
+}
+
+// captureNote files one note this reading opened into every projection built
+// from a note: the resolver's copy, the list, the index membership its entry
+// was judged by, and the projection its page renders.
+func (g *generation) captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, indexable bool) {
+	g.parsed[parsed.RelPath] = parsed
+	g.notes = append(g.notes, parsed)
+	g.indexable[parsed.RelPath] = indexable
+	g.published[parsed.RelPath] = newReading(parsed, data, languages, indexable)
 }
 
 // recordVerdict reaches the schema's verdict for one note and keeps it when
@@ -824,14 +867,14 @@ func buildView(
 // than a reason to stop reading the folder: it is said once and the build goes
 // on, leaving the note with no verdict rather than the folder with no
 // generation.
-func recordVerdict(into map[string][]judge.Finding, relPath string, data []byte, contract *schema.Contract, log *slog.Logger) {
+func (g *generation) recordVerdict(relPath string, data []byte, contract *schema.Contract, log *slog.Logger) {
 	findings, err := judge.LintFrontmatter(relPath, data, contract)
 	if err != nil {
 		log.Warn("schema verdict unavailable for a note", "path", relPath, "error", err)
 		return
 	}
 	if len(findings) > 0 {
-		into[relPath] = findings
+		g.findings[relPath] = findings
 	}
 }
 
@@ -859,28 +902,17 @@ func carriedFrom(previous *View) carriedGeneration {
 	}
 }
 
-// lastCopyOf gives the generation being built whatever the fallback generation
-// held for a source this reading could not open, choosing by whether that
-// source is a note or a practice file. It returns the three collections the
-// choice can extend, so the reading loop states the fallback once instead of
-// branching on the kind of source in the middle of its read-failure handling.
-func (c carriedGeneration) lastCopyOf(
-	relPath string,
-	note bool,
-	want bytesWanted,
-	parsedNotes, unreadableNotes []*vault.Note,
-	parsedByPath map[string]*vault.Note,
-	publishedNotes map[string]Reading,
-	indexableNotes map[string]bool,
-	slotFiles map[string][]byte,
-	fileDocuments []search.Document,
-) (notes, unreadable []*vault.Note, files []search.Document) {
+// carry gives this generation whatever the fallback generation held for a
+// source this reading could not open, choosing by whether that source is a
+// note or a practice file, so the reading loop states the fallback once
+// instead of branching on the kind of source in the middle of its
+// read-failure handling.
+func (g *generation) carry(from carriedGeneration, relPath string, note bool, want bytesWanted) {
 	if note {
-		parsedNotes, unreadableNotes = c.carryNote(
-			relPath, parsedNotes, unreadableNotes, parsedByPath, publishedNotes, indexableNotes)
-		return parsedNotes, unreadableNotes, fileDocuments
+		g.carryNote(from, relPath)
+		return
 	}
-	return parsedNotes, unreadableNotes, c.carryFile(relPath, want, slotFiles, fileDocuments)
+	g.carryFile(from, relPath, want)
 }
 
 // carryNote gives the generation being built the copy of relPath the fallback
@@ -895,26 +927,21 @@ func (c carriedGeneration) lastCopyOf(
 // still learns its path even though its bytes are missing. Without the stub,
 // the health page would class every citation to it with the citations whose
 // targets do not exist.
-func (c carriedGeneration) carryNote(
-	relPath string,
-	parsedNotes, unreadableNotes []*vault.Note,
-	parsedByPath map[string]*vault.Note,
-	publishedNotes map[string]Reading,
-	indexableNotes map[string]bool,
-) (parsed, unreadable []*vault.Note) {
-	lastKnown, lastKnownOK := c.parsed[relPath]
-	captured, capturedOK := c.captured[relPath]
+func (g *generation) carryNote(from carriedGeneration, relPath string) {
+	lastKnown, lastKnownOK := from.parsed[relPath]
+	captured, capturedOK := from.captured[relPath]
 	if !lastKnownOK || !capturedOK {
-		return parsedNotes, append(unreadableNotes, vault.Parse(relPath, nil))
+		g.unreadable = append(g.unreadable, vault.Parse(relPath, nil))
+		return
 	}
 	captured.Stale = true
-	parsedByPath[relPath] = lastKnown
-	publishedNotes[relPath] = captured
+	g.parsed[relPath] = lastKnown
+	g.notes = append(g.notes, lastKnown)
+	g.published[relPath] = captured
 	// The carried copy answers for itself throughout: what the index holds and
 	// what the note's own page says about being searchable describe the same
 	// bytes, which are the last ones read.
-	indexableNotes[relPath] = captured.Searchable
-	return append(parsedNotes, lastKnown), unreadableNotes
+	g.indexable[relPath] = captured.Searchable
 }
 
 // carryFile gives the generation being built the practice file the fallback
@@ -922,17 +949,12 @@ func (c carriedGeneration) carryNote(
 // simply absent from this generation: it lends the search index its words and
 // nothing else, and its own page reads it from disk at request time rather
 // than from a generation.
-func (c carriedGeneration) carryFile(
-	relPath string,
-	want bytesWanted,
-	slotFiles map[string][]byte,
-	fileDocuments []search.Document,
-) []search.Document {
-	lastKnown, ok := c.sidecars[relPath]
+func (g *generation) carryFile(from carriedGeneration, relPath string, want bytesWanted) {
+	lastKnown, ok := from.sidecars[relPath]
 	if !ok {
-		return fileDocuments
+		return
 	}
-	return captureFile(relPath, lastKnown, want.indexable, slotFiles, fileDocuments)
+	g.captureFile(relPath, lastKnown, want.indexable)
 }
 
 // blockedFromProblems carries the scan's unobservable paths into the build's
@@ -978,24 +1000,18 @@ func noteBodies(notes []*vault.Note) iter.Seq[string] {
 // name is not evidence about what is inside a file, and a term found in
 // something the reader will only ever be shown as opaque bytes would point at a
 // page that cannot show it.
-func captureFile(
-	relPath string,
-	data []byte,
-	indexable bool,
-	slotFiles map[string][]byte,
-	fileDocuments []search.Document,
-) []search.Document {
+func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
 	if lesson.IsSlotSidecar(relPath) {
-		slotFiles[relPath] = data
+		g.sidecars[relPath] = data
 	}
 	// indexable carries the decision the entry itself was judged by. A sidecar
 	// is read whatever its size, because a lesson is built from it, and deciding
 	// again from the bytes alone would put a file in the index whose own page
 	// says its contents are not searched.
 	if !indexable || !render.IsText(data) {
-		return fileDocuments
+		return
 	}
-	return append(fileDocuments, search.DocumentFromFile(relPath, data))
+	g.files = append(g.files, search.DocumentFromFile(relPath, data))
 }
 
 // bytesWanted is why a generation reads one vault file, and what follows if it

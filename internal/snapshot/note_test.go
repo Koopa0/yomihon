@@ -13,7 +13,7 @@ func TestCaptureNoteDetachesPublishedReadingData(t *testing.T) {
 
 	data := []byte("---\ntitle: Original\ntype: concept\nstatus: draft\nslug: original\n---\nbody\n")
 	parsed := vault.Parse("Concepts/Original.md", data)
-	got := captureNote(parsed, data, schema.ArticleLanguage{}, true)
+	got := newReading(parsed, data, schema.ArticleLanguage{}, true)
 
 	parsed.RelPath = "Concepts/Changed.md"
 	parsed.Body = "changed"
@@ -45,7 +45,7 @@ func TestCaptureNoteRetainsFrontmatterDiagnosticWithoutAuthority(t *testing.T) {
 	t.Parallel()
 
 	data := []byte("---\ntitle: [broken\n---\nbody\n")
-	got := captureNote(vault.Parse("Broken.md", data), data, schema.ArticleLanguage{}, true)
+	got := newReading(vault.Parse("Broken.md", data), data, schema.ArticleLanguage{}, true)
 	if got.HasFrontmatter {
 		t.Fatal("malformed frontmatter was marked authoritative")
 	}
