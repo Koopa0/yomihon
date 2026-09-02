@@ -127,8 +127,11 @@ type preparedCommand struct {
 	action *action
 }
 
+// finish re-validates the contract authority and closes the observation, once.
+// The action field is the latch: a payload whose observation has already been
+// finished cannot be published a second time on an authority nobody rechecked.
 func (p *preparedCommand) finish() error {
-	if p == nil || p.action == nil {
+	if p.action == nil {
 		return errVaultScan
 	}
 	a := p.action

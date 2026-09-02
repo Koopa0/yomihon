@@ -136,9 +136,6 @@ func nameableVaultPath(relPath string) bool {
 }
 
 func (a *action) finish() error {
-	if a == nil {
-		return errVaultScan
-	}
 	authorityErr := a.authority.validate()
 	closeErr := a.close()
 	if authorityErr != nil {
@@ -154,8 +151,11 @@ func (a *action) abort(cause error) error {
 	return cause
 }
 
+// close releases the vault capability once. The reader field is the idempotency
+// latch: finish closes, and an abort on the way out of a finished run closes
+// again, so the second call has to be a no-op rather than a double close.
 func (a *action) close() error {
-	if a == nil || a.reader == nil {
+	if a.reader == nil {
 		return nil
 	}
 	reader := a.reader
