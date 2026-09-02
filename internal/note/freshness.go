@@ -22,11 +22,15 @@ import (
 type freshness string
 
 const (
-	// freshUnchanged: the bytes on disk are the bytes this page rendered, and
-	// the published generation agrees.
+	// freshUnchanged: the bytes on disk are the bytes this page rendered — the
+	// status it printed included, when it carried one — and the published
+	// generation agrees.
 	freshUnchanged freshness = "unchanged"
 	// freshStale: the note changed and the published generation already holds
-	// the new version, so reloading now shows it.
+	// its content, so reloading now shows the new version. A flip of the
+	// status value alone also lands here: that value sits outside the content
+	// the identity covers, and a fresh render prints it anew while an open
+	// page keeps what it printed.
 	freshStale freshness = "stale"
 	// freshPreparing: the note changed on disk and the published generation has
 	// not caught up. Reloading now would render the same bytes again, so the
@@ -79,16 +83,21 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // observed.
 //
 // The identity a page carries covers every byte except the frontmatter status
-// value, so a status flip alone is not a new version to announce. That is not
-// a gap: the status beside the title is read live on every request, so it is
-// the one thing on the page that was never stale.
+// value: the write face binds a ruling to exactly the bytes it does not
+// rewrite, and this check keeps that boundary. A page left open keeps showing
+// whatever status it printed, however live the value was at render time, so
+// the reading page carries that printed status beside the identity and the
+// answer covers the pair — a flip of the one value the identity leaves out is
+// stale like any other change a reload would deliver. A caller that carries no
+// status, as the recovery page does not, is compared on its identity alone.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) || !vault.IsMarkdown(rel) {
 		http.NotFound(w, r)
 		return
 	}
-	rendered, ok := parseIdentity(r.URL.Query().Get("identity"))
+	query := r.URL.Query()
+	rendered, ok := parseIdentity(query.Get("identity"))
 	if !ok {
 		http.Error(w, "identity must be "+strconv.Itoa(identityHexLen)+" hex digits", http.StatusBadRequest)
 		return
@@ -97,13 +106,22 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	// one thing this endpoint must never give.
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if _, err := w.Write([]byte(h.compareNote(r, rel, rendered))); err != nil {
+	answer := h.compareNote(r, rel, rendered, query.Get("status"), query.Has("status"))
+	if _, err := w.Write([]byte(answer)); err != nil {
 		return
 	}
 }
 
-// compareNote settles the five answers for one note.
-func (h *Handler) compareNote(r *http.Request, rel string, rendered [sha256.Size]byte) freshness {
+// compareNote settles the five answers for one note, against everything the
+// page carries: the identity of the bytes it rendered, and — when statusCarried
+// — the status it printed beside the title.
+func (h *Handler) compareNote(
+	r *http.Request,
+	rel string,
+	rendered [sha256.Size]byte,
+	printedStatus string,
+	statusCarried bool,
+) freshness {
 	entry, err := h.deps.Source.Lookup(rel)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -127,10 +145,17 @@ func (h *Handler) compareNote(r *http.Request, rel string, rendered [sha256.Size
 	if !ok || published.ContentIdentity != disk {
 		return freshPreparing
 	}
-	if disk == rendered {
-		return freshUnchanged
+	if disk != rendered {
+		return freshStale
 	}
-	return freshStale
+	// The printed status settles the answer only when a caller carried one and
+	// the bytes are level. The disk's side of the pair comes from the same
+	// parse that decides what a page prints, so the two sides cannot disagree
+	// about what a status line means.
+	if statusCarried && vault.Parse(rel, data).Status() != printedStatus {
+		return freshStale
+	}
+	return freshUnchanged
 }
 
 // noteFreshnessFailure records a read failure once per change of cause. A

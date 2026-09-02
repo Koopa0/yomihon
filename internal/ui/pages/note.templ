@@ -74,9 +74,11 @@ func articleLanguageAttrs(tag string) templ.Attributes {
 }
 
 // freshnessAttrs marks the reading column as one the client may watch: the path
-// to ask about, and the identity of the bytes printed inside it. They sit on the
+// to ask about, the identity of the bytes printed inside it, and the status
+// printed beside the title — the one value the identity leaves out, so without
+// its own stamp a flip on disk would never reach an open page. They sit on the
 // column rather than on the article because the notice they lead to belongs
-// beside the article, not within it. Both are withheld when
+// beside the article, not within it. All are withheld when
 // the page is already saying its own words may be behind the file, because two
 // differently worded notices about the same doubt help nobody, and when there is
 // no identity to compare against. Where the attributes are absent the client
@@ -92,6 +94,7 @@ func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
 	return templ.Attributes{
 		"data-freshness-path":        v.RelPath,
 		"data-freshness-identity":    v.ContentIdentity,
+		"data-freshness-status":      v.Status,
 		"data-freshness-newversion":  wording.FreshnessNewVersion.In(lang),
 		"data-freshness-reload":      wording.FreshnessReload.In(lang),
 		"data-freshness-preparing":   wording.FreshnessPreparing.In(lang),

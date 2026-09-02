@@ -146,13 +146,19 @@ export function initFreshness() {
   const path = column.dataset.freshnessPath;
   const identity = column.dataset.freshnessIdentity;
   if (!path || !identity) return;
+  // The status the page printed beside the title, rendered by the server. The
+  // identity leaves that one value out, so the ask carries it separately; the
+  // recovery column stamps no status and asks about its identity alone.
+  const printedStatus = column.dataset.freshnessStatus;
 
   const article = column.querySelector('.y-article');
   const present = article ? bannerBeside(column, article) : holdInvitation(column);
   if (!present) return;
 
   const segments = path.split('/').map(encodeURIComponent).join('/');
-  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}`;
+  const statusQuery =
+    printedStatus === undefined ? '' : `&status=${encodeURIComponent(printedStatus)}`;
+  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}${statusQuery}`;
   let latched = false;
   let timer = null;
 
