@@ -122,7 +122,7 @@ func newServerWithGovernance(
 	writer := openStatusWriter(t, source, contract, governance)
 	h := note.New(&note.Sources{
 		Source:         source,
-		Status:         writer.View,
+		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
@@ -238,9 +238,9 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	writer := openStatusWriter(t, source, contract, contract.Governance())
 	statusCaptures := 0
-	statusProvider := func() status.View {
+	statusProvider := func() status.Authority {
 		statusCaptures++
-		return writer.View()
+		return writer.Authority()
 	}
 
 	mux := http.NewServeMux()
@@ -321,18 +321,18 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 			writer := openStatusWriter(t, source, contract, contract.Governance())
 
-			var statusView status.View
-			var captured *snapshot.View
+			var authority status.Authority
+			var captured *snapshot.Generation
 			if snapshotFirst {
 				captured = store.Current().Capture()
 			} else {
-				statusView = writer.View()
+				authority = writer.Authority()
 			}
 			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 				t.Fatalf("change contract between captures: %v", writeErr)
 			}
 			if snapshotFirst {
-				statusView = writer.View()
+				authority = writer.Authority()
 			} else {
 				captured = store.Current().Capture()
 			}
@@ -342,8 +342,8 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         func() status.View { return statusView },
-				Snapshot:       func() *snapshot.View { return captured },
+				Status:         func() status.Authority { return authority },
+				Snapshot:       func() *snapshot.Generation { return captured },
 				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
@@ -415,18 +415,18 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 			writer := openStatusWriter(t, source, contract, contract.Governance())
 
-			var statusView status.View
-			var captured *snapshot.View
+			var authority status.Authority
+			var captured *snapshot.Generation
 			if snapshotFirst {
 				captured = store.Current().Capture()
 			} else {
-				statusView = writer.View()
+				authority = writer.Authority()
 			}
 			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 				t.Fatalf("change contract between captures: %v", writeErr)
 			}
 			if snapshotFirst {
-				statusView = writer.View()
+				authority = writer.Authority()
 			} else {
 				captured = store.Current().Capture()
 			}
@@ -436,8 +436,8 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         func() status.View { return statusView },
-				Snapshot:       func() *snapshot.View { return captured },
+				Status:         func() status.Authority { return authority },
+				Snapshot:       func() *snapshot.Generation { return captured },
 				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
@@ -513,9 +513,9 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
-		Status: func() status.View {
+		Status: func() status.Authority {
 			statusCaptures++
-			return writer.View()
+			return writer.Authority()
 		},
 		Snapshot: store.Current,
 		Log:      log,
@@ -1540,7 +1540,7 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var current atomic.Pointer[snapshot.View]
+			var current atomic.Pointer[snapshot.Generation]
 			current.Store(firstStore.Current())
 			calls := 0
 			mux := http.NewServeMux()
@@ -1548,8 +1548,8 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         firstSource,
-				Status:         writer.View,
-				Snapshot: func() *snapshot.View {
+				Status:         writer.Authority,
+				Snapshot: func() *snapshot.Generation {
 					calls++
 					return current.Swap(secondStore.Current())
 				},
@@ -1607,8 +1607,8 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         writer.View,
-				Snapshot: func() *snapshot.View {
+				Status:         writer.Authority,
+				Snapshot: func() *snapshot.Generation {
 					calls++
 					return store.Current()
 				},
@@ -1840,9 +1840,9 @@ body
 	statusCaptures := 0
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	writer := openStatusWriter(t, source, contract, contract.Governance())
-	requestStatus := func() status.View {
+	requestStatus := func() status.Authority {
 		statusCaptures++
-		return writer.View()
+		return writer.Authority()
 	}
 	mux := http.NewServeMux()
 	handler := note.New(&note.Sources{
@@ -2522,7 +2522,7 @@ func TestShowNoFrontmatter(t *testing.T) {
 }
 
 // TestShowTransitions exercises handler.go's default branch (view.Transitions
-// = statusView.Transitions(n.RelPath, n.Type(), n.Status())) with a loaded contract.
+// = authority.Transitions(n.RelPath, n.Type(), n.Status())) with a loaded contract.
 // Getting the argument order backwards (Transitions(current, noteType)) or
 // swapping the switch's case order would silently render the wrong panel —
 // this test is the only one in the repo that would catch either.
@@ -2547,7 +2547,7 @@ func TestShowTransitions(t *testing.T) {
 	// draft -> [ready, archived] per testdata/contract.toml's lifecycle table
 	// (cross-checked by hand, mirroring the status package's TestTransitions).
 	transitionSource := openReadingVault(t, root)
-	transitions := openStatusWriter(t, transitionSource, contract, contract.Governance()).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
+	transitions := openStatusWriter(t, transitionSource, contract, contract.Governance()).Authority().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
@@ -2879,7 +2879,7 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         writer.View,
+				Status:         writer.Authority,
 				Snapshot:       store.Current,
 				Log:            log,
 			}
@@ -2903,7 +2903,7 @@ func TestNewCopiesItsSources(t *testing.T) {
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
-		Status:         writer.View,
+		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		Log:            log,
 	}
@@ -3162,7 +3162,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
 		Source:         source,
-		Status:         func() status.View { return status.View{} },
+		Status:         func() status.Authority { return status.Authority{} },
 		Snapshot:       store.Current,
 		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
 		ConsumeReceipt: func(string, string) bool { return false },

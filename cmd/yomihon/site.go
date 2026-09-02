@@ -127,23 +127,23 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	if err != nil {
 		return nil, err
 	}
-	shellForSnapshot := func(snap *snapshot.View) pages.Shell {
-		return shell.Project(writer.View(), snap)
+	shellForSnapshot := func(snap *snapshot.Generation) pages.Shell {
+		return shell.Project(writer.Authority(), snap)
 	}
 	shellProvider := func() pages.Shell {
-		statusView := writer.View()
-		return shell.Project(statusView, store.Current().Capture())
+		authority := writer.Authority()
+		return shell.Project(authority, store.Current().Capture())
 	}
 	searchProvider := func() search.RequestSnapshot {
-		statusView := writer.View()
+		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(statusView, snap), Status: statusView}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
 	}
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
 		Source:         source,
-		Status:         writer.View,
+		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,

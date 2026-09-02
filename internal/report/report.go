@@ -39,8 +39,8 @@ const briefingRoot = "System/reports/daily-briefing"
 // Handler serves the reports face through one process-owned vault Reader.
 type Handler struct {
 	source  *vaultfs.Reader
-	current func() *snapshot.View
-	shell   func(*snapshot.View) pages.Shell
+	current func() *snapshot.Generation
+	shell   func(*snapshot.Generation) pages.Shell
 	log     *slog.Logger
 }
 
@@ -48,8 +48,8 @@ type Handler struct {
 // wiring bug that must fail here, not on the first request.
 func New(
 	source *vaultfs.Reader,
-	current func() *snapshot.View,
-	shell func(*snapshot.View) pages.Shell,
+	current func() *snapshot.Generation,
+	shell func(*snapshot.Generation) pages.Shell,
 	log *slog.Logger,
 ) *Handler {
 	if source == nil {
@@ -89,7 +89,7 @@ func resolveReport(model *nav.Model, name string) (nav.Report, bool) {
 func readReport(
 	ctx context.Context,
 	source *vaultfs.Reader,
-	view *snapshot.View,
+	view *snapshot.Generation,
 	relPath string,
 ) ([]byte, error) {
 	name, ok := strings.CutPrefix(relPath, briefingRoot+"/")

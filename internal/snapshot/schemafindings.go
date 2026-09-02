@@ -15,7 +15,7 @@ import (
 // The returned slice is the caller's own. The findings in it are read-only:
 // they carry pointers into what this generation still holds, so a slice that
 // is safe to keep is not a licence to write through what it points at.
-func (v *View) SchemaFindings(relPath string) []judge.Finding {
+func (v *Generation) SchemaFindings(relPath string) []judge.Finding {
 	if v == nil {
 		return nil
 	}

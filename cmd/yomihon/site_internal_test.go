@@ -100,7 +100,7 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	watcherResult := make(chan error, 1)
 	site.watchers.Go(func() {
 		<-watchCtx.Done()
-		if writer.View().Closed() {
+		if writer.Authority().Closed() {
 			watcherResult <- errors.New("writer closed before watcher exited")
 			return
 		}
@@ -117,7 +117,7 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	if err = <-watcherResult; err != nil {
 		t.Fatal(err)
 	}
-	if !writer.View().Closed() {
+	if !writer.Authority().Closed() {
 		t.Error("Writer remained open after readingSite.close()")
 	}
 	if _, err = source.ScanComplete(t.Context()); err == nil {
@@ -152,7 +152,7 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 		handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			close(requestStarted)
 			<-releaseRequest
-			if writer.View().Closed() {
+			if writer.Authority().Closed() {
 				requestResult <- errors.New("writer closed before active request exited")
 				return
 			}
@@ -208,7 +208,7 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	if err = <-closeResult; err != nil {
 		t.Fatalf("readingSite.close() error = %v", err)
 	}
-	if !writer.View().Closed() {
+	if !writer.Authority().Closed() {
 		t.Error("Writer remained open after readingSite.close()")
 	}
 	if _, err = source.ScanComplete(t.Context()); err == nil {

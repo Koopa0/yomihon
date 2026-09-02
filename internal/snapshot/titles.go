@@ -50,7 +50,7 @@ func titlesByName(notes []*vault.Note) map[string][]nav.NoteRef {
 // count and another shows the list — and both are served by the whole answer.
 //
 // The returned slice is the caller's own.
-func (v *View) TitledBy(name string) []string {
+func (v *Generation) TitledBy(name string) []string {
 	if v == nil {
 		return nil
 	}

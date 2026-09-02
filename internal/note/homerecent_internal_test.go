@@ -15,7 +15,7 @@ import (
 
 // homeStatusView opens one lifecycle over an empty folder under the supplied
 // authorities and returns its read-only view.
-func homeStatusView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
+func homeStatusView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.Authority {
 	t.Helper()
 	reader, err := vaultfs.Open(t.TempDir())
 	if err != nil {
@@ -35,7 +35,7 @@ func homeStatusView(t *testing.T, contract *schema.Contract, governance schema.G
 			t.Errorf("Lifecycle.Close() error = %v", closeErr)
 		}
 	})
-	return lifecycle.View()
+	return lifecycle.Authority()
 }
 
 // A vault whose contract file exists and cannot be read is governed and shut at
@@ -57,7 +57,7 @@ func TestRecentHomeNotesAccuseNothingWhenTheContractCannotBeRead(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		view       status.View
+		view       status.Authority
 		wantFlags  int
 		wantStatus bool
 	}{

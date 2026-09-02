@@ -272,30 +272,30 @@ func (w *Writer) close(hooks closeHooks) error {
 	return root.Close()
 }
 
-// View is one immutable read-only lifecycle projection captured from a
+// Authority is one immutable read-only lifecycle projection captured from a
 // Writer. Its query methods perform no filesystem or contract-source I/O,
 // so one request can derive every status decision from the same authority
-// sample. A later request captures another View and observes a latched source
+// sample. A later request captures another Authority and observes a latched source
 // change.
-type View struct {
+type Authority struct {
 	contract *schema.Contract
 	policy   schema.ArtifactPolicy
 	governed bool
 	claim    schema.Claim
 }
 
-// View captures the write face's current read-only authority. Flip does not use
+// Authority captures the write face's current read-only authority. Flip does not use
 // this snapshot: writes revalidate the source under the writer's lock.
-func (w *Writer) View() View {
+func (w *Writer) Authority() Authority {
 	// A released capability is a fault whichever folder it was pinned to: the
 	// process asserted a write face and then lost it.
 	if w == nil {
-		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
+		return Authority{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.root == nil {
-		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
+		return Authority{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
 	}
 	governed := w.governance.Governed()
 	if w.contract == nil {
@@ -303,41 +303,41 @@ func (w *Writer) View() View {
 		// write face is the ordinary shape of a folder and says nothing, or the
 		// contract claimed it and could not be read, in which case the vault
 		// level carries the one sentence.
-		return View{governed: governed, claim: w.governance.Claim()}
+		return Authority{governed: governed, claim: w.governance.Claim()}
 	}
 	policy := w.policy.Capture()
 	if !policy.Available() {
-		return View{governed: governed, claim: policy.Claim()}
+		return Authority{governed: governed, claim: policy.Claim()}
 	}
-	return View{contract: w.contract, policy: policy, governed: governed, claim: w.governance.Claim()}
+	return Authority{contract: w.contract, policy: policy, governed: governed, claim: w.governance.Claim()}
 }
 
 // Governed reports whether anything claimed authority over this vault. A false
 // answer is not a failure: the folder has no lifecycle, so no status face
 // belongs on any page it serves.
-func (v View) Governed() bool {
+func (v Authority) Governed() bool {
 	return v.governed
 }
 
 // Claim reports how far the lifecycle authority got, so a caller that closes a
 // projection carries the same reason value the contract produced.
-func (v View) Claim() schema.Claim {
+func (v Authority) Claim() schema.Claim {
 	return v.claim
 }
 
 // Closed reports whether this captured view can classify governed instances.
-func (v View) Closed() bool {
+func (v Authority) Closed() bool {
 	return !v.available()
 }
 
-func (v View) available() bool {
+func (v Authority) available() bool {
 	return v.contract != nil && v.policy.Available()
 }
 
 // Diagnostic explains why this captured view is closed. It is empty both when
 // lifecycle reads are available and when nothing ever claimed authority here —
 // a folder with no contract is not a folder in trouble.
-func (v View) Diagnostic() string {
+func (v Authority) Diagnostic() string {
 	return v.claim.Diagnostic()
 }
 
@@ -345,7 +345,7 @@ func (v View) Diagnostic() string {
 // transitions. Contract and artifact-policy failures also invalidate read-only
 // instance projections and therefore take precedence over a platform-only
 // write limitation. An empty result means a POST may be offered.
-func (v View) WriteDiagnostic() string {
+func (v Authority) WriteDiagnostic() string {
 	if diagnostic := v.Diagnostic(); diagnostic != "" {
 		return diagnostic
 	}
@@ -363,7 +363,7 @@ func (v View) WriteDiagnostic() string {
 // never subtract from the answer. The published status is never among the
 // results: it records a completed publication, which no interactive control
 // can attest, so Flip would refuse it. It is pure over the captured view.
-func (v View) Transitions(relPath, noteType, current string) []string {
+func (v Authority) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
 	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
 		v.policy.IsNonInstance(relPath) {
@@ -396,7 +396,7 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 // here. Both spellings of a status name the same stop, matching how every
 // other verdict over the captured contract reads them. A closed view claims
 // nothing and reports false.
-func (v View) CanReturn(noteType, from, to string) bool {
+func (v Authority) CanReturn(noteType, from, to string) bool {
 	if !v.available() || from == "" || to == "" {
 		return false
 	}
@@ -433,7 +433,7 @@ func (v View) CanReturn(noteType, from, to string) bool {
 // about a transition that has already happened — whether the move a redirect
 // claims to have made is one this contract admits — and never authorises a
 // write, which Flip settles for itself against the note's own bytes.
-func (v View) LegalTransition(noteType, from, to string) bool {
+func (v Authority) LegalTransition(noteType, from, to string) bool {
 	if !v.available() || from == "" || to == "" {
 		return false
 	}
@@ -445,7 +445,7 @@ func (v View) LegalTransition(noteType, from, to string) bool {
 // type declares none. The reading page uses it to flag a status the schema
 // never listed, instead of implying the schema defines no onward transitions
 // from a value it never defined.
-func (v View) KnownStatus(noteType, status string) bool {
+func (v Authority) KnownStatus(noteType, status string) bool {
 	return v.available() && slices.Contains(v.contract.Statuses(noteType), schema.NormalizeStatus(status))
 }
 
@@ -459,14 +459,14 @@ func (v View) KnownStatus(noteType, status string) bool {
 // legal under every type it did declare, so telling its author the value is
 // outside the list points them at the one field that is fine — while the field
 // actually at fault is the type, which the page names separately.
-func (v View) DeclaresStatuses(noteType string) bool {
+func (v Authority) DeclaresStatuses(noteType string) bool {
 	return v.available() && len(v.contract.Statuses(noteType)) > 0
 }
 
 // Order returns the default note group's statuses in declared order. A nil
 // result means this view is closed; an empty non-nil result is a valid empty
 // declaration.
-func (v View) Order() []string {
+func (v Authority) Order() []string {
 	if !v.available() {
 		return nil
 	}

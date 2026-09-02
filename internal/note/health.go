@@ -21,9 +21,9 @@ import (
 // gathering them is the only way they are ever seen.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	lang := layouts.LanguageFromRequest(r)
-	statusView := h.sources.Status()
+	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(statusView, snap)
+	pageShell := shell.Project(authority, snap)
 	health := snap.Health()
 	fresh := snap.Freshness()
 	unreadableFrontmatter, schemaFaults := schemaFaultLists(snap)
@@ -34,7 +34,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		IslandCount:           healthIslandCount(health.Islands),
 		Collisions:            healthCollisions(health.Collisions),
 		Blocked:               healthBlocked(fresh.Blocked),
-		StatusOutsideEnum:     statusesOutsideEnum(statusView, snap),
+		StatusOutsideEnum:     statusesOutsideEnum(authority, snap),
 		FrontmatterUnreadable: unreadableFrontmatter,
 		SchemaFaults:          schemaFaults,
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
@@ -44,7 +44,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// of the closed flag. What it carries is whatever actually failed: a
 		// contract that could not be read, or one that read and named a
 		// folder its artifacts section may not name.
-		SchemaScopeUnknown: statusView.Diagnostic(),
+		SchemaScopeUnknown: authority.Diagnostic(),
 		LastComplete:       lastCompleteBuild(&fresh),
 		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}
@@ -64,7 +64,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 // read nothing. The rows carry no detail: each note's own page says which
 // field and why, and one file described twice in two places is how two
 // accounts of it start to disagree.
-func schemaFaultLists(snap *snapshot.View) (unreadable, faults []nav.NoteRef) {
+func schemaFaultLists(snap *snapshot.Generation) (unreadable, faults []nav.NoteRef) {
 	for _, entry := range snap.Files() {
 		rel := entry.Path()
 		findings := snap.SchemaFindings(rel)
@@ -96,8 +96,8 @@ func schemaFaultLists(snap *snapshot.View) (unreadable, faults []nav.NoteRef) {
 //
 // The rows arrive in the index's own path order, which is the order the rest
 // of the page lists findings in.
-func statusesOutsideEnum(statusView status.View, snap *snapshot.View) []pages.HealthStatusNote {
-	if !statusView.Governed() || statusView.Closed() {
+func statusesOutsideEnum(authority status.Authority, snap *snapshot.Generation) []pages.HealthStatusNote {
+	if !authority.Governed() || authority.Closed() {
 		return nil
 	}
 	holders, err := snap.Search().StatusHolders()
@@ -106,7 +106,7 @@ func statusesOutsideEnum(statusView status.View, snap *snapshot.View) []pages.He
 	}
 	out := make([]pages.HealthStatusNote, 0, len(holders))
 	for _, h := range holders {
-		if statusView.KnownStatus(h.Type, h.Status) {
+		if authority.KnownStatus(h.Type, h.Status) {
 			continue
 		}
 		out = append(out, pages.HealthStatusNote{

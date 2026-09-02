@@ -17,7 +17,7 @@ import (
 // plainVaultView builds one generation over root — an ungoverned folder, which
 // is all the classifier needs: planning is a convention of the prose, not of
 // the contract.
-func plainVaultView(t *testing.T, root string) *snapshot.View {
+func plainVaultView(t *testing.T, root string) *snapshot.Generation {
 	t.Helper()
 	reader, err := vaultfs.Open(root)
 	if err != nil {

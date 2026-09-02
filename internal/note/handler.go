@@ -57,8 +57,8 @@ const typeLesson = "lesson"
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
 	Source   *vaultfs.Reader
-	Status   func() status.View
-	Snapshot func() *snapshot.View
+	Status   func() status.Authority
+	Snapshot func() *snapshot.Generation
 	// ObservedStatus is a closure over the write package's read of the note's
 	// own status line. The rest of the page comes from a scan that lags the
 	// folder by a couple of seconds, which a body and a link graph can afford
@@ -91,7 +91,7 @@ type Handler struct {
 // record so later field reassignment by the caller cannot rewire a live
 // handler. Every required reference and function must be non-nil: a wiring
 // bug fails here, not on the first request three calls deep inside show(). A
-// fail-closed write face still provides a closed status.View.
+// fail-closed write face still provides a closed status.Authority.
 func New(d *Sources) *Handler {
 	if d == nil {
 		panic("note: New requires a non-nil Sources")
@@ -221,10 +221,10 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
-	statusView := h.sources.Status()
+	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	if !vault.IsMarkdown(rel) {
-		h.showFile(w, r, rel, statusView, snap)
+		h.showFile(w, r, rel, authority, snap)
 		return
 	}
 
@@ -247,7 +247,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state := h.governance(r.Context(), &n, snap, statusView)
+	state := h.governance(r.Context(), &n, snap, authority)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body, lang)
@@ -281,7 +281,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// never disagree about what follows this note.
 	sidebar := pages.NewSidebar(state.shell.Nav, n.RelPath)
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, lang)
-	flippedFrom := vouchedOrigin(statusView, h.sources.ConsumeReceipt, rel, n.Type,
+	flippedFrom := vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
@@ -326,7 +326,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		// The receipt for a change the face cannot walk back carries the
 		// recovery sentence; a reversible one leaves undoing to the controls
 		// already on the page.
-		FlipNoReturn: flippedFrom != "" && !statusView.CanReturn(n.Type, flippedFrom, noteStatus),
+		FlipNoReturn: flippedFrom != "" && !authority.CanReturn(n.Type, flippedFrom, noteStatus),
 	}
 
 	pageChrome := layouts.ChromeFromRequest(r, n.Title)
@@ -349,7 +349,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // Every note this page serves was observed by the generation's scan, so the
 // fallback is expected to answer; should the scan hold no identity for the
 // path anyway, the page goes dateless rather than dated by invention.
-func metarowDate(updated time.Time, snap *snapshot.View, rel string) (display, machine string, fromFile bool) {
+func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (display, machine string, fromFile bool) {
 	if !updated.IsZero() {
 		return updated.Format(time.DateOnly), updated.Format(time.DateOnly), false
 	}
@@ -404,7 +404,7 @@ func deref(s *string) string {
 // The links themselves are still marked where they sit in the prose, which is
 // where a forward reference is worth seeing: the target is not written yet, and
 // the reader is looking straight at the sentence that wants it.
-func faults(diags []render.Diagnostic, snap *snapshot.View) []render.Diagnostic {
+func faults(diags []render.Diagnostic, snap *snapshot.Generation) []render.Diagnostic {
 	kept := make([]render.Diagnostic, 0, len(diags))
 	for _, d := range diags {
 		if d.Kind == render.DiagWikilinkBroken && snap.TrackedForwardReference(d.Target) {
@@ -420,7 +420,7 @@ func faults(diags []render.Diagnostic, snap *snapshot.View) []render.Diagnostic 
 // needs the note's own name beside its title. It takes those two strings
 // rather than the note, because those two are all it reads and a projection
 // of a whole note is a wider coupling than this asks for.
-func noteFaults(diags []render.Diagnostic, snap *snapshot.View, relPath, title string, lang wording.Lang) []render.Diagnostic {
+func noteFaults(diags []render.Diagnostic, snap *snapshot.Generation, relPath, title string, lang wording.Lang) []render.Diagnostic {
 	out := faults(diags, snap)
 	if d, ok := titleTruncatedAtHash(relPath, title, lang); ok {
 		out = append(out, d)
@@ -482,7 +482,7 @@ const (
 // different instants: the request's captured lifecycle view, and the
 // snapshot's own artifact capture. A note is placed only while both still
 // answer, whichever was taken first.
-func classifyGovernance(lifecycle status.View, policy schema.ArtifactPolicy, relPath string) governance {
+func classifyGovernance(lifecycle status.Authority, policy schema.ArtifactPolicy, relPath string) governance {
 	if lifecycle.Closed() || !policy.Available() {
 		return governanceUnavailable
 	}
@@ -522,15 +522,15 @@ func (s *governanceState) nonInstance() bool { return s.placement == readableArt
 func (h *Handler) governance(
 	ctx context.Context,
 	n *snapshot.Reading,
-	snap *snapshot.View,
-	statusView status.View,
+	snap *snapshot.Generation,
+	authority status.Authority,
 ) governanceState {
 	policy := snap.ArtifactPolicy()
 	state := governanceState{
-		shell:     shell.Project(statusView, snap),
-		placement: classifyGovernance(statusView, policy, n.RelPath),
+		shell:     shell.Project(authority, snap),
+		placement: classifyGovernance(authority, policy, n.RelPath),
 	}
-	state.writeDiagnostic = statusView.WriteDiagnostic()
+	state.writeDiagnostic = authority.WriteDiagnostic()
 	if state.writeDiagnostic == "" && !policy.Available() {
 		state.writeDiagnostic = policy.Diagnostic()
 	}
@@ -545,10 +545,10 @@ func (h *Handler) governance(
 		default:
 			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath)
 			if state.writeDiagnostic == "" {
-				state.transitions = offeredTransitions(statusView, n.RelPath, n.Type, state.status)
+				state.transitions = offeredTransitions(authority, n.RelPath, n.Type, state.status)
 				state.statusUnknown = state.status != "" &&
-					statusView.DeclaresStatuses(n.Type) &&
-					!statusView.KnownStatus(n.Type, state.status)
+					authority.DeclaresStatuses(n.Type) &&
+					!authority.KnownStatus(n.Type, state.status)
 			}
 		}
 	}
@@ -572,7 +572,7 @@ func (h *Handler) governance(
 // address finds nothing left to vouch for it. The contract checks run first,
 // so a claim the page could never repeat spends nothing.
 func vouchedOrigin(
-	statusView status.View,
+	authority status.Authority,
 	consume func(rel, from string) bool,
 	rel, noteType string,
 	move transition,
@@ -580,10 +580,10 @@ func vouchedOrigin(
 	if move.from == "" || move.to == "" || move.from == move.to {
 		return ""
 	}
-	if !statusView.KnownStatus(noteType, move.from) {
+	if !authority.KnownStatus(noteType, move.from) {
 		return ""
 	}
-	if !statusView.LegalTransition(noteType, move.from, move.to) {
+	if !authority.LegalTransition(noteType, move.from, move.to) {
 		return ""
 	}
 	if !consume(rel, move.from) {
@@ -608,14 +608,14 @@ type transition struct {
 // offeredTransitions pairs each legal target with whether the face could
 // walk the note back from it to the status it carries now — which is what
 // decides between the single-press control and the two-step confirm.
-func offeredTransitions(statusView status.View, relPath, noteType, current string) []pages.Transition {
-	targets := statusView.Transitions(relPath, noteType, current)
+func offeredTransitions(authority status.Authority, relPath, noteType, current string) []pages.Transition {
+	targets := authority.Transitions(relPath, noteType, current)
 	if len(targets) == 0 {
 		return nil
 	}
 	offered := make([]pages.Transition, 0, len(targets))
 	for _, to := range targets {
-		offered = append(offered, pages.Transition{To: to, NoReturn: !statusView.CanReturn(noteType, current, to)})
+		offered = append(offered, pages.Transition{To: to, NoReturn: !authority.CanReturn(noteType, current, to)})
 	}
 	return offered
 }
@@ -678,7 +678,7 @@ func (h *Handler) injectSlotMachine(
 // concept that fails to load is skipped — its trigger stays a working link to
 // the note, so no dead sheet ships: degrade, never break.
 func (h *Handler) loadConcepts(
-	snap *snapshot.View,
+	snap *snapshot.Generation,
 	refs []string,
 	lang wording.Lang,
 ) []lesson.ConceptDoc {

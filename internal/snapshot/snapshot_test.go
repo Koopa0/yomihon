@@ -35,7 +35,7 @@ func snapshotSearch(tb testing.TB, idx *lexical.Index, query string) []lexical.R
 	return results
 }
 
-func assertSearchArtifactPolicy(tb testing.TB, snap *View) {
+func assertSearchArtifactPolicy(tb testing.TB, snap *Generation) {
 	tb.Helper()
 	if got := snapshotSearch(tb, snap.Search(), "status:ready"); len(got) != 0 {
 		tb.Errorf("metadata search returned non-instance template: %+v", got)
@@ -122,7 +122,7 @@ func writeNote(t *testing.T, root, rel, content string) {
 	}
 }
 
-func immutableViewFixture(t *testing.T) (view *View, root string) {
+func immutableViewFixture(t *testing.T) (view *Generation, root string) {
 	t.Helper()
 	root = t.TempDir()
 	writeNote(t, root, "A/Foo.md", "first body\n")
@@ -259,7 +259,7 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	// than left to be inferred from the two halves above.
 	for _, tt := range []struct {
 		name string
-		view *View
+		view *Generation
 	}{
 		{name: "captured before the source changed", view: requestA},
 		{name: "captured after the source changed", view: requestB},

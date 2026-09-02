@@ -546,13 +546,13 @@ func TestArtifactPolicyClosureIsDistinct(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			writer := newWriter(t, t.TempDir(), tt.contract)
-			if !writer.View().Closed() {
+			if !writer.Authority().Closed() {
 				t.Fatal("Closed() = false, want artifact-policy closure")
 			}
-			if got, want := writer.View().Diagnostic(), tt.want; got != want {
+			if got, want := writer.Authority().Diagnostic(), tt.want; got != want {
 				t.Errorf("WriteDiagnostic() = %q, want %q", got, want)
 			}
-			if got := writer.View().Order(); got != nil {
+			if got := writer.Authority().Order(); got != nil {
 				t.Errorf("Order() = %v while artifact policy closes instance projections, want nil", got)
 			}
 			err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
@@ -745,10 +745,10 @@ func TestFlipFailClosed(t *testing.T) {
 	root := t.TempDir()
 	writer := newWriter(t, root, nil)
 
-	if !writer.View().Closed() {
+	if !writer.Authority().Closed() {
 		t.Fatal("Closed() = false, want true for a nil contract")
 	}
-	if got := writer.View().Transitions(testRel, "lesson", "draft"); got != nil {
+	if got := writer.Authority().Transitions(testRel, "lesson", "draft"); got != nil {
 		t.Errorf("Transitions() = %v, want nil", got)
 	}
 
@@ -771,20 +771,20 @@ func TestFlipFailClosed(t *testing.T) {
 
 func TestClosed(t *testing.T) {
 	t.Parallel()
-	if !newWriter(t, t.TempDir(), nil).View().Closed() {
+	if !newWriter(t, t.TempDir(), nil).Authority().Closed() {
 		t.Error("Closed() = false, want true for nil contract")
 	}
-	if newWriter(t, t.TempDir(), loadContract(t)).View().Closed() {
+	if newWriter(t, t.TempDir(), loadContract(t)).Authority().Closed() {
 		t.Error("Closed() = true, want false for a loaded contract")
 	}
 }
 
 func TestOrderDistinguishesUnavailableCoreFromEmptyGroup(t *testing.T) {
 	t.Parallel()
-	if got := newWriter(t, t.TempDir(), nil).View().Order(); got != nil {
+	if got := newWriter(t, t.TempDir(), nil).Authority().Order(); got != nil {
 		t.Errorf("Order() with unavailable core = %v, want nil", got)
 	}
-	got := newWriter(t, t.TempDir(), loadContractWithEmptyDefaultStatusGroup(t)).View().Order()
+	got := newWriter(t, t.TempDir(), loadContractWithEmptyDefaultStatusGroup(t)).Authority().Order()
 	if got == nil {
 		t.Error("Order() with valid core and explicit empty default group = nil, want available empty slice")
 	}
@@ -821,7 +821,7 @@ func TestTransitions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := writer.View().Transitions(tt.relPath, tt.noteType, tt.current)
+			got := writer.Authority().Transitions(tt.relPath, tt.noteType, tt.current)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Transitions(%q, %q, %q) mismatch (-want +got):\n%s", tt.relPath, tt.noteType, tt.current, diff)
 			}
@@ -862,7 +862,7 @@ func TestCanReturn(t *testing.T) {
 			if tt.closed {
 				contract = nil
 			}
-			view := newWriter(t, t.TempDir(), contract).View()
+			view := newWriter(t, t.TempDir(), contract).Authority()
 			if got := view.CanReturn(tt.noteType, tt.from, tt.to); got != tt.want {
 				t.Errorf("CanReturn(%q, %q, %q) = %t, want %t", tt.noteType, tt.from, tt.to, got, tt.want)
 			}
@@ -893,7 +893,7 @@ func TestCanReturnFollowsAChainOfTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile(%q) = %v", path, err)
 	}
-	view := newWriter(t, t.TempDir(), contract).View()
+	view := newWriter(t, t.TempDir(), contract).Authority()
 	if !view.CanReturn("lesson", "draft", "ready") {
 		t.Error(`CanReturn("lesson", "draft", "ready") = false, want true: ready walks back through archived to draft`)
 	}
@@ -945,7 +945,7 @@ owner = ["agent"]
 	if err != nil {
 		t.Fatalf("LoadFile(%q) = %v", path, err)
 	}
-	view := newWriter(t, t.TempDir(), contract).View()
+	view := newWriter(t, t.TempDir(), contract).Authority()
 	if view.CanReturn("doc", "draft", "ready") {
 		t.Error(`CanReturn("doc", "draft", "ready") = true, want false: the only walk back runs through published, which no control can enter`)
 	}
@@ -954,10 +954,10 @@ owner = ["agent"]
 func TestKnownStatus(t *testing.T) {
 	t.Parallel()
 
-	if newWriter(t, t.TempDir(), nil).View().KnownStatus("lesson", "draft") {
+	if newWriter(t, t.TempDir(), nil).Authority().KnownStatus("lesson", "draft") {
 		t.Error("KnownStatus on a closed write face = true, want false")
 	}
-	view := newWriter(t, t.TempDir(), loadContract(t)).View()
+	view := newWriter(t, t.TempDir(), loadContract(t)).Authority()
 	tests := []struct {
 		name     string
 		noteType string
@@ -1364,7 +1364,7 @@ owner = ["agent"]
 	}
 	writer := newWriter(t, t.TempDir(), contract)
 
-	got := writer.View().Transitions("Writing/doc.md", "doc", "a")
+	got := writer.Authority().Transitions("Writing/doc.md", "doc", "a")
 	if diff := cmp.Diff([]string{"b"}, got); diff != "" {
 		t.Errorf("Transitions() mismatch (-want +got):\n%s", diff)
 	}
@@ -1431,7 +1431,7 @@ func TestTransitionsNeverOfferPublished(t *testing.T) {
 	t.Parallel()
 	writer := newWriter(t, t.TempDir(), publishableContract(t))
 
-	got := writer.View().Transitions("Writing/doc.md", "doc", "ready")
+	got := writer.Authority().Transitions("Writing/doc.md", "doc", "ready")
 	if diff := cmp.Diff([]string{"archived"}, got); diff != "" {
 		t.Errorf("Transitions(ready) mismatch (-want +got):\n%s", diff)
 	}

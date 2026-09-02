@@ -89,7 +89,7 @@ func servable(rel string) bool {
 //
 // No status face, no ready accent, no diagnostics: a source file is not a
 // note, and the write face has no opinion about it.
-func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
+func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, authority status.Authority, snap *snapshot.Generation) {
 	lang := layouts.LanguageFromRequest(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {
@@ -107,7 +107,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 	}
 
 	name := path.Base(rel)
-	pageShell := shell.Project(statusView, snap)
+	pageShell := shell.Project(authority, snap)
 	view := pages.FileView{
 		Title:   name,
 		RelPath: rel,

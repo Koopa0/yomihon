@@ -34,7 +34,7 @@ func TestOneNoteGetsExactlyOneOfThreeGovernanceAnswers(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		lifecycle       status.View
+		lifecycle       status.Authority
 		policy          schema.ArtifactPolicy
 		relPath         string
 		want            governance
@@ -53,7 +53,7 @@ func TestOneNoteGetsExactlyOneOfThreeGovernanceAnswers(t *testing.T) {
 		},
 		{
 			name:      "the lifecycle view is closed, so the note is placed nowhere",
-			lifecycle: status.View{}, policy: policy, relPath: "Writing/lesson-01.md",
+			lifecycle: status.Authority{}, policy: policy, relPath: "Writing/lesson-01.md",
 			want: governanceUnavailable, wantInstance: false, wantNonInstance: false,
 		},
 		{
