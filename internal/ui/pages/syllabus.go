@@ -266,6 +266,14 @@ func buildPathEntry(entry *nav.PathEntry) PathEntryView {
 	return v
 }
 
+// The three things a row says about how its target resolved: the words a
+// reader sees, the token the markup carries, and the explanation behind the
+// row. A kind none of them has an answer for is reported as the number it is
+// rather than aborting: EntryKind belongs to navigation and is an eight-bit
+// enum, so a member added there compiles here and would otherwise take down
+// every page that draws a rail. What this interface is for is telling a reader
+// what it found, and a renderer breaking on odd data is the reporter breaking
+// on the news.
 func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 	switch kind {
 	case nav.EntryUnresolved:
@@ -277,7 +285,7 @@ func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 	case nav.EntryResolved:
 		return wording.EntryResolved.In(lang)
 	default:
-		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+		return entryResolutionCode(kind)
 	}
 }
 
@@ -295,7 +303,7 @@ func entryResolutionCode(kind nav.EntryKind) string {
 	case nav.EntryResolved:
 		return "resolved"
 	default:
-		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+		return strconv.Itoa(int(kind))
 	}
 }
 
@@ -307,10 +315,10 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 		return wording.EntryAmbiguousTitle.In(lang)
 	case nav.EntryNonInstance:
 		return wording.EntryNonInstanceTitle.In(lang)
-	case nav.EntryResolved:
-		return ""
 	default:
-		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+		// A row that resolved has nothing to explain, and neither has a kind
+		// this page has no words for — the row already carries its token.
+		return ""
 	}
 }
 
@@ -320,9 +328,12 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 // orphaned side branch, one nested too deep, a role on a lesson row. The
 // rules on the other side arise with no marker anywhere near them.
 //
-// The division is total over the grammar's declared rules and is pinned by a
-// test; an unknown rule is a programmer error and fails loudly here, the
-// same way the judge's own rule table does.
+// The division is total over the grammar's declared rules and a test holds it
+// so. A rule outside it answers that no marker was written, because that is
+// the reading that claims less: the rules on that side arise with no marker
+// anywhere near them, and the page then explains the empty course the way it
+// explains one nobody has marked up. The grammar owns this set and can grow
+// it, and a course page is not a place to abort on a rule it has not met.
 func markerWritten(rule sequence.Rule) bool {
 	switch rule {
 	case sequence.RuleRoleInvalid,
@@ -339,7 +350,7 @@ func markerWritten(rule sequence.Rule) bool {
 		sequence.RuleEntryNoncanonical:
 		return false
 	default:
-		panic("pages: unknown study-path rule: " + string(rule))
+		return false
 	}
 }
 
