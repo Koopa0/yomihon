@@ -302,33 +302,9 @@ func (idx *Index) Len() int {
 	return len(idx.entries)
 }
 
-// CountByStatus tallies indexed notes by their canonical (NFC) status in a
-// single pass; notes with no status land in the "" bucket. It is the primitive
-// Home's Lifecycle block uses to show a live count beside each schema
-// status, instead of running a full Search per status value. The status
-// vocabulary the caller displays still comes from the schema contract;
-// this only counts metadata-capable entries the index already holds. An
-// artifact policy that was declared and could not be honoured returns
-// ErrMetadataUnavailable with its contract diagnostic instead of a misleading
-// empty map; one that was never declared excludes nothing and counts normally.
-func (idx *Index) CountByStatus() (map[string]int, error) {
-	if !idx.policy.Trustworthy() {
-		return nil, idx.metadataUnavailableError()
-	}
-	counts := make(map[string]int, len(idx.entries))
-	for _, e := range idx.entries {
-		if !e.metadataCapable {
-			continue
-		}
-		counts[e.Status]++
-	}
-	return counts, nil
-}
-
 // TypeStatus is a note's (type, status) pair. Which onward transitions a status
 // allows depends on the note type, so a caller that weighs those transitions
-// needs both together — something CountByStatus, keyed on status alone, cannot
-// supply.
+// needs both together — a tally keyed on status alone cannot supply it.
 type TypeStatus struct {
 	Type   string
 	Status string
@@ -337,8 +313,8 @@ type TypeStatus struct {
 // CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
 // in a single pass. It is the primitive the reading page uses to weigh each note's
 // onward transitions against the schema contract without re-reading the vault:
-// the transition rules key on type as well as status, so the flatter
-// CountByStatus does not carry enough. A note missing either field lands in that
+// the transition rules key on type as well as status, so a tally keyed on
+// status alone does not carry enough. A note missing either field lands in that
 // field's "" bucket. An artifact policy that was declared and could not be
 // honoured returns ErrMetadataUnavailable with its contract diagnostic.
 

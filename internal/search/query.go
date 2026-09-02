@@ -17,14 +17,11 @@ type Filter struct {
 }
 
 // Query is a parsed search query: folded bare tokens and structured filters,
-// each in input order. BareText preserves the original bare tokens, joined by
-// one ASCII space, for consumers whose semantics depend on the user's text
-// rather than lexical folding. A repeated filter key is an AND at the match
-// layer, not last-wins.
+// each in input order. A repeated filter key is an AND at the match layer, not
+// last-wins.
 type Query struct {
-	tokens   []string
-	filters  []Filter
-	bareText string
+	tokens  []string
+	filters []Filter
 	// unknownKeys are the words written before a colon that this grammar does
 	// not accept, in input order and without repeats. They are kept apart from
 	// the tokens they also became: the term is searched for as text, and the
@@ -48,11 +45,6 @@ func (q *Query) Filters() []Filter {
 // case: nothing in the query looked like a constraint that was not one.
 func (q *Query) UnknownFilterKeys() []string {
 	return slices.Clone(q.unknownKeys)
-}
-
-// BareText returns the original bare terms joined by one ASCII space.
-func (q *Query) BareText() string {
-	return q.bareText
 }
 
 // RequiresMetadata reports whether evaluating the query needs frontmatter.
@@ -146,7 +138,6 @@ func isFilterKey(key string) bool {
 // "return nothing".
 func Parse(q string) *Query {
 	var out Query
-	var bare []string
 	for _, field := range quoteFields(q) {
 		key, value, reading := splitFilter(field.text, field.quotedFrom)
 		if reading == readAsFilter {
@@ -157,9 +148,7 @@ func Parse(q string) *Query {
 			out.unknownKeys = append(out.unknownKeys, key)
 		}
 		out.tokens = append(out.tokens, fold(field.text))
-		bare = append(bare, field.text)
 	}
-	out.bareText = strings.Join(bare, " ")
 	return &out
 }
 

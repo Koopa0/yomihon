@@ -270,10 +270,6 @@ func TestZeroValueIndexAnswersNothingWithoutInventingAFault(t *testing.T) {
 	if len(results) != 0 {
 		t.Errorf("zero Index.Search(type:concept) = %v, want no results", results)
 	}
-	counts, err := idx.CountByStatus()
-	if err != nil || len(counts) != 0 {
-		t.Errorf("zero Index.CountByStatus() = (%v, %v), want an empty tally and no error", counts, err)
-	}
 	typeCounts, err := idx.CountByTypeStatus()
 	if err != nil || len(typeCounts) != 0 {
 		t.Errorf("zero Index.CountByTypeStatus() = (%v, %v), want an empty tally and no error", typeCounts, err)
@@ -335,12 +331,12 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 	if len(plain) != 2 {
 		t.Errorf("Search(needle) = %v, want both notes: nothing was excluded", paths(plain))
 	}
-	counts, err := idx.CountByStatus()
+	counts, err := idx.CountByTypeStatus()
 	if err != nil {
-		t.Fatalf("CountByStatus() with an unclaimed policy error = %v", err)
+		t.Fatalf("CountByTypeStatus() with an unclaimed policy error = %v", err)
 	}
-	if counts["draft"] != 1 {
-		t.Errorf("CountByStatus()[draft] = %d, want 1", counts["draft"])
+	if got := counts[TypeStatus{Type: "concept", Status: "draft"}]; got != 1 {
+		t.Errorf("CountByTypeStatus()[concept/draft] = %d, want 1", got)
 	}
 }
 
@@ -380,24 +376,6 @@ func TestSearchFilters(t *testing.T) {
 				t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", tt.query, diff)
 			}
 		})
-	}
-}
-
-func TestAllowedPathsAppliesOnlyStructuredFilters(t *testing.T) {
-	t.Parallel()
-
-	idx := NewIndex([]Document{
-		{RelPath: "Writing/a.md", Title: "Alpha", NoteType: "lesson", PlainText: "no lexical match"},
-		{RelPath: "Writing/b.md", Title: "Beta", NoteType: "concept", PlainText: "needle"},
-		{RelPath: "System/templates/card.md", Title: "Template", NoteType: "lesson", PlainText: "needle"},
-	}, validArtifactPolicy(t))
-	got, err := idx.AllowedPaths(Parse("needle type:lesson"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := map[string]struct{}{"Writing/a.md": {}}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("AllowedPaths mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -557,11 +535,12 @@ func TestSearchEmptyQuery(t *testing.T) {
 	}
 }
 
-// TestCountByTypeStatus tallies notes by (type, status) together — the pairing
-// CountByStatus cannot express, since two notes sharing a status but not a type
-// must stay separate. The type/status words are invented so the count is what is
-// proven, not any real vault's vocabulary; a note missing a field falls in that
-// field's "" bucket.
+// TestCountByTypeStatus tallies notes by (type, status) together — the pairing a
+// status-keyed tally cannot express, since two notes sharing a status but not a
+// type must stay separate. It also pins the two edges the pair carries alone: a
+// note outside the governed instance set is left out, and a note missing a field
+// falls in that field's "" bucket. The type/status words are invented so the
+// count is what is proven, not any real vault's vocabulary.
 func TestCountByTypeStatus(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
@@ -587,24 +566,6 @@ func TestCountByTypeStatus(t *testing.T) {
 	}
 }
 
-func TestCountByStatusExcludesNonInstances(t *testing.T) {
-	t.Parallel()
-
-	idx := NewIndex([]Document{
-		{RelPath: "Concepts/Empty.md", NoteType: "concept", Status: ""},
-		{RelPath: "Concepts/Draft.md", NoteType: "concept", Status: "draft"},
-		{RelPath: "System/templates/Card.md", NoteType: "concept", Status: "draft"},
-	}, validArtifactPolicy(t))
-	want := map[string]int{"": 1, "draft": 1}
-	got, err := idx.CountByStatus()
-	if err != nil {
-		t.Fatalf("CountByStatus() error: %v", err)
-	}
-	if !cmp.Equal(want, got) {
-		t.Errorf("CountByStatus() = %v, want %v", got, want)
-	}
-}
-
 func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -621,11 +582,6 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 			t.Parallel()
 			idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", NoteType: "concept", Status: "draft"}}, tt.policy)
 
-			if got, err := idx.CountByStatus(); !errors.Is(err, ErrMetadataUnavailable) {
-				t.Errorf("CountByStatus() = (%v, %v), want ErrMetadataUnavailable", got, err)
-			} else if err.Error() != tt.policy.Diagnostic() {
-				t.Errorf("CountByStatus() error = %q, want %q", err.Error(), tt.policy.Diagnostic())
-			}
 			if got, err := idx.CountByTypeStatus(); !errors.Is(err, ErrMetadataUnavailable) {
 				t.Errorf("CountByTypeStatus() = (%v, %v), want ErrMetadataUnavailable", got, err)
 			} else if err.Error() != tt.policy.Diagnostic() {
@@ -730,8 +686,8 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 		t.Fatalf("restore contract: %v", err)
 	}
 
-	if _, countErr := idx.CountByStatus(); !errors.Is(countErr, ErrMetadataUnavailable) {
-		t.Errorf("CountByStatus() error = %v, want %v", countErr, ErrMetadataUnavailable)
+	if _, countErr := idx.CountByTypeStatus(); !errors.Is(countErr, ErrMetadataUnavailable) {
+		t.Errorf("CountByTypeStatus() error = %v, want %v", countErr, ErrMetadataUnavailable)
 	}
 	query := Parse("needle")
 	results, err := idx.Search(query)
@@ -921,18 +877,6 @@ func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
 func TestFileEntriesAnswerNoMetadataProjection(t *testing.T) {
 	t.Parallel()
 	notesOnly, widened := fileCorpusFixture(t)
-
-	before, err := notesOnly.CountByStatus()
-	if err != nil {
-		t.Fatalf("notes-only CountByStatus() error: %v", err)
-	}
-	after, err := widened.CountByStatus()
-	if err != nil {
-		t.Fatalf("widened CountByStatus() error: %v", err)
-	}
-	if diff := cmp.Diff(before, after); diff != "" {
-		t.Errorf("CountByStatus changed when files joined the corpus (-notes only +widened):\n%s", diff)
-	}
 
 	beforeTypes, err := notesOnly.CountByTypeStatus()
 	if err != nil {

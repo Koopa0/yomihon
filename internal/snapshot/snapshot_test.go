@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -42,13 +43,27 @@ func assertSearchArtifactPolicy(tb testing.TB, snap *View) {
 	if got := snapshotSearch(tb, snap.Search(), "Card"); len(got) != 1 || got[0].RelPath != "System/templates/Card.md" {
 		tb.Errorf("plain search = %+v, want readable template", got)
 	}
-	counts, err := snap.Search().CountByStatus()
-	if err != nil {
-		tb.Fatalf("CountByStatus() error: %v", err)
-	}
+	counts := searchStatusCounts(tb, snap.Search())
 	if counts["ready"] != 0 || counts["draft"] != 1 {
 		tb.Errorf("status counts = %v, want draft instance only", counts)
 	}
+}
+
+// searchStatusCounts folds the index's (type, status) tally down to a
+// status-keyed one, which is the shape these assertions read. The index counts
+// the pair because a status means something different per note type; a test
+// naming one status across every type wants the flattened sum.
+func searchStatusCounts(tb testing.TB, idx *search.Index) map[string]int {
+	tb.Helper()
+	pairs, err := idx.CountByTypeStatus()
+	if err != nil {
+		tb.Fatalf("CountByTypeStatus() error: %v", err)
+	}
+	counts := make(map[string]int, len(pairs))
+	for pair, n := range pairs {
+		counts[pair.Status] += n
+	}
+	return counts
 }
 
 func testContract(tb testing.TB, root string) *schema.Contract {
@@ -162,29 +177,20 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 	if got := snapshotSearch(t, view.Search(), "Foo")[0].Title; got != "Foo" {
 		t.Errorf("Search(Foo) after mutation starts with title %q, want %q", got, "Foo")
 	}
-	counts, err := view.Search().CountByStatus()
+	counts, err := view.Search().CountByTypeStatus()
 	if err != nil {
-		t.Fatalf("CountByStatus() error = %v", err)
+		t.Fatalf("CountByTypeStatus() error = %v", err)
 	}
-	counts["draft"] = 0
-	counts, err = view.Search().CountByStatus()
+	before := maps.Clone(counts)
+	for pair := range counts {
+		counts[pair] = 0
+	}
+	counts, err = view.Search().CountByTypeStatus()
 	if err != nil {
-		t.Fatalf("CountByStatus() after mutation error = %v", err)
+		t.Fatalf("CountByTypeStatus() after mutation error = %v", err)
 	}
-	if counts["draft"] != 2 {
-		t.Errorf("CountByStatus()[draft] after mutation = %d, want 2", counts["draft"])
-	}
-	allowed, err := view.Search().AllowedPaths(search.Parse("folder:A"))
-	if err != nil {
-		t.Fatalf("AllowedPaths(folder:A) error = %v", err)
-	}
-	delete(allowed, "A/Foo.md")
-	allowed, err = view.Search().AllowedPaths(search.Parse("folder:A"))
-	if err != nil {
-		t.Fatalf("AllowedPaths(folder:A) after mutation error = %v", err)
-	}
-	if _, ok := allowed["A/Foo.md"]; !ok {
-		t.Error("AllowedPaths(folder:A) lost A/Foo.md after caller mutation")
+	if diff := cmp.Diff(before, counts); diff != "" {
+		t.Errorf("CountByTypeStatus() after caller mutation (-before +after):\n%s", diff)
 	}
 
 	slot, ok := view.Slots().Lookup("lesson-l01")
@@ -224,8 +230,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if !requestA.ArtifactPolicy().Available() {
 		t.Error("request-captured ArtifactPolicy changed while the response was in flight")
 	}
-	if _, err := requestA.Search().CountByStatus(); err != nil {
-		t.Errorf("request-captured Search.CountByStatus() error = %v, want stable authority", err)
+	if _, err := requestA.Search().CountByTypeStatus(); err != nil {
+		t.Errorf("request-captured Search.CountByTypeStatus() error = %v, want stable authority", err)
 	}
 	// Notes are answered before files, and the contract is a vault file whose
 	// characters a reader can open, so it joins the text corpus and can share a
@@ -238,8 +244,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if requestB.ArtifactPolicy().Available() {
 		t.Error("next ArtifactPolicy capture remained available after its source changed")
 	}
-	if _, err := requestB.Search().CountByStatus(); !errors.Is(err, search.ErrMetadataUnavailable) {
-		t.Errorf("next Search.CountByStatus() error = %v, want ErrMetadataUnavailable", err)
+	if _, err := requestB.Search().CountByTypeStatus(); !errors.Is(err, search.ErrMetadataUnavailable) {
+		t.Errorf("next Search.CountByTypeStatus() error = %v, want ErrMetadataUnavailable", err)
 	}
 	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
 		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Status != "" {
@@ -258,7 +264,7 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 		{name: "captured before the source changed", view: requestA},
 		{name: "captured after the source changed", view: requestB},
 	} {
-		_, countErr := tt.view.Search().CountByStatus()
+		_, countErr := tt.view.Search().CountByTypeStatus()
 		if got, want := tt.view.ArtifactPolicy().Available(), countErr == nil; got != want {
 			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers counts = %t; "+
 				"one request would combine two disagreeing authorities", tt.name, got, want)

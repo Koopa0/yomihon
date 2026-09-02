@@ -54,11 +54,11 @@ func TestNewIndexRealVault(t *testing.T) {
 		t.Fatal("NewIndex() produced an empty real-vault index")
 	}
 
-	counts, err := idx.CountByStatus()
+	counts, err := idx.CountByTypeStatus()
 	indexedByStatus := 0
 	if policy.Available() {
 		if err != nil {
-			t.Fatal("CountByStatus() failed with an available artifact policy")
+			t.Fatal("CountByTypeStatus() failed with an available artifact policy")
 		}
 		for _, count := range counts {
 			indexedByStatus += count
@@ -67,11 +67,11 @@ func TestNewIndexRealVault(t *testing.T) {
 			t.Errorf("metadata-capable notes = %d, want at most %d", indexedByStatus, idx.Len())
 		}
 	} else if !errors.Is(err, ErrMetadataUnavailable) {
-		t.Fatal("CountByStatus() did not fail closed with an unavailable artifact policy")
+		t.Fatal("CountByTypeStatus() did not fail closed with an unavailable artifact policy")
 	}
 
 	t.Logf(
-		"real-vault aggregate: notes=%d artifact_available=%t metadata_notes=%d status_categories=%d",
+		"real-vault aggregate: notes=%d artifact_available=%t metadata_notes=%d type_status_pairs=%d",
 		idx.Len(),
 		policy.Available(),
 		indexedByStatus,

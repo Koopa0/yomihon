@@ -202,30 +202,6 @@ func (b *resultBuckets) ordered() []hit {
 	return out
 }
 
-// AllowedPaths returns the paths that satisfy q's structured filters. Bare
-// text tokens are deliberately ignored: callers use this set to constrain a
-// separate retrieval channel before that channel applies its own ranking.
-// Metadata filters retain Search's instance-capability behavior, including a
-// loud error when the artifact policy could not be honoured. With no filters,
-// every indexed path is allowed.
-func (idx *Index) AllowedPaths(q *Query) (map[string]struct{}, error) {
-	requiresMetadata := q.RequiresMetadata()
-	if requiresMetadata && !idx.policy.Trustworthy() {
-		return nil, idx.metadataUnavailableError()
-	}
-
-	paths := make(map[string]struct{}, len(idx.entries))
-	for _, e := range idx.entries {
-		if requiresMetadata && !e.metadataCapable {
-			continue
-		}
-		if e.matchesFilters(q.filters) {
-			paths[e.RelPath] = struct{}{}
-		}
-	}
-	return paths, nil
-}
-
 // aliasAnswering returns the note's own spelling of the first alias that holds
 // every token, or empty when none does. The first is taken because an author
 // listing several has put the one they think of first at the front, and
