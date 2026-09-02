@@ -478,6 +478,7 @@ func TestReplaceRegularFileChecksTargetAfterAuthority(t *testing.T) {
 		rel,
 		&source,
 		[]byte("replacement"),
+		nil,
 		installHooks{
 			afterAuthority: func() {
 				if writeErr := os.WriteFile(path, []byte("external edit"), 0o600); writeErr != nil {
@@ -514,7 +515,7 @@ func TestReplaceRegularFileSyncOrder(t *testing.T) {
 		t.Fatalf("readRegularFile() = %v", err)
 	}
 	var order []string
-	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), installHooks{
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		syncTemp: func(file *os.File) error {
 			order = append(order, "file")
 			if got := readNoteFixture(t, root); string(got) != "original" {
@@ -552,7 +553,7 @@ func TestReplaceRegularFileTempSyncFailureLeavesSource(t *testing.T) {
 		t.Fatalf("readRegularFile() = %v", err)
 	}
 	wantErr := errors.New("sync failed")
-	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), installHooks{
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		syncTemp: func(*os.File) error { return wantErr },
 	}, func() error { return nil })
 	if !errors.Is(err, wantErr) {
@@ -578,7 +579,7 @@ func TestReplaceRegularFileDirectorySyncFailureMarksInstalled(t *testing.T) {
 		t.Fatalf("readRegularFile() = %v", err)
 	}
 	wantErr := errors.New("directory sync failed")
-	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), installHooks{
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		syncParent: func(*os.Root) error { return wantErr },
 	}, func() error { return nil })
 	if !errors.Is(err, ErrInstallUncertain) || !errors.Is(err, wantErr) {

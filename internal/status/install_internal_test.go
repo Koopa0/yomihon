@@ -234,7 +234,7 @@ func TestStrandedInstallDeletesNothing(t *testing.T) {
 	}
 
 	swaps := 0
-	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		rung: func() installRung { return rungExchange },
 		beforeInstall: func() {
 			if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {
@@ -296,7 +296,7 @@ func TestRetainedHardlinkInstallPutsBackAnInPlaceEdit(t *testing.T) {
 		t.Fatalf("readRegularFile() error = %v", err)
 	}
 
-	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		rung: func() installRung { return rungHardlink },
 		beforeInstall: func() {
 			if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {
@@ -514,7 +514,7 @@ func TestInstallRungMatrix(t *testing.T) {
 				}
 			}
 
-			err = replaceRegularFile(parent, rel, rel, &source, []byte(replacement), hooks, func() error { return nil })
+			err = replaceRegularFile(parent, rel, rel, &source, []byte(replacement), nil, hooks, func() error { return nil })
 			switch {
 			case tt.wantErr == nil && err != nil:
 				t.Fatalf("replaceRegularFile() = %v, want success", err)
@@ -627,7 +627,7 @@ func TestExchangeInstallKeepsAWriteThatLandsAfterTheReadBack(t *testing.T) {
 	})
 
 	reads := 0
-	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		rung: func() installRung { return rungExchange },
 		ops: func(base installOps) installOps {
 			read := base.read
@@ -686,7 +686,7 @@ func TestExchangeInstallRemovesTheDisplacedVersionItRecognized(t *testing.T) {
 		t.Fatalf("readRegularFile() error = %v", err)
 	}
 
-	if err := replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+	if err := replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		rung: func() installRung { return rungExchange },
 	}, func() error { return nil }); err != nil {
 		t.Fatalf("replaceRegularFile() error = %v", err)
@@ -725,7 +725,7 @@ func TestExchangeInstallAcceptsADisplacedVersionThatIsAlreadyGone(t *testing.T) 
 	}
 
 	reads := 0
-	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), installHooks{
+	err = replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), nil, installHooks{
 		rung: func() installRung { return rungExchange },
 		ops: func(base installOps) installOps {
 			read, remove := base.read, base.remove

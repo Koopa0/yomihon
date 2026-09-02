@@ -661,7 +661,8 @@ func (w *Writer) install(
 		relSlash,
 		source,
 		rewritten,
-		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, log: w.log},
+		w.log,
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall},
 		func() error {
 			_, authorityErr := w.validatedArtifactPolicy()
 			return authorityErr
@@ -954,6 +955,10 @@ func rewriteStatusLine(data []byte, to string) ([]byte, error) {
 	return out, nil
 }
 
+// installHooks is a seam set, and nothing else: every field is a place a test
+// can stand inside an install that no temporary directory could otherwise
+// reach. Production sets exactly the two that carry a flip's own hooks, and
+// leaves the rest nil.
 type installHooks struct {
 	beforeAuthority func()
 	afterAuthority  func()
@@ -964,9 +969,6 @@ type installHooks struct {
 	beforeInstall func()
 	syncTemp      func(*os.File) error
 	syncParent    func(*os.Root) error
-	// log receives the sweep's account of a file it set aside. Nil is legal:
-	// an install with no logger simply says nothing.
-	log *slog.Logger
 	// rung, when set, replaces the per-filesystem probe for this install.
 	// The probe's answer is cached for the whole process, so a test that needs
 	// a particular rung says so for its own call instead of deciding for every
@@ -988,6 +990,7 @@ func replaceRegularFile(
 	rel, relSlash string,
 	source *fileSnapshot,
 	data []byte,
+	log *slog.Logger,
 	hooks installHooks,
 	authorize func() error,
 ) error {
@@ -995,7 +998,7 @@ func replaceRegularFile(
 	if err != nil {
 		return err
 	}
-	quarantineStaleTemps(preparedParent, relSlash, hooks.log)
+	quarantineStaleTemps(preparedParent, relSlash, log)
 	rung := selectRung(preparedParent, hooks)
 	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp)
 	if err != nil {
