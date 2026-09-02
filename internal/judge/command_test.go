@@ -14,6 +14,14 @@ import (
 
 // wantGolden asserts got equals the golden file byte for byte, dumping hex on a
 // difference so a stray byte is visible.
+//
+// There is no flag and no environment switch that rewrites a golden, and the
+// absence is the design: these bytes are parsed by programs outside this
+// repository, so a difference is a question about whether the format changed,
+// and a one-key answer turns every such question into a rewrite. A change that
+// is genuinely wanted is made by editing the golden file by hand, in its own
+// commit, so what a reviewer reads is the byte change itself beside the reason
+// the bytes moved.
 func wantGolden(t *testing.T, got []byte, golden string) {
 	t.Helper()
 	want, err := os.ReadFile(golden) // #nosec G304 -- golden is a fixed testdata path from the test table, not untrusted input
