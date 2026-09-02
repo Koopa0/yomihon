@@ -352,7 +352,7 @@ func (h *Handler) respondRecovery(
 		NotePath:        notePath,
 		NoteIdentity:    failure.boundIdentity,
 		ObsidianHref:    door,
-		Sidebar:         pages.NewSidebar(shell.Nav, notePath, lang),
+		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
 	component := pages.StatusRecovery(view, pages.ChromeFromRequest(r, view.Title(lang)))
 	if err := writeRecovery(w, r.Context(), failure.code, failure.changed, component, lang); err != nil {

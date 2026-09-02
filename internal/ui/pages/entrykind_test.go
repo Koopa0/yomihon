@@ -8,6 +8,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -46,10 +47,11 @@ func TestARailRowReportsAResolutionItHasNoWordsFor(t *testing.T) {
 		}
 	})
 
-	sb := NewSidebar(nil, "", wording.ZhHant)
+	sb := NewSidebar(nil, "")
+	chrome := layouts.Chrome{Lang: wording.ZhHant}
 	for name, component := range map[string]templ.Component{
-		"a course row": pathEntryLink(sb, &nav.PathEntry{Text: "Lesson", Kind: unnamedKind}),
-		"a map row":    entryLink(sb, nav.MapEntry{Text: "Entry", Kind: unnamedKind}),
+		"a course row": pathEntryLink(sb, chrome, &nav.PathEntry{Text: "Lesson", Kind: unnamedKind}),
+		"a map row":    entryLink(sb, chrome, nav.MapEntry{Text: "Entry", Kind: unnamedKind}),
 	} {
 		t.Run(name+" still draws", func(t *testing.T) {
 			t.Parallel()

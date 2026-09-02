@@ -38,7 +38,7 @@ templ Report(v ReportView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(NewSidebar(v.Nav, v.RelPath, c.Lang), c.Nonce)
+			@sidebar(NewSidebar(v.Nav, v.RelPath), c)
 			<main id="main-content" tabindex="-1" class="y-main y-reportmain">
 				<h1 class="y-reporttitle">{ v.Name }</h1>
 				if v.NeedsScript {

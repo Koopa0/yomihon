@@ -127,7 +127,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(v.Sidebar, c.Nonce)
+			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<article class="y-article">
 					<h1 class="y-title">{ wording.HealthTitle.In(c.Lang) }</h1>

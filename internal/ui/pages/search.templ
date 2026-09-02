@@ -123,7 +123,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(NewSidebar(v.Nav, "", c.Lang), c.Nonce)
+			@sidebar(NewSidebar(v.Nav, ""), c)
 			<main id="main-content" tabindex="-1" class="y-main">
 				// data-live-search-sync-url marks the one live region whose results
 				// the address bar describes: this page is the form's own target, so

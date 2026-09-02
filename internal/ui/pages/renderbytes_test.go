@@ -43,9 +43,9 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		component templ.Component
 	}
 	cases := []surface{
-		{"sidebar-current-note", sidebar(NewSidebar(model, current, wording.ZhHant), "response-nonce")},
-		{"sidebar-no-note", sidebar(NewSidebar(model, "", wording.ZhHant), "response-nonce")},
-		{"sidebar-english", sidebar(NewSidebar(model, current, wording.En), "response-nonce")},
+		{"sidebar-current-note", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-no-note", sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(model, current), recordedChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 	}
@@ -149,7 +149,7 @@ func recordedNoteView(model *nav.Model, current string) NoteView {
 		VaultHasLinks:       true,
 		CitedBy:             []nav.NoteRef{{Name: "C01", RelPath: "Concepts/go/C01.md"}},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
-		Sidebar:             NewSidebar(model, current, wording.ZhHant),
+		Sidebar:             NewSidebar(model, current),
 		Governed:            true,
 		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",

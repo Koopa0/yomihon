@@ -110,7 +110,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		Title:   name,
 		RelPath: rel,
 		Size:    entry.Size(),
-		Sidebar: pages.NewSidebar(pageShell.Nav, rel, pages.LanguageFromRequest(r)),
+		Sidebar: pages.NewSidebar(pageShell.Nav, rel),
 	}
 
 	switch {

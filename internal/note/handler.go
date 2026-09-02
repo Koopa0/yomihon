@@ -156,7 +156,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
-		Sidebar:    pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
+		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
 	lang := pages.LanguageFromRequest(r)
 	title := wording.NotFoundKicker.In(lang)
@@ -194,7 +194,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Crumbs:     pages.Breadcrumb(dir),
 		Subfolders: subfolders,
 		Notes:      notes,
-		Sidebar:    pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
+		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Folder(view, pages.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write folder page", "dir", dir, "error", err)
@@ -230,7 +230,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// folder its artifacts section may not name.
 		SchemaScopeUnknown: statusView.Diagnostic(),
 		LastComplete:       lastCompleteBuild(&fresh),
-		Sidebar:            pages.NewSidebar(pageShell.Nav, "", pages.LanguageFromRequest(r)),
+		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, pages.ChromeFromRequest(r, wording.HealthTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write health page", "error", err)
@@ -468,7 +468,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		ShowLifecycle:  content.lifecycle,
 		ShowPaths:      content.paths,
 		ReadmeMissing:  !hasReadme,
-		Sidebar:        pages.NewSidebar(visibleNav, "", pages.LanguageFromRequest(r)),
+		Sidebar:        pages.NewSidebar(visibleNav, ""),
 	}
 	if err := pages.Home(view, pages.ChromeFromRequest(r, wording.HomeTitle.In(pages.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
 		h.deps.Log.Error("write home page", "error", err)
@@ -552,7 +552,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
-	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
+	sidebar := pages.NewSidebar(governance.shell.Nav, n.RelPath)
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(governance.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
 	flippedFrom := vouchedOrigin(statusView, h.deps.ConsumeReceipt, rel, n.Type, noteStatus, r.URL.Query().Get("from"))
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)

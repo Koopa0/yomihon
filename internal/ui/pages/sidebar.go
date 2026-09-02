@@ -26,10 +26,6 @@ type Sidebar struct {
 
 	// CurrentPath is the note being read, empty on a page with no note.
 	CurrentPath string
-	// Lang is the language the rail speaks. It travels on the rail rather than
-	// through every component that draws part of one, because the rail is a
-	// tree and threading a language down it would touch every branch.
-	Lang wording.Lang
 	// HereDir labels the siblings block with the current note's directory; Here
 	// lists that directory's files (the current one included, to be marked).
 	HereDir string
@@ -51,14 +47,18 @@ type Sidebar struct {
 
 // NewSidebar resolves the left navigation for one page. model is the whole-vault
 // nav model; currentPath is the note being read ("" for a page with no note).
-func NewSidebar(model *nav.Model, currentPath string, lang wording.Lang) Sidebar {
+//
+// It takes no language: the rail speaks whatever the page around it speaks, and
+// the chrome each component is handed at render is where that answer lives. A
+// copy stored here could disagree with the page it sits in, and nothing would
+// have said so.
+func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	// The current path arrives from the request URL; the model's indexes are
 	// keyed by NFC paths, so fold it once here to match on either form.
 	currentPath = vault.NormalizeNFC(currentPath)
 	sb := Sidebar{
 		Model:        model,
 		CurrentPath:  currentPath,
-		Lang:         lang,
 		openMaps:     map[string]bool{},
 		openBranches: map[string]bool{},
 		openFolders:  map[string]bool{},
@@ -293,7 +293,7 @@ type CapabilityFault struct {
 // paths and instance projections — a contract that could not be read closes
 // everything under it — and printing the same sentence twice under two headings
 // reads as two faults rather than one.
-func (s *Sidebar) CapabilityFaults() []CapabilityFault {
+func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 	if s.Model == nil {
 		return nil
 	}
@@ -301,16 +301,16 @@ func (s *Sidebar) CapabilityFaults() []CapabilityFault {
 	artifact := s.Model.ArtifactClosure().Diagnostic()
 	switch {
 	case navigation != "" && navigation == artifact:
-		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(s.Lang), Detail: navigation}}
+		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation}}
 	case navigation != "" && artifact != "":
 		return []CapabilityFault{
-			{Summary: wording.PathsAndMapsUnavailable.In(s.Lang), Detail: navigation},
-			{Summary: wording.ArtifactsUnavailable.In(s.Lang), Detail: artifact},
+			{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation},
+			{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact},
 		}
 	case navigation != "":
-		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(s.Lang), Detail: navigation}}
+		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation}}
 	case artifact != "":
-		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(s.Lang), Detail: artifact}}
+		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact}}
 	default:
 		return nil
 	}

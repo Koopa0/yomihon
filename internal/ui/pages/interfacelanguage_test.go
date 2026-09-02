@@ -96,13 +96,13 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 				t.Errorf("the freshness notice does not travel to the page in %q: want %q", lang, wording.FreshnessNewVersion.In(lang))
 			}
 			// The reading page's own furniture and the rail it shares with every
-			// other page are two more routes the language takes to reach words,
-			// and each carries it differently: one on the view, one on the rail.
+			// other page are two more routes the language takes to reach words:
+			// one on the view, one on the chrome each rail component is handed.
 			if !strings.Contains(note.String(), wording.RawFile.In(lang)) {
 				t.Errorf("the reading page is not speaking %q: want %q", lang, wording.RawFile.In(lang))
 			}
 			var rail bytes.Buffer
-			if err := sidebar(NewSidebar(nil, "", lang), "").Render(t.Context(), &rail); err != nil {
+			if err := sidebar(NewSidebar(nil, ""), chrome).Render(t.Context(), &rail); err != nil {
 				t.Fatalf("render rail: %v", err)
 			}
 			if !strings.Contains(rail.String(), wording.FilterNavigation.In(lang)) {
