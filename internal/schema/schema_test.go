@@ -1909,7 +1909,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		},
 	}
 
-	for _, name := range exportedContractMethods(t) {
+	byPointer, byValue := exportedContractMethods(t)
+	for _, name := range byValue {
+		t.Errorf("Contract.%s takes the contract by value, so calling it on the nil that every ungoverned vault "+
+			"hands out dereferences before the body runs; declare it on *Contract and give it a row here", name)
+	}
+	for _, name := range byPointer {
 		check, covered := answers[name]
 		if !covered {
 			t.Errorf("(*Contract).%s has no row here: state what it answers for a vault no contract governs", name)
@@ -1923,23 +1928,24 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		})
 	}
 	for name := range answers {
-		if !slices.Contains(exportedContractMethods(t), name) {
+		if !slices.Contains(byPointer, name) {
 			t.Errorf("this table states an answer for (*Contract).%s, which the package does not declare", name)
 		}
 	}
 }
 
-// exportedContractMethods reads the names of every exported method on
-// *Contract out of the package source, so no hand-kept list can fall behind
-// the type.
-func exportedContractMethods(t *testing.T) []string {
+// exportedContractMethods reads the names of every exported method on Contract
+// out of the package source, so no hand-kept list can fall behind the type. The
+// two receiver forms come back apart because they differ in exactly what this
+// test is about: a pointer receiver reaches its body holding a nil contract and
+// can answer for it, and a value receiver never reaches its body at all.
+func exportedContractMethods(t *testing.T) (byPointer, byValue []string) {
 	t.Helper()
 	fset := token.NewFileSet()
 	dir, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatalf("list the package source: %v", err)
 	}
-	var names []string
 	for _, entry := range dir {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -1954,20 +1960,26 @@ func exportedContractMethods(t *testing.T) []string {
 			if !isFunc || fn.Recv == nil || len(fn.Recv.List) != 1 || !fn.Name.IsExported() {
 				continue
 			}
-			star, isStar := fn.Recv.List[0].Type.(*ast.StarExpr)
-			if !isStar {
-				continue
+			receiver := fn.Recv.List[0].Type
+			pointer := false
+			if star, isStar := receiver.(*ast.StarExpr); isStar {
+				receiver, pointer = star.X, true
 			}
-			ident, isIdent := star.X.(*ast.Ident)
+			ident, isIdent := receiver.(*ast.Ident)
 			if !isIdent || ident.Name != "Contract" {
 				continue
 			}
-			names = append(names, fn.Name.Name)
+			if pointer {
+				byPointer = append(byPointer, fn.Name.Name)
+			} else {
+				byValue = append(byValue, fn.Name.Name)
+			}
 		}
 	}
-	if len(names) == 0 {
+	if len(byPointer) == 0 {
 		t.Fatal("no exported *Contract methods were found; the scan would prove nothing")
 	}
-	slices.Sort(names)
-	return names
+	slices.Sort(byPointer)
+	slices.Sort(byValue)
+	return byPointer, byValue
 }
