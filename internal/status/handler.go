@@ -381,7 +381,7 @@ func (h *Handler) respondRecovery(
 		chrome.ReturnTo = notesHref(notePath)
 	}
 	component := pages.StatusRecovery(view, chrome)
-	if err := writeRecovery(w, r.Context(), failure.code, failure.changed, component, lang); err != nil {
+	if err := writeRecovery(r.Context(), w, failure.code, failure.changed, component, lang); err != nil {
 		h.log.Error("render status recovery", "path", path, "changed", failure.changed, "error", err)
 	}
 }
@@ -395,8 +395,8 @@ func recoveryNotePath(path string) string {
 }
 
 func writeRecovery(
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	code int,
 	changed bool,
 	component templ.Component,
