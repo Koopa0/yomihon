@@ -371,7 +371,7 @@ func (h *Handler) respondRecovery(
 		notePath = ""
 	}
 	shell := h.shell()
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	door := pages.ObsidianHref(h.writer.VaultRoot(), notePath)
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,

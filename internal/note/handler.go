@@ -160,7 +160,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 		Unreadable: unreadable,
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	title := wording.NotFoundKicker.In(lang)
 	if unreadable {
 		title = wording.NotReadableKicker.In(lang)
@@ -215,7 +215,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 // to the browser through the sandboxed raw endpoint, never poured into this
 // page as live markup.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		h.showNotFound(w, r, r.URL.Path)

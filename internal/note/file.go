@@ -90,7 +90,7 @@ func servable(rel string) bool {
 // No status face, no ready accent, no diagnostics: a source file is not a
 // note, and the write face has no opinion about it.
 func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, authority status.Authority, snap *snapshot.Generation) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path)
@@ -166,7 +166,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 // or HTML document meets. Without it, opening one top-level would give it read
 // of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)

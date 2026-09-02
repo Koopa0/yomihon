@@ -35,7 +35,7 @@ func TestLanguageFromRequestHonoursOneValue(t *testing.T) {
 			if tt.value != "" {
 				r.Header.Set("Cookie", wording.CookieName+"="+tt.value)
 			}
-			if got := layouts.LanguageFromRequest(r); got != tt.want {
+			if got := wording.LanguageFromRequest(r); got != tt.want {
 				t.Errorf("LanguageFromRequest(%q) = %q, want %q", tt.value, got, tt.want)
 			}
 		})

@@ -33,7 +33,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // an enumerated briefing) is a localized 404 — the same fail-quiet stance the
 // reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
@@ -68,7 +68,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // 404, not a 500: the report list is a snapshot, so a gone file is a not-found,
 // fail-quiet response rather than a server failure.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {

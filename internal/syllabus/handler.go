@@ -53,7 +53,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	shell := h.shell()
 	current := shell.Nav.Path(rel)
 	if current == nil {
-		lang := layouts.LanguageFromRequest(r)
+		lang := wording.LanguageFromRequest(r)
 		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
 		// The title names which route refused, because the address alone does
 		// not say and the page below it speaks for every one of them.

@@ -36,7 +36,7 @@ const homeReadmePath = "README.md"
 // the vault README through the same markdown pipeline used by a note page. It
 // is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	// Home links to the folder's own introduction rather than reprinting it,

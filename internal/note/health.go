@@ -20,7 +20,7 @@ import (
 // it is already computed for the single-note pages; nobody opens every note, so
 // gathering them is the only way they are ever seen.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	lang := layouts.LanguageFromRequest(r)
+	lang := wording.LanguageFromRequest(r)
 	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(authority, snap)
