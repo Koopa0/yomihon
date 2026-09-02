@@ -310,14 +310,6 @@ type TypeStatus struct {
 	Status string
 }
 
-// CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
-// in a single pass. It is the primitive the reading page uses to weigh each note's
-// onward transitions against the schema contract without re-reading the vault:
-// the transition rules key on type as well as status, so a tally keyed on
-// status alone does not carry enough. A note missing either field lands in that
-// field's "" bucket. An artifact policy that was declared and could not be
-// honoured returns ErrMetadataUnavailable with its contract diagnostic.
-
 // CountUnreadableFrontmatter reports how many of the notes this index counts
 // had a frontmatter block that could not be parsed.
 //
@@ -341,6 +333,13 @@ func (idx *Index) CountUnreadableFrontmatter() (int, error) {
 	return unreadable, nil
 }
 
+// CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
+// in a single pass. It is the primitive the reading page uses to weigh each note's
+// onward transitions against the schema contract without re-reading the vault:
+// the transition rules key on type as well as status, so a tally keyed on
+// status alone does not carry enough. A note missing either field lands in that
+// field's "" bucket. An artifact policy that was declared and could not be
+// honoured returns ErrMetadataUnavailable with its contract diagnostic.
 func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
 	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()
