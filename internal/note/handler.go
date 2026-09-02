@@ -555,7 +555,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// never disagree about what follows this note.
 	sidebar := pages.NewSidebar(state.shell.Nav, n.RelPath)
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, pages.LanguageFromRequest(r))
-	flippedFrom := vouchedOrigin(statusView, h.deps.ConsumeReceipt, rel, n.Type, noteStatus, r.URL.Query().Get("from"))
+	flippedFrom := vouchedOrigin(statusView, h.deps.ConsumeReceipt, rel, n.Type,
+		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
 		Lang:              pages.LanguageFromRequest(r),
@@ -842,21 +843,35 @@ func (h *Handler) governance(n *snapshot.Reading, snap *snapshot.View, statusVie
 func vouchedOrigin(
 	statusView status.View,
 	consume func(rel, from string) bool,
-	rel, noteType, current, claimed string,
+	rel, noteType string,
+	move transition,
 ) string {
-	if claimed == "" || current == "" || claimed == current {
+	if move.from == "" || move.to == "" || move.from == move.to {
 		return ""
 	}
-	if !statusView.KnownStatus(noteType, claimed) {
+	if !statusView.KnownStatus(noteType, move.from) {
 		return ""
 	}
-	if !statusView.LegalTransition(noteType, claimed, current) {
+	if !statusView.LegalTransition(noteType, move.from, move.to) {
 		return ""
 	}
-	if !consume(rel, claimed) {
+	if !consume(rel, move.from) {
 		return ""
 	}
-	return claimed
+	return move.from
+}
+
+// transition is one move through the lifecycle as a page states it: the
+// status the note left, and the status it carries now.
+//
+// The two travel as one value because they are drawn from one vocabulary and
+// read alike, so a check taking them as adjacent parameters can be handed
+// them the wrong way round and still compile — and the check below, whose
+// whole purpose is to refuse a move the contract does not legalise, would
+// then be asking about the return journey and passing whatever it found.
+type transition struct {
+	from string
+	to   string
 }
 
 // offeredTransitions pairs each legal target with whether the face could
