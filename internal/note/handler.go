@@ -1,6 +1,15 @@
-// Package note owns the general reading surface: Home, rendered notes, raw
-// bytes, and the honest fallback page for vault files without a dedicated
-// reader. Status mutation remains in internal/status.
+// Package note owns the general reading surface — every route a reader
+// reaches that is not one of the dedicated faces. Register mounts eight of
+// them: Home, one rendered note, one folder, the whole-vault health page, a
+// vault file's raw bytes, the freshness poll a page keeps open on the note it
+// is showing, the language switch every page's footer posts to, and the
+// catch-all that answers a path the vault has nothing at. The last is
+// deliberately last: it exists so no request reaches the router's own
+// fallback, which answers in English and offers nowhere to go.
+//
+// A vault file with no dedicated reader is shown here too, as an honest
+// stand-in page rather than as something this package pretends to render.
+// Status mutation remains in internal/status.
 package note
 
 import (
@@ -198,7 +207,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Folder(view, pages.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write folder page", "dir", dir, "error", err)
+		h.sources.Log.Error("write folder page", "path", dir, "error", err)
 	}
 }
 
