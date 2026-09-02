@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"strconv"
+
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/render"
@@ -174,15 +176,64 @@ func diagnosticAddress(d *render.Diagnostic) string {
 		return d.Target
 	}
 }
-func statusState(v *NoteView) string {
+
+// faceState is which state one note puts the write face in. The reading page
+// has two of those faces — the panel in the rail and the bar along the foot,
+// one of which is present at every width — and they offer the same states in
+// the same order. Each was deciding for itself which state it was in, so the
+// rules were written twice and had already drifted: one face grew a chip and a
+// spacer the other's matching branch never got.
+//
+// The states are ordered by which fact overrides which. A note the folder does
+// not govern at all comes first, then a write face that could not be opened,
+// then the three ways a status can fail to be readable, and only then a
+// readable status with or without a move to offer.
+type faceState uint8
+
+const (
+	faceNonInstance faceState = iota
+	faceWriteUnavailable
+	faceNoFrontmatter
+	faceStatusUnknown
+	faceStatusUnreadable
+	faceNoTransitions
+	faceTransitions
+)
+
+// statusFace decides which state a note puts the write face in.
+func statusFace(v *NoteView) faceState {
 	switch {
 	case v.NonInstance:
-		return "non-instance"
+		return faceNonInstance
 	case v.WriteDiagnostic != "":
-		return "unavailable"
+		return faceWriteUnavailable
+	case v.NoFrontmatter:
+		return faceNoFrontmatter
+	case v.StatusUnknown:
+		return faceStatusUnknown
+	case v.Status == "":
+		return faceStatusUnreadable
+	case len(v.Transitions) == 0:
+		return faceNoTransitions
 	default:
+		return faceTransitions
+	}
+}
+
+// token is the value both faces stamp on themselves for the client and the
+// stylesheet to key off. It is coarser than the state it comes from: what the
+// outside asks is whether this note is one the folder governs, and whether the
+// write face opened at all.
+func (f faceState) token() string {
+	switch f {
+	case faceNonInstance:
+		return "non-instance"
+	case faceWriteUnavailable:
+		return "unavailable"
+	case faceNoFrontmatter, faceStatusUnknown, faceStatusUnreadable, faceNoTransitions, faceTransitions:
 		return "instance"
 	}
+	panic("pages: unknown write-face state: " + strconv.Itoa(int(f)))
 }
 
 // showsFlipReceipt reports whether this reading has a change to state.

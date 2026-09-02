@@ -423,8 +423,9 @@ templ inlineAids(v NoteView) {
 // one. The fixed-bottom status bar is the second status face. The legal set
 // is only what the schema contract returns — never a fabricated key.
 templ statusPanel(v NoteView) {
-	<section class="y-statuspanel" data-status-state={ statusState(&v) }>
-		if v.NonInstance {
+	{{ face := statusFace(&v) }}
+	<section class="y-statuspanel" data-status-state={ face.token() }>
+		if face == faceNonInstance {
 			<p class="y-statuspanel__notice">{ nonInstanceReason }</p>
 		} else {
 			<div class="y-statuspanel__head">
@@ -435,18 +436,18 @@ templ statusPanel(v NoteView) {
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 				}
 			</div>
-			switch  {
-				case v.WriteDiagnostic != "":
+			switch face {
+				case faceWriteUnavailable:
 					<p class="y-statuspanel__notice">
 						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
 					</p>
-				case v.NoFrontmatter:
+				case faceNoFrontmatter:
 					<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
-				case v.StatusUnknown:
+				case faceStatusUnknown:
 					@statusUnknownFlag(v, "y-statuspanel__notice")
-				case v.Status == "":
+				case faceStatusUnreadable:
 					@statusUnreadableFlag(v, "y-statuspanel__notice")
-				case len(v.Transitions) == 0:
+				case faceNoTransitions:
 					<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
 					<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v) }</p>
 				default:
@@ -622,23 +623,24 @@ templ diagnostics(v NoteView) {
 // predates this bar being a plain control surface.
 templ statusBar(v NoteView) {
 	if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
-		<div class="y-sealbar" data-status-state={ statusState(&v) }>
-			switch  {
-				case v.NonInstance:
+		{{ face := statusFace(&v) }}
+		<div class="y-sealbar" data-status-state={ face.token() }>
+			switch face {
+				case faceNonInstance:
 					<p class="y-sealbar__notice">{ nonInstanceReason }</p>
-				case v.WriteDiagnostic != "":
+				case faceWriteUnavailable:
 					<p class="y-sealbar__notice">
 						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
 					</p>
-				case v.NoFrontmatter:
+				case faceNoFrontmatter:
 					<p class="y-sealbar__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
-				case v.StatusUnknown:
+				case faceStatusUnknown:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
 					@statusUnknownFlag(v, "y-sealbar__notice")
-				case v.Status == "":
+				case faceStatusUnreadable:
 					@statusUnreadableFlag(v, "y-sealbar__notice")
-				case len(v.Transitions) == 0:
+				case faceNoTransitions:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
 					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(v.Lang) }{ frontmatterDoorLine(&v) }</p>
