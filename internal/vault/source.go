@@ -376,15 +376,6 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 	}}, nil
 }
 
-// Entries returns every regular, non-dot entry in canonical path order.
-func (r *Reader) Entries(ctx context.Context) ([]Entry, error) {
-	scan, err := r.ScanComplete(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return scan.Files(), nil
-}
-
 type scanCompleteness uint8
 
 const (
