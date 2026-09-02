@@ -1363,6 +1363,29 @@ func mutateModelProjections(model *Model) {
 	siblings[0].Name = "mutated"
 }
 
+// One course asked for by name has to come back under the same rule as the
+// whole list: the model is read by every request at once, so what a page holds
+// while it renders must be its own.
+func TestOneCourseAskedForByNameIsTheCallersOwn(t *testing.T) {
+	t.Parallel()
+	model := immutableModelFixture()
+
+	got := model.Path("Maps/Path.md")
+	if got == nil {
+		t.Fatal("Path(Maps/Path.md) = nil, want the fixture's course")
+	}
+	got.Title = "mutated"
+	got.Planned = -1
+
+	again := model.Path("Maps/Path.md")
+	if again == nil || again.Title != "Path" || again.Planned != 2 {
+		t.Errorf("Path(Maps/Path.md) after caller mutation = %+v, want the original course", again)
+	}
+	if other := model.Path("Maps/Map.md"); other != nil {
+		t.Errorf("Path(Maps/Map.md) = %+v, want nil: a general map is not a course", other)
+	}
+}
+
 func TestModelReturnsIndependentProjections(t *testing.T) {
 	t.Parallel()
 	model := immutableModelFixture()

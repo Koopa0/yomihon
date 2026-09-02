@@ -50,6 +50,19 @@ func (m *Model) IsMap(relPath string) bool {
 	return slices.IndexFunc(m.maps, func(x Map) bool { return x.RelPath == relPath }) >= 0
 }
 
+// Path returns the study path at relPath, or nil when no course in this
+// generation answers to that name. What comes back is the caller's own, under
+// the rule Paths states — one course copied rather than every one of them,
+// which is what a page showing a single syllabus was reaching for.
+func (m *Model) Path(relPath string) *Path {
+	at := m.indexOfPath(relPath)
+	if at < 0 {
+		return nil
+	}
+	cloned := m.paths[at].clone()
+	return &cloned
+}
+
 // indexOfPath is where relPath sits among the study paths, or -1.
 func (m *Model) indexOfPath(relPath string) int {
 	if m == nil {
