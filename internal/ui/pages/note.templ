@@ -18,112 +18,6 @@ import (
 // the rest of this page's copy.
 var nonInstanceReason = wording.NonInstanceReason.In(wording.ZhHant)
 
-// diagKindLabel names a rendering diagnostic in the reader's language. A kind
-// without a name here arrives as its raw slug rather than a dead page: the
-// diagnostics exist to report trouble, and the panel failing on an unnamed
-// kind would be the reporter breaking on the news.
-func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
-	switch kind {
-	case render.DiagWikilinkBroken:
-		return wording.DiagLinkNoTarget.In(lang)
-	case render.DiagWikilinkTitleOnly:
-		return wording.DiagLinkTitleOnly.In(lang)
-	case render.DiagTitleTruncatedAtHash:
-		return wording.DiagTitleCut.In(lang)
-	case render.DiagWikilinkAmbiguous:
-		return wording.DiagLinkManyTargets.In(lang)
-	case render.DiagUnknownCallout:
-		return wording.DiagUnknownCallout.In(lang)
-	case render.DiagRiskyFence:
-		return wording.DiagRiskyFence.In(lang)
-	case render.DiagEmbedFragmentMissing:
-		return wording.DiagEmbedFragmentGone.In(lang)
-	case render.DiagEmbedFragmentRepeated:
-		return wording.DiagEmbedFragmentRepeated.In(lang)
-	case render.DiagEmbedNotExpanded:
-		return wording.DiagEmbedNotExpanded.In(lang)
-	case render.DiagRenderFailed:
-		return wording.DiagRenderFailed.In(lang)
-	case render.DiagLinkFragmentMissing:
-		return wording.DiagLinkBlockGone.In(lang)
-	case render.DiagLinkSectionMissing:
-		return wording.DiagLinkSectionGone.In(lang)
-	case render.DiagCommentUnclosed:
-		return wording.DiagCommentUnclosed.In(lang)
-	default:
-		return string(kind)
-	}
-}
-
-// noteDateLabel names the claim the metarow's date makes: the author's own
-// declared update, or the file's recorded change time when the note declares
-// none a date can be read from.
-func noteDateLabel(v NoteView) string {
-	if v.UpdatedFromFile {
-		return wording.FileChangedOn.In(v.Lang)
-	}
-	return wording.UpdatedOn.In(v.Lang)
-}
-
-// articleLanguageAttrs states an article's language only where the note
-// declared one and the vault contract gave that declaration authority. A note
-// that declared nothing contributes no attribute, so the article inherits the
-// language the surrounding page is written in.
-//
-// Naming a language yomihon does not know would be worse than saying nothing:
-// the undetermined tag is a positive claim that halts inheritance for
-// everything beneath it, and no reader, voice, or font picker is any better
-// off for it. Inheriting is the truthful default for a vault whose prose is
-// Traditional Chinese, and a note written in another language names that
-// language in its own frontmatter.
-func articleLanguageAttrs(tag string) templ.Attributes {
-	if tag == "" {
-		return nil
-	}
-	return templ.Attributes{"lang": tag}
-}
-
-// freshnessAttrs marks the reading column as one the client may watch: the path
-// to ask about, the identity of the bytes printed inside it, and the status
-// printed beside the title — the one value the identity leaves out, so without
-// its own stamp a flip on disk would never reach an open page. They sit on the
-// column rather than on the article because the notice they lead to belongs
-// beside the article, not within it. All are withheld when
-// the page is already saying its own words may be behind the file, because two
-// differently worded notices about the same doubt help nobody, and when there is
-// no identity to compare against. Where the attributes are absent the client
-// finds nothing to watch and the page stays exactly as the server sent it.
-func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
-	if v.Stale || v.RelPath == "" || v.ContentIdentity == "" {
-		return nil
-	}
-	// The sentences travel with the watch rather than living in the script. The
-	// dictionary is the server's, and a second copy of these words inside a
-	// JavaScript file would be a second place to translate them and a second
-	// place for them to fall out of step.
-	attrs := templ.Attributes{
-		"data-freshness-path":        v.RelPath,
-		"data-freshness-identity":    v.ContentIdentity,
-		"data-freshness-status":      v.Status,
-		"data-freshness-newversion":  wording.FreshnessNewVersion.In(lang),
-		"data-freshness-reload":      wording.FreshnessReload.In(lang),
-		"data-freshness-preparing":   wording.FreshnessPreparing.In(lang),
-		"data-freshness-gone":        wording.FreshnessGone.In(lang),
-		"data-freshness-searchtitle": wording.FreshnessSearchTitle.In(lang),
-		"data-freshness-holdtitle":   wording.FreshnessHoldPreparingTitle.In(lang),
-		"data-freshness-holddetail":  wording.FreshnessHoldPreparingDetail.In(lang),
-		"data-freshness-gonetitle":   wording.FreshnessHoldGoneTitle.In(lang),
-		"data-freshness-writehold":   wording.FreshnessWriteHold.In(lang),
-	}
-	// The transcluded stamp is absent, not empty, for a page that pulled in
-	// nothing: absence is what keeps that page's polling ask — and the
-	// server's answer to it — exactly as narrow as before the stamp existed.
-	if v.TranscludedIdentity != "" {
-		attrs["data-freshness-embeds"] = v.TranscludedIdentity
-	}
-	return attrs
-}
-
 // NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
 // and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
 // what it found, and a human edits the file.
@@ -264,35 +158,6 @@ type Transition struct {
 	NoReturn bool
 }
 
-// diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
-// (0 or 1) plus every render diagnostic.
-func (v NoteView) diagCount() int {
-	n := len(v.RenderDiagnostics)
-	if v.Diagnostic != "" {
-		n++
-	}
-	return n
-}
-
-// hasAids reports whether this note carries reading aids — a table of
-// contents or any diagnostic. The right rail exists to hold reading aids:
-// when a note has none, the rail's column is dropped entirely and the write
-// face appears in the fixed-bottom status bar instead, so the reader never
-// sits beside a tall gutter holding a lone status card.
-func (v NoteView) hasAids() bool {
-	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown()
-}
-
-// citedByShown reports whether the answer about what links here means anything
-// on this page — either there are citations, or the library has links at all
-// and their absence is itself the finding. Counting it among the aids matters
-// twice: a rail holding only this block is not an empty rail, and the narrow
-// projection has to carry it. Left out of both, a note whose sole aid was its
-// backlinks lost them at every width, not only the narrow ones.
-func (v NoteView) citedByShown() bool {
-	return len(v.CitedBy) > 0 || v.VaultHasLinks
-}
-
 // Note is the reading page: the article itself in the shared shell, with the
 // navigation sidebar, whatever aids the note earns on the right, and the status
 // face. It is the surface the whole product is arranged around, so everything
@@ -303,7 +168,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar, c.Nonce)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(v, c.Lang)... }>
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, c.Lang)... }>
 				@flipReceipt(v)
 				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
 					@articleHead(v)
@@ -375,7 +240,7 @@ templ articleHead(v NoteView) {
 			// which claim it makes: the author's declared update, or the file's
 			// recorded change when the note declares none.
 			if v.Updated != "" {
-				<span>{ noteDateLabel(v) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
+				<span>{ noteDateLabel(&v) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
 			}
 			if v.RelPath != "" {
 				<span>{ v.RelPath }</span>
@@ -943,7 +808,7 @@ templ inlineAids(v NoteView) {
 // one. The fixed-bottom status bar is the second status face. The legal set
 // is only what the schema contract returns — never a fabricated key.
 templ statusPanel(v NoteView) {
-	<section class="y-statuspanel" data-status-state={ statusState(v) }>
+	<section class="y-statuspanel" data-status-state={ statusState(&v) }>
 		if v.NonInstance {
 			<p class="y-statuspanel__notice">{ nonInstanceReason }</p>
 		} else {
@@ -968,7 +833,7 @@ templ statusPanel(v NoteView) {
 					@statusUnreadableFlag(v, "y-statuspanel__notice")
 				case len(v.Transitions) == 0:
 					<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
-					<p class="y-statuspanel__notice">{ frontmatterDoorLine(v) }</p>
+					<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v) }</p>
 				default:
 					@transitionEffectLine("y-statuspanel__notice", v.Lang)
 					<div class="y-statuspanel__forms">
@@ -997,17 +862,6 @@ templ schemaNotices(v NoteView) {
 			}
 		</p>
 	}
-}
-
-// frontmatterDoorLine is the empty state's honest escape hatch: nothing leads
-// onward from here through this interface, and recovery is a hand edit of the
-// frontmatter — through the editor link the page already carries, when it
-// does. Yomihon states the door; it never walks through it.
-func frontmatterDoorLine(v NoteView) string {
-	if v.ObsidianHref == "" {
-		return wording.EditFrontmatterToRecover.In(v.Lang)
-	}
-	return wording.EditFrontmatterToRecoverWithLink.In(v.Lang)
 }
 
 // statusUnknownFlag states that the note's status value is outside the
@@ -1041,7 +895,7 @@ templ statusUnknownFlag(v NoteView, noticeClass string) {
 // notice here, which says the contract defines nothing onward from the note's
 // status — a claim about a status nobody could read.
 templ statusUnreadableFlag(v NoteView, noticeClass string) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(v.Lang) }{ frontmatterDoorLine(v) }</p>
+	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(v.Lang) }{ frontmatterDoorLine(&v) }</p>
 }
 
 // transitionForm is one transition control: a plain POST form whose
@@ -1078,22 +932,6 @@ templ transitionForm(v NoteView, t Transition) {
 templ legalTransitionForms(v NoteView) {
 	for _, t := range v.Transitions {
 		@transitionForm(v, t)
-	}
-}
-
-// diagnosticAddress spells an address the way its author wrote it. The
-// diagnostic keeps the note name and the part after "#" apart, because other
-// readers match on the name by itself and a joined string matches none of them;
-// putting them back together is a decision about what to show, and it is made
-// here so every panel shows the same thing.
-func diagnosticAddress(d render.Diagnostic) string {
-	switch {
-	case d.Block != "":
-		return d.Target + "#^" + d.Block
-	case d.Section != "":
-		return d.Target + "#" + d.Section
-	default:
-		return d.Target
 	}
 }
 
@@ -1139,7 +977,7 @@ templ diagnostics(v NoteView) {
 						<p class="y-diag__body">
 							{ renderDiagnosticSummary(d.Kind, v.Lang) }
 							if d.Target != "" {
-								<code>{ diagnosticAddress(d) }</code>
+								<code>{ diagnosticAddress(&d) }</code>
 							}
 							if d.Message != "" {
 								<code lang="en">{ d.Message }</code>
@@ -1169,7 +1007,7 @@ templ diagnostics(v NoteView) {
 // predates this bar being a plain control surface.
 templ statusBar(v NoteView) {
 	if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
-		<div class="y-sealbar" data-status-state={ statusState(v) }>
+		<div class="y-sealbar" data-status-state={ statusState(&v) }>
 			switch  {
 				case v.NonInstance:
 					<p class="y-sealbar__notice">{ nonInstanceReason }</p>
@@ -1188,7 +1026,7 @@ templ statusBar(v NoteView) {
 				case len(v.Transitions) == 0:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
-					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(v.Lang) }{ frontmatterDoorLine(v) }</p>
+					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(v.Lang) }{ frontmatterDoorLine(&v) }</p>
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
@@ -1198,17 +1036,6 @@ templ statusBar(v NoteView) {
 					@legalTransitionForms(v)
 			}
 		</div>
-	}
-}
-
-func statusState(v NoteView) string {
-	switch {
-	case v.NonInstance:
-		return "non-instance"
-	case v.WriteDiagnostic != "":
-		return "unavailable"
-	default:
-		return "instance"
 	}
 }
 
@@ -1232,13 +1059,8 @@ templ flipReceipt(v NoteView) {
 		<p class="y-flipreceipt" role="status">
 			{ wording.FlipReceiptBefore.In(v.Lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(v.Lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(v.Lang) }
 			if v.FlipNoReturn {
-				{ frontmatterDoorLine(v) }
+				{ frontmatterDoorLine(&v) }
 			}
 		</p>
 	}
-}
-
-// showsFlipReceipt reports whether this reading has a change to state.
-func (v NoteView) showsFlipReceipt() bool {
-	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status
 }

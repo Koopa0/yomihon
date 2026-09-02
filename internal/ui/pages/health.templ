@@ -119,24 +119,6 @@ type HealthCollision struct {
 	Candidates []nav.NoteRef
 }
 
-// clean reports whether the folder has nothing to answer for.
-func (v HealthView) clean() bool {
-	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
-		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.StatusOutsideEnum) == 0 &&
-		len(v.FrontmatterUnreadable) == 0 && len(v.SchemaFaults) == 0 &&
-		v.InstanceScopeUnknown == "" && v.SchemaScopeUnknown == ""
-}
-
-// blockedLede states what the blocked list means for the reader, and how
-// current the page behind it is.
-func (v HealthView) blockedLede(lang wording.Lang) string {
-	lede := wording.BlockedLede.In(lang)
-	if v.LastComplete == "" {
-		return lede + wording.BlockedNeverComplete.In(lang)
-	}
-	return lede + fmt.Sprintf(wording.BlockedLastCompleteFmt.In(lang), v.LastComplete)
-}
-
 // Health is the page listing what the folder owes: citations with nowhere to
 // land, notes nothing reaches, and names two files both answer to. It states
 // and never repairs — a person edits the file, the same rule the note panel
