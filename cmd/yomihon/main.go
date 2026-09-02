@@ -13,8 +13,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-
-	"github.com/koopa0/yomihon/internal/judge"
 )
 
 func main() {
@@ -43,7 +41,15 @@ func main() {
 			os.Exit(1)
 		}
 	case "check", "coverage", "exists":
-		os.Exit(judge.RunCommand(command, args, os.Stdout, os.Stderr, stdoutIsTerminal()))
+		// A whole-vault scan is the slow part of these three, and the reader
+		// who presses Ctrl-C in the middle of one is asking for it to stop.
+		// The scan checks this at the contract load, the file walk and every
+		// note read, so the interrupt lands rather than being noticed once the
+		// work is already done.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		exit := runCommand(ctx, command, args, os.Stdout, os.Stderr, stdoutIsTerminal())
+		stop()
+		os.Exit(exit)
 	default:
 		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, and exists\n", command)
 		os.Exit(2)

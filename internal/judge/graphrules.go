@@ -88,7 +88,7 @@ func slugIndex(notes []note, authority scanAuthority) map[string]string {
 // that private content names that target. That narrowing is this face's alone —
 // see NewPlanned for why the reading page draws from the whole vault instead.
 func plannedNamesSet(notes []note, authority scanAuthority) Planned {
-	set := make(Planned)
+	set := Planned{names: make(map[string]bool)}
 	for i := range notes {
 		if !authority.egressAllowed(notes[i].path) {
 			continue

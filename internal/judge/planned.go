@@ -22,7 +22,17 @@ import (
 // Planned is the set of concept names a corpus has declared it intends to
 // write. Membership is stored under the resolver's own normalization, so a name
 // matches here exactly when it would have matched a real note.
-type Planned map[string]bool
+//
+// The set keeps its names to itself because that normalization is the whole
+// point of the type: a caller holding the map could write a name in whatever
+// form it had on the page, and the one guarantee this type exists to make would
+// be gone with nothing reporting it. Everything enters through NewPlanned.
+//
+// The zero value is a usable empty set: Has answers false for every name, which
+// is what a corpus that declared nothing means.
+type Planned struct {
+	names map[string]bool
+}
 
 // NewPlanned harvests the declared-but-unwritten concept names from every note
 // body in bodies.
@@ -36,7 +46,7 @@ type Planned map[string]bool
 // reader can already open every note in the vault, so it harvests from all of
 // them. The corpus differs; the verdict, once the names are in hand, does not.
 func NewPlanned(bodies iter.Seq[string]) Planned {
-	set := make(Planned)
+	set := Planned{names: make(map[string]bool)}
 	for body := range bodies {
 		set.add(extractPlannedNames(body))
 	}
@@ -45,11 +55,13 @@ func NewPlanned(bodies iter.Seq[string]) Planned {
 
 // add folds harvested names into the set, dropping any that normalize away to
 // nothing. Both faces enter the set through here so neither can fold a name a
-// different way than the other.
+// different way than the other. It is reachable only from the two constructors
+// in this package, which is why it may assume the set was built rather than
+// left at its zero value.
 func (p Planned) add(names []string) {
 	for _, name := range names {
 		if key := graph.NormalizeKey(name); key != "" {
-			p[key] = true
+			p.names[key] = true
 		}
 	}
 }
@@ -58,7 +70,7 @@ func (p Planned) add(names []string) {
 // It normalizes the target the way the resolver does, so the answer agrees with
 // what resolution would have found had the note been written.
 func (p Planned) Has(target string) bool {
-	return p[graph.NormalizeKey(target)]
+	return p.names[graph.NormalizeKey(target)]
 }
 
 // LinkTargets returns the wikilink targets body cites, in document order, with

@@ -1,7 +1,9 @@
 package judge
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -18,24 +20,22 @@ import (
 // that touch only System/ files, which cite reference material rather than
 // carry live links. A missing, malformed, or privacy-incomplete schema contract
 // is an error because agent-facing output has no authority without it.
-func Check(root string) ([]Finding, error) {
-	return runCheckAction(root, nil, false)
+//
+// A cancelled ctx stops the scan: the contract load, the file walk and every
+// note read are checked against it, so a caller that gives up is not left
+// waiting on a whole vault.
+func Check(ctx context.Context, root string) ([]Finding, error) {
+	return runCheckAction(ctx, root, nil, false)
 }
 
-// check is the whole-engine scan behind the check command. The graph is always
-// built from the entire vault; paths and all only decide which findings are
-// kept. Findings that touch a contract-declared private path are always
-// dropped, whatever all is. Without all, findings that touch only System/ are
-// dropped, since those files cite reference material rather than carry live
-// links. When paths are given, a finding is kept only if one of the paths it
-// touches lies at or below one of them. The findings are returned in the
-// deterministic wire order.
-func check(root string, paths []string, all bool) ([]Finding, error) {
-	return runCheckAction(root, paths, all)
-}
-
-func runCheckAction(root string, paths []string, all bool) ([]Finding, error) {
-	a, err := openAction(root, actionHooks{})
+// runCheckAction is the whole-engine scan, with the two knobs a command line
+// can turn on top of what Check describes: a scope filter keeping only findings
+// that touch one of the given paths, and all, which keeps the findings touching
+// nothing outside System/. Neither widens what is read — the graph is built
+// from the whole vault either way — and neither reaches a path the contract
+// withholds, which is dropped ahead of both.
+func runCheckAction(ctx context.Context, root string, paths []string, all bool) ([]Finding, error) {
+	a, err := openAction(ctx, root, actionHooks{})
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +90,9 @@ func buildIndex(notes []note, resources []string) *graph.Index {
 // any collision member — lies under System/. A finding is kept when at least
 // one path it touches is outside System/.
 func dropSystemScoped(findings []Finding) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if touchesOutsideSystem(&findings[i]) {
-			out = append(out, findings[i])
-		}
-	}
-	return out
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return !touchesOutsideSystem(&f)
+	})
 }
 
 // touchesOutsideSystem reports whether a finding touches any path outside
@@ -112,13 +108,9 @@ func touchesOutsideSystem(f *Finding) bool {
 // a public link resolves consistently, but their paths never surface in a
 // finding and the drop holds even for the full, unfiltered set.
 func dropEgressDenied(findings []Finding, authority scanAuthority) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if !touchesEgressDenied(&findings[i], authority) {
-			out = append(out, findings[i])
-		}
-	}
-	return out
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return touchesEgressDenied(&f, authority)
+	})
 }
 
 // touchesEgressDenied reports whether a finding's resolution touches a
@@ -157,7 +149,17 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 // make the pair of refusals an existence oracle over exactly the directory the
 // contract closed; one uniform answer for every path under it tells the caller
 // only what their own contract already says.
+//
+// The shape check runs ahead of both, and cannot be an oracle for the same
+// reason: it reads the argument's own letters and asks neither the contract nor
+// the scan anything. It is here rather than in whatever parsed the argument so
+// that every caller gets it. A vault path handed straight to this function used
+// to come back as a scope the contract withholds, which told an operator whose
+// contract withholds nothing that his own vault root was private.
 func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authority scanAuthority) ([]Finding, error) {
+	if err := scopeIsWrittenFromTheVaultRoot(paths); err != nil {
+		return nil, err
+	}
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
 		prefixes[i] = canonicalPathFilter(p)
@@ -171,13 +173,33 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 			return nil, fmt.Errorf("path filter %q names nothing in this vault; give a vault-relative path such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)
 		}
 	}
-	out := findings[:0]
-	for i := range findings {
-		if anyTouchedPath(&findings[i], func(p string) bool { return underAnyPrefix(p, prefixes) }) {
-			out = append(out, findings[i])
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return !anyTouchedPath(&f, func(p string) bool { return underAnyPrefix(p, prefixes) })
+	}), nil
+}
+
+// scopeIsWrittenFromTheVaultRoot refuses a scope written as an absolute path.
+//
+// A scope names part of the vault the way the vault spells it — from the
+// vault's own root, with no leading slash — so an absolute one names nothing
+// this face can hold. Without this the refusal came from the withheld check
+// further down, because a path outside the vault is a path the privacy policy
+// cannot answer about, and an operator whose contract withholds nothing was
+// told his own vault root was private.
+//
+// It reads the shape of the argument and not what is on disk at it, which keeps
+// it truthful whether or not a vault happens to sit there, and keeps this face
+// out of the filesystem it reaches through one rooted path only.
+func scopeIsWrittenFromTheVaultRoot(scopes []string) error {
+	for _, p := range scopes {
+		if !filepath.IsAbs(p) && !strings.HasPrefix(p, "/") {
+			continue
 		}
+		return fmt.Errorf(
+			"path filter %q is an absolute path, and a filter names part of the vault from the vault's own root, such as %s",
+			p, vaultRelativeExample)
 	}
-	return out, nil
+	return nil
 }
 
 // vaultRelativeExample stands in for a real path in the refusal above. It is a

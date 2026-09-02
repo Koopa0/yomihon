@@ -23,6 +23,11 @@ var errWithheldUnreadable = errors.New(
 	"vault scan failed: a file under a directory this vault's contract withholds from agent-facing output could not be read; naming it or the reason would describe ground the contract closed",
 )
 
+// actionHooks are the two seams a test drives an observation through: after the
+// scan is pinned, and after each note is read. Nothing in production sets
+// either, and no caller outside this package can — the moments they name are
+// inside the observation, which is why the coverage they buy cannot be had from
+// the binary that drives it.
 type actionHooks struct {
 	afterScan     func()
 	afterNoteRead func(string)
@@ -39,11 +44,16 @@ type action struct {
 	resources []string
 }
 
-func openAction(root string, hooks actionHooks) (*action, error) {
-	ctx := context.Background()
+func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
 	reader, err := vault.Open(root)
 	if err != nil {
-		return nil, errPrivacyAuthorityUnavailable
+		// Opening the folder fails before one vault byte is read, so there is
+		// no policy state to report and nothing observed to withhold. Answering
+		// that a privacy authority is unavailable named a fault in a contract
+		// file that, for the ordinary case of a mistyped folder, is not there to
+		// be at fault — and it carried a paragraph telling the reader where that
+		// file lives. A scan that could not start is what happened.
+		return nil, errVaultScan
 	}
 	a := &action{reader: reader}
 	a.authority, err = loadScanAuthority(ctx, reader)
@@ -121,9 +131,6 @@ func nameableVaultPath(relPath string) bool {
 }
 
 func (a *action) finish() error {
-	if a == nil {
-		return errVaultScan
-	}
 	authorityErr := a.authority.validate()
 	closeErr := a.close()
 	if authorityErr != nil {
@@ -139,8 +146,11 @@ func (a *action) abort(cause error) error {
 	return cause
 }
 
+// close releases the vault capability once. The reader field is the idempotency
+// latch: finish closes, and an abort on the way out of a finished run closes
+// again, so the second call has to be a no-op rather than a double close.
 func (a *action) close() error {
-	if a == nil || a.reader == nil {
+	if a.reader == nil {
 		return nil
 	}
 	reader := a.reader

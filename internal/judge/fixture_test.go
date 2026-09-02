@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -62,8 +63,8 @@ func loadTestAuthority(tb testing.TB, root string) scanAuthority {
 	return authority
 }
 
-func collectNotes(root string) ([]note, error) {
-	a, err := openAction(root, actionHooks{})
+func collectNotes(ctx context.Context, root string) ([]note, error) {
+	a, err := openAction(ctx, root, actionHooks{})
 	if err != nil {
 		return nil, err
 	}
@@ -75,19 +76,100 @@ func collectNotes(root string) ([]note, error) {
 
 func writeTestContract(tb testing.TB, root string, privateDirs []string) {
 	tb.Helper()
+	write(tb, root, schema.ContractRelPath, contractFixture(tb, privateDirs,
+		[2]string{
+			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			"knowledge_dirs = []",
+		}))
+}
+
+// contractFixture is the loader's own contract with each old-to-new
+// substitution applied in turn and a privacy section appended, so a test that
+// needs a vault declaring something different can vary one line of it instead
+// of carrying a second copy that will drift from this one.
+//
+// A substitution matching nothing is fatal. Without that, a test naming a vault
+// which declares no concepts would go on quietly exercising a vault that does,
+// and would pass for the wrong reason for as long as nobody read it.
+func contractFixture(tb testing.TB, privateDirs []string, replacements ...[2]string) string {
+	tb.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		tb.Fatalf("ReadFile(schema fixture) error = %v", err)
 	}
-	const knowledgeDirs = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
-	text := strings.Replace(string(data), knowledgeDirs, "knowledge_dirs = []", 1)
-	if text == string(data) {
-		tb.Fatalf("schema fixture does not contain %q", knowledgeDirs)
+	text := string(data)
+	for _, replacement := range replacements {
+		next := strings.Replace(text, replacement[0], replacement[1], 1)
+		if next == text {
+			tb.Fatalf("the contract fixture does not contain %q", replacement[0])
+		}
+		text = next
 	}
 	quoted := make([]string, len(privateDirs))
 	for i, dir := range privateDirs {
 		quoted[i] = strconv.Quote(dir)
 	}
-	text += "\n[privacy]\nnever_egress_dirs = [" + strings.Join(quoted, ", ") + "]\n"
-	write(tb, root, schema.ContractRelPath, text)
+	return text + "\n[privacy]\nnever_egress_dirs = [" + strings.Join(quoted, ", ") + "]\n"
+}
+
+// runPrepared drives one adjudicating engine the way the binary's front end
+// does — prepare a payload, then re-validate the contract authority and close
+// the observation before a byte is published — with the seams the front end
+// cannot offer.
+//
+// Those seams name moments inside the engine, so no caller outside this package
+// can reach them, and the tests that pin what happens at each of them have to
+// live here. beforeEmission is separate from the observation's own hooks
+// because it names a moment after the observation is over: the payload exists
+// and nothing has been written yet, which is where the authority is asked a
+// second time.
+func runPrepared(
+	ctx context.Context,
+	tb testing.TB,
+	command, root, name string,
+	hooks actionHooks,
+	beforeEmission func(),
+) ([]byte, error) {
+	tb.Helper()
+	var prepared preparedCommand
+	var err error
+	switch command {
+	case "check":
+		prepared, err = prepareCheckWithHooks(ctx, &CheckOptions{Root: root, Format: FormatJSON}, hooks)
+	case "coverage":
+		prepared, err = prepareCoverageWithHooks(ctx, &CoverageOptions{Root: root, Format: FormatJSON}, hooks)
+	case "exists":
+		prepared, err = prepareExistsWithHooks(ctx, &ExistsOptions{Root: root, Name: name, Format: FormatJSON}, hooks)
+	default:
+		tb.Fatalf("runPrepared: unknown command %q", command)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if beforeEmission != nil {
+		beforeEmission()
+	}
+	if err := prepared.finish(); err != nil {
+		return nil, err
+	}
+	return prepared.stdout, nil
+}
+
+// refuse runs one adjudicating engine against root and returns the refusal it
+// answered with, failing the test when it answered at all. The three engines
+// classify a folder they cannot judge identically, so a test about a folder
+// states its case once and runs it through each.
+func refuse(ctx context.Context, tb testing.TB, command, root string) error {
+	tb.Helper()
+	payload, err := runPrepared(ctx, tb, command, root, "candidate", actionHooks{}, nil)
+	if err == nil {
+		// Fatal rather than an error: every caller reads the refusal's own
+		// words, so returning a nil here would end the run in a dereference
+		// panic instead of the report that says what changed.
+		tb.Fatalf("%s produced %d bytes for a folder it cannot judge, and no refusal", command, len(payload))
+	}
+	if payload != nil {
+		tb.Errorf("%s produced a payload alongside its refusal: %q", command, payload)
+	}
+	return err
 }

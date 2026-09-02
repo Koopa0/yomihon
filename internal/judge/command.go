@@ -2,6 +2,7 @@ package judge
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -25,41 +26,44 @@ import (
 
 // ruleIDs is every rule a finding can carry. A --deny value is validated
 // against it so a typo fails loudly instead of silently disabling the gate.
-var ruleIDs = []string{
-	"link.title_not_alias",
-	"link.broken",
-	"collision.alias",
-	"provenance.unresolved",
-	"map.disk_mismatch",
-	"map.disk_unlisted",
-	"link.broken.path",
-	"schema.enum",
-	"schema.required",
-	"schema.unknown_key",
-	"schema.slug",
-	"schema.domain_folder",
-	"schema.legacy_tag",
-	"schema.provenance",
-	"schema.frontmatter",
-	"schema.unmatched_knowledge_dir",
-	"collision.name",
-	predecessorNotArchivedRule,
-	archivedNavigationRule,
-	// The authoring contract's own rules. schema.language is emitted but was
-	// never listed here, so this list is kept honest by a test that compares it
-	// against what the rules actually emit.
-	"schema.language",
-	string(sequence.RuleRoleMissing),
-	string(sequence.RuleRoleDuplicate),
-	string(sequence.RuleRoleConflict),
-	string(sequence.RuleLocalOrphan),
-	string(sequence.RuleNestingTooDeep),
-	string(sequence.RuleRoleOnEntry),
-	string(sequence.RuleRoleInvalid),
-	string(sequence.RuleRoleMisplaced),
-	string(sequence.RuleEntryOutsideBranch),
-	string(sequence.RuleEntryMultiTarget),
-	string(sequence.RuleEntryNoncanonical),
+var ruleIDs = allRuleIDs()
+
+// allRuleIDs lists the rules this package decides for itself, then appends the
+// study-path rules from the grammar that names them. The grammar's half is
+// asked for rather than copied: a rule it gains later arrives here with it, so
+// a vault that trips the new rule can still be gated on it by name. A hand copy
+// would leave that rule undeniable and the omission would show up as a working
+// gate that quietly lets one rule through.
+func allRuleIDs() []string {
+	ids := []string{
+		"link.title_not_alias",
+		"link.broken",
+		"collision.alias",
+		"provenance.unresolved",
+		"map.disk_mismatch",
+		"map.disk_unlisted",
+		"link.broken.path",
+		"schema.enum",
+		"schema.required",
+		"schema.unknown_key",
+		"schema.slug",
+		"schema.domain_folder",
+		"schema.legacy_tag",
+		"schema.provenance",
+		"schema.frontmatter",
+		"schema.unmatched_knowledge_dir",
+		"collision.name",
+		predecessorNotArchivedRule,
+		archivedNavigationRule,
+		// The authoring contract's own rules. schema.language is emitted but was
+		// never listed here, so this list is kept honest by a test that compares it
+		// against what the rules actually emit.
+		"schema.language",
+	}
+	for _, rule := range sequence.Rules() {
+		ids = append(ids, string(rule))
+	}
+	return ids
 }
 
 // Format is the output format of a subcommand.
@@ -124,8 +128,11 @@ type preparedCommand struct {
 	action *action
 }
 
+// finish re-validates the contract authority and closes the observation, once.
+// The action field is the latch: a payload whose observation has already been
+// finished cannot be published a second time on an authority nobody rechecked.
 func (p *preparedCommand) finish() error {
-	if p == nil || p.action == nil {
+	if p.action == nil {
 		return errVaultScan
 	}
 	a := p.action
@@ -137,8 +144,8 @@ func (p *preparedCommand) finish() error {
 // print and the exit code: 1 when a finding gates, 0 otherwise. An unknown
 // --deny token, an unreadable baseline, or a scan failure is returned as an
 // error, which the caller turns into a tool-error exit.
-func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareCheck(o)
+func RunCheck(ctx context.Context, o *CheckOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareCheck(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -148,17 +155,17 @@ func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareCheck(o *CheckOptions) (preparedCommand, error) {
-	return prepareCheckWithHooks(o, actionHooks{})
+func prepareCheck(ctx context.Context, o *CheckOptions) (preparedCommand, error) {
+	return prepareCheckWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareCheckWithHooks(o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
+func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
 	for _, d := range o.Deny {
 		if !isSeverityKeyword(d) && !slices.Contains(ruleIDs, d) {
 			return preparedCommand{}, fmt.Errorf("unknown --deny %q; use a severity (error|warn|info) or a rule id", d)
 		}
 	}
-	a, err := openAction(o.Root, hooks)
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -204,8 +211,8 @@ type CoverageOptions struct {
 // RunCoverage computes and renders coverage. It always exits 0 — coverage
 // reports state, it never gates. A scan or serialization failure is returned as
 // an error.
-func RunCoverage(o *CoverageOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareCoverage(o)
+func RunCoverage(ctx context.Context, o *CoverageOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareCoverage(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -215,12 +222,12 @@ func RunCoverage(o *CoverageOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareCoverage(o *CoverageOptions) (preparedCommand, error) {
-	return prepareCoverageWithHooks(o, actionHooks{})
+func prepareCoverage(ctx context.Context, o *CoverageOptions) (preparedCommand, error) {
+	return prepareCoverageWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareCoverageWithHooks(o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
-	a, err := openAction(o.Root, hooks)
+func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -250,8 +257,8 @@ type ExistsOptions struct {
 // a match exists and 1 when none does, so a caller can gate a
 // write-if-absent on the exit code alone. A scan or serialization failure is
 // returned as an error.
-func RunExists(o *ExistsOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareExists(o)
+func RunExists(ctx context.Context, o *ExistsOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareExists(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -261,12 +268,12 @@ func RunExists(o *ExistsOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareExists(o *ExistsOptions) (preparedCommand, error) {
-	return prepareExistsWithHooks(o, actionHooks{})
+func prepareExists(ctx context.Context, o *ExistsOptions) (preparedCommand, error) {
+	return prepareExistsWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareExistsWithHooks(o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
-	a, err := openAction(o.Root, hooks)
+func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -370,25 +377,7 @@ func parseBaseline(jsonl string) map[string]bool {
 // retainNew drops findings whose fingerprint is already in the baseline,
 // leaving only what this run newly introduced.
 func retainNew(findings []Finding, baseline map[string]bool) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if !baseline[findings[i].Fingerprint] {
-			out = append(out, findings[i])
-		}
-	}
-	return out
-}
-
-// marshalWire encodes v as a compact JSON object and a trailing newline, the
-// on-wire form for coverage and exists. It matches the JSONL encoder's two
-// departures from the encoder's defaults: HTML characters are left unescaped,
-// and the two line-separator code points are carried as raw UTF-8.
-func marshalWire(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	return unescapeLineSeparators(buf.Bytes()), nil
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return baseline[f.Fingerprint]
+	})
 }

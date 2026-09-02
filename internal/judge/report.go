@@ -19,10 +19,13 @@ import (
 // caller stores. Both are part of the frozen output the pipelines read.
 
 // domainOf infers a finding's knowledge domain from its vault path — the folder
-// convention under Concepts/ and Writing/lessons/ — and reports "(other)" when
-// the path carries no domain (Maps, Sources, and the like).
+// convention under the two knowledge roots — and reports "(other)" when the
+// path carries no domain (Maps, Sources, and the like). The roots are named
+// beside the frontmatter rule that derives the same convention from the
+// contract, where the reason one of them is written out rather than asked for
+// is recorded.
 func domainOf(path string) string {
-	for _, prefix := range []string{"Concepts/", "Writing/lessons/"} {
+	for _, prefix := range []string{conceptDomainRoot, lessonDomainRoot} {
 		if rest, ok := strings.CutPrefix(path, prefix); ok {
 			seg, _, _ := strings.Cut(rest, "/")
 			return seg

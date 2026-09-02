@@ -128,9 +128,9 @@ func TestCollectNotesScanBoundary(t *testing.T) {
 		want = append(want, "notes/"+composed)
 	}
 
-	notes, err := collectNotes(root)
+	notes, err := collectNotes(t.Context(), root)
 	if err != nil {
-		t.Fatalf("collectNotes(%q) = %v", root, err)
+		t.Fatalf("collectNotes(t.Context(), %q) = %v", root, err)
 	}
 	got := make([]string, len(notes))
 	for i, n := range notes {
@@ -139,7 +139,7 @@ func TestCollectNotesScanBoundary(t *testing.T) {
 	slices.Sort(got)
 	slices.Sort(want)
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("collectNotes(%q) note paths mismatch (-want +got):\n%s", root, diff)
+		t.Errorf("collectNotes(t.Context(), %q) note paths mismatch (-want +got):\n%s", root, diff)
 	}
 }
 

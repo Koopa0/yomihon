@@ -11,7 +11,7 @@ func BenchmarkCheck(b *testing.B) {
 	const root = "testdata/vault-report"
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := Check(root); err != nil {
+		if _, err := Check(b.Context(), root); err != nil {
 			b.Fatalf("Check(%q): %v", root, err)
 		}
 	}
