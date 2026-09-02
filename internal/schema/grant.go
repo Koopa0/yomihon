@@ -1,7 +1,5 @@
 package schema
 
-import "github.com/koopa0/yomihon/internal/wording"
-
 // grant records how far one declaration got. Absence of a declaration has two
 // meanings and only one of them is news: a folder that never carried a contract
 // asserted nothing, while a contract that exists and then omits, mangles, or
@@ -23,13 +21,35 @@ const (
 	grantHeld
 )
 
-// Claim is one declaration's outcome: how far it got, and the operator-facing
-// sentence when the outcome is news. The zero Claim is unclaimed and silent.
+// Reason names, in a value a caller can branch on, why a declaration could not
+// be honoured. Most rejections carry an operator's sentence and nothing else:
+// they are read on the machine that owns the folder, by the person who wrote
+// it. The vault-level one is different, because it is what an ordinary reader
+// is shown on an ordinary page, and a reader's page is written in the reader's
+// own language — which is a fact about a request, not about a contract that
+// was loaded before any request existed.
+type Reason uint8
+
+const (
+	// ReasonUnstated is a rejection with no machine-readable reason: the
+	// diagnostic sentence is the whole of what is known.
+	ReasonUnstated Reason = iota
+	// ReasonContractUnreadable is a contract file that exists and could not be
+	// loaded. Cause carries the loader's own error, so a surface can name the
+	// fault in whichever language it is speaking.
+	ReasonContractUnreadable
+)
+
+// Claim is one declaration's outcome: how far it got, why it failed where a
+// caller can act on the answer, and the operator-facing sentence when the
+// outcome is news. The zero Claim is unclaimed and silent.
 //
 // A Claim can be closed from outside this package but never opened: authority
 // comes from a contract that was read, never from a caller asserting it.
 type Claim struct {
 	outcome    grant
+	reason     Reason
+	cause      error
 	diagnostic string
 }
 
@@ -61,6 +81,17 @@ func (c Claim) Trustworthy() bool { return c.outcome != grantUnresolved }
 // Diagnostic is the operator-facing sentence, empty unless there is news.
 func (c Claim) Diagnostic() string { return c.diagnostic }
 
+// Reason names why this declaration was rejected, where the answer is one a
+// caller can act on rather than only print. It is ReasonUnstated for a claim
+// that holds, for one nothing ever made, and for a rejection whose sentence is
+// all there is to say.
+func (c Claim) Reason() Reason { return c.reason }
+
+// Cause is the error behind the rejection, nil where there is none to hand
+// back. It travels beside Reason so a surface can name the fault in its own
+// words and still quote what the loader actually said.
+func (c Claim) Cause() error { return c.cause }
+
 // Governance is what a folder asserted about its own contract, independent of
 // whether that assertion could be honoured. It is the vault-level fact every
 // capability question sits under: a folder that carries no contract governs
@@ -74,14 +105,38 @@ type Governance struct {
 func Ungoverned() Governance { return Governance{} }
 
 // Unreadable records a contract file that exists and could not be loaded. The
-// error text is the one loud sentence for the whole vault: without it, a folder
+// distinction is the one loud fact for the whole vault: without it, a folder
 // with a broken contract is indistinguishable from a folder with none.
+//
+// The claim carries the reason and the loader's error rather than a finished
+// sentence. A contract is loaded once, at startup, before any reader has asked
+// for anything — so a sentence written here would be written in whichever
+// language was guessed then, and a reader who reads in the other one would
+// find it sitting under a label in theirs. The surface that shows it knows the
+// language; this does not.
 func Unreadable(err error) Governance {
-	if err == nil {
-		return Governance{claim: Rejected(wording.ContractUnreadable.In(wording.ZhHant))}
-	}
-	return Governance{claim: Rejected(wording.ContractUnreadablePrefix.In(wording.ZhHant) + err.Error())}
+	return Governance{claim: Claim{
+		outcome:    grantUnresolved,
+		reason:     ReasonContractUnreadable,
+		cause:      err,
+		diagnostic: unreadableDiagnostic(err),
+	}}
 }
+
+// unreadableDiagnostic is the operator's own line, in the language every other
+// diagnostic this package produces is written in. A surface speaking to a
+// reader uses the reason instead.
+func unreadableDiagnostic(err error) string {
+	const sentence = "the vault contract could not be read"
+	if err == nil {
+		return sentence
+	}
+	return sentence + ": " + err.Error()
+}
+
+// Reason names why the contract could not be honoured, empty of meaning unless
+// this vault claimed governance and failed to deliver it.
+func (g Governance) Reason() Reason { return g.claim.reason }
 
 // Governance reports what this contract asserts. A nil contract governs nothing.
 func (c *Contract) Governance() Governance {

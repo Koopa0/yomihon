@@ -2,6 +2,10 @@ package schema_test
 
 import (
 	"errors"
+	"go/parser"
+	"go/token"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -126,5 +130,47 @@ func TestClosureDoesNotDependOnHavingASentence(t *testing.T) {
 	}
 	if got := silent.Diagnostic(); got != "" {
 		t.Errorf("Diagnostic() = %q, want empty", got)
+	}
+}
+
+// TestTheContractSpeaksNoInterfaceLanguage keeps the vocabulary the interface
+// says things in out of the package that reads the contract. A contract is
+// loaded once, before any reader has asked for anything, so a sentence built
+// here would be built in whichever language was guessed at startup — and the
+// reader who reads in the other one would meet it sitting under a label in
+// theirs. The dependency is what makes that possible, so the dependency is
+// what this test forbids.
+func TestTheContractSpeaksNoInterfaceLanguage(t *testing.T) {
+	t.Parallel()
+
+	const forbidden = "github.com/koopa0/yomihon/internal/wording"
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("list the package source: %v", err)
+	}
+	scanned := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, parseErr := parser.ParseFile(fset, name, nil, parser.ImportsOnly)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", name, parseErr)
+		}
+		scanned++
+		for _, spec := range parsed.Imports {
+			path, unquoteErr := strconv.Unquote(spec.Path.Value)
+			if unquoteErr != nil {
+				t.Fatalf("%s: %v", name, unquoteErr)
+			}
+			if path == forbidden {
+				t.Errorf("%s imports %s: a sentence built here is built before any reader has asked for one", name, path)
+			}
+		}
+	}
+	if scanned == 0 {
+		t.Fatal("no package source was read; the scan would prove nothing")
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -156,13 +157,30 @@ func (h *Handler) query(idx *Index, q string, lang wording.Lang) (results []Resu
 	parsed := Parse(q)
 	results, total, err := idx.search(parsed, maxRenderedResults)
 	if errors.Is(err, ErrMetadataUnavailable) {
-		return nil, 0, err.Error(), nil
+		return nil, 0, unavailableSentence(err, lang), nil
 	}
 	if err != nil {
 		h.logQueryError("search query", q, err)
 		return nil, 0, wording.SearchUnavailable.In(lang), nil
 	}
 	return results, total, "", parsed.Tokens()
+}
+
+// unavailableSentence says why a metadata query could not be answered, in the
+// language this reader is reading in. The vault-level fault is the one the
+// contract cannot write for itself: it is settled at startup, before anyone
+// has asked for a page, so the contract hands over the reason and the loader's
+// error and the sentence is built here. Any other rejection carries an
+// operator's line already written, and that is what is shown.
+func unavailableSentence(err error, lang wording.Lang) string {
+	unavailable, ok := errors.AsType[metadataUnavailableError](err)
+	if !ok || unavailable.claim.Reason() != schema.ReasonContractUnreadable {
+		return err.Error()
+	}
+	if cause := unavailable.claim.Cause(); cause != nil {
+		return wording.ContractUnreadablePrefix.In(lang) + cause.Error()
+	}
+	return wording.ContractUnreadable.In(lang)
 }
 
 // stepBackViews computes the loosened offers for an empty answer, and nothing
