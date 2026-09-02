@@ -101,6 +101,8 @@ func TestServeHelpNamesThePortTheServerBinds(t *testing.T) {
 // costume of a default: anyone else's first run read a directory they had
 // never mentioned.
 func TestServeRootDefaultsToHere(t *testing.T) {
+	// Not parallel: it clears an environment variable, and t.Setenv cannot
+	// run inside a parallel test.
 	t.Setenv("YOMIHON_ROOT", "")
 	here, err := os.Getwd()
 	if err != nil {

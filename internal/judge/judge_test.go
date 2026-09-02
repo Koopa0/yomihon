@@ -16,6 +16,8 @@ import (
 // line-separator code points as raw UTF-8 and to leave HTML characters
 // unescaped.
 func TestWriteJSONLGolden(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// golden is the file holding the expected bytes for this case.
@@ -130,6 +132,8 @@ func TestWriteJSONLGolden(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			want, err := os.ReadFile(tt.golden)
 			if err != nil {
 				t.Fatalf("read golden: %v", err)
@@ -152,6 +156,8 @@ func TestWriteJSONLGolden(t *testing.T) {
 // and a finding of nothing but empty always-present strings, which
 // must all still serialize while the empty non-nil slice is omitted.
 func TestWriteJSONLShape(t *testing.T) {
+	t.Parallel()
+
 	findings := []Finding{
 		{
 			RuleID:           "x.rule",
@@ -191,6 +197,8 @@ func TestWriteJSONLShape(t *testing.T) {
 // including the separator edge cases: an empty path, a separator
 // embedded in the target, and a target that begins with it.
 func TestFingerprint(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                 string
 		ruleID, path, target string
@@ -269,6 +277,8 @@ func TestFingerprint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := fingerprint(tt.ruleID, tt.path, tt.target); got != tt.want {
 				t.Errorf("fingerprint(%q, %q, %q) = %q, want %q",
 					tt.ruleID, tt.path, tt.target, got, tt.want)
@@ -278,6 +288,8 @@ func TestFingerprint(t *testing.T) {
 }
 
 func TestSeverityOrdering(t *testing.T) {
+	t.Parallel()
+
 	if SeverityInfo >= SeverityWarn || SeverityWarn >= SeverityError {
 		t.Errorf("severity gating order broken: Info=%d Warn=%d Error=%d",
 			SeverityInfo, SeverityWarn, SeverityError)
@@ -285,6 +297,8 @@ func TestSeverityOrdering(t *testing.T) {
 }
 
 func TestSeverityMarshalText(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		sev  Severity
 		want string
@@ -304,6 +318,8 @@ func TestSeverityMarshalText(t *testing.T) {
 		}
 	}
 	t.Run("out of range panics", func(t *testing.T) {
+		t.Parallel()
+
 		defer func() {
 			if recover() == nil {
 				t.Error("MarshalText on an out-of-range severity must panic")

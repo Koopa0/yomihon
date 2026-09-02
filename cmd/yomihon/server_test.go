@@ -212,6 +212,9 @@ func (l *failAfterOneListener) Fail() { l.closeOnce.Do(func() { close(l.fail) })
 // Closing the connections once the grace period is spent releases the handler,
 // which is what bounds that wait.
 func TestShutdownDeadlineReleasesAWedgedHandler(t *testing.T) {
+	// Not parallel: it measures a real grace period against the wall clock on
+	// a listening socket, and tests running beside it make that measurement
+	// say more about the machine's load than about the deadline.
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	var lc net.ListenConfig

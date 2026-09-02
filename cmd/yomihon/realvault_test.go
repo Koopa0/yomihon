@@ -17,6 +17,9 @@ import (
 )
 
 func TestEveryVaultFileOpensThroughProductionSite(t *testing.T) {
+	// Not parallel: it stops one production site's scanner and reads every
+	// case below from the generation that freezes, so nothing else may drive
+	// that site while it runs.
 	root := os.Getenv("YOMIHON_ROOT")
 	if root == "" {
 		t.Fatal("YOMIHON_ROOT is required")

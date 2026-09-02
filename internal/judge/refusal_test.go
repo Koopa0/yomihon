@@ -168,6 +168,8 @@ func TestAnUnusableContractIsRedactedWhateverIsWrongWithIt(t *testing.T) {
 // part it could read. It also names the directory: an operator told only that a
 // scan failed, on a vault of any size, has nowhere to start looking.
 func TestAScanThatCannotEnterADirectoryFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
 	blocked := filepath.Join(root, "Concepts", "blocked")
@@ -189,6 +191,8 @@ func TestAScanThatCannotEnterADirectoryFailsClosed(t *testing.T) {
 
 	for _, command := range everyCommand {
 		t.Run(command, func(t *testing.T) {
+			t.Parallel()
+
 			err := refuse(t.Context(), t, command, root)
 			if !strings.HasPrefix(err.Error(), "vault scan failed: ") {
 				t.Errorf("%s error = %v, want a scan refusal naming what it stopped on", command, err)

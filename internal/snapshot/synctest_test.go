@@ -14,6 +14,8 @@ import (
 // and goroutine behavior. Filesystem rebuilding belongs to ordinary tests:
 // system calls are not durably blocking inside a synctest bubble.
 func TestRunScannerTicksAndStops(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan struct{})

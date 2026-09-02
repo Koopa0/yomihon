@@ -104,6 +104,8 @@ func TestFmValue(t *testing.T) {
 // Diary is scanned like any other directory, and every path comes back in
 // Obsidian's canonical NFC form.
 func TestCollectNotesScanBoundary(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
 	write(t, root, "notes/keep.md", "---\ntype: concept\n---\n")

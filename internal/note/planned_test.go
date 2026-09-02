@@ -46,6 +46,8 @@ func plainVaultView(t *testing.T, root string) *snapshot.Generation {
 // that names nothing anyone ever intended to write — the same distinction the
 // adjudicator draws, reached the same way.
 func TestFaultsKeepsOnlyUnplannedBrokenLinks(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeNote(t, root, "Maps/plan.md", `---
 title: Plan
@@ -93,6 +95,8 @@ This cites [[Byzantine Broadcast]], which no note has said it will write.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			rendered := snap.Render(tt.relPath, tt.body, wording.ZhHant)
 			// The render pass must have seen every link as unresolved, or the
 			// filter below would be reported as working while never running.
@@ -112,6 +116,8 @@ This cites [[Byzantine Broadcast]], which no note has said it will write.
 // that failure has nothing to do with planning. Naming such a target in the gap
 // ledger must not silence it.
 func TestFaultsKeepsResolvedTargetsThatFailedToRender(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeNote(t, root, "Maps/plan.md", `---
 title: Plan

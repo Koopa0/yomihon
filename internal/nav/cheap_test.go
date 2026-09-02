@@ -13,9 +13,8 @@ import (
 // actually be cheap, so the count is asserted at zero and the copy at more than
 // zero in the same table: an optimizer that ate both would fail the second row
 // rather than pass the first.
-//
-// Not parallel: testing.AllocsPerRun is unreliable while other tests run.
 func TestTheCheapQuestionsCopyNothing(t *testing.T) {
+	// Not parallel: testing.AllocsPerRun is unreliable while other tests run.
 	model := immutableModelFixture()
 
 	tests := []struct {

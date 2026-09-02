@@ -76,10 +76,9 @@ func TestFencedCodeBlockHighlighting(t *testing.T) {
 // non-empty, valid-looking CSS containing the expected chroma class
 // prefix, and it must memoize — steady-state calls return the cached
 // string without recomputing.
-//
-// Not parallel: testing.AllocsPerRun pins GOMAXPROCS for its measurement
-// and must not run alongside other parallel tests.
 func TestChromaCSS(t *testing.T) {
+	// Not parallel: testing.AllocsPerRun pins GOMAXPROCS for its measurement
+	// and must not run alongside other parallel tests.
 	first := render.ChromaCSS()
 	if first == "" {
 		t.Fatal("ChromaCSS() returned an empty string")

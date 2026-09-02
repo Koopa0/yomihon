@@ -729,6 +729,8 @@ func TestReadRegularFileRefusesNonRegularBeforeOpen(t *testing.T) {
 }
 
 func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
+	t.Parallel()
+
 	root, writer := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
@@ -771,6 +773,8 @@ func TestFlipDetectsSameMtimeContentChange(t *testing.T) {
 }
 
 func TestFlipDetectsPathIdentityReplacement(t *testing.T) {
+	t.Parallel()
+
 	root, writer := internalVault(t)
 	const rel = "Writing/lessons/japanese/L05.md"
 	path := filepath.Join(root, filepath.FromSlash(rel))
