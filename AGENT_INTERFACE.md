@@ -1,13 +1,41 @@
 # Agent interface
 
-yomihon's machine surface is three subcommands of the one binary. Their output
-formats, JSON field names, and exit codes are a frozen contract: pipelines
-depend on the exact bytes, and the repository's golden files and tests pin
-them. This page documents that contract as it is.
+yomihon's machine surface is three subcommands of the one binary. This page
+is the contract: it names the observable behaviours a caller may build on,
+and the ones it must not. The callers it serves today are the vault's
+authoring skill and its health-check and qa-gate commands, invoked by a
+human or an agent, never by a scheduler; nothing scheduled calls these
+commands, and nothing parses their bytes by pipeline.
+
+## Stability
+
+Stable — changing any of these is a breaking change to this contract:
+
+- exit codes and their meanings, per command;
+- JSON field names and their meanings — fields may be added, and an
+  existing name keeps its meaning;
+- the `rule_id` vocabulary and the severity set — ids may be added, and
+  an existing id keeps its meaning;
+- the JSONL shape of `check --format json`: compact encoding with no
+  space after `:` or `,`, one JSON object per finding, one finding per
+  line, in a stable order.
+
+Not stable — a caller must not depend on these:
+
+- the order of fields inside a JSON object;
+- the wording of `message`, `evidence`, and `suggested_action`;
+- anything on stderr, which is a diagnostic channel for people;
+- the fingerprint algorithm across versions. A fingerprint value carries
+  its algorithm version as a prefix, and `--baseline` refuses a file
+  whose fingerprints were written by a different version — an explicit
+  error, never a silent subtraction of nothing.
+
+The golden files under `internal/judge/testdata/` pin the current output
+as a regression lock: a change to the unstable surface is legal but
+deliberate, made against the golden diff, never by accident.
 
 There is no separate protocol version. The vault contract file declares
-`schema_version = "1"` for its own format; the wire described here changes
-only as a deliberate breaking change to the pinned goldens.
+`schema_version = "1"` for its own format.
 
 ## Commands
 
@@ -50,9 +78,27 @@ One JSON object per finding, one finding per line, in a stable order. Fields:
 `field` (omitted when not field-bound), `message`, `evidence`,
 `suggested_action`, `source_rule`, `target` / `resolved_to` /
 `collision_members` (link and collision findings only, omitted otherwise),
-and `fingerprint` — a stable identity for one finding, which `--baseline
-<file>` uses to subtract a prior run's findings so only new ones are reported
-and gated.
+and `fingerprint` — the identity of one finding, its algorithm version as a
+`v1:` prefix on the value, which `--baseline <file>` uses to subtract a
+prior run's findings so only new ones are reported and gated. A baseline is
+a prior run's JSONL, and it is valid only for the fingerprint version that
+wrote it: a version mismatch, an unparsable line, or a finding without a
+fingerprint stops the run with exit 2 rather than under-subtracting.
+
+`source_rule` names the artifact that holds a rule's authority, in one of
+three forms: the vault contract, bare (`vault-schema.toml`) or with a
+section anchor (`vault-schema.toml#rules`) when the finding enforces keys
+one section declares; `AUTHORING.md`, a document in the product's own
+repository; and `yomihon` itself when the rule is the product's own
+dialect — behaviour pinned by this repository's golden files, not by any
+vault declaration.
+
+The schema rules judge the files inside the contract's
+`scan.knowledge_dirs`; a governed-looking file outside those directories
+is scanned for links but not held to the schema, while the reading page
+shows its schema faults regardless. The scope boundary is the contract
+owner's open question, and until it is answered this asymmetry is the
+documented behaviour, not an accident.
 
 ### `coverage --format json` — one JSON object
 

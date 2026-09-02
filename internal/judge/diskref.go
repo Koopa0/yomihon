@@ -151,7 +151,7 @@ func deadInRoot(n *note, pref pathRef, resolved string) Finding {
 		Message:         "link to " + pref.target + " resolves to no file",
 		Evidence:        resolved + " does not exist in the vault",
 		SuggestedAction: "fix the path, restore the file, or remove the reference",
-		SourceRule:      sourceContractRules,
+		SourceRule:      sourceYomihon,
 		Target:          new(pref.target),
 		Fingerprint:     fingerprint("link.broken.path", n.path, pref.target),
 	}
@@ -168,7 +168,7 @@ func externalRef(n *note, pref pathRef) Finding {
 		Message:         "link to " + pref.target + " points outside the vault root",
 		Evidence:        "external path, not stat'd (existence varies by environment)",
 		SuggestedAction: "if it should be in the vault, fix the path; otherwise informational",
-		SourceRule:      sourceContractRules,
+		SourceRule:      sourceYomihon,
 		Target:          new(pref.target),
 		Fingerprint:     fingerprint("link.broken.path", n.path, pref.target),
 	}

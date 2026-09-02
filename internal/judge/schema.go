@@ -110,7 +110,7 @@ func unmatchedKnowledgeDir(dir string) Finding {
 		Message:         "knowledge directory \"" + dir + "\" matches nothing in this vault, so the frontmatter rules reach nothing there",
 		Evidence:        "the vault contract declares this directory under scan.knowledge_dirs and the scan observed neither that directory nor any file below one of that name",
 		SuggestedAction: "correct the spelling in the vault contract, or drop the entry if the directory is gone",
-		SourceRule:      sourceContract,
+		SourceRule:      sourceContractScan,
 		Target:          new(dir),
 		Fingerprint:     fingerprint("schema.unmatched_knowledge_dir", "", dir),
 	}
@@ -342,12 +342,29 @@ func hasProvenance(fm map[string]fmValue, fields []string) bool {
 	return false
 }
 
+// schemaRuleSource names the artifact holding one frontmatter rule's
+// authority. The four structural rules each enforce a single key the
+// contract's [rules] table declares — slug_pattern,
+// domain_equals_folder_under, forbid_tag_with_slash, and
+// concept_requires_provenance — so they anchor there; every other
+// frontmatter rule reads the contract's type, field, and status declarations
+// across several tables and cites the file without an anchor.
+func schemaRuleSource(ruleID string) string {
+	switch ruleID {
+	case "schema.slug", "schema.domain_folder", "schema.legacy_tag", "schema.provenance":
+		return sourceContractRules
+	default:
+		return sourceContract
+	}
+}
+
 // schemaFinding builds one frontmatter finding. The message reads "<field>
 // <reason>" for a blank value and `<field> "<value>" <reason>` otherwise,
 // where the field name falls back to "frontmatter" when the fault is not tied
-// to a single field. The evidence, action, and source strings are fixed, and
-// the fingerprint folds the field name and the violating value together so two
-// blank-valued findings on one note stay distinct.
+// to a single field. The evidence and action strings are fixed, the source
+// follows the rule, and the fingerprint folds the field name and the
+// violating value together so two blank-valued findings on one note stay
+// distinct.
 func schemaFinding(n *note, ruleID, field string, hasField bool, value, reason string) Finding {
 	what := "frontmatter"
 	if hasField {
@@ -367,7 +384,7 @@ func schemaFinding(n *note, ruleID, field string, hasField bool, value, reason s
 		Message:         message,
 		Evidence:        "frontmatter validated against vault-schema.toml",
 		SuggestedAction: "fix the frontmatter to match the schema",
-		SourceRule:      sourceContract,
+		SourceRule:      schemaRuleSource(ruleID),
 		Fingerprint:     fingerprint(ruleID, n.path, field+"\x1f"+value),
 	}
 	if hasField {

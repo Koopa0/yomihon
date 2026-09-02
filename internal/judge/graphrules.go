@@ -140,23 +140,40 @@ func linkHealth(
 
 // titleNotAlias is a link whose target is a note's title but not its filename
 // or alias, which the vault's linker fails to resolve silently.
+//
+// A single holder is named directly and the advice points at it. When several
+// notes hold the title, the finding describes the collision instead: every
+// holder is listed in the evidence and in collision_members, and the advice
+// names none of them, because singling one out would send the author to a
+// note the link may never have meant. The holders arrive already filtered by
+// the title index, which drops withheld notes before anything here counts or
+// names them — the order the collision rules keep — so a title whose other
+// holders are all withheld reads as singly held and takes the single-holder
+// wording.
 func titleNotAlias(n *note, link wikiLink, targetNotes []string) Finding {
+	f := Finding{
+		RuleID:      "link.title_not_alias",
+		Severity:    SeverityWarn,
+		Path:        n.path,
+		Line:        new(link.line),
+		Message:     "[[" + link.target + "]] resolves to no filename or alias",
+		SourceRule:  sourceYomihon,
+		Target:      new(link.target),
+		Fingerprint: fingerprint("link.title_not_alias", n.path, link.target),
+	}
+	if len(targetNotes) > 1 {
+		f.Evidence = "the target is the title of " + strconv.Itoa(len(targetNotes)) + " notes: " + strings.Join(targetNotes, ", ")
+		f.SuggestedAction = "link the intended note by its full vault-relative path, or add the title to one note's aliases"
+		f.CollisionMembers = targetNotes
+		return f
+	}
 	targetNote := ""
 	if len(targetNotes) > 0 {
 		targetNote = targetNotes[0]
 	}
-	return Finding{
-		RuleID:          "link.title_not_alias",
-		Severity:        SeverityWarn,
-		Path:            n.path,
-		Line:            new(link.line),
-		Message:         "[[" + link.target + "]] resolves to no filename or alias",
-		Evidence:        "the target is the title of " + targetNote + " but not one of its aliases",
-		SuggestedAction: "add the title to " + targetNote + "'s aliases, or link an existing filename/alias",
-		SourceRule:      sourceNoteSchema,
-		Target:          new(link.target),
-		Fingerprint:     fingerprint("link.title_not_alias", n.path, link.target),
-	}
+	f.Evidence = "the target is the title of " + targetNote + " but not one of its aliases"
+	f.SuggestedAction = "add the title to " + targetNote + "'s aliases, or link an existing filename/alias"
+	return f
 }
 
 // brokenLink is a link that resolves to nothing. It is informational when it is
@@ -180,7 +197,7 @@ func brokenLink(n *note, link wikiLink, planned Planned) Finding {
 		Message:         "[[" + link.target + "]] resolves to no note",
 		Evidence:        evidence,
 		SuggestedAction: action,
-		SourceRule:      sourceNoteSchema,
+		SourceRule:      sourceYomihon,
 		Target:          new(link.target),
 		Fingerprint:     fingerprint("link.broken", n.path, link.target),
 	}
@@ -287,7 +304,7 @@ func nameCollisionFinding(name string, members []string) Finding {
 		Message:          "\"" + name + "\" is the name of " + strconv.Itoa(len(members)) + " files, so [[" + name + "]] cannot resolve deterministically",
 		Evidence:         "shared resolution name across: " + strings.Join(members, ", "),
 		SuggestedAction:  "rename one of the files, or link each one by its full vault-relative path",
-		SourceRule:       sourceNoteSchema,
+		SourceRule:       sourceYomihon,
 		Target:           new(name),
 		CollisionMembers: members,
 		Fingerprint:      fingerprint("collision.name", "", name),
@@ -310,7 +327,7 @@ func collisionFinding(alias string, members []string) Finding {
 		Message:          "alias \"" + alias + "\" is declared by " + strconv.Itoa(len(members)) + " notes, so [[" + alias + "]] cannot resolve deterministically",
 		Evidence:         "shared alias across: " + strings.Join(members, ", "),
 		SuggestedAction:  "give the alias a single owner note, or qualify the duplicates",
-		SourceRule:       sourceContractRules,
+		SourceRule:       sourceYomihon,
 		Target:           new(alias),
 		CollisionMembers: members,
 		Fingerprint:      fingerprint("collision.alias", "", alias),
@@ -325,8 +342,10 @@ type referenceField struct {
 
 // provenanceUnresolved reports configured provenance and replacement-ledger
 // references that resolve to no note. The fixed based_on and related fields
-// retain the inherited judge contract; replacement field names come only from
-// the loaded vault contract.
+// retain the inherited judge contract — the requirement that they resolve is
+// the product's own, declared by no contract key, so they cite the product;
+// replacement field names come only from the loaded vault contract's
+// supersession table, which is the authority those findings cite.
 func provenanceUnresolved(
 	notes []note,
 	idx *graph.Index,
@@ -337,8 +356,8 @@ func provenanceUnresolved(
 	for i := range notes {
 		n := &notes[i]
 		fields := []referenceField{
-			{name: "based_on", values: n.basedOn, sourceRule: sourceContractRules},
-			{name: "related", values: n.related, sourceRule: sourceContractRules},
+			{name: "based_on", values: n.basedOn, sourceRule: sourceYomihon},
+			{name: "related", values: n.related, sourceRule: sourceYomihon},
 		}
 		if vocabulary, ok := supersessionForNote(contract, n); ok {
 			fields = appendConfiguredReferences(fields, n, vocabulary)
@@ -510,7 +529,7 @@ func syllabusListsMissing(syllabus *note, link wikiLink) Finding {
 		Message:         "syllabus links [[" + link.target + "]] but it resolves to nothing",
 		Evidence:        "a study-path entry that resolves to no note on disk",
 		SuggestedAction: "create the note, fix the entry, or mark it a planned gap",
-		SourceRule:      sourceContractRules,
+		SourceRule:      sourceYomihon,
 		Target:          new(link.target),
 		Fingerprint:     fingerprint("map.disk_mismatch", syllabus.path, link.target),
 	}
@@ -527,7 +546,7 @@ func diskUnlisted(syllabus, lesson *note) Finding {
 		Message:         "lesson is on disk but not listed in syllabus " + syllabus.path,
 		Evidence:        "the lesson exists but the study-path for its domain does not list it",
 		SuggestedAction: "add the lesson to the syllabus, or confirm it is intentionally excluded",
-		SourceRule:      sourceContractRules,
+		SourceRule:      sourceYomihon,
 		Target:          new(lesson.path),
 		ResolvedTo:      new(syllabus.path),
 		Fingerprint:     fingerprint("map.disk_unlisted", lesson.path, syllabus.path),
