@@ -319,6 +319,13 @@ templ pathGroupItems(sb Sidebar, c layouts.Chrome, pathRel string, chain []strin
 // mark the current note; a planned or ambiguous one stays non-interactive and
 // keeps its place in the course.
 //
+// Its warning chip is the plain one, not the amber that entryLink gives a map
+// row. The two rows are near-identical and the colour is the whole difference,
+// so it is deliberate: a course names its lessons before they are written, and
+// a row for one nobody has written yet is the ordinary state of a course being
+// taught, not a fault in it. The amber "!" beside the name still marks the row
+// as one that leads nowhere yet.
+//
 // Neither this row nor a map's carries a status badge for the note being read.
 // Every other row's badge comes from the captured generation and is the only
 // answer on offer there, but on the current one the page already states the
@@ -371,7 +378,12 @@ templ branchNode(sb Sidebar, c layouts.Chrome, mapPath string, chain []string, b
 }
 
 // entryLink renders one map row: governed unique targets link and may mark the
-// current note; study-path warning rows remain non-interactive.
+// current note; warning rows remain non-interactive.
+//
+// Its warning chip is amber where a course row's is plain, and the difference
+// is the point: a map claims its entries exist, so a row that reaches nothing
+// is a broken citation somebody has to repair. Do not settle the two rows into
+// one colour without deciding which of those two things a rail is saying.
 templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a
