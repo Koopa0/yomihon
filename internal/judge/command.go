@@ -25,41 +25,44 @@ import (
 
 // ruleIDs is every rule a finding can carry. A --deny value is validated
 // against it so a typo fails loudly instead of silently disabling the gate.
-var ruleIDs = []string{
-	"link.title_not_alias",
-	"link.broken",
-	"collision.alias",
-	"provenance.unresolved",
-	"map.disk_mismatch",
-	"map.disk_unlisted",
-	"link.broken.path",
-	"schema.enum",
-	"schema.required",
-	"schema.unknown_key",
-	"schema.slug",
-	"schema.domain_folder",
-	"schema.legacy_tag",
-	"schema.provenance",
-	"schema.frontmatter",
-	"schema.unmatched_knowledge_dir",
-	"collision.name",
-	predecessorNotArchivedRule,
-	archivedNavigationRule,
-	// The authoring contract's own rules. schema.language is emitted but was
-	// never listed here, so this list is kept honest by a test that compares it
-	// against what the rules actually emit.
-	"schema.language",
-	string(sequence.RuleRoleMissing),
-	string(sequence.RuleRoleDuplicate),
-	string(sequence.RuleRoleConflict),
-	string(sequence.RuleLocalOrphan),
-	string(sequence.RuleNestingTooDeep),
-	string(sequence.RuleRoleOnEntry),
-	string(sequence.RuleRoleInvalid),
-	string(sequence.RuleRoleMisplaced),
-	string(sequence.RuleEntryOutsideBranch),
-	string(sequence.RuleEntryMultiTarget),
-	string(sequence.RuleEntryNoncanonical),
+var ruleIDs = allRuleIDs()
+
+// allRuleIDs lists the rules this package decides for itself, then appends the
+// study-path rules from the grammar that names them. The grammar's half is
+// asked for rather than copied: a rule it gains later arrives here with it, so
+// a vault that trips the new rule can still be gated on it by name. A hand copy
+// would leave that rule undeniable and the omission would show up as a working
+// gate that quietly lets one rule through.
+func allRuleIDs() []string {
+	ids := []string{
+		"link.title_not_alias",
+		"link.broken",
+		"collision.alias",
+		"provenance.unresolved",
+		"map.disk_mismatch",
+		"map.disk_unlisted",
+		"link.broken.path",
+		"schema.enum",
+		"schema.required",
+		"schema.unknown_key",
+		"schema.slug",
+		"schema.domain_folder",
+		"schema.legacy_tag",
+		"schema.provenance",
+		"schema.frontmatter",
+		"schema.unmatched_knowledge_dir",
+		"collision.name",
+		predecessorNotArchivedRule,
+		archivedNavigationRule,
+		// The authoring contract's own rules. schema.language is emitted but was
+		// never listed here, so this list is kept honest by a test that compares it
+		// against what the rules actually emit.
+		"schema.language",
+	}
+	for _, rule := range sequence.Rules() {
+		ids = append(ids, string(rule))
+	}
+	return ids
 }
 
 // Format is the output format of a subcommand.

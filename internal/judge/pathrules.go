@@ -14,7 +14,10 @@ import (
 // the note still opens — but the structured projection stops until the author
 // decides, and a decision only the author can make is not information.
 
-// pathRuleAction names what to do about each rule, in the author's terms.
+// pathRuleAction names what to do about each rule, in the author's terms. The
+// wording belongs to this face — the grammar states what is wrong and this
+// table states what to do next — but the key set belongs to the grammar, and a
+// test holds this table to every rule the grammar can report.
 var pathRuleAction = map[sequence.Rule]string{
 	sequence.RuleRoleMissing:        "declare the branch {sequence=primary}, {sequence=local} or {sequence=none}",
 	sequence.RuleRoleDuplicate:      "keep one sequence declaration on the branch",
@@ -48,11 +51,16 @@ func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
 
 // pathFinding turns one grammar diagnostic into a wire finding. The message is
 // the grammar's own sentence: one rule, one wording, wherever it is read.
+//
+// A rule this table has no advice for still reaches the author. The diagnostic
+// arrives from the grammar, not from a closed set this file owns, so a rule
+// name it has never seen is a rule somebody added over there — and the author,
+// whose note is being judged, would learn about it as a check that died on an
+// ordinary vault. What is missing in that case is one sentence of advice; the
+// grammar's own sentence still says what is wrong, so the finding is worth
+// more than the abort it replaces.
 func pathFinding(n *note, d sequence.Diagnostic) Finding {
-	action, ok := pathRuleAction[d.Rule]
-	if !ok {
-		panic("judge: unknown study-path rule: " + string(d.Rule))
-	}
+	action := pathRuleAction[d.Rule]
 	evidence := d.Evidence
 	if evidence == "" {
 		evidence = "the branch lists rows but declares no part in the course"
