@@ -150,8 +150,17 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 			t.Parallel()
 
 			got := Project(tt.lifecycle, tt.snap.ArtifactPolicy(), tt.snap)
-			if len(got.Nav.KnowledgeNotes()) != 0 {
-				t.Errorf("Project() retained %d instance notes", len(got.Nav.KnowledgeNotes()))
+			// The recent-notes summary is plain reading and survives the
+			// refusal; what the refusal removes is the knowledge-layer
+			// citation, which is the refused contract's own claim.
+			if len(got.Nav.KnowledgeNotes()) != 1 {
+				t.Errorf("Project() KnowledgeNotes = %d, want 1: plain reading survives a refusing authority", len(got.Nav.KnowledgeNotes()))
+			}
+			if got.Nav.KnowledgeScoped() {
+				t.Error("Project() kept the knowledge-layer citation under a refusing authority")
+			}
+			if len(got.Nav.Paths()) != 0 {
+				t.Errorf("Project() retained %d study paths under a refusing authority", len(got.Nav.Paths()))
 			}
 			if !got.Nav.InstanceProjectionsClosed() {
 				t.Error("Project() left instance projections open under a refusing authority")

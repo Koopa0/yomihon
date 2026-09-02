@@ -69,10 +69,22 @@ func TestStatusRecoveryEscapesDetailAndOffersOnlySafeGETLinks(t *testing.T) {
 			t.Errorf("recovery page is missing %q; html = %q", want, html)
 		}
 	}
-	for _, forbidden := range []string{`method="post"`, `action="/status"`, `<script>alert`} {
+	// The write face's own surface never offers a second POST of the failed
+	// transition. The page-wide ban is on the status action itself: the shared
+	// chrome legitimately carries one unrelated form — the language switch,
+	// which stores a cookie and touches no vault file.
+	for _, forbidden := range []string{`action="/status"`, `<script>alert`} {
 		if strings.Contains(html, forbidden) {
 			t.Errorf("recovery page unexpectedly contains %q; html = %q", forbidden, html)
 		}
+	}
+	articleAt := strings.Index(html, `<article class="y-recovery"`)
+	articleEnd := strings.Index(html, `</article>`)
+	if articleAt < 0 || articleEnd < articleAt {
+		t.Fatalf("recovery page has no recovery article; html = %q", html)
+	}
+	if article := html[articleAt:articleEnd]; strings.Contains(article, `method="post"`) {
+		t.Errorf("the recovery surface itself offers a POST; article = %q", article)
 	}
 }
 

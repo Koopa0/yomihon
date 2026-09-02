@@ -1461,7 +1461,6 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	// The blocks whose projections closed say nothing rather than asserting an
 	// emptiness they cannot vouch for.
 	for name, marker := range map[string]string{
-		"recent":      `data-home-block="recent"`,
 		"lifecycle":   `data-home-block="lifecycle"`,
 		"study paths": `data-home-block="study-paths"`,
 	} {
@@ -1469,7 +1468,9 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 			t.Errorf("Home still renders the %s block under an unreadable contract", name)
 		}
 	}
-	for _, want := range []string{`data-home-block="search"`, "data-home-readme"} {
+	// Plain reading stays beside the fault: the recent list, the search box
+	// and the README link never depended on a contract.
+	for _, want := range []string{`data-home-block="recent"`, `data-home-block="search"`, "data-home-readme"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("Home lost %q to a contract failure; reading never depends on one", want)
 		}
@@ -1480,8 +1481,9 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	if strings.Contains(page, "data-home-standin") {
 		t.Error("Home states what the folder holds beside the reason it cannot say what is in it")
 	}
-	if got := homeSubtitle(t, page); got != "" {
-		t.Errorf("subtitle = %q over closed projections; it would name blocks that are not on the page", got)
+	// The subtitle names exactly the one content block on the page.
+	if got := homeSubtitle(t, page); got != "查看最近變更。" {
+		t.Errorf("subtitle = %q, want it to name the recent block and nothing else", got)
 	}
 }
 
@@ -1877,18 +1879,34 @@ body
 	const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 	page := html.UnescapeString(body)
 	assertCauseStatedOncePerRegion(t, page, diagnostic)
-	for _, block := range []string{"recent", "lifecycle"} {
-		if strings.Contains(page, `data-home-block="`+block+`"`) {
-			t.Errorf("%s block survived authority drift; a projection it cannot vouch for must be withheld", block)
-		}
+	// The adjudication surfaces close: the lifecycle distribution speaks for
+	// the drifted authority and may not.
+	if strings.Contains(page, `data-home-block="lifecycle"`) {
+		t.Error("lifecycle block survived authority drift; a projection it cannot vouch for must be withheld")
+	}
+	// The recent list is plain reading — names and scan times — and stays,
+	// but it stops citing the knowledge layer: that citation is the drifted
+	// contract's own claim.
+	recent := homeSection(t, page, `data-home-block="recent"`)
+	if !strings.Contains(recent, ">A<") {
+		t.Errorf("the recent list closed with the drifted authority; section = %q", recent)
+	}
+	if strings.Contains(recent, "知識層") {
+		t.Errorf("the recent block cites a knowledge layer after authority drift; section = %q", recent)
+	}
+	// The row keeps the note's own frontmatter value, unjudged: hiding it
+	// would show less than the file says, and judging it needs the vocabulary
+	// that drifted.
+	if !strings.Contains(recent, "seedling") {
+		t.Errorf("the note's own status text is hidden after drift; section = %q", recent)
+	}
+	if strings.Contains(recent, "不在 schema 允許清單中") {
+		t.Errorf("a drifted vocabulary flagged a value; section = %q", recent)
 	}
 	// The folder tree still lists the note: ordinary browsing never depended on
-	// the artifact policy. What must be gone is the instance-derived status.
+	// the artifact policy.
 	if !strings.Contains(page, "/notes/Concepts/golang/A.md") {
 		t.Error("ordinary folder browsing closed with the artifact authority")
-	}
-	if strings.Contains(page, "seedling") {
-		t.Errorf("Home retained an instance projection after authority drift: %q", page)
 	}
 	if statusCaptures != 2 {
 		t.Errorf("two home requests captured status %d times, want exactly once per request", statusCaptures)
@@ -1925,10 +1943,9 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
 			body := html.UnescapeString(page)
-			// Every instance-derived block closes on one cause, so the cause is
+			// The instance-derived blocks close on one cause, so the cause is
 			// stated once and each closed block renders nothing at all.
 			for _, marker := range []string{
-				`data-home-block="recent"`,
 				`data-home-block="lifecycle"`,
 				`data-home-block="study-paths"`,
 			} {
@@ -1937,6 +1954,16 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 				}
 			}
 			assertCauseStatedOncePerRegion(t, body, tt.want)
+			// The recent list is plain reading and stays, without the
+			// knowledge-layer citation: the citation belongs to the same
+			// contract whose artifact declaration was refused.
+			recent := homeSection(t, body, `data-home-block="recent"`)
+			if !strings.Contains(recent, "Draft") {
+				t.Errorf("the recent list closed with the artifact policy; section = %q", recent)
+			}
+			if strings.Contains(recent, "知識層") {
+				t.Errorf("the recent block cites a knowledge layer beside a refused declaration; section = %q", recent)
+			}
 			if !strings.Contains(body, `data-home-block="search"`) {
 				t.Error("Home search block disappeared during artifact degradation")
 			}
@@ -4019,5 +4046,149 @@ func TestHomeUnscopedTieKeepsThePlainNotice(t *testing.T) {
 	}
 	if strings.Contains(recent, "知識層") {
 		t.Errorf("an unscoped tie names a knowledge layer; section = %q", recent)
+	}
+}
+
+// TestHomeUnreadableContractKeepsTheRecentListUnscoped pins the degradation
+// direction for a contract that exists and cannot be parsed. A folder with no
+// contract at all lists everything it holds; a folder whose contract broke
+// used to list nothing — so the vault most in need of repair was the one the
+// page refused to show, and the operator mending the toml lost the reading
+// surface they were mending it with. The broken contract still closes what a
+// contract answers for — the lifecycle distribution and the study paths — and
+// the parse error stays on the page; the recent list is plain reading and
+// stays, with the plain lede, because a knowledge layer this contract declared
+// is a claim nothing can vouch for now.
+func TestHomeUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	files := map[string]struct {
+		content string
+		at      time.Time
+	}{
+		"README.md":                    {content: "# Vault\n", at: base},
+		"Concepts/Legal.md":            {content: "---\ntitle: Legal concept\ntype: concept\nstatus: draft\n---\n\nbody\n", at: base.Add(2 * time.Hour)},
+		"System/templates/Template.md": {content: "---\ntitle: Template note\ntype: concept\nstatus: draft\n---\n\nbody\n", at: base.Add(time.Hour)},
+	}
+	for rel, file := range files {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(file.content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+		if err := os.Chtimes(full, file.at, file.at); err != nil {
+			t.Fatalf("set %s mtime: %v", rel, err)
+		}
+	}
+	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
+		errors.New("toml: line 42: expected a key separator"),
+	))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	page := html.UnescapeString(body)
+
+	// The parse error is still the page's one loud sentence.
+	assertCauseStatedOncePerRegion(t, page, "toml: line 42")
+	// What a contract answers for stays closed.
+	for name, marker := range map[string]string{
+		"lifecycle":   `data-home-block="lifecycle"`,
+		"study paths": `data-home-block="study-paths"`,
+	} {
+		if strings.Contains(page, marker) {
+			t.Errorf("Home still renders the %s block under an unreadable contract", name)
+		}
+	}
+	// Plain reading stays: the recent list, over everything readable, because
+	// the exclusions the contract would have declared are unknown rather than
+	// empty — and unknown may not silently hide files either.
+	recent := homeSection(t, page, `data-home-block="recent"`)
+	for _, want := range []string{"Legal concept", "Template note"} {
+		if !strings.Contains(recent, want) {
+			t.Errorf("recent block is missing %q; section = %q", want, recent)
+		}
+	}
+	// The plain lede, not the scoped one: the knowledge layer is this
+	// contract's own declaration, and this contract cannot vouch for it.
+	if !strings.Contains(recent, "最近改動過的筆記") {
+		t.Errorf("the plain lede is gone; section = %q", recent)
+	}
+	if strings.Contains(recent, "知識層") {
+		t.Errorf("an unreadable contract's recent block cites a knowledge layer; section = %q", recent)
+	}
+	// The raw status value is shown without judgment: the folder is governed,
+	// so the value is not hidden, and the vocabulary that would judge it
+	// cannot be read, so nothing is flagged.
+	if !strings.Contains(recent, "draft") {
+		t.Errorf("the note's own status text is hidden; section = %q", recent)
+	}
+	if strings.Contains(recent, "不在 schema 允許清單中") {
+		t.Errorf("a vocabulary nobody could read flagged a value; section = %q", recent)
+	}
+}
+
+// TestHomeRecentFlagsAStatusOutsideTheSchema is the positive control for the
+// out-of-enum chip in a recent row: under a contract that loaded, a value the
+// note's type never declared carries the same phrase the search hit and the
+// distribution chip carry. The bad-contract tests above assert this phrase is
+// absent; this test is what proves that phrase is the one the row would print,
+// so their absence checks cannot pass by hunting for words nothing emits.
+func TestHomeRecentFlagsAStatusOutsideTheSchema(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
+		t.Fatalf("mkdir Writing: %v", err)
+	}
+	const content = "---\ntitle: Odd status\ntype: writing\nstatus: meditating\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(root, "Writing", "Odd.md"), []byte(content), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	recent := homeSection(t, html.UnescapeString(body), `data-home-block="recent"`)
+	if !strings.Contains(recent, "meditating") {
+		t.Fatalf("the row does not name the value; section = %q", recent)
+	}
+	if !strings.Contains(recent, "不在 schema 允許清單中") {
+		t.Errorf("an undeclared value carries no flag; section = %q", recent)
+	}
+}
+
+// TestHomeBadContractWithNoNotesKeepsTheStandInAway pins the stand-in's other
+// gate. A folder holding no markdown at all fills no content block, and the
+// stand-in line would normally state what the folder has — but under a broken
+// contract the lifecycle and study-path projections were withheld, the reason
+// is on the page, and a cheerful fact beside that reason would be a second,
+// contradictory account of the same hole. The recent block cannot carry this
+// case: there are no notes, so nothing else stands between the two sentences.
+func TestHomeBadContractWithNoNotesKeepsTheStandInAway(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("not markdown\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
+		errors.New("toml: line 42: expected a key separator"),
+	))
+	code, body := get(t, srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	page := html.UnescapeString(body)
+	if !strings.Contains(page, "toml: line 42") {
+		t.Fatalf("the parse error is missing; page = %q", page)
+	}
+	if strings.Contains(page, "data-home-standin") {
+		t.Error("Home states what the folder holds beside the reason it cannot say what is in it")
+	}
+	if strings.Contains(page, `data-home-block="recent"`) {
+		t.Error("Home renders a recent block for a folder with no markdown")
 	}
 }

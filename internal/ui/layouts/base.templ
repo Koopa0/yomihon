@@ -15,7 +15,11 @@ import (
 type Chrome struct {
 	Title string // page title (before " — yomihon")
 	Nonce string // per-response nonce for application-owned scripts
-	Theme string // "light" | "dark"
+	// Theme is the reader's stored choice: "light", "dark", or "" when they
+	// never made one. A choice is stamped on the root so the first paint is
+	// already right; no choice leaves the root unstamped and the stylesheet's
+	// system-preference block decides.
+	Theme string
 	Ruby  string // "on" | "off"
 	// TextSize scales the reading column: "m" (the default measure), "l", or
 	// "xl". It tunes presentation only — the charter's bounded reading
@@ -32,6 +36,11 @@ type Chrome struct {
 	// own; that answers what the note is written in, which is a different
 	// question from what the interface is saying.
 	Lang wording.Lang
+	// ReturnTo is this request's own address — path and query — carried into
+	// the language form so the redirect after the switch lands the reader back
+	// on the page they were reading. The server validates it as a local path
+	// before following it.
+	ReturnTo string
 }
 
 func singleKeyShortcutsState(enabled bool) string {
@@ -48,7 +57,15 @@ func singleKeyShortcutsState(enabled bool) string {
 // what lets the chrome hold still while a navigation transition runs.
 templ Base(c Chrome) {
 	<!DOCTYPE html>
-	<html lang={ c.Lang.Tag() } data-theme={ c.Theme } data-ruby={ c.Ruby } data-textsize={ c.TextSize } data-single-key-shortcuts={ singleKeyShortcutsState(c.SingleKeyShortcutsEnabled) }>
+	<html
+		lang={ c.Lang.Tag() }
+		if c.Theme != "" {
+			data-theme={ c.Theme }
+		}
+		data-ruby={ c.Ruby }
+		data-textsize={ c.TextSize }
+		data-single-key-shortcuts={ singleKeyShortcutsState(c.SingleKeyShortcutsEnabled) }
+	>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -69,14 +86,16 @@ templ Base(c Chrome) {
 	</html>
 }
 
-// header is the shared top chrome: the wordmark, ⌘K search entry, and the
-// furigana / text-size / theme toggles. The single-key-shortcut preference is
-// not here — it lives in the keyboard help panel beside the keys it governs,
-// where a sentence can name them. The toggles are plain <button>s whose glyph state
-// is CSS-driven from the root data-* attributes (no JS needed just to show the
-// right icon); preferences.js only flips the attribute + cookie on click. The
-// search entry is a real link to /search (the no-JS fallback) that search.js
-// upgrades into opening the dialog.
+// header is the shared top chrome: the wordmark, ⌘K search entry, the
+// furigana / text-size / theme toggles, and the language form. The
+// single-key-shortcut preference is not here — it lives in the keyboard help
+// panel beside the keys it governs, where a sentence can name them. The
+// toggles are plain <button>s whose glyph state is CSS-driven from the root
+// data-* attributes (no JS needed just to show the right icon); preferences.js
+// only flips the attribute + cookie on click. Language is the exception: its
+// words are the server's, so its control is a plain form the server answers.
+// The search entry is a real link to /search (the no-JS fallback) that
+// search.js upgrades into opening the dialog.
 templ header(c Chrome) {
 	<header class="y-header">
 		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label={ wording.ToggleNavigation.In(c.Lang) } aria-expanded="false" aria-controls="nav-rail">
@@ -100,7 +119,12 @@ templ header(c Chrome) {
 			</button>
 		}
 		<a class="y-healthlinkbtn" href="/health" title={ wording.HealthLinkTitle.In(c.Lang) }>{ wording.HealthLink.In(c.Lang) }</a>
-		<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize, c.Lang) } title={ wording.TextSizeCycle.In(c.Lang) }>
+		// The three size names ride on the control in the page's own language,
+		// so the script that moves the size — on a press, or re-syncing after a
+		// back/forward-cache restore — renames the control from the same
+		// dictionary the server used rather than from a second copy of the
+		// words.
+		<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize, c.Lang) } title={ wording.TextSizeCycle.In(c.Lang) } data-label-m={ wording.TextSizeMedium.In(c.Lang) } data-label-l={ wording.TextSizeLarge.In(c.Lang) } data-label-xl={ wording.TextSizeExtraLarge.In(c.Lang) }>
 			<span aria-hidden="true">{ wording.TextSizeMark.In(c.Lang) }</span>
 		</button>
 		<button class="y-iconbtn y-helpbtn" type="button" popovertarget="kbd-help" aria-label={ wording.KeyboardHelpControl.In(c.Lang) }>
@@ -136,9 +160,19 @@ templ header(c Chrome) {
 				<p class="y-kbdpref__note" id="kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
 			</div>
 		</div>
-		<button class="y-iconbtn y-langbtn" type="button" data-lang-toggle aria-label={ wording.LanguageToggle.In(c.Lang) } title={ wording.LanguageToggle.In(c.Lang) }>
-			<span aria-hidden="true">{ languageMark(c.Lang) }</span>
-		</button>
+		// The language switch is a plain form, not a scripted button: the words
+		// on every page are the server's, so the choice is stored server-side
+		// and the same page asked for again — a redirect back to the address the
+		// form carries. It works with no script at all, which matters most for
+		// this control: a reader who cannot read the interface must still be
+		// able to leave it.
+		<form class="y-langform" method="post" action="/lang">
+			<input type="hidden" name="lang" value={ string(otherLanguage(c.Lang)) }/>
+			<input type="hidden" name="next" value={ c.ReturnTo }/>
+			<button class="y-iconbtn y-langbtn" type="submit" aria-label={ wording.LanguageToggle.In(c.Lang) } title={ wording.LanguageToggle.In(c.Lang) }>
+				<span aria-hidden="true">{ languageMark(c.Lang) }</span>
+			</button>
+		</form>
 		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label={ wording.ThemeToggle.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
 			<svg class="y-ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
 			<svg class="y-ico-moon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
@@ -156,6 +190,16 @@ func languageMark(lang wording.Lang) string {
 		return "中"
 	}
 	return "EN"
+}
+
+// otherLanguage is the language the form asks for: the one the interface is
+// not speaking. It is the same answer languageMark draws, held as a value the
+// server can store rather than a glyph a reader can recognise.
+func otherLanguage(lang wording.Lang) wording.Lang {
+	if lang == wording.En {
+		return wording.ZhHant
+	}
+	return wording.En
 }
 
 // searchDialog is the ⌘K command palette: a native <dialog> (top layer,

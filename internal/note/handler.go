@@ -126,6 +126,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", h.home)
 	mux.HandleFunc("GET /health", h.health)
 	mux.HandleFunc("GET /folders/{path...}", h.folder)
+	mux.HandleFunc("POST /lang", h.language)
 	mux.HandleFunc("GET /", h.notFound)
 }
 
@@ -416,22 +417,23 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		lifecycleClosed = true
 	}
 	visibleNav := pageShell.Nav
-	recentClosed := visibleNav.InstanceProjectionsClosed()
-	var recent []pages.HomeNote
-	recentOrdered := false
-	if !recentClosed {
-		recent, recentOrdered = recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed, statusView)
-	}
+	// The recent list is plain reading — scanner-captured names and times — so
+	// no closure gates it: the navigation model builds it in every contract
+	// state, degraded to the all-inclusive, layer-citation-free answer when a
+	// declaration could not be honoured. A vault whose contract broke must not
+	// show less than one that never carried a contract, because mending the
+	// toml is done while reading the vault it governs.
+	recent, recentOrdered := recentHomeNotes(visibleNav.KnowledgeNotes(), pageShell.Governed, statusView)
 	pathsClosed := visibleNav.NavigationClosure().Closed() || visibleNav.ArtifactClosure().Closed()
 	var paths []pages.HomePath
 	if !pathsClosed {
 		paths = homePaths(visibleNav.Paths())
 	}
 	content := homeContent{
-		recent:    !recentClosed && len(recent) > 0,
+		recent:    len(recent) > 0,
 		lifecycle: pageShell.Governed && !lifecycleClosed && len(lifecycle) > 0,
 		paths:     !pathsClosed && len(paths) > 0,
-		withheld:  recentClosed || lifecycleClosed || pathsClosed,
+		withheld:  lifecycleClosed || pathsClosed,
 	}
 	view := pages.HomeView{
 		Governed: pageShell.Governed,
@@ -439,7 +441,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		StandIn:  homeStandIn(snap, content),
 		// The reason a block is missing, stated where the reader is looking. One
 		// cause reaches several blocks — a contract that cannot be read closes
-		// the lifecycle, the recent list, and the study paths alike — and
+		// the lifecycle and the study paths alike — and
 		// repeating its sentence per block is what buried the reader's own
 		// content under a column of apologies. Each closed block renders
 		// nothing; the cause is stated once, here.
@@ -1117,7 +1119,7 @@ func blockedDetail(blocked []snapshot.BlockedSource) string {
 // they were given, dropping the empty ones.
 //
 // A single cause usually closes several projections — a contract that cannot be
-// read closes the lifecycle, the recent list and the study paths alike — and
+// read closes the lifecycle and the study paths alike — and
 // printing its sentence once per closed block is what buried the reader's own
 // content. A rejected navigation declaration closes only the study paths, and
 // its sentence is a different one, so a page that carries only the write
