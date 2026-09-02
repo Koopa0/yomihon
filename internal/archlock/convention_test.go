@@ -295,7 +295,7 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 		}
 	}
 	conforming := findLines(t, func(line string) bool {
-		return strings.Contains(line, ".In(wording.LanguageFromRequest(r))") || strings.Contains(line, ".In(lang)")
+		return strings.Contains(line, ".In(origin.Language(r))") || strings.Contains(line, ".In(lang)")
 	})
 	if len(conforming) == 0 {
 		t.Fatal("nothing in the tree resolves a phrase from the request, so this check is comparing against nothing")

@@ -81,7 +81,7 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 	}
 	return Chrome{
 		Title:                     title,
-		Lang:                      wording.LanguageFromRequest(r),
+		Lang:                      origin.Language(r),
 		Nonce:                     origin.Nonce(r.Context()),
 		Theme:                     theme,
 		Ruby:                      ruby,

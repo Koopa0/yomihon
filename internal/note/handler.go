@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
@@ -160,7 +161,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 		Unreadable: unreadable,
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
 	if unreadable {
 		title = wording.NotReadableKicker.In(lang)
@@ -215,7 +216,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 // to the browser through the sandboxed raw endpoint, never poured into this
 // page as live markup.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		h.showNotFound(w, r, r.URL.Path)

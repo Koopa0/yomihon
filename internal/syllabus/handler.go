@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -53,7 +54,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	shell := h.shell()
 	current := shell.Nav.Path(rel)
 	if current == nil {
-		lang := wording.LanguageFromRequest(r)
+		lang := origin.Language(r)
 		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
 		// The title names which route refused, because the address alone does
 		// not say and the page below it speaks for every one of them.

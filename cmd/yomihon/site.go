@@ -177,7 +177,7 @@ func (site *readingSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	site.requestMu.Lock()
 	if site.closing {
 		site.requestMu.Unlock()
-		http.Error(w, wording.ServerStopping.In(wording.LanguageFromRequest(r)), http.StatusServiceUnavailable)
+		http.Error(w, wording.ServerStopping.In(origin.Language(r)), http.StatusServiceUnavailable)
 		return
 	}
 	site.requests.Add(1)

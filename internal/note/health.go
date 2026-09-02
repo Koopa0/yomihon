@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
@@ -20,7 +21,7 @@ import (
 // it is already computed for the single-note pages; nobody opens every note, so
 // gathering them is the only way they are ever seen.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(authority, snap)

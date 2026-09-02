@@ -17,6 +17,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -371,7 +372,7 @@ func (h *Handler) respondRecovery(
 		notePath = ""
 	}
 	shell := h.shell()
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	door := pages.ObsidianHref(h.writer.VaultRoot(), notePath)
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,
