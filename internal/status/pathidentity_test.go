@@ -69,10 +69,12 @@ func TestHandlerWritesOnlyTheNoteTheFormNamed(t *testing.T) {
 			wantCode: http.StatusUnprocessableEntity,
 		},
 		{
-			name:     "a spelling the folder does not hold is refused",
+			// The same answer on every volume: a case-insensitive one would
+			// open the neighbour for this spelling, and must not.
+			name:     "a spelling the folder does not hold names no note",
 			onDisk:   map[string]string{neighbour: body},
 			postPath: "SPACE.md",
-			wantCode: http.StatusUnprocessableEntity,
+			wantCode: http.StatusNotFound,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
