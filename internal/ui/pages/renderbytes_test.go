@@ -48,6 +48,15 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(model, current), recordedChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
+		{"home-page", Home(recordedHomeView(model), recordedChrome())},
+		{"health-page", Health(recordedHealthView(model), recordedChrome())},
+		{"file-page", File(recordedFileView(model), recordedChrome())},
+		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
+		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
+		{"search-page", Search(recordedSearchView(model), recordedChrome())},
+		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
+		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
@@ -55,7 +64,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 			surface{"statusbar-" + state.name, statusBar(state.view)},
 		)
 	}
-	if len(cases) < 15 {
+	if len(cases) < 30 {
 		t.Fatalf("only %d surfaces are recorded, so this test locks almost nothing", len(cases))
 	}
 
@@ -208,5 +217,114 @@ func recordedStatusStates() []struct {
 				wording.SchemaSentence(wording.ZhHant, "schema.required", "slug", "", ""),
 			}
 		})},
+	}
+}
+
+// The eight remaining page entry points, each carrying enough to reach the
+// blocks it draws conditionally. They are recorded for the same reason the
+// reading page is: their own helpers moved out of their templates, and every
+// one of them mounts the shared rail.
+
+func recordedHomeView(model *nav.Model) HomeView {
+	return HomeView{
+		Governed:       true,
+		Fault:          "",
+		PrivacyFault:   "the contract declares no privacy scope",
+		Degraded:       "有檔案讀不進來",
+		DegradedDetail: "permission denied",
+		Subtitle:       "一個書庫",
+		StandIn: HomeStandIn{
+			Shown: true, Files: 3,
+			NewestName: "2026-07-10", NewestRelPath: "Diary/2026-07-10.md",
+			NewestDate: "2026-07-10", NewestAt: "2026-07-10",
+		},
+		Recent: []HomeNote{
+			{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
+			{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
+		},
+		RecentOrdered: true,
+		RecentScoped:  true,
+		Lifecycle: []LifecycleItem{
+			{Name: "draft", Count: 2, Href: statusHref("draft")},
+			{Name: "ready", Count: 1, Sealed: true, Href: statusHref("ready")},
+		},
+		Unstated:      []LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}},
+		Paths:         []HomePath{{Title: "Go path", RelPath: "Maps/Go path.md", Total: 4}},
+		ShowRecent:    true,
+		ShowLifecycle: true,
+		ShowPaths:     true,
+		ReadmeMissing: true,
+		Sidebar:       NewSidebar(model, ""),
+	}
+}
+
+func recordedHealthView(model *nav.Model) HealthView {
+	ref := nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/go/L01.md"}
+	return HealthView{
+		Unwritten:             []HealthLink{{From: ref, Target: "Ghost"}},
+		TitleOnly:             []HealthTitleLink{{From: ref, Target: "L02"}},
+		Islands:               []HealthIslandGroup{{Dir: "Concepts/go", Notes: []nav.NoteRef{{Name: "C02", RelPath: "Concepts/go/C02.md"}}}},
+		IslandCount:           1,
+		Collisions:            []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{{Name: "Repeat", RelPath: "A/Repeat.md"}, {Name: "Repeat", RelPath: "B/Repeat.md"}}}},
+		Blocked:               []HealthBlockedSource{{Path: "Sources/articles/Raw.md", Reason: "permission denied"}},
+		StatusOutsideEnum:     []HealthStatusNote{{Note: ref, Type: "lesson", Status: "seed"}},
+		FrontmatterUnreadable: []nav.NoteRef{ref},
+		SchemaFaults:          []nav.NoteRef{ref},
+		Sidebar:               NewSidebar(model, ""),
+	}
+}
+
+func recordedFileView(model *nav.Model) FileView {
+	return FileView{
+		Kind:        FileInfo,
+		Title:       "notes.csv",
+		RelPath:     "Sources/notes.csv",
+		Size:        1234567,
+		ContentType: "text/csv",
+		Sidebar:     NewSidebar(model, ""),
+	}
+}
+
+func recordedFolderView(model *nav.Model) FolderView {
+	return FolderView{
+		Dir:        "Writing/lessons",
+		Name:       "lessons",
+		Crumbs:     Breadcrumb("Writing/lessons/go/L01.md"),
+		Subfolders: []nav.NoteRef{{Name: "go", RelPath: "Writing/lessons/go"}},
+		Notes:      []nav.NoteRef{{Name: "L01", RelPath: "Writing/lessons/go/L01.md"}},
+		Sidebar:    NewSidebar(model, "Writing/lessons/go/L01.md"),
+	}
+}
+
+func recordedRecoveryView(model *nav.Model) StatusRecoveryView {
+	return StatusRecoveryView{
+		Changed:         true,
+		Summary:         "摘要",
+		NextAction:      "下一步",
+		TechnicalDetail: "rename: file exists",
+		NotePath:        "Writing/lessons/go/L01.md",
+		NoteIdentity:    "abc123",
+		ObsidianHref:    ObsidianHref("/vault", "Writing/lessons/go/L01.md"),
+		Sidebar:         NewSidebar(model, "Writing/lessons/go/L01.md"),
+	}
+}
+
+func recordedSearchView(model *nav.Model) SearchView {
+	return SearchView{
+		Query: "kafka",
+		Results: []SearchResult{{
+			RelPath:     "Writing/lessons/go/L01.md",
+			Title:       "L01",
+			Status:      "draft",
+			SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
+			PathRuns:    []SnippetRun{{Text: "Writing/"}, {Text: "lessons", Hit: true}},
+			AliasRuns:   []SnippetRun{{Text: "another name"}},
+		}},
+		Total:             3,
+		UnknownFilterKeys: []string{"tag", "kind"},
+		FilterKeys:        []string{"status", "type", "path"},
+		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
+		Governed:          true,
+		Sidebar:           NewSidebar(model, ""),
 	}
 }
