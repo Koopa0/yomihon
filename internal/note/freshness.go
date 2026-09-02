@@ -4,12 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
-	"strconv"
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -100,15 +101,16 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // bytes are level — so a page that transcluded nothing keeps exactly the ask
 // and the answer it always had.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
+	lang := pages.LanguageFromRequest(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) || !vault.IsMarkdown(rel) {
-		http.NotFound(w, r)
+		http.Error(w, wording.FreshnessNotWatchable.In(lang), http.StatusNotFound)
 		return
 	}
 	query := r.URL.Query()
 	rendered, ok := parseIdentity(query.Get("identity"))
 	if !ok {
-		http.Error(w, "identity must be "+strconv.Itoa(identityHexLen)+" hex digits", http.StatusBadRequest)
+		http.Error(w, malformedIdentity("identity", lang), http.StatusBadRequest)
 		return
 	}
 	ask := freshnessAsk{
@@ -119,7 +121,7 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	if query.Has("embeds") {
 		transcluded, ok := parseIdentity(query.Get("embeds"))
 		if !ok {
-			http.Error(w, "embeds must be "+strconv.Itoa(identityHexLen)+" hex digits", http.StatusBadRequest)
+			http.Error(w, malformedIdentity("embeds", lang), http.StatusBadRequest)
 			return
 		}
 		ask.transcluded, ask.transcludedCarried = transcluded, true
@@ -132,6 +134,13 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write([]byte(answer)); err != nil {
 		return
 	}
+}
+
+// malformedIdentity says which of the poll's two identity fields was not the
+// digest it has to be, and how long one is. The field name is the one written
+// in the address, so it is quoted rather than translated.
+func malformedIdentity(field string, lang wording.Lang) string {
+	return fmt.Sprintf(wording.FreshnessIdentityFmt.In(lang), field, identityHexLen)
 }
 
 // freshnessAsk is everything one polling page states about itself: the
