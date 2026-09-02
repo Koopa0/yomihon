@@ -12,10 +12,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // briefingFixture carries a <script>, an HTML entity, and CJK content, so the
@@ -580,4 +582,46 @@ func TestReportSaysWhenPartOfItCannotDraw(t *testing.T) {
 			t.Errorf("a document with nothing to draw was told its drawing would not run; body = %q", rr.Body.String())
 		}
 	})
+}
+
+// opaqueWriter forwards a response and names no way back to what it wrapped,
+// which is how a briefing's sandbox would be lost: the commit boundary that
+// carries the policy sits underneath it, out of reach.
+type opaqueWriter struct{ http.ResponseWriter }
+
+// TestRawWithholdsABriefingItCannotSandbox is the refusal the self-sandbox
+// promise rests on. The briefing is agent-authored HTML served verbatim, and
+// the policy is the whole of its containment — so if that policy will not
+// reach the reader, the right answer is no briefing at all rather than one
+// running as a first-party page.
+func TestRawWithholdsABriefingItCannotSandbox(t *testing.T) {
+	t.Parallel()
+	h := newHandler(t, vaultWithBriefing(t))
+	target := "/reports/" + briefingName + "/raw"
+
+	// The control first: the same request through the commit boundary alone
+	// serves the briefing, so the refusal below is the wrapper's doing.
+	served := httptest.NewRecorder()
+	origin.Protect(h).ServeHTTP(served, httptest.NewRequestWithContext(
+		t.Context(), http.MethodGet, target, http.NoBody))
+	if served.Code != http.StatusOK || !strings.Contains(served.Body.String(), "週報") {
+		t.Fatalf("through the commit boundary alone: status %d, body %q", served.Code, served.Body.String())
+	}
+
+	hidden := httptest.NewRecorder()
+	blind := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(opaqueWriter{w}, r)
+	})
+	origin.Protect(blind).ServeHTTP(hidden, httptest.NewRequestWithContext(
+		t.Context(), http.MethodGet, target, http.NoBody))
+
+	if hidden.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", hidden.Code, http.StatusInternalServerError)
+	}
+	if body := hidden.Body.String(); strings.Contains(body, "週報") || strings.Contains(body, "<script") {
+		t.Errorf("the briefing's own bytes reached the reader without its sandbox: %q", body)
+	}
+	if body := hidden.Body.String(); !strings.Contains(body, wording.SandboxUnavailable.In(wording.ZhHant)) {
+		t.Errorf("body = %q, want the sentence saying the isolation could not be established", body)
+	}
 }

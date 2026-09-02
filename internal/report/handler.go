@@ -94,6 +94,17 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	// frame-ancestors 'self' also
 	// refuses cross-origin framing of raw vault HTML — yomihon's own shell is the
 	// only legitimate embedder.
-	origin.SetContentSecurityPolicy(w, rawContentSecurityPolicy)
+	//
+	// The briefing is written by an agent and served verbatim, so the sandbox
+	// is the whole of its containment: it is written out only once that policy
+	// is known to reach the reader, and withheld otherwise. Under the reading
+	// shell's own policy this same document would be a first-party page with
+	// script access to the surface around it.
+	if !origin.SetContentSecurityPolicy(r.Context(), w, rawContentSecurityPolicy) {
+		h.log.Error("serve report bytes", "name", rep.Name, "path", rep.RelPath,
+			"error", "the response sandbox could not be established")
+		http.Error(w, wording.SandboxUnavailable.In(pages.LanguageFromRequest(r)), http.StatusInternalServerError)
+		return
+	}
 	_, _ = w.Write(b) //nolint:errcheck // response is committed and Handler has no later recovery channel
 }

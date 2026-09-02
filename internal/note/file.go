@@ -193,9 +193,20 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	if err := serveRaw(w, r, rel, entry.ModTime(), file); err != nil {
+		if errors.Is(err, errSandboxUnavailable) {
+			h.deps.Log.Error("serve raw vault file", "path", rel, "error", err)
+			http.Error(w, wording.SandboxUnavailable.In(lang), http.StatusInternalServerError)
+			return
+		}
 		h.respondFileReadError(w, rel, "prepare raw vault file", err, lang)
 	}
 }
+
+// errSandboxUnavailable means the response's own sandbox could not be
+// established, so this route wrote no vault bytes. It is not a read failure:
+// the file was in hand and readable, and what was missing was the confinement
+// a same-origin document has to be served under.
+var errSandboxUnavailable = errors.New("the response sandbox could not be established")
 
 // serveRaw writes one already-opened vault object. The caller establishes the
 // rooted path identity before entering this function; ServeContent then owns
@@ -215,7 +226,14 @@ func serveRaw(
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
-	origin.SetContentSecurityPolicy(w, rawContentSecurityPolicy(contentType))
+	// A same-origin document this route hands the browser gets its confinement
+	// from the policy, so bytes are written only once that policy is known to
+	// reach the reader. Serving them under the reading shell's own policy
+	// instead would give an authored SVG or HTML file script access to the
+	// whole surface, which is the one outcome the sandbox exists to prevent.
+	if !origin.SetContentSecurityPolicy(r.Context(), w, rawContentSecurityPolicy(contentType)) {
+		return fmt.Errorf("%w: %s", errSandboxUnavailable, rel)
+	}
 	// Cross-origin embedding is refused one layer up, in the server's own
 	// header seam, so every response — this one, the report bytes, and any
 	// future endpoint — carries the same refusal without each having to
