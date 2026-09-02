@@ -23,6 +23,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func internalVault(t *testing.T) (string, *Writer) {
@@ -46,9 +47,9 @@ func internalVaultWithMutableContract(t *testing.T) (root, contractPath string, 
 	if err != nil {
 		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -328,9 +329,9 @@ func TestWriterLatchesContractChangeUntilRestart(t *testing.T) {
 
 func internalOpenWriter(t *testing.T, root string, contract *schema.Contract) *Writer {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

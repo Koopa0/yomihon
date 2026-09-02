@@ -41,7 +41,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func TestHelpIsSideEffectFree(t *testing.T) {
@@ -302,9 +302,9 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	before := hashTree(t, root)
 
 	log := slog.New(slog.DiscardHandler)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

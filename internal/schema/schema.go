@@ -23,6 +23,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 const (
@@ -270,7 +271,7 @@ func LoadFile(path string) (*Contract, error) {
 
 // LoadReader reads the contract through the same pinned vault capability that
 // an agent-facing action uses for note collection and source revalidation.
-func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
+func LoadReader(ctx context.Context, reader *vaultfs.Reader) (*Contract, error) {
 	if reader == nil {
 		return nil, errors.New("read vault contract: vault reader is nil")
 	}

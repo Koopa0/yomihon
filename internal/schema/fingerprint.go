@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 const corpusPolicyFingerprintVersion = "yomihon-semantic-corpus-policy-v1"
@@ -25,8 +25,8 @@ type policySource struct {
 }
 
 type pinnedPolicySource struct {
-	reader *vault.Reader
-	entry  vault.Entry
+	reader *vaultfs.Reader
+	entry  vaultfs.Entry
 }
 
 func (s policySource) unchanged() bool {
@@ -39,7 +39,7 @@ func (s policySource) unchanged() bool {
 	)
 	if s.pinned != nil {
 		data, err = s.pinned.reader.ReadFile(context.Background(), s.pinned.entry)
-		if errors.Is(err, vault.ErrSourceChanged) {
+		if errors.Is(err, vaultfs.ErrSourceChanged) {
 			// The pinned entry records which file this was at startup, and the
 			// identity it records includes the modification time — so a git
 			// checkout, a pull, a restored backup or an editor that saves by
@@ -96,7 +96,7 @@ func CorpusPolicyFingerprint(artifact ArtifactPolicy, privacy PrivacyPolicy) ([s
 // CorpusPolicyFingerprint: irrelevant contract edits keep active corpus
 // compatibility, while an incomplete staging generation must not resume under
 // authority derived from different source bytes or another vault's contract.
-func PolicySourceFingerprint(reader *vault.Reader, artifact ArtifactPolicy, privacy PrivacyPolicy) ([sha256.Size]byte, bool) {
+func PolicySourceFingerprint(reader *vaultfs.Reader, artifact ArtifactPolicy, privacy PrivacyPolicy) ([sha256.Size]byte, bool) {
 	if reader == nil || !artifact.Available() || !privacy.Available() || artifact.state.source.path == "" ||
 		artifact.state.source != privacy.state.source {
 		return [sha256.Size]byte{}, false

@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -246,7 +247,7 @@ func serveRaw(
 }
 
 func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation string, err error, lang wording.Lang) {
-	if errors.Is(err, vault.ErrSourceChanged) {
+	if errors.Is(err, vaultfs.ErrSourceChanged) {
 		h.sources.Log.Warn(operation, "path", rel, "error", err)
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return

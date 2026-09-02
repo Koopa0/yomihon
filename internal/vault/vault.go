@@ -1,9 +1,17 @@
-// Package vault reads notes from the Obsidian vault on disk. The vault is
-// the single source of truth; nothing in this package ever writes to it.
+// Package vault is the note model: what a Markdown file in the Obsidian vault
+// means once its bytes are in hand. It splits frontmatter from body, decides
+// what each frontmatter value is, locates the spans the status write face
+// replaces, derives a note's content identity, and holds the one spelling and
+// the one reading order every vault path is compared by.
 //
-// Reading is fault-tolerant by contract: a broken frontmatter block
-// yields a note with a diagnostic attached, never an error that would stop
-// rendering.
+// It opens nothing. Getting the bytes is a separate capability, in vaultfs,
+// which depends on this package for the path spelling rather than the other
+// way round — so a caller that only asks what a note says never acquires the
+// ability to read the disk.
+//
+// The vault is the single source of truth; nothing here ever writes to it.
+// Reading is fault-tolerant by contract: a broken frontmatter block yields a
+// note with a diagnostic attached, never an error that would stop rendering.
 package vault
 
 import (
@@ -172,6 +180,15 @@ func (n *Note) Updated() time.Time {
 func (n *Note) Slug() string {
 	s, _ := n.String("slug")
 	return s
+}
+
+// IsMarkdown reports whether relPath names a Markdown note: the path ends in
+// the exact extension ".md". The match is case-sensitive, so "Note.MD" names
+// a resource rather than a note. Every reader splits note from resource
+// through this one test; a reader folding case on its own would quietly widen
+// what it alone treats as a note.
+func IsMarkdown(relPath string) bool {
+	return strings.HasSuffix(relPath, ".md")
 }
 
 // FrontmatterSplit is the byte-level split of one note. Content is the YAML

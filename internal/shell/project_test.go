@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func lifecycleView(t *testing.T, contract *schema.Contract) status.View {
@@ -22,9 +22,9 @@ func lifecycleView(t *testing.T, contract *schema.Contract) status.View {
 func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
 	t.Helper()
 	root := t.TempDir()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -65,9 +65,9 @@ func governedSnapshotView(
 			t.Fatalf("writing %q: %v", relPath, err)
 		}
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -63,10 +64,10 @@ const reconcileEvery = 150
 
 // Source is the rooted read capability required to construct a generation.
 // The interface is defined by its only consumer so tests can count scans and
-// reads without weakening vault.Reader's production identity checks.
+// reads without weakening vaultfs.Reader's production identity checks.
 type Source interface {
-	ScanAvailable(context.Context) (vault.Scan, error)
-	ReadFile(context.Context, vault.Entry) ([]byte, error)
+	ScanAvailable(context.Context) (vaultfs.Scan, error)
+	ReadFile(context.Context, vaultfs.Entry) ([]byte, error)
 }
 
 // Freshness is the published account of how the reading generation relates to
@@ -147,7 +148,7 @@ type View struct {
 	artifactPolicy schema.ArtifactPolicy
 	privacyPolicy  schema.PrivacyPolicy
 
-	scan     vault.Scan
+	scan     vaultfs.Scan
 	notes    map[string]Reading
 	markdown *render.Pipeline
 
@@ -346,7 +347,7 @@ func (v *View) PrivacyPolicy() schema.PrivacyPolicy {
 
 // Files returns the regular files captured in this generation, in canonical
 // path order. The returned slice and entries are independent of the View.
-func (v *View) Files() []vault.Entry {
+func (v *View) Files() []vaultfs.Entry {
 	if v == nil {
 		return nil
 	}
@@ -354,9 +355,9 @@ func (v *View) Files() []vault.Entry {
 }
 
 // Entry returns the captured regular-file identity for canonicalPath.
-func (v *View) Entry(canonicalPath string) (vault.Entry, bool) {
+func (v *View) Entry(canonicalPath string) (vaultfs.Entry, bool) {
 	if v == nil {
-		return vault.Entry{}, false
+		return vaultfs.Entry{}, false
 	}
 	return v.scan.Entry(canonicalPath)
 }
@@ -434,7 +435,7 @@ type Store struct {
 	// are. Each build asks it what a note's frontmatter
 	// should have said; nothing writes to it, and no View holds it.
 	contract *schema.Contract
-	prev     vault.Scan
+	prev     vaultfs.Scan
 	retry    bool
 
 	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry
@@ -445,7 +446,7 @@ type Store struct {
 	// immediate as the scan interval.
 	consecutiveIncomplete int
 	nextRetry             time.Time
-	incompleteScan        vault.Scan
+	incompleteScan        vaultfs.Scan
 
 	// incompleteSincePublish counts the build attempts that have come back
 	// incomplete since the last generation that read everything it wanted, and
@@ -622,7 +623,7 @@ func (s *Store) rescan(ctx context.Context) {
 	s.incompleteSincePublish = 0
 	s.lastComplete = builtAt
 	s.nextRetry = time.Time{}
-	s.incompleteScan = vault.Scan{}
+	s.incompleteScan = vaultfs.Scan{}
 	s.logBuild("vault snapshot rebuilt", candidate, scan)
 }
 
@@ -640,7 +641,7 @@ func (s *Store) rescan(ctx context.Context) {
 // The retry state is untouched: the folder keeps trying for a whole read on
 // the same schedule, and every later incomplete attempt publishes too, so work
 // written during the failure appears as soon as the scan sees it.
-func (s *Store) publishOnceDegraded(candidate *View, scan vault.Scan, blocked []BlockedSource) {
+func (s *Store) publishOnceDegraded(candidate *View, scan vaultfs.Scan, blocked []BlockedSource) {
 	if s.incompleteSincePublish < degradeAfter {
 		return
 	}
@@ -663,7 +664,7 @@ func (s *Store) publishOnceDegraded(candidate *View, scan vault.Scan, blocked []
 // running failure count go to the live record, which is how the pages serving
 // the retained generation can say the folder has moved on without it; that
 // generation's own build facts are already fixed in the view being served.
-func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
+func (s *Store) noteIncomplete(scan vaultfs.Scan, blocked []BlockedSource) {
 	if !s.incompleteScan.SameFiles(scan) {
 		s.consecutiveIncomplete = 0
 	}
@@ -703,7 +704,7 @@ func buildView(
 	ctx context.Context,
 	source Source,
 	previous *View,
-	scan vault.Scan,
+	scan vaultfs.Scan,
 	log *slog.Logger,
 	//nolint:gocritic // hugeParam: the copy is the point and it replaces four heavier
 	// parameters. One generation builds from one reading of the capabilities;
@@ -960,7 +961,7 @@ func (g *generation) carryFile(from carriedGeneration, relPath string, want byte
 // blockedFromProblems carries the scan's unobservable paths into the build's
 // blocked-source list, so a directory that cannot be opened is reported the
 // same way as a file that cannot be read.
-func blockedFromProblems(problems []vault.Problem) []BlockedSource {
+func blockedFromProblems(problems []vaultfs.Problem) []BlockedSource {
 	if len(problems) == 0 {
 		return nil
 	}
@@ -1029,7 +1030,7 @@ type bytesWanted struct {
 }
 
 // wantedBytes decides what this generation needs from one scanned entry.
-func wantedBytes(entry vault.Entry, note bool) bytesWanted {
+func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 	if note {
 		// A note is always read: every file in the folder stays readable, and
 		// its page renders whatever its size. Only the index has a bound, and
@@ -1070,7 +1071,7 @@ func indexDocuments(
 // small enough that its own page shows its characters rather than an
 // information card. The predicates are the page's, so one rule holds across
 // both faces — if yomihon shows it to you as text, you can find it.
-func readableAsText(entry vault.Entry) bool {
+func readableAsText(entry vaultfs.Entry) bool {
 	relPath := entry.Path()
 	return !render.IsPicture(relPath) &&
 		!render.IsPDF(relPath) &&
@@ -1080,11 +1081,11 @@ func readableAsText(entry vault.Entry) bool {
 // withinSourceCap reports whether a file is small enough for its characters to
 // be held. It is the same ceiling the file page shows its own readers, so what
 // yomihon will search and what it will display as text answer to one rule.
-func withinSourceCap(entry vault.Entry) bool {
+func withinSourceCap(entry vaultfs.Entry) bool {
 	return entry.Size() <= render.MaxSourceBytes
 }
 
-func (s *Store) logBuild(message string, view *View, scan vault.Scan) {
+func (s *Store) logBuild(message string, view *View, scan vaultfs.Scan) {
 	s.log.Info(message,
 		"files", len(scan.Files()),
 		"scan_problems", len(scan.Problems()),

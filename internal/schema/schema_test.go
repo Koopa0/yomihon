@@ -21,7 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func TestContractExposesNoFields(t *testing.T) {
@@ -327,11 +327,11 @@ never_egress_dirs = ["Private"]
 	}
 }
 
-func loadPinnedSemanticContract(t *testing.T, root string) (*vault.Reader, *schema.Contract) {
+func loadPinnedSemanticContract(t *testing.T, root string) (*vaultfs.Reader, *schema.Contract) {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -354,9 +354,9 @@ non_instance_dirs = ["System/templates"]
 [privacy]
 never_egress_dirs = ["Private"]
 `)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -410,9 +410,9 @@ func TestLoadReaderRejectsSymlinkedContract(t *testing.T) {
 	if err := os.Symlink(outside, contractPath); err != nil {
 		t.Fatalf("symlink contract: %v", err)
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

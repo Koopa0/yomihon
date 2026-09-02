@@ -36,6 +36,7 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -55,7 +56,7 @@ const typeLesson = "lesson"
 // view for the request. Source changes affect the next request; a write still
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
-	Source   *vault.Reader
+	Source   *vaultfs.Reader
 	Status   func() status.View
 	Snapshot func() *snapshot.View
 	// ObservedStatus is a closure over the write package's read of the note's

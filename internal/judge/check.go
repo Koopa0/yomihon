@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // Check scans the vault rooted at root for corpus-level findings — broken and
@@ -156,7 +157,7 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 // that every caller gets it. A vault path handed straight to this function used
 // to come back as a scope the contract withholds, which told an operator whose
 // contract withholds nothing that his own vault root was private.
-func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authority scanAuthority) ([]Finding, error) {
+func filterByPaths(findings []Finding, paths []string, scan vaultfs.Scan, authority scanAuthority) ([]Finding, error) {
 	if err := scopeIsWrittenFromTheVaultRoot(paths); err != nil {
 		return nil, err
 	}

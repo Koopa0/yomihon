@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // TestNewRealVault checks anonymous structural invariants against an
@@ -21,7 +22,7 @@ func TestNewRealVault(t *testing.T) {
 	defer redactRealVaultPanic(t)
 
 	root := requireRealVaultRoot(t)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal("open configured real vault failed")
 	}

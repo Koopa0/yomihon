@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func writeNavFixture(t *testing.T, root, rel, content string) {
@@ -38,9 +39,9 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -145,9 +146,9 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 	writeNavFixture(t, root, mapPath, string(mapBytes))
 	writeNavFixture(t, root, "System/reports/audit.md", "report\n")
 
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+		t.Fatalf("vaultfs.Open: %v", err)
 	}
 	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
@@ -224,9 +225,9 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		t.Fatalf("Chtimes captured: %v", err)
 	}
 
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+		t.Fatalf("vaultfs.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

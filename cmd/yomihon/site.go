@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // readingSite is the production HTTP composition and the snapshot scanner it
@@ -36,7 +36,7 @@ type readingSite struct {
 	// nothing here and is wrong.
 	snapshots *snapshot.Store
 	writer    *status.Writer
-	source    *vault.Reader
+	source    *vaultfs.Reader
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
 	requestMu sync.Mutex
@@ -77,7 +77,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 }
 
 func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *readingSite, resultErr error) {
-	source, err := vault.Open(root)
+	source, err := vaultfs.Open(root)
 	if err != nil {
 		return nil, fmt.Errorf("open vault source: %w", err)
 	}

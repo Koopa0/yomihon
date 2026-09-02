@@ -26,6 +26,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -215,7 +216,7 @@ type fileSnapshot struct {
 // contract could not be read both arrive here with no contract, and only the
 // second one is a fault. When contract is non-nil, governance must be
 // contract.Governance().
-func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
+func Open(source *vaultfs.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
 	if source == nil {
 		panic("status: Open requires a non-nil Reader")
 	}
@@ -732,7 +733,7 @@ func (w *Writer) validateWriteTarget(rel, relSlash string) error {
 	// whole of that definition before touching the file, so a resource
 	// carrying note-shaped frontmatter cannot acquire a note-lifecycle
 	// transition for something the reading face never shows.
-	if !vault.IsMarkdown(relSlash) || vault.OutsideScan(relSlash) {
+	if !vault.IsMarkdown(relSlash) || vaultfs.OutsideScan(relSlash) {
 		return ErrNonInstance
 	}
 	return w.targetSpelledAsRequested(rel, relSlash)

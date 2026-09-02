@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -276,7 +276,7 @@ func homeStandIn(snap *snapshot.View, content homeContent) pages.HomeStandIn {
 	}
 	files := snap.Files()
 	standIn := pages.HomeStandIn{Shown: true, Files: len(files)}
-	var newest vault.Entry
+	var newest vaultfs.Entry
 	for _, entry := range files {
 		if newest.Path() == "" || entry.ModTime().After(newest.ModTime()) {
 			newest = entry

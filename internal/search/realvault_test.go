@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // TestNewIndexRealVault checks that an explicitly selected private vault produces
@@ -20,7 +21,7 @@ func TestNewIndexRealVault(t *testing.T) {
 	defer redactRealVaultPanic(t)
 
 	root := requireRealVaultRoot(t)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal("open configured real vault failed")
 	}

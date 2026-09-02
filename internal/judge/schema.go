@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // checkSchema validates every knowledge note's frontmatter against the
@@ -67,7 +67,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 // since a folder holding only pictures is governed ground with no frontmatter
 // to judge yet, and since the directory is only observable under the exact
 // spelling that was declared while a file below it is matched under any.
-func checkKnowledgeScope(scan vault.Scan, contract *schema.Contract) []Finding {
+func checkKnowledgeScope(scan vaultfs.Scan, contract *schema.Contract) []Finding {
 	declared := contract.Definition().Scan.KnowledgeDirs
 	if len(declared) == 0 {
 		return nil

@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // governedStatusView opens a real writer over the shared test contract. It
@@ -126,9 +126,9 @@ func closedStatusView(t *testing.T) status.View {
 // opened under, so they differ only in these two arguments.
 func openStatusView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
 	t.Helper()
-	reader, err := vault.Open(t.TempDir())
+	reader, err := vaultfs.Open(t.TempDir())
 	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+		t.Fatalf("vaultfs.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
