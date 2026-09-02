@@ -34,13 +34,14 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	lang := wording.LanguageFromRequest(r)
-	snap := h.current().Capture()
+	request := h.snapshot()
+	snap := request.Generation
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
 		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
-	shell := h.shell(snap)
+	shell := request.Shell
 
 	// The frame refuses scripts, which is right — a briefing that fetches from a
 	// CDN would be reaching off this machine. Reading the bytes here is what
@@ -69,7 +70,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // fail-quiet response rather than a server failure.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	lang := wording.LanguageFromRequest(r)
-	snap := h.current().Capture()
+	snap := h.snapshot().Generation
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
 		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)

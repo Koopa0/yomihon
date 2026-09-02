@@ -331,8 +331,9 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
-	shellForSnapshot := func(snap *snapshot.Generation) nav.Shell {
-		return shell.Project(writer.Authority(), snap)
+	reportProvider := func() report.RequestSnapshot {
+		snap := store.Current().Capture()
+		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
 	}
 	shellProvider := func() nav.Shell {
 		authority := writer.Authority()
@@ -355,7 +356,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(shellProvider, log).Register(mux)
-	report.New(reader, store.Current, shellForSnapshot, log).Register(mux)
+	report.New(reader, reportProvider, log).Register(mux)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

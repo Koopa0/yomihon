@@ -128,17 +128,21 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	if err != nil {
 		return nil, err
 	}
-	shellForSnapshot := func(snap *snapshot.Generation) nav.Shell {
-		return shell.Project(writer.Authority(), snap)
-	}
+	// Each face is handed one closure that answers with everything that face
+	// reads from the current generation, captured together. Two calls could
+	// straddle a rebuild, and a page assembled from two generations states
+	// things about a vault that never existed at once.
 	shellProvider := func() nav.Shell {
-		authority := writer.Authority()
-		return shell.Project(authority, store.Current().Capture())
+		return shell.Project(writer.Authority(), store.Current().Capture())
 	}
 	searchProvider := func() search.RequestSnapshot {
 		authority := writer.Authority()
 		snap := store.Current().Capture()
 		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
+	}
+	reportProvider := func() report.RequestSnapshot {
+		snap := store.Current().Capture()
+		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
 	}
 
 	mux := http.NewServeMux()
@@ -153,7 +157,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	status.NewHandler(writer, shellProvider, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(shellProvider, log).Register(mux)
-	report.New(source, store.Current, shellForSnapshot, log).Register(mux)
+	report.New(source, reportProvider, log).Register(mux)
 	asset.Register(mux)
 
 	handler := http.NewCrossOriginProtection().Handler(mux)

@@ -56,8 +56,9 @@ func newHandler(t *testing.T, root string) http.Handler {
 	mux := http.NewServeMux()
 	New(
 		source,
-		func() *snapshot.Generation { return view },
-		func(snap *snapshot.Generation) nav.Shell { return nav.Shell{Nav: snap.Navigation()} },
+		func() RequestSnapshot {
+			return RequestSnapshot{Generation: view, Shell: nav.Shell{Nav: view.Navigation()}}
+		},
 		slog.New(slog.DiscardHandler),
 	).Register(mux)
 	return mux
@@ -98,12 +99,12 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 			mux := http.NewServeMux()
 			New(
 				source,
-				func() *snapshot.Generation {
+				func() RequestSnapshot {
 					calls++
-					return view
-				},
-				func(snap *snapshot.Generation) nav.Shell {
-					return nav.Shell{Nav: snap.Navigation(), Governed: true}
+					return RequestSnapshot{
+						Generation: view,
+						Shell:      nav.Shell{Nav: view.Navigation(), Governed: true},
+					}
 				},
 				slog.New(slog.DiscardHandler),
 			).Register(mux)
