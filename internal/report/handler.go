@@ -9,7 +9,11 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const rawContentSecurityPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+// briefingSandbox is what an agent-authored briefing is served under. It is
+// the vault-file sandbox with one difference: data: fonts, images and media
+// are admitted, because a briefing carries its own charts and pictures inline
+// and would otherwise render as a page full of holes.
+const briefingSandbox = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
 	"font-src data:; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
 	"img-src data:; media-src data:; object-src 'none'; " +
 	"script-src 'none'; script-src-attr 'none'; " +
@@ -100,7 +104,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	// is known to reach the reader, and withheld otherwise. Under the reading
 	// shell's own policy this same document would be a first-party page with
 	// script access to the surface around it.
-	if !origin.SetContentSecurityPolicy(r.Context(), w, rawContentSecurityPolicy) {
+	if !origin.SetContentSecurityPolicy(r.Context(), w, briefingSandbox) {
 		h.log.Error("serve report bytes", "name", rep.Name, "path", rep.RelPath,
 			"error", "the response sandbox could not be established")
 		http.Error(w, wording.SandboxUnavailable.In(pages.LanguageFromRequest(r)), http.StatusInternalServerError)

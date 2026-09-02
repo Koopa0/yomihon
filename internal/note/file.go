@@ -29,7 +29,7 @@ const sniffBytes = 512
 const (
 	textContentType  = "text/plain; charset=utf-8"
 	octetContentType = "application/octet-stream"
-	rawSandboxPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+	vaultFileSandbox = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
 		"font-src 'none'; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
 		"img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; " +
 		"script-src-attr 'none'; style-src 'unsafe-inline'; worker-src 'none'"
@@ -154,7 +154,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 // briefings established. Every response states its content type outright and
 // forbids browser sniffing. Document types that could execute in yomihon's
 // origin also receive a Content-Security-Policy sandbox; PDF keeps the narrower
-// confinement described by rawContentSecurityPolicy.
+// confinement described by sandboxFor.
 //
 // The sandbox here is tighter than the report route's in one respect: both
 // policies refuse scripts, but the report policy admits data: fonts, images,
@@ -231,7 +231,7 @@ func serveRaw(
 	// reach the reader. Serving them under the reading shell's own policy
 	// instead would give an authored SVG or HTML file script access to the
 	// whole surface, which is the one outcome the sandbox exists to prevent.
-	if !origin.SetContentSecurityPolicy(r.Context(), w, rawContentSecurityPolicy(contentType)) {
+	if !origin.SetContentSecurityPolicy(r.Context(), w, sandboxFor(contentType)) {
 		return fmt.Errorf("%w: %s", errSandboxUnavailable, rel)
 	}
 	// Cross-origin embedding is refused one layer up, in the server's own
@@ -254,7 +254,7 @@ func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation str
 	http.Error(w, wording.FileUnreadable.In(lang), http.StatusInternalServerError)
 }
 
-// rawContentSecurityPolicy chooses how strongly a raw response is sandboxed.
+// sandboxFor chooses how strongly a raw response is sandboxed.
 //
 // The sandbox exists to neutralize a same-origin document that could run
 // scripts against the app's origin — an SVG or an HTML file served from this
@@ -266,12 +266,12 @@ func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation str
 // therefore keeps only the framing confinement — yomihon's own shell is still
 // the sole page that may embed it, enforced here and again by the same-origin
 // resource policy the server stamps on every response — and everything else is
-// served under the raw sandbox policy.
-func rawContentSecurityPolicy(contentType string) string {
+// served under vaultFileSandbox.
+func sandboxFor(contentType string) string {
 	if strings.HasPrefix(contentType, "application/pdf") {
 		return "frame-ancestors 'self'"
 	}
-	return rawSandboxPolicy
+	return vaultFileSandbox
 }
 
 // fileContentType names a file's bytes: the pinned type for a kind this feature
