@@ -368,22 +368,3 @@ func stepWordNext(course bool, lang wording.Lang) string {
 	}
 	return wording.NextFile.In(lang)
 }
-
-// pathGroupDrawn reports whether the rail shows this branch of a study path:
-// one the course includes, or a structural heading that carries one. A branch
-// the grammar does not project is not a way to a lesson, so it is not a way
-// through the rail either.
-func pathGroupDrawn(g *nav.PathGroup) bool {
-	if g.Projectable {
-		return true
-	}
-	if !g.Carries {
-		return false
-	}
-	for _, item := range g.Items {
-		if item.Group != nil && pathGroupDrawn(item.Group) {
-			return true
-		}
-	}
-	return false
-}

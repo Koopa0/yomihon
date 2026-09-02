@@ -1453,7 +1453,7 @@ func pathGroupNode(sb Sidebar, pathRel string, chain []string, g *nav.PathGroup)
 			templ_7745c5c3_Var68 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		if pathGroupDrawn(g) {
+		if drawable(g) {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, "<details")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

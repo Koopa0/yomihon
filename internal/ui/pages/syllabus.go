@@ -240,8 +240,13 @@ func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	return sv, true
 }
 
-// drawable reports whether the course page shows this branch: one the grammar
-// projects, or a structural heading that carries one.
+// drawable reports whether a surface shows this branch of a course: one the
+// grammar projects, or a structural heading that carries one. The course page
+// and the navigation rail draw the same branches and have to agree about which,
+// so they ask one predicate rather than each keeping its own.
+//
+// A branch the grammar does not project is not a way to a lesson, so it is not
+// a way through the rail either.
 func drawable(g *nav.PathGroup) bool {
 	if g.Projectable {
 		return true
