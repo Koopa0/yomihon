@@ -99,6 +99,15 @@ func headingInnerText(inner string) string {
 // assigned before the walk begins. The title is above this HTML and outside
 // it, so nothing in the walk could otherwise see it, and a section further
 // down reducing to the same name would quietly issue the id a second time.
+//
+// It reads the HTML this package has just written rather than a parsed tree,
+// and that is not a shortcut: the tree it would read is the wrong one. Every
+// callout body and every transcluded excerpt is parsed as a document of its
+// own and spliced into the page as text afterwards, so no single goldmark
+// document ever holds the page's headings together. A renderer hung on the
+// heading node would therefore number each body from one and stamp one id on
+// several sections of one page. What this assigns is the whole page's
+// uniqueness, and the whole page exists only here.
 func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
