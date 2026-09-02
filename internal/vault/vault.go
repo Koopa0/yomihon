@@ -67,9 +67,47 @@ func Parse(rel string, data []byte) *Note {
 	return n
 }
 
+// String reads one frontmatter value the vault writes as text. It reports
+// whether the note wrote that key as text at all, which is not the same
+// question as whether the text is empty: a note may declare a field and leave
+// it blank, and the two are different states of the same field. A key the note
+// never wrote, or wrote as a number, a date or a list, answers false with the
+// empty string — a malformed field costs that field, never the build.
+//
+// This and Strings are where the coercion is decided, so every typed accessor
+// below and every caller reading a key none of them names apply one rule. A
+// second reader written beside a caller is free to answer differently, and the
+// disagreement reaches the reader as one face finding a note that another
+// cannot.
+func (n *Note) String(key string) (string, bool) {
+	s, ok := n.Frontmatter[key].(string)
+	return s, ok
+}
+
+// Strings reads one frontmatter value the vault writes as a list of text, in
+// the order the note declared it. A member that is not text is dropped rather
+// than refused, so one bad entry costs that entry alone.
+//
+// The empty answers are two and they differ: nothing at all when the key is
+// absent or holds something that is not a list, and an empty list when the
+// note did write a list that holds no text.
+func (n *Note) Strings(key string) []string {
+	raw, ok := n.Frontmatter[key].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // Title is the frontmatter title, falling back to the filename stem.
 func (n *Note) Title() string {
-	if t, ok := n.Frontmatter["title"].(string); ok && t != "" {
+	if t, _ := n.String("title"); t != "" {
 		return t
 	}
 	base := filepath.Base(filepath.FromSlash(n.RelPath))
@@ -79,26 +117,20 @@ func (n *Note) Title() string {
 // Status is the frontmatter status, empty when absent (legal for e.g.
 // drills: the contract says no_frontmatter_is_legal).
 func (n *Note) Status() string {
-	if s, ok := n.Frontmatter["status"].(string); ok {
-		return s
-	}
-	return ""
+	s, _ := n.String("status")
+	return s
 }
 
 // Type is the frontmatter type, empty when absent.
 func (n *Note) Type() string {
-	if t, ok := n.Frontmatter["type"].(string); ok {
-		return t
-	}
-	return ""
+	t, _ := n.String("type")
+	return t
 }
 
 // Domain is the frontmatter domain, empty when absent.
 func (n *Note) Domain() string {
-	if d, ok := n.Frontmatter["domain"].(string); ok {
-		return d
-	}
-	return ""
+	d, _ := n.String("domain")
+	return d
 }
 
 // Aliases are the other names this note answers to, in the order it declared
@@ -111,17 +143,7 @@ func (n *Note) Domain() string {
 // to disagree about what a note is called, and a reader would meet that
 // disagreement as a link that works and a search that returns nothing.
 func (n *Note) Aliases() []string {
-	raw, ok := n.Frontmatter["aliases"].([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(raw))
-	for _, v := range raw {
-		if s, ok := v.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
+	return n.Strings("aliases")
 }
 
 // Updated is the note's declared update date, or the zero time when the
@@ -148,10 +170,8 @@ func (n *Note) Updated() time.Time {
 // filename is never that key (lesson filenames carry a human title and are
 // not derivable from the sidecar's name).
 func (n *Note) Slug() string {
-	if s, ok := n.Frontmatter["slug"].(string); ok {
-		return s
-	}
-	return ""
+	s, _ := n.String("slug")
+	return s
 }
 
 // FrontmatterSplit is the byte-level split of one note. Content is the YAML

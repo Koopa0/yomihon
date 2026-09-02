@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -434,4 +436,83 @@ func TestUpdated(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNoteStringAndStrings pins the two frontmatter readers the typed
+// accessors are built on: what counts as text, what counts as a list of text,
+// and what a shape that is neither costs. A malformed field costs that field
+// and never the build, so every row asking for a shape the note did not write
+// answers empty rather than an error. The nil-against-empty split in the list
+// reader is deliberate and pinned here: nothing at all when the value is not a
+// list, an empty list when it is a list holding no text.
+func TestNoteStringAndStrings(t *testing.T) {
+	t.Parallel()
+
+	const content = `---
+title: A note
+declared_empty: ""
+count: 7
+when: 2026-09-02
+topics: [alpha, beta]
+mixed:
+  - alpha
+  - 7
+  - beta
+nested:
+  - [alpha]
+none: []
+---
+body
+`
+	n := vault.Parse("Notes/one.md", []byte(content))
+
+	t.Run("text", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name   string
+			key    string
+			want   string
+			wantOK bool
+		}{
+			{name: "text answers text", key: "title", want: "A note", wantOK: true},
+			{name: "text declared empty is still text", key: "declared_empty", want: "", wantOK: true},
+			{name: "a number is not text", key: "count"},
+			{name: "a date is not text", key: "when"},
+			{name: "a list is not text", key: "topics"},
+			{name: "a key the note never wrote is not text", key: "absent"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				got, ok := n.String(tt.key)
+				if got != tt.want || ok != tt.wantOK {
+					t.Errorf("String(%q) = (%q, %t), want (%q, %t)", tt.key, got, ok, tt.want, tt.wantOK)
+				}
+			})
+		}
+	})
+
+	t.Run("list of text", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name string
+			key  string
+			want []string
+		}{
+			{name: "a list of text answers all of it in order", key: "topics", want: []string{"alpha", "beta"}},
+			{name: "a list drops the members that are not text", key: "mixed", want: []string{"alpha", "beta"}},
+			{name: "a list of lists holds no text", key: "nested", want: []string{}},
+			{name: "an empty list is a list holding no text", key: "none", want: []string{}},
+			{name: "text is not a list of text", key: "title", want: nil},
+			{name: "a key the note never wrote is not a list of text", key: "absent", want: nil},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				if diff := cmp.Diff(tt.want, n.Strings(tt.key)); diff != "" {
+					t.Errorf("Strings(%q) mismatch (-want +got):\n%s", tt.key, diff)
+				}
+			})
+		}
+	})
 }

@@ -273,10 +273,10 @@ func DocumentFromNote(n *vault.Note) Document {
 		RelPath:   n.RelPath,
 		Title:     n.Title(),
 		NoteType:  n.Type(),
-		Domain:    stringField(n, "domain"),
+		Domain:    n.Domain(),
 		Status:    n.Status(),
-		Slug:      stringField(n, "slug"),
-		Topics:    stringsField(n, "topics"),
+		Slug:      n.Slug(),
+		Topics:    n.Strings("topics"),
 		Aliases:   n.Aliases(),
 		PlainText: render.PlainText(n.Body),
 		// A diagnostic here means the block was present and did not parse. A
@@ -387,29 +387,4 @@ func (idx *Index) StatusHolders() ([]StatusHolder, error) {
 		})
 	}
 	return out, nil
-}
-
-// stringField reads a string frontmatter value, empty when absent or not a
-// string (a malformed field costs that field, never the build).
-func stringField(n *vault.Note, key string) string {
-	if v, ok := n.Frontmatter[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-// stringsField reads a list-of-strings frontmatter value (e.g. topics),
-// tolerating any non-list-of-strings shape by returning nil.
-func stringsField(n *vault.Note, key string) []string {
-	raw, ok := n.Frontmatter[key].([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(raw))
-	for _, v := range raw {
-		if s, ok := v.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
 }
