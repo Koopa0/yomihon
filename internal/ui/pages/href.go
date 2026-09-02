@@ -245,7 +245,20 @@ func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
 		TextSize:                  textSize,
 		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
 		// The request's own address, so the language form can bring the reader
-		// back to this page after the switch.
-		ReturnTo: r.URL.RequestURI(),
+		// back to this page after the switch. Only an address a GET can revisit
+		// qualifies: a page rendered by a POST names a target, not a place, so
+		// the form falls back to Home — and a page that knows a better return,
+		// as the recovery page knows its note, overrides this afterwards.
+		ReturnTo: returnableAddress(r),
 	}
+}
+
+// returnableAddress is the address the language form sends a reader back to: a
+// GET request's own URI, and Home for everything else, because re-fetching a
+// POST target with a GET lands on no page at all.
+func returnableAddress(r *http.Request) string {
+	if r.Method == http.MethodGet {
+		return r.URL.RequestURI()
+	}
+	return "/"
 }
