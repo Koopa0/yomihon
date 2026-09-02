@@ -439,7 +439,7 @@ func TestRunCommandRechecksPrivacyImmediatelyBeforeEmission(t *testing.T) {
 				&stdout,
 				&stderr,
 				false,
-				commandHooks{beforeEmission: func() {
+				actionHooks{beforeEmission: func() {
 					if writeErr := os.WriteFile(contractPath, append(contract, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is rooted in t.TempDir
 						t.Fatalf("WriteFile(changed contract) error = %v", writeErr)
 					}

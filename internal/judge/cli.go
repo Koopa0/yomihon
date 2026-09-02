@@ -22,22 +22,12 @@ type commandArgs struct {
 	positionals []string
 }
 
-type commandHooks struct {
-	afterScan      func()
-	afterNoteRead  func(string)
-	beforeEmission func()
-}
-
-func (h commandHooks) actionHooks() actionHooks {
-	return actionHooks{afterScan: h.afterScan, afterNoteRead: h.afterNoteRead}
-}
-
 // RunCommand parses and runs one judge command. It writes only the command's
 // frozen payload to stdout, writes usage or tool failures to stderr, and
 // returns the process exit code: 0 for success, 1 for a gate hit or missing
 // note, and 2 for an invalid invocation or tool failure.
 func RunCommand(command string, args []string, stdout, stderr io.Writer, stdoutIsTerminal bool) int {
-	return runCommand(command, args, stdout, stderr, stdoutIsTerminal, commandHooks{})
+	return runCommand(command, args, stdout, stderr, stdoutIsTerminal, actionHooks{})
 }
 
 func runCommand(
@@ -45,7 +35,7 @@ func runCommand(
 	args []string,
 	stdout, stderr io.Writer,
 	stdoutIsTerminal bool,
-	hooks commandHooks,
+	hooks actionHooks,
 ) int {
 	parsed, err := parseCommandArgs(args)
 	if err != nil {
@@ -73,13 +63,13 @@ func runCommand(
 			Deny:     parsed.deny,
 			Baseline: parsed.baseline,
 			Format:   format,
-		}, hooks.actionHooks())
+		}, hooks)
 	case "coverage":
-		prepared, err = prepareCoverageWithHooks(&CoverageOptions{Root: root, Format: format}, hooks.actionHooks())
+		prepared, err = prepareCoverageWithHooks(&CoverageOptions{Root: root, Format: format}, hooks)
 	case "exists":
 		prepared, err = prepareExistsWithHooks(&ExistsOptions{
 			Root: root, Name: parsed.positionals[0], Format: format,
-		}, hooks.actionHooks())
+		}, hooks)
 	default:
 		return commandError(stderr, fmt.Errorf("unknown judge command %q", command))
 	}

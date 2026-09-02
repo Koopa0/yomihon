@@ -35,7 +35,7 @@ func TestJudgeActionPinsOneRootAcrossRenameAndReplacement(t *testing.T) {
 		&stdout,
 		&stderr,
 		false,
-		commandHooks{afterScan: func() {
+		actionHooks{afterScan: func() {
 			if err := os.Rename(root, moved); err != nil {
 				t.Fatalf("Rename(root) error = %v", err)
 			}
@@ -326,7 +326,7 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 						&stdout,
 						&stderr,
 						false,
-						commandHooks{afterScan: func() { swap.swap(t, root) }},
+						actionHooks{afterScan: func() { swap.swap(t, root) }},
 					)
 					if exit != 2 {
 						t.Errorf("runCommand(%q) exit = %d, want 2", command.name, exit)
@@ -372,7 +372,7 @@ func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
 				&stdout,
 				&stderr,
 				false,
-				commandHooks{
+				actionHooks{
 					afterScan: func() { scans++ },
 					afterNoteRead: func(path string) {
 						reads[path]++
@@ -405,7 +405,7 @@ func TestCheckDiskReferencesUseCapturedMembership(t *testing.T) {
 		&stdout,
 		&stderr,
 		false,
-		commandHooks{afterScan: func() {
+		actionHooks{afterScan: func() {
 			write(t, root, "Attachments/late.md", "arrived after the scan\n")
 		}},
 	)
