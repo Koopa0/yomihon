@@ -122,6 +122,12 @@ func stdoutIsTerminal() bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
+// defaultPort is the port the listener binds when the environment names none.
+// The help text builds its line from this constant rather than repeating the
+// number, because a help line naming a port the server does not listen on is
+// worse than no help line at all: the operator trusts it over the source.
+const defaultPort = "9610"
+
 type config struct {
 	root string
 	port string
@@ -130,7 +136,7 @@ type config struct {
 func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
 	if cfg.port == "" {
-		cfg.port = "9610"
+		cfg.port = defaultPort
 	}
 	info, err := os.Stat(cfg.root) // #nosec G703 -- root is the operator's own vault path from local config
 	if err != nil {
