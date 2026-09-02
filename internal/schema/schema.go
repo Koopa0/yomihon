@@ -115,13 +115,12 @@ type writtenKeys struct {
 	requiredInbox        bool
 }
 
-// contractMetadata retains machine-readable coordination and supersession
-// vocabulary for its schema-owned validation and consumer work. Strict
-// decoding must not silently discard authority that is not consumed yet.
+// contractMetadata retains the supersession vocabulary the replacement ledger
+// is validated against. The coordination keys a contract also carries are
+// named on contractFile, which is what keeps strict decoding from rejecting
+// them; nothing here reads them back, so nothing here holds them.
 type contractMetadata struct {
-	alignedWith          string
-	generatedAtMustMatch bool
-	supersession         *supersessionSection
+	supersession *supersessionSection
 }
 
 type navigationPrimitives struct {
@@ -303,11 +302,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 			noFrontmatterIsLegal: tomlMeta.IsDefined("scan", "no_frontmatter_is_legal"),
 			requiredInbox:        tomlMeta.IsDefined("fields", "required_inbox"),
 		},
-		metadata: contractMetadata{
-			alignedWith:          decoded.AlignedWith,
-			generatedAtMustMatch: decoded.GeneratedAtMustMatch,
-			supersession:         decoded.Supersession,
-		},
+		metadata: contractMetadata{supersession: decoded.Supersession},
 	}
 	if !tomlMeta.IsDefined("schema_version") {
 		return nil, errors.New(`missing required key "schema_version"`)

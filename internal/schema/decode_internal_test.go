@@ -68,12 +68,6 @@ func TestCurrentContractVocabularyDecodes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile(current schema v1 vocabulary) error = %v", err)
 	}
-	if got, want := s.metadata.alignedWith, "Note-Contract.md"; got != want {
-		t.Errorf("decoded aligned_with = %q, want %q", got, want)
-	}
-	if !s.metadata.generatedAtMustMatch {
-		t.Error("decoded generated_at_must_match = false, want true")
-	}
 	if s.metadata.supersession == nil {
 		t.Fatal("decoded supersession = nil, want retained section")
 	}
@@ -428,8 +422,6 @@ type decodeClassification struct {
 	artifactDiagnostic       string
 	privacyAvailable         bool
 	privacyDiagnostic        string
-	alignedWith              string
-	generatedAtMustMatch     bool
 	supersessionPresent      bool
 	supersessionPredecessor  string
 	supersessionSuccessor    string
@@ -452,8 +444,6 @@ func classifyDecode(data []byte) decodeClassification {
 		artifactDiagnostic:   s.ArtifactPolicy().Diagnostic(),
 		privacyAvailable:     s.PrivacyPolicy().Available(),
 		privacyDiagnostic:    s.PrivacyPolicy().Diagnostic(),
-		alignedWith:          s.metadata.alignedWith,
-		generatedAtMustMatch: s.metadata.generatedAtMustMatch,
 	}
 	if s.metadata.supersession != nil {
 		classification.supersessionPresent = true
