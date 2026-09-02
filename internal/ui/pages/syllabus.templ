@@ -40,6 +40,11 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 // backing field for it, and no data means no render — the same treatment the
 // reading page gives a note's subtitle.
 templ syllabusHead(v PathView, lang wording.Lang) {
+	// The kicker ends with the vault's own word for the thing, in the language
+	// the notes write it in. It is not translated and not in the dictionary,
+	// because it is what the author calls it rather than something yomihon
+	// says — so the element declares its language, and a voice reading the page
+	// aloud does not read Japanese as though it were Chinese.
 	<div class="y-syl-kicker">{ wording.SyllabusKicker.In(lang) }<span lang="ja">学習パス</span></div>
 	<h1 class="y-title">{ v.Title }</h1>
 	<div class="y-metarow">

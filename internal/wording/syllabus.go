@@ -2,8 +2,8 @@ package wording
 
 // The syllabus: a study path read as a course rather than as a note.
 
-// SyllabusKicker sits above the title. The Japanese half is the vault's own
-// word for the thing and is not translated: it is what the notes call it.
+// SyllabusKicker sits above the title, before the vault's own word for the
+// thing, which the markup writes and neither half of this pair carries.
 var SyllabusKicker = both("課綱 · ", "Syllabus · ")
 
 // PathItemUnreadable stands where a course lists something the page could not
