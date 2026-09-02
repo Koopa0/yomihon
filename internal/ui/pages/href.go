@@ -25,38 +25,33 @@ import (
 // sites still spell it that way.
 type Shell = nav.Shell
 
-// notesHref builds the reading-page URL for a vault-relative path,
-// percent-escaping each segment individually (so a literal "/" in an
-// escaped segment can never be read as a separator) while keeping "/" as
-// the separator between segments — exactly how GET /notes/{path...} expects
-// to receive it back, and byte-identical to the href the rendered wikilinks
-// use, so a sidebar link and an in-body link to the same note match.
+// vaultHref builds a URL for a vault-relative path under prefix,
+// percent-escaping each segment individually — so a literal "/" inside an
+// escaped segment can never be read as a separator — while keeping "/" as the
+// separator between them. That is exactly how each {path...} route expects to
+// receive a path back, and it is byte-identical to the href the rendered
+// wikilinks use, so a rail link and an in-body link to the same note match.
 //
-// It mirrors internal/render's own unexported notesHref rather than sharing
-// one helper: exporting render's copy (or routing this through render)
-// would couple the UI layer to the renderer for a five-line URL builder,
-// and hoisting a shared "how to link to a note" helper is a change to
-// render's public surface out of scope for the navigation work.
-func notesHref(p string) string {
+// It mirrors the renderer's own unexported builder rather than sharing one:
+// exporting that copy would widen the renderer's surface for the sake of a
+// three-line loop, and the loop is written once here instead of at each route.
+func vaultHref(prefix, p string) string {
 	segments := strings.Split(p, "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
 	}
-	return "/notes/" + strings.Join(segments, "/")
+	return prefix + strings.Join(segments, "/")
 }
 
-// rawHref builds the unchanged-bytes URL for a vault-relative path, escaping
-// each segment exactly as notesHref does, so a file's page and the bytes it
-// points at name the same file whatever its spaces, CJK, or missing extension.
-// It is its own route rather than a suffix on the note URL: a vault directory
-// named "raw" would otherwise make "/notes/raw/x" ambiguous.
-func rawHref(p string) string {
-	segments := strings.Split(p, "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
-	}
-	return "/raw/" + strings.Join(segments, "/")
-}
+// notesHref builds the reading-page URL for a vault-relative path.
+func notesHref(p string) string { return vaultHref("/notes/", p) }
+
+// rawHref builds the unchanged-bytes URL for a vault-relative path, so a file's
+// page and the bytes it points at name the same file whatever its spaces, CJK,
+// or missing extension. It is its own route rather than a suffix on the note
+// URL: a vault directory named "raw" would otherwise make "/notes/raw/x"
+// ambiguous.
+func rawHref(p string) string { return vaultHref("/raw/", p) }
 
 // ObsidianHref builds the obsidian://open URI for the note at rel inside the
 // vault rooted at root. The absolute path rides as the URI's single query
@@ -78,17 +73,10 @@ func ObsidianHref(root, rel string) string {
 	return "obsidian://open?path=" + strings.Join(segments, "/")
 }
 
-// syllabusHref builds the study-path page URL for a vault-relative path,
-// percent-escaping each segment exactly as notesHref does — so a study-path
-// whose path carries spaces or CJK (e.g. "Maps/Go 課綱.md") round-trips through
-// GET /syllabus/{path...} and matches the switcher link byte-for-byte.
-func syllabusHref(p string) string {
-	segments := strings.Split(p, "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
-	}
-	return "/syllabus/" + strings.Join(segments, "/")
-}
+// syllabusHref builds the study-path page URL for a vault-relative path, so a
+// study path whose path carries spaces or CJK (for example "Maps/Go 課綱.md")
+// round-trips through its route and matches the switcher link byte for byte.
+func syllabusHref(p string) string { return vaultHref("/syllabus/", p) }
 
 // statusHref builds the pure-filter browse URL for a status: Home's Lifecycle
 // block links each status to the search results filtered to it. url.Values escapes
@@ -116,16 +104,9 @@ func statusChipLabel(status string, lang wording.Lang) string {
 	return cmp.Or(status, wording.NoStatusStated.In(lang))
 }
 
-// folderHref builds the browse URL for a folder, escaping each segment the
-// way notesHref does so a folder and a note under it agree byte for byte about
-// how their shared path is written.
-func folderHref(dir string) string {
-	segments := strings.Split(dir, "/")
-	for i, segment := range segments {
-		segments[i] = url.PathEscape(segment)
-	}
-	return "/folders/" + strings.Join(segments, "/")
-}
+// folderHref builds the browse URL for a folder, so a folder and a note under
+// it agree byte for byte about how their shared path is written.
+func folderHref(dir string) string { return vaultHref("/folders/", dir) }
 
 // searchHref builds the URL for one search query, escaping it the same way
 // the form submission would, so an offered search and a typed one land on the
