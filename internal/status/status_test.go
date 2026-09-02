@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -1528,5 +1529,65 @@ func TestTheSweepSaysWhatItSetAside(t *testing.T) {
 	}
 	if logged.Len() != 0 {
 		t.Errorf("a flip with nothing abandoned still reported:\n%s", logged.String())
+	}
+}
+
+// TestConstructorsRefuseAWiringBugTheSameWay covers every nil this package's
+// two constructors cannot work without. A nil reader used to come back as an
+// ordinary error while its five siblings panicked, which offered callers a
+// recovery from something no caller can recover from: there is no second
+// vault to try. Open's error return stays for the failures that are real —
+// a root that will not open, a root that moved while it was being pinned.
+func TestConstructorsRefuseAWiringBugTheSameWay(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		call func(t *testing.T)
+		want string
+	}{
+		{
+			name: "a writer with no vault to write into",
+			call: func(t *testing.T) {
+				t.Helper()
+				_, _ = status.Open(nil, nil, schema.Ungoverned(), slog.New(slog.DiscardHandler)) //nolint:errcheck // the call panics before it returns
+			},
+			want: "status: Open requires a non-nil Reader",
+		},
+		{
+			name: "a route with no writer behind it",
+			call: func(t *testing.T) {
+				t.Helper()
+				status.NewHandler(nil, func() pages.Shell { return pages.Shell{} }, slog.New(slog.DiscardHandler))
+			},
+			want: "status: NewHandler requires a non-nil Writer",
+		},
+		{
+			name: "a route with no shell to draw",
+			call: func(t *testing.T) {
+				t.Helper()
+				status.NewHandler(&status.Writer{}, nil, slog.New(slog.DiscardHandler))
+			},
+			want: "status: NewHandler requires a non-nil shell provider",
+		},
+		{
+			name: "a route with nowhere to report",
+			call: func(t *testing.T) {
+				t.Helper()
+				status.NewHandler(&status.Writer{}, func() pages.Shell { return pages.Shell{} }, nil)
+			},
+			want: "status: NewHandler requires a non-nil logger",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			defer func() {
+				if got := recover(); got != tt.want {
+					t.Errorf("panic = %v, want %q", got, tt.want)
+				}
+			}()
+			tt.call(t)
+		})
 	}
 }

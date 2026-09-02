@@ -217,7 +217,7 @@ type fileSnapshot struct {
 // contract.Governance().
 func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
 	if source == nil {
-		return nil, errors.New("status: open writer: vault reader is nil")
+		panic("status: Open requires a non-nil Reader")
 	}
 	root, err := os.OpenRoot(source.Name())
 	if err != nil {
