@@ -231,13 +231,6 @@ func panicsOverTheirOwnReceiver(t *testing.T) map[string]bool {
 func TestAConstructorGuardSaysWhichDependencyWasNil(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "these two guard messages are being corrected by another line of this work",
-		keys: []string{
-			`internal/render/render.go | panic("render: New requires non-nil Transclusions")`,
-			`internal/render/render.go | panic("render: New requires non-nil Titles")`,
-		},
-	}
 	found := findLines(t, func(line string) bool {
 		return strings.Contains(line, `panic("`) && !strings.Contains(line, "unknown") &&
 			!strings.Contains(line, "requires a non-nil")
@@ -248,7 +241,7 @@ func TestAConstructorGuardSaysWhichDependencyWasNil(t *testing.T) {
 	if len(conforming) == 0 {
 		t.Fatal("no constructor guard uses the shape this check asks for, so it is checking a rule nobody follows")
 	}
-	report(t, `a constructor guard must read panic("<package>: <Constructor> requires a non-nil <Field>")`, open.stillOpen(t, found))
+	report(t, `a constructor guard must read panic("<package>: <Constructor> requires a non-nil <Field>")`, found)
 }
 
 // TestNoResponseCarriesASentenceWrittenInTheSource keeps every string a reader

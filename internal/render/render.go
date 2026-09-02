@@ -274,10 +274,10 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles) *Pipeline
 		panic("render: New requires a non-nil *graph.Index")
 	}
 	if transclusions == nil {
-		panic("render: New requires non-nil Transclusions")
+		panic("render: New requires a non-nil Transclusions")
 	}
 	if titles == nil {
-		panic("render: New requires non-nil Titles")
+		panic("render: New requires a non-nil Titles")
 	}
 	return &Pipeline{
 		idx:           idx,
