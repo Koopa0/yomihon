@@ -191,7 +191,7 @@ func Register(mux *http.ServeMux) {
 func serve(w http.ResponseWriter, r *http.Request) {
 	e, ok := registry[r.PathValue("path")]
 	if !ok {
-		http.Error(w, wording.AssetNotFound.In(wording.ZhHant), http.StatusNotFound)
+		http.Error(w, wording.AssetNotFound.In(wording.LanguageFromRequest(r)), http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", e.contentType)

@@ -31,9 +31,7 @@ const CookieName = "yomihon_lang"
 // FromCookieValue reads a stored choice. Only the one value that is not the
 // default is honoured; anything else — a language yomihon does not speak, a
 // truncated value, something a hand wrote — leaves the interface where it
-// started rather than somewhere unpredictable. Reading the cookie itself
-// belongs to whoever already reads this request's other preferences; this
-// package holds no capability of its own and imports nothing.
+// started rather than somewhere unpredictable.
 func FromCookieValue(value string) Lang {
 	if value == string(En) {
 		return En

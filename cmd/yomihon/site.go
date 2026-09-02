@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // readingSite is the production HTTP composition and the snapshot scanner it
@@ -172,7 +173,7 @@ func (site *readingSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	site.requestMu.Lock()
 	if site.closing {
 		site.requestMu.Unlock()
-		http.Error(w, "server is shutting down", http.StatusServiceUnavailable)
+		http.Error(w, wording.ServerStopping.In(wording.LanguageFromRequest(r)), http.StatusServiceUnavailable)
 		return
 	}
 	site.requests.Add(1)
