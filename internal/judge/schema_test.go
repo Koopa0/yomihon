@@ -316,9 +316,10 @@ func TestLintArticleLanguage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := parseNote("Writing/T.md", []byte("---\n"+tt.yaml+"\n---\n"))
-			got := lintArticleLanguage(&n, &definition)
+			run := &lintRun{definition: definition}
+			got := run.articleLanguage(&n)
 			if len(got) != tt.want {
-				t.Fatalf("lintArticleLanguage() = %#v, want %d finding(s)", got, tt.want)
+				t.Fatalf("articleLanguage() = %#v, want %d finding(s)", got, tt.want)
 			}
 			if tt.want == 1 && (got[0].RuleID != "schema.language" || got[0].Field == nil || *got[0].Field != "lang") {
 				t.Errorf("finding = %#v, want schema.language on lang", got[0])
