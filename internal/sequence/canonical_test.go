@@ -180,7 +180,7 @@ func allGroups(groups []*Group) []*Group {
 	return out
 }
 
-func ruleMessage(doc Document, rule string) string {
+func ruleMessage(doc Document, rule Rule) string {
 	for _, d := range doc.Diagnostics {
 		if d.Rule == rule {
 			return d.Message

@@ -49,17 +49,17 @@ var ruleIDs = []string{
 	// never listed here, so this list is kept honest by a test that compares it
 	// against what the rules actually emit.
 	"schema.language",
-	sequence.RuleRoleMissing,
-	sequence.RuleRoleDuplicate,
-	sequence.RuleRoleConflict,
-	sequence.RuleLocalOrphan,
-	sequence.RuleNestingTooDeep,
-	sequence.RuleRoleOnEntry,
-	sequence.RuleRoleInvalid,
-	sequence.RuleRoleMisplaced,
-	sequence.RuleEntryOutsideBranch,
-	sequence.RuleEntryMultiTarget,
-	sequence.RuleEntryNoncanonical,
+	string(sequence.RuleRoleMissing),
+	string(sequence.RuleRoleDuplicate),
+	string(sequence.RuleRoleConflict),
+	string(sequence.RuleLocalOrphan),
+	string(sequence.RuleNestingTooDeep),
+	string(sequence.RuleRoleOnEntry),
+	string(sequence.RuleRoleInvalid),
+	string(sequence.RuleRoleMisplaced),
+	string(sequence.RuleEntryOutsideBranch),
+	string(sequence.RuleEntryMultiTarget),
+	string(sequence.RuleEntryNoncanonical),
 }
 
 // Format is the output format of a subcommand.

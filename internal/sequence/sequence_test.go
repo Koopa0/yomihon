@@ -1,7 +1,13 @@
 package sequence
 
 import (
+	goast "go/ast"
+	goparser "go/parser"
+	"go/token"
+	"os"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -497,7 +503,7 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 	tests := []struct {
 		name     string
 		body     string
-		wantRule string
+		wantRule Rule
 		wantLine int
 	}{
 		{
@@ -793,11 +799,11 @@ func collected(groups []*Group) []string {
 	return out
 }
 
-func hasRule(doc Document, rule string) bool {
+func hasRule(doc Document, rule Rule) bool {
 	return findRule(doc, rule) != nil
 }
 
-func findRule(doc Document, rule string) *Diagnostic {
+func findRule(doc Document, rule Rule) *Diagnostic {
 	for i := range doc.Diagnostics {
 		if doc.Diagnostics[i].Rule == rule {
 			return &doc.Diagnostics[i]
@@ -824,7 +830,7 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 		// a candidate. Asserting the shape is what makes each case say
 		// anything; without it they pass on a parser that ignores the escape.
 		wantEntries []string
-		wantRule    string
+		wantRule    Rule
 		wantFinding bool
 	}{
 		{
@@ -888,5 +894,90 @@ func TestARowNobodyJudgedIsNotAccepted(t *testing.T) {
 	judged := Candidate{State: EntryAccepted}
 	if !judged.Accepted() {
 		t.Error("a row validation accepted does not report itself accepted")
+	}
+}
+
+// TestRulesListsEveryDeclaredRule holds the enumeration to the declarations.
+// Rules is what a consumer reads instead of keeping a list of its own, so a
+// rule added to the constants and forgotten there would hand every consumer a
+// set that is quietly short — and a rule the judge cannot advise on reaches
+// the author as a panic during a check run.
+//
+// The declarations are read out of the package source rather than
+// restated here, because a second hand-written list is the thing this test
+// exists to catch.
+func TestRulesListsEveryDeclaredRule(t *testing.T) {
+	t.Parallel()
+
+	fset := token.NewFileSet()
+	dir, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("list the package source: %v", err)
+	}
+	var files []*goast.File
+	for _, entry := range dir {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, parseErr := goparser.ParseFile(fset, name, nil, 0)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", name, parseErr)
+		}
+		files = append(files, parsed)
+	}
+	if len(files) == 0 {
+		t.Fatal("no package source was read; the scan would prove nothing")
+	}
+
+	declared := map[string]Rule{}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			gen, isGen := decl.(*goast.GenDecl)
+			if !isGen || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, isValue := spec.(*goast.ValueSpec)
+				if !isValue {
+					continue
+				}
+				name, isName := value.Type.(*goast.Ident)
+				if !isName || name.Name != "Rule" {
+					continue
+				}
+				for i, ident := range value.Names {
+					literal, isLiteral := value.Values[i].(*goast.BasicLit)
+					if !isLiteral || literal.Kind != token.STRING {
+						t.Fatalf("%s is declared a Rule but not from a string literal", ident.Name)
+					}
+					unquoted, unquoteErr := strconv.Unquote(literal.Value)
+					if unquoteErr != nil {
+						t.Fatalf("%s: %v", ident.Name, unquoteErr)
+					}
+					declared[ident.Name] = Rule(unquoted)
+				}
+			}
+		}
+	}
+	if len(declared) == 0 {
+		t.Fatal("no Rule constants were found in the source; the scan proved nothing")
+	}
+
+	listed := Rules()
+	if len(listed) != len(declared) {
+		t.Errorf("Rules() lists %d rules, %d are declared: %v vs %v", len(listed), len(declared), listed, declared)
+	}
+	seen := map[Rule]bool{}
+	for _, rule := range listed {
+		if seen[rule] {
+			t.Errorf("Rules() lists %q twice", rule)
+		}
+		seen[rule] = true
+	}
+	for name, rule := range declared {
+		if !seen[rule] {
+			t.Errorf("%s (%q) is declared but Rules() does not list it", name, rule)
+		}
 	}
 }

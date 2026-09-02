@@ -250,27 +250,53 @@ func (g *Group) subgroups() []*Group {
 // Diagnostic is one thing the author has to decide, addressed to the author.
 // Rule is the stable identifier; Line is 1-based in the file.
 type Diagnostic struct {
-	Rule     string
+	Rule     Rule
 	Line     int
 	Message  string
 	Evidence string
 }
 
+// Rule is the stable identifier of one thing this grammar reports. The set is
+// closed and [Rules] is all of it, so a consumer that has to advise on every
+// rule, or gate on every rule, asks for the set instead of keeping a list of
+// its own that can quietly fall behind.
+type Rule string
+
 // The rules this grammar reports. Every one names a decision only the author
 // can make: yomihon reports, and a human edits the file.
 const (
-	RuleRoleMissing        = "path.role_missing"
-	RuleRoleDuplicate      = "path.role_duplicate"
-	RuleRoleConflict       = "path.role_conflict"
-	RuleLocalOrphan        = "path.local_orphan"
-	RuleNestingTooDeep     = "path.nesting_too_deep"
-	RuleRoleOnEntry        = "path.role_on_entry"
-	RuleRoleInvalid        = "path.role_invalid"
-	RuleRoleMisplaced      = "path.role_misplaced"
-	RuleEntryOutsideBranch = "path.entry_outside_branch"
-	RuleEntryMultiTarget   = "path.entry_multi_target"
-	RuleEntryNoncanonical  = "path.entry_noncanonical"
+	RuleRoleMissing        Rule = "path.role_missing"
+	RuleRoleDuplicate      Rule = "path.role_duplicate"
+	RuleRoleConflict       Rule = "path.role_conflict"
+	RuleLocalOrphan        Rule = "path.local_orphan"
+	RuleNestingTooDeep     Rule = "path.nesting_too_deep"
+	RuleRoleOnEntry        Rule = "path.role_on_entry"
+	RuleRoleInvalid        Rule = "path.role_invalid"
+	RuleRoleMisplaced      Rule = "path.role_misplaced"
+	RuleEntryOutsideBranch Rule = "path.entry_outside_branch"
+	RuleEntryMultiTarget   Rule = "path.entry_multi_target"
+	RuleEntryNoncanonical  Rule = "path.entry_noncanonical"
 )
+
+// Rules are every rule this grammar can report, in the order they are declared
+// above — which is the order the consumers' own registries already list them
+// in, so reading the set from here changes no listing anyone has published.
+// The caller owns the returned slice.
+func Rules() []Rule {
+	return []Rule{
+		RuleRoleMissing,
+		RuleRoleDuplicate,
+		RuleRoleConflict,
+		RuleLocalOrphan,
+		RuleNestingTooDeep,
+		RuleRoleOnEntry,
+		RuleRoleInvalid,
+		RuleRoleMisplaced,
+		RuleEntryOutsideBranch,
+		RuleEntryMultiTarget,
+		RuleEntryNoncanonical,
+	}
+}
 
 // Document is a study path's whole interpretation: its branches in document
 // order, and everything that could not be determined.
@@ -344,7 +370,7 @@ type parser struct {
 	diagnostics []Diagnostic
 }
 
-func (p *parser) report(rule string, line int, message, evidence string) {
+func (p *parser) report(rule Rule, line int, message, evidence string) {
 	p.diagnostics = append(p.diagnostics, Diagnostic{
 		Rule:     rule,
 		Line:     line,

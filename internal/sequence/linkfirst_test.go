@@ -99,7 +99,7 @@ func TestAContainerDeclarationIsReadOnTheRowsOwnLine(t *testing.T) {
 }
 
 // countRule is how many times a rule fired.
-func countRule(doc Document, rule string) int {
+func countRule(doc Document, rule Rule) int {
 	n := 0
 	for _, d := range doc.Diagnostics {
 		if d.Rule == rule {

@@ -66,7 +66,7 @@ func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 	t.Parallel()
 
-	for _, rule := range []string{
+	for _, rule := range []sequence.Rule{
 		sequence.RuleRoleMissing, sequence.RuleRoleDuplicate, sequence.RuleRoleConflict,
 		sequence.RuleLocalOrphan, sequence.RuleNestingTooDeep, sequence.RuleRoleOnEntry,
 		sequence.RuleRoleInvalid, sequence.RuleRoleMisplaced, sequence.RuleEntryOutsideBranch,
@@ -75,7 +75,7 @@ func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 		if pathRuleAction[rule] == "" {
 			t.Errorf("rule %q has no suggested action", rule)
 		}
-		if !slices.Contains(ruleIDs, rule) {
+		if !slices.Contains(ruleIDs, string(rule)) {
 			t.Errorf("rule %q is not in the --deny registry", rule)
 		}
 	}
