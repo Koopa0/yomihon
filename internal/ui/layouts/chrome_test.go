@@ -1,4 +1,4 @@
-package pages
+package layouts
 
 import (
 	"net/http"
@@ -32,6 +32,33 @@ func TestChromeFromRequestReadsTextSizePreference(t *testing.T) {
 			chrome := ChromeFromRequest(r, "測試")
 			if chrome.TextSize != tt.want {
 				t.Errorf("TextSize = %q, want %q", chrome.TextSize, tt.want)
+			}
+		})
+	}
+}
+
+func TestChromeFromRequestReadsSingleKeyShortcutPreference(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		cookieValue string
+		wantEnabled bool
+	}{
+		{name: "missing defaults on", wantEnabled: true},
+		{name: "enabled", cookieValue: "on", wantEnabled: true},
+		{name: "disabled", cookieValue: "off"},
+		{name: "invalid defaults on", cookieValue: "disabled", wantEnabled: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			if tt.cookieValue != "" {
+				r.Header.Set("Cookie", "yomihon_shortcuts="+tt.cookieValue)
+			}
+			chrome := ChromeFromRequest(r, "測試")
+			if chrome.SingleKeyShortcutsEnabled != tt.wantEnabled {
+				t.Errorf("SingleKeyShortcutsEnabled = %t, want %t", chrome.SingleKeyShortcutsEnabled, tt.wantEnabled)
 			}
 		})
 	}
