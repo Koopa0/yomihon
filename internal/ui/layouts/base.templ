@@ -43,13 +43,6 @@ type Chrome struct {
 	ReturnTo string
 }
 
-func singleKeyShortcutsState(enabled bool) string {
-	if enabled {
-		return "on"
-	}
-	return "off"
-}
-
 // Base is the document every page is rendered inside: the themed html element
 // carrying the reader's own presentation choices, the head, the shared header,
 // the search dialog, and the script that enhances all of it. A page supplies
@@ -181,27 +174,6 @@ templ header(c Chrome) {
 	</header>
 }
 
-// languageMark labels the language control with the language it switches to
-// rather than the one in force. A control that names the current state reads as
-// a status line, and a reader who cannot read the interface they are looking at
-// needs to recognise the way out of it.
-func languageMark(lang wording.Lang) string {
-	if lang == wording.En {
-		return "中"
-	}
-	return "EN"
-}
-
-// otherLanguage is the language the form asks for: the one the interface is
-// not speaking. It is the same answer languageMark draws, held as a value the
-// server can store rather than a glyph a reader can recognise.
-func otherLanguage(lang wording.Lang) wording.Lang {
-	if lang == wording.En {
-		return wording.ZhHant
-	}
-	return wording.En
-}
-
 // searchDialog is the ⌘K command palette: a native <dialog> (top layer,
 // backdrop, focus trap, Esc — all free) whose body is a GET form to /search.
 // The data hooks add live lexical results while preserving that ordinary form;
@@ -220,21 +192,4 @@ templ searchDialog(lang wording.Lang) {
 			<span>esc { wording.SearchDialogEsc.In(lang) }</span>
 		</div>
 	</dialog>
-}
-
-// textSizeLabel is the text-size control's accessible name, which carries the
-// size the reader is at rather than the action the press performs. Its two
-// neighbours in the header are two-state and say where they stand through
-// aria-pressed; this one cycles through three, which no boolean carries, so
-// the name is where its state has to live. The script keeps it current on
-// every press, and a reader arriving on a reload finds the same answer.
-func textSizeLabel(size string, lang wording.Lang) string {
-	switch size {
-	case "l":
-		return wording.TextSizeLarge.In(lang)
-	case "xl":
-		return wording.TextSizeExtraLarge.In(lang)
-	default:
-		return wording.TextSizeMedium.In(lang)
-	}
 }

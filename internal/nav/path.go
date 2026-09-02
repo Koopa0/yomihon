@@ -26,6 +26,12 @@ type Path struct {
 	// still one of the course's lessons. Nothing outside the projectable
 	// primary line counts here.
 	Planned int
+	// Ready is how many of the course's lessons sit at the reviewed status the
+	// vault contract names. It is never a measure of progress: a lesson finished
+	// and published leaves it. Unlike Planned it counts every branch a surface
+	// draws, side branches included, because the figure answers "how much of what
+	// is drawn here is ready" rather than "how long is the main line".
+	Ready int
 	// Diagnostics is everything the grammar left the author to decide, as
 	// the parse reported it. The judge reads its own parse; this copy is for
 	// the reading surfaces, which need to tell a course that plans nothing
@@ -111,6 +117,34 @@ type PathGroup struct {
 	Items []PathItem
 }
 
+// Drawn reports whether a surface showing this course shows this branch: one
+// the grammar projects, or a structural heading that carries one. A branch the
+// grammar does not project is not a way to a lesson, so it is not a way through
+// a rail or a course page either — and both draw the same branches, so both ask
+// here rather than each keeping the rule.
+func (g *PathGroup) Drawn() bool {
+	if g.Projectable {
+		return true
+	}
+	if !g.Carries {
+		return false
+	}
+	for _, item := range g.Items {
+		if item.Group != nil && item.Group.Drawn() {
+			return true
+		}
+	}
+	return false
+}
+
+// Teaches reports whether this branch offers the row as one of the course's
+// lessons: the grammar projects the branch, and it accepted the row. A row the
+// grammar refused, and every row of a branch outside the course, keeps its
+// prose on the note's own page and is not a lesson anywhere.
+func (g *PathGroup) Teaches(entry *PathEntry) bool {
+	return entry != nil && g.Projectable && entry.State == sequence.EntryAccepted
+}
+
 // PathItem is one thing a branch holds in source order. Exactly one field is
 // set.
 type PathItem struct {
@@ -172,6 +206,7 @@ func buildPath(
 	}
 	main, locals := projectStops(p.Groups)
 	p.Planned = main.planned
+	p.Ready = readyLessons(p.Groups)
 	if len(main.stops) > 0 {
 		p.components = append(p.components, main.stops)
 	}
@@ -378,6 +413,31 @@ func localStops(g *PathGroup) []NoteRef {
 		}
 	}
 	return stops
+}
+
+// readyLessons counts the lessons at the reviewed status across every branch a
+// surface draws. It walks the drawn branches rather than the walkable ones: a
+// side branch is drawn beside the main line and its lessons are as ready or as
+// unready as any other, while a branch outside the course is drawn by nobody
+// and counted by nobody.
+func readyLessons(groups []*PathGroup) int {
+	n := 0
+	for _, g := range groups {
+		if !g.Drawn() {
+			continue
+		}
+		for _, item := range g.Items {
+			switch {
+			case item.Entry != nil:
+				if g.Teaches(item.Entry) && item.Entry.Kind == EntryResolved && item.Entry.Status == schema.SealStatus {
+					n++
+				}
+			case item.Group != nil:
+				n += readyLessons([]*PathGroup{item.Group})
+			}
+		}
+	}
+	return n
 }
 
 // pathPlacements records every projectable accepted, resolved entry of one

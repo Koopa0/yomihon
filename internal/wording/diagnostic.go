@@ -7,6 +7,25 @@ package wording
 // StatusOutsideEnumChip marks a status the schema does not declare.
 var StatusOutsideEnumChip = both("不在 schema 允許清單中", "Not in the schema's list")
 
+// The labels on the diagnostic kinds the renderer can report. Each names the
+// fault in the fewest words that still distinguish it from its neighbours.
+var (
+	DiagLinkNoTarget          = both("連結沒有目標", "Link with no target")
+	DiagLinkManyTargets       = both("連結有多個目標", "Link with several targets")
+	DiagUnknownCallout        = both("沒見過的提示框類型", "Unrecognised callout type")
+	DiagRiskyFence            = both("程式碼區塊裡的筆記語法", "Note syntax inside a code block")
+	DiagEmbedFragmentGone     = both("找不到嵌入指定的段落", "The embedded section was not found")
+	DiagEmbedFragmentRepeated = both("嵌入指定的段落在該筆記裡不只一個", "The embedded section name belongs to more than one section")
+	DiagEmbedNotExpanded      = both("摘錄裡的嵌入改以連結呈現", "An embed inside an excerpt is shown as a link")
+	DiagRenderFailed          = both("內文無法轉譯,已改顯示原始文字", "The body could not be rendered; its source text is shown instead")
+	DiagLinkBlockGone         = both("找不到連結指定的區塊", "The linked block was not found")
+	DiagLinkSectionGone       = both("找不到連結指定的小節", "The linked section was not found")
+	DiagCommentUnclosed       = both("沒有配對的註解記號", "Unpaired comment marker")
+)
+
+// What each of those faults means, and what the page did about it. A reader
+// who sees only the fault cannot tell whether the page in front of them is
+// missing something.
 var (
 	DiagUnwrittenNote  = both("這個 wikilink 或嵌入的目標尚未建立。", "This wikilink or embed points at something that has not been written.")
 	DiagAmbiguousNote  = both("wikilink 或嵌入目標有歧義。", "This wikilink or embed has more than one target.")

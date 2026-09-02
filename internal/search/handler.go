@@ -97,7 +97,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	results, total, diagnostic, tokens := h.query(snap.Index, q, lang)
 
 	view := answerView(snap, q, results, total, diagnostic, tokens)
-	view.Nav = snap.Shell.Nav
+	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
 	if err := pages.Search(view, pages.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryError("write search page", q, err)
 	}

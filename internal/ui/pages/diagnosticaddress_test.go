@@ -22,7 +22,7 @@ func TestDiagnosticAddressPutsBackWhatTheAuthorWrote(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := diagnosticAddress(tt.diag); got != tt.want {
+			if got := diagnosticAddress(&tt.diag); got != tt.want {
 				t.Errorf("diagnosticAddress() = %q, want %q", got, tt.want)
 			}
 		})

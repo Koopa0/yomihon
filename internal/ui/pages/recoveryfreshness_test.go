@@ -23,7 +23,7 @@ func TestRecoveryFreshnessAttrsCarryTheHoldSentences(t *testing.T) {
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
-			got := recoveryFreshnessAttrs(view, lang)
+			got := recoveryFreshnessAttrs(&view, lang)
 			want := templ.Attributes{
 				"data-freshness-path":       "Writing/note.md",
 				"data-freshness-identity":   "3f2a",
@@ -45,7 +45,7 @@ func TestRecoveryFreshnessAttrsCarryTheHoldSentences(t *testing.T) {
 					t.Errorf("recoveryFreshnessAttrs()[%q] = %v, want a sentence the client can show", key, got[key])
 					continue
 				}
-				noteColumn := freshnessAttrs(NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, lang)
+				noteColumn := freshnessAttrs(&NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, lang)
 				if got[key] != noteColumn[key] {
 					t.Errorf("recoveryFreshnessAttrs()[%q] = %v, but the reading page's column says %v", key, got[key], noteColumn[key])
 				}
@@ -79,7 +79,7 @@ func TestRecoveryFreshnessAttrsNeedBothFacts(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := len(recoveryFreshnessAttrs(tt.view, wording.ZhHant)) > 0; got != tt.watch {
+			if got := len(recoveryFreshnessAttrs(&tt.view, wording.ZhHant)) > 0; got != tt.watch {
 				t.Errorf("recoveryFreshnessAttrs() watches = %t, want %t", got, tt.watch)
 			}
 		})

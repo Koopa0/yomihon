@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -50,10 +49,12 @@ type SearchView struct {
 	// sentence a second time.
 	Governed bool
 
-	// Nav is the whole-vault navigation model for the shared sidebar: the
-	// search page renders inside the same shell as every other page, so
-	// arriving at a search never strands the reader in a chromeless view.
-	Nav *nav.Model
+	// Sidebar is the resolved left navigation, built where every other page
+	// builds it. The search page renders inside the same shell as every other
+	// one, so arriving at a search never strands the reader in a chromeless
+	// view — and resolving the rail while the response body is already being
+	// written would make this page the odd one out.
+	Sidebar Sidebar
 }
 
 // SearchResult is one rendered hit: the entry's path (linked), display title,
@@ -101,17 +102,6 @@ type SearchResult struct {
 	StatusOutsideEnum bool
 }
 
-// resultCount names how many hits a search returned, in the reader's
-// language. When the list holds only the opening stretch of a larger answer,
-// it says both numbers, so the count never claims the page shows more than it
-// does.
-func resultCount(shown, total int, lang wording.Lang) string {
-	if total > shown {
-		return fmt.Sprintf(wording.ResultCountShownFmt.In(lang), total, shown)
-	}
-	return plural(total, wording.ResultCountOne, wording.ResultCountMany, lang)
-}
-
 // SnippetRun is one stretch of a result's snippet, marked or not.
 type SnippetRun struct {
 	Text string
@@ -134,7 +124,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(NewSidebar(v.Nav, "", c.Lang), c.Nonce)
+			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main">
 				// data-live-search-sync-url marks the one live region whose results
 				// the address bar describes: this page is the form's own target, so
@@ -174,10 +164,10 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 			// not about how many notes answered it, so a query that also found
 			// something still hears it.
 			<p class="y-searchpage__hint" data-unknown-filter>
-				{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, "、")) }
+				{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, wording.ListSeparator.In(lang))) }
 				for i, key := range v.FilterKeys {
 					if i > 0 {
-						{ "、" }
+						{ wording.ListSeparator.In(lang) }
 					}
 					<code>{ key + ":" }</code>
 				}
@@ -291,7 +281,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 					{ wording.FilterKeysAvailable.In(lang) }
 					for i, key := range v.FilterKeys {
 						if i > 0 {
-							{ "、" }
+							{ wording.ListSeparator.In(lang) }
 						}
 						<code>{ key + ":" }</code>
 					}

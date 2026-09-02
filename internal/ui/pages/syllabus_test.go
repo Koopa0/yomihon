@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -544,9 +545,14 @@ func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
 // TestMarkerWrittenDividesEveryGrammarRule pins the total division behind
 // the empty-course page's two explanations: for every rule the grammar
 // declares, whether it implies the author actually wrote a sequence marker.
-// A rule outside the division fails loudly rather than guessing, because
-// either guess prints a false sentence to somebody — and the same probe pins
-// that loudness.
+//
+// The expectation is keyed by rule and its keys are compared against the
+// grammar's own list, so a rule declared later arrives here uncovered and this
+// test says so. That is where a new rule has to be caught, because the page
+// itself does not abort on one: the grammar owns the set and may grow it, and a
+// course page that crashed on a rule it had not met would be the reporter
+// breaking on the news. An unclassified rule reads as "no marker written",
+// which is the reading that claims less about what the author did.
 func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 	t.Parallel()
 
@@ -563,16 +569,70 @@ func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 		sequence.RuleLocalOrphan:        true,
 		sequence.RuleNestingTooDeep:     true,
 	}
-	for rule, expect := range want {
+	declared := sequence.Rules()
+	if len(declared) == 0 {
+		t.Fatal("the grammar declares no rules, so this division covers nothing")
+	}
+	for _, rule := range declared {
+		expect, classified := want[rule]
+		if !classified {
+			t.Errorf("the grammar declares %q and this division does not classify it: decide whether it implies a written marker and add it here", rule)
+			continue
+		}
 		if got := markerWritten(rule); got != expect {
 			t.Errorf("markerWritten(%q) = %t, want %t", rule, got, expect)
 		}
 	}
-
-	defer func() {
-		if recover() == nil {
-			t.Error("markerWritten() answered for a rule the grammar never declared")
+	for rule := range want {
+		if !slices.Contains(declared, rule) {
+			t.Errorf("this division classifies %q, which the grammar no longer declares", rule)
 		}
-	}()
-	markerWritten("path.never_declared")
+	}
+	if got := markerWritten("path.never_declared"); got {
+		t.Error("a rule the grammar never declared reads as a written marker, so the page would tell an author about a marker nobody wrote")
+	}
+}
+
+// TestACourseReportsAnItemItCouldNotRead holds the page against dropping
+// something silently. A branch lists rows and nested branches; a value that is
+// neither is a fault, and a course page that quietly skipped it would show a
+// list one item shorter than the one its author wrote, with nothing anywhere
+// saying so. The page reports and never repairs, so the row keeps its place and
+// says what happened.
+func TestACourseReportsAnItemItCouldNotRead(t *testing.T) {
+	t.Parallel()
+
+	branch := PathBranchView{
+		Heading: "Part",
+		Items: []PathItemView{
+			{Entry: &PathEntryView{Text: "L01", Kind: nav.EntryResolved, Href: "/notes/L01.md", Number: 1}},
+			{},
+			{Entry: &PathEntryView{Text: "L02", Kind: nav.EntryResolved, Href: "/notes/L02.md", Number: 2}},
+		},
+	}
+	runs := branch.Runs(wording.ZhHant)
+	faults := 0
+	for _, run := range runs {
+		if run.Fault != "" {
+			faults++
+		}
+	}
+	if faults != 1 {
+		t.Fatalf("Runs() reported %d faults for one unreadable item, want 1: %+v", faults, runs)
+	}
+
+	view := PathView{Title: "Course", Branches: []PathBranchView{branch}}
+	var buf bytes.Buffer
+	if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render syllabus: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, wording.PathItemUnreadable.In(wording.ZhHant)) {
+		t.Errorf("the course page drops an item it could not read instead of saying so; html = %q", html)
+	}
+	for _, want := range []string{">L01<", ">L02<"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the rows either side of the unreadable item are missing %q; html = %q", want, html)
+		}
+	}
 }

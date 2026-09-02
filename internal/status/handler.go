@@ -352,7 +352,7 @@ func (h *Handler) respondRecovery(
 		NotePath:        notePath,
 		NoteIdentity:    failure.boundIdentity,
 		ObsidianHref:    door,
-		Sidebar:         pages.NewSidebar(shell.Nav, notePath, lang),
+		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
 	chrome := pages.ChromeFromRequest(r, view.Title(lang))
 	// The recovery page knows a better place to return to than the generic

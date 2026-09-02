@@ -2,9 +2,17 @@ package wording
 
 // The syllabus: a study path read as a course rather than as a note.
 
-// SyllabusKicker sits above the title. The Japanese half is the vault's own
-// word for the thing and is not translated: it is what the notes call it.
+// SyllabusKicker sits above the title, before the vault's own word for the
+// thing, which the markup writes and neither half of this pair carries.
 var SyllabusKicker = both("課綱 · ", "Syllabus · ")
+
+// PathItemUnreadable stands where a course lists something the page could not
+// read as either a lesson or a branch. Dropping such a row would take it off a
+// page whose whole job is showing the course as it is written, and the reader
+// would be looking at a list quietly missing an item.
+var PathItemUnreadable = both(
+	"這條路徑列了一項無法判讀的內容,這一頁沒有把它讀成課程或分部。",
+	"This path lists something that could not be read as either a lesson or a branch.")
 
 // The invitation shown to a reader who has not walked this path before, and
 // the way into the note it points at. The lede says what this page is — the

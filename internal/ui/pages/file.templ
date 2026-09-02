@@ -14,7 +14,7 @@ templ File(v FileView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell y-shell--rail-empty">
-			@sidebar(v.Sidebar, c.Nonce)
+			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<article class="y-article">
 					@fileHead(v, c.Lang)

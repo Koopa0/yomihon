@@ -67,7 +67,10 @@ type PathBranchView struct {
 	Items []PathItemView
 }
 
-// PathItemView is one thing a branch lists. Exactly one field is set.
+// PathItemView is one thing a branch lists: a row, or a nested branch. A value
+// carrying neither is one the page could not read, and it is drawn as a fault
+// rather than dropped — this page's job is showing a course as its author
+// wrote it, and a list quietly one item short says nothing at all.
 type PathItemView struct {
 	Entry  *PathEntryView
 	Branch *PathBranchView
@@ -88,15 +91,20 @@ type PathEntryView struct {
 	Number int
 }
 
-// PathRunView is one uninterrupted stretch of what a branch lists: either a
-// run of rows or one nested branch. Ordered marks a run whose rows carry
-// sequence numbers, which is what lets the page render it as a real ordered
-// list instead of look-alike siblings; Label is that list's accessible name.
+// PathRunView is one uninterrupted stretch of what a branch lists: a run of
+// rows, one nested branch, or a fault standing where the page could not read
+// either. Ordered marks a run whose rows carry sequence numbers, which is what
+// lets the page render it as a real ordered list instead of look-alike
+// siblings; Label is that list's accessible name.
 type PathRunView struct {
 	Entries []PathEntryView
 	Branch  *PathBranchView
 	Ordered bool
 	Label   string
+	// Fault is what the page says in place of an item it could not read. It
+	// keeps the item's position, so the course still reads as the length its
+	// author wrote.
+	Fault string
 }
 
 // Runs regroups a branch's items for rendering: consecutive rows form one
@@ -119,7 +127,7 @@ func (v *PathBranchView) Runs(lang wording.Lang) []PathRunView {
 	for _, item := range v.Items {
 		switch {
 		case item.Entry != nil:
-			if len(runs) == 0 || runs[len(runs)-1].Branch != nil {
+			if len(runs) == 0 || !runs[len(runs)-1].holdsRows() {
 				run := PathRunView{Ordered: item.Entry.Number > 0}
 				if run.Ordered {
 					run.Label = v.runLabel(item.Entry.Number, lang)
@@ -130,9 +138,21 @@ func (v *PathBranchView) Runs(lang wording.Lang) []PathRunView {
 			last.Entries = append(last.Entries, *item.Entry)
 		case item.Branch != nil:
 			runs = append(runs, PathRunView{Branch: item.Branch})
+		default:
+			// The item names neither a row nor a branch, so it is a fault
+			// standing in the course where the author put something.
+			runs = append(runs, PathRunView{Fault: wording.PathItemUnreadable.In(lang)})
 		}
 	}
 	return runs
+}
+
+// holdsRows reports whether another row can join this run. A run standing for
+// a nested branch, or for an item the page could not read, is closed: the row
+// after one begins a fresh stretch, because the interruption is what the reader
+// sees between them.
+func (r *PathRunView) holdsRows() bool {
+	return r.Branch == nil && r.Fault == ""
 }
 
 // runLabel names one ordered fragment. first is the fragment's first walk
@@ -177,6 +197,7 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 		Entries:    current.Planned,
+		Ready:      current.Ready,
 	}
 	for _, d := range current.Diagnostics {
 		if markerWritten(d.Rule) {
@@ -193,7 +214,6 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		v.Parts++
 		v.Modules += countModules(&sv)
 	}
-	v.Ready = countReady(v.Branches)
 	return v
 }
 
@@ -204,7 +224,7 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 // position is not decided here: navigation's walk already numbered every row
 // it reaches, and the view only copies that answer.
 func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
-	if !drawable(g) {
+	if !g.Drawn() {
 		return PathBranchView{}, false
 	}
 	sv := PathBranchView{
@@ -222,7 +242,7 @@ func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	for _, item := range g.Items {
 		switch {
 		case item.Entry != nil:
-			if !g.Projectable || item.Entry.State != sequence.EntryAccepted {
+			if !g.Teaches(item.Entry) {
 				continue
 			}
 			entry := buildPathEntry(item.Entry)
@@ -240,23 +260,6 @@ func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	return sv, true
 }
 
-// drawable reports whether the course page shows this branch: one the grammar
-// projects, or a structural heading that carries one.
-func drawable(g *nav.PathGroup) bool {
-	if g.Projectable {
-		return true
-	}
-	if !g.Carries {
-		return false
-	}
-	for _, item := range g.Items {
-		if item.Group != nil && drawable(item.Group) {
-			return true
-		}
-	}
-	return false
-}
-
 // countModules is how many branches sit beneath a part, at any depth. The
 // metarow says "modules", and a side branch is one of them.
 func countModules(sv *PathBranchView) int {
@@ -264,25 +267,6 @@ func countModules(sv *PathBranchView) int {
 	for _, item := range sv.Items {
 		if item.Branch != nil {
 			n += 1 + countModules(item.Branch)
-		}
-	}
-	return n
-}
-
-// countReady counts the lessons sitting at ready — never a measure of
-// progress, because a lesson finished and published leaves it.
-func countReady(branches []PathBranchView) int {
-	n := 0
-	for _, sv := range branches {
-		for _, item := range sv.Items {
-			switch {
-			case item.Entry != nil:
-				if item.Entry.Sealed {
-					n++
-				}
-			case item.Branch != nil:
-				n += countReady([]PathBranchView{*item.Branch})
-			}
 		}
 	}
 	return n
@@ -302,6 +286,14 @@ func buildPathEntry(entry *nav.PathEntry) PathEntryView {
 	return v
 }
 
+// The three things a row says about how its target resolved: the words a
+// reader sees, the token the markup carries, and the explanation behind the
+// row. A kind none of them has an answer for is reported as the number it is
+// rather than aborting: EntryKind belongs to navigation and is an eight-bit
+// enum, so a member added there compiles here and would otherwise take down
+// every page that draws a rail. What this interface is for is telling a reader
+// what it found, and a renderer breaking on odd data is the reporter breaking
+// on the news.
 func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 	switch kind {
 	case nav.EntryUnresolved:
@@ -313,7 +305,7 @@ func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 	case nav.EntryResolved:
 		return wording.EntryResolved.In(lang)
 	default:
-		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+		return entryResolutionCode(kind)
 	}
 }
 
@@ -331,7 +323,7 @@ func entryResolutionCode(kind nav.EntryKind) string {
 	case nav.EntryResolved:
 		return "resolved"
 	default:
-		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+		return strconv.Itoa(int(kind))
 	}
 }
 
@@ -343,10 +335,10 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 		return wording.EntryAmbiguousTitle.In(lang)
 	case nav.EntryNonInstance:
 		return wording.EntryNonInstanceTitle.In(lang)
-	case nav.EntryResolved:
-		return ""
 	default:
-		panic("pages: unknown nav.EntryKind: " + strconv.Itoa(int(kind)))
+		// A row that resolved has nothing to explain, and neither has a kind
+		// this page has no words for — the row already carries its token.
+		return ""
 	}
 }
 
@@ -356,9 +348,12 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 // orphaned side branch, one nested too deep, a role on a lesson row. The
 // rules on the other side arise with no marker anywhere near them.
 //
-// The division is total over the grammar's declared rules and is pinned by a
-// test; an unknown rule is a programmer error and fails loudly here, the
-// same way the judge's own rule table does.
+// The division is total over the grammar's declared rules and a test holds it
+// so. A rule outside it answers that no marker was written, because that is
+// the reading that claims less: the rules on that side arise with no marker
+// anywhere near them, and the page then explains the empty course the way it
+// explains one nobody has marked up. The grammar owns this set and can grow
+// it, and a course page is not a place to abort on a rule it has not met.
 func markerWritten(rule sequence.Rule) bool {
 	switch rule {
 	case sequence.RuleRoleInvalid,
@@ -375,7 +370,7 @@ func markerWritten(rule sequence.Rule) bool {
 		sequence.RuleEntryNoncanonical:
 		return false
 	default:
-		panic("pages: unknown study-path rule: " + string(rule))
+		return false
 	}
 }
 

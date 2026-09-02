@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -26,38 +25,33 @@ import (
 // sites still spell it that way.
 type Shell = nav.Shell
 
-// notesHref builds the reading-page URL for a vault-relative path,
-// percent-escaping each segment individually (so a literal "/" in an
-// escaped segment can never be read as a separator) while keeping "/" as
-// the separator between segments — exactly how GET /notes/{path...} expects
-// to receive it back, and byte-identical to the href the rendered wikilinks
-// use, so a sidebar link and an in-body link to the same note match.
+// vaultHref builds a URL for a vault-relative path under prefix,
+// percent-escaping each segment individually — so a literal "/" inside an
+// escaped segment can never be read as a separator — while keeping "/" as the
+// separator between them. That is exactly how each {path...} route expects to
+// receive a path back, and it is byte-identical to the href the rendered
+// wikilinks use, so a rail link and an in-body link to the same note match.
 //
-// It mirrors internal/render's own unexported notesHref rather than sharing
-// one helper: exporting render's copy (or routing this through render)
-// would couple the UI layer to the renderer for a five-line URL builder,
-// and hoisting a shared "how to link to a note" helper is a change to
-// render's public surface out of scope for the navigation work.
-func notesHref(p string) string {
+// It mirrors the renderer's own unexported builder rather than sharing one:
+// exporting that copy would widen the renderer's surface for the sake of a
+// three-line loop, and the loop is written once here instead of at each route.
+func vaultHref(prefix, p string) string {
 	segments := strings.Split(p, "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
 	}
-	return "/notes/" + strings.Join(segments, "/")
+	return prefix + strings.Join(segments, "/")
 }
 
-// rawHref builds the unchanged-bytes URL for a vault-relative path, escaping
-// each segment exactly as notesHref does, so a file's page and the bytes it
-// points at name the same file whatever its spaces, CJK, or missing extension.
-// It is its own route rather than a suffix on the note URL: a vault directory
-// named "raw" would otherwise make "/notes/raw/x" ambiguous.
-func rawHref(p string) string {
-	segments := strings.Split(p, "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
-	}
-	return "/raw/" + strings.Join(segments, "/")
-}
+// notesHref builds the reading-page URL for a vault-relative path.
+func notesHref(p string) string { return vaultHref("/notes/", p) }
+
+// rawHref builds the unchanged-bytes URL for a vault-relative path, so a file's
+// page and the bytes it points at name the same file whatever its spaces, CJK,
+// or missing extension. It is its own route rather than a suffix on the note
+// URL: a vault directory named "raw" would otherwise make "/notes/raw/x"
+// ambiguous.
+func rawHref(p string) string { return vaultHref("/raw/", p) }
 
 // ObsidianHref builds the obsidian://open URI for the note at rel inside the
 // vault rooted at root. The absolute path rides as the URI's single query
@@ -79,17 +73,10 @@ func ObsidianHref(root, rel string) string {
 	return "obsidian://open?path=" + strings.Join(segments, "/")
 }
 
-// syllabusHref builds the study-path page URL for a vault-relative path,
-// percent-escaping each segment exactly as notesHref does — so a study-path
-// whose path carries spaces or CJK (e.g. "Maps/Go 課綱.md") round-trips through
-// GET /syllabus/{path...} and matches the switcher link byte-for-byte.
-func syllabusHref(p string) string {
-	segments := strings.Split(p, "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
-	}
-	return "/syllabus/" + strings.Join(segments, "/")
-}
+// syllabusHref builds the study-path page URL for a vault-relative path, so a
+// study path whose path carries spaces or CJK (for example "Maps/Go 課綱.md")
+// round-trips through its route and matches the switcher link byte for byte.
+func syllabusHref(p string) string { return vaultHref("/syllabus/", p) }
 
 // statusHref builds the pure-filter browse URL for a status: Home's Lifecycle
 // block links each status to the search results filtered to it. url.Values escapes
@@ -117,16 +104,9 @@ func statusChipLabel(status string, lang wording.Lang) string {
 	return cmp.Or(status, wording.NoStatusStated.In(lang))
 }
 
-// folderHref builds the browse URL for a folder, escaping each segment the
-// way notesHref does so a folder and a note under it agree byte for byte about
-// how their shared path is written.
-func folderHref(dir string) string {
-	segments := strings.Split(dir, "/")
-	for i, segment := range segments {
-		segments[i] = url.PathEscape(segment)
-	}
-	return "/folders/" + strings.Join(segments, "/")
-}
+// folderHref builds the browse URL for a folder, so a folder and a note under
+// it agree byte for byte about how their shared path is written.
+func folderHref(dir string) string { return vaultHref("/folders/", dir) }
 
 // searchHref builds the URL for one search query, escaping it the same way
 // the form submission would, so an offered search and a typed one land on the
@@ -177,72 +157,12 @@ type LifecycleItem struct {
 	Label string
 }
 
-// LanguageFromRequest reads which language this request asked the interface to
-// speak. It sits beside the other preference reads rather than in the
-// dictionary, so the dictionary stays a set of sentences with no capability of
-// its own and no import at all.
-func LanguageFromRequest(r *http.Request) wording.Lang {
-	c, err := r.Cookie(wording.CookieName)
-	if err != nil {
-		return wording.ZhHant
-	}
-	return wording.FromCookieValue(c.Value)
-}
+// LanguageFromRequest and ChromeFromRequest read one request's presentation
+// state. Both live with the type they fill, beside the document they are
+// stamped onto; these two names stay reachable here while the call sites still
+// spell them this way.
+func LanguageFromRequest(r *http.Request) wording.Lang { return layouts.LanguageFromRequest(r) }
 
-// ChromeFromRequest builds the page chrome from the request: the page title
-// plus the persisted theme, furigana, and single-key-shortcut cookies, so the
-// root element renders the correct state on the first byte (no FOUC). Each
-// cookie honors only its known values; anything else falls to the default —
-// input hygiene, since a cookie is user-controllable.
-//
-// The theme's default is deliberately empty rather than light: a reader who
-// never chose has expressed no preference here, and the stylesheet answers an
-// unstamped root with the system's own preference. Both stored values are
-// honored, because an explicit light choice must keep beating a dark system.
-//
-// It takes no shell: what the chrome is built from is the request and nothing
-// else, and a snapshot projection passed alongside would say the two were
-// related when they never were.
 func ChromeFromRequest(r *http.Request, title string) layouts.Chrome {
-	theme := ""
-	if c, err := r.Cookie("yomihon_theme"); err == nil && (c.Value == "dark" || c.Value == "light") {
-		theme = c.Value
-	}
-	ruby := "on"
-	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
-		ruby = "off"
-	}
-	textSize := "m"
-	if c, err := r.Cookie("yomihon_textsize"); err == nil && (c.Value == "l" || c.Value == "xl") {
-		textSize = c.Value
-	}
-	singleKeyShortcutsEnabled := true
-	if c, err := r.Cookie("yomihon_shortcuts"); err == nil && c.Value == "off" {
-		singleKeyShortcutsEnabled = false
-	}
-	return layouts.Chrome{
-		Title:                     title,
-		Lang:                      LanguageFromRequest(r),
-		Nonce:                     origin.Nonce(r.Context()),
-		Theme:                     theme,
-		Ruby:                      ruby,
-		TextSize:                  textSize,
-		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
-		// The request's own address, so the language form can bring the reader
-		// back to this page after the switch. Only an address a GET can revisit
-		// qualifies: a page rendered by a POST names a target, not a place, so
-		// the form falls back to Home — and a page that knows a better return,
-		// as the recovery page knows its note, overrides this afterwards.
-		ReturnTo: returnableAddress(r),
-	}
-}
-
-// returnableAddress is the address the language form sends a reader back to: a
-// GET request's own URI, and Home for everything else, because re-fetching a
-// POST target with a GET lands on no page at all.
-func returnableAddress(r *http.Request) string {
-	if r.Method == http.MethodGet {
-		return r.URL.RequestURI()
-	}
-	return "/"
+	return layouts.ChromeFromRequest(r, title)
 }

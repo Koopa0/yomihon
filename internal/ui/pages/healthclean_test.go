@@ -41,7 +41,7 @@ func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 		})
 	}
 
-	if !(HealthView{}).clean() {
+	if !(&HealthView{}).clean() {
 		t.Error("a folder with nothing in any list does not read as clean, so the sentence could never appear")
 	}
 }

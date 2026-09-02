@@ -1,9 +1,6 @@
 package pages
 
-import (
-	"github.com/koopa0/yomihon/internal/render"
-	"github.com/koopa0/yomihon/internal/wording"
-)
+import "github.com/koopa0/yomihon/internal/wording"
 
 // browserDiagnostic leads with Traditional Chinese interface copy while
 // preserving the exact low-level diagnostic as explicitly English technical
@@ -40,37 +37,4 @@ templ browserDiagnostic(summary, detail string) {
 // does not depend on their pointing at it.
 templ statusOutsideEnumMark(lang wording.Lang) {
 	<span class="y-outofenum">{ wording.StatusOutsideEnumChip.In(lang) }</span>
-}
-
-func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
-	switch kind {
-	case render.DiagWikilinkBroken:
-		return wording.DiagUnwrittenNote.In(lang)
-	case render.DiagWikilinkTitleOnly:
-		return wording.DiagTitleOnlyNote.In(lang)
-	case render.DiagTitleTruncatedAtHash:
-		return wording.DiagTitleCutNote.In(lang)
-	case render.DiagWikilinkAmbiguous:
-		return wording.DiagAmbiguousNote.In(lang)
-	case render.DiagUnknownCallout:
-		return wording.DiagCalloutNote.In(lang)
-	case render.DiagRiskyFence:
-		return wording.DiagFenceNote.In(lang)
-	case render.DiagEmbedFragmentMissing:
-		return wording.DiagEmbedNote.In(lang)
-	case render.DiagEmbedFragmentRepeated:
-		return wording.DiagEmbedManyNote.In(lang)
-	case render.DiagEmbedNotExpanded:
-		return wording.DiagEmbedDepthNote.In(lang)
-	case render.DiagLinkFragmentMissing:
-		return wording.DiagBlockNote.In(lang)
-	case render.DiagLinkSectionMissing:
-		return wording.DiagSectionNote.In(lang)
-	case render.DiagCommentUnclosed:
-		return wording.DiagCommentNote.In(lang)
-	case render.DiagRenderFailed:
-		return wording.DiagRenderNote.In(lang)
-	default:
-		return wording.DiagUnknownNote.In(lang)
-	}
 }

@@ -72,6 +72,12 @@ var (
 	UnknownFilterEnd = both("。", ".")
 )
 
+// ListSeparator joins the items of a short list written into a sentence. The
+// ideographic comma is the one Traditional Chinese writes between list items
+// and reads as nothing at all in English, where an English sentence handed one
+// looks broken rather than translated.
+var ListSeparator = both("、", ", ")
+
 // FilterKeysAvailable opens the blank search page with the constraints the
 // field understands. A reader who has typed nothing cannot discover them any
 // other way, and this is the one moment saying so costs them no answer.

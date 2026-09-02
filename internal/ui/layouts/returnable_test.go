@@ -1,4 +1,4 @@
-package pages
+package layouts
 
 import (
 	"net/http"
