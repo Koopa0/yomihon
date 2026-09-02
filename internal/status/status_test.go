@@ -421,8 +421,8 @@ func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 	}
 
 	err := writer.Flip(requestedRel, "draft", schema.SealStatus, [sha256.Size]byte{})
-	if !errors.Is(err, status.ErrNonInstance) {
-		t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, status.ErrNonInstance)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, fs.ErrNotExist)
 	}
 	got, readErr := os.ReadFile(onDisk) // #nosec G304 -- a fixed in-test path under this test's TempDir
 	if readErr != nil {

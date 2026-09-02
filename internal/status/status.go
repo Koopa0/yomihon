@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	pathpkg "path"
@@ -705,16 +706,10 @@ func (w *Writer) validateWriteTarget(rel, relSlash string) error {
 	return w.targetSpelledAsRequested(rel, relSlash)
 }
 
-// targetSpelledAsRequested refuses a request the filesystem answers with an
-// entry spelled differently from the one asked for.
-//
-// A vault on a case-insensitive filesystem opens "L06.MD" for a request naming
-// "L06.md". The scan compares spellings exactly and reads the file on disk as
-// a resource — which is why this used to end as a rewritten resource no
-// reading page would show. The check asks the directory what it actually
-// holds, so the refusal comes before anything is written. It also
-// covers spellings that differ in ways beyond letter case, since it compares
-// the resolved entry rather than reasoning about one kind of equivalence.
+// targetSpelledAsRequested answers a request whose spelling the directory
+// does not hold as a missing note, whatever the filesystem would open for it.
+// A case-insensitive volume opens "L06.MD" for "L06.md"; the vault holds no
+// such note, and the answer is the same one a case-sensitive volume gives.
 func (w *Writer) targetSpelledAsRequested(rel, relSlash string) error {
 	parent, _, name, err := openRegularParent(w.root, rel, relSlash)
 	if err != nil {
@@ -738,7 +733,7 @@ func (w *Writer) targetSpelledAsRequested(rel, relSlash string) error {
 		return fmt.Errorf("status: confirm the name of %s: %w", relSlash, err)
 	}
 	if !slices.Contains(names, name) {
-		return ErrNonInstance
+		return fmt.Errorf("%s: %w", relSlash, fs.ErrNotExist)
 	}
 	return nil
 }
