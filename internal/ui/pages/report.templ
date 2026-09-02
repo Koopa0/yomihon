@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -13,12 +12,11 @@ import (
 // sandboxed iframe, and yomihon styles only the frame, never the content.
 type ReportView struct {
 	Name string
-	Nav  *nav.Model
-	// RelPath is the report file this shell frames, so the sidebar knows the
-	// reader is standing among the reports — the report drawer opens and the
-	// folder tree reveals the branch, exactly as it would had the same file
-	// been reached as a note.
-	RelPath string
+	// Sidebar is the resolved left navigation, built where every other page
+	// builds it: with this report as the current file, so the report drawer
+	// opens and the folder tree reveals the branch, exactly as it would had the
+	// same file been reached as a note.
+	Sidebar Sidebar
 	// NeedsScript records that this document draws part of itself with a
 	// script. Scripts never run here, so that part of the page is absent — and
 	// a chart-shaped hole with nothing explaining it reads as a broken report
@@ -38,7 +36,7 @@ templ Report(v ReportView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(NewSidebar(v.Nav, v.RelPath), c)
+			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main y-reportmain">
 				<h1 class="y-reporttitle">{ v.Name }</h1>
 				if v.NeedsScript {

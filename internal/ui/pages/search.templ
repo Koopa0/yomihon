@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -50,10 +49,12 @@ type SearchView struct {
 	// sentence a second time.
 	Governed bool
 
-	// Nav is the whole-vault navigation model for the shared sidebar: the
-	// search page renders inside the same shell as every other page, so
-	// arriving at a search never strands the reader in a chromeless view.
-	Nav *nav.Model
+	// Sidebar is the resolved left navigation, built where every other page
+	// builds it. The search page renders inside the same shell as every other
+	// one, so arriving at a search never strands the reader in a chromeless
+	// view — and resolving the rail while the response body is already being
+	// written would make this page the odd one out.
+	Sidebar Sidebar
 }
 
 // SearchResult is one rendered hit: the entry's path (linked), display title,
@@ -123,7 +124,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(NewSidebar(v.Nav, ""), c)
+			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main">
 				// data-live-search-sync-url marks the one live region whose results
 				// the address bar describes: this page is the form's own target, so
