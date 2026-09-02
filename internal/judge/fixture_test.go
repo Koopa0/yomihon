@@ -111,3 +111,62 @@ func contractFixture(tb testing.TB, privateDirs []string, replacements ...[2]str
 	}
 	return text + "\n[privacy]\nnever_egress_dirs = [" + strings.Join(quoted, ", ") + "]\n"
 }
+
+// runPrepared drives one adjudicating engine the way the binary's front end
+// does — prepare a payload, then re-validate the contract authority and close
+// the observation before a byte is published — with the seams the front end
+// cannot offer.
+//
+// Those seams name moments inside the engine, so no caller outside this package
+// can reach them, and the tests that pin what happens at each of them have to
+// live here. beforeEmission is separate from the observation's own hooks
+// because it names a moment after the observation is over: the payload exists
+// and nothing has been written yet, which is where the authority is asked a
+// second time.
+func runPrepared(
+	ctx context.Context,
+	tb testing.TB,
+	command, root, name string,
+	hooks actionHooks,
+	beforeEmission func(),
+) ([]byte, error) {
+	tb.Helper()
+	var prepared preparedCommand
+	var err error
+	switch command {
+	case "check":
+		prepared, err = prepareCheckWithHooks(ctx, &CheckOptions{Root: root, Format: FormatJSON}, hooks)
+	case "coverage":
+		prepared, err = prepareCoverageWithHooks(ctx, &CoverageOptions{Root: root, Format: FormatJSON}, hooks)
+	case "exists":
+		prepared, err = prepareExistsWithHooks(ctx, &ExistsOptions{Root: root, Name: name, Format: FormatJSON}, hooks)
+	default:
+		tb.Fatalf("runPrepared: unknown command %q", command)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if beforeEmission != nil {
+		beforeEmission()
+	}
+	if err := prepared.finish(); err != nil {
+		return nil, err
+	}
+	return prepared.stdout, nil
+}
+
+// refuse runs one adjudicating engine against root and returns the refusal it
+// answered with, failing the test when it answered at all. The three engines
+// classify a folder they cannot judge identically, so a test about a folder
+// states its case once and runs it through each.
+func refuse(ctx context.Context, tb testing.TB, command, root string) error {
+	tb.Helper()
+	payload, err := runPrepared(ctx, tb, command, root, "candidate", actionHooks{}, nil)
+	if err == nil {
+		tb.Errorf("%s produced %d bytes for a folder it cannot judge, and no refusal", command, len(payload))
+	}
+	if payload != nil {
+		tb.Errorf("%s produced a payload alongside its refusal: %q", command, payload)
+	}
+	return err
+}

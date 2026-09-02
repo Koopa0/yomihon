@@ -8,14 +8,24 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
+// The two refusals a caller has to be able to tell apart. Both mean the same
+// thing to the engine — there is no vocabulary to judge notes against, so no
+// verdict is possible — and different things to whoever pointed the command at
+// this folder, who is owed a different paragraph for each. Distinguishing them
+// is the caller's job, so they are exported; the paragraphs themselves are the
+// binary's, since they are written for a person at a terminal.
 var (
-	errPrivacyAuthorityUnavailable = errors.New("privacy authority unavailable; agent-facing output disabled")
+	// ErrPrivacyAuthorityUnavailable reports a contract that exists and could
+	// not be honoured. The reason is deliberately not carried: a decoder's
+	// account of an existing contract's keys would quote vault content back out
+	// under exactly the policy that is missing.
+	ErrPrivacyAuthorityUnavailable = errors.New("privacy authority unavailable; agent-facing output disabled")
 
-	// errNoVaultContract is the other half of the same silence. A folder that
+	// ErrNoVaultContract is the other half of the same silence. A folder that
 	// carries no contract asserted nothing: it is not broken, it simply has no
 	// vocabulary for these commands to judge in, and saying so is a different
 	// sentence from saying a declaration could not be honoured.
-	errNoVaultContract = errors.New("this folder has no vault contract, so there is nothing to judge notes against")
+	ErrNoVaultContract = errors.New("this folder has no vault contract, so there is nothing to judge notes against")
 )
 
 // scanAuthority is the contract state that permits one agent-facing judge
@@ -30,7 +40,7 @@ func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority
 	contract, err := schema.LoadReader(ctx, reader)
 	if err != nil {
 		if schema.ContractAbsent(err) {
-			return scanAuthority{}, errNoVaultContract
+			return scanAuthority{}, ErrNoVaultContract
 		}
 		// The decoder's own words are deliberately dropped. A parse failure
 		// names keys from the contract, and this face exists to hand its output
@@ -38,7 +48,7 @@ func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority
 		// out under exactly the policy that is missing. The operator reads the
 		// cause where reading is the point: the server states it on the page
 		// and logs it at startup.
-		return scanAuthority{}, errPrivacyAuthorityUnavailable
+		return scanAuthority{}, ErrPrivacyAuthorityUnavailable
 	}
 	authority := scanAuthority{
 		contract: contract,
@@ -60,7 +70,7 @@ func (a scanAuthority) roles() schema.NavigationRoles {
 func (a scanAuthority) validate() error {
 	privacy := a.privacy.ValidateSource()
 	if !privacy.Available() {
-		return errPrivacyAuthorityUnavailable
+		return ErrPrivacyAuthorityUnavailable
 	}
 	return nil
 }

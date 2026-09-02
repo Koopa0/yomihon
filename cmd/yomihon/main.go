@@ -13,8 +13,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-
-	"github.com/koopa0/yomihon/internal/judge"
 )
 
 func main() {
@@ -49,7 +47,7 @@ func main() {
 		// note read, so the interrupt lands rather than being noticed once the
 		// work is already done.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		exit := judge.RunCommand(ctx, command, args, os.Stdout, os.Stderr, stdoutIsTerminal())
+		exit := runCommand(ctx, command, args, os.Stdout, os.Stderr, stdoutIsTerminal())
 		stop()
 		os.Exit(exit)
 	default:

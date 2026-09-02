@@ -3,6 +3,7 @@ package judge
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -148,7 +149,17 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 // make the pair of refusals an existence oracle over exactly the directory the
 // contract closed; one uniform answer for every path under it tells the caller
 // only what their own contract already says.
+//
+// The shape check runs ahead of both, and cannot be an oracle for the same
+// reason: it reads the argument's own letters and asks neither the contract nor
+// the scan anything. It is here rather than in whatever parsed the argument so
+// that every caller gets it. A vault path handed straight to this function used
+// to come back as a scope the contract withholds, which told an operator whose
+// contract withholds nothing that his own vault root was private.
 func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authority scanAuthority) ([]Finding, error) {
+	if err := scopeIsWrittenFromTheVaultRoot(paths); err != nil {
+		return nil, err
+	}
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
 		prefixes[i] = canonicalPathFilter(p)
@@ -165,6 +176,30 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 	return slices.DeleteFunc(findings, func(f Finding) bool {
 		return !anyTouchedPath(&f, func(p string) bool { return underAnyPrefix(p, prefixes) })
 	}), nil
+}
+
+// scopeIsWrittenFromTheVaultRoot refuses a scope written as an absolute path.
+//
+// A scope names part of the vault the way the vault spells it — from the
+// vault's own root, with no leading slash — so an absolute one names nothing
+// this face can hold. Without this the refusal came from the withheld check
+// further down, because a path outside the vault is a path the privacy policy
+// cannot answer about, and an operator whose contract withholds nothing was
+// told his own vault root was private.
+//
+// It reads the shape of the argument and not what is on disk at it, which keeps
+// it truthful whether or not a vault happens to sit there, and keeps this face
+// out of the filesystem it reaches through one rooted path only.
+func scopeIsWrittenFromTheVaultRoot(scopes []string) error {
+	for _, p := range scopes {
+		if !filepath.IsAbs(p) && !strings.HasPrefix(p, "/") {
+			continue
+		}
+		return fmt.Errorf(
+			"path filter %q is an absolute path, and a filter names part of the vault from the vault's own root, such as %s",
+			p, vaultRelativeExample)
+	}
+	return nil
 }
 
 // vaultRelativeExample stands in for a real path in the refusal above. It is a

@@ -23,18 +23,14 @@ var errWithheldUnreadable = errors.New(
 	"vault scan failed: a file under a directory this vault's contract withholds from agent-facing output could not be read; naming it or the reason would describe ground the contract closed",
 )
 
-// actionHooks are the seams a test drives one command run through: after the
-// scan is pinned, after each note is read, and after a payload exists but
-// before it reaches stdout. Nothing in production sets any of them.
-//
-// The three name moments in one run, so they are one struct. The last is not
-// the observation's own — openAction never calls it — but splitting it into a
-// second struct meant two names for one idea and a conversion between them,
-// and a fourth callback would have been an edit in three places.
+// actionHooks are the two seams a test drives an observation through: after the
+// scan is pinned, and after each note is read. Nothing in production sets
+// either, and no caller outside this package can — the moments they name are
+// inside the observation, which is why the coverage they buy cannot be had from
+// the binary that drives it.
 type actionHooks struct {
-	afterScan      func()
-	afterNoteRead  func(string)
-	beforeEmission func()
+	afterScan     func()
+	afterNoteRead func(string)
 }
 
 // action is one complete, pinned observation used by a judge command. The

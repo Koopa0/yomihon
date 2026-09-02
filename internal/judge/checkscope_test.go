@@ -1,7 +1,7 @@
 package judge
 
 import (
-	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,33 +21,6 @@ func writeCheckableVault(t *testing.T, root string) string {
 	return root
 }
 
-// TestCheckSaysWhichWordToMoveWhenTheVaultIsTypedAsScope holds the refusal a
-// reader gets for the mistake this command invites. The vault and a scope
-// filter are both directories typed after the command, and putting the vault in
-// the scope position produced a message about vault-relative paths that never
-// named the word to move.
-func TestCheckSaysWhichWordToMoveWhenTheVaultIsTypedAsScope(t *testing.T) {
-	vault := writeCheckableVault(t, t.TempDir())
-	elsewhere := t.TempDir()
-	t.Chdir(elsewhere)
-
-	var stdout, stderr bytes.Buffer
-	exit := RunCommand(t.Context(), "check", []string{vault}, &stdout, &stderr, false)
-
-	if exit != 2 {
-		t.Errorf("exit = %d, want 2", exit)
-	}
-	if stdout.Len() != 0 {
-		t.Errorf("stdout = %q, want empty", stdout.String())
-	}
-	if !strings.Contains(stderr.String(), "--root") {
-		t.Errorf("the refusal never names the flag the vault belongs to:\n%s", stderr.String())
-	}
-	if !strings.Contains(stderr.String(), vault) {
-		t.Errorf("the refusal never names the directory it is about:\n%s", stderr.String())
-	}
-}
-
 // TestCheckKeepsScopeFilteringWhenTheVaultIsNamed holds that the refusal above
 // did not narrow what a scope filter may say. Once --root names the vault,
 // everything after it is scope and is read inside that vault.
@@ -57,46 +30,59 @@ func TestCheckKeepsScopeFilteringWhenTheVaultIsNamed(t *testing.T) {
 
 	t.Run("a path inside the vault still filters", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", vault, "Writing"}, &stdout, &stderr, false)
-		if exit != 0 {
-			t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
+		if exit, err := checkScope(t.Context(), vault, "Writing"); err != nil || exit != 0 {
+			t.Errorf("exit = %d, err = %v; want a clean run", exit, err)
 		}
 	})
 
 	t.Run("a file inside the vault still filters", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", vault, "Writing/Lesson.md"}, &stdout, &stderr, false)
-		if exit != 0 {
-			t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
+		if exit, err := checkScope(t.Context(), vault, "Writing/Lesson.md"); err != nil || exit != 0 {
+			t.Errorf("exit = %d, err = %v; want a clean run", exit, err)
 		}
 	})
 
 	t.Run("a filter that names nothing keeps its own refusal", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", vault, "Nowhere"}, &stdout, &stderr, false)
-		if exit != 2 {
-			t.Errorf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
+		_, err := checkScope(t.Context(), vault, "Nowhere")
+		if err == nil {
+			t.Fatal("a filter naming nothing was answered rather than refused")
 		}
-		if !strings.Contains(stderr.String(), "names nothing in this vault") {
-			t.Errorf("a relative filter that misses was answered by the wrong refusal:\n%s", stderr.String())
+		if !strings.Contains(err.Error(), "names nothing in this vault") {
+			t.Errorf("a relative filter that misses was answered by the wrong refusal:\n%v", err)
 		}
 	})
 
 	t.Run("an absolute filter is refused even once the vault is named", func(t *testing.T) {
 		t.Parallel()
 		other := writeCheckableVault(t, t.TempDir())
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", vault, other}, &stdout, &stderr, false)
-		if exit != 2 {
-			t.Errorf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
+		_, err := checkScope(t.Context(), vault, other)
+		if err == nil {
+			t.Fatal("an absolute filter was answered rather than refused")
 		}
-		if !strings.Contains(stderr.String(), "absolute path") {
-			t.Errorf("an absolute filter was not named as the problem:\n%s", stderr.String())
+		if !strings.Contains(err.Error(), "absolute path") {
+			t.Errorf("an absolute filter was not named as the problem:\n%v", err)
 		}
 	})
+}
+
+// checkScope runs a check over root narrowed to scopes, returning the exit code
+// the binary would report and the refusal, if there was one. A refusal is a
+// tool error, which the binary turns into exit 2; the exit code here therefore
+// only distinguishes a clean run from a gated one.
+func checkScope(ctx context.Context, root string, scopes ...string) (exit int, err error) {
+	_, exit, err = RunCheck(ctx, &CheckOptions{Root: root, Paths: scopes, Format: FormatJSON})
+	return exit, err
+}
+
+// checkScopeDenying is checkScope with the error gate the vault's own scheduled
+// runs use, which is where an empty answer over withheld ground would be read
+// as a pass.
+func checkScopeDenying(ctx context.Context, root string, scopes ...string) (exit int, err error) {
+	_, exit, err = RunCheck(ctx, &CheckOptions{
+		Root: root, Paths: scopes, Deny: []string{"error"}, Format: FormatJSON,
+	})
+	return exit, err
 }
 
 // TestCheckStillAcceptsTheVaultRootAsItsOwnScope holds the one positional that
@@ -104,12 +90,9 @@ func TestCheckKeepsScopeFilteringWhenTheVaultIsNamed(t *testing.T) {
 // writes "." means the whole of it, which is what no filter already means.
 func TestCheckStillAcceptsTheVaultRootAsItsOwnScope(t *testing.T) {
 	vault := writeCheckableVault(t, t.TempDir())
-	t.Chdir(vault)
 
-	var stdout, stderr bytes.Buffer
-	exit := RunCommand(t.Context(), "check", []string{"."}, &stdout, &stderr, false)
-	if exit != 0 {
-		t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
+	if exit, err := checkScope(t.Context(), vault, "."); err != nil || exit != 0 {
+		t.Errorf("exit = %d, err = %v; want a clean run", exit, err)
 	}
 }
 
@@ -133,52 +116,41 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 
 	t.Run("the public control proves the finding is real and gated", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", root, "--deny", "error", "Writing/Public.md"}, &stdout, &stderr, false)
-		if exit != 1 {
-			t.Fatalf("exit = %d, want 1; the fixture does not produce the error this test is about\nstdout:\n%s\nstderr:\n%s", exit, stdout.String(), stderr.String())
+		exit, err := checkScopeDenying(t.Context(), root, "Writing/Public.md")
+		if err != nil || exit != 1 {
+			t.Fatalf("exit = %d, err = %v; want a gated run, or the fixture does not produce the error this test is about", exit, err)
 		}
 	})
 
 	t.Run("a withheld scope is refused rather than answered", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", root, "Private/Secret.md"}, &stdout, &stderr, false)
-		if exit != 2 {
-			t.Errorf("exit = %d, want 2; an empty answer certifies a scope the command withheld\nstdout:\n%s", exit, stdout.String())
+		_, err := checkScope(t.Context(), root, "Private/Secret.md")
+		if err == nil {
+			t.Fatal("an empty answer certifies a scope the command withheld")
 		}
-		if stdout.Len() != 0 {
-			t.Errorf("stdout = %q, want empty", stdout.String())
-		}
-		if !strings.Contains(stderr.String(), "withholds") {
-			t.Errorf("the refusal never says the scope is withheld:\n%s", stderr.String())
+		if !strings.Contains(err.Error(), "withholds") {
+			t.Errorf("the refusal never says the scope is withheld:\n%v", err)
 		}
 	})
 
 	t.Run("the deny gate cannot pass on a withheld scope", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", root, "--deny", "error", "Private/Secret.md"}, &stdout, &stderr, false)
-		if exit == 0 {
-			t.Errorf("exit = 0: the gate passed a scope holding an error it withheld\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+		if exit, err := checkScopeDenying(t.Context(), root, "Private/Secret.md"); err == nil && exit == 0 {
+			t.Error("the gate passed a scope holding an error it withheld")
 		}
 	})
 
 	t.Run("the directory itself is refused the same way", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", root, "Private"}, &stdout, &stderr, false)
-		if exit != 2 {
-			t.Errorf("exit = %d, want 2; naming the directory answers as cleanly as naming the file\nstdout:\n%s", exit, stdout.String())
+		if _, err := checkScope(t.Context(), root, "Private"); err == nil {
+			t.Error("naming the directory answered where naming the file is refused")
 		}
 	})
 
 	t.Run("a public scope is unaffected", func(t *testing.T) {
 		t.Parallel()
-		var stdout, stderr bytes.Buffer
-		exit := RunCommand(t.Context(), "check", []string{"--root", root, "Writing"}, &stdout, &stderr, false)
-		if exit != 0 {
-			t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
+		if exit, err := checkScope(t.Context(), root, "Writing"); err != nil || exit != 0 {
+			t.Errorf("exit = %d, err = %v; want a clean run", exit, err)
 		}
 	})
 }
@@ -202,4 +174,30 @@ func writeWithheldScopeContract(t *testing.T, root string) {
 	}
 	text += "\n[privacy]\nnever_egress_dirs = [\"Private\"]\n"
 	writeJudgeNote(t, root, schema.ContractRelPath, text)
+}
+
+// TestTheScopeShapeRefusalReachesTheLibraryEntry holds the refusal at the
+// boundary that owns it. It used to sit in the argument parser, which meant it
+// answered a reader typing at a shell and nothing else: a caller reaching the
+// engine with the same absolute path got no refusal at all and a scope that
+// silently matched nothing, which is the one answer an adjudication face must
+// never give about ground it did not cover.
+func TestTheScopeShapeRefusalReachesTheLibraryEntry(t *testing.T) {
+	t.Parallel()
+
+	root := writeCheckableVault(t, t.TempDir())
+
+	if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Paths: []string{"Writing"}}); err != nil {
+		t.Fatalf("RunCheck() on a vault-relative scope error = %v; the fixture has to work or the refusal proves nothing", err)
+	}
+
+	_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Paths: []string{root}})
+	if err == nil {
+		t.Fatal("RunCheck() accepted an absolute path as a scope filter, so the scope matched nothing and the run read as clean")
+	}
+	for _, part := range []string{"absolute path", "from the vault's own root"} {
+		if !strings.Contains(err.Error(), part) {
+			t.Errorf("RunCheck() error = %q, want it to name %q", err, part)
+		}
+	}
 }
