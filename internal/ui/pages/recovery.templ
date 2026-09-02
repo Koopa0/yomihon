@@ -52,13 +52,23 @@ func (v StatusRecoveryView) mutationState(lang wording.Lang) string {
 // Both facts have to be there: which note to ask about, and the version the
 // refused write bound itself to. Without either, the page keeps the plain
 // invitation it carried before there was anything to hold it for.
-func recoveryFreshnessAttrs(v StatusRecoveryView) templ.Attributes {
+//
+// The hold sentences travel with the watch, under the same names and from the
+// same dictionary entries the reading page's column carries them: the words
+// are the server's, and the client shows a held link exactly what it reads
+// here. A column that named the note and the version but carried no words
+// would leave that link saying nothing a reader can use.
+func recoveryFreshnessAttrs(v StatusRecoveryView, lang wording.Lang) templ.Attributes {
 	if v.NotePath == "" || v.NoteIdentity == "" {
 		return nil
 	}
 	return templ.Attributes{
-		"data-freshness-path":     v.NotePath,
-		"data-freshness-identity": v.NoteIdentity,
+		"data-freshness-path":       v.NotePath,
+		"data-freshness-identity":   v.NoteIdentity,
+		"data-freshness-holdtitle":  wording.FreshnessHoldPreparingTitle.In(lang),
+		"data-freshness-holddetail": wording.FreshnessHoldPreparingDetail.In(lang),
+		"data-freshness-gonetitle":  wording.FreshnessHoldGoneTitle.In(lang),
+		"data-freshness-gone":       wording.FreshnessGone.In(lang),
 	}
 }
 
@@ -67,7 +77,7 @@ templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c.Nonce)
-			<main id="main-content" tabindex="-1" class="y-main y-recoverymain" { recoveryFreshnessAttrs(v)... }>
+			<main id="main-content" tabindex="-1" class="y-main y-recoverymain" { recoveryFreshnessAttrs(v, c.Lang)... }>
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="recovery-title">
 					<p class="y-recovery__kicker">{ wording.LifecycleWrite.In(c.Lang) }</p>
 					<h1 id="recovery-title" class="y-title">{ v.Title(c.Lang) }</h1>
