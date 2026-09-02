@@ -2,6 +2,7 @@ package judge
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -143,8 +144,8 @@ func (p *preparedCommand) finish() error {
 // print and the exit code: 1 when a finding gates, 0 otherwise. An unknown
 // --deny token, an unreadable baseline, or a scan failure is returned as an
 // error, which the caller turns into a tool-error exit.
-func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareCheck(o)
+func RunCheck(ctx context.Context, o *CheckOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareCheck(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -154,17 +155,17 @@ func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareCheck(o *CheckOptions) (preparedCommand, error) {
-	return prepareCheckWithHooks(o, actionHooks{})
+func prepareCheck(ctx context.Context, o *CheckOptions) (preparedCommand, error) {
+	return prepareCheckWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareCheckWithHooks(o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
+func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
 	for _, d := range o.Deny {
 		if !isSeverityKeyword(d) && !slices.Contains(ruleIDs, d) {
 			return preparedCommand{}, fmt.Errorf("unknown --deny %q; use a severity (error|warn|info) or a rule id", d)
 		}
 	}
-	a, err := openAction(o.Root, hooks)
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -210,8 +211,8 @@ type CoverageOptions struct {
 // RunCoverage computes and renders coverage. It always exits 0 — coverage
 // reports state, it never gates. A scan or serialization failure is returned as
 // an error.
-func RunCoverage(o *CoverageOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareCoverage(o)
+func RunCoverage(ctx context.Context, o *CoverageOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareCoverage(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -221,12 +222,12 @@ func RunCoverage(o *CoverageOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareCoverage(o *CoverageOptions) (preparedCommand, error) {
-	return prepareCoverageWithHooks(o, actionHooks{})
+func prepareCoverage(ctx context.Context, o *CoverageOptions) (preparedCommand, error) {
+	return prepareCoverageWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareCoverageWithHooks(o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
-	a, err := openAction(o.Root, hooks)
+func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -256,8 +257,8 @@ type ExistsOptions struct {
 // a match exists and 1 when none does, so a caller can gate a
 // write-if-absent on the exit code alone. A scan or serialization failure is
 // returned as an error.
-func RunExists(o *ExistsOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareExists(o)
+func RunExists(ctx context.Context, o *ExistsOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareExists(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -267,12 +268,12 @@ func RunExists(o *ExistsOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareExists(o *ExistsOptions) (preparedCommand, error) {
-	return prepareExistsWithHooks(o, actionHooks{})
+func prepareExists(ctx context.Context, o *ExistsOptions) (preparedCommand, error) {
+	return prepareExistsWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareExistsWithHooks(o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
-	a, err := openAction(o.Root, hooks)
+func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}

@@ -108,7 +108,7 @@ func TestCheckHonoursNoFrontmatterDeclaration(t *testing.T) {
 			write(t, root, "Notes/Unclosed.md", "---\ntitle: Unclosed\ntype: note\n")
 			write(t, root, "Notes/Whole.md", "---\ntitle: Whole\ntype: note\n---\n\nBody.\n")
 
-			got, _, err := RunCheck(&CheckOptions{Root: root, Format: FormatJSON})
+			got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}
@@ -138,7 +138,7 @@ func TestCheckHoldsCapturesToTheGeneralSetWhenNoInboxSetIsDeclared(t *testing.T)
 		strings.Replace(inboxContract, "required_inbox = [\"title\", \"created\"]\n", "", 1))
 	write(t, root, "Inbox/Bare.md", "---\ntitle: Bare\ntype: inbox\n---\n")
 
-	got, _, err := RunCheck(&CheckOptions{Root: root, Format: FormatJSON})
+	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck() error = %v", err)
 	}
@@ -165,7 +165,7 @@ func TestCheckDemandsDomainWhenTheInboxSetNamesIt(t *testing.T) {
 	write(t, root, schema.ContractRelPath, contract)
 	write(t, root, "Inbox/Bare.md", "---\ntitle: Bare\ntype: inbox\n---\n")
 
-	got, _, err := RunCheck(&CheckOptions{Root: root, Format: FormatJSON})
+	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck() error = %v", err)
 	}
@@ -187,7 +187,7 @@ func TestCheckHonoursRequiredInbox(t *testing.T) {
 	write(t, root, "Inbox/Bare.md", "---\ntitle: Bare\ntype: inbox\n---\n")
 	write(t, root, "Notes/Plain.md", "---\ntitle: Plain\ntype: note\n---\n")
 
-	got, _, err := RunCheck(&CheckOptions{Root: root, Format: FormatJSON})
+	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck() error = %v", err)
 	}

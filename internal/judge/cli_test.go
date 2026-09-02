@@ -17,6 +17,7 @@ func TestRunCommandWritesExistsResult(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	exit := RunCommand(
+		t.Context(),
 		"exists",
 		[]string{"--root=testdata/vault-report", "--format=json", "shared"},
 		&stdout,
@@ -36,7 +37,7 @@ func TestRunCommandRejectsInvalidInvocationWithoutPayload(t *testing.T) {
 	t.Parallel()
 
 	var stdout, stderr bytes.Buffer
-	exit := RunCommand("exists", []string{"--root=testdata/vault-report"}, &stdout, &stderr, false)
+	exit := RunCommand(t.Context(), "exists", []string{"--root=testdata/vault-report"}, &stdout, &stderr, false)
 	if exit != 2 {
 		t.Errorf("RunCommand exit = %d, want 2", exit)
 	}
@@ -112,15 +113,15 @@ func TestRunCommandRejectsFlagsAndPositionalsOwnedByAnotherCommand(t *testing.T)
 			t.Parallel()
 
 			var stdout, stderr bytes.Buffer
-			exit := RunCommand(tt.command, tt.args, &stdout, &stderr, false)
+			exit := RunCommand(t.Context(), tt.command, tt.args, &stdout, &stderr, false)
 			if exit != 2 {
-				t.Errorf("RunCommand(%q) exit = %d, want 2", tt.command, exit)
+				t.Errorf("RunCommand(t.Context(), %q) exit = %d, want 2", tt.command, exit)
 			}
 			if stdout.Len() != 0 {
-				t.Errorf("RunCommand(%q) stdout = %q, want empty", tt.command, stdout.String())
+				t.Errorf("RunCommand(t.Context(), %q) stdout = %q, want empty", tt.command, stdout.String())
 			}
 			if diff := cmp.Diff(tt.want, stderr.String()); diff != "" {
-				t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", tt.command, diff)
+				t.Errorf("RunCommand(t.Context(), %q) stderr mismatch (-want +got):\n%s", tt.command, diff)
 			}
 		})
 	}
@@ -214,15 +215,15 @@ func TestRunCommandSeparatesAnAbsentContractFromAnUnusableOne(t *testing.T) {
 
 					root := folder.build(t)
 					var stdout, stderr bytes.Buffer
-					exit := RunCommand(command.command, command.args(root), &stdout, &stderr, false)
+					exit := RunCommand(t.Context(), command.command, command.args(root), &stdout, &stderr, false)
 					if exit != 2 {
-						t.Errorf("RunCommand(%q) exit = %d, want 2", command.command, exit)
+						t.Errorf("RunCommand(t.Context(), %q) exit = %d, want 2", command.command, exit)
 					}
 					if stdout.Len() != 0 {
-						t.Errorf("RunCommand(%q) stdout = %q, want empty", command.command, stdout.String())
+						t.Errorf("RunCommand(t.Context(), %q) stdout = %q, want empty", command.command, stdout.String())
 					}
 					if diff := cmp.Diff(folder.want, stderr.String()); diff != "" {
-						t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", command.command, diff)
+						t.Errorf("RunCommand(t.Context(), %q) stderr mismatch (-want +got):\n%s", command.command, diff)
 					}
 				})
 			}
@@ -255,16 +256,16 @@ func TestRunCommandRejectsUnavailablePrivacyWithoutPayload(t *testing.T) {
 			t.Parallel()
 
 			var stdout, stderr bytes.Buffer
-			exit := RunCommand(tt.command, tt.args, &stdout, &stderr, false)
+			exit := RunCommand(t.Context(), tt.command, tt.args, &stdout, &stderr, false)
 			if exit != 2 {
-				t.Errorf("RunCommand(%q) exit = %d, want 2", tt.command, exit)
+				t.Errorf("RunCommand(t.Context(), %q) exit = %d, want 2", tt.command, exit)
 			}
 			if stdout.Len() != 0 {
-				t.Errorf("RunCommand(%q) stdout = %q, want empty", tt.command, stdout.String())
+				t.Errorf("RunCommand(t.Context(), %q) stdout = %q, want empty", tt.command, stdout.String())
 			}
 			want := "yomihon: privacy authority unavailable; agent-facing output disabled\n" + unresolvedContractGuidance
 			if diff := cmp.Diff(want, stderr.String()); diff != "" {
-				t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", tt.command, diff)
+				t.Errorf("RunCommand(t.Context(), %q) stderr mismatch (-want +got):\n%s", tt.command, diff)
 			}
 		})
 	}
@@ -301,12 +302,12 @@ func TestRunCommandFailsClosedWhenNestedVaultEntryCannotBeRead(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			exit := RunCommand(tt.command, tt.args, &stdout, &stderr, false)
+			exit := RunCommand(t.Context(), tt.command, tt.args, &stdout, &stderr, false)
 			if exit != 2 {
-				t.Errorf("RunCommand(%q) exit = %d, want 2", tt.command, exit)
+				t.Errorf("RunCommand(t.Context(), %q) exit = %d, want 2", tt.command, exit)
 			}
 			if stdout.Len() != 0 {
-				t.Errorf("RunCommand(%q) stdout = %q, want empty", tt.command, stdout.String())
+				t.Errorf("RunCommand(t.Context(), %q) stdout = %q, want empty", tt.command, stdout.String())
 			}
 			// The directory the walk stopped on is named, with the reason the
 			// machine gave. The operating system's word for the operation
@@ -316,11 +317,11 @@ func TestRunCommandFailsClosedWhenNestedVaultEntryCannotBeRead(t *testing.T) {
 			got := stderr.String()
 			const prefix = "yomihon: vault scan failed: "
 			if !strings.HasPrefix(got, prefix) {
-				t.Errorf("RunCommand(%q) stderr = %q, want prefix %q", tt.command, got, prefix)
+				t.Errorf("RunCommand(t.Context(), %q) stderr = %q, want prefix %q", tt.command, got, prefix)
 			}
 			for _, part := range []string{"Concepts/blocked", "permission denied"} {
 				if !strings.Contains(got, part) {
-					t.Errorf("RunCommand(%q) stderr = %q, want it to name %q", tt.command, got, part)
+					t.Errorf("RunCommand(t.Context(), %q) stderr = %q, want it to name %q", tt.command, got, part)
 				}
 			}
 		})
@@ -370,23 +371,23 @@ func TestRunCommandRedactsInvalidPrivacyAuthority(t *testing.T) {
 					root := t.TempDir()
 					write(t, root, schema.ContractRelPath, string(state.mutate(bytes.Clone(base))))
 					var stdout, stderr bytes.Buffer
-					exit := RunCommand(command.command, command.args(root), &stdout, &stderr, false)
+					exit := RunCommand(t.Context(), command.command, command.args(root), &stdout, &stderr, false)
 					if exit != 2 {
-						t.Errorf("RunCommand(%q) exit = %d, want 2", command.command, exit)
+						t.Errorf("RunCommand(t.Context(), %q) exit = %d, want 2", command.command, exit)
 					}
 					if stdout.Len() != 0 {
-						t.Errorf("RunCommand(%q) stdout = %q, want empty", command.command, stdout.String())
+						t.Errorf("RunCommand(t.Context(), %q) stdout = %q, want empty", command.command, stdout.String())
 					}
 					want := "yomihon: privacy authority unavailable; agent-facing output disabled\n" + unresolvedContractGuidance
 					if diff := cmp.Diff(want, stderr.String()); diff != "" {
-						t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", command.command, diff)
+						t.Errorf("RunCommand(t.Context(), %q) stderr mismatch (-want +got):\n%s", command.command, diff)
 					}
 					// The literal above pins today's words. This pins the property
 					// those words exist for, so a later edit cannot satisfy the
 					// comparison by moving contract material into both sides of it.
 					for _, leak := range []string{"never_egress_dirs", "[malformed", "expected", root} {
 						if strings.Contains(stderr.String(), leak) {
-							t.Errorf("RunCommand(%q) stderr leaked contract material %q: %q",
+							t.Errorf("RunCommand(t.Context(), %q) stderr leaked contract material %q: %q",
 								command.command, leak, stderr.String())
 						}
 					}
@@ -434,6 +435,7 @@ func TestRunCommandRechecksPrivacyImmediatelyBeforeEmission(t *testing.T) {
 
 			var stdout, stderr bytes.Buffer
 			exit := runCommand(
+				t.Context(),
 				tt.command,
 				tt.args(root),
 				&stdout,
@@ -508,20 +510,20 @@ func TestAFolderThatIsNotThereIsNotABrokenContract(t *testing.T) {
 
 			root := filepath.Join(t.TempDir(), "no-folder-of-this-name")
 			var stdout, stderr bytes.Buffer
-			exit := RunCommand(command.name, command.args(root), &stdout, &stderr, false)
+			exit := RunCommand(t.Context(), command.name, command.args(root), &stdout, &stderr, false)
 
 			if exit != 2 {
-				t.Errorf("RunCommand(%q) exit = %d, want 2", command.name, exit)
+				t.Errorf("RunCommand(t.Context(), %q) exit = %d, want 2", command.name, exit)
 			}
 			if stdout.Len() != 0 {
-				t.Errorf("RunCommand(%q) stdout = %q, want empty", command.name, stdout.String())
+				t.Errorf("RunCommand(t.Context(), %q) stdout = %q, want empty", command.name, stdout.String())
 			}
 			want := "yomihon: " + errVaultScan.Error() + "\n"
 			if diff := cmp.Diff(want, stderr.String()); diff != "" {
-				t.Errorf("RunCommand(%q) stderr mismatch (-want +got):\n%s", command.name, diff)
+				t.Errorf("RunCommand(t.Context(), %q) stderr mismatch (-want +got):\n%s", command.name, diff)
 			}
 			if strings.Contains(stderr.String(), schema.ContractRelPath) {
-				t.Errorf("RunCommand(%q) stderr = %q, which describes a contract file in a folder that does not exist", command.name, stderr.String())
+				t.Errorf("RunCommand(t.Context(), %q) stderr = %q, which describes a contract file in a folder that does not exist", command.name, stderr.String())
 			}
 		})
 	}

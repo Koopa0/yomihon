@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -26,11 +27,12 @@ type commandArgs struct {
 // frozen payload to stdout, writes usage or tool failures to stderr, and
 // returns the process exit code: 0 for success, 1 for a gate hit or missing
 // note, and 2 for an invalid invocation or tool failure.
-func RunCommand(command string, args []string, stdout, stderr io.Writer, stdoutIsTerminal bool) int {
-	return runCommand(command, args, stdout, stderr, stdoutIsTerminal, actionHooks{})
+func RunCommand(ctx context.Context, command string, args []string, stdout, stderr io.Writer, stdoutIsTerminal bool) int {
+	return runCommand(ctx, command, args, stdout, stderr, stdoutIsTerminal, actionHooks{})
 }
 
 func runCommand(
+	ctx context.Context,
 	command string,
 	args []string,
 	stdout, stderr io.Writer,
@@ -56,7 +58,7 @@ func runCommand(
 	var prepared preparedCommand
 	switch command {
 	case "check":
-		prepared, err = prepareCheckWithHooks(&CheckOptions{
+		prepared, err = prepareCheckWithHooks(ctx, &CheckOptions{
 			Root:     root,
 			Paths:    parsed.positionals,
 			All:      parsed.all,
@@ -65,9 +67,9 @@ func runCommand(
 			Format:   format,
 		}, hooks)
 	case "coverage":
-		prepared, err = prepareCoverageWithHooks(&CoverageOptions{Root: root, Format: format}, hooks)
+		prepared, err = prepareCoverageWithHooks(ctx, &CoverageOptions{Root: root, Format: format}, hooks)
 	case "exists":
-		prepared, err = prepareExistsWithHooks(&ExistsOptions{
+		prepared, err = prepareExistsWithHooks(ctx, &ExistsOptions{
 			Root: root, Name: parsed.positionals[0], Format: format,
 		}, hooks)
 	default:

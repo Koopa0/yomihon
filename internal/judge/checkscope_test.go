@@ -32,7 +32,7 @@ func TestCheckSaysWhichWordToMoveWhenTheVaultIsTypedAsScope(t *testing.T) {
 	t.Chdir(elsewhere)
 
 	var stdout, stderr bytes.Buffer
-	exit := RunCommand("check", []string{vault}, &stdout, &stderr, false)
+	exit := RunCommand(t.Context(), "check", []string{vault}, &stdout, &stderr, false)
 
 	if exit != 2 {
 		t.Errorf("exit = %d, want 2", exit)
@@ -58,7 +58,7 @@ func TestCheckKeepsScopeFilteringWhenTheVaultIsNamed(t *testing.T) {
 	t.Run("a path inside the vault still filters", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", vault, "Writing"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", vault, "Writing"}, &stdout, &stderr, false)
 		if exit != 0 {
 			t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
 		}
@@ -67,7 +67,7 @@ func TestCheckKeepsScopeFilteringWhenTheVaultIsNamed(t *testing.T) {
 	t.Run("a file inside the vault still filters", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", vault, "Writing/Lesson.md"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", vault, "Writing/Lesson.md"}, &stdout, &stderr, false)
 		if exit != 0 {
 			t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
 		}
@@ -76,7 +76,7 @@ func TestCheckKeepsScopeFilteringWhenTheVaultIsNamed(t *testing.T) {
 	t.Run("a filter that names nothing keeps its own refusal", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", vault, "Nowhere"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", vault, "Nowhere"}, &stdout, &stderr, false)
 		if exit != 2 {
 			t.Errorf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
 		}
@@ -89,7 +89,7 @@ func TestCheckKeepsScopeFilteringWhenTheVaultIsNamed(t *testing.T) {
 		t.Parallel()
 		other := writeCheckableVault(t, t.TempDir())
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", vault, other}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", vault, other}, &stdout, &stderr, false)
 		if exit != 2 {
 			t.Errorf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
 		}
@@ -107,7 +107,7 @@ func TestCheckStillAcceptsTheVaultRootAsItsOwnScope(t *testing.T) {
 	t.Chdir(vault)
 
 	var stdout, stderr bytes.Buffer
-	exit := RunCommand("check", []string{"."}, &stdout, &stderr, false)
+	exit := RunCommand(t.Context(), "check", []string{"."}, &stdout, &stderr, false)
 	if exit != 0 {
 		t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
 	}
@@ -134,7 +134,7 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 	t.Run("the public control proves the finding is real and gated", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", root, "--deny", "error", "Writing/Public.md"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", root, "--deny", "error", "Writing/Public.md"}, &stdout, &stderr, false)
 		if exit != 1 {
 			t.Fatalf("exit = %d, want 1; the fixture does not produce the error this test is about\nstdout:\n%s\nstderr:\n%s", exit, stdout.String(), stderr.String())
 		}
@@ -143,7 +143,7 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 	t.Run("a withheld scope is refused rather than answered", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", root, "Private/Secret.md"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", root, "Private/Secret.md"}, &stdout, &stderr, false)
 		if exit != 2 {
 			t.Errorf("exit = %d, want 2; an empty answer certifies a scope the command withheld\nstdout:\n%s", exit, stdout.String())
 		}
@@ -158,7 +158,7 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 	t.Run("the deny gate cannot pass on a withheld scope", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", root, "--deny", "error", "Private/Secret.md"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", root, "--deny", "error", "Private/Secret.md"}, &stdout, &stderr, false)
 		if exit == 0 {
 			t.Errorf("exit = 0: the gate passed a scope holding an error it withheld\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 		}
@@ -167,7 +167,7 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 	t.Run("the directory itself is refused the same way", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", root, "Private"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", root, "Private"}, &stdout, &stderr, false)
 		if exit != 2 {
 			t.Errorf("exit = %d, want 2; naming the directory answers as cleanly as naming the file\nstdout:\n%s", exit, stdout.String())
 		}
@@ -176,7 +176,7 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 	t.Run("a public scope is unaffected", func(t *testing.T) {
 		t.Parallel()
 		var stdout, stderr bytes.Buffer
-		exit := RunCommand("check", []string{"--root", root, "Writing"}, &stdout, &stderr, false)
+		exit := RunCommand(t.Context(), "check", []string{"--root", root, "Writing"}, &stdout, &stderr, false)
 		if exit != 0 {
 			t.Errorf("exit = %d, want 0; stderr:\n%s", exit, stderr.String())
 		}

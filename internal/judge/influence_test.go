@@ -48,7 +48,7 @@ func TestCoverageExcludesJournalMountEdges(t *testing.T) {
 func TestCheckExcludesJournalPlannedNames(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRootWithPrivacy(t, diaryInfluenceVault, "Diary")
-	findings, err := Check(root)
+	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check(%q): %v", root, err)
 	}
@@ -106,7 +106,7 @@ slug: restricted-slug
 ---
 `)
 
-	findings, err := Check(root)
+	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check(%q): %v", root, err)
 	}
@@ -162,7 +162,7 @@ title: Public
 				write(t, root, "Restricted/secret.md", "secret")
 			}
 
-			findings, err := Check(root)
+			findings, err := Check(t.Context(), root)
 			if err != nil {
 				t.Fatalf("Check(%q): %v", root, err)
 			}
@@ -211,7 +211,7 @@ func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
 // Coverage value the assertions read.
 func coverageOf(t *testing.T, root string) Coverage {
 	t.Helper()
-	out, _, err := RunCoverage(&CoverageOptions{Root: root, Format: FormatJSON})
+	out, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage(%q): %v", root, err)
 	}

@@ -15,7 +15,7 @@ import (
 // markdownReport).
 func TestReportGolden(t *testing.T) {
 	t.Parallel()
-	findings, err := Check("testdata/vault-report")
+	findings, err := Check(t.Context(), "testdata/vault-report")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}

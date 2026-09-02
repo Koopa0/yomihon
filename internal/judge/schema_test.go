@@ -85,7 +85,7 @@ func TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope(t *testing.T) {
 
 	root := judgeFixtureRoot(t, "testdata/vault-knowledge-scope")
 	for _, all := range []bool{false, true} {
-		findings, err := runCheckAction(root, nil, all)
+		findings, err := runCheckAction(t.Context(), root, nil, all)
 		if err != nil {
 			t.Fatalf("check(all=%v): %v", all, err)
 		}
@@ -127,7 +127,7 @@ func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
 		t.Fatalf("MkdirAll(Inbox) error = %v", mkdirErr)
 	}
 
-	findings, err := runCheckAction(root, nil, false)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("check(): %v", err)
 	}
@@ -357,9 +357,9 @@ func TestCheckSchemaIncludesArticleLanguage(t *testing.T) {
 // and returns the wire bytes.
 func runSchema(t *testing.T, root string) []byte {
 	t.Helper()
-	notes, err := collectNotes(root)
+	notes, err := collectNotes(t.Context(), root)
 	if err != nil {
-		t.Fatalf("collectNotes(%q): %v", root, err)
+		t.Fatalf("collectNotes(t.Context(), %q): %v", root, err)
 	}
 	s, err := schema.Load(root)
 	if err != nil {

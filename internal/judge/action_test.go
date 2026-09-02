@@ -2,6 +2,7 @@ package judge
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ func TestJudgeActionPinsOneRootAcrossRenameAndReplacement(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	exit := runCommand(
+		t.Context(),
 		"exists",
 		[]string{"--root=" + root, "--format=json", "Pinned"},
 		&stdout,
@@ -81,7 +83,7 @@ func TestJudgeActionReadsNFDEntryThroughCapturedRawSpelling(t *testing.T) {
 	}
 	write(t, root, raw, "---\ntitle: Caf\u00e9\n---\n")
 
-	stdout, exit, err := RunExists(&ExistsOptions{Root: root, Name: "Caf\u00e9", Format: FormatJSON})
+	stdout, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Caf\u00e9", Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunExists(NFD entry) error = %v", err)
 	}
@@ -192,19 +194,19 @@ func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if exit := RunCommand("check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
-		t.Errorf("RunCommand(check) exit = %d, want 2", exit)
+	if exit := RunCommand(t.Context(), "check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
+		t.Errorf("RunCommand(t.Context(), check) exit = %d, want 2", exit)
 	}
 	if stdout.Len() != 0 {
-		t.Errorf("RunCommand(check) stdout = %q, want empty", stdout.String())
+		t.Errorf("RunCommand(t.Context(), check) stdout = %q, want empty", stdout.String())
 	}
 	got := stderr.String()
 	if !strings.HasPrefix(got, "yomihon: vault scan failed: ") {
-		t.Errorf("RunCommand(check) stderr = %q, want the scan refusal", got)
+		t.Errorf("RunCommand(t.Context(), check) stderr = %q, want the scan refusal", got)
 	}
 	for _, part := range []string{"Notes/bad.md", "permission denied"} {
 		if !strings.Contains(got, part) {
-			t.Errorf("RunCommand(check) stderr = %q, want it to name %q", got, part)
+			t.Errorf("RunCommand(t.Context(), check) stderr = %q, want it to name %q", got, part)
 		}
 	}
 }
@@ -225,19 +227,19 @@ func TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if exit := RunCommand("check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
-		t.Errorf("RunCommand(check) exit = %d, want 2", exit)
+	if exit := RunCommand(t.Context(), "check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
+		t.Errorf("RunCommand(t.Context(), check) exit = %d, want 2", exit)
 	}
 	if stdout.Len() != 0 {
-		t.Errorf("RunCommand(check) stdout = %q, want empty", stdout.String())
+		t.Errorf("RunCommand(t.Context(), check) stdout = %q, want empty", stdout.String())
 	}
 	got := stderr.String()
 	if want := "yomihon: " + errWithheldUnreadable.Error() + "\n"; got != want {
-		t.Errorf("RunCommand(check) stderr = %q, want %q", got, want)
+		t.Errorf("RunCommand(t.Context(), check) stderr = %q, want %q", got, want)
 	}
 	for _, leaked := range []string{"Diary", "2026-08-27", "permission denied"} {
 		if strings.Contains(got, leaked) {
-			t.Errorf("RunCommand(check) stderr = %q, which describes withheld ground with %q", got, leaked)
+			t.Errorf("RunCommand(t.Context(), check) stderr = %q, which describes withheld ground with %q", got, leaked)
 		}
 	}
 }
@@ -261,16 +263,16 @@ func TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if exit := RunCommand("check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
-		t.Errorf("RunCommand(check) exit = %d, want 2", exit)
+	if exit := RunCommand(t.Context(), "check", []string{"--root=" + root, "--format=json"}, &stdout, &stderr, false); exit != 2 {
+		t.Errorf("RunCommand(t.Context(), check) exit = %d, want 2", exit)
 	}
 	got := stderr.String()
 	if want := "yomihon: " + errWithheldUnreadable.Error() + "\n"; got != want {
-		t.Errorf("RunCommand(check) stderr = %q, want %q", got, want)
+		t.Errorf("RunCommand(t.Context(), check) stderr = %q, want %q", got, want)
 	}
 	for _, leaked := range []string{decomposed, "だ体", "private.md", "permission denied"} {
 		if strings.Contains(got, leaked) {
-			t.Errorf("RunCommand(check) stderr = %q, which describes withheld ground with %q", got, leaked)
+			t.Errorf("RunCommand(t.Context(), check) stderr = %q, which describes withheld ground with %q", got, leaked)
 		}
 	}
 }
@@ -321,6 +323,7 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 
 					var stdout, stderr bytes.Buffer
 					exit := runCommand(
+						t.Context(),
 						command.name,
 						command.args(root),
 						&stdout,
@@ -367,6 +370,7 @@ func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
 			reads := make(map[string]int)
 			var stdout, stderr bytes.Buffer
 			exit := runCommand(
+				t.Context(),
 				tt.command,
 				tt.args(root),
 				&stdout,
@@ -400,6 +404,7 @@ func TestCheckDiskReferencesUseCapturedMembership(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	exit := runCommand(
+		t.Context(),
 		"check",
 		[]string{"--root=" + root, "--format=json"},
 		&stdout,
@@ -505,5 +510,36 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantCounts, counts); diff != "" {
 		t.Errorf("rooted read call sites mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAScanStopsWhenTheCallerGivesUp holds the one thing taking a context is
+// for. A whole-vault scan is the slow part of these three commands, and before
+// the context reached this far the library built its own, so a caller who had
+// given up waiting could not say so and the walk ran to the end regardless.
+//
+// The refusal is deliberately the ordinary scan refusal rather than a new one:
+// what the caller needs to know is that no verdict was reached, and a cancelled
+// run has read part of a vault, which is exactly the partial corpus every other
+// refusal here exists to avoid answering from.
+func TestAScanStopsWhenTheCallerGivesUp(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	write(t, root, "Notes/one.md", "---\ntitle: One\n---\nbody\n")
+
+	if _, err := Check(t.Context(), root); err != nil {
+		t.Fatalf("Check() on a live context error = %v; the fixture has to succeed or the cancelled case proves nothing", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	findings, err := Check(ctx, root)
+	if err == nil {
+		t.Fatalf("Check() on a cancelled context returned %d findings and no error", len(findings))
+	}
+	if findings != nil {
+		t.Errorf("Check() returned %d findings from a scan that was stopped", len(findings))
 	}
 }

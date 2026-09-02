@@ -14,7 +14,7 @@ import (
 func TestSupersessionRulesUseConfiguredVocabulary(t *testing.T) {
 	t.Parallel()
 
-	findings, err := Check("testdata/vault-supersession")
+	findings, err := Check(t.Context(), "testdata/vault-supersession")
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}

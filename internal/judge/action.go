@@ -48,8 +48,7 @@ type action struct {
 	resources []string
 }
 
-func openAction(root string, hooks actionHooks) (*action, error) {
-	ctx := context.Background()
+func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
 	reader, err := vault.Open(root)
 	if err != nil {
 		// Opening the folder fails before one vault byte is read, so there is

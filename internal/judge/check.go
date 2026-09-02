@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -18,8 +19,12 @@ import (
 // that touch only System/ files, which cite reference material rather than
 // carry live links. A missing, malformed, or privacy-incomplete schema contract
 // is an error because agent-facing output has no authority without it.
-func Check(root string) ([]Finding, error) {
-	return runCheckAction(root, nil, false)
+//
+// A cancelled ctx stops the scan: the contract load, the file walk and every
+// note read are checked against it, so a caller that gives up is not left
+// waiting on a whole vault.
+func Check(ctx context.Context, root string) ([]Finding, error) {
+	return runCheckAction(ctx, root, nil, false)
 }
 
 // runCheckAction is the whole-engine scan, with the two knobs a command line
@@ -28,8 +33,8 @@ func Check(root string) ([]Finding, error) {
 // nothing outside System/. Neither widens what is read — the graph is built
 // from the whole vault either way — and neither reaches a path the contract
 // withholds, which is dropped ahead of both.
-func runCheckAction(root string, paths []string, all bool) ([]Finding, error) {
-	a, err := openAction(root, actionHooks{})
+func runCheckAction(ctx context.Context, root string, paths []string, all bool) ([]Finding, error) {
+	a, err := openAction(ctx, root, actionHooks{})
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -62,8 +63,8 @@ func loadTestAuthority(tb testing.TB, root string) scanAuthority {
 	return authority
 }
 
-func collectNotes(root string) ([]note, error) {
-	a, err := openAction(root, actionHooks{})
+func collectNotes(ctx context.Context, root string) ([]note, error) {
+	a, err := openAction(ctx, root, actionHooks{})
 	if err != nil {
 		return nil, err
 	}

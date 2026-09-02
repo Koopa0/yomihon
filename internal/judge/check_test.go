@@ -110,7 +110,7 @@ func TestCheckSkipsFileReferencesInComments(t *testing.T) {
 func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 	t.Parallel()
 
-	findings, err := Check(judgeFixtureRoot(t, "testdata/vault-namecollision"))
+	findings, err := Check(t.Context(), judgeFixtureRoot(t, "testdata/vault-namecollision"))
 	if err != nil {
 		t.Fatalf("Check(): %v", err)
 	}
@@ -197,7 +197,7 @@ func TestCheckDropsDiaryFindings(t *testing.T) {
 	}
 	// The drop holds even when the full, unfiltered set is requested, checked
 	// against the raw paths rather than the engine's own helper.
-	all, err := runCheckAction(root, nil, true)
+	all, err := runCheckAction(t.Context(), root, nil, true)
 	if err != nil {
 		t.Fatalf("check(--all): %v", err)
 	}
@@ -223,7 +223,7 @@ func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
 	writeTestContract(t, root, nil)
 	write(t, root, "System/reference.md", "# Reference\n\n[[Missing System Target]]\n")
 
-	defaultFindings, err := runCheckAction(root, nil, false)
+	defaultFindings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("check(default): %v", err)
 	}
@@ -231,7 +231,7 @@ func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
 		t.Fatalf("check(default) = %+v, want System-only finding hidden", defaultFindings)
 	}
 
-	allFindings, err := runCheckAction(root, nil, true)
+	allFindings, err := runCheckAction(t.Context(), root, nil, true)
 	if err != nil {
 		t.Fatalf("check(--all): %v", err)
 	}
@@ -278,7 +278,7 @@ func TestTouchesDiary(t *testing.T) {
 func runCheck(t *testing.T, root string) []byte {
 	t.Helper()
 	root = judgeFixtureRoot(t, root)
-	findings, err := Check(root)
+	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check(%q): %v", root, err)
 	}

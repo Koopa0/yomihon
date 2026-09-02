@@ -147,7 +147,7 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 		"---\ntitle: Course\ntype: study-path\nstatus: ready\n---\n\n"+
 			"## Part\n\n### Module {sequence=primary}\n\n- [[L01]]\n")
 
-	findings, err := Check(root)
+	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}

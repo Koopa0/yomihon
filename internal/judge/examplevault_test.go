@@ -20,7 +20,7 @@ func TestTheExampleVaultScans(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..", "examples", "vault")
 
-	findings, err := judge.Check(root)
+	findings, err := judge.Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check(%q) error = %v; the example vault no longer scans", root, err)
 	}
