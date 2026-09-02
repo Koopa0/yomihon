@@ -29,7 +29,6 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/koopa0/yomihon/assets"
@@ -44,16 +43,16 @@ const (
 	woff2ContentType = "font/woff2"
 )
 
-// entry is one servable asset: its Content-Type, its body, and the validator
-// a browser may quote back to ask whether its stored copy is still good. body
-// and etag are funcs rather than plain values so registry can hold both
-// already-resolved embedded bytes and render.ChromaCSS's lazily-computed
-// stylesheet uniformly; each lazy one is memoized so the work happens once
-// rather than per request.
+// entry is one servable asset: its Content-Type, its bytes, and the validator
+// a browser may quote back to ask whether its stored copy is still good. Every
+// field is resolved before the first request, including the one asset with no
+// embedded file behind it — the highlighting stylesheet is computed while the
+// registry is built, because the only page shell in the tree links it from its
+// head, so the first page view of any process pays for it anyway.
 type entry struct {
 	contentType string
-	body        func() []byte
-	etag        func() string
+	body        []byte
+	etag        string
 }
 
 // etagOf is the strong validator for one asset's bytes. The quotes are
@@ -65,15 +64,10 @@ func etagOf(body []byte) string {
 	return `"` + hex.EncodeToString(sum[:]) + `"`
 }
 
-// fixed builds an entry over bytes already known — every embedded asset — so
-// both the body and its validator are resolved before the first request.
+// fixed builds an entry over bytes already known, resolving its validator at
+// the same time.
 func fixed(contentType string, body []byte) entry {
-	tag := etagOf(body)
-	return entry{
-		contentType: contentType,
-		body:        func() []byte { return body },
-		etag:        func() string { return tag },
-	}
+	return entry{contentType: contentType, body: body, etag: etagOf(body)}
 }
 
 // registry is yomihon's entire static-asset name space, built once at
@@ -86,13 +80,8 @@ var registry = buildRegistry()
 // more than one file), plus render.ChromaCSS's computed stylesheet, which has
 // no embedded file backing it at all.
 func buildRegistry() map[string]entry {
-	chroma := sync.OnceValue(func() []byte { return []byte(render.ChromaCSS()) })
 	reg := map[string]entry{
-		"chroma.css": {
-			contentType: cssContentType,
-			body:        chroma,
-			etag:        sync.OnceValue(func() string { return etagOf(chroma()) }),
-		},
+		"chroma.css": fixed(cssContentType, []byte(render.ChromaCSS())),
 	}
 	for _, name := range []string{
 		"yomihon.js",
@@ -218,6 +207,6 @@ func serve(w http.ResponseWriter, r *http.Request) {
 	// and the content length from here; hand-rolling that comparison gets the
 	// multi-tag and weak-tag forms wrong.
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("ETag", e.etag())
-	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(e.body()))
+	w.Header().Set("ETag", e.etag)
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(e.body))
 }

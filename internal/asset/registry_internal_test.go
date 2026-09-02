@@ -87,7 +87,7 @@ func TestBrandSVGRegistryIsExact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read embedded brand mark: %v", err)
 	}
-	if !bytes.Equal(registered.body(), embedded) {
+	if !bytes.Equal(registered.body, embedded) {
 		t.Error("registered brand mark body differs from the canonical embedded bytes")
 	}
 }
