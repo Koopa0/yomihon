@@ -41,6 +41,10 @@ func TestCheckGolden(t *testing.T) {
 		// nothing in it is named "study-path".
 		{name: "a vault that renames its courses", fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
 		{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
+		// The fragment half of a link: a section and a block address that
+		// place, one of each that does not, a same-file fragment the page
+		// never resolves, and a section arriving through a transclusion.
+		{name: "link fragments", fixture: "testdata/vault-fragments", golden: "testdata/golden/fragments.jsonl"},
 		// One vault covering all three answers the knowledge-scope question
 		// has: a directory the contract spells in another case, one holding a
 		// file that is not a note, and one that is not there at all.

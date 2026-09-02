@@ -47,6 +47,15 @@ type note struct {
 	pathRefs     []pathRef
 	plannedNames []string
 
+	// sectionAnchors and blockAnchorLines are what this note's body answers a
+	// link fragment with: the folded ids of every heading a reader could be
+	// sent to, and the folded text of every line that could carry a "^name"
+	// block address. They are collected the way the reading page collects them
+	// so the two faces judge one fragment the same way; see the anchor scans
+	// for the exact reading.
+	sectionAnchors   map[string]bool
+	blockAnchorLines []string
+
 	// sequence is the note's declared course structure, read by the one
 	// grammar navigation reads. It is parsed for every note and consulted only
 	// for a path type: what a course lists must be one answer, not the judge's
@@ -113,6 +122,7 @@ func parseNote(rel string, data []byte) note {
 		plannedNames: extractPlannedNames(body),
 		sequence:     sequence.Parse(body, block.BodyStartLine),
 	}
+	n.sectionAnchors, n.blockAnchorLines = anchorSurface(body)
 	if !found {
 		n.noFrontmatter = true
 		return n

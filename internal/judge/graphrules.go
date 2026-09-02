@@ -36,6 +36,7 @@ func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Fi
 	aliases := aliasCollisions(notes, authority)
 	return slices.Concat(
 		linkHealth(notes, idx, titles, planned, authority.roles()),
+		fragmentFindings(notes, idx),
 		collisionAlias(aliases),
 		collisionName(idx, aliases, authority),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),
@@ -121,7 +122,8 @@ func linkHealth(
 		if roles.IsPathType(n.noteType) {
 			lessons = courseLessonLinks(n)
 		}
-		for _, link := range n.wikilinks {
+		for l := range n.wikilinks {
+			link := &n.wikilinks[l]
 			if lessons[link.offset] {
 				continue
 			}
@@ -150,7 +152,7 @@ func linkHealth(
 // names them — the order the collision rules keep — so a title whose other
 // holders are all withheld reads as singly held and takes the single-holder
 // wording.
-func titleNotAlias(n *note, link wikiLink, targetNotes []string) Finding {
+func titleNotAlias(n *note, link *wikiLink, targetNotes []string) Finding {
 	f := Finding{
 		RuleID:      "link.title_not_alias",
 		Severity:    SeverityWarn,
@@ -179,7 +181,7 @@ func titleNotAlias(n *note, link wikiLink, targetNotes []string) Finding {
 // brokenLink is a link that resolves to nothing. It is informational when it is
 // a tracked forward-reference — under a gap heading, or naming a planned
 // concept — and a warning otherwise.
-func brokenLink(n *note, link wikiLink, planned Planned) Finding {
+func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 	tracked := link.underGapHeading || planned.Has(link.target)
 	severity := SeverityWarn
 	evidence := "no filename or alias matches the target"
@@ -485,7 +487,8 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 	var out []Finding
 	listed := make(map[string]bool)
 	lessons := courseLessonLinks(syllabus)
-	for _, link := range syllabus.wikilinks {
+	for l := range syllabus.wikilinks {
+		link := &syllabus.wikilinks[l]
 		if !lessons[link.offset] {
 			continue
 		}
@@ -516,7 +519,7 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 // syllabusListsMissing is a study-path entry that resolves to nothing — a
 // syllabus promising a note that does not exist. It is informational under a
 // planned-gap heading and a warning otherwise.
-func syllabusListsMissing(syllabus *note, link wikiLink) Finding {
+func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 	severity := SeverityWarn
 	if link.underGapHeading {
 		severity = SeverityInfo

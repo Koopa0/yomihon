@@ -36,6 +36,10 @@ var commandHelp = map[string]string{
 		"is refused rather than judged: that ground is scanned, but nothing from it\n" +
 		"can be reported, and an empty answer would read as a clean verdict.\n" +
 		"\n" +
+		"The frontmatter schema rules judge only files inside the directories the\n" +
+		"contract's scan.knowledge_dirs declares; a file outside them is still\n" +
+		"scanned for links, but is not held to the schema.\n" +
+		"\n" +
 		"Writes one JSON object per line when the output is not a terminal, and a\n" +
 		"human summary when it is. --format decides instead of the terminal.\n" +
 		"\n" +

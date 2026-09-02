@@ -25,9 +25,14 @@ import (
 
 // ruleIDs is every rule a finding can carry. A --deny value is validated
 // against it so a typo fails loudly instead of silently disabling the gate.
-var ruleIDs = []string{
+// The study-path rules are the grammar's own vocabulary, so they enter through
+// its exported enumeration rather than as a copy: a rule the grammar adds is
+// deniable here without this file changing.
+var ruleIDs = slices.Concat([]string{
 	"link.title_not_alias",
 	"link.broken",
+	"link.section_missing",
+	"link.block_missing",
 	"collision.alias",
 	"provenance.unresolved",
 	"map.disk_mismatch",
@@ -49,18 +54,7 @@ var ruleIDs = []string{
 	// never listed here, so this list is kept honest by a test that compares it
 	// against what the rules actually emit.
 	"schema.language",
-	sequence.RuleRoleMissing,
-	sequence.RuleRoleDuplicate,
-	sequence.RuleRoleConflict,
-	sequence.RuleLocalOrphan,
-	sequence.RuleNestingTooDeep,
-	sequence.RuleRoleOnEntry,
-	sequence.RuleRoleInvalid,
-	sequence.RuleRoleMisplaced,
-	sequence.RuleEntryOutsideBranch,
-	sequence.RuleEntryMultiTarget,
-	sequence.RuleEntryNoncanonical,
-}
+}, sequence.Rules())
 
 // Format is the output format of a subcommand.
 type Format int

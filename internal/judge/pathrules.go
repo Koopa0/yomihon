@@ -14,7 +14,11 @@ import (
 // the note still opens — but the structured projection stops until the author
 // decides, and a decision only the author can make is not information.
 
-// pathRuleAction names what to do about each rule, in the author's terms.
+// pathRuleAction names what to do about each rule, in the author's terms. The
+// rule vocabulary is the grammar's own, so this table can only follow it: a
+// test derives the expected keys from the grammar's exported enumeration, and
+// a rule the table has not yet learned falls back to a generic action rather
+// than failing the run.
 var pathRuleAction = map[string]string{
 	sequence.RuleRoleMissing:        "declare the branch {sequence=primary}, {sequence=local} or {sequence=none}",
 	sequence.RuleRoleDuplicate:      "keep one sequence declaration on the branch",
@@ -48,10 +52,16 @@ func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
 
 // pathFinding turns one grammar diagnostic into a wire finding. The message is
 // the grammar's own sentence: one rule, one wording, wherever it is read.
+//
+// The rule id arrives from the grammar, which owns that vocabulary, so a rule
+// this package has no tailored advice for is not a programming error here: the
+// finding still carries the grammar's message and line, and the action falls
+// back to pointing at them. Panicking instead turned one rule added to the
+// grammar into a crash on an ordinary vault.
 func pathFinding(n *note, d sequence.Diagnostic) Finding {
 	action, ok := pathRuleAction[d.Rule]
 	if !ok {
-		panic("judge: unknown study-path rule: " + d.Rule)
+		action = "resolve the study-path problem the message describes"
 	}
 	evidence := d.Evidence
 	if evidence == "" {

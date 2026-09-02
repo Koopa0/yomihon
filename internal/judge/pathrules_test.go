@@ -61,22 +61,58 @@ func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 }
 
 // TestEveryStudyPathRuleHasAnAction is the other direction: the grammar owns
-// the rule names, and a rule the judge cannot advise on would reach the author
-// as a panic during a check run.
+// the rule names, and a rule with no tailored advice would reach the author
+// with only the generic fallback sentence. The enumeration is the grammar's
+// own, not a copy kept here, so a rule added to the grammar is checked by this
+// test without anyone editing it.
 func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 	t.Parallel()
 
-	for _, rule := range []string{
-		sequence.RuleRoleMissing, sequence.RuleRoleDuplicate, sequence.RuleRoleConflict,
-		sequence.RuleLocalOrphan, sequence.RuleNestingTooDeep, sequence.RuleRoleOnEntry,
-		sequence.RuleRoleInvalid, sequence.RuleRoleMisplaced, sequence.RuleEntryOutsideBranch,
-		sequence.RuleEntryMultiTarget, sequence.RuleEntryNoncanonical,
-	} {
+	rules := sequence.Rules()
+	if len(rules) == 0 {
+		t.Fatal("sequence.Rules() is empty; the checks below would pass over nothing")
+	}
+	for _, rule := range rules {
 		if pathRuleAction[rule] == "" {
 			t.Errorf("rule %q has no suggested action", rule)
 		}
 		if !slices.Contains(ruleIDs, rule) {
 			t.Errorf("rule %q is not in the --deny registry", rule)
 		}
+	}
+}
+
+// TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough pins the judge's
+// side of the vocabulary boundary: the grammar owns the rule names, so a rule
+// it reports that this package has no tailored advice for must still become a
+// well-formed finding — deniable by its id, carrying the grammar's own message
+// and a generic action — rather than stopping the whole check run. The judge
+// used to panic here, which turned one new grammar rule into a crash on an
+// ordinary vault.
+func TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough(t *testing.T) {
+	t.Parallel()
+
+	n := &note{path: "Maps/course.md"}
+	d := sequence.Diagnostic{
+		Rule:     "path.test_unknown",
+		Line:     3,
+		Message:  "the grammar found something new",
+		Evidence: "a row the grammar refused",
+	}
+	f := pathFinding(n, d)
+	if f.RuleID != d.Rule {
+		t.Errorf("RuleID = %q, want %q", f.RuleID, d.Rule)
+	}
+	if f.Severity != SeverityWarn {
+		t.Errorf("Severity = %v, want SeverityWarn", f.Severity)
+	}
+	if f.SuggestedAction == "" {
+		t.Error("SuggestedAction is empty; a finding must always tell the author something to do")
+	}
+	if f.Message != d.Message {
+		t.Errorf("Message = %q, want the grammar's own %q", f.Message, d.Message)
+	}
+	if !strings.HasPrefix(f.Fingerprint, "v1:") {
+		t.Errorf("Fingerprint = %q, want a versioned value", f.Fingerprint)
 	}
 }

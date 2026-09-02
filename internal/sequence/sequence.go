@@ -262,6 +262,28 @@ const (
 	RuleEntryNoncanonical  = "path.entry_noncanonical"
 )
 
+// Rules lists every rule identifier this grammar can report. The grammar owns
+// the vocabulary, and a consumer that must cover the complete set — a deny
+// registry, an advice table, a test that locks either — ranges over this list
+// rather than keeping a copy, so a rule added beside the constants above
+// reaches every consumer without a second edit anywhere else. The returned
+// slice is a fresh copy each call.
+func Rules() []string {
+	return []string{
+		RuleRoleMissing,
+		RuleRoleDuplicate,
+		RuleRoleConflict,
+		RuleLocalOrphan,
+		RuleNestingTooDeep,
+		RuleRoleOnEntry,
+		RuleRoleInvalid,
+		RuleRoleMisplaced,
+		RuleEntryOutsideBranch,
+		RuleEntryMultiTarget,
+		RuleEntryNoncanonical,
+	}
+}
+
 // Document is a study path's whole interpretation: its branches in document
 // order, and everything that could not be determined.
 type Document struct {
