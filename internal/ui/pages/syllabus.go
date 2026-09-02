@@ -67,7 +67,10 @@ type PathBranchView struct {
 	Items []PathItemView
 }
 
-// PathItemView is one thing a branch lists. Exactly one field is set.
+// PathItemView is one thing a branch lists: a row, or a nested branch. A value
+// carrying neither is one the page could not read, and it is drawn as a fault
+// rather than dropped — this page's job is showing a course as its author
+// wrote it, and a list quietly one item short says nothing at all.
 type PathItemView struct {
 	Entry  *PathEntryView
 	Branch *PathBranchView
@@ -88,15 +91,20 @@ type PathEntryView struct {
 	Number int
 }
 
-// PathRunView is one uninterrupted stretch of what a branch lists: either a
-// run of rows or one nested branch. Ordered marks a run whose rows carry
-// sequence numbers, which is what lets the page render it as a real ordered
-// list instead of look-alike siblings; Label is that list's accessible name.
+// PathRunView is one uninterrupted stretch of what a branch lists: a run of
+// rows, one nested branch, or a fault standing where the page could not read
+// either. Ordered marks a run whose rows carry sequence numbers, which is what
+// lets the page render it as a real ordered list instead of look-alike
+// siblings; Label is that list's accessible name.
 type PathRunView struct {
 	Entries []PathEntryView
 	Branch  *PathBranchView
 	Ordered bool
 	Label   string
+	// Fault is what the page says in place of an item it could not read. It
+	// keeps the item's position, so the course still reads as the length its
+	// author wrote.
+	Fault string
 }
 
 // Runs regroups a branch's items for rendering: consecutive rows form one
@@ -119,7 +127,7 @@ func (v *PathBranchView) Runs(lang wording.Lang) []PathRunView {
 	for _, item := range v.Items {
 		switch {
 		case item.Entry != nil:
-			if len(runs) == 0 || runs[len(runs)-1].Branch != nil {
+			if len(runs) == 0 || !runs[len(runs)-1].holdsRows() {
 				run := PathRunView{Ordered: item.Entry.Number > 0}
 				if run.Ordered {
 					run.Label = v.runLabel(item.Entry.Number, lang)
@@ -130,9 +138,21 @@ func (v *PathBranchView) Runs(lang wording.Lang) []PathRunView {
 			last.Entries = append(last.Entries, *item.Entry)
 		case item.Branch != nil:
 			runs = append(runs, PathRunView{Branch: item.Branch})
+		default:
+			// The item names neither a row nor a branch, so it is a fault
+			// standing in the course where the author put something.
+			runs = append(runs, PathRunView{Fault: wording.PathItemUnreadable.In(lang)})
 		}
 	}
 	return runs
+}
+
+// holdsRows reports whether another row can join this run. A run standing for
+// a nested branch, or for an item the page could not read, is closed: the row
+// after one begins a fresh stretch, because the interruption is what the reader
+// sees between them.
+func (r *PathRunView) holdsRows() bool {
+	return r.Branch == nil && r.Fault == ""
 }
 
 // runLabel names one ordered fragment. first is the fragment's first walk

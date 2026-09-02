@@ -592,3 +592,47 @@ func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 		t.Error("a rule the grammar never declared reads as a written marker, so the page would tell an author about a marker nobody wrote")
 	}
 }
+
+// TestACourseReportsAnItemItCouldNotRead holds the page against dropping
+// something silently. A branch lists rows and nested branches; a value that is
+// neither is a fault, and a course page that quietly skipped it would show a
+// list one item shorter than the one its author wrote, with nothing anywhere
+// saying so. The page reports and never repairs, so the row keeps its place and
+// says what happened.
+func TestACourseReportsAnItemItCouldNotRead(t *testing.T) {
+	t.Parallel()
+
+	branch := PathBranchView{
+		Heading: "Part",
+		Items: []PathItemView{
+			{Entry: &PathEntryView{Text: "L01", Kind: nav.EntryResolved, Href: "/notes/L01.md", Number: 1}},
+			{},
+			{Entry: &PathEntryView{Text: "L02", Kind: nav.EntryResolved, Href: "/notes/L02.md", Number: 2}},
+		},
+	}
+	runs := branch.Runs(wording.ZhHant)
+	faults := 0
+	for _, run := range runs {
+		if run.Fault != "" {
+			faults++
+		}
+	}
+	if faults != 1 {
+		t.Fatalf("Runs() reported %d faults for one unreadable item, want 1: %+v", faults, runs)
+	}
+
+	view := PathView{Title: "Course", Branches: []PathBranchView{branch}}
+	var buf bytes.Buffer
+	if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render syllabus: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, wording.PathItemUnreadable.In(wording.ZhHant)) {
+		t.Errorf("the course page drops an item it could not read instead of saying so; html = %q", html)
+	}
+	for _, want := range []string{">L01<", ">L02<"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the rows either side of the unreadable item are missing %q; html = %q", want, html)
+		}
+	}
+}

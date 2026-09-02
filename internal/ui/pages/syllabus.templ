@@ -110,7 +110,9 @@ templ moduleBlock(sec PathBranchView, lang wording.Lang) {
 // walks stay outside any list and carry no ordinal.
 templ branchItems(sec PathBranchView, lang wording.Lang) {
 	for _, run := range sec.Runs(lang) {
-		if run.Branch != nil {
+		if run.Fault != "" {
+			<p class="y-syl-nocourse">{ run.Fault }</p>
+		} else if run.Branch != nil {
 			@moduleBlock(*run.Branch, lang)
 		} else if run.Ordered {
 			<ol class="y-lessons" aria-label={ run.Label }>
