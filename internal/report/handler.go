@@ -33,10 +33,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // an enumerated briefing) is a localized 404 — the same fail-quiet stance the
 // reading page takes for a missing note.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
+	lang := layouts.LanguageFromRequest(r)
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, wording.ReportNotFound.In(layouts.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 	shell := h.shell(snap)
@@ -67,17 +68,18 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // 404, not a 500: the report list is a snapshot, so a gone file is a not-found,
 // fail-quiet response rather than a server failure.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
+	lang := layouts.LanguageFromRequest(r)
 	snap := h.current().Capture()
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, wording.ReportNotFound.In(layouts.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 
 	b, err := readReport(r.Context(), h.source, snap, rep.RelPath)
 	if err != nil {
 		h.log.Warn("read report", "name", rep.Name, "path", rep.RelPath, "error", err)
-		http.Error(w, wording.ReportNotFound.In(layouts.LanguageFromRequest(r)), http.StatusNotFound)
+		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
 		return
 	}
 
@@ -108,7 +110,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	if !origin.SetContentSecurityPolicy(r.Context(), w, briefingSandbox) {
 		h.log.Error("serve report bytes", "name", rep.Name, "path", rep.RelPath,
 			"error", "the response sandbox could not be established")
-		http.Error(w, wording.SandboxUnavailable.In(layouts.LanguageFromRequest(r)), http.StatusInternalServerError)
+		http.Error(w, wording.SandboxUnavailable.In(lang), http.StatusInternalServerError)
 		return
 	}
 	_, _ = w.Write(b) //nolint:errcheck // response is committed and Handler has no later recovery channel

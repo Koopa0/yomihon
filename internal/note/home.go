@@ -36,6 +36,7 @@ const homeReadmePath = "README.md"
 // the vault README through the same markdown pipeline used by a note page. It
 // is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
+	lang := layouts.LanguageFromRequest(r)
 	statusView := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	// Home links to the folder's own introduction rather than reprinting it,
@@ -48,7 +49,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	artifactPolicy := snap.ArtifactPolicy()
 	pageShell := shell.Project(statusView, snap)
-	lifecycle, unstated, lifecycleClosed := h.lifecycle(statusView, snap, layouts.LanguageFromRequest(r))
+	lifecycle, unstated, lifecycleClosed := h.lifecycle(statusView, snap, lang)
 	// The lifecycle block is derived from the write authority while the counts
 	// under it come from the snapshot's own artifact sample, and the two are
 	// taken at different instants. This does not fire today: the request-local
@@ -81,7 +82,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.HomeView{
 		Governed: pageShell.Governed,
-		Subtitle: content.subtitle(layouts.LanguageFromRequest(r)),
+		Subtitle: content.subtitle(lang),
 		StandIn:  homeStandIn(snap, content),
 		// The reason a block is missing, stated where the reader is looking. One
 		// cause reaches several blocks — a contract that cannot be read closes
@@ -102,7 +103,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 			visibleNav.ArtifactClosure().Diagnostic(),
 		),
 		PrivacyFault:   snap.PrivacyPolicy().Diagnostic(),
-		Degraded:       degradedNotice(&fresh, layouts.LanguageFromRequest(r)),
+		Degraded:       degradedNotice(&fresh, lang),
 		DegradedDetail: blockedDetail(fresh.Blocked),
 		Recent:         recent,
 		RecentOrdered:  recentOrdered,
@@ -116,7 +117,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		ReadmeMissing:  !hasReadme,
 		Sidebar:        pages.NewSidebar(visibleNav, ""),
 	}
-	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(layouts.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
+	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("write home page", "error", err)
 	}
 }

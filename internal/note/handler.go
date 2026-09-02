@@ -263,7 +263,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if state.instance() && n.Type == typeLesson {
 		result.HTML = render.InjectTTS(result.HTML, lang)
 		pageChrome := layouts.ChromeFromRequest(r, n.Title)
-		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, layouts.LanguageFromRequest(r))
+		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, lang)
 		var refs []string
 		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
 		concepts = h.loadConcepts(snap, refs, lang)
@@ -279,12 +279,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
 	sidebar := pages.NewSidebar(state.shell.Nav, n.RelPath)
-	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, layouts.LanguageFromRequest(r))
+	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, lang)
 	flippedFrom := vouchedOrigin(statusView, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
-		Lang:              layouts.LanguageFromRequest(r),
+		Lang:              lang,
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,
@@ -297,7 +297,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Diagnostic:        n.FMDiagnostic,
 		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,
-		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, layouts.LanguageFromRequest(r)),
+		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
 		CitedBy:           snap.CitedBy(rel),
 		VaultHasLinks:     snap.AnyCitations(),
 		Prev:              footPrev,
@@ -320,7 +320,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		TranscludedIdentity: result.TranscludedIdentity,
 		NoFrontmatter:       state.noFrontmatter,
 		StatusUnknown:       state.statusUnknown,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, layouts.LanguageFromRequest(r)),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, lang),
 		FlippedFrom:         flippedFrom,
 		// The receipt for a change the face cannot walk back carries the
 		// recovery sentence; a reversible one leaves undoing to the controls

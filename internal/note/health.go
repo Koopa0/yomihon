@@ -20,6 +20,7 @@ import (
 // it is already computed for the single-note pages; nobody opens every note, so
 // gathering them is the only way they are ever seen.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	lang := layouts.LanguageFromRequest(r)
 	statusView := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(statusView, snap)
@@ -47,7 +48,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		LastComplete:       lastCompleteBuild(&fresh),
 		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}
-	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(layouts.LanguageFromRequest(r)))).Render(r.Context(), w); err != nil {
+	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("write health page", "error", err)
 	}
 }
