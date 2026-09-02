@@ -1190,6 +1190,17 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
 		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
 	}
+	// The carried copy has to answer everywhere the note it replaces did. Its
+	// own page says the words are searchable, and a generation that said so
+	// while leaving them out of the index would answer "nothing found" about
+	// text it is showing on screen at the same moment.
+	if !kept.Searchable {
+		t.Fatalf("the carried copy says its words are not searchable: %+v", kept)
+	}
+	found := snapshotSearch(t, degraded.Search(), "the words read before the file shut")
+	if len(found) != 1 || found[0].RelPath != carried {
+		t.Errorf("searching the carried copy's own words = %+v, want the note whose page is showing them", found)
+	}
 	if unread, ok := degraded.Note(never); ok {
 		t.Errorf("a file the folder has never had a reading of was published with a body: %+v", unread)
 	}
