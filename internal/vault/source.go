@@ -61,6 +61,11 @@ type Reader struct {
 // keeps referring to the selected filesystem object if its path is renamed or
 // atomically replaced. Like os.File, it does not freeze bytes written through
 // another descriptor to that same object.
+//
+// It wraps the *os.File beneath it rather than returning it, so a caller can
+// reach Read, Seek and Close and nothing else. Nothing in this package writes
+// to the vault, and a value that also carried Write, Chmod and Truncate would
+// make the first breach of that a caller's slip instead of a compile error.
 type File struct {
 	file *os.File
 }
