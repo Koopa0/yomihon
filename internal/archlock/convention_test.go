@@ -273,7 +273,6 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 	open := openSites{
 		why: "carrying these phrases to their surface is another line of this work",
 		keys: []string{
-			`internal/snapshot/health.go | var vaultRootLabel = wording.VaultRoot.In(wording.ZhHant)`,
 			`internal/status/status.go | CoreUnavailableDiagnostic           = wording.ContractUnavailable.In(wording.ZhHant)`,
 			`internal/status/status.go | DurableInstallUnavailableDiagnostic = wording.DurabilityUnsupported.In(wording.ZhHant)`,
 			`internal/status/status.go | NoteUnreadableDiagnostic            = wording.NoteStatusUnreadable.In(wording.ZhHant)`,

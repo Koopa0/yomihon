@@ -11,14 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/wording"
 )
-
-// vaultRootLabel names the folder a root-level file lives in, which has no
-// name of its own.
-// It resolves to the default language because a health projection is built
-// from a scan rather than from a request, and so carries no reader's choice.
-var vaultRootLabel = wording.VaultRoot.In(wording.ZhHant)
 
 // Health is what the whole folder looks like at once, rather than one note at a
 // time. Every fact in it was already being computed to render single pages —
@@ -71,10 +64,12 @@ type HealthLink struct {
 	Target string
 }
 
-// HealthIslandGroup is one folder's uncited notes.
+// HealthIslandGroup is one folder's uncited notes. Dir is the folder, empty
+// for the one at the top, which has no name of its own — what a page calls
+// that folder instead is a word in the reader's language, and this is built by
+// a scan that no reader has asked anything of yet.
 type HealthIslandGroup struct {
 	Dir   string
-	Name  string
 	Notes []nav.NoteRef
 }
 
@@ -206,11 +201,7 @@ func groupByFolder(notes []nav.NoteRef) []HealthIslandGroup {
 	groups := make([]HealthIslandGroup, 0, len(byDir))
 	for dir, members := range byDir {
 		slices.SortFunc(members, func(a, b nav.NoteRef) int { return vault.ComparePaths(a.RelPath, b.RelPath) })
-		name := dir
-		if name == "" {
-			name = vaultRootLabel
-		}
-		groups = append(groups, HealthIslandGroup{Dir: dir, Name: name, Notes: members})
+		groups = append(groups, HealthIslandGroup{Dir: dir, Notes: members})
 	}
 	slices.SortFunc(groups, func(a, b HealthIslandGroup) int {
 		return cmp.Or(cmp.Compare(len(b.Notes), len(a.Notes)), vault.ComparePaths(a.Dir, b.Dir))

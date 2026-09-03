@@ -74,13 +74,13 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	want := []HealthIslandGroup{
-		{Dir: "Sources/course", Name: "Sources/course", Notes: []nav.NoteRef{
+		{Dir: "Sources/course", Notes: []nav.NoteRef{
 			{Name: "one", RelPath: "Sources/course/one.md"},
 			{Name: "three", RelPath: "Sources/course/three.md"},
 			{Name: "two", RelPath: "Sources/course/two.md"},
 		}},
-		{Dir: "", Name: "書庫根目錄", Notes: []nav.NoteRef{{Name: "root", RelPath: "root.md"}}},
-		{Dir: "Writing", Name: "Writing", Notes: []nav.NoteRef{{Name: "essay", RelPath: "Writing/essay.md"}}},
+		{Dir: "", Notes: []nav.NoteRef{{Name: "root", RelPath: "root.md"}}},
+		{Dir: "Writing", Notes: []nav.NoteRef{{Name: "essay", RelPath: "Writing/essay.md"}}},
 	}
 	if diff := cmp.Diff(want, h.Islands); diff != "" {
 		t.Errorf("Islands mismatch (-want +got):\n%s", diff)

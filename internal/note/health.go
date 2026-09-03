@@ -31,7 +31,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	view := pages.HealthView{
 		Unwritten:             healthLinks(health.Unwritten),
 		TitleOnly:             healthTitleLinks(health.TitleOnly),
-		Islands:               healthIslands(health.Islands),
+		Islands:               healthIslands(health.Islands, lang),
 		IslandCount:           healthIslandCount(health.Islands),
 		Collisions:            healthCollisions(health.Collisions),
 		Blocked:               healthBlocked(fresh.Blocked),
@@ -140,10 +140,18 @@ func healthLinks(links []snapshot.HealthLink) []pages.HealthLink {
 	return out
 }
 
-func healthIslands(groups []snapshot.HealthIslandGroup) []pages.HealthIslandGroup {
+// healthIslands names each folder for the reader in front of it. The folder at
+// the top of the vault has no name of its own, and what stands in for it is a
+// word rather than a path, so it is chosen here — where the request says which
+// language to choose it in — rather than by the scan that grouped the notes.
+func healthIslands(groups []snapshot.HealthIslandGroup, lang wording.Lang) []pages.HealthIslandGroup {
 	out := make([]pages.HealthIslandGroup, 0, len(groups))
 	for _, g := range groups {
-		out = append(out, pages.HealthIslandGroup{Dir: g.Dir, Name: g.Name, Notes: g.Notes})
+		name := g.Dir
+		if name == "" {
+			name = wording.VaultRoot.In(lang)
+		}
+		out = append(out, pages.HealthIslandGroup{Dir: g.Dir, Name: name, Notes: g.Notes})
 	}
 	return out
 }
