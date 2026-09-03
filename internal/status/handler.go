@@ -35,10 +35,9 @@ type Handler struct {
 	log    *slog.Logger
 }
 
-// NewHandler wires the write face's HTTP surface around an existing
-// Writer. A fail-closed write face is still a non-nil Writer whose View
-// is closed. shell is sampled once only after a failed write, so the recovery
-// page uses one coherent reading snapshot.
+// NewHandler wires the write face's HTTP surface around an existing Writer. A
+// fail-closed write face is still a non-nil Writer. shell is sampled once only
+// after a failed write, so the recovery page uses one reading snapshot.
 func NewHandler(writer *Writer, shell func() nav.Shell, log *slog.Logger) *Handler {
 	if writer == nil {
 		panic("status: NewHandler requires a non-nil Writer")
@@ -57,9 +56,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /status", h.flip)
 }
 
-// flip applies one status transition. Success preserves the frozen 303
-// contract. Every failure renders a same-shell recovery page that states
-// whether the note bytes changed and never offers a second POST.
+// flip applies one status transition. Success answers 303; every failure
+// renders a same-shell recovery page that states whether the note bytes
+// changed and never offers a second POST.
 func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 	if err := r.ParseForm(); err != nil {
@@ -71,12 +70,9 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The path is the note's name, and the two statuses are values the
-	// contract spells, so all three are read exactly as the form sent them.
-	// Tidying the ends of the path used to make a note named with a space
-	// resolve to its neighbour, and since the neighbour can hold the same
-	// bytes, the content the form bound itself to matched and the wrong
-	// file was rewritten under a reported success.
+	// Read exactly as the form sent them: tidying the ends of a path lets a
+	// note named with a space resolve to its neighbour, and a neighbour that
+	// holds the same bytes would satisfy the identity the form bound itself to.
 	path := r.PostFormValue("path")
 	from := r.PostFormValue("from")
 	to := r.PostFormValue("to")
@@ -100,26 +96,17 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 
 	err := h.writer.Flip(r.Context(), path, from, to, contentIdentity)
 	if err == nil {
-		// The target names the status this note just left. The parameter only
-		// addresses the sentence: whether the reading page prints it is
-		// decided by the receipt the completed flip just minted server-side,
-		// which that page spends on its first render — so a reloaded,
-		// bookmarked, or hand-typed ?from finds nothing left to vouch for a
-		// change this write face did not just perform. Without the parameter
-		// the whole confirmation was the re-rendered chip, which reads the
-		// same whether the press worked or somebody else's did, and which a
-		// reader who cannot see it never receives at all.
+		// The parameter only addresses the sentence; whether the reading page
+		// prints it is decided by the receipt this flip just minted, which a
+		// reloaded or hand-typed address finds nothing left to spend.
 		// #nosec G710 -- Flip succeeded only after its vault-local path check;
 		// the prefix is a fixed same-origin literal and the value is escaped.
 		http.Redirect(w, r, notesHref(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
 		return
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		// The request went away before the flip reached the write face's
-		// lock, so nothing was attempted, the note is as it was, and nobody
-		// is left to read a page about it. Falling through would put a failed
-		// write in the operator's log for a write that never started, and
-		// render a recovery page into a connection that has already closed.
+		// Nothing was attempted and nobody is left to read a page about it, so
+		// falling through would log a failure for a write that never started.
 		return
 	}
 	failure := recoveryFor(err)
@@ -135,19 +122,17 @@ type recovery struct {
 	// in both languages until the request that will read them is known.
 	summary    wording.Phrase
 	nextAction wording.Phrase
-	// nextActionNamesDoor marks a nextAction whose sentence points at the
-	// page's "Open in Obsidian" action. That link renders only when the page
-	// can build the editor address, so the sentence is swapped for one that
-	// states the same repair without the pointer wherever the door is absent.
+	// nextActionNamesDoor marks a nextAction pointing at the page's "Open in
+	// Obsidian" action, which renders only where the editor address can be
+	// built; elsewhere the sentence is swapped for one without the pointer.
 	nextActionNamesDoor bool
 	technicalDetail     string
 	logMessage          string
 	cause               error
 	// boundIdentity is the hex identity the refused write bound itself to, set
-	// only where a write got far enough to have one. The page carries it so its
-	// own invitation back to the note can be held until the reading generation
-	// holds at least that version: sending the reader back into the same bytes
-	// that were just refused would stage the same refusal again.
+	// only where a write got far enough to have one. The page holds its
+	// invitation back to the note until the reading generation has that
+	// version, so the reader is not sent into the bytes just refused.
 	boundIdentity string
 }
 
@@ -208,10 +193,8 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusConflict,
 			summary:    wording.ContentRaced,
 			nextAction: wording.ContentRacedNext,
-			// Which install step the refusal came from, and on volumes
-			// that cannot swap two entries atomically what that costs, rides
-			// in the error text. It is the only record of the guarantee this
-			// vault's filesystem was able to give, so it reaches the log.
+			// The error text names which install step refused and what the
+			// volume could guarantee, which nothing else records.
 			logMessage: "status flip refused a raced write",
 			cause:      err,
 		}
@@ -249,13 +232,9 @@ func recoveryFor(err error) *recovery {
 }
 
 // recoveryForIrregularEntry maps the two refusals for a path whose shape the
-// write face declines to follow, or nil when err is neither. A refusal the
-// operator repairs by hand, like every other refused target — not a fault
-// worth a log hunt — and both sentinels are produced before any byte is
-// written, so the unchanged page is truthful. The two part over which entry
-// broke the shape — the note's own, or a step on the way to it — because the
-// repair is a hand edit and the operator's first question is which entry to
-// look at.
+// write face declines to follow, or nil when err is neither. Both are produced
+// before any byte is written, so the unchanged page is truthful; they part
+// over which entry broke the shape, which is the operator's first question.
 func recoveryForIrregularEntry(err error) *recovery {
 	var summary wording.Phrase
 	switch {
@@ -275,9 +254,8 @@ func recoveryForIrregularEntry(err error) *recovery {
 }
 
 // recoveryForInstall maps the outcomes that happen after the note's bytes
-// already changed on disk, or nil when err is neither. They share one shape
-// the page has to keep: the file is not what it was, no second POST is
-// offered, and the operator finishes by hand.
+// already changed on disk, or nil when err is neither. The page keeps one
+// shape for them: no second POST, and the operator finishes by hand.
 func recoveryForInstall(err error) *recovery {
 	switch {
 	case errors.Is(err, ErrInstallStranded):
@@ -305,9 +283,8 @@ func recoveryForInstall(err error) *recovery {
 
 // recoveryForStatusField maps the refusals rooted in how the note's own
 // frontmatter writes its status field, or nil when err is neither. The two
-// stay distinct on the page: a missing or duplicated status line is a fault
-// in the note, while an unsupported syntax is a note the reader understands
-// perfectly well and only the surgical rewriter declines.
+// stay distinct: a missing or duplicated status line is a fault in the note,
+// an unsupported syntax is one only the surgical rewriter declines.
 func recoveryForStatusField(err error) *recovery {
 	switch {
 	case errors.Is(err, ErrStatusLine):
@@ -347,10 +324,8 @@ func schemaRecovery(summary wording.Phrase, err error) *recovery {
 	}
 }
 
-// recoveryNextAction picks the repair sentence a recovery page can honour:
-// one that names the "Open in Obsidian" action is kept only while the page
-// carries that door, and states the same repair without the pointer where it
-// does not.
+// recoveryNextAction picks the repair sentence a recovery page can honour: one
+// naming the "Open in Obsidian" action is kept only while the page has it.
 func recoveryNextAction(failure *recovery, obsidianHref string) wording.Phrase {
 	if failure.nextActionNamesDoor && obsidianHref == "" {
 		return wording.SchemaRefusalNextNoDoor
@@ -385,9 +360,8 @@ func (h *Handler) respondRecovery(
 		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
 	}
 	chrome := layouts.ChromeFromRequest(r, view.Title(lang))
-	// The recovery page knows a better place to return to than the generic
-	// fallback for a POST-rendered page: the note this refusal was about,
-	// whenever the refusal still has one.
+	// A better place to return to than the generic POST fallback: the note
+	// this refusal was about, whenever the refusal still has one.
 	if notePath != "" {
 		chrome.ReturnTo = notesHref(notePath)
 	}
@@ -445,11 +419,9 @@ func writeRecovery(
 }
 
 // decodeContentIdentity reads the form's hex-encoded content identity. The
-// field is required — a caller must state which version of the note its
-// ruling was read against — so an absent, blank, or malformed value reports
-// false rather than standing in for any real identity. The page writes the
-// field itself, so the value is read as submitted; room around the digits is
-// something no render produces and nothing here needs to accept.
+// field is required, so an absent, blank or malformed value reports false
+// rather than standing in for a real identity. The page writes the field
+// itself, so the value is read exactly as submitted.
 func decodeContentIdentity(field string) ([sha256.Size]byte, bool) {
 	var identity [sha256.Size]byte
 	decoded, err := hex.DecodeString(field)
@@ -461,9 +433,7 @@ func decodeContentIdentity(field string) ([sha256.Size]byte, bool) {
 }
 
 // notesHref percent-escapes each path segment while preserving slash
-// separators. The successful redirect remains local and byte-identical to the
-// reading face's note links without introducing a presentation dependency into
-// Writer.
+// separators, so the redirect matches the reading face's own note links.
 func notesHref(p string) string {
 	segments := strings.Split(p, "/")
 	for i, s := range segments {

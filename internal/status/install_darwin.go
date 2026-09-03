@@ -8,14 +8,10 @@ import (
 )
 
 // exchangeNames swaps two entries of the directory dfd refers to, in one
-// atomic step, so neither version is ever missing from the directory.
-//
-// The flag word carries nothing beyond the swap itself. Path resolution is
-// already pinned: dfd was reached by the walk that validates every component,
-// both names are one entry inside it, and a rename does not follow a symbolic
-// link in the final component. A flag asking for more would only give an older
-// kernel a reason to refuse the whole call, which the probe would read as a
-// filesystem that cannot swap — the guarantee quietly downgraded for nothing.
+// atomic step, so neither version is ever missing from the directory. The flag
+// word asks for nothing beyond the swap: resolution is already pinned by the
+// walk that reached dfd, and a stricter flag an older kernel refuses would
+// read to the probe as a filesystem that cannot swap at all.
 func exchangeNames(dfd int, from, to string) error {
 	return unix.RenameatxNp(dfd, from, dfd, to, unix.RENAME_SWAP)
 }
