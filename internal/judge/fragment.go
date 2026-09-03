@@ -18,8 +18,12 @@ import (
 // and the golden fixtures pin the agreement; where the two faces could read a
 // corner differently, this one takes the quieter reading, since a warning the
 // page would not raise tells the author their page is broken while it looks
-// fine in front of them. A transclusion's own fragment is out of scope: the
-// page degrades it differently, so its finding is its own rule.
+// fine in front of them. A transclusion's fragment is judged under its own two
+// rules, because the page reads it more strictly than a link's: the excerpt is
+// cut by one exact line scan over the embedded note's own body, with no
+// generous second look and no heading arriving through a further transclusion,
+// and a name that scan cannot find is reported as an excerpt the page could
+// not cut.
 
 // foldAddress folds an address the way both fragment kinds fold on the reading
 // page: Unicode form and letter case, and nothing else. Every other difference
@@ -70,17 +74,20 @@ func headingWords(raw string) string {
 	return html.UnescapeString(markupTag.ReplaceAllString(displayed, ""))
 }
 
-// anchorSurface reads one body into what its page answers a link fragment
-// with: the set of section ids a reader could be sent to, and the folded
-// lines that could carry a "^name" block address. Obsidian comments come off
-// first, the way the page strips them before it looks, because a heading or
-// an address hidden in a comment is not on the page a reader arrives at.
-func anchorSurface(body string) (sections map[string]bool, blockLines []string) {
+// anchorSurface reads one body into what its page answers a fragment with:
+// the set of section ids a link could be sent to, the set the excerpt scan
+// cuts a transclusion to, and the folded lines that could carry a "^name"
+// block address. Obsidian comments come off first, the way the page strips
+// them before it looks, because a heading or an address hidden in a comment
+// is not on the page a reader arrives at.
+func anchorSurface(body string) (sections, excerptSections map[string]bool, blockLines []string) {
 	stripped := withoutCommentZones(body)
 	sections = make(map[string]bool)
 	collectParsedHeadings(stripped, sections)
 	collectGenerousHeadings(stripped, sections)
-	return sections, collectBlockLines(stripped)
+	excerptSections = make(map[string]bool)
+	collectExcerptHeadings(stripped, excerptSections)
+	return sections, excerptSections, collectBlockLines(stripped)
 }
 
 // withoutCommentZones is the body with its comment spans cut out, located by
@@ -174,6 +181,135 @@ func withoutQuoteAndListMarks(line string) string {
 	return candidate
 }
 
+// The line shapes that are not running prose, and therefore cannot be the
+// text an underline turns into a heading, beyond the quote and list shapes
+// above: a break rule, and an indented code line. They are the reading page's
+// own patterns for its excerpt scan, kept literal here for the same reason
+// the generous scan's are.
+var (
+	breakRuleLine    = regexp.MustCompile(`^ {0,3}((\*[ \t]*){3,}|(_[ \t]*){3,}|(-[ \t]*){3,})$`)
+	indentedCodeLine = regexp.MustCompile(`^ {4,}\S`)
+)
+
+// The HTML block start conditions of the CommonMark spec that a line scan can
+// recognise without paragraph state: every one but the bare complete tag alone
+// on its line, which cannot interrupt a paragraph and so needs state this scan
+// does not keep. A block opened by any of these hands its lines to the reader
+// as written, so a heading-shaped line inside one is text rather than a
+// section boundary; the excerpt scan on the reading page skips the same lines.
+var (
+	htmlBlockRawText = regexp.MustCompile(`(?i)^ {0,3}<(script|pre|style|textarea)([ \t>]|$)`)
+	htmlBlockRawEnd  = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
+	htmlBlockComment = regexp.MustCompile(`^ {0,3}<!--`)
+	htmlBlockInstr   = regexp.MustCompile(`^ {0,3}<\?`)
+	htmlBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
+	htmlBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
+	htmlBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
+)
+
+// htmlBlockOpens reports whether a line opens an authored HTML block, and
+// returns the test for the line that closes it. The raw-text, comment,
+// instruction, declaration, and CDATA blocks close on their own end marker,
+// which may sit on the opening line itself; an element block runs to the next
+// blank line.
+func htmlBlockOpens(line string) (closes func(string) bool, ok bool) {
+	switch {
+	case htmlBlockRawText.MatchString(line):
+		return htmlBlockRawEnd.MatchString, true
+	case htmlBlockComment.MatchString(line):
+		return lineContaining("-->"), true
+	case htmlBlockInstr.MatchString(line):
+		return lineContaining("?>"), true
+	case htmlBlockCDATA.MatchString(line):
+		return lineContaining("]]>"), true
+	case htmlBlockDecl.MatchString(line):
+		return lineContaining(">"), true
+	case htmlBlockElement.MatchString(line):
+		return func(line string) bool { return strings.TrimSpace(line) == "" }, true
+	}
+	return nil, false
+}
+
+// lineContaining is the closing test of a block that ends on a marker.
+func lineContaining(marker string) func(string) bool {
+	return func(line string) bool { return strings.Contains(line, marker) }
+}
+
+// excerptScan carries the running state the excerpt scan needs to tell a
+// heading from a heading-shaped line inside fenced code or an authored HTML
+// block, whose contents reach the reader as written. The zero value starts a
+// scan.
+type excerptScan struct {
+	inFence    bool
+	fenceByte  byte
+	htmlCloses func(string) bool
+}
+
+// skips advances the scan by one line and reports whether that line belongs
+// to a fenced code block or an authored HTML block, the lines that open and
+// close one included.
+func (s *excerptScan) skips(line string) bool {
+	switch {
+	case s.inFence:
+		if blockFenceCloses(line, s.fenceByte) {
+			s.inFence = false
+		}
+		return true
+	case s.htmlCloses != nil:
+		if s.htmlCloses(line) {
+			s.htmlCloses = nil
+		}
+		return true
+	}
+	if marker, ok := blockFenceOpens(line); ok {
+		s.inFence, s.fenceByte = true, marker
+		return true
+	}
+	if closes, ok := htmlBlockOpens(line); ok {
+		if !closes(line) {
+			s.htmlCloses = closes
+		}
+		return true
+	}
+	return false
+}
+
+// collectExcerptHeadings adds the id of every heading the reading page's
+// excerpt scan finds when it cuts a transclusion to a section: a '#'-marked
+// heading at up to three spaces of indent, an underlined one made of the run
+// of prose above it, and nothing inside fenced code or an authored HTML block.
+// A heading inside a quote or a list item is not cut to, because the scan
+// strips neither marker. An underline only makes a heading of running prose:
+// a blank line, a quote, a list item, a break rule, another underline, or an
+// indented code line opening the run ends what it could claim.
+func collectExcerptHeadings(body string, into map[string]bool) {
+	var scan excerptScan
+	paragraph := -1
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if scan.skips(line) {
+			paragraph = -1
+			continue
+		}
+		if m := atxHeadingText.FindStringSubmatch(line); m != nil {
+			into[sectionSlug(headingWords(m[1]))] = true
+			paragraph = -1
+			continue
+		}
+		switch {
+		case paragraph >= 0 && setextUnderline.MatchString(line):
+			into[sectionSlug(headingWords(strings.Join(lines[paragraph:i], "\n")))] = true
+			paragraph = -1
+		case strings.TrimSpace(line) == "", quotedLinePrefix.MatchString(line), listItemPrefix.MatchString(line),
+			breakRuleLine.MatchString(line), setextUnderline.MatchString(line),
+			paragraph < 0 && indentedCodeLine.MatchString(line):
+			paragraph = -1
+		case paragraph < 0:
+			paragraph = i
+		}
+	}
+}
+
 // oneQuoteMark matches the single leading quote marker the block scan peels
 // before asking whether a line opens or closes a fence, because a fence
 // written inside a callout is read as a fence when that body renders.
@@ -244,10 +380,11 @@ func blockAddressed(lines []string, want string) bool {
 	return false
 }
 
-// fragmentFindings judges the fragment half of every plain link whose name
-// resolved to exactly one markdown note. A name that resolved to nothing or to
-// several files already carries its own finding, and a non-note has no sections
-// to address. A bare same-file fragment never reaches here.
+// fragmentFindings judges the fragment half of every link and transclusion
+// whose name resolved to exactly one markdown note. A name that resolved to
+// nothing or to several files already carries its own finding, and a non-note
+// has no sections or blocks to address. A bare same-file fragment never
+// reaches here.
 func fragmentFindings(notes []note, idx *graph.Index) []Finding {
 	byPath := make(map[string]*note, len(notes))
 	for i := range notes {
@@ -266,12 +403,16 @@ func fragmentFindings(notes []note, idx *graph.Index) []Finding {
 	return out
 }
 
-// fragmentFinding judges one link occurrence, reporting false when its
-// fragment places or when the link is out of these rules' scope. A block
-// address is judged ahead of a section name when the author wrote both,
-// which is the order the destination page resolves that conflict in.
+// fragmentFinding judges one occurrence, reporting false when its fragment
+// places or when the occurrence is out of these rules' scope. A block address
+// is judged ahead of a section name when the author wrote both, which is the
+// order the destination page resolves that conflict in, and both kinds answer
+// a block by the one scan that stamps block anchors. A section is answered
+// two ways: a transclusion's by the excerpt scan alone, since that is all the
+// page cuts with, and a link's by the wider reading the page gives an address
+// it only has to land somewhere on.
 func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[string]*note) (Finding, bool) {
-	if link.embed || (link.heading == "" && link.block == "") {
+	if link.heading == "" && link.block == "" {
 		return Finding{}, false
 	}
 	res := idx.Resolve(link.target)
@@ -289,6 +430,12 @@ func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[strin
 		return blockMissing(n, link, res.RelPath), true
 	}
 	want := sectionSlug(link.heading)
+	if link.embed {
+		if target.excerptSectionAnchors[want] {
+			return Finding{}, false
+		}
+		return sectionMissing(n, link, res.RelPath), true
+	}
 	if target.sectionAnchors[want] || transclusionBringsSection(target, idx, byPath, want) {
 		return Finding{}, false
 	}
@@ -316,40 +463,61 @@ func transclusionBringsSection(target *note, idx *graph.Index, byPath map[string
 	return false
 }
 
-// sectionMissing is a link whose note is real and whose section is not: the
-// reading page keeps the address as written, so the reader lands at the top
-// of the note, and it reports the miss the same way this does.
+// sectionMissing is a link or a transclusion whose note is real and whose
+// section is not. The reading page keeps a link's address as written, so the
+// reader lands at the top of the note; for a transclusion it has no excerpt
+// to cut and says so where the words would have been. Each is its own rule,
+// so a baseline that has accepted one cannot swallow the other, and the
+// fingerprint keys on the rule with the address for the same reason.
 func sectionMissing(n *note, link *wikiLink, resolved string) Finding {
+	rule, written := "link.section_missing", "[["
+	evidence := "the note exists and none of its headings answers the section name"
+	action := "fix the section name after #, or add the heading to the target note"
+	if link.embed {
+		rule, written = "embed.section_missing", "![["
+		evidence = "the note exists and none of its headings answers the section name, so there is no excerpt to cut"
+		action = "fix the section name after #, or add the heading to the embedded note"
+	}
 	return Finding{
-		RuleID:          "link.section_missing",
+		RuleID:          rule,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Line:            new(link.line),
-		Message:         "[[" + link.address + "]] resolves, but no heading matches \"" + link.heading + "\"",
-		Evidence:        "the note exists and none of its headings answers the section name",
-		SuggestedAction: "fix the section name after #, or add the heading to the target note",
+		Message:         written + link.address + "]] resolves, but no heading matches \"" + link.heading + "\"",
+		Evidence:        evidence,
+		SuggestedAction: action,
 		SourceRule:      sourceYomihon,
 		Target:          new(link.address),
 		ResolvedTo:      new(resolved),
-		Fingerprint:     fingerprint("link.section_missing", n.path, link.address),
+		Fingerprint:     fingerprint(rule, n.path, link.address),
 	}
 }
 
-// blockMissing is a link whose note is real and whose block address names no
-// line: the reading page withdraws the address, so the link leads to the
-// whole note, and it reports the miss the same way this does.
+// blockMissing is a link or a transclusion whose note is real and whose block
+// address names no line. The reading page withdraws a link's address, so the
+// link leads to the whole note; for a transclusion it has no excerpt to cut
+// and says so where the words would have been. The two rules are kept apart
+// the way the section rules are.
 func blockMissing(n *note, link *wikiLink, resolved string) Finding {
+	rule, written := "link.block_missing", "[["
+	evidence := "the note exists and no line in it ends with the block address"
+	action := "fix the block name after ^, or write the address at the end of the intended line"
+	if link.embed {
+		rule, written = "embed.block_missing", "![["
+		evidence = "the note exists and no line in it ends with the block address, so there is no excerpt to cut"
+		action = "fix the block name after ^, or write the address at the end of the line the excerpt should show"
+	}
 	return Finding{
-		RuleID:          "link.block_missing",
+		RuleID:          rule,
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Line:            new(link.line),
-		Message:         "[[" + link.address + "]] resolves, but no line carries the address ^" + link.block,
-		Evidence:        "the note exists and no line in it ends with the block address",
-		SuggestedAction: "fix the block name after ^, or write the address at the end of the intended line",
+		Message:         written + link.address + "]] resolves, but no line carries the address ^" + link.block,
+		Evidence:        evidence,
+		SuggestedAction: action,
 		SourceRule:      sourceYomihon,
 		Target:          new(link.address),
 		ResolvedTo:      new(resolved),
-		Fingerprint:     fingerprint("link.block_missing", n.path, link.address),
+		Fingerprint:     fingerprint(rule, n.path, link.address),
 	}
 }

@@ -10,4 +10,11 @@ type: concept
 [[Target#Twice]] answers to either of a repeated pair.
 [[Embedder#Real Section]] arrives through the transclusion.
 [[Embedder#Nowhere At All]] does not.
-![[Target#Not Judged Here]] is a transclusion, outside the link rules.
+[[Target#Quoted Heading]] lands on a heading the page stamps inside a quote.
+![[Target#Real Section]] cuts an excerpt at the heading.
+![[Target#Missing Section]] has no heading to cut an excerpt to.
+![[Target#^blk1]] cuts the marked line.
+![[Target#^ghost]] has no marked line to cut.
+![[Target#Quoted Heading]] cannot be cut to a heading inside a quote.
+![[Embedder#Real Section]] does not reach through the transclusion a link reaches through.
+![[Ghost#Section]] names a note nobody wrote, which is the broken-link rule's alone.
