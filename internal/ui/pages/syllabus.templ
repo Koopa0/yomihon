@@ -64,13 +64,21 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 		}
 	</div>
 	<div class="y-seam" aria-hidden="true"></div>
-	<div class="y-syl-guide">
-		<div>
-			<strong>{ wording.FirstTimeHere.In(lang) }</strong>
-			<p>{ wording.FirstTimeLede.In(lang) }</p>
+	// The invitation belongs to a path that has something to walk. On a note
+	// that declared no course it used to sit above the explanation of why
+	// there is none, so the page welcomed the reader into a course and then
+	// said the course was not there. The condition is the one the body already
+	// asks before it explains itself, so the two halves of the page cannot
+	// give different answers about whether this path has a course.
+	if len(v.Branches) > 0 {
+		<div class="y-syl-guide">
+			<div>
+				<strong>{ wording.FirstTimeHere.In(lang) }</strong>
+				<p>{ wording.FirstTimeLede.In(lang) }</p>
+			</div>
+			<a href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
 		</div>
-		<a href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
-	</div>
+	}
 }
 
 // ============================ MAIN — the path ============================
