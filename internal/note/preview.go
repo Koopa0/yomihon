@@ -11,10 +11,13 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// previewSourceCap bounds the markdown one card is cut from. A preview is a
-// taste of a note, not a transfer of it: past a point the reader is scrolling
-// inside a hover card rather than opening the note, which is what the link
-// under their pointer is for.
+// previewSourceCap bounds the markdown one card is cut from — the source, not
+// the bytes the answer becomes: a cut taken after rendering would leave markup
+// half-open and could stop inside a character, so the budget is spent where the
+// words are still whole. A passage dense in fenced code therefore renders to
+// more than this. A preview is a taste of a note, not a transfer of it: past a
+// point the reader is scrolling inside a hover card rather than opening the
+// note, which is what the link under their pointer is for.
 const previewSourceCap = 24 << 10
 
 // previewRegion names the card's body among the separately rendered bodies one
@@ -36,10 +39,13 @@ const previewRegion = "p-"
 // polls it and says so in the reader's own words. A second, weaker answer here
 // would be a second way to be right about one thing.
 //
-// The address that named no note is answered with a card saying so rather than
-// with nothing at all: a card that silently fails to appear is indistinguishable
-// from a hover that did not register, and leaves the reader tapping at a link
-// wondering which of the two happened.
+// Every refusal is answered with a card saying what it could not show rather
+// than with nothing at all: a card that silently fails to appear is
+// indistinguishable from a hover that did not register, and leaves the reader
+// tapping at a link wondering which of the two happened. An address naming a
+// place the note does not have is refused rather than widened — the reader
+// named one place, and quietly handing them a different one reads as the place
+// they named.
 func (h *Handler) preview(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
@@ -61,30 +67,50 @@ func (h *Handler) preview(w http.ResponseWriter, r *http.Request) {
 // previewOf cuts one card's excerpt out of the note at rel. section is the
 // fragment the link's own address carries, already folded by the pass that
 // wrote it, so nothing here re-reads a name: an empty one asks for the note
-// itself, and the cut is the one an embed of the same address would make.
+// itself.
 //
-// The false answer covers every way an address reaches nothing — a path outside
+// The false answer covers every way an address reaches no note — a path outside
 // what this server hands over, a path that is not markdown, and a path this
 // generation holds no note for. They are one answer because they are one fact
-// to the reader hovering the link: there is nothing here to look at.
+// to the reader hovering the link: there is nothing here to look at. A note
+// that has no such place inside it is a different fact and stays a found one:
+// the note is there, and the card says which of it is not.
 func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.PreviewView, bool) {
 	if !servable(rel) || !vault.IsMarkdown(rel) {
-		return pages.PreviewView{}, false
+		return pages.PreviewView{Notice: wording.PreviewNoNote.In(lang)}, false
 	}
 	snap := h.sources.Snapshot().Capture()
 	n, ok := snap.Note(rel)
 	if !ok {
-		return pages.PreviewView{}, false
+		return pages.PreviewView{Notice: wording.PreviewNoNote.In(lang)}, false
 	}
-	source, truncated := capPreviewSource(render.Excerpt(n.Body, section))
-	return pages.PreviewView{
+	slice, found := render.Excerpt(n.Body, section)
+	if !found {
+		return pages.PreviewView{RelPath: rel, Notice: missingPlace(section, lang)}, true
+	}
+	source, truncated := capPreviewSource(slice)
+	view := pages.PreviewView{
 		RelPath:  rel,
 		Language: n.Language,
 		// Rendered through the same generation the excerpt was cut from, so a
 		// link inside the card resolves against the vault the card is showing.
-		BodyHTML:  snap.RenderIn(previewRegion, rel, source, lang).HTML,
-		Truncated: truncated,
-	}, true
+		BodyHTML: snap.RenderIn(previewRegion, rel, source, lang).HTML,
+	}
+	if truncated {
+		view.Notice = wording.PreviewMore.In(lang)
+	}
+	return view, true
+}
+
+// missingPlace is what the card says about an address naming a place its note
+// does not have. The two sentences are the ones the diagnostics panel already
+// gives a reader who follows such a link, so the card and the panel report one
+// fact in one voice rather than in two.
+func missingPlace(section string, lang wording.Lang) string {
+	if strings.HasPrefix(section, "^") {
+		return wording.DiagBlockNote.In(lang)
+	}
+	return wording.DiagSectionNote.In(lang)
 }
 
 // capPreviewSource shortens the markdown a card is cut from to the budget, and

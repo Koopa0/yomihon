@@ -53,6 +53,7 @@ const SITES = [
 	'focus-stays-on-the-link',
 	'a-coarse-pointer-opens-no-card',
 	'a-missing-note-answers-with-words',
+	'a-section-the-note-does-not-have-shows-none-of-it',
 	'the-excerpt-comes-from-this-origin',
 ];
 
@@ -204,6 +205,20 @@ const MUTATIONS = {
 	'answer-a-missing-note-with-nothing': {
 		target: 'a-missing-note-answers-with-words',
 		apply: rewriteFragment('y-preview__notice', 'y-preview__silence'),
+	},
+	// The refusal turns back into the whole note: the words on screen are the
+	// destination's own, so nothing says they are not the section the link
+	// named, and the reader reads the wrong passage believing it is the right
+	// one.
+	'widen-a-missing-section-to-the-note': {
+		target: 'a-section-the-note-does-not-have-shows-none-of-it',
+		apply: rewriteFragment('<p class="y-preview__notice"', '<div class="y-prose"><p>the whole note</p></div><p class="y-preview__notice"'),
+	},
+	// The refusal keeps its words and loses the one control it offers, leaving
+	// a reader told what they cannot see and not told where it is.
+	'remove-the-way-on': {
+		target: 'a-section-the-note-does-not-have-shows-none-of-it',
+		apply: rewriteFragment('y-preview__morelink', 'y-preview__nolink'),
 	},
 	// The card fills itself instead of asking the route that holds the
 	// excerpts. It looks like a working card and is showing something nothing
@@ -505,6 +520,29 @@ try {
 		}
 		if (answer.body.includes('<html') || answer.body.includes('<script')) {
 			fail('a-missing-note-answers-with-words', 'the refusal is a whole document rather than the fragment the card inserts');
+		}
+	}
+
+	// A note that is there, addressed at a place inside it that is not. The note
+	// is found, so the answer is not a refusal of the address; what it must not
+	// do is hand over a different part of the note without saying so.
+	{
+		const widened = await page.evaluate(async () => {
+			const response = await fetch('/preview/Notes/Glass%20Tide.md?section=nowhere-in-this-note', { headers: { Accept: 'text/html' } });
+			return { status: response.status, body: await response.text() };
+		});
+		proveApplied('a-section-the-note-does-not-have-shows-none-of-it', proof);
+		if (widened.status !== 200) {
+			fail('a-section-the-note-does-not-have-shows-none-of-it', `a note that is there, addressed at a place it does not have, answered ${widened.status}; the note was found, so the answer is not a refusal of the address`);
+		}
+		if (widened.body.includes('y-prose')) {
+			fail('a-section-the-note-does-not-have-shows-none-of-it', `the answer carries a passage of the note: ${JSON.stringify(widened.body.slice(0, 220))} — words the reader did not ask for, wearing the name of the section they did`);
+		}
+		if (!widened.body.includes('y-preview__notice')) {
+			fail('a-section-the-note-does-not-have-shows-none-of-it', 'the answer shows nothing and says nothing about why');
+		}
+		if (!widened.body.includes('y-preview__morelink')) {
+			fail('a-section-the-note-does-not-have-shows-none-of-it', 'the answer refuses and offers no way on to the note itself');
 		}
 	}
 

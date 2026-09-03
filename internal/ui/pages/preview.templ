@@ -19,15 +19,16 @@ templ previewCard() {
 // it as what it is.
 templ PreviewFragment(v PreviewView, lang wording.Lang) {
 	<div class="y-preview__body" data-preview-body { articleLanguageAttrs(v.Language)... }>
-		if v.RelPath == "" {
-			<p class="y-preview__notice">{ wording.PreviewNoNote.In(lang) }</p>
-		} else {
+		if v.BodyHTML != "" {
 			<div class="y-prose">
 				@templ.Raw(v.BodyHTML)
 			</div>
-			if v.Truncated {
+		}
+		if v.Notice != "" {
+			<p class="y-preview__notice">{ v.Notice }</p>
+			if v.RelPath != "" {
 				<p class="y-preview__more">
-					<a class="y-preview__morelink" href={ templ.SafeURL(notesHref(v.RelPath)) }>{ wording.PreviewMore.In(lang) }</a>
+					<a class="y-preview__morelink" href={ templ.SafeURL(notesHref(v.RelPath)) }>{ wording.PreviewOpenNote.In(lang) }</a>
 				</p>
 			}
 		}

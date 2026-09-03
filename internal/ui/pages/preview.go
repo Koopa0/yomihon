@@ -5,17 +5,25 @@ import "github.com/a-h/templ"
 // PreviewView is one hover card's contents: an excerpt of the note under the
 // reader's pointer, cut at the section or block that link addressed. It is
 // fetched and shown without leaving the page the reader is on, so it carries no
-// chrome of its own beyond the two sentences below.
+// chrome of its own beyond the one sentence below.
 //
-// RelPath empty is the one case the card speaks in the interface's own voice
-// rather than showing another note's words: the address named no note this
-// generation holds. Everything else is an excerpt, and Truncated says whether
-// it reaches the end of what that address named.
+// The three fields are independent, and each combination the card can be in is
+// a real one: an excerpt alone is the ordinary case; an excerpt with a notice
+// is one that stops short of the end; a notice with a note but no excerpt is an
+// address naming a place that note does not have; and a notice with neither is
+// an address with no note behind it at all. The way on to the note is offered
+// whenever there is a note and something was withheld, which is exactly when a
+// reader has a reason to leave the card.
 type PreviewView struct {
-	RelPath   string
-	Language  string
-	BodyHTML  string
-	Truncated bool
+	// RelPath is the note the card is about, empty when the address named none.
+	RelPath string
+	// Language is that note's own declared language, which need not be the
+	// language of the page showing the card.
+	Language string
+	// BodyHTML is the rendered excerpt, empty when there is none to show.
+	BodyHTML string
+	// Notice is the card's own sentence, already in the reader's language.
+	Notice string
 }
 
 // previewEndpointAttrs marks the reading column as one whose links may be
