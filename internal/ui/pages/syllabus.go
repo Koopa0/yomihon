@@ -11,14 +11,10 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
-// PathView is everything the study-path page needs: the current path's
-// tree flattened into render-ready branches (with per-branch entry totals
-// and anchors precomputed), the switcher across every study-path in
-// the vault, and the path-level figures the header metarow reads.
-//
-// SealTarget is the schema-pinned ready value the header's queue figure
-// names. nav has already classified every entry as resolved, unresolved, or
-// ambiguous, so the page never resolves a wikilink.
+// PathView is everything the study-path page needs: the current path's branches
+// with their totals and anchors, the switcher across every study path, and the
+// figures the header metarow reads. Navigation has already classified every
+// entry, so the page never resolves a wikilink.
 type PathView struct {
 	Title      string
 	RelPath    string
@@ -27,35 +23,25 @@ type PathView struct {
 	Paths      []PathLink
 	Branches   []PathBranchView
 
-	// Path-level figures, precomputed so the header metarow is a dumb read.
-	// Entries is the course's planned lesson total — the main line only, a
-	// planned-but-unwritten lesson included. Ready is the subset sitting at
-	// ready — never a measure of progress: a lesson finished and published
-	// leaves it.
+	// Entries is the course's planned lesson total, the main line only and a
+	// planned-but-unwritten lesson included; Ready is the subset at the
+	// reviewed status, which is not progress — a published lesson leaves it.
 	Parts   int
 	Modules int
 	Entries int
 	Ready   int
 
-	// NoCourse is which explanation the empty-course page is entitled to
-	// give: that a written sequence marker is among what the grammar
-	// reported — a value it could not read, a placement it could not use, a
-	// declared branch it had to refuse — that none is, or that the grammar
-	// reported something this page has no explanation for. Telling the
-	// author of a written marker that markers are absent is false exactly
-	// where it matters, and so is the reverse.
+	// NoCourse is which explanation the empty-course page is entitled to give:
+	// that a written sequence marker is among what the grammar reported, that
+	// none is, or that the report holds something this page cannot explain.
 	NoCourse markerVerdict
 }
 
 // PathBranchView is one branch of the course as the page draws it. A top-level
-// branch is a part (Depth 0): it carries an Anchor the "On this path" rail
-// jumps to and an Ordinal (roman numeral). A nested branch is a module
-// (Depth >= 1) numbered by sibling position, and a side branch is a module the
-// author declared local, drawn under the lesson it hangs from.
-//
-// Items hold what the branch lists in source order, entries and side branches
-// together, so the page places a side branch where the author put it instead of
-// matching it back to a lesson by name.
+// branch is a part, carrying the anchor the rail jumps to and a roman ordinal; a
+// nested one is a module numbered by sibling position. Items hold what the
+// branch lists in source order, so a side branch is placed where the author put
+// it rather than matched back to a lesson by name.
 type PathBranchView struct {
 	Anchor  string
 	Ordinal string
@@ -70,20 +56,16 @@ type PathBranchView struct {
 }
 
 // PathItemView is one thing a branch lists: a row, or a nested branch. A value
-// carrying neither is one the page could not read, and it is drawn as a fault
-// rather than dropped — this page's job is showing a course as its author
-// wrote it, and a list quietly one item short says nothing at all.
+// carrying neither is drawn as a fault rather than dropped, so the course still
+// reads as the length its author wrote.
 type PathItemView struct {
 	Entry  *PathEntryView
 	Branch *PathBranchView
 }
 
-// PathEntryView is one linked or warning row. Only resolved rows have an
-// href, a status, or the ready accent. Number is copied from navigation's own
-// walk — the
-// single owner of sequence position — and keeps its meaning: zero says the
-// walk never reaches the row's branch, and the page must not print an ordinal
-// no walk can match.
+// PathEntryView is one linked or warning row. Only resolved rows have an href, a
+// status, or the ready accent. Number is copied from navigation's walk, the one
+// owner of sequence position, and zero means the walk never reaches the row.
 type PathEntryView struct {
 	Text   string
 	Href   string
@@ -94,10 +76,9 @@ type PathEntryView struct {
 }
 
 // PathRunView is one uninterrupted stretch of what a branch lists: a run of
-// rows, one nested branch, or a fault standing where the page could not read
-// either. Ordered marks a run whose rows carry sequence numbers, which is what
-// lets the page render it as a real ordered list instead of look-alike
-// siblings; Label is that list's accessible name.
+// rows, one nested branch, or a fault standing where the page could read
+// neither. Ordered marks a run whose rows carry sequence numbers, so the page
+// can render a real ordered list; Label is that list's accessible name.
 type PathRunView struct {
 	Entries []PathEntryView
 	Branch  *PathBranchView
@@ -109,21 +90,14 @@ type PathRunView struct {
 	Fault string
 }
 
-// Runs regroups a branch's items for rendering: consecutive rows form one
-// run, and each nested branch stands alone, exactly in document order. It is
-// derived on demand so Items stays the single stored form of the branch.
+// Runs regroups a branch's items for rendering: consecutive rows form one run,
+// and each nested branch stands alone, in document order. It is derived on
+// demand so Items stays the branch's single stored form.
 //
-// An ordered run is named for the sequence component it belongs to — 主線 for
-// the main line, 支線：name for a side branch — with （接續） marking a
-// fragment that resumes after an interruption, read off the first row's walk
-// number. Assistive technology otherwise announces every fragment as an
-// anonymous list, and a course split by its own headings and side branches
-// becomes several indistinguishable ones. The name is a plain attribute
-// string: no visible text says 主線 or （接續） anywhere — the part headings
-// are the author's own words — so there is nothing for the accessible name to
-// point at, and the side-branch heading beside its list also carries the
-// count chip, which a name should not swallow. The rail's lesson-steps
-// label set the precedent of a chrome phrase carrying an authored title.
+// An ordered run is named for the sequence component it belongs to, marking a
+// fragment that resumes after an interruption. Assistive technology otherwise
+// announces every fragment as an anonymous list, and a course split by its own
+// headings becomes several indistinguishable ones; nothing visible names them.
 func (v *PathBranchView) Runs(lang wording.Lang) []PathRunView {
 	var runs []PathRunView
 	for _, item := range v.Items {
@@ -149,10 +123,9 @@ func (v *PathBranchView) Runs(lang wording.Lang) []PathRunView {
 	return runs
 }
 
-// holdsRows reports whether another row can join this run. A run standing for
-// a nested branch, or for an item the page could not read, is closed: the row
-// after one begins a fresh stretch, because the interruption is what the reader
-// sees between them.
+// holdsRows reports whether another row can join this run. A run standing for a
+// nested branch or an unreadable item is closed, the interruption being what the
+// reader sees between them.
 func (r *PathRunView) holdsRows() bool {
 	return r.Branch == nil && r.Fault == ""
 }
@@ -173,9 +146,8 @@ func (v *PathBranchView) runLabel(first int, lang wording.Lang) string {
 	return wording.MainLine.In(lang)
 }
 
-// PathLink is one entry in the path switcher: a study-path's title, the
-// URL to its page, its planned lesson count, and whether it is the path
-// currently shown.
+// PathLink is one entry in the path switcher: a study path's title, the URL to
+// its page, its planned lesson count, and whether it is the one shown.
 type PathLink struct {
 	Title   string
 	RelPath string
@@ -183,14 +155,10 @@ type PathLink struct {
 	Active  bool
 }
 
-// BuildPathView draws one study path's declared structure into the page view,
-// and builds the switcher from every study path in the vault.
-//
-// It draws what the grammar lets navigation read and nothing else: a branch the
-// author declared out of the course, never declared at all, or wrote with a
-// structural error is not part of the course, so the course page does not show
-// one. Those branches keep their prose on the note's own page, and the judge
-// carries the reason to the author.
+// BuildPathView draws one study path's declared structure into the page view and
+// builds the switcher from every study path in the vault. It draws what the
+// grammar lets navigation read and nothing else; a branch outside the course
+// keeps its prose on the note's own page.
 func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 	v := PathView{
 		Title:      current.Title,
@@ -201,11 +169,9 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		Entries:    current.Planned,
 		Ready:      current.Ready,
 	}
-	// A written marker outranks the rest: it is the one claim the page can
-	// make about the author from what the grammar reported. A rule the page
-	// does not know outranks the no-marker reading, which would otherwise
-	// put words in the author's mouth on the strength of not recognising a
-	// rule name.
+	// A written marker outranks the rest, and an unrecognised rule outranks
+	// the no-marker reading, which would otherwise put words in the author's
+	// mouth on the strength of not knowing a rule name.
 	for _, d := range current.Diagnostics {
 		switch verdict := markerVerdictFor(d.Rule); verdict {
 		case markerWritten:
@@ -233,11 +199,9 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 }
 
 // buildPathBranch converts one projectable branch and its drawable subtree into
-// a view. ok is false for a branch the course does not include and that carries
-// no declared branch beneath it — a structural heading whose whole job is to
-// hold parts still draws, because dropping it would orphan them. Sequence
-// position is not decided here: navigation's walk already numbered every row
-// it reaches, and the view only copies that answer.
+// a view. ok is false for a branch the course excludes that carries no declared
+// branch beneath it; a structural heading still draws, since dropping it would
+// orphan its parts. Sequence position is copied from navigation's walk.
 func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	if !g.Drawn() {
 		return PathBranchView{}, false
@@ -275,8 +239,8 @@ func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 	return sv, true
 }
 
-// countModules is how many branches sit beneath a part, at any depth. The
-// metarow says "modules", and a side branch is one of them.
+// countModules is how many branches sit beneath a part, at any depth, a side
+// branch included.
 func countModules(sv *PathBranchView) int {
 	n := 0
 	for _, item := range sv.Items {
@@ -287,9 +251,8 @@ func countModules(sv *PathBranchView) int {
 	return n
 }
 
-// buildPathEntry maps one nav entry onto a linked or warning study-path row.
-// The number is copied for every row, warning rows included — a planned
-// lesson keeps its place on the line it is planned into.
+// buildPathEntry maps one nav entry onto a linked or warning study-path row. The
+// number is copied for every row, so a planned lesson keeps its place.
 func buildPathEntry(entry *nav.PathEntry) PathEntryView {
 	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number}
 	if entry.Kind != nav.EntryResolved {
@@ -301,14 +264,10 @@ func buildPathEntry(entry *nav.PathEntry) PathEntryView {
 	return v
 }
 
-// The three things a row says about how its target resolved: the words a
-// reader sees, the token the markup carries, and the explanation behind the
-// row. A kind none of them has an answer for is reported as the number it is
-// rather than aborting: EntryKind belongs to navigation and is an eight-bit
-// enum, so a member added there compiles here and would otherwise take down
-// every page that draws a rail. What this interface is for is telling a reader
-// what it found, and a renderer breaking on odd data is the reporter breaking
-// on the news.
+// A row says three things about how its target resolved: the words a reader
+// sees, the token the markup carries, and the explanation behind the row. A kind
+// none of them answers for is reported as its number rather than aborting — a
+// kind added in navigation compiles here and must not take down every page.
 func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 	switch kind {
 	case nav.EntryUnresolved:
@@ -324,9 +283,8 @@ func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 	}
 }
 
-// entryResolutionCode is the stable machine token carried by data-resolution.
-// It deliberately remains English while entryResolutionLabel owns the
-// Traditional Chinese browser copy.
+// entryResolutionCode is the stable machine token carried by data-resolution. It
+// stays English; entryResolutionLabel owns the reader's own words.
 func entryResolutionCode(kind nav.EntryKind) string {
 	switch kind {
 	case nav.EntryUnresolved:
@@ -351,8 +309,8 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 	case nav.EntryNonInstance:
 		return wording.EntryNonInstanceTitle.In(lang)
 	default:
-		// A row that resolved has nothing to explain, and neither has a kind
-		// this page has no words for — the row already carries its token.
+		// A resolved row has nothing to explain, and neither has a kind this
+		// page has no words for: the row already carries its token.
 		return ""
 	}
 }
@@ -362,24 +320,19 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 type markerVerdict uint8
 
 const (
-	// markerNotWritten is a rule that arises with no sequence marker
-	// anywhere near it, so the page may say the note carries none.
+	// markerNotWritten is a rule that arises with no sequence marker near it,
+	// so the page may say the note carries none.
 	markerNotWritten markerVerdict = iota
-	// markerWritten is a rule that only arises where a marker was written:
-	// a value the grammar could not read, one doubled or misplaced, or a
-	// declared role it had to refuse.
+	// markerWritten is a rule that arises only where a marker was written.
 	markerWritten
-	// markerUnknownRule is a rule this page has not been told about. It is
-	// its own answer rather than either of the two above, because both of
-	// those are claims about what somebody wrote in a file, and a rule name
-	// nobody here recognises is no evidence for either one.
+	// markerUnknownRule is a rule this page has not been told about, and so is
+	// no evidence for either claim about what somebody wrote in a file.
 	markerUnknownRule
 )
 
 // markerVerdictFor classifies one grammar rule. The division is total over the
-// grammar's declared rules and a test holds it so; the third answer exists for
-// a rule the grammar gains later, since the grammar owns this set and a course
-// page is not a place to abort on a rule it has not met.
+// grammar's declared rules; the third answer exists for a rule the grammar
+// gains later, which a course page is no place to abort on.
 func markerVerdictFor(rule sequence.Rule) markerVerdict {
 	switch rule {
 	case sequence.RuleRoleInvalid,
@@ -400,14 +353,14 @@ func markerVerdictFor(rule sequence.Rule) markerVerdict {
 	}
 }
 
-// markerForm spells the full marker for one role, from the grammar's own
+// markerForm spells the full marker for one role from the grammar's own
 // vocabulary, so the page cannot drift from what the parser accepts.
 func markerForm(role sequence.Role) string {
 	return "{sequence=" + role.String() + "}"
 }
 
-// buildPaths builds the switcher: every study-path in vault order, each with
-// its whole-path entry count and whether it is the one currently shown.
+// buildPaths builds the switcher: every study path in vault order, each with its
+// entry count and whether it is the one shown.
 func buildPaths(currentRel string, all []nav.Path) []PathLink {
 	links := make([]PathLink, 0, len(all))
 	for i := range all {
@@ -422,9 +375,8 @@ func buildPaths(currentRel string, all []nav.Path) []PathLink {
 	return links
 }
 
-// roman renders a positive part number as a roman numeral (the part label). A
-// non-positive n falls back to its decimal form rather than panicking — a
-// renderer must never abort on odd data.
+// roman renders a positive part number as a roman numeral. A non-positive n
+// falls back to its decimal form rather than panicking.
 func roman(n int) string {
 	if n < 1 {
 		return strconv.Itoa(n)

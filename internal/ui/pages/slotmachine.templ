@@ -7,11 +7,10 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 )
 
-// SlotMachine renders one lesson's sentence-pattern practice: an interactive
-// card per pattern. Everything visible is server-rendered from each slot's
-// first fill, so the sentences read correctly with JS off; lesson.js upgrades
-// the cards to swap fills, recolour, shuffle, and speak. The slot labels, the
-// abstract frame, and the gloss are lesson content, shown as authored.
+// SlotMachine renders one lesson's sentence-pattern practice, a card per
+// pattern. Everything visible is server-rendered from each slot's first fill,
+// so the sentences read correctly with scripting off; the client upgrades the
+// cards to swap fills, recolour, shuffle and speak.
 templ SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) {
 	<section class="y-slotmachine" lang={ lang.Tag() } aria-label={ wording.SlotMachineLabel.In(lang) }>
 		<div class="y-slotmachine__intro">
@@ -28,25 +27,19 @@ templ SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) {
 	</section>
 }
 
-// slotCard is one pattern: its data blob (consumed by lesson.js), the abstract
-// frame + optional note, one select per distinct slot, the live sentence, the
-// Chinese gloss, and the speak / shuffle actions.
+// slotCard is one pattern: its data blob, the abstract frame and optional note,
+// one select per distinct slot, the live sentence, the gloss, and the speak and
+// shuffle actions.
 //
 // The card is an article, which a screen reader offers as a region to jump to,
-// and an unnamed one announces itself as nothing at all. Its abstract frame is
-// the heading that names it. The heading's id comes from the card's position in
-// the lesson rather than from the pattern's authored id, because nothing checks
-// that id for being present or distinct — a sidecar may leave every pattern's
-// id empty and still be accepted, and every card would then answer to the same
-// name.
+// and its abstract frame is the heading that names it. The heading's id comes
+// from the card's position rather than the pattern's authored id, which nothing
+// checks for being present or distinct.
 //
-// The card closes with the region lesson.js speaks through. Shuffling rewrites
-// the sentence and its gloss in place, which a reader watching the card sees
-// and a reader listening to it does not — the button reports nothing on its
-// own. The region ships empty so arriving at the page announces nothing, and it
-// declares Japanese because the sentence is Japanese: the nearest declared
-// language above it is the machine's Traditional Chinese chrome, which would
-// put the sentence in the wrong voice.
+// The card closes with the region the client speaks through: shuffling rewrites
+// the sentence in place, which a listening reader does not see. It ships empty
+// so arriving announces nothing, and declares Japanese because the sentence is
+// Japanese — the nearest declared language above it would be the wrong voice.
 templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
 	{{ headingID := "slot-pattern-" + strconv.Itoa(index+1) }}
 	<article class="y-slotcard" aria-labelledby={ headingID }>
@@ -76,12 +69,9 @@ templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
 	</article>
 }
 
-// slotControl is one slot's picker: its Chinese label and a <select> whose
-// options are the fills (value = index, text = "JP — ZH"). The inner button
-// carries the closed face where the customizable-select API is supported, and
-// the picker it opens is branded to match; elsewhere the native picker shows
-// and the button is inert. The colour class assigns --c, which the select's
-// left border reads.
+// slotControl is one slot's picker: its label and a <select> whose options are
+// the fills. The inner button carries the closed face where the customizable
+// select is supported and is inert elsewhere; the colour class assigns --c.
 templ slotControl(key string, pos lesson.Position) {
 	<label class="y-slotfield">
 		<span class="y-slotfield__label">{ pos.LabelZH }</span>
@@ -95,7 +85,7 @@ templ slotControl(key string, pos lesson.Position) {
 }
 
 // slotOutput is the live sentence: literal template text as bare nodes, each
-// slot as a coloured, ruby-annotated span lesson.js rewrites on change.
+// slot as a coloured, ruby-annotated span the client rewrites on change.
 templ slotOutput(p lesson.Pattern) {
 	<p class="y-slotoutput" lang="ja">
 		for _, seg := range lesson.ParseTemplate(p.Template) {
@@ -109,8 +99,8 @@ templ slotOutput(p lesson.Pattern) {
 }
 
 // slotOut is one slot's rendered word: the first fill's surface form over its
-// reading. lesson.js finds it by data-slot-key and rewrites the base (ruby >
-// span) and the reading (rt); the colour class supplies --c.
+// reading. The client finds it by data-slot-key and rewrites the base and the
+// reading; the colour class supplies --c.
 templ slotOut(key string, pos lesson.Position) {
 	<span class={ "y-slotout", "y-slot-" + pos.Color } data-slot-key={ key }>
 		<ruby><span>{ lesson.FirstFill(pos).JP }</span><rt>{ lesson.FirstFill(pos).Reading }</rt></ruby>

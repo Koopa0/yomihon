@@ -15,11 +15,10 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 )
 
-// SlotMachine renders one lesson's sentence-pattern practice: an interactive
-// card per pattern. Everything visible is server-rendered from each slot's
-// first fill, so the sentences read correctly with JS off; lesson.js upgrades
-// the cards to swap fills, recolour, shuffle, and speak. The slot labels, the
-// abstract frame, and the gloss are lesson content, shown as authored.
+// SlotMachine renders one lesson's sentence-pattern practice, a card per
+// pattern. Everything visible is server-rendered from each slot's first fill,
+// so the sentences read correctly with scripting off; the client upgrades the
+// cards to swap fills, recolour, shuffle and speak.
 func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -48,7 +47,7 @@ func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Compo
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(lang.Tag())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 16, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 15, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -61,7 +60,7 @@ func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Compo
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.SlotMachineLabel.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 16, Col: 98}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 15, Col: 98}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -74,7 +73,7 @@ func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Compo
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SlotMachineLabel.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 18, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 17, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -92,7 +91,7 @@ func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Compo
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(s.Note)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 20, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 19, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -110,7 +109,7 @@ func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Compo
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SlotMachineLede.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 22, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 21, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -139,25 +138,19 @@ func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Compo
 	})
 }
 
-// slotCard is one pattern: its data blob (consumed by lesson.js), the abstract
-// frame + optional note, one select per distinct slot, the live sentence, the
-// Chinese gloss, and the speak / shuffle actions.
+// slotCard is one pattern: its data blob, the abstract frame and optional note,
+// one select per distinct slot, the live sentence, the gloss, and the speak and
+// shuffle actions.
 //
 // The card is an article, which a screen reader offers as a region to jump to,
-// and an unnamed one announces itself as nothing at all. Its abstract frame is
-// the heading that names it. The heading's id comes from the card's position in
-// the lesson rather than from the pattern's authored id, because nothing checks
-// that id for being present or distinct — a sidecar may leave every pattern's
-// id empty and still be accepted, and every card would then answer to the same
-// name.
+// and its abstract frame is the heading that names it. The heading's id comes
+// from the card's position rather than the pattern's authored id, which nothing
+// checks for being present or distinct.
 //
-// The card closes with the region lesson.js speaks through. Shuffling rewrites
-// the sentence and its gloss in place, which a reader watching the card sees
-// and a reader listening to it does not — the button reports nothing on its
-// own. The region ships empty so arriving at the page announces nothing, and it
-// declares Japanese because the sentence is Japanese: the nearest declared
-// language above it is the machine's Traditional Chinese chrome, which would
-// put the sentence in the wrong voice.
+// The card closes with the region the client speaks through: shuffling rewrites
+// the sentence in place, which a listening reader does not see. It ships empty
+// so arriving announces nothing, and declares Japanese because the sentence is
+// Japanese — the nearest declared language above it would be the wrong voice.
 func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -187,7 +180,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(headingID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 52, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 45, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -208,7 +201,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(headingID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 55, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 48, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -221,7 +214,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.AbstractTemplate(p.Template))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 55, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 48, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -239,7 +232,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(p.Note)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 57, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 50, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -275,7 +268,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.GlossInitial(p))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 66, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 59, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -288,7 +281,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.SlotMachineSpeak.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 68, Col: 114}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 61, Col: 114}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 		if templ_7745c5c3_Err != nil {
@@ -301,7 +294,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.SlotMachineShuffle.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 71, Col: 118}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 64, Col: 118}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -315,12 +308,9 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 	})
 }
 
-// slotControl is one slot's picker: its Chinese label and a <select> whose
-// options are the fills (value = index, text = "JP — ZH"). The inner button
-// carries the closed face where the customizable-select API is supported, and
-// the picker it opens is branded to match; elsewhere the native picker shows
-// and the button is inert. The colour class assigns --c, which the select's
-// left border reads.
+// slotControl is one slot's picker: its label and a <select> whose options are
+// the fills. The inner button carries the closed face where the customizable
+// select is supported and is inert elsewhere; the colour class assigns --c.
 func slotControl(key string, pos lesson.Position) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -349,7 +339,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(pos.LabelZH)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 87, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 77, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -384,7 +374,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(key)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 88, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 78, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 		if templ_7745c5c3_Err != nil {
@@ -402,7 +392,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.Itoa(i))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 91, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 81, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 			if templ_7745c5c3_Err != nil {
@@ -415,7 +405,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(f.JP)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 91, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 81, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -428,7 +418,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(f.ZH)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 91, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 81, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -448,7 +438,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 }
 
 // slotOutput is the live sentence: literal template text as bare nodes, each
-// slot as a coloured, ruby-annotated span lesson.js rewrites on change.
+// slot as a coloured, ruby-annotated span the client rewrites on change.
 func slotOutput(p lesson.Pattern) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -479,7 +469,7 @@ func slotOutput(p lesson.Pattern) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(seg.Text)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 103, Col: 14}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 93, Col: 14}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -501,8 +491,8 @@ func slotOutput(p lesson.Pattern) templ.Component {
 }
 
 // slotOut is one slot's rendered word: the first fill's surface form over its
-// reading. lesson.js finds it by data-slot-key and rewrites the base (ruby >
-// span) and the reading (rt); the colour class supplies --c.
+// reading. The client finds it by data-slot-key and rewrites the base and the
+// reading; the colour class supplies --c.
 func slotOut(key string, pos lesson.Position) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -549,7 +539,7 @@ func slotOut(key string, pos lesson.Position) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(key)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 115, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 105, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 		if templ_7745c5c3_Err != nil {
@@ -562,7 +552,7 @@ func slotOut(key string, pos lesson.Position) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.FirstFill(pos).JP)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 116, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 106, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -575,7 +565,7 @@ func slotOut(key string, pos lesson.Position) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.FirstFill(pos).Reading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 116, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 106, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
