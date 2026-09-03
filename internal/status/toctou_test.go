@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func internalVault(t *testing.T) (string, *Writer) {
@@ -237,7 +238,7 @@ func TestWriterProjectionsCloseWhenContractChanges(t *testing.T) {
 		t.Error("Closed() = false after contract source change, want true")
 	}
 	const want = "vault artifact policy source changed after startup; instance projections disabled until restart"
-	if got := writer.Authority().Diagnostic(); got != want {
+	if got := writer.Authority().Diagnostic(wording.ZhHant); got != want {
 		t.Errorf("WriteDiagnostic() = %q, want %q", got, want)
 	}
 	if got := writer.Authority().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
@@ -250,7 +251,7 @@ func TestWriterViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 
 	_, contractPath, writer := internalVaultWithMutableContract(t)
 	view := writer.Authority()
-	if diagnostic := view.Diagnostic(); diagnostic != "" {
+	if diagnostic := view.Diagnostic(wording.ZhHant); diagnostic != "" {
 		t.Fatalf("initial View() diagnostic = %q, want open", diagnostic)
 	}
 	wantOrder := view.Order()
@@ -273,12 +274,12 @@ func TestWriterViewIsImmutableAndNextCaptureObservesClosure(t *testing.T) {
 	if got := view.Order(); !slices.Equal(got, wantOrder) {
 		t.Errorf("captured View().Order() after source drift = %v, want immutable %v", got, wantOrder)
 	}
-	if diagnostic := view.Diagnostic(); diagnostic != "" {
+	if diagnostic := view.Diagnostic(wording.ZhHant); diagnostic != "" {
 		t.Errorf("captured View().Diagnostic() after source drift = %q, want immutable open view", diagnostic)
 	}
 
 	next := writer.Authority()
-	if diagnostic := next.Diagnostic(); diagnostic == "" {
+	if diagnostic := next.Diagnostic(wording.ZhHant); diagnostic == "" {
 		t.Fatal("next View() after source drift remained open")
 	}
 	if got := next.Order(); got != nil {
@@ -311,7 +312,7 @@ func TestWriterLatchesContractChangeUntilRestart(t *testing.T) {
 		t.Error("Closed() = false after restoring contract bytes, want closure until restart")
 	}
 	const want = "vault artifact policy source changed after startup; instance projections disabled until restart"
-	if got := writer.Authority().Diagnostic(); got != want {
+	if got := writer.Authority().Diagnostic(wording.ZhHant); got != want {
 		t.Errorf("WriteDiagnostic() after restore = %q, want %q", got, want)
 	}
 	if got := writer.Authority().Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got != nil {
@@ -323,7 +324,7 @@ func TestWriterLatchesContractChangeUntilRestart(t *testing.T) {
 		t.Fatalf("LoadFile(restored contract) = %v", err)
 	}
 	if restarted := internalOpenWriter(t, root, reloaded); restarted.Authority().Closed() {
-		t.Errorf("new Writer after restored contract remained closed: %s", restarted.Authority().Diagnostic())
+		t.Errorf("new Writer after restored contract remained closed: %s", restarted.Authority().Diagnostic(wording.ZhHant))
 	}
 }
 
@@ -873,7 +874,7 @@ func TestTouchingTheContractDoesNotCloseTheWriteFace(t *testing.T) {
 
 	view := writer.Authority()
 	if view.Closed() {
-		t.Errorf("the write face closed after a touch: %s", view.Diagnostic())
+		t.Errorf("the write face closed after a touch: %s", view.Diagnostic(wording.ZhHant))
 	}
 	if got := view.Transitions("Writing/lessons/japanese/L05.md", "lesson", "draft"); got == nil {
 		t.Error("no transition is offered after a touch; the note's state machine did not change")

@@ -99,7 +99,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		// closed a block here has to reach this column, not only the one the
 		// write authority happens to know about.
 		Fault: statedOnce(
-			authority.Diagnostic(),
+			authority.Diagnostic(lang),
 			visibleNav.NavigationClosure().Diagnostic(),
 			visibleNav.ArtifactClosure().Diagnostic(),
 		),

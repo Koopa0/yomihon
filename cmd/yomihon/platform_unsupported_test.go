@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
@@ -44,7 +44,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	if readResult.StatusCode != http.StatusOK {
 		t.Fatalf("GET /notes/Maps/study.md = %d, want %d", readResult.StatusCode, http.StatusOK)
 	}
-	for _, want := range []string{"Study Path", status.DurableInstallUnavailableDiagnostic} {
+	for _, want := range []string{"Study Path", wording.DurabilityUnsupported.In(wording.ZhHant)} {
 		if !strings.Contains(readBody, want) {
 			t.Errorf("reading page is missing %q; body = %q", want, readBody)
 		}
@@ -82,7 +82,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	if location := writeResult.Header.Get("Location"); location != "" {
 		t.Errorf("POST /status Location = %q, want empty", location)
 	}
-	for _, want := range []string{status.DurableInstallUnavailableDiagnostic, "這次操作沒有變更筆記檔案"} {
+	for _, want := range []string{wording.DurabilityUnsupported.In(wording.ZhHant), "這次操作沒有變更筆記檔案"} {
 		if !strings.Contains(writeBody, want) {
 			t.Errorf("status refusal is missing %q; body = %q", want, writeBody)
 		}

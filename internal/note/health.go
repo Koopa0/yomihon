@@ -45,7 +45,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// of the closed flag. What it carries is whatever actually failed: a
 		// contract that could not be read, or one that read and named a
 		// folder its artifacts section may not name.
-		SchemaScopeUnknown: authority.Diagnostic(),
+		SchemaScopeUnknown: authority.Diagnostic(lang),
 		LastComplete:       lastCompleteBuild(&fresh),
 		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}

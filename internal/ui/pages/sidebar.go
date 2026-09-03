@@ -281,8 +281,10 @@ func ancestorDirs(relPath string) []string {
 }
 
 // CapabilityFault is one closed navigation projection stated in the rail: the
-// Traditional Chinese summary of what is unavailable, and the contract's own
-// English detail.
+// summary of what is unavailable, in the reader's language, and the detail
+// written by whoever refused. Detail is empty where the refusal has no
+// sentence of its own to add — a write face this process lost says everything
+// it has to say in the summary.
 type CapabilityFault struct {
 	Summary string
 	Detail  string
@@ -297,20 +299,20 @@ func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 	if s.Model == nil {
 		return nil
 	}
-	navigation := s.Model.NavigationClosure().Diagnostic()
-	artifact := s.Model.ArtifactClosure().Diagnostic()
+	navigation := s.Model.NavigationClosure()
+	artifact := s.Model.ArtifactClosure()
 	switch {
-	case navigation != "" && navigation == artifact:
-		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation}}
-	case navigation != "" && artifact != "":
+	case navigation.Closed() && artifact.Closed() && navigation.Diagnostic() == artifact.Diagnostic():
+		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+	case navigation.Closed() && artifact.Closed():
 		return []CapabilityFault{
-			{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation},
-			{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact},
+			{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()},
+			{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()},
 		}
-	case navigation != "":
-		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation}}
-	case artifact != "":
-		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact}}
+	case navigation.Closed():
+		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+	case artifact.Closed():
+		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()}}
 	default:
 		return nil
 	}

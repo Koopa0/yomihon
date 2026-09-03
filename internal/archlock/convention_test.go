@@ -24,44 +24,6 @@ type site struct {
 	text string
 }
 
-// key identifies a site across edits that only move it. A check that keyed on
-// the line number would fail every time an unrelated line was inserted above.
-func (s site) key() string { return s.path + " | " + s.text }
-
-// openSites are the violations a check knows about and has not fixed. Each one
-// must still be found: an entry that matches nothing is a fix that landed
-// without its permission being withdrawn, and the check fails until the entry
-// is deleted. That is the whole point of writing them here rather than
-// narrowing the pattern — a stale exemption is louder than a silent one.
-type openSites struct {
-	// why says who owns closing these, so a reader meeting a failure knows
-	// whether to fix the code or delete the line.
-	why  string
-	keys []string
-}
-
-// stillOpen removes the known violations from found, and reports any entry that
-// matched nothing so it can be deleted.
-func (o openSites) stillOpen(t *testing.T, found []site) []site {
-	t.Helper()
-
-	matched := make(map[string]bool, len(o.keys))
-	var remaining []site
-	for _, s := range found {
-		if slices.Contains(o.keys, s.key()) {
-			matched[s.key()] = true
-			continue
-		}
-		remaining = append(remaining, s)
-	}
-	for _, k := range o.keys {
-		if !matched[k] {
-			t.Errorf("this violation is gone, so delete its line from the list above:\n\t%q\n(%s)", k, o.why)
-		}
-	}
-	return remaining
-}
-
 // report fails with one line per violation, naming where it is and what to do.
 func report(t *testing.T, rule string, remaining []site) {
 	t.Helper()
@@ -270,14 +232,6 @@ func TestNoResponseCarriesASentenceWrittenInTheSource(t *testing.T) {
 func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "carrying these phrases to their surface is another line of this work",
-		keys: []string{
-			`internal/status/status.go | CoreUnavailableDiagnostic           = wording.ContractUnavailable.In(wording.ZhHant)`,
-			`internal/status/status.go | DurableInstallUnavailableDiagnostic = wording.DurabilityUnsupported.In(wording.ZhHant)`,
-			`internal/status/status.go | NoteUnreadableDiagnostic            = wording.NoteStatusUnreadable.In(wording.ZhHant)`,
-		},
-	}
 	fixed := func(line string) bool {
 		return strings.Contains(line, ".In(wording.ZhHant)") || strings.Contains(line, ".In(wording.En)")
 	}
@@ -299,7 +253,7 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 	if len(conforming) == 0 {
 		t.Fatal("nothing in the tree resolves a phrase from the request, so this check is comparing against nothing")
 	}
-	report(t, "a sentence must carry both languages until the surface that knows the reader resolves it", open.stillOpen(t, found))
+	report(t, "a sentence must carry both languages until the surface that knows the reader resolves it", found)
 }
 
 // TestEveryExportedNumericEnumCanSayItsOwnName keeps a closed set printable.
