@@ -5,9 +5,16 @@ English | [繁體中文](README.zh-TW.md)
 [![CI](https://github.com/koopa0/yomihon/actions/workflows/ci.yml/badge.svg)](https://github.com/koopa0/yomihon/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
-**A local reading room for your Markdown notes.**
+**Turn the Markdown you have already organised into a book worth reading.**
 
-[![yomihon reading a note from the example vault: navigation and a study path on the left, the article in the centre, and on the right the note's status, its sections, and what cites it](.github/media/reading-en.png)](.github/media/reading-en.png)
+[![yomihon reading the first chapter of a course from the example vault: the course and where you are in it on the left, the article set for long-form reading in the centre, and on the right its sections and the notes that cite it](.github/media/reading-en.png)](.github/media/reading-en.png)
+
+Notes accumulate in folders; understanding happens when they are read back.
+yomihon serves a folder of Markdown as one book. A study path opens as a
+course with chapters and a marker for where you are; a note opens with its
+sections and everything that cites it beside the text; whatever is broken in
+the collection is said where it happens. It runs on your machine and reads the
+notes where they already are.
 
 ## Install
 
@@ -28,18 +35,25 @@ Then open <http://127.0.0.1:9610>. Any folder works as it is;
 
 ## What it does
 
-- Reads a folder of Markdown as one book: wikilinks, callouts, ruby, Mermaid,
-  footnotes, tables, and highlighted code.
-- Turns a study path into a course — counts, prev and next, and where you are
-  in it ([how to write one](AUTHORING.md)).
-- Keeps backlinks, the note's own sections, and lexical search beside the text.
-- Reports what is broken — invalid frontmatter, links with no target, one name
-  two files both answer to — and never repairs it.
-- Speaks English or Traditional Chinese; your notes keep the language they were
-  written in.
-- Writes one field, `status`, following the transitions your vault declares
-  (everywhere but Windows). Nothing else is written, and nothing is sent
-  anywhere: no network call, ever.
+- **Read.** Wikilinks, callouts, footnotes, tables, Mermaid, highlighted code
+  and ruby render as the author meant them. The page is set for long-form
+  reading, Chinese and Japanese first, with a light and a dark desk and three
+  text sizes.
+- **Learn.** A study path becomes a course: chapter counts, previous and next,
+  and where you are. Furigana switches on and off; a passage marked for reading
+  aloud is spoken in its own language ([how to write a path](AUTHORING.md)).
+- **Find.** Lexical search with folder filters and a way back from zero
+  results; backlinks and the note's own sections stay beside the text.
+- **Keep the collection honest.** A health page lists links with no target,
+  notes nothing cites, and one name two files answer to; each note carries its
+  own diagnostics; the same checks run as `yomihon check` on the command line.
+  Nothing is repaired for you — you edit the file.
+- **Reports.** Daily briefings kept under the vault's
+  `System/reports/daily-briefing/` folder open inside the same room, sandboxed.
+- **Two languages.** The interface speaks English or Traditional Chinese; every
+  note keeps the language it was written in.
+- **Yours.** It binds to `127.0.0.1` only, never makes a network call, and
+  never edits your prose.
 
 ## Status
 
