@@ -16,6 +16,7 @@ node_modules/
 .claude/
 .agents/
 .codex/
+.lsp.json
 tests/
 /AGENTS.md
 /CLAUDE.md
