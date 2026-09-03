@@ -2,6 +2,7 @@ package layouts
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -49,61 +50,62 @@ func textSizeLabel(size string, lang wording.Lang) string {
 }
 
 // ChromeFromRequest builds the page chrome from the request: the page title
-// plus the persisted theme, furigana, and single-key-shortcut cookies, so the
-// root element renders the correct state on the first byte (no FOUC). Each
-// cookie honors only its known values; anything else falls to the default —
-// input hygiene, since a cookie is user-controllable.
+// plus the reading choices the browser carries, so the root element renders
+// the correct state on the first byte (no FOUC). Every one of those choices is
+// read through the same table, which names the values each cookie may carry;
+// anything else falls to that row's answer — input hygiene, since a cookie is
+// user-controllable.
 //
-// The theme's default is deliberately empty rather than light: a reader who
-// never chose has expressed no preference here, and the stylesheet answers an
-// unstamped root with the system's own preference. Both stored values are
+// The theme's and the typeface's answers are deliberately empty rather than a
+// named default: a reader who never chose has expressed no preference there,
+// and the stylesheet answers an unstamped root with its own base value — the
+// system's own preference, in the theme's case. Both stored themes are
 // honored, because an explicit light choice must keep beating a dark system.
 //
 // It takes no shell: what the chrome is built from is the request and nothing
 // else, and a snapshot projection passed alongside would say the two were
 // related when they never were.
 func ChromeFromRequest(r *http.Request, title string) Chrome {
-	theme := ""
-	if c, err := r.Cookie("yomihon_theme"); err == nil && (c.Value == "dark" || c.Value == "light") {
-		theme = c.Value
-	}
-	ruby := "on"
-	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
-		ruby = "off"
-	}
-	textSize := "m"
-	if c, err := r.Cookie("yomihon_textsize"); err == nil && (c.Value == "l" || c.Value == "xl") {
-		textSize = c.Value
-	}
-	singleKeyShortcutsEnabled := true
-	if c, err := r.Cookie("yomihon_shortcuts"); err == nil && c.Value == "off" {
-		singleKeyShortcutsEnabled = false
-	}
 	return Chrome{
 		Title:                     title,
 		Lang:                      wording.LanguageFromRequest(r),
 		Nonce:                     origin.Nonce(r.Context()),
-		Theme:                     theme,
-		Ruby:                      ruby,
-		TextSize:                  textSize,
-		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
-		// The request's own address, so the language form can bring the reader
-		// back to this page after the switch. Only an address a GET can revisit
-		// qualifies: a page rendered by a POST names a target, not a place, so
-		// the form falls back to Home — and a page that knows a better return,
-		// as the recovery page knows its note, overrides this afterwards.
-		ReturnTo: returnableAddress(r),
+		Theme:                     read(r, themeChoice),
+		Ruby:                      read(r, rubyChoice),
+		TextSize:                  read(r, textSizeChoice),
+		Font:                      read(r, fontChoice),
+		SingleKeyShortcutsEnabled: read(r, shortcutsChoice) == "on",
+		// The request's own address, so a control the server answers can bring
+		// the reader back to this page afterwards. Only an address a GET can
+		// revisit qualifies: a page rendered by a POST names a target, not a
+		// place, so it falls back to Home — and a page that knows a better
+		// return, as the recovery page knows its note, overrides this
+		// afterwards.
+		ReturnTo: ReturnableAddress(r),
 	}
 }
 
-// returnableAddress is the address the language form sends a reader back to: a
-// GET's own path and query, or Home when the page came from a POST, whose
-// address names a target rather than a place a reader can revisit.
-func returnableAddress(r *http.Request) string {
+// ReturnableAddress is the address a control the server answers sends a reader
+// back to: a GET's own path and query, or Home when the page came from a POST,
+// whose address names a target rather than a place a reader can revisit.
+func ReturnableAddress(r *http.Request) string {
 	if r.Method == http.MethodGet {
 		return r.URL.RequestURI()
 	}
 	return "/"
+}
+
+// preferencesHref builds the address of the page a reader sets their reading
+// choices on, carrying where they are so that page can send them back there. A
+// reader already on it carries nothing: an address pointing at its own page
+// needs no return, and one carrying its own would nest another copy of itself
+// on every visit. Only the encoding happens here — whether the address names
+// somewhere this site can return to is answered where it is followed.
+func preferencesHref(returnTo string) string {
+	if returnTo == "" || returnTo == "/preferences" {
+		return "/preferences"
+	}
+	return "/preferences?from=" + url.QueryEscape(returnTo)
 }
 
 // otherLanguage is the language the form asks for: the one the interface is
