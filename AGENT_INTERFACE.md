@@ -94,11 +94,14 @@ dialect — behaviour pinned by this repository's golden files, not by any
 vault declaration.
 
 The schema rules judge the files inside the contract's
-`scan.knowledge_dirs`; a governed-looking file outside those directories
-is scanned for links but not held to the schema, while the reading page
-shows its schema faults regardless. The scope boundary is the contract
-owner's open question, and until it is answered this asymmetry is the
-documented behaviour, not an accident.
+`scan.knowledge_dirs`, and the judge drops every finding under `System/`
+by a rule of its own, written in code rather than in the contract. A
+governed-looking file elsewhere is scanned for links but not held to the
+schema, while the reading page shows its schema faults and the write
+face accepts its transitions regardless. The boundary lives in the
+contract and nowhere else — a note cannot declare itself into governance
+by carrying the fields — and whether the notes under `System/` join it
+is the contract owner's open question.
 
 ### `coverage --format json` — one JSON object
 
