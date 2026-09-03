@@ -27,6 +27,11 @@ const MUTATE = process.env.MUTATE || '';
 const SECTION_LINK = 'back to the material';
 const SECTION_HEADING = 'Sensory material';
 const WHOLE_NOTE_LINK = 'Glass Tide#Glass Tide';
+// A section named in CJK, with punctuation in it, addressed by a link written
+// with no display text. Its fragment passes through three encodings between the
+// anchor that stamped it and the cut that answers to it.
+const CJK_LINK = 'Glass Tide#第三節：失約的燈';
+const CJK_HEADING = '第三節：失約的燈';
 const DEGRADED_LINK = 'Glass Tide#A section nobody wrote';
 const EXTERNAL_LINK = 'https://example.invalid/lamps';
 
@@ -385,6 +390,22 @@ try {
 	}
 	await page.keyboard.press('Escape');
 	await settles(page, false, 2000);
+
+	// The same question asked of a section whose name is not ASCII.
+	{
+		const cjk = await only(page, CJK_LINK);
+		await cjk.hover();
+		if (!(await settles(page, true, 4000))) {
+			broken(`resting the pointer on ${JSON.stringify(CJK_LINK)} opened no card, so the section it names cannot be looked for`);
+		}
+		const state = await cardState(page);
+		proveApplied('card-shows-the-section-the-link-addressed', proof);
+		if (!state.text.includes(CJK_HEADING)) {
+			fail('card-shows-the-section-the-link-addressed', `the card does not carry ${JSON.stringify(CJK_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.text.slice(0, 160))}`);
+		}
+		await page.mouse.move(4, 4);
+		await settles(page, false, 2000);
+	}
 
 	// The whole-note link, whose destination is long enough that the card has
 	// to keep it inside itself.
