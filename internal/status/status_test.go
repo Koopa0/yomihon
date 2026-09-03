@@ -100,6 +100,35 @@ func loadFixtureWithArtifactSection(t *testing.T, fixturePath, section string) *
 	return contract
 }
 
+// loadContractWithoutKnowledgeDirs is the fixture contract with its
+// scan.knowledge_dirs line removed: a vault that never said which directories
+// are its knowledge layer.
+func loadContractWithoutKnowledgeDirs(t *testing.T) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	const declared = "knowledge_dirs = [\"Writing\"]\n"
+	modified := strings.Replace(string(data), declared, "", 1)
+	if modified == string(data) {
+		t.Fatal("knowledge_dirs replacement did not apply")
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err = os.WriteFile(contractPath, []byte(modified), 0o600) // #nosec G703 -- contractPath is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write test contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
+	}
+	if contract.KnowledgeScope().Available() {
+		t.Fatal("the fixture without knowledge_dirs still declares a scope, so a test built on it would prove nothing")
+	}
+	return contract
+}
+
 func newWriter(t *testing.T, root string, contract *schema.Contract) *status.Writer {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -393,9 +422,13 @@ func TestFlipClassifiesNonInstanceBeforeFilesystem(t *testing.T) {
 		t.Errorf("Flip(normalized non-instance) = %v, want %v before stat", err, status.ErrNonInstance)
 	}
 
+	// The sibling directory shares a prefix with the template directory but
+	// not a path component, so the artifact match lets it through — and the
+	// knowledge layer, which the fixture draws around Writing, is what refuses
+	// it next. Two sentinels keep the two refusals apart.
 	err = writer.Flip("System/templates-old/Missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
-	if errors.Is(err, status.ErrNonInstance) {
-		t.Errorf("Flip(component-boundary sibling) = %v, must reach filesystem instead of non-instance gate", err)
+	if errors.Is(err, status.ErrNonInstance) || !errors.Is(err, status.ErrOutsideKnowledgeScope) {
+		t.Errorf("Flip(component-boundary sibling) = %v, want %v rather than the non-instance gate", err, status.ErrOutsideKnowledgeScope)
 	}
 }
 
@@ -808,11 +841,18 @@ func TestTransitions(t *testing.T) {
 		//   draft:    from=[imported] owner=[claude,koopa]
 		//   ready:    from=[draft] owner=[koopa]
 		//   archived: from=[*] applies_to=[*] owner=[claude,koopa]
+		// and against its scan.knowledge_dirs, which names Writing alone.
 		{name: "lesson from draft", relPath: testRel, noteType: "lesson", current: "draft", want: []string{schema.SealStatus, "archived"}},
 		{name: "lesson from imported", relPath: testRel, noteType: "lesson", current: "imported", want: []string{"draft", "archived"}},
 		{name: "non-instance path", relPath: "System/templates/Lesson.md", noteType: "lesson", current: "draft", want: nil},
 		{name: "normalized non-instance path", relPath: "System/temporary/../templates/Lesson.md", noteType: "lesson", current: "draft", want: nil},
-		{name: "component-boundary sibling remains governed", relPath: "System/templates-old/Lesson.md", noteType: "lesson", current: "draft", want: []string{schema.SealStatus, "archived"}},
+		// The same note, the same type and status, one directory over: the
+		// path alone decides. A folder outside the declared knowledge layer
+		// is refused whether or not a template directory covers it, so the
+		// sibling that shares a prefix with the template directory is refused
+		// here too — Flip's sentinels are what keep those two reasons apart.
+		{name: "outside the knowledge layer", relPath: "System/agent-guides/L05.md", noteType: "lesson", current: "draft", want: nil},
+		{name: "component-boundary sibling of a template is outside the layer as well", relPath: "System/templates-old/Lesson.md", noteType: "lesson", current: "draft", want: nil},
 		{name: "empty note type", relPath: testRel, noteType: "", current: "draft", want: nil},
 		{name: "empty current status", relPath: testRel, noteType: "lesson", current: "", want: nil},
 	}
@@ -824,6 +864,63 @@ func TestTransitions(t *testing.T) {
 				t.Errorf("Transitions(%q, %q, %q) mismatch (-want +got):\n%s", tt.relPath, tt.noteType, tt.current, diff)
 			}
 		})
+	}
+}
+
+// TestWhyUngoverned pins the reading page's question about an empty
+// transition set: the answer is the refusal Flip would give — a template, or
+// a note outside the knowledge layer — and nil for a note the lifecycle
+// reaches, for a path the face cannot name, and for a closed view.
+func TestWhyUngoverned(t *testing.T) {
+	t.Parallel()
+	open := newWriter(t, t.TempDir(), loadContract(t)).View()
+	closed := newWriter(t, t.TempDir(), nil).View()
+	tests := []struct {
+		name string
+		view status.View
+		rel  string
+		want error
+	}{
+		{name: "inside the knowledge layer", view: open, rel: testRel, want: nil},
+		{name: "outside the knowledge layer", view: open, rel: "System/agent-guides/L05.md", want: status.ErrOutsideKnowledgeScope},
+		{name: "a template answers as a template first", view: open, rel: "System/templates/Lesson.md", want: status.ErrNonInstance},
+		{name: "a path the face cannot name", view: open, rel: "../outside.md", want: nil},
+		{name: "closed view", view: closed, rel: "System/agent-guides/L05.md", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.view.WhyUngoverned(tt.rel); !errors.Is(got, tt.want) {
+				t.Errorf("WhyUngoverned(%q) = %v, want %v", tt.rel, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestUndeclaredKnowledgeDirsLeaveTheWriteFaceOpen pins what silence means: a
+// contract that names no knowledge layer draws no boundary, so a note under
+// System/ is offered its transitions and written like any other. That is the
+// declared meaning of an absent scan.knowledge_dirs rather than a gap — a
+// declaration that is present and malformed is refused when the contract
+// loads, and never reaches the write face.
+func TestUndeclaredKnowledgeDirsLeaveTheWriteFaceOpen(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writer := newWriter(t, root, loadContractWithoutKnowledgeDirs(t))
+
+	const outside = "System/agent-guides/L05.md"
+	body := lessonContent("draft")
+	writeVaultFile(t, root, outside, body)
+
+	want := []string{schema.SealStatus, "archived"}
+	if diff := cmp.Diff(want, writer.View().Transitions(outside, "lesson", "draft")); diff != "" {
+		t.Errorf("Transitions(%q) under an undeclared layer mismatch (-want +got):\n%s", outside, diff)
+	}
+	if err := writer.Flip(outside, "draft", schema.SealStatus, vault.ContentIdentity([]byte(body))); err != nil {
+		t.Fatalf("Flip(%q) under an undeclared layer = %v, want the note written", outside, err)
+	}
+	if got := readVaultFile(t, root, outside); !strings.Contains(got, "status: "+schema.SealStatus) {
+		t.Errorf("the note under an undeclared layer was not written:\n%s", got)
 	}
 }
 

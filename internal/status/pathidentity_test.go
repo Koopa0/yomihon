@@ -22,10 +22,15 @@ import (
 // the neighbour also satisfies the content check the form binds itself to, so
 // the wrong file is rewritten and reported as a success. The assertion is
 // therefore on the bytes of every file in the vault, not only on the response.
+//
+// The notes sit inside the knowledge layer the fixture contract declares, so
+// the layer lets each request through to the question under test. The one
+// request that misspells the layer's own folder is kept, and pins where its
+// answer comes from instead.
 func TestHandlerWritesOnlyTheNoteTheFormNamed(t *testing.T) {
 	t.Parallel()
 
-	const neighbour = "Space.md"
+	const neighbour = "Writing/Space.md"
 	body := lessonContent("draft")
 
 	for _, tc := range []struct {
@@ -37,7 +42,7 @@ func TestHandlerWritesOnlyTheNoteTheFormNamed(t *testing.T) {
 		{
 			name:     "a leading space names a different note",
 			onDisk:   map[string]string{neighbour: body},
-			postPath: " Space.md",
+			postPath: "Writing/ Space.md",
 			wantCode: http.StatusNotFound,
 		},
 		{
@@ -52,13 +57,23 @@ func TestHandlerWritesOnlyTheNoteTheFormNamed(t *testing.T) {
 		{
 			name:     "an ideographic space names a different note",
 			onDisk:   map[string]string{neighbour: body},
-			postPath: "　Space.md",
+			postPath: "Writing/　Space.md",
 			wantCode: http.StatusNotFound,
 		},
 		{
-			name:     "a space on the first folder names a different tree",
+			// The first folder is what the knowledge layer reads, and the
+			// contract named "Writing", not " Writing": a tree the layer never
+			// named is refused before the filesystem is asked about it.
+			name:     "a space on the first folder names a tree outside the layer",
 			onDisk:   map[string]string{"Writing/lessons/japanese/Space.md": body},
 			postPath: " Writing/lessons/japanese/Space.md",
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
+			// Deeper down, the spelling is the filesystem's to answer.
+			name:     "a space on a later folder names a different tree",
+			onDisk:   map[string]string{"Writing/lessons/japanese/Space.md": body},
+			postPath: "Writing/ lessons/japanese/Space.md",
 			wantCode: http.StatusNotFound,
 		},
 		{
@@ -73,7 +88,7 @@ func TestHandlerWritesOnlyTheNoteTheFormNamed(t *testing.T) {
 			// open the neighbour for this spelling, and must not.
 			name:     "a spelling the folder does not hold names no note",
 			onDisk:   map[string]string{neighbour: body},
-			postPath: "SPACE.md",
+			postPath: "Writing/SPACE.md",
 			wantCode: http.StatusNotFound,
 		},
 	} {
@@ -108,8 +123,8 @@ func TestHandlerWritesOnlyTheNoteTheFormNamed(t *testing.T) {
 func TestHandlerWritesANoteWhoseNameHoldsASpace(t *testing.T) {
 	t.Parallel()
 
-	const spaced = " Space.md"
-	const neighbour = "Space.md"
+	const spaced = "Writing/ Space.md"
+	const neighbour = "Writing/Space.md"
 	body := lessonContent("draft")
 
 	root := t.TempDir()

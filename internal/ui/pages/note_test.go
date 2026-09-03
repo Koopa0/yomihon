@@ -177,6 +177,18 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			wantCounts: map[string]int{wording.NoLegalTransitions.In(wording.ZhHant): 2},
 		},
 		{
+			// The other reading of an empty set: the note sits outside the
+			// knowledge layer, so the layer is named on both faces and the
+			// schema sentence — false here, since the contract does define
+			// onward moves — is not reached for.
+			name:        "empty transition set outside the knowledge layer names the layer",
+			view:        NoteView{Governed: true, Title: "T", RelPath: "System/agent-guides/a.md", Status: "draft", OutsideKnowledgeScope: true},
+			wantAids:    false,
+			wantPresent: []string{"y-statuspanel", "y-sealbar"},
+			wantAbsent:  []string{wording.NoLegalTransitions.In(wording.ZhHant), `action="/status"`},
+			wantCounts:  map[string]int{wording.OutsideKnowledgeScope.In(wording.ZhHant): 2},
+		},
+		{
 			// The corner the invariant missed. The frontmatter parses, so the
 			// diagnostics face stays away; its status is a shape no single
 			// value can be read out of, so nothing reaches the chip; and with

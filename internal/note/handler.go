@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -597,6 +598,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		StatusUnknown:       governance.statusUnknown,
 		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, pages.LanguageFromRequest(r)),
 		FlippedFrom:         flippedFrom,
+		// The layer that withheld the transition set, when that is why it is
+		// empty, so the page names it instead of the schema.
+		OutsideKnowledgeScope: governance.outsideScope,
 		// The receipt for a change the face cannot walk back carries the
 		// recovery sentence; a reversible one leaves undoing to the controls
 		// already on the page.
@@ -743,6 +747,11 @@ type governanceState struct {
 	instance        bool
 	nonInstance     bool
 	noFrontmatter   bool
+	// outsideScope is set when the note sits outside the knowledge layer the
+	// contract declares, which is why it is offered no transition: the page
+	// then names the layer instead of claiming the schema defines nothing
+	// onward.
+	outsideScope bool
 	// statusUnknown is set when the note's non-empty status value is not in
 	// the contract's declared list for its type, so the page can state that
 	// fact instead of implying the schema defines nothing onward from it.
@@ -759,11 +768,14 @@ func (h *Handler) governance(
 	// Two authority samples taken at different instants: the request's captured
 	// write view, and the snapshot's own artifact capture. A note counts as a
 	// governed instance only while both still answer, whichever was taken first.
+	// The knowledge layer is the contract's own and does not move, so the
+	// request's view answers for it alone.
 	authorityAvailable := !statusView.Closed() && policy.Available()
 	state := governanceState{
-		shell:       pageShell,
-		instance:    authorityAvailable && !policy.IsNonInstance(n.RelPath),
-		nonInstance: authorityAvailable && policy.IsNonInstance(n.RelPath),
+		shell:        pageShell,
+		instance:     authorityAvailable && !policy.IsNonInstance(n.RelPath),
+		nonInstance:  authorityAvailable && policy.IsNonInstance(n.RelPath),
+		outsideScope: authorityAvailable && errors.Is(statusView.WhyUngoverned(n.RelPath), status.ErrOutsideKnowledgeScope),
 	}
 	state.writeDiagnostic = statusView.WriteDiagnostic()
 	if state.writeDiagnostic == "" && !policy.Available() {
