@@ -25,7 +25,8 @@ back, understood, and kept honest.
 
 It does not organise your notes, suggest what to write, or repair anything.
 When it finds a fault it says so and leaves the file alone — see
-[[Diagnostics are reports]].
+[[Diagnostics are reports]]. The one thing it writes is a note's status
+line, and only when you ask for it.
 
 It is local and single-user. The server binds `127.0.0.1` and has no remote
 mode; see [[Privacy and egress]] for what that leaves open and what it closes.
