@@ -1,0 +1,24 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/wording"
+
+// PreviewFragment is what the card is filled with: a bare fragment, no page
+// around it. The excerpt keeps the language its author wrote it in, which is
+// not always the language of the page showing it, so a reading voice announces
+// it as what it is.
+templ PreviewFragment(v PreviewView, lang wording.Lang) {
+	<div class="y-preview__body" data-preview-body { articleLanguageAttrs(v.Language)... }>
+		if v.RelPath == "" {
+			<p class="y-preview__notice">{ wording.PreviewNoNote.In(lang) }</p>
+		} else {
+			<div class="y-prose">
+				@templ.Raw(v.BodyHTML)
+			</div>
+			if v.Truncated {
+				<p class="y-preview__more">
+					<a class="y-preview__morelink" href={ templ.SafeURL(notesHref(v.RelPath)) }>{ wording.PreviewMore.In(lang) }</a>
+				</p>
+			}
+		}
+	</div>
+}
