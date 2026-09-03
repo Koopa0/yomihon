@@ -108,15 +108,22 @@ const weakenStylesheet = (rule) => async (context) => {
 // Rewrites what the preview route answers with, which is the only way to see
 // what the card does with an answer it did not expect.
 const rewriteFragment = (needle, replacement) => async (context) => {
-	let matched = -1;
+	// Counted across every fragment the run fetches, not per response: only one
+	// of them carries the needle, and a per-response count would be answered by
+	// whichever fragment happened to be fetched last.
+	let fetched = 0;
+	let rewritten = 0;
 	await context.route('**/preview/**', async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
-		matched = original.split(needle).length - 1;
+		fetched += 1;
+		rewritten += original.split(needle).length - 1;
 		await route.fulfill({ response, body: original.split(needle).join(replacement) });
 	});
 	return () =>
-		matched > 0 ? '' : `the fragment needle ${JSON.stringify(needle)} matched ${matched === -1 ? 'nothing, because no fragment was fetched' : '0 times'}`;
+		rewritten > 0
+			? ''
+			: `the fragment needle ${JSON.stringify(needle)} was rewritten in none of the ${fetched} fragments this run fetched`;
 };
 
 const MUTATIONS = {
