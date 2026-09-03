@@ -132,7 +132,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... }>
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... } { previewEndpointAttrs(&v)... }>
 				@flipReceipt(v, lang)
 				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
 					@articleHead(v, lang)
@@ -147,6 +147,9 @@ templ Note(v NoteView, c layouts.Chrome) {
 		</div>
 		@statusBar(v, lang)
 		@conceptSheet(v.Concepts, lang)
+		if v.hasPreviewableLinks() {
+			@previewCard()
+		}
 	}
 }
 

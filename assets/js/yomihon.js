@@ -7,6 +7,7 @@ import { initDrawer } from './drawer.js';
 import { initFreshness } from './freshness.js';
 import { initLesson } from './lesson.js';
 import { initPreferences } from './preferences.js';
+import { initPreview } from './preview.js';
 import { initSearch } from './search.js';
 import { initShortcuts } from './shortcuts.js';
 import { initSidebar } from './sidebar.js';
@@ -24,6 +25,7 @@ function init() {
   const search = initSearch();
   initShortcuts({ drawer, sidebar, search });
   initLesson();
+  initPreview();
   initDiagrams().catch((error) => {
     root.setAttribute('data-mermaid-error', '');
     console.warn('[yomihon] mermaid rendering failed outside a diagram:', error);

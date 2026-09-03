@@ -14,7 +14,7 @@ import "embed"
 // Files holds:
 //
 //   - js/*.js — yomihon's hand-written native client modules. yomihon.js is
-//     the sole entry; the other eight files each own one product concept.
+//     the sole entry; every other file owns one product concept.
 //
 //   - js/mermaid/ — the vendored mermaid@11.15.0 ES-module runtime.
 //     mermaid's published ESM build is itself code-split: dist/mermaid.esm.min.mjs
@@ -48,5 +48,5 @@ import "embed"
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine (D-brief: zero external requests).
 //
-//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/freshness.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
+//go:embed js/yomihon.js js/preferences.js js/drawer.js js/sidebar.js js/contents.js js/freshness.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/preview.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
 var Files embed.FS

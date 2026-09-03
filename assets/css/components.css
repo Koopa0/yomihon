@@ -1372,3 +1372,31 @@ html {
 .y-filter-partial { margin: 8px 8px 4px; font-family: var(--font-serif); font-size: var(--fs-12); line-height: 1.6; color: var(--fg-subtle); }
 .y-filter-partial a { color: var(--accent); text-decoration: none; }
 .y-filter-partial a:hover { text-decoration: underline; }
+
+/* The hover preview: the note a link leads to, shown beside that link. Where it
+   lands is settled here rather than in script — the client names an anchor on
+   the link under the pointer and nothing else about geometry — and the
+   fallbacks are what keeps a card opened near an edge of the window on screen.
+   The excerpt scrolls inside the card without taking the page with it. */
+.y-prose a.wikilink[data-preview-open] { anchor-name: --y-preview-anchor; }
+.y-preview {
+  inset: auto; position: fixed; margin: 0; position-anchor: --y-preview-anchor;
+  position-area: block-end span-inline-end;
+  position-try-fallbacks: flip-block, flip-inline, block-start span-inline-start;
+  inline-size: min(38rem, calc(100vw - 2rem)); max-block-size: min(26rem, 60vh);
+  overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow-2);
+}
+.y-preview:popover-open { transition: opacity var(--dur-base) var(--ease-standard); }
+@starting-style { .y-preview:popover-open { opacity: 0; } }
+.y-preview__body { content-visibility: auto; contain-intrinsic-block-size: auto 20rem; }
+/* The excerpt opens flush: the space a first heading or paragraph normally
+   keeps above it belongs to a page, and the card is not one. */
+.y-preview .y-prose > :first-child { margin-block-start: 0; }
+/* The two sentences the card says in its own voice: why it is empty, and where
+   the rest of a note it cut short can be read. */
+.y-preview__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }
+.y-preview__more { margin: 12px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; }
+.y-preview__morelink { color: var(--accent); text-decoration: none; }
+.y-preview__morelink:hover { text-decoration: underline; }
