@@ -11,10 +11,8 @@ import (
 
 // SearchView is everything the search results page needs. Diagnostic names a
 // metadata capability failure and is distinct from an ordinary empty result.
-// Its fields are plain values (not internal/search types) so internal/ui/pages
-// does not import internal/search — the search handler maps its results onto
-// SearchResult, keeping the import one-directional (search → pages), like the
-// reading page.
+// Its fields are plain values, so the search handler maps its own results onto
+// them and the import stays one-directional.
 type SearchView struct {
 	Query   string
 	Results []SearchResult
@@ -26,34 +24,27 @@ type SearchView struct {
 	Diagnostic string
 
 	// UnknownFilterKeys are the words this query wrote before a colon that the
-	// search grammar does not accept. The terms were searched for as text, which
-	// is all the grammar can honestly do with them; without saying so the page
-	// that comes back is the page a search for nothing returns, and the reader
-	// is left believing a constraint ran.
+	// grammar does not accept. Their terms were searched for as text, and
+	// without saying so the reader is left believing a constraint ran.
 	UnknownFilterKeys []string
 	// FilterKeys are the keys the grammar does accept, so the reader can see
-	// what to write instead. They come from the parser rather than from a list
-	// kept here: a list kept here drifts, and this repository has watched that
-	// happen — the ledger describing this repair names four of six.
+	// what to write instead. They come from the parser rather than a list kept
+	// here, which would drift.
 	FilterKeys []string
 
-	// StepBacks are the loosened searches offered when nothing matched — each
-	// one already run and known to find something, with its count, so the page
-	// never again advises a search it has made useless.
+	// StepBacks are the loosened searches offered when nothing matched, each
+	// already run and known to find something, so the page never advises a
+	// search it has made useless.
 	StepBacks []SearchStepBack
 
-	// Governed says this generation has a lifecycle contract behind it. It
+	// Governed says this generation has a lifecycle contract behind it, which
 	// gates the advice offered when nothing matched: a status filter is only
-	// worth suggesting where statuses exist, and a reader whose folder has none
-	// followed that suggestion, got nothing again, and was handed the same
-	// sentence a second time.
+	// worth suggesting where statuses exist.
 	Governed bool
 
 	// Sidebar is the resolved left navigation, built where every other page
-	// builds it. The search page renders inside the same shell as every other
-	// one, so arriving at a search never strands the reader in a chromeless
-	// view — and resolving the rail while the response body is already being
-	// written would make this page the odd one out.
+	// builds it, so arriving at a search never strands the reader in a
+	// chromeless view.
 	Sidebar Sidebar
 }
 
@@ -65,40 +56,30 @@ type SearchResult struct {
 	Status  string
 	Snippet string
 
-	// SnippetRuns is the same snippet cut into the stretches that matched the
-	// query and the stretches that did not, so the page can mark the words the
-	// reader typed. Readers were handed a grey block and left to find their own
-	// term inside it; a doctor scanning mid-clinic and a musician with a bow in
-	// one hand both said the same thing about it. Every run's text is rendered
-	// as text, so a note can no more become markup here than it could before.
+	// SnippetRuns is the snippet cut into the stretches that matched the query
+	// and the stretches that did not, so the page can mark the words the reader
+	// typed. Every run's text is rendered as text, so a note can no more become
+	// markup here than it could before.
 	SnippetRuns []SnippetRun
 
 	// PathRuns is where this note lives, cut the same way, so a hit reached
-	// through its path can say so. Such a hit has no snippet — nothing in its
-	// words matched — and without a mark the reader is handed a title and an
-	// address and left to work out what either had to do with what they typed.
-	// It is empty whenever the path holds nothing the query asked for, which
-	// is most rows, and the address then renders exactly as it always did.
+	// through its path can say so — such a hit has no snippet, nothing in its
+	// words having matched. It is empty where the path holds nothing the query
+	// asked for, which is most rows.
 	PathRuns []SnippetRun
 
-	// AliasRuns is the name that answered the query when it was not the title,
-	// cut the same way. The row shows a title, so a reader who searched for one
-	// of a note's other names would otherwise find nothing of what they typed
-	// anywhere on it — the same silence a path hit had, in a field they cannot
-	// even see.
+	// AliasRuns is the name that answered the query where it was not the title,
+	// cut the same way. The row shows a title, so a reader who searched one of a
+	// note's other names would otherwise see nothing of what they typed.
 	AliasRuns []SnippetRun
 
-	// File marks a hit that is a vault file rather than a note. It is named on
-	// the row because a file has no lifecycle and never will, so a reader
-	// scanning a list of results does not read its missing status as a note
-	// whose status went missing.
+	// File marks a hit that is a vault file rather than a note, named on the row
+	// so a missing status does not read as a note's status gone missing.
 	File bool
 
-	// StatusOutsideEnum marks a hit whose status value is not one the vault
-	// contract declares for this note's type. The row printed the value as
-	// plain text beside the path, which made a value nothing allows look
-	// exactly like one everything does — and a reader filtering by that value
-	// is precisely the reader who needs to be told.
+	// StatusOutsideEnum marks a hit whose status value the contract does not
+	// declare for this note's type, so a value nothing allows does not look
+	// exactly like one everything does.
 	StatusOutsideEnum bool
 }
 
@@ -115,28 +96,27 @@ type SearchStepBack struct {
 	Count int
 }
 
-// Search is the results page: a GET form and a flat list of hits, rendered in
-// the shared shell — header and navigation sidebar included, mounted with no
-// current note so every branch renders closed, the same wiring the report
-// shell uses. The form remains the no-JavaScript path; the live-search data
-// hooks let the shared script refresh only the result region while typing.
+// Search is the results page: a GET form and a flat list of hits in the shared
+// shell, mounted with no current note so every branch renders closed. The form
+// is the no-JavaScript path; the live-search data hooks let the shared script
+// refresh only the result region while typing.
 templ Search(v SearchView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main">
-				// data-live-search-sync-url marks the one live region whose results
-				// the address bar describes: this page is the form's own target, so
-				// after a live refresh the URL is rewritten to what submitting the
-				// form would produce, and a copied address reproduces the results on
-				// screen. The command-palette dialog floats over pages it does not
-				// own and never carries the marker.
+				// data-live-search-sync-url marks the one live region whose
+				// results the address bar describes. This page is the form's
+				// own target, so after a live refresh the URL is rewritten to
+				// what submitting would produce and a copied address reproduces
+				// the results. The command-palette dialog floats over pages it
+				// does not own and never carries the marker.
 				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results" data-live-search-sync-url>
-					// The page opens by saying which page it is. Arriving here by
-					// ear there was nothing to land on: the first thing announced
-					// was a text field, with no word for where it sat. The count
-					// is already stated above the hits, so this says only that.
+					// The page opens by saying which page it is, so arriving by
+					// ear lands on something other than an unexplained text
+					// field. The count is already stated above the hits, so this
+					// says only that.
 					<h1 class="y-title">{ wording.SearchTitle.In(c.Lang) }</h1>
 					// The field is not focused on arrival. Inside the palette that
 					// is the whole point — it opens on a keystroke and the reader
@@ -159,17 +139,15 @@ templ Search(v SearchView, c layouts.Chrome) {
 	}
 }
 
-// SearchResults is the server-rendered lexical-results fragment shared by the
-// full results page and the progressive search fields. The outer data marker
-// is the HTML-to-JavaScript contract — it carries the true match tally, which
-// the live-search status line announces, while the list below holds at most
-// the handler's bounded opening stretch; the result links remain ordinary
-// navigation.
+// SearchResults is the server-rendered results fragment shared by the full page
+// and the progressive search fields. The outer data marker carries the true
+// match tally, which the live-search status line announces, while the list below
+// holds at most the handler's bounded opening stretch.
 templ SearchResults(v SearchView, lang wording.Lang) {
 	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(v.Total) } aria-busy="false">
 		if len(v.UnknownFilterKeys) > 0 {
 			// Said whatever the outcome: this is about how the query was read,
-			// not about how many notes answered it, so a query that also found
+			// not how many notes answered it, so a query that also found
 			// something still hears it.
 			<p class="y-searchpage__hint" data-unknown-filter>
 				{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, wording.ListSeparator.In(lang))) }
@@ -190,9 +168,9 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 				</p>
 			</div>
 		} else if len(v.Results) > 0 {
-			// The count lived only in the live region the client script writes,
-			// so a reader looking at the page saw no number and a reader without
-			// scripting got none at all. Four of them asked how many.
+			// Printed rather than left to the live region the client writes,
+			// so a reader without scripting still learns how many the query
+			// found, and a reader looking at the page sees a number at all.
 			<p class="y-results__count">{ resultCount(len(v.Results), v.Total, lang) }</p>
 			// The hits are one set, so they are marked as one: a listener is
 			// told where it starts, how many it holds, and where it ends. The
@@ -280,10 +258,9 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 				}
 			</div>
 		} else {
-			// Nothing has been asked yet. What the reader cannot know without
-			// being told is which constraints this field understands, and a
-			// blank page is the one moment there is room to say it without
-			// standing between them and an answer.
+			// Nothing has been asked yet, and a blank page is the one moment
+			// with room to say which constraints this field understands
+			// without standing between the reader and an answer.
 			<div class="y-searchpage__empty" data-search-filters>
 				<p class="y-searchpage__hint">
 					{ wording.FilterKeysAvailable.In(lang) }

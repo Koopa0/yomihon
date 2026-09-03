@@ -10,8 +10,7 @@ import (
 )
 
 // Map is one parsed map-typed note and its heading/entry tree in document
-// order. Type distinguishes study paths from the Maps group; Domain supplies
-// the Maps group's primary ordering key.
+// order. Domain is the Maps group's primary ordering key.
 type Map struct {
 	Title    string
 	RelPath  string
@@ -20,27 +19,23 @@ type Map struct {
 	Branches []Branch
 }
 
-// Branch is one heading in a map (an H2 part, an H3 module or level, or
-// any deeper heading), holding the entries listed directly beneath it and
-// its nested subbranches. A Branch is present only if it, or a descendant,
-// carries at least one entry (see pruneBranches) — so a map's prose,
-// daily-loop, and gap branches, which list no entries, never appear.
+// Branch is one heading in a map, holding the entries listed directly beneath
+// it and its nested subbranches. A Branch is present only where it or a
+// descendant carries an entry, so a heading of pure prose never appears.
 type Branch struct {
-	// Heading is the display label: for a pipe-format heading
-	// "slug | English | Chinese" it is the English column; otherwise the
-	// whole heading text (e.g. a plain-text level name).
+	// Heading is the display label: the English column of a pipe-format
+	// "slug | English | Chinese" heading, otherwise the whole heading text.
 	Heading string
-	// Level is the markdown heading level (2 for a part, 3 for a module),
-	// kept so a renderer can indent by depth without re-deriving it.
+	// Level is the markdown heading level, kept so a renderer can indent by
+	// depth without re-deriving it.
 	Level       int
 	Entries     []MapEntry
 	Subbranches []Branch
 }
 
-// MapEntry is one wikilink list-item of a general map, the sibling of
-// PathEntry rather than a general form of it: a map keeps only governed,
-// resolved rows, while a study path retains its warning rows because their
-// order is a curriculum.
+// MapEntry is one wikilink list-item of a general map. A map keeps only
+// governed, resolved rows; a study path's PathEntry keeps its warning rows too,
+// because their order is a curriculum.
 type MapEntry struct {
 	Text       string
 	Target     string
@@ -71,10 +66,8 @@ func cloneBranches(source []Branch) []Branch {
 }
 
 // parseMap parses one map-typed note into a Map. It reads the
-// already-frontmatter-stripped body (vault.Parse split it out), so a
-// frontmatter list value cannot look like an entry bullet. Study paths no
-// longer pass through here — they read the declared-sequence grammar — so this
-// parser keeps only the general-map behavior: uniquely resolved governed rows.
+// already-frontmatter-stripped body, so a frontmatter list value cannot look
+// like an entry bullet. Study paths read the declared-sequence grammar instead.
 func parseMap(
 	n *vault.Note,
 	idx *graph.Index,
@@ -99,32 +92,14 @@ type branchNode struct {
 	sub     []*branchNode
 }
 
-// parseBranches is the one mechanical rule that produces the correct tree
-// for both real map shapes without hardcoding filenames or branch
-// titles:
-//
-//   - Walk the body line by line. A heading at level >= 2 opens a branch
-//     nested under the nearest shallower open heading (a stack); an H1 (the
-//     document title) is ignored, mirroring the reading page's leading-H1
-//     removal.
-//   - An entry list-item attaches to the currently open heading. An entry
-//     list-item is an unordered bullet ("- ", "* ", "+ "), not a GFM task
-//     checkbox ("- [ ]" / "- [x]"), that contains at least one [[wikilink]].
-//     Its link is that first wikilink, resolved by graph semantics.
-//   - Finally, prune every heading that has no entry anywhere beneath it.
-//
-// That predicate is what distinguishes the two files' non-navigation
-// branches without naming them: the Go map's parts/modules hold plain
-// "- [[MapEntry]]" bullets (all kept); the 大家 map's warm-up part holds direct
-// "- **P01** ... [[P01 ...]]" entries and its course-sequence levels hold
-// "- **L1** ... · [[L01 ...]]" entries (both kept), while its daily-loop
-// branch uses an ordered list (excluded — not a bullet), its learning-level
-// branch is a table (no list items), and its gaps branch uses task checkboxes
-// (excluded — even the one carrying a [[wikilink]]), so all three prune away
-// for having no entries. A "待建" bullet with no wikilink is not counted
-// because it names no target. General maps keep only uniquely resolved governed
-// rows; study paths also keep unresolved, ambiguous, and uniquely resolved
-// non-instance targets as warnings in their original position.
+// parseBranches builds a map's tree from the body alone, naming no file and no
+// heading. A heading at level >= 2 opens a branch nested under the nearest
+// shallower open heading; an H1 is the document title and is ignored, mirroring
+// the reading page's leading-H1 removal. An entry list-item attaches to the
+// open heading: an unordered bullet ("- ", "* ", "+ ") that is not a GFM task
+// checkbox and carries a [[wikilink]], resolved by graph semantics. Pruning
+// every heading with no entry beneath it leaves a map's prose and checkbox
+// branches out without naming them; only resolved governed rows survive.
 func parseBranches(
 	body string,
 	idx *graph.Index,
@@ -166,9 +141,8 @@ func parseBranches(
 	return convertBranches(pruneBranches(roots))
 }
 
-// pruneBranches drops every node with no entries and no surviving
-// descendant with entries — the step that removes a map's prose,
-// loop, and gap headings without ever naming them.
+// pruneBranches drops every node with no entries and no surviving descendant
+// with entries.
 func pruneBranches(nodes []*branchNode) []*branchNode {
 	kept := nodes[:0:0]
 	for _, n := range nodes {
@@ -180,8 +154,8 @@ func pruneBranches(nodes []*branchNode) []*branchNode {
 	return kept
 }
 
-// convertBranches turns the mutable node tree into the read-only Branch
-// tree, preserving document order at every level.
+// convertBranches turns the mutable node tree into the read-only Branch tree,
+// preserving document order at every level.
 func convertBranches(nodes []*branchNode) []Branch {
 	if len(nodes) == 0 {
 		return nil
@@ -198,9 +172,8 @@ func convertBranches(nodes []*branchNode) []Branch {
 	return out
 }
 
-// parseHeading reports an ATX heading of level >= 2: the "#" run must start
-// the line, be at least two long, and be followed by a space. Level 0/1
-// (body text, or the document-title H1) is not a branch.
+// parseHeading reports an ATX heading of level >= 2: the "#" run starts the
+// line, runs at least twice, and is followed by a space.
 func parseHeading(line string) (text string, level int, ok bool) {
 	n := 0
 	for n < len(line) && line[n] == '#' {
@@ -212,9 +185,8 @@ func parseHeading(line string) (text string, level int, ok bool) {
 	return strings.TrimSpace(line[n+1:]), n, true
 }
 
-// headingLabel surfaces the display label for a heading: the English column
-// of a pipe-format "slug | English | Chinese" heading, or the whole trimmed
-// text for any heading that is not pipe-format.
+// headingLabel is a heading's display label: the English column of a
+// pipe-format "slug | English | Chinese" heading, or the whole trimmed text.
 func headingLabel(text string) string {
 	if strings.Contains(text, "|") {
 		if parts := strings.Split(text, "|"); len(parts) >= 2 {
@@ -227,9 +199,7 @@ func headingLabel(text string) string {
 }
 
 // parseEntryItem reports whether line is an entry list-item and returns the
-// inner text of its first wikilink. It requires an unordered bullet marker,
-// rejects GFM task checkboxes, and requires a [[wikilink]] to be present —
-// see parseBranches's doc for why each condition matters.
+// inner text of its first wikilink.
 func parseEntryItem(line string) (inner string, ok bool) {
 	t := strings.TrimLeft(line, " \t")
 	switch {
@@ -246,11 +216,9 @@ func parseEntryItem(line string) (inner string, ok bool) {
 	return firstWikilink(rest)
 }
 
-// isTaskMarker reports whether s (a bullet item's text, after the marker)
-// begins with a GFM task checkbox: "[ ]", "[x]", or "[X]" followed by end
-// of string or a space. A "[[" wikilink opener is not a checkbox (its
-// second byte is "[", not a space or x), so "- [[MapEntry]]" is never
-// mistaken for a task item.
+// isTaskMarker reports whether s, a bullet item's text after its marker, begins
+// with a GFM task checkbox. A "[[" wikilink opener is not one, so an entry
+// bullet is never mistaken for a task item.
 func isTaskMarker(s string) bool {
 	if len(s) < 3 || s[0] != '[' || s[2] != ']' {
 		return false
@@ -276,14 +244,10 @@ func firstWikilink(s string) (inner string, ok bool) {
 	return inner, true
 }
 
-// makeEntry resolves a wikilink's inner text into an Entry. It reuses
-// graph.SplitWikilink (the same target/display extraction the renderer
-// uses) and idx.Resolve (the same normalization and ambiguity rules applied
-// to in-body wikilinks), so a sidebar entry link and the in-body wikilink
-// to the same note agree exactly. ok is false when the link has no note target
-// (a same-file anchor such as [[#heading]]). Unresolved, ambiguous, and unique
-// non-instance targets return distinct warning kinds so the caller can preserve
-// or omit them according to map role.
+// makeEntry resolves a wikilink's inner text into an Entry through the same
+// extraction and resolution an in-body wikilink gets, so the two agree exactly.
+// ok is false for a link with no note target, such as a same-file anchor.
+// Unresolved, ambiguous and non-instance targets get distinct warning kinds.
 func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, policy schema.ArtifactPolicy) (MapEntry, bool) {
 	target, display, ok := graph.SplitWikilink(inner)
 	if !ok {
@@ -301,12 +265,9 @@ func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, p
 	case graph.KindUnresolved:
 		return MapEntry{Text: display, Target: target, Kind: EntryUnresolved}, true
 	default:
-		// The resolver's kind set is closed — unresolved, unique, ambiguous —
-		// so a value outside it is a programming error in the resolver, not a
-		// state a vault can produce. Panicking is the deliberate response:
-		// dropping the row would quietly break the promise that a map loses
-		// no entry, and misfiling it would present a guess as a fact. A new
-		// kind has to be met here by name.
+		// The resolver's kind set is closed, so a value outside it is a
+		// programming error rather than a state a vault can produce: dropping
+		// the row would break the promise that a map loses no entry.
 		panic("nav: unknown graph.Kind: " + res.Kind.String())
 	}
 }

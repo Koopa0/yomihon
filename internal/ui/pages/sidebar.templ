@@ -9,21 +9,12 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// The left navigation rail, drawn by every page: the reading page, the folder
-// and file listings, search, reports, Home, the course page and the recovery
-// page all mount this one component. It lived in the file named for the
-// reading page, so the rail every page shares was two thirds of the way down
-// somebody else's markup, and the file called sidebar.go held its type and no
-// markup at all. Its resolved state and its components now sit side by side.
-
-// sidebar is the navigation face, ordered for a daily reader: a filter box
-// (shipped hidden, revealed by the pre-paint script below), the "here" list of
-// the current note's same-directory siblings, content-derived Paths and Maps,
-// recent Journal entries, reports, and the folder tree with the current note's
-// branch expanded.
-// It takes one resolved Sidebar, so the reading page and the report shell mount
-// the same navigation; a report builds it with no current note, so every branch
-// renders closed and unmarked. A nil model renders nothing.
+// sidebar is the left navigation rail every page mounts, ordered for a daily
+// reader: a filter box shipped hidden, the "here" list of the current note's
+// siblings, Paths and Maps, recent Journal entries, reports, and the folder
+// tree with the current note's branch expanded. It takes one resolved Sidebar,
+// so a report builds it with no current note and every branch renders closed. A
+// nil model renders nothing.
 templ sidebar(sb Sidebar, c layouts.Chrome) {
 	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) }>
 		<input
@@ -56,10 +47,10 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 			}
 			// The rail carries a capability fault on every page, including the
 			// ones reached straight from the command palette that never render
-			// Home. It appears only for a declaration the vault made and yomihon
-			// could not read: a folder that declared nothing has no paths and no
-			// maps, and saying so on every page would be an apology for the
-			// ordinary shape of a directory.
+			// Home. It appears only for a declaration the vault made and
+			// yomihon could not read: saying so for a folder that declared
+			// nothing would be an apology for the ordinary shape of a
+			// directory.
 			if faults := sb.CapabilityFaults(c.Lang); len(faults) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
@@ -163,11 +154,10 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 			</details>
 		}
 	</aside>
-	// The pre-paint settle: reveals the filter box and reapplies the reader's
-	// persisted disclosure toggles before the sidebar first paints, so the box
-	// never pops in late and a section the reader closed never flashes open or
-	// replays its opening animation. The wayfinding chain always wins over a
-	// stored value; the enhancement script owns every change after this point.
+	// The pre-paint settle reveals the filter box and reapplies the reader's
+	// persisted disclosure toggles before the sidebar first paints, so nothing
+	// pops in late or replays its opening animation. The wayfinding chain wins
+	// over a stored value, and the enhancement script owns every later change.
 	<script nonce={ c.Nonce }>
 		(() => {
 			"use strict";
@@ -216,9 +206,9 @@ templ folderList(sb Sidebar, c layouts.Chrome) {
 	}
 }
 
-// folderNode renders one folder and recurses — the tree mirrors the real
-// directory structure to whatever depth it has, as a nested native <details>.
-// The branch holding the current note opens by default, revealing it in place.
+// folderNode renders one folder as a nested native <details> and recurses, to
+// whatever depth the directory structure has. The branch holding the current
+// note opens by default.
 templ folderNode(sb Sidebar, c layouts.Chrome, f nav.Folder) {
 	if len(f.Subfolders) > 0 || len(f.Notes) > 0 {
 		{{ shown, trimmed := sb.TreeFiles(&f) }}
@@ -266,10 +256,10 @@ templ mapTree(sb Sidebar, c layouts.Chrome, m nav.Map, href string) {
 	</details>
 }
 
-// pathTree renders one study path as a closed disclosure that opens when it
-// holds the current note. It draws the declared structure navigation already
-// read: a branch the course does not include is not in the rail either, and a
-// side branch sits under the lesson it hangs from, in source order.
+// pathTree renders one study path as a closed disclosure that opens where it
+// holds the current note, drawing the structure navigation already read: a
+// branch outside the course is not in the rail, and a side branch sits under
+// the lesson it hangs from.
 templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Path) {
 	<details open?={ sb.mapOpen(p.RelPath) } data-map-tree={ p.RelPath } { disclosureAttrs("map:"+p.RelPath, sb.mapOpen(p.RelPath))... }>
 		<summary class="y-railitem">
@@ -315,23 +305,18 @@ templ pathGroupItems(sb Sidebar, c layouts.Chrome, pathRel string, chain []strin
 	}
 }
 
-// pathEntryLink renders one lesson row: a lesson that resolves links and may
-// mark the current note; a planned or ambiguous one stays non-interactive and
-// keeps its place in the course.
+// pathEntryLink renders one lesson row: one that resolves links and may mark the
+// current note, while a planned or ambiguous one stays non-interactive and keeps
+// its place in the course.
 //
-// Its warning chip is the plain one, not the amber that entryLink gives a map
-// row. The two rows are near-identical and the colour is the whole difference,
-// so it is deliberate: a course names its lessons before they are written, and
-// a row for one nobody has written yet is the ordinary state of a course being
-// taught, not a fault in it. The amber "!" beside the name still marks the row
-// as one that leads nowhere yet.
+// Its warning chip is plain where a map row's is amber, deliberately: a course
+// names its lessons before they are written, so a row for an unwritten one is
+// the ordinary state of a course being taught rather than a fault in it.
 //
 // Neither this row nor a map's carries a status badge for the note being read.
-// Every other row's badge comes from the captured generation and is the only
-// answer on offer there, but on the current one the page already states the
-// status twice from a live read of the note's own line — and the generation
-// republishes on its own cadence, so right after a transition the badge is a
-// third copy that disagrees with both.
+// The page already states that status twice from a live read of the note's own
+// line, and the generation republishes on its own cadence, so a third copy
+// would disagree with both right after a transition.
 templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a
@@ -378,12 +363,11 @@ templ branchNode(sb Sidebar, c layouts.Chrome, mapPath string, chain []string, b
 }
 
 // entryLink renders one map row: governed unique targets link and may mark the
-// current note; warning rows remain non-interactive.
+// current note, while warning rows stay non-interactive.
 //
-// Its warning chip is amber where a course row's is plain, and the difference
-// is the point: a map claims its entries exist, so a row that reaches nothing
-// is a broken citation somebody has to repair. Do not settle the two rows into
-// one colour without deciding which of those two things a rail is saying.
+// Its warning chip is amber where a course row's is plain, and the difference is
+// the point: a map claims its entries exist, so a row that reaches nothing is a
+// broken citation somebody has to repair.
 templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a

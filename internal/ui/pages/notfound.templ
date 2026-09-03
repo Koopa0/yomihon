@@ -6,12 +6,9 @@ import (
 )
 
 // NotFoundView is what a reader who asked for something that is not here needs
-// to see. Asked is the path they typed, echoed back so they can spot their own
-// typo; it is escaped like any other note text and never treated as markup.
-// Unreadable distinguishes the file that exists but could not be read in this
-// generation from the path that names nothing: the first needs a permission
-// fixed, the second needs a typo fixed or a note written, and telling a
-// reader the wrong one sends them to the wrong repair.
+// to see. Asked is the path they typed, echoed back escaped like any other note
+// text. Unreadable distinguishes a file that exists and could not be read from a
+// path that names nothing: one needs a permission fixed, the other a typo.
 type NotFoundView struct {
 	Asked      string
 	Unreadable bool
@@ -19,14 +16,9 @@ type NotFoundView struct {
 }
 
 // NotFound answers a request for something the vault does not hold, inside the
-// ordinary reading shell rather than as a bare line of text.
-//
-// A tool for walking between notes will be walked off the end of, and every
-// reader who tried this one arrived at a white page carrying eight characters
-// and no way onward — one of them in English, from the router's own default.
-// Several read it as having broken the thing themselves. The shell costs
-// nothing here and carries what they need: the folder tree they were browsing,
-// the search they would have reached for, and a way home.
+// ordinary reading shell rather than as a bare line of text. A tool for walking
+// between notes will be walked off the end of, and the shell carries what that
+// reader needs: the folder tree, the search field, and a way home.
 templ NotFound(v NotFoundView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>

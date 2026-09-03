@@ -9,11 +9,9 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Path is one study path read through the declared-sequence grammar: the
-// branch tree exactly as internal/sequence interpreted it, with each accepted
-// entry's resolution outcome attached. Navigation, the syllabus page, Home and
-// the sidebar all read this one interpretation; none of them parses the
-// Markdown again.
+// Path is one study path read through the declared-sequence grammar, with each
+// accepted entry's resolution outcome attached. Every surface reads this one
+// interpretation; none parses the Markdown again.
 type Path struct {
 	Title   string
 	RelPath string
@@ -21,39 +19,29 @@ type Path struct {
 	Type    string
 	// Groups are the top-level branches in document order.
 	Groups []*PathGroup
-	// Planned is the course total Home shows: the main line's accepted
-	// entries, resolved or not — a lesson that is planned but unwritten is
-	// still one of the course's lessons. Nothing outside the projectable
-	// primary line counts here.
+	// Planned is the course total: the main line's accepted entries, resolved
+	// or not, since a planned but unwritten lesson is still one of them.
+	// Nothing outside the projectable primary line counts here.
 	Planned int
-	// Ready is how many of the course's lessons sit at the reviewed status the
-	// vault contract names. It is never a measure of progress: a lesson finished
-	// and published leaves it. Unlike Planned it counts every branch a surface
-	// draws, side branches included, because the figure answers "how much of what
-	// is drawn here is ready" rather than "how long is the main line".
+	// Ready is how many lessons sit at the reviewed status the contract names.
+	// It is not progress — a published lesson leaves it — and unlike Planned it
+	// counts every branch a surface draws, side branches included.
 	Ready int
-	// Diagnostics is everything the grammar left the author to decide, as
-	// the parse reported it. The judge reads its own parse; this copy is for
-	// the reading surfaces, which need to tell a course that plans nothing
-	// from one whose structure could not be read — and, on the course page,
-	// whether a written marker is among the faults.
+	// Diagnostics is everything the grammar left the author to decide, so a
+	// reading surface can tell a course that plans nothing from one whose
+	// structure could not be read.
 	Diagnostics []sequence.Diagnostic
 
-	// components are the walkable sequences, precomputed at build: the main
-	// line first when it has any openable stop, then each projectable local
-	// branch in document order. Prev/next reads these and nothing else, so
-	// primary and local can never link to each other.
+	// components are the walkable sequences: the main line first when it has an
+	// openable stop, then each projectable local branch in document order.
+	// Prev/next reads these and nothing else, so primary and local never link.
 	components [][]NoteRef
 }
 
-// clone is a Path a caller may hold: the whole branch tree copied, so nothing
-// it does can reach the model every other request is reading from at the same
-// time. The model is built once per snapshot and shared; handing out a pointer
-// into it would let one reader change what the next one sees.
-//
-// The walkable sequences are shared rather than copied. They are unexported
-// and no caller outside this package can name them, so a copy would defend
-// nothing; the walk itself reads them off the model and never off a clone.
+// clone is a Path a caller may hold, with the whole branch tree copied so
+// nothing it does reaches the shared model. The walkable sequences are shared
+// rather than copied: no caller outside this package can name them, and the
+// walk reads them off the model rather than off a clone.
 func (p *Path) clone() Path {
 	out := *p
 	out.Groups = cloneGroups(p.Groups)
@@ -84,44 +72,37 @@ func cloneGroups(groups []*PathGroup) []*PathGroup {
 	return out
 }
 
-// PathGroup is one branch of a study path as navigation sees it. Role,
-// Projectable and the anchor identity come straight from the sequence
-// interpretation; nothing here re-derives a verdict from diagnostics.
+// PathGroup is one branch of a study path as navigation sees it. Every verdict
+// is copied from the sequence interpretation, never re-derived here.
 type PathGroup struct {
 	Name  string
 	Level int
 	Role  sequence.Role
 	// Container is true for a branch opened by a nested list row.
 	Container bool
-	// Projectable is the sequence grammar's first verdict: only a declared
-	// primary or local branch free of structural error projects.
+	// Projectable is the grammar's first verdict: only a declared primary or
+	// local branch free of structural error projects.
 	Projectable bool
-	// Carries is the grammar's second verdict: a sound branch that merely
-	// groups others, which a walk descends through to reach the course beneath
-	// it. Like Projectable it is copied from the interpretation, never
-	// re-derived here from Role and Invalid.
+	// Carries is its second: a sound branch that merely groups others, which a
+	// walk descends through to reach the course beneath it.
 	Carries bool
-	// Invalid carries the sequence grammar's structural-error verdict. An
-	// invalid branch keeps its rows for the author; nothing projects from it.
+	// Invalid is its structural-error verdict. An invalid branch keeps its rows
+	// for the author; nothing projects from it.
 	Invalid bool
-	// AnchorTarget and AnchorSpan name and identify the entry a local branch
-	// hangs from — the span still tells two rows naming the same note apart.
+	// AnchorTarget and AnchorSpan identify the entry a local branch hangs from;
+	// the span tells two rows naming the same note apart.
 	AnchorTarget string
 	AnchorSpan   sequence.Span
-	// Planned is how many accepted entries this branch itself lists — the
-	// count a local branch shows beside its name.
+	// Planned is how many accepted entries this branch itself lists.
 	Planned int
-	// Items hold everything the branch lists in source order: a local branch
-	// follows the entry it hangs from, and a renderer that walks Items in
-	// order places it there without guessing from targets or lines.
+	// Items hold everything the branch lists in source order, so a renderer
+	// walking them places a local branch without guessing from targets or lines.
 	Items []PathItem
 }
 
 // Drawn reports whether a surface showing this course shows this branch: one
-// the grammar projects, or a structural heading that carries one. A branch the
-// grammar does not project is not a way to a lesson, so it is not a way through
-// a rail or a course page either — and both draw the same branches, so both ask
-// here rather than each keeping the rule.
+// the grammar projects, or a structural heading that carries one. Every surface
+// asks here, so none keeps a rule of its own.
 func (g *PathGroup) Drawn() bool {
 	if g.Projectable {
 		return true
@@ -138,9 +119,7 @@ func (g *PathGroup) Drawn() bool {
 }
 
 // Teaches reports whether this branch offers the row as one of the course's
-// lessons: the grammar projects the branch, and it accepted the row. A row the
-// grammar refused, and every row of a branch outside the course, keeps its
-// prose on the note's own page and is not a lesson anywhere.
+// lessons: the grammar projects the branch and accepted the row.
 func (g *PathGroup) Teaches(entry *PathEntry) bool {
 	return entry != nil && g.Projectable && entry.State == sequence.EntryAccepted
 }
@@ -153,9 +132,8 @@ type PathItem struct {
 }
 
 // PathEntry is one candidate row with its resolution outcome. State says what
-// the grammar decided; Kind, RelPath, Status and Candidates say what resolving
-// the target found, and are meaningful only for an accepted entry — a row the
-// grammar did not accept is never resolved, because it never becomes a lesson.
+// the grammar decided; the resolution fields are meaningful only for an
+// accepted entry, since a refused row is never resolved.
 type PathEntry struct {
 	Text   string
 	Target string
@@ -163,13 +141,10 @@ type PathEntry struct {
 	Span   sequence.Span
 	State  sequence.EntryState
 
-	// Number is the row's position in the sequence its branch projects,
-	// assigned by the same walk that builds the components: the main line
-	// counts on through every primary branch in document order, and each side
-	// branch counts its own rows from one. A planned or otherwise warning row
-	// keeps its number — an unwritten lesson is still one of the course's
-	// lessons. Zero means the walk never reaches the row's branch. Line, by
-	// contrast, is a source location, not a course position.
+	// Number is the row's position in the sequence its branch projects: the
+	// main line counts on through every primary branch, each side branch counts
+	// its own rows from one, and a warning row keeps its number. Zero means the
+	// walk never reaches the row's branch. Line is a source location instead.
 	Number int
 
 	Kind       EntryKind
@@ -184,9 +159,8 @@ func (e *PathEntry) Openable() bool {
 	return e.State == sequence.EntryAccepted && e.Kind == EntryResolved
 }
 
-// buildPath reads one path-typed note through the sequence grammar and
-// attaches resolution outcomes. This is the once-per-snapshot parse; every
-// surface downstream reads the result.
+// buildPath reads one path-typed note through the sequence grammar and attaches
+// resolution outcomes. It is the once-per-snapshot parse.
 func buildPath(
 	n *vault.Note,
 	idx *graph.Index,
@@ -227,10 +201,8 @@ func buildPathGroup(
 	policy schema.ArtifactPolicy,
 ) *PathGroup {
 	out := &PathGroup{
-		// headingLabel is this vault's own heading dialect — a "slug | English |
-		// 中文" heading displays its English column — and it applies to a course's
-		// branches exactly as it does to a map's. The grammar reads structure;
-		// what a branch is called is still read the way the vault writes it.
+		// The grammar reads structure; what a branch is called is still read in
+		// the vault's own heading dialect, as a map's branches are.
 		Name:         headingLabel(g.Name),
 		Level:        g.Level,
 		Role:         g.Role,
@@ -251,18 +223,11 @@ func buildPathGroup(
 			out.Items = append(out.Items, PathItem{Entry: entry})
 		case item.Branch != nil:
 			child := buildPathGroup(item.Branch, idx, statusByPath, policy)
-			// A branch counts what the main line beneath it carries. Both of
-			// this vault's courses put every lesson in a level-3 branch under a
-			// level-2 part, so a part that stopped at its own rows would read
-			// zero beside a Home card reading eight — and a reader comparing
-			// the two would learn only that one of them is wrong. A side branch
-			// keeps its own count, and a block declared out of the course, one
-			// nobody declared, and one still to repair carry none.
-			// Only the main line joins counts end to end. A branch declared
-			// out of it walks its own steps and shows its own number, so
-			// folding a nested part into a side branch would print a figure no
-			// walk matches; and a branch nobody declared, or one the author has
-			// still to repair, is not part of the course to be counted into.
+			// A branch counts what the main line beneath it carries, because a
+			// part whose lessons all sit in child branches would otherwise read
+			// zero. Only the main line joins counts end to end: a side branch
+			// walks its own steps and shows its own number, so folding a nested
+			// part into one would print a figure no walk matches.
 			if out.Role == sequence.RolePrimary || out.Role == sequence.RoleStructural {
 				if child.Role == sequence.RolePrimary || child.Role == sequence.RoleStructural {
 					out.Planned += child.Planned
@@ -272,16 +237,16 @@ func buildPathGroup(
 		}
 	}
 	if !out.Projectable && out.Role != sequence.RoleStructural {
-		// Only a branch the course includes, or one that merely carries such
-		// branches, has a course count at all.
+		// Only a branch the course includes, or one carrying such branches, has
+		// a course count at all.
 		out.Planned = 0
 	}
 	return out
 }
 
-// buildPathEntry attaches a resolution outcome to one accepted entry. A row
-// the grammar did not accept keeps the zero outcome: it is not a lesson, so
-// there is nothing to resolve.
+// buildPathEntry attaches a resolution outcome to one accepted entry. A refused
+// row keeps the zero outcome: it is not a lesson, so there is nothing to
+// resolve.
 func buildPathEntry(
 	c *sequence.Candidate,
 	idx *graph.Index,
@@ -325,18 +290,10 @@ type mainLine struct {
 }
 
 // projectStops walks a path's groups in document order and separates what the
-// grammar lets navigation read:
-//
-//   - every projectable primary group joins one main line, end to end in
-//     declared order — the course has one main line, and a none block between
-//     two primary parts does not cut it;
-//   - each projectable local group is a component of its own, never joining
-//     the main line;
-//   - a structural branch carries its declared descendants and contributes
-//     nothing itself;
-//   - none, unclassified and invalid branches project nothing, subtree
-//     included — their prose still reads on the note page, and their
-//     diagnostics reach the author through the judge.
+// grammar lets navigation read: every projectable primary group joins the one
+// main line end to end, each projectable local group is a component of its own,
+// a structural branch carries its descendants and contributes nothing itself,
+// and every other branch projects nothing, subtree included.
 func projectStops(groups []*PathGroup) (main mainLine, locals [][]NoteRef) {
 	walker := &stopWalk{}
 	for _, g := range groups {
@@ -363,8 +320,7 @@ func (w *stopWalk) walk(g *PathGroup) {
 }
 
 // primary folds one main-line branch into the course: every accepted row is a
-// planned lesson carrying its position on the line, and the ones that resolve
-// are the stops a reader can walk.
+// planned lesson carrying its position, and the resolved ones are walkable.
 func (w *stopWalk) primary(g *PathGroup) {
 	for _, item := range g.Items {
 		switch {
@@ -393,12 +349,9 @@ func (w *stopWalk) descend(g *PathGroup) {
 }
 
 // localStops are the lessons a local branch itself lists that a reader can
-// open. Its accepted rows are numbered from one on the branch's own count —
-// never the main line's, because the declared orders never join. A local
-// branch never carries another walkable branch: an undeclared nested list
-// beneath it projects nothing, a local inside a local was already refused,
-// and a branch nested beneath it with any other declaration is drawn by the
-// course page but walked by nothing, so its rows keep number zero.
+// open, numbered from one on the branch's own count because the declared orders
+// never join. A local branch carries no other walkable branch, so a branch
+// nested beneath it is drawn but not walked and its rows keep number zero.
 func localStops(g *PathGroup) []NoteRef {
 	var stops []NoteRef
 	n := 0
@@ -416,10 +369,8 @@ func localStops(g *PathGroup) []NoteRef {
 }
 
 // readyLessons counts the lessons at the reviewed status across every branch a
-// surface draws. It walks the drawn branches rather than the walkable ones: a
-// side branch is drawn beside the main line and its lessons are as ready or as
-// unready as any other, while a branch outside the course is drawn by nobody
-// and counted by nobody.
+// surface draws, side branches included: a branch outside the course is drawn
+// by nobody and counted by nobody.
 func readyLessons(groups []*PathGroup) int {
 	n := 0
 	for _, g := range groups {
@@ -440,10 +391,8 @@ func readyLessons(groups []*PathGroup) int {
 	return n
 }
 
-// pathPlacements records every projectable accepted, resolved entry of one
-// path into the reverse index — and nothing else: a row the grammar did not
-// accept, and every entry of a none, unclassified or invalid branch, is not a
-// course membership.
+// pathPlacements records every projectable accepted, resolved entry of one path
+// into the reverse index. Nothing else is a course membership.
 func pathPlacements(index map[string][]Placement, p *Path) {
 	for _, g := range p.Groups {
 		placeGroup(index, p.RelPath, g, nil)
@@ -451,7 +400,7 @@ func pathPlacements(index map[string][]Placement, p *Path) {
 }
 
 // placeGroup records one branch's lessons and recurses. A branch the course
-// does not include contributes nothing: being listed there is not membership.
+// does not include contributes nothing.
 func placeGroup(index map[string][]Placement, pathRel string, g *PathGroup, chain []string) {
 	if !g.Projectable && !g.Carries {
 		return
