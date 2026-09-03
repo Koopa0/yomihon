@@ -51,8 +51,19 @@ export function initContents() {
   headings.forEach((heading) => { observer.observe(heading); });
   recompute();
 
+  // One travel can end two ways — the scroll reports itself finished, or the
+  // wait runs out — and whichever arrives first has to take the other down.
+  // The timer was already cleared; the listener was not, so a travel that
+  // ended on the timer left it registered and an unrelated scroll later in the
+  // page ran the settle it had already run. Holding both under one signal
+  // makes the pair explicit rather than accidental.
+  let travel = null;
+
   function settle() {
     clearTimeout(settleTimer);
+    settleTimer = null;
+    travel?.abort();
+    travel = null;
     locked = null;
     delete root.dataset.traveling;
     recompute();
@@ -60,11 +71,13 @@ export function initContents() {
 
   links.forEach((link) => {
     link.addEventListener('click', () => {
+      travel?.abort();
+      travel = new AbortController();
       locked = targetID(link);
       mark(locked);
       root.dataset.traveling = 'on';
       clearTimeout(settleTimer);
-      document.addEventListener('scrollend', settle, { once: true });
+      document.addEventListener('scrollend', settle, { once: true, signal: travel.signal });
       settleTimer = setTimeout(settle, 900);
     });
   });
