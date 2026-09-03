@@ -42,6 +42,8 @@ func TestTranscludedIdentityFollowsWhatTheRenderExpands(t *testing.T) {
 		{name: "an embed inside a code span is quoted syntax", body: "The syntax `![[X]]` embeds.\n", stamped: false},
 		{name: "an escaped embed is shown, not followed", body: "\\![[X]]\n", stamped: false},
 		{name: "an unresolved embed brings no words", body: "![[Nowhere]]\n", stamped: false},
+		{name: "an embed whose address the note does not answer to shows none of it", body: "![[X#Nope]]\n", stamped: false},
+		{name: "an embed whose block address the note does not answer to shows none of it", body: "![[X#^nope]]\n", stamped: false},
 		{name: "a picture embed is not another note's words", body: "![[pic.png]]\n", stamped: false},
 		{name: "an embed whose body was never captured", body: "![[Ghost]]\n", stamped: false},
 	} {
@@ -110,9 +112,9 @@ func TestTranscludedIdentityMovesWithTheExcerptAndOnlyTheExcerpt(t *testing.T) {
 // TestTranscludedIdentityBindsSourceScopeAndCount pins the parts of an excerpt
 // that are not its bytes. Two notes can hold identical bytes and still render
 // differently, because a relative image resolves against its own note's
-// directory; a widened excerpt and a chosen-of-several excerpt both say so on
-// the page; and the same note embedded twice is two excerpts. Each of these
-// must reach the stamp, or a change a reload would show leaves it still.
+// directory; a chosen-of-several excerpt says so on the page; and the same note
+// embedded twice is two excerpts. Each of these must reach the stamp, or a
+// change a reload would show leaves it still.
 func TestTranscludedIdentityBindsSourceScopeAndCount(t *testing.T) {
 	t.Parallel()
 	stampOf := func(notes []graph.NoteInput, bodies transclusions, host string) string {
@@ -131,15 +133,6 @@ func TestTranscludedIdentityBindsSourceScopeAndCount(t *testing.T) {
 	twice := stampOf(x, transclusions{"X.md": shared}, "![[X]]\n\n![[X]]\n")
 	if once == "" || once == twice {
 		t.Errorf("one embed and two embeds of the same note stamped %q and %q", once, twice)
-	}
-
-	// A fragment that matches nothing widens to the whole note and the page
-	// says so; an embed written without a fragment shows the same bytes with
-	// no such notice. The two pages differ, so the stamps must.
-	widened := stampOf(x, transclusions{"X.md": shared}, "![[X#Nope]]\n")
-	plain := stampOf(x, transclusions{"X.md": shared}, "![[X]]\n")
-	if widened == "" || widened == plain {
-		t.Errorf("a widened excerpt and a plain whole-note excerpt stamped %q and %q", widened, plain)
 	}
 
 	// Two headings answering one name: the excerpt is the first and identical

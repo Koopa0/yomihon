@@ -851,13 +851,22 @@ func TestEmbedHeadingFragmentScopesTheTransclusion(t *testing.T) {
 		}
 	})
 
-	t.Run("a missing heading shows the whole note and says so", func(t *testing.T) {
+	// The author named one section. Answering with the whole note when the name
+	// matches nothing is a wider answer than the one they wrote, so the page
+	// keeps the note's words back and says what it could not find, with the way
+	// on to the note for a reader who wants the rest.
+	t.Run("a missing heading withholds the excerpt and says so", func(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 		got := r.HTML("note.md", "", "![[B#No Such Section]]\n", wording.ZhHant)
-		for _, want := range []string{"INTRO-MARKER", "ALPHA-MARKER", "BETA-MARKER"} {
+		for _, forbidden := range []string{"INTRO-MARKER", "ALPHA-MARKER", "BETA-MARKER"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("a section the note does not have was widened into %q:\n%s", forbidden, got.HTML)
+			}
+		}
+		for _, want := range []string{`class="embed embed--withheld"`, "#No Such Section", `href="/notes/B.md"`} {
 			if !strings.Contains(got.HTML, want) {
-				t.Errorf("the whole-note fallback lost %q:\n%s", want, got.HTML)
+				t.Errorf("the notice standing in for the excerpt lacks %s:\n%s", want, got.HTML)
 			}
 		}
 		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagEmbedFragmentMissing {
@@ -1121,8 +1130,8 @@ func TestEmbedHeadingFragmentAcceptsWhatTheDestinationAnchors(t *testing.T) {
 // TestEmbedHeadingFragmentReportsWhatItCouldNotMatch holds the spelling the
 // scan still cannot reproduce from a note's own source: a heading carrying a
 // markdown link keeps the address the rendered heading drops. It degrades the
-// way the fault-tolerance rule requires — the whole note, plus a report — and
-// the report says what actually happened, which is that nothing matched,
+// way the fault-tolerance rule requires — the excerpt withheld, plus a report —
+// and the report says what actually happened, which is that nothing matched,
 // rather than asserting a section the reader can see on the destination page
 // is absent.
 //
@@ -1143,7 +1152,7 @@ func TestEmbedHeadingFragmentReportsWhatItCouldNotMatch(t *testing.T) {
 			name:     "a markdown link keeps its address in the source",
 			body:     "## See [docs](https://example.invalid/x)\n\nA-BODY\n",
 			fragment: "See docs",
-			want:     `no heading in "B.md" matched "See docs"; the whole note is shown`,
+			want:     `no heading in "B.md" matched "See docs"; the excerpt is withheld`,
 		},
 	}
 
@@ -1156,8 +1165,8 @@ func TestEmbedHeadingFragmentReportsWhatItCouldNotMatch(t *testing.T) {
 				t.Fatalf("destination TOC = %+v, want one entry reading %q", dest.TOC, tt.fragment)
 			}
 			got := r.HTML("note.md", "", "![[B#"+tt.fragment+"]]\n", wording.ZhHant)
-			if !strings.Contains(got.HTML, "A-BODY") {
-				t.Errorf("the whole-note fallback lost the body:\n%s", got.HTML)
+			if strings.Contains(got.HTML, "A-BODY") {
+				t.Errorf("a name that matched nothing was widened into the body:\n%s", got.HTML)
 			}
 			var messages []string
 			for _, d := range got.Diagnostics {
@@ -1269,15 +1278,21 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 					"B.md": "OUTSIDE-MARKER first.\n\nADDRESSED-MARKER the paragraph. " + tt.marker + "\n",
 				})
 				got := r.HTML("note.md", "", "![[B#"+tt.fragment+"]]\n", wording.ZhHant)
-				if sliced := !strings.Contains(got.HTML, "OUTSIDE-MARKER"); sliced != tt.want {
-					t.Errorf("embed of %q against marker %q sliced = %v, want %v:\n%s",
-						tt.fragment, tt.marker, sliced, tt.want, got.HTML)
+				// A matched address brings exactly the addressed paragraph; an
+				// unmatched one brings nothing. Neither brings the words outside it.
+				if addressed := strings.Contains(got.HTML, "ADDRESSED-MARKER"); addressed != tt.want {
+					t.Errorf("embed of %q against marker %q reached the addressed paragraph = %v, want %v:\n%s",
+						tt.fragment, tt.marker, addressed, tt.want, got.HTML)
+				}
+				if strings.Contains(got.HTML, "OUTSIDE-MARKER") {
+					t.Errorf("embed of %q against marker %q brought words from outside the addressed paragraph:\n%s",
+						tt.fragment, tt.marker, got.HTML)
 				}
 				if tt.want && len(got.Diagnostics) != 0 {
 					t.Errorf("Diagnostics = %+v, want none for a block that exists", got.Diagnostics)
 				}
 				if !tt.want && len(got.Diagnostics) != 1 {
-					t.Errorf("Diagnostics = %+v, want the widened scope reported once", got.Diagnostics)
+					t.Errorf("Diagnostics = %+v, want the withheld excerpt reported once", got.Diagnostics)
 				}
 			})
 		}
@@ -1301,13 +1316,18 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 		}
 	})
 
-	t.Run("a missing block shows the whole note and says so", func(t *testing.T) {
+	t.Run("a missing block withholds the excerpt and says so", func(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 		got := r.HTML("note.md", "", "![[B#^missing]]\n", wording.ZhHant)
-		for _, want := range []string{"FIRST-MARKER", "SECOND-MARKER", "THIRD-MARKER"} {
+		for _, forbidden := range []string{"FIRST-MARKER", "SECOND-MARKER", "THIRD-MARKER"} {
+			if strings.Contains(got.HTML, forbidden) {
+				t.Errorf("a block the note does not have was widened into %q:\n%s", forbidden, got.HTML)
+			}
+		}
+		for _, want := range []string{`class="embed embed--withheld"`, "#^missing", `href="/notes/B.md"`} {
 			if !strings.Contains(got.HTML, want) {
-				t.Errorf("the whole-note fallback lost %q:\n%s", want, got.HTML)
+				t.Errorf("the notice standing in for the excerpt lacks %s:\n%s", want, got.HTML)
 			}
 		}
 		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagEmbedFragmentMissing {

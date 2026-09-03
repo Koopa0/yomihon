@@ -24,13 +24,13 @@ var (
 // read this time — a different fault from a name with nothing behind it.
 var EmbedUnreadable = both("這篇筆記存在，但這次讀取時拿不到它的內容", "This note exists, but its contents could not be read this time")
 
-// What an embed says when it could not find the fragment it was given and
-// showed the whole note instead. It is split around the fragment, which is
-// marked up where it appears.
-var (
-	EmbedWidenedBefore = both("找不到 ", "Could not find ")
-	EmbedWidenedAfter  = both("，以下顯示整篇筆記。", "; the whole note follows.")
-)
+// ExcerptWithheldFmt is said where an excerpt would have stood when the note
+// has no such place in it: the address as the author's own link spells it,
+// then the note. Nothing of the note follows, because the author asked for one
+// place and the whole note is a wider answer than the one they wrote. The
+// English is the sentence Obsidian shows for the same fault, so a reader who
+// wrote the note there meets the same words here.
+var ExcerptWithheldFmt = both("找不到「%s」：〈%s〉裡沒有這個位址。", "Unable to find “%s” in %s.")
 
 // EmbedSourceFrom opens an excerpt's provenance line; the source note's name
 // follows it as a link. An excerpt is another note's words, and the one thing

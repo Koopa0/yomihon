@@ -10,7 +10,7 @@ import (
 )
 
 // sectionDest is a destination with two named sections and a sentinel in each,
-// so a widened excerpt is told from a scoped one by what reaches the page.
+// so a withheld excerpt is told from a scoped one by what reaches the page.
 const sectionDest = "# Top\n\nTOPTEXT\n\n## Alpha\n\nALPHATEXT\n\n## Beta\n\nBETATEXT\n"
 
 func sectionRenderer(t *testing.T) *render.Pipeline {
@@ -97,13 +97,15 @@ func TestSectionLinkClaimsNothingAboutABodyItNeverRead(t *testing.T) {
 	}
 }
 
-// TestWidenedEmbedSaysSoInTheBody closes the other half. An embed whose
-// fragment matches nothing falls back to the whole source note, which turns a
-// scoped citation into an unscoped one — and the only account of that was a
-// diagnostic in the right rail, which narrow viewports collapse and drop
-// entirely. The words the author excluded appear in the article, so the
-// article is where it has to be said.
-func TestWidenedEmbedSaysSoInTheBody(t *testing.T) {
+// TestAWithheldEmbedSaysSoInTheBody closes the other half. An embed whose
+// fragment matches nothing used to fall back to the whole source note, which
+// turned a scoped citation into an unscoped one: the author named one section,
+// and the page answered with more than they wrote. Nothing of the note is shown
+// now, and the account of that stands in the article itself, because the
+// diagnostic in the right rail is one a narrow viewport collapses and drops.
+// The notice names the address that matched nothing and keeps the way on to
+// the note, in both languages the interface speaks.
+func TestAWithheldEmbedSaysSoInTheBody(t *testing.T) {
 	t.Parallel()
 
 	r := sectionRenderer(t)
@@ -117,21 +119,28 @@ func TestWidenedEmbedSaysSoInTheBody(t *testing.T) {
 			t.Errorf("a scoped embed leaked %s from outside its section:\n%s", sentinel, scoped.HTML)
 		}
 	}
-	if strings.Contains(scoped.HTML, "embed--widened") {
-		t.Errorf("a scoped embed was marked widened:\n%s", scoped.HTML)
+	if strings.Contains(scoped.HTML, "embed--withheld") {
+		t.Errorf("a scoped embed was marked withheld:\n%s", scoped.HTML)
 	}
 
-	widened := r.HTML("note.md", "", "![[B#Gamma]]\n", wording.ZhHant)
-	for _, sentinel := range []string{"ALPHATEXT", "BETATEXT", "TOPTEXT"} {
-		if !strings.Contains(widened.HTML, sentinel) {
-			t.Errorf("the widened fallback dropped %s:\n%s", sentinel, widened.HTML)
+	for _, tt := range []struct {
+		lang   wording.Lang
+		notice string
+	}{
+		{lang: wording.ZhHant, notice: `<p class="embed__note">找不到「#Gamma」：〈B〉裡沒有這個位址。</p>`},
+		{lang: wording.En, notice: `<p class="embed__note">Unable to find “#Gamma” in B.</p>`},
+	} {
+		withheld := r.HTML("note.md", "", "![[B#Gamma]]\n", tt.lang)
+		for _, sentinel := range []string{"ALPHATEXT", "BETATEXT", "TOPTEXT"} {
+			if strings.Contains(withheld.HTML, sentinel) {
+				t.Errorf("%s: a section the note does not have was widened into %s:\n%s", tt.lang, sentinel, withheld.HTML)
+			}
 		}
-	}
-	if !strings.Contains(widened.HTML, "embed--widened") {
-		t.Errorf("the body carries no mark that the excerpt was widened:\n%s", widened.HTML)
-	}
-	if !strings.Contains(widened.HTML, "Gamma") {
-		t.Errorf("the in-body mark does not name the fragment that matched nothing:\n%s", widened.HTML)
+		want := `<div class="embed embed--withheld"><p class="embed__source">` +
+			wording.EmbedSourceFrom.In(tt.lang) + `<a href="/notes/B.md">B</a></p>` + tt.notice + `</div>`
+		if !strings.Contains(withheld.HTML, want) {
+			t.Errorf("%s: the withheld embed is not the notice and the way on, and nothing else:\nwant %s\ngot  %s", tt.lang, want, withheld.HTML)
+		}
 	}
 }
 
@@ -235,19 +244,21 @@ func TestSectionLinkFollowsTheEmbedThatBringsTheHeadingIn(t *testing.T) {
 // TestSectionLinkReadsOnlyWhatTheEmbedActuallyBrings holds the check to the
 // same edges the render draws. An embed carrying a fragment shows one section,
 // so only that section's headings reach the page, and a name from elsewhere in
-// the same file is as absent as if the file had never been cited. An embed of
-// something that is not a note brings no headings at all, and one that
-// resolves nowhere brings nothing to read.
+// the same file is as absent as if the file had never been cited. An embed
+// whose fragment the note does not answer to shows nothing of it, so it brings
+// no heading either. An embed of something that is not a note brings no
+// headings at all, and one that resolves nowhere brings nothing to read.
 func TestSectionLinkReadsOnlyWhatTheEmbedActuallyBrings(t *testing.T) {
 	t.Parallel()
 
-	notes := []graph.NoteInput{{RelPath: "Scoped.md"}, {RelPath: "Parts.md"}, {RelPath: "Pic.md"}, {RelPath: "Gone.md"}, {RelPath: "Data.md"}}
+	notes := []graph.NoteInput{{RelPath: "Scoped.md"}, {RelPath: "Withheld.md"}, {RelPath: "Parts.md"}, {RelPath: "Pic.md"}, {RelPath: "Gone.md"}, {RelPath: "Data.md"}}
 	r := newRenderer(t, notes, []string{"pics/plate.png", "table.csv"}, transclusions{
-		"Scoped.md": "![[Parts#Wanted]]\n",
-		"Parts.md":  "## Wanted\n\nWANTEDTEXT\n\n## Unwanted\n\nUNWANTEDTEXT\n",
-		"Pic.md":    "![[pics/plate.png]]\n",
-		"Gone.md":   "![[NoSuchNote]]\n",
-		"Data.md":   "![[table.csv]]\n",
+		"Scoped.md":   "![[Parts#Wanted]]\n",
+		"Withheld.md": "![[Parts#Nowhere]]\n",
+		"Parts.md":    "## Wanted\n\nWANTEDTEXT\n\n## Unwanted\n\nUNWANTEDTEXT\n",
+		"Pic.md":      "![[pics/plate.png]]\n",
+		"Gone.md":     "![[NoSuchNote]]\n",
+		"Data.md":     "![[table.csv]]\n",
 		// A readable non-Markdown file is captured with its bytes, so this
 		// body is one the scan could reach — and its first line is heading
 		// shaped on purpose. The reader is handed the file whole and nothing
@@ -263,6 +274,15 @@ func TestSectionLinkReadsOnlyWhatTheEmbedActuallyBrings(t *testing.T) {
 	}
 	if strings.Contains(page.HTML, `id="unwanted"`) {
 		t.Fatalf("the fixture's premise is wrong: the embed was not scoped:\n%s", page.HTML)
+	}
+
+	// The premise for the withheld case: an address the note does not answer
+	// to puts none of its headings on the page.
+	withheld := r.HTML("Withheld.md", "", "![[Parts#Nowhere]]\n", wording.ZhHant)
+	for _, id := range []string{`id="wanted"`, `id="unwanted"`} {
+		if strings.Contains(withheld.HTML, id) {
+			t.Fatalf("the fixture's premise is wrong: a withheld embed stamped %s:\n%s", id, withheld.HTML)
+		}
 	}
 
 	// The premise for the non-Markdown case: its bytes really are captured
@@ -283,6 +303,7 @@ func TestSectionLinkReadsOnlyWhatTheEmbedActuallyBrings(t *testing.T) {
 	}{
 		{"a section the scoped embed brings", "[[Scoped#Wanted]]", 0},
 		{"a section left outside the embed's own fragment", "[[Scoped#Unwanted]]", 1},
+		{"a section the withheld embed would have brought", "[[Withheld#Wanted]]", 1},
 		{"a name nowhere near either file", "[[Scoped#Nowhere]]", 1},
 		{"a picture embed carries no headings", "[[Pic#Nowhere]]", 1},
 		{"an embed that resolves nowhere carries none either", "[[Gone#Nowhere]]", 1},

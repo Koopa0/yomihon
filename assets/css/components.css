@@ -481,14 +481,18 @@ html, body { margin: 0; background: var(--bg); }
 .y-freshness__action { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 button.y-freshness__action { padding: 0; border: 0; background: none; cursor: pointer; }
 .y-syl-nocourse { color: var(--fg-muted); max-width: 60ch; margin: 18px 0 0; }
-.y-prose .embed--widened { border-left-color: var(--warn); }
+/* An embed whose address the note does not answer to leaves a block with no
+   excerpt in it: the provenance line, and a notice naming the address. The
+   warn ink on its rule is what marks it as a fault the reader can see, since
+   the block itself is otherwise as quiet as an excerpt. */
+.y-prose .embed--withheld { border-left-color: var(--warn); }
 /* The lines an excerpt carries above itself: whose note the words come from,
-   and — when it applies — that the fragment found nothing and the whole note
-   stands in, or that the fragment named a section the source repeats. All
-   answer what this block is rather than what it says, so all read the same
-   and sit in the same place; the provenance name is a link and takes the
-   prose link ink. */
-.y-prose .embed__source, .y-prose .embed__widened, .y-prose .embed__note { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }
+   and — when it applies — that the fragment named a section the source
+   repeats, or that it named a place the note does not have and nothing of
+   the note follows. All answer what this block is rather than what it says,
+   so all read the same and sit in the same place; the provenance name is a
+   link and takes the prose link ink. */
+.y-prose .embed__source, .y-prose .embed__note { color: var(--fg-muted); font-size: var(--fs-12); margin: 0 0 8px; }
 .y-prose .embed-media { background: var(--elevated); border: 1px dashed var(--border); border-radius: var(--r-sm); padding: 10px 14px; color: var(--fg-muted); font-family: var(--font-mono); font-size: var(--fs-12); }
 
 /* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */

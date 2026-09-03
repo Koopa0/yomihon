@@ -143,8 +143,8 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 // wrapped in, spelled from the same function that writes them so the scan and
 // the writer cannot drift apart.
 var embedOpeners = []string{
-	`<div class="` + embedClass("") + `">`,
-	`<div class="` + embedClass("#miss") + `">`,
+	`<div class="` + embedClass(false) + `">`,
+	`<div class="` + embedClass(true) + `">`,
 }
 
 // embedSpans reports the byte ranges of transcluded excerpts in fully assembled

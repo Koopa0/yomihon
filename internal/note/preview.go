@@ -86,7 +86,10 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 	}
 	slice, found := render.Excerpt(n.Body, section)
 	if !found {
-		return pages.PreviewView{RelPath: rel, Title: n.Title, Notice: missingPlace(section, lang)}, true
+		// The sentence is the one the reading page says inside an embed whose
+		// address the note does not answer to, so the card and the article
+		// report one fact in one voice.
+		return pages.PreviewView{RelPath: rel, Title: n.Title, Notice: render.ExcerptWithheld(rel, section, lang)}, true
 	}
 	source, truncated := capPreviewSource(slice)
 	view := pages.PreviewView{
@@ -105,17 +108,6 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 		view.Notice = wording.PreviewMore.In(lang)
 	}
 	return view, true
-}
-
-// missingPlace is what the card says about an address naming a place its note
-// does not have. The two sentences are the ones the diagnostics panel already
-// gives a reader who follows such a link, so the card and the panel report one
-// fact in one voice rather than in two.
-func missingPlace(section string, lang wording.Lang) string {
-	if strings.HasPrefix(section, "^") {
-		return wording.DiagBlockNote.In(lang)
-	}
-	return wording.DiagSectionNote.In(lang)
 }
 
 // capPreviewSource shortens the markdown a card is cut from to the budget, and

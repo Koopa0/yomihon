@@ -38,11 +38,13 @@ func TestAnExcerptNamesTheNoteItCameFrom(t *testing.T) {
 	}
 }
 
-// TestTheProvenanceLineSitsWithTheWideningNotice puts the two on one excerpt:
-// a fragment that matched nothing widens the excerpt and says so, and the
+// TestTheProvenanceLineSitsWithTheWithheldNotice puts the two on one block: a
+// fragment that matched nothing withholds the excerpt and says so, and the
 // provenance line stands first — both are answers to what this block is, and
-// whose words come before what became of them.
-func TestTheProvenanceLineSitsWithTheWideningNotice(t *testing.T) {
+// whose note it is comes before what could not be found in it. The provenance
+// line is also the way on to that note, which a block showing none of it owes
+// the reader.
+func TestTheProvenanceLineSitsWithTheWithheldNotice(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{
 		"B.md": "## Real\n\nbody\n",
@@ -50,15 +52,18 @@ func TestTheProvenanceLineSitsWithTheWideningNotice(t *testing.T) {
 
 	got := r.HTML("note.md", "", "![[B#nope]]\n", wording.ZhHant)
 	source := strings.Index(got.HTML, `class="embed__source"`)
-	widened := strings.Index(got.HTML, `class="embed__widened"`)
-	if source < 0 || widened < 0 {
-		t.Fatalf("provenance line at %d and widening notice at %d; both must render:\n%s", source, widened, got.HTML)
+	withheld := strings.Index(got.HTML, `class="embed__note"`)
+	if source < 0 || withheld < 0 {
+		t.Fatalf("provenance line at %d and withheld notice at %d; both must render:\n%s", source, withheld, got.HTML)
 	}
-	if source > widened {
-		t.Errorf("the provenance line follows the widening notice; it opens the excerpt:\n%s", got.HTML)
+	if source > withheld {
+		t.Errorf("the provenance line follows the withheld notice; it opens the block:\n%s", got.HTML)
 	}
-	if !strings.Contains(got.HTML, `<div class="embed embed--widened"><p class="embed__source">`) {
-		t.Errorf("a widened excerpt no longer opens with its provenance line:\n%s", got.HTML)
+	if !strings.Contains(got.HTML, `<div class="embed embed--withheld"><p class="embed__source">`) {
+		t.Errorf("a withheld excerpt no longer opens with its provenance line:\n%s", got.HTML)
+	}
+	if strings.Contains(got.HTML, "body") {
+		t.Errorf("a withheld excerpt still carries the note's words:\n%s", got.HTML)
 	}
 }
 

@@ -31,7 +31,7 @@ var (
 	DiagAmbiguousNote  = both("wikilink 或嵌入目標有歧義。", "This wikilink or embed has more than one target.")
 	DiagCalloutNote    = both("未知的 callout 類型；已改以一般引用區塊顯示。", "Unrecognised callout type; shown as an ordinary quote block.")
 	DiagFenceNote      = both("程式碼區塊含類似筆記語法的文字；已保持原樣。", "A code block holds text that looks like note syntax; it is left as written.")
-	DiagEmbedNote      = both("找不到嵌入指定的段落或區塊；已改顯示整篇筆記。", "The embedded section or block was not found; the whole note is shown instead.")
+	DiagEmbedNote      = both("找不到嵌入指定的段落或區塊；沒有顯示那篇筆記的任何內容，原處只留下告示。", "The embedded section or block was not found; nothing of that note is shown, and a notice stands where the excerpt would.")
 	DiagEmbedManyNote  = both("嵌入指定的名字在來源筆記裡對應到不只一個段落；顯示的是第一個，其餘未顯示。", "The embedded name matches more than one section in the source note; the first is shown and the others are not.")
 	DiagEmbedDepthNote = both("嵌入只展開一層，所以摘錄裡本身寫成嵌入的引用改以連結呈現。", "Embeds expand one level, so a citation written as an embed inside an excerpt is shown as a link.")
 	DiagBlockNote      = both("目標筆記沒有這個區塊；連結已改為指向整篇筆記。", "The target note has no such block; the link now points at the whole note.")
