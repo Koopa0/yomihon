@@ -59,15 +59,15 @@ func TestFuriganaIsNeverFainterOrSmallerThanTheProseAllows(t *testing.T) {
 	// second answer the rule above cannot see. The steps live in the token
 	// sheet, so that is where this looks, and it counts what it found first —
 	// a scan that matched nothing would otherwise report every step clean.
-	const tokens = "../../../assets/css/tokens.css"
-	tokenSource, err := os.ReadFile(tokens)
+	const stepSheet = "../../../assets/css/tokens.css"
+	stepSource, err := os.ReadFile(stepSheet)
 	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", tokens, err)
+		t.Fatalf("ReadFile(%q) error = %v", stepSheet, err)
 	}
 	steps := regexp.MustCompile(`(?s):root\[data-textsize="[a-z]+"\][^{]*\{[^}]*\}`).
-		FindAllString(cssComments.ReplaceAllString(string(tokenSource), ""), -1)
+		FindAllString(cssComments.ReplaceAllString(string(stepSource), ""), -1)
 	if len(steps) < 2 {
-		t.Fatalf("found %d type steps in %s, want at least the two that move the body away from the default; this scan is looking in the wrong place", len(steps), tokens)
+		t.Fatalf("found %d type steps in %s, want at least the two that move the body away from the default; this scan is looking in the wrong place", len(steps), stepSheet)
 	}
 	for _, step := range steps {
 		if rubySizedPerStep.MatchString(step) {
