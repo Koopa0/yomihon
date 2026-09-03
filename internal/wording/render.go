@@ -40,6 +40,26 @@ var EmbedSourceFrom = both("出自 ", "From ")
 // ReadAloud names the control beside a paragraph of Japanese.
 var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
 
+// The read-aloud bar, which only exists once speech is available, so the page
+// carries its words rather than the browser building them. A sentence written
+// into a script is written in one language for everyone, and a reader who has
+// asked for the other one meets it in the middle of a page that is otherwise
+// theirs.
+//
+// ReadAloudRateFmt takes the rate as the reader sees it on the button beside
+// it, so the announcement and the control agree.
+var (
+	ReadAloudStop        = both("停止", "Stop")
+	ReadAloudStopThis    = both("停止朗讀", "Stop reading aloud")
+	ReadAloudControls    = both("日文朗讀控制", "Japanese read-aloud controls")
+	ReadAloudSpeed       = both("朗讀速度", "Reading speed")
+	ReadAloudRateFmt     = both("速度 {rate}×", "Speed {rate}×")
+	ReadAloudStopped     = both("已停止", "Stopped")
+	ReadAloudPlaying     = both("播放中", "Playing")
+	ReadAloudFinished    = both("播放完成", "Finished")
+	ReadAloudUnavailable = both("目前無法播放日語語音", "Japanese speech is unavailable right now")
+)
+
 // TitleOnlyTargetFmt is said where a citation names a note's declared title.
 // The note exists; the name it was written under is not one a link finds,
 // which is what the vault's own reader does with it too. Saying there is no

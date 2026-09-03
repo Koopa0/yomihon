@@ -89,10 +89,15 @@ export function initSidebar() {
     const dir = trimmedFolders.length === 1 ? trimmedFolders[0].dataset.railDir : '';
     const search = `/search?q=${encodeURIComponent(dir ? `folder:${dir} ${query}` : query)}`;
     partial.replaceChildren();
-    partial.append(`只篩了側欄現在列出的項目，另外 ${unreached} 項沒有被搜到。`);
+    // The sentence and the link's words come from the page, in the language
+    // its reader asked for. Two forms of the sentence rather than a number
+    // spliced into one, because the plural does not sit in the same place in
+    // both languages.
+    const template = unreached === 1 ? partial.dataset.filterPartialOne : partial.dataset.filterPartialMany;
+    partial.append((template ?? '').replace('{count}', String(unreached)));
     const link = document.createElement('a');
     link.href = search;
-    link.textContent = '搜尋全部 →';
+    link.textContent = partial.dataset.filterSearchall ?? '';
     partial.append(' ', link);
     partial.hidden = false;
   }

@@ -70,3 +70,12 @@ var (
 	NextLesson     = both("下一課", "Next lesson")
 	NextFile       = both("下一份", "Next file")
 )
+
+// What the rail says when its filter reached only what the rail was already
+// showing. The count is worked out in the browser from what is on screen, so
+// the sentence is filled in there, from these.
+var (
+	FilterPartialOne  = both("只篩了側欄現在列出的項目，另外 1 項沒有被搜到。", "Only what the rail already listed was filtered; 1 more was not reached.")
+	FilterPartialMany = both("只篩了側欄現在列出的項目，另外 {count} 項沒有被搜到。", "Only what the rail already listed was filtered; {count} more were not reached.")
+	FilterSearchAll   = both("搜尋全部 →", "Search everything →")
+)

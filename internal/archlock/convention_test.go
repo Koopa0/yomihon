@@ -224,6 +224,56 @@ func TestNoResponseCarriesASentenceWrittenInTheSource(t *testing.T) {
 	report(t, "a response body a reader sees must come from internal/wording, not from a literal here", found)
 }
 
+// TestNoScriptCarriesASentenceOfItsOwn keeps the client's words where the
+// server's are. A script is one file for every reader, so a sentence written
+// into one is written in a single language and reaches the reader who asked
+// for the other in the middle of a page that is otherwise theirs — which is
+// what a live search's result count, a rail filter's overflow notice and a
+// read-aloud bar all used to do.
+//
+// The rule is stricter than the fault, and deliberately: no CJK anywhere in
+// these files, comments included. The interface's words live in the
+// dictionary, so a comment quoting one is a second copy of it, and a carve-out
+// for comments would have to decide what is a comment in a language where a
+// pair of slashes lives inside every URL. Describe the Japanese a passage
+// carries; do not paste it.
+func TestNoScriptCarriesASentenceOfItsOwn(t *testing.T) {
+	t.Parallel()
+
+	scripts := productionFiles(t, ".js")
+	if len(scripts) == 0 {
+		t.Fatal("no script was read at all, so this check asserts nothing")
+	}
+	for _, path := range scripts {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			for _, r := range line {
+				if cjk(r) {
+					t.Errorf("%s:%d a reader's words belong in internal/wording, rendered onto the element this script reads them from\n\t%s",
+						path, i+1, strings.TrimSpace(line))
+					break
+				}
+			}
+		}
+	}
+}
+
+// cjk reports whether a rune is one only a sentence would carry: the two kana
+// blocks, the ideographs, CJK punctuation, and the fullwidth forms.
+func cjk(r rune) bool {
+	switch {
+	case r >= 0x3000 && r <= 0x303f, // CJK punctuation
+		r >= 0x3040 && r <= 0x30ff, // hiragana and katakana
+		r >= 0x4e00 && r <= 0x9fff, // unified ideographs
+		r >= 0xff00 && r <= 0xffef: // fullwidth and halfwidth forms
+		return true
+	}
+	return false
+}
+
 // TestNoSentenceChoosesALanguageBeforeItsReaderArrives keeps the choice with
 // the surface that knows who is reading. A phrase resolved at package scope, or
 // against a fixed language in a handler, was written for whichever reader the

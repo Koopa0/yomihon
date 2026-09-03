@@ -161,7 +161,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, c.Lang)... }>
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, c.Lang)... } { readAloudAttrs(&v, c.Lang)... }>
 				@flipReceipt(v)
 				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
 					@articleHead(v)

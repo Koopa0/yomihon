@@ -37,7 +37,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 			hidden
 		/>
 		<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
-		<p class="y-filter-partial" data-filter-partial hidden></p>
+		<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
 		if sb.Model != nil {
 			if len(sb.Here) > 0 {
 				<nav class="y-here" aria-label={ wording.CurrentFolder.In(c.Lang) }>

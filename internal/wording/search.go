@@ -87,3 +87,16 @@ var FilterKeysAvailable = both("可用的篩選器:", "Filters you can use: ")
 // the title the row shows. Without the word, the name would sit beside the
 // title looking like a second title.
 var ResultAliasLabel = both("別名:", "also called ")
+
+// What the live search says about an answer it fetched, which is counted in
+// the browser and therefore said there. The placeholders are filled in by the
+// page's own script: one form for a single result and one for any other
+// number, because the two languages disagree about where a plural shows and
+// joining fragments would put the count in the wrong place in one of them.
+var (
+	LiveSearchCountOne  = both("「{query}」有 1 筆結果。", "1 result for “{query}”.")
+	LiveSearchCountMany = both("「{query}」有 {count} 筆結果。", "{count} results for “{query}”.")
+	LiveSearchOffline   = both(
+		"即時結果目前無法使用；按 Enter 執行完整搜尋。",
+		"Live results are unavailable right now; press Enter for the full search.")
+)

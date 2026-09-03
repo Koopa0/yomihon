@@ -2,6 +2,7 @@ package pages
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 
@@ -120,6 +121,39 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 	}
 	return attrs
 }
+
+// readAloudAttrs carries the read-aloud bar's words to the page that will grow
+// one. The bar itself only exists where the browser can speak, so the browser
+// builds it — and a sentence built there is built in whichever language the
+// script was written in, which for a reader who asked for the other one is the
+// one part of the page that ignored them.
+//
+// They are withheld from a page with nothing to read aloud, on the same
+// condition the script uses to decide whether to build the bar at all: a
+// speak button in the body. The per-sentence buttons carry none of these; the
+// renderer already labels each one, and the script keeps that label to put
+// back rather than carrying a second copy of it.
+func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
+	if !strings.Contains(v.BodyHTML, speakButtonMarker) {
+		return nil
+	}
+	return templ.Attributes{
+		"data-readaloud-controls":    wording.ReadAloudControls.In(lang),
+		"data-readaloud-speed":       wording.ReadAloudSpeed.In(lang),
+		"data-readaloud-rate":        wording.ReadAloudRateFmt.In(lang),
+		"data-readaloud-stop":        wording.ReadAloudStop.In(lang),
+		"data-readaloud-stopthis":    wording.ReadAloudStopThis.In(lang),
+		"data-readaloud-stopped":     wording.ReadAloudStopped.In(lang),
+		"data-readaloud-playing":     wording.ReadAloudPlaying.In(lang),
+		"data-readaloud-finished":    wording.ReadAloudFinished.In(lang),
+		"data-readaloud-unavailable": wording.ReadAloudUnavailable.In(lang),
+	}
+}
+
+// speakButtonMarker is how a rendered body says it carries a read-aloud
+// control. It is the attribute the renderer writes and the script reads, so
+// asking for it is asking the same question the script asks.
+const speakButtonMarker = `data-tts="`
 
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
 // (0 or 1) plus every render diagnostic.
