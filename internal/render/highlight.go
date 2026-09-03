@@ -1,15 +1,9 @@
 package render
 
-// This file implements ==highlight== as a real goldmark inline extension.
-//
-// Unlike the wikilink/callout passes (wikilink.go, callout.go), this is
-// NOT a regex pass over the raw source: goldmark's own inline-parsing
-// trigger mechanism already knows to skip code spans and to respect
-// nested inline formatting, so this handles "==**bold**==" and an "=="
-// that happens to sit next to a code span correctly for free — a naive
-// regex pass would not. The shape mirrors goldmark's own built-in
-// strikethrough extension (extension/strikethrough.go), which is the
-// same kind of double-character inline delimiter.
+// ==highlight== as a real goldmark inline extension rather than a pass over raw
+// source: goldmark's inline-parsing trigger already skips code spans and respects
+// nested formatting, so "==**bold**==" and an "==" beside a code span come out
+// right for free. It is the same shape as goldmark's own strikethrough.
 
 import (
 	"github.com/yuin/goldmark"

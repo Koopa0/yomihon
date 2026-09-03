@@ -1,46 +1,8 @@
 // Package render answers three questions about one vault file, in one place so
-// that every face of the program answers them alike. How does this note read:
-// Pipeline turns Obsidian-dialect markdown into a reading page's HTML. What
-// words does it contribute to a search: PlainText walks the same parsed
-// dialect, so the corpus and the page cannot come to disagree about what a note
-// says. And what kind of file is this at all: IsPicture, IsPDF, IsText and
-// IsTextPrefix answer from the name or the leading bytes, MaxSourceBytes says
-// how much of one is worth showing as characters, and SourceHTML highlights
-// what is shown. That third set is shared on purpose — the scan deciding what
-// to index and the page deciding which viewer to open must not each keep their
-// own idea of what a picture is.
-//
-// Fault-tolerant by contract over note content: it renders what it can and
-// reports what it can't via Diagnostics — it never fixes a note, never fails
-// the whole render over anything the note's own bytes could cause, and never
-// goes quiet without saying why. A note can still render to nothing, because
-// an unclosed %% comment hides everything after it and Obsidian hides it
-// too; what the reader then receives is an account of which marker did it,
-// rather than an empty page and no explanation.
-//
-// That promise does not reach an internal enum invariant: a graph.Kind
-// outside Unresolved, Unique, and Ambiguous is not a value any note's
-// content can produce, so reaching one is this package's own bug rather
-// than a fault in what it read, and it panics there instead of rendering
-// past it silently.
-//
-// Authored HTML is inert display input: the Japanese lesson dialect's
-// ruby/rt/rp/br subset survives, while executable or automatically loading
-// markup is shown as text.
-//
-// Wikilinks, embeds, and callouts are not CommonMark syntax, so they are
-// handled as string/line-based passes over the markdown source before
-// goldmark ever parses it — the only approach that can see the raw
-// "[[" / "> [!" text goldmark's own parser has no concept of.
-// ==highlight== is the exception: it is implemented as a
-// real goldmark inline extension (see highlight.go) because goldmark's
-// own trigger-based inline dispatch already skips code spans for free,
-// which a blind regex pass would not.
-//
-// Wikilink/embed resolution semantics are internal/graph's job, not
-// this package's: graph decides what a name resolves to (matching
-// Obsidian's observed resolution behavior); render decides what
-// to draw for each of graph's three outcomes.
+// every face of the program answers them alike: how a note reads, what words it
+// contributes to a search, and what kind of file it is at all. It is
+// fault-tolerant over note content — it renders what it can, reports the rest
+// through Diagnostics, and never repairs a note.
 package render
 
 import (
@@ -70,15 +32,10 @@ type Transclusions interface {
 	Transclusion(path string) (body string, ok bool)
 }
 
-// Titles answers which notes declare a given title. A title is not a name a
-// link resolves by, so this never affects resolution — it is how a page that
-// has already failed to resolve a name can tell a reader the note is right
-// there under a name links do not follow, instead of that it was never
-// written.
-//
-// It returns display names rather than paths because that is all the sentence
-// on the page needs, and a capability that hands over more than its consumer
-// uses is a wider coupling than the consumer asked for.
+// Titles answers which notes declare a given title. A title is not a name a link
+// resolves by, so this never affects resolution: it is how a page that already
+// failed to resolve a name can say the note is there under a name links do not
+// follow. It returns display names rather than paths, which is all a sentence needs.
 type Titles interface {
 	TitledBy(name string) []string
 }
@@ -94,107 +51,73 @@ const (
 	// file; the candidates are listed, never guessed at.
 	DiagWikilinkAmbiguous DiagnosticKind = "wikilink-ambiguous"
 
-	// DiagWikilinkTitleOnly means the target names some note's declared title.
-	// A title is not a name a link resolves by — the vault's own reader fails
-	// on one too, and this program reproduces that — so the link is broken
-	// either way. It is a separate kind because the repair is not: nothing has
-	// to be written, and an alias on the note the citation meant makes the
-	// existing link work. Telling a reader there is no such note when the note
-	// is right there, under a name they nearly used, is the one thing this
-	// kind exists to stop.
+	// DiagWikilinkTitleOnly means the target names some note's declared title,
+	// which is not a name a link resolves by, so the link is broken either way.
+	// It is a separate kind because the repair is: nothing needs writing, and an
+	// alias on the note the citation meant makes the existing link work.
 	DiagWikilinkTitleOnly DiagnosticKind = "wikilink-title-only"
 
 	// DiagTitleTruncatedAtHash means this note's own title is exactly what its
-	// filename becomes when cut at the first whitespace followed by a "#" —
-	// which is where YAML starts a comment in an unquoted value. It is an
-	// observation rather than an accusation: a title deliberately written
-	// short, in quotes, produces the same coincidence, and nothing in the
-	// parsed frontmatter can tell the two apart.
+	// filename becomes when cut where YAML starts a comment in an unquoted value.
+	// It is an observation, not an accusation: a title deliberately written short
+	// in quotes produces the same coincidence, and nothing parsed tells them apart.
 	DiagTitleTruncatedAtHash DiagnosticKind = "title-truncated-at-hash"
 	// DiagUnknownCallout means a "> [!type]" callout's type is not one
 	// of the recognized callout types; it was rendered as a plain
 	// blockquote instead of being dropped.
 	DiagUnknownCallout DiagnosticKind = "unknown-callout"
-	// DiagRiskyFence means a fenced code block's content looks like
-	// wikilink/callout/table syntax the dialect passes would otherwise
-	// convert; it was left untouched. At most one per render call (see
-	// the preprocessing pass doc).
+	// DiagRiskyFence means a fenced code block's content looks like the
+	// wikilink, callout or table syntax the dialect passes would otherwise
+	// convert; it was left untouched. At most one per render call.
 	DiagRiskyFence DiagnosticKind = "risky-fence"
-	// DiagEmbedFragmentMissing means an embed named a section or block
-	// inside its target ("![[note#heading]]", "![[note#^block]]") that the
-	// captured body does not contain; the whole note was shown instead.
-	// Unlike a link's fragment, an embed's fragment changes what is
-	// displayed, so falling back without saying so would present the wrong
-	// scope as the author's own choice.
+	// DiagEmbedFragmentMissing means an embed named a section or block its
+	// target's captured body does not contain, so the whole note was shown. An
+	// embed's fragment changes what is displayed, so falling back silently would
+	// present the wrong scope as the author's own choice.
 	DiagEmbedFragmentMissing DiagnosticKind = "embed-fragment-missing"
-	// DiagEmbedFragmentRepeated means an embed named a section its target
-	// carries more than once ("![[note#heading]]" where two headings reduce to
-	// the same name). The first is shown, which is what the page has always
-	// done and what the address can mean at all; the count is reported because
-	// an excerpt chosen from several looks exactly like the only one there
-	// was, and the author is the one who can tell them apart.
+	// DiagEmbedFragmentRepeated means an embed named a section its target carries
+	// more than once. The first is shown, and the count is reported because an
+	// excerpt chosen from several looks exactly like the only one there was.
 	DiagEmbedFragmentRepeated DiagnosticKind = "embed-fragment-repeated"
-	// DiagEmbedNotExpanded means an embed written inside a transcluded body
-	// was rendered as an ordinary link. Transclusion stops one level down, so
-	// what the reader sees is a citation where the author wrote an excerpt —
-	// a difference nothing on the page would otherwise account for.
+	// DiagEmbedNotExpanded means an embed written inside a transcluded body was
+	// rendered as an ordinary link, since transclusion stops one level down.
 	DiagEmbedNotExpanded DiagnosticKind = "embed-not-expanded"
-	// DiagLinkFragmentMissing means a plain link named a block inside its
-	// target ("[[note#^block]]") that the captured body does not carry. The
-	// link is left leading to the note itself: a block address answers to an
-	// anchor the destination page stamps, and writing one the page has no
-	// anchor for would tell the reader they are going to a block and land them
-	// somewhere else.
+	// DiagLinkFragmentMissing means a plain link named a block its target's
+	// captured body does not carry. The link is left leading to the note itself,
+	// since an address the destination stamps no anchor for would promise a block
+	// and land the reader somewhere else.
 	DiagLinkFragmentMissing DiagnosticKind = "link-fragment-missing"
-	// DiagLinkSectionMissing means a plain link named a section inside its
-	// target ("[[note#heading]]") that neither scan of the captured body could
-	// find. Unlike a block address, the address is kept exactly as written: a
-	// heading id is stamped by a pass over rendered HTML that sees headings
-	// these scans do not, so a miss here is a name they failed to find rather
-	// than one the page is certain to lack. The link therefore still works
-	// wherever the scans were merely blind, and lands at the top of the note
-	// only where the section genuinely is not there.
-	//
-	// It is a separate kind from a missing block for exactly that reason: one
-	// withdraws the author's address and the other leaves it standing, so a
-	// panel that named them alike would tell the reader the wrong thing about
-	// one of them.
+	// DiagLinkSectionMissing means a plain link named a section neither scan of
+	// its target's captured body could find. The address is kept exactly as
+	// written, because a heading id is stamped by a pass that sees headings these
+	// scans do not, so a miss is a name they failed to find rather than one the
+	// page is certain to lack. That is why it is a separate kind from a missing
+	// block, which withdraws the author's address.
 	DiagLinkSectionMissing DiagnosticKind = "link-section-missing"
-	// DiagCommentUnclosed means a "%%" comment marker never met a second one,
-	// so everything written after it is hidden from the page. Obsidian hides it
-	// too, which is why the words are not simply restored here: the note reads
-	// the same in both, and the reader is told where the silence begins instead
-	// of being left to work out why a page they wrote is blank.
+	// DiagCommentUnclosed means a "%%" comment marker never met a second one, so
+	// everything after it is hidden from the page. Obsidian hides it too, so the
+	// words are not restored; the reader is told where the silence begins.
 	DiagCommentUnclosed DiagnosticKind = "comment-unclosed"
-	// DiagRenderFailed means goldmark's own renderer returned an error —
-	// normally unreachable (see render's fallback), kept only so a
-	// future extension that breaks that assumption still produces a
-	// visible diagnostic instead of a panic or a blank page.
+	// DiagRenderFailed means the markdown renderer returned an error. It is
+	// normally unreachable, and kept so an extension that breaks that assumption
+	// produces a visible diagnostic rather than a blank page.
 	DiagRenderFailed DiagnosticKind = "render-failed"
 )
 
-// Diagnostic is one rendering-time note about content the dialect passes
-// couldn't cleanly handle. Display-only: yomihon reports, it
-// never fixes or rejects. It lives in this package rather than
-// internal/graph because a diagnostic is fundamentally a rendering-time
-// decision — it is render, not graph, that decides an unresolved link,
-// an unknown callout type, or a risky fence pattern is worth surfacing to
-// the reader; graph only answers "does this name resolve".
+// Diagnostic is one rendering-time note about content the dialect passes could
+// not cleanly handle. Display-only: yomihon reports, it never fixes or rejects.
+// Deciding that something is worth surfacing is a rendering decision, which is
+// why it lives here and not beside the resolver.
 type Diagnostic struct {
 	Kind    DiagnosticKind
 	Target  string // the offending wikilink target / callout type / etc.
 	Message string // human-readable
 
 	// Section and Block carry the two halves of an address a link wrote after
-	// "#", so a panel listing the note's faults can say how the link was read.
-	// Target stays the bare name in every case — other readers of that field
-	// look planned names up by it, and a composite string matches none of them,
-	// which fails by finding nothing rather than by reporting anything.
-	//
-	// The two are never both set: this dialect reads "#^name" as a block
-	// address and anything else after "#" as a section name, so a link has one
-	// or neither. Both are empty when the author wrote no address at all, and
-	// on every diagnostic about something other than a link.
+	// "#", so a panel can say how the link was read; Target stays the bare name,
+	// which is what other readers of that field look planned names up by. The two
+	// are never both set, since "#^name" is a block address and anything else
+	// after "#" is a section name.
 	Section string
 	Block   string
 }
@@ -212,33 +135,23 @@ type Result struct {
 	HTML        string
 	Diagnostics []Diagnostic
 	TOC         []TOCEntry
-	// TitleAnchor is the id the page's visible title must carry, and is set
-	// only when this render removed an authored opening heading that said the
-	// same thing. That heading was a real place in the document and a link
-	// could name it; dropping it as a duplicate took the place away while
-	// leaving the words on screen, so the anchor moves to where those words
-	// now are. It is empty when no such heading was written, because there is
-	// then nothing for it to be evidence of.
+	// TitleAnchor is the id the page's visible title has to carry, set only when
+	// this render removed an authored opening heading saying the same thing. That
+	// heading was a place a link could name, so the anchor moves to where its
+	// words now are. It is empty when no such heading was written.
 	TitleAnchor string
 	// TranscludedIdentity is one digest over everything this render pulled in
-	// from other notes: the excerpts actually expanded, in the order the page
-	// shows them, each bound to the note it came from and to the scope
-	// decision that cut it. Empty when nothing was transcluded. The reading
-	// page stamps it beside its content identity so the freshness answer can
-	// recompute the same digest against the current generation and say
-	// whether a reload would deliver different transcluded words. It covers
-	// exactly what the render expanded: a picture, an unresolved name, and an
-	// embed inside an already-transcluded body all contribute nothing,
-	// because none of them puts another note's words on this page.
+	// from other notes: each excerpt expanded, in the order the page shows them,
+	// bound to its source note and the scope decision that cut it. Empty when
+	// nothing was transcluded. The reading page stamps it beside its content
+	// identity, so a freshness answer can say whether a reload would deliver
+	// different transcluded words.
 	TranscludedIdentity string
 }
 
-// embedPolicy caps embed transclusion at exactly one level deep: an
-// embedded note's own ![[...]] occurrences render as plain wikilink-style
-// text rather than being further transcluded. This alone makes runaway
-// or cyclic embed chains structurally impossible — no visited-set is
-// needed, because the recursion can only ever go one level before the
-// policy flips to embedsDenied.
+// embedPolicy caps embed transclusion at exactly one level deep: an embedded
+// note's own ![[...]] renders as plain wikilink text. That alone makes runaway
+// and cyclic chains impossible, so no visited set is needed.
 type embedPolicy int
 
 const (
@@ -256,19 +169,11 @@ type Pipeline struct {
 }
 
 // New builds a rendering pipeline from one generation's link resolver and
-// captured transclusion bodies. It enables GFM (tables, task lists,
-// strikethrough, and autolinked bare URLs), footnotes, the inert
-// authored-markup subset used by Japanese lessons, and the ==highlight==
-// inline extension. Both capabilities must describe the same generation and
-// must not be nil.
-//
-// Footnotes are a parser concern rather than one of this package's own dialect
-// passes, and enabling them is what stops "[^name]" being read as an ordinary
-// reference link: that reading resolved the reference against the definition's
-// prose, so a note about the scope of a study became a link to a page that
-// does not exist, and the note's own text was swallowed as the link's
-// destination. With the extension, the reference and its definition are two
-// ends of one anchor pair inside the page, which needs no script to work.
+// captured transclusion bodies, both of which describe the same generation and
+// must not be nil. It enables GFM, footnotes, the inert authored-markup subset
+// the Japanese lessons use, and the ==highlight== inline extension. Footnotes
+// are enabled so "[^name]" is not read as an ordinary reference link, which
+// resolved the reference against the definition's prose.
 func New(idx *graph.Index, transclusions Transclusions, titles Titles) *Pipeline {
 	if idx == nil {
 		panic("render: New requires a non-nil *graph.Index")
@@ -286,10 +191,8 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles) *Pipeline
 		md: goldmark.New(
 			goldmark.WithExtensions(
 				extension.GFM,
-				// The footnote extension keeps owning what a footnote is and
-				// how it is numbered; it is only told what to prefix the ids
-				// with, per body, so the several bodies one page assembles do
-				// not all call their first note the same thing.
+				// The extension is told only what to prefix the ids with, per body,
+				// so several bodies on one page do not share a first note's id.
 				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
 				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{},
 			),
@@ -297,44 +200,20 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles) *Pipeline
 	}
 }
 
-// HTML renders one note's body: the markdown-to-HTML pipeline, plus the
-// three passes that only make sense once at the top level (never
-// recursively, for callouts or embeds — see their doc comments): the
-// body-first-H1 removal (the page's own title comes from frontmatter, a
-// duplicate leading H1 in the body would show it twice); CJK-safe
-// heading slug assignment + TOC collection, which must run over the
-// final, fully-assembled HTML (embeds and callouts already spliced in)
-// so heading ids stay unique across the whole page in one pass, rather
-// than colliding across independently-slugged sub-renders; and asset
-// resolution.
-//
-// relPath is where this body lives in the vault, and it is required
-// because a body alone cannot be rendered correctly: markdown writes an
-// image path relative to the note that mentions it, so the same bytes
-// mean different files depending on which note they came from. A
-// transcluded body is resolved against its own note before it is spliced
-// in, so what arrives here is already routed and passes through
-// untouched.
+// HTML renders one note's body: the markdown pipeline, plus the three passes that
+// only make sense once at the top level — removing a leading H1 that duplicates
+// the page's title, assigning heading slugs and collecting the table of contents
+// over the assembled HTML so ids stay unique, and resolving assets. relPath is
+// required because markdown writes an image path relative to its own note.
 func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
 	return r.HTMLIn(hostRegion, relPath, title, body, lang)
 }
 
-// HTMLIn is HTML for a body that will be placed on a page already carrying
-// another separately rendered one — a concept sheet opening over the lesson
-// that cites it, cloned into the same document the moment the reader asks for
-// it. Both bodies then live in one id space, so the caller names the region
-// this one occupies.
-//
-// What that buys is bounded, and worth stating exactly: the footnote ids this
-// render mints — the references, their definitions, and the same for any
-// callout or transclusion inside it — are named under region, and nested
-// regions carry it too. It is not a general id namespace. Heading ids are
-// unique within one render and are not qualified by region, so two bodies
-// composed onto one page can still stamp the same heading id, and neither
-// knows anything about the fixed ids the surrounding chrome uses.
-//
-// region must be distinct for each such body on a page and must be derived
-// from the page rather than from a running process, so two readers of one
+// HTMLIn is HTML for a body placed on a page already carrying another separately
+// rendered one, so the caller names the region this one occupies. What that buys
+// is bounded: footnote ids are named under region and nested regions carry it,
+// while heading ids are not qualified. region must be distinct per body and
+// derived from the page rather than a running process, so two readers of one
 // lesson receive the same bytes.
 func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
 	page := &composition{base: region, lang: lang}
@@ -353,58 +232,33 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 	return res
 }
 
-// hostRegion is the note's own body: the first thing rendered on a page and
-// the only region whose footnote ids are left bare. A page with no callout and
-// no transclusion — nearly every page — therefore carries the plain ids the
-// syntax is normally written with.
+// hostRegion is the note's own body: the first thing rendered on a page and the
+// only region whose footnote ids are left bare.
 const hostRegion = ""
 
-// composition is the state shared by every body one render assembles. Each of
-// those bodies is parsed on its own and spliced in afterwards, so each numbers
-// its footnotes from one; without something to tell them apart the assembled
-// result carries "fn:1" several times and a browser resolving a fragment
-// reaches whichever came first.
-//
-// base is the region this whole assembly was given, and every region it hands
-// out is named under it: a callout inside a concept sheet gets the sheet's
-// prefix, not one that would sit alongside the lesson's own callouts. It
-// qualifies footnote ids and nothing else.
-//
-// The counter belongs to the render rather than the process: two requests for
-// one note must produce the same bytes, so nothing here may depend on how many
-// pages were rendered before. Regions are numbered in the order they are
-// assembled, which is document order, so the same input always yields the same
-// ids — including when one note is transcluded twice, since those are two
-// occurrences and take two numbers.
-//
-// blocks is the set of block addresses this assembly has already anchored. It
-// belongs to the page rather than to one body for the same reason the counter
-// does: the bodies are parsed separately and spliced together, so only
-// something they share can keep one address from being stamped on two elements
-// of the finished document.
+// composition is the state shared by every body one render assembles. Each body
+// is parsed on its own and numbers its footnotes from one, so base names every
+// region it hands out and qualifies footnote ids and nothing else. The counter
+// belongs to the render rather than the process, since two requests for one note
+// have to produce the same bytes. blocks is the set of block addresses already
+// anchored, held here because only something the bodies share keeps one unique.
 type composition struct {
 	base    string
 	regions int
 	blocks  map[string]bool
 	// transcluded records every excerpt this assembly expanded, in document
-	// order. It belongs to the page for the same reason the block-anchor set
-	// does: the bodies are parsed separately and spliced together, and only
-	// something they share can account for all of them at once.
+	// order. Only something the separately parsed bodies share accounts for all.
 	transcluded []transcludedExcerpt
 	// lang is the language this render's own sentences are written in. It sits
-	// here rather than on the pipeline because a pipeline belongs to a scan and
-	// a language belongs to a request: one pipeline serves every reader, and
-	// each of them may have chosen differently.
+	// here rather than on the pipeline, which belongs to a scan and serves readers
+	// who may each have chosen differently.
 	lang wording.Lang
 }
 
-// transcludedExcerpt is one embed a render actually expanded, recorded the way
-// the page consumed it: the note the words came from, the scope decision that
-// cut them — the fragment that matched nothing and the number of headings that
-// answered to one name are both visible in the rendered block — and the sliced
-// source bytes themselves. Identical bytes from two different notes are two
-// different excerpts, because an image inside each resolves against its own
-// note's directory.
+// transcludedExcerpt is one embed a render actually expanded, recorded as the
+// page consumed it: the source note, the scope decision that cut the words, and
+// the sliced bytes. Identical bytes from two notes are two different excerpts,
+// because an image inside each resolves against its own note's directory.
 type transcludedExcerpt struct {
 	path      string
 	unmatched string
@@ -412,12 +266,10 @@ type transcludedExcerpt struct {
 	slice     string
 }
 
-// transcludedIdentity is one digest over everything a render pulled in from
-// other notes. Every value is length-delimited before hashing, so two
-// different collections can never frame the same byte stream. Nothing
-// transcluded yields the empty string rather than a digest of an empty list:
-// the reading page withholds its stamp exactly where there is nothing for a
-// stamp to cover, and the polling ask stays as narrow as it always was.
+// transcludedIdentity is one digest over everything a render pulled in from other
+// notes. Every value is length-delimited before hashing, so two different
+// collections cannot frame the same byte stream. Nothing transcluded yields the
+// empty string rather than a digest of an empty list.
 func transcludedIdentity(excerpts []transcludedExcerpt) string {
 	if len(excerpts) == 0 {
 		return ""
@@ -446,11 +298,9 @@ func (c *composition) nextRegion() string {
 	return c.base + "y" + strconv.Itoa(c.regions) + "-"
 }
 
-// claimBlockAnchor reports whether id is still free on this page, taking it
-// when it is. Bodies are assembled in document order, so the first block
-// written under a repeated address is the one that keeps it — the reading the
-// excerpt scan already takes, and the one a browser would take of a repeated id
-// regardless.
+// claimBlockAnchor reports whether id is still free on this page, taking it when
+// it is. Bodies are assembled in document order, so the first block written under
+// a repeated address keeps it, which is what a browser would do anyway.
 func (c *composition) claimBlockAnchor(id string) bool {
 	if c.blocks[id] {
 		return false
@@ -496,28 +346,12 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 	return prefix
 }
 
-// render is the shared markdown-to-HTML core: the dialect preprocessing
-// passes (wikilinks, embeds, callouts, mermaid fences — see wikilink.go
-// and callout.go) followed by the goldmark conversion. It is used both
-// by the top-level HTML() call and recursively, for a callout's own body
-// and a transcluded embed's body — "the same rendering pipeline" the
-// callout dialect rule calls for, so nested formatting and nested
-// wikilinks work inside a callout or an embed exactly as they do at the
-// top level.
-//
-// Each such body is a region of its own: it is parsed separately, so it gets
-// its own footnote id space, named under whatever region this render was
-// itself given. One render therefore keeps its footnote ids distinct — and a
-// caller composing several renders onto one page says where each of them sits
-// (see HTMLIn), because this package cannot see the others.
-//
-// The body arrives with its Obsidian %% comments already removed, and this
-// does not remove them again. A callout's lines are part of the host note's
-// own source and came off the scan HTMLIn ran; a transcluded body is scanned
-// by embedScope, which is where it is first read. Scanning either a second
-// time would let this pass reopen a marker the first had ruled to be literal
-// text — a percent sign an author displayed inside a code span — and hide
-// words that were meant to stay.
+// render is the shared markdown-to-HTML core: the dialect preprocessing passes
+// followed by the goldmark conversion. It serves the top-level HTML call and
+// recurses for a callout's body and a transcluded embed's, so nesting works inside
+// either. Each such body is its own region with its own footnote id space, under
+// whatever region this render was given. The body arrives with its Obsidian %%
+// comments already removed, and a second pass could reopen a marker ruled literal.
 func (r *Pipeline) render(body string, allowEmbed embedPolicy, page *composition) Result {
 	return r.renderBody(body, allowEmbed, page, page.nextRegion())
 }
@@ -545,11 +379,8 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composi
 
 	var buf bytes.Buffer
 	if err := r.md.Renderer().Render(&buf, src, doc); err != nil {
-		// Never fail the whole render. This is normally
-		// unreachable — rendering only errors if a configured
-		// renderer returns one, and the default HTML renderer writing to
-		// a bytes.Buffer never fails — but the fallback keeps the page
-		// non-blank even if a future extension breaks that assumption.
+		// Never fail the whole render. This is normally unreachable, but the
+		// fallback keeps the page non-blank if an extension breaks that.
 		col.report(&Diagnostic{
 			Kind:    DiagRenderFailed,
 			Message: fmt.Sprintf("markdown render failed: %v", err),
@@ -560,25 +391,11 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composi
 	return Result{HTML: substituteBlocks(buf.String(), blocks, inline), Diagnostics: col.diags}
 }
 
-// removeBodyFirstH1 drops a leading level-1 ATX heading when the page is
-// already showing that same text as its title, which is the only reason to
-// drop it: the reader would otherwise see the title twice. Only the very first
-// non-blank line qualifies — any other H1 later in the document (or inside a
-// callout or embed, which never reach this function — see HTML's doc comment)
-// is left untouched.
-//
-// A note whose frontmatter declares no title is displayed under its filename,
-// and its opening heading is then the only place the document says what it is.
-// Removing that heading destroyed the sentence and put a filename in its
-// place — on an ordinary folder, where nothing carries frontmatter, that was
-// every file.
-//
-// The second return is the anchor that heading would have been given, and is
-// returned only when one was actually removed. A link may name that section,
-// and after the removal the only thing on the page still saying those words is
-// the title, so the title is where the anchor has to go. Where no such heading
-// was written there is nothing to inherit, and claiming an anchor anyway would
-// be inventing a section the author never wrote.
+// removeBodyFirstH1 drops a leading level-1 ATX heading when the page already
+// shows that same text as its title. Only the very first non-blank line qualifies,
+// and a note displayed under its filename keeps its heading. The second return is
+// the anchor that heading would have been given, and only when one was removed:
+// the title is then the only thing on the page still saying those words.
 func removeBodyFirstH1(title, body string) (stripped, anchor string) {
 	lines := strings.Split(body, "\n")
 	i := 0

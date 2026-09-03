@@ -21,11 +21,10 @@ var (
 	trustedBlockTag   = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
 )
 
-// safeMarkupRenderer is the note-body authority boundary. Goldmark still
-// parses authored HTML so the Japanese ruby dialect remains expressible, but
-// only the small inert subset the vault actually uses becomes markup. Every
-// other authored tag is rendered as text. Markdown links remain links; remote
-// Markdown images become explicit links instead of automatic requests.
+// safeMarkupRenderer is the note-body authority boundary. Authored HTML is still
+// parsed so the ruby dialect stays expressible, but only the small inert subset
+// the vault uses becomes markup and every other tag renders as text. Markdown
+// links remain links; a remote image becomes an explicit link, not a request.
 type safeMarkupRenderer struct{}
 
 func (safeMarkupRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {

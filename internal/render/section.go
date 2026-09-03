@@ -7,32 +7,21 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-// The CommonMark block structure an embed has to read before it can cut a
-// section out of a note: which lines are headings, which are inside a fence or
-// an HTML block and therefore text, and where one section ends. It is a source
-// scan rather than a pass over rendered HTML, because an embed picks its slice
-// out of the file's own bytes and hands that to the renderer.
-//
-// It is here rather than beside the wikilink rendering it serves because it
-// answers about the document's shape and knows nothing about links: a heading
-// is a heading whether or not anybody points at it.
+// The CommonMark block structure an embed reads before it can cut a section out
+// of a note: which lines are headings, which are inside a fence or an HTML block
+// and therefore text, and where one section ends. It scans source rather than
+// rendered HTML, because an embed slices the file's own bytes.
 
-// atxHeadingLine matches an ATX heading the way goldmark will read it: up to
-// three spaces of indent, one to six '#' characters, then whitespace before
-// the text. A '#' run glued to text is not a heading in CommonMark and is
-// not one here.
+// atxHeadingLine matches an ATX heading the way goldmark reads it: up to three
+// spaces of indent, one to six '#' characters, then whitespace. A '#' run glued
+// to text is not a heading in CommonMark and is not one here.
 var atxHeadingLine = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)
 
 // The HTML block start conditions of the CommonMark spec, minus the one for a
-// bare complete tag alone on its own line. A block opened by any of these
-// hands its lines to the reader as written, so a '#' line inside one is text
-// rather than a section boundary — the line is quoted markup in a note about
-// markup, or a comment, as often as it is anything else.
-//
-// The omitted condition is the one that cannot interrupt a paragraph, and
-// telling those two readings apart needs paragraph state this scan does not
-// keep. Leaving it out costs a '#' line inside such a block, and buys never
-// mistaking an ordinary sentence that carries a tag for the start of one.
+// bare complete tag alone on its line. A block opened by any of these hands its
+// lines over as written, so a '#' line inside one is text and not a boundary.
+// The omitted condition cannot interrupt a paragraph, and telling those readings
+// apart needs paragraph state this scan does not keep.
 var (
 	htmlBlockRawText = regexp.MustCompile(`(?i)^ {0,3}<(script|pre|style|textarea)([ \t>]|$)`)
 	htmlBlockRawEnd  = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
@@ -44,10 +33,9 @@ var (
 )
 
 // htmlBlockOpen reports whether line opens an authored HTML block, and returns
-// the test for the line that closes it. The raw-text, comment, instruction,
-// declaration, and CDATA blocks close on their own end marker — which may sit
-// on the opening line itself — while an element block runs to the next blank
-// line.
+// the test for the line closing it. Raw-text, comment, instruction, declaration
+// and CDATA blocks close on their own end marker, which may sit on the opening
+// line; an element block runs to the next blank line.
 func htmlBlockOpen(line string) (closes func(string) bool, ok bool) {
 	switch {
 	case htmlBlockRawText.MatchString(line):
@@ -72,20 +60,18 @@ func closesOn(marker string) func(string) bool {
 
 func blankLine(line string) bool { return strings.TrimSpace(line) == "" }
 
-// blockScan carries the running state a line-by-line section scan needs to
-// tell a real heading from a heading-looking line: fenced code and authored
-// HTML blocks both hand their contents to the reader as written, so a line
-// inside either is content and never a boundary. The zero value starts a scan.
+// blockScan carries the running state a line-by-line section scan needs to tell a
+// real heading from a heading-looking line: a line inside fenced code or an
+// authored HTML block is content, never a boundary. The zero value starts a scan.
 type blockScan struct {
 	inFence    bool
 	fenceByte  byte
 	htmlCloses func(string) bool
 }
 
-// skips advances the scan by one line and reports whether that line is inside
-// a fenced code block or an authored HTML block — including the line that
-// opens or closes one, which belongs to the block rather than to the prose
-// around it.
+// skips advances the scan by one line and reports whether that line is inside a
+// fenced code block or an authored HTML block, the lines opening and closing one
+// included.
 func (s *blockScan) skips(line string) bool {
 	switch {
 	case s.inFence:
@@ -117,10 +103,9 @@ func (s *blockScan) skips(line string) bool {
 // level-2 one.
 var setextUnderline = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
 
-// The line shapes that are not running prose, and therefore cannot be the text
-// an underline turns into a heading: a quote, a list item, a break rule, and
-// an indented code line. Anything else that is not blank continues a
-// paragraph.
+// The line shapes that are not running prose, and so cannot be the text an
+// underline turns into a heading: a quote, a list item, a break rule, an indented
+// code line. Anything else that is not blank continues a paragraph.
 var (
 	quotedLine       = regexp.MustCompile(`^ {0,3}>`)
 	listItemLine     = regexp.MustCompile(`^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)`)
@@ -138,15 +123,10 @@ type sectionHeading struct {
 }
 
 // scanHeadings reports every heading in lines, in document order, reading them
-// the way the page that displays them does: '#'-marked and underlined headings
-// both count, and a heading-looking line inside fenced code or an authored
-// HTML block counts as neither.
-//
-// An underline only makes a heading of running prose, so the shapes that open
-// a different construct — a quote, a list item, a break rule, an indented code
-// line — end the run of lines an underline could claim. Where the reading is
-// genuinely ambiguous the scan keeps the plainer one, which costs an
-// underlined heading and never invents one.
+// the way the page that displays them does: '#'-marked and underlined both count,
+// and a heading-looking line inside fenced code or an authored HTML block counts
+// as neither. An underline only makes a heading of running prose, and where the
+// reading is ambiguous the scan keeps the plainer one, which never invents a heading.
 func scanHeadings(lines []string) []sectionHeading {
 	var out []sectionHeading
 	var scan blockScan
@@ -180,22 +160,12 @@ func scanHeadings(lines []string) []sectionHeading {
 	return out
 }
 
-// headingSlice returns the section of body that heading names: the first
-// heading whose text folds to the same slug as the name, through to the line
-// before the next heading of the same or a higher level. Deeper headings stay
-// inside the slice, because a section owns its subsections. When the name
-// appears twice the first occurrence wins, matching Obsidian's reading view.
-//
-// The name is folded through slugify, the same function that stamps the
-// destination page's anchors, over heading text reduced the same way that pass
-// reduces it: a link contributes the words it displays, a ruby reading drops
-// out, tags and character references resolve. So the spellings the destination
-// page lists in its own table of contents are the spellings an embed of that
-// section accepts.
-//
-// One spelling does not survive the trip, because it is read from source
-// rather than from the rendered page: a heading carrying a markdown link keeps
-// the address the rendered heading drops. It reports, it does not truncate.
+// headingSlice returns the section of body that heading names: the first heading
+// whose text folds to the same slug, through to the line before the next heading
+// of the same or a higher level, deeper ones included. A repeated name takes the
+// first, as Obsidian's reading view does. The name folds through slugify over
+// heading text reduced the way the anchor pass reduces it, so the destination's
+// own table of contents lists the spellings an embed accepts.
 func headingSlice(body, heading string) (slice string, matches int) {
 	want := slugify(heading)
 	lines := strings.Split(body, "\n")
@@ -222,10 +192,8 @@ func headingSlice(body, heading string) (slice string, matches int) {
 }
 
 // headingSourceText reduces a heading's markdown source to the text the page
-// stamps its anchor from. A wikilink contributes what it displays, which is
-// the target itself unless the author wrote a display alias — the rendered
-// heading shows exactly those words, and a reader copying the section's name
-// off the page copies them too.
+// stamps its anchor from. A wikilink contributes what it displays, which is what
+// the rendered heading shows and what a reader copies off the page.
 func headingSourceText(raw string) string {
 	displayed := wikilinkToken.ReplaceAllStringFunc(raw, func(token string) string {
 		inner := strings.TrimPrefix(token, "!")
@@ -235,23 +203,12 @@ func headingSourceText(raw string) string {
 	return headingInnerText(displayed)
 }
 
-// blockSlice returns the block carrying the "^name" marker: the run of
-// non-blank lines around the first line outside fenced code that ends with the
-// marker, stopping at a list item's own line so a marker written on one item
-// addresses that item rather than the list it sits in. Where the marked line
-// is a continuation, the run reaches back to the line its block opens on — a
-// marker written under a multi-line block reaches that block the same way,
-// since no blank line separates them.
-//
-// The address is matched through the fold both fragment kinds share, so
-// "^Quote1" and "#^quote1" are one name. Only case and Unicode form fold: the
-// rest of an address is an identifier the author chose, and "^quote-1" and
-// "^quote1" are two of them.
-//
-// Nothing external rules on how wide a block reference reaches, so the narrow
-// reading is taken: the reader asked for the line the author marked, and
-// widening it here would be this renderer choosing an excerpt the author did
-// not.
+// blockSlice returns the block carrying the "^name" marker: the run of non-blank
+// lines around the first line outside fenced code ending with the marker, stopping
+// at a list item's own line, and reaching back to the line its block opens on when
+// the marked line is a continuation. The address matches through the fold both
+// fragment kinds share, so "^quote-1" and "^quote1" stay two names. Nothing rules
+// how wide a block reference reaches, so the narrow reading is taken.
 func blockSlice(body, block string) (string, bool) {
 	lines := strings.Split(body, "\n")
 	at := blockMarkerLine(lines, block)
