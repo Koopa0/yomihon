@@ -53,6 +53,15 @@ html, body { margin: 0; background: var(--bg); }
 .yomihon details > summary { list-style: none; cursor: pointer; }
 .yomihon summary::-webkit-details-marker { display: none; }
 .yomihon :focus-visible { outline: 2px solid var(--fg-subtle); outline-offset: 2px; border-radius: var(--r-sm); }
+/* The three search fields suppress that ring on purpose — they autofocus, and
+   a ring firing on every open is noise rather than news — and move the signal
+   to the field around them. Each already accented its own border on focus, but
+   a border is one pixel wide: enough to satisfy "something visible changed",
+   thin for a reader who has to find it. The wash widens that answer without
+   putting the ring back on the input. */
+.y-searchdialog__form:focus-within,
+.y-searchpage__form:focus-within,
+.y-homesearch:focus-within { box-shadow: 0 0 0 3px var(--accent-muted); }
 .yomihon ::selection { background: var(--accent-muted); }
 .yomihon *::-webkit-scrollbar { width: 11px; height: 11px; }
 .yomihon *::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
