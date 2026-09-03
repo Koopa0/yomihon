@@ -1,0 +1,113 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// ListIndex is one mode's own page: everything the vault declares of that kind,
+// one line each. It carries no left rail — the rail is the thing being read,
+// and a list beside a copy of itself is a second organisation of the same
+// notes.
+templ ListIndex(v ListIndexView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
+			<div class="y-home">
+				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
+				if v.Fault != "" {
+					<p class="y-homeempty" data-index-fault>
+						@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+					</p>
+				} else if len(v.Rows) == 0 {
+					<p class="y-homeempty" data-index-empty>{ v.Empty }</p>
+				}
+				if len(v.Rows) > 0 {
+					<div class="y-list">
+						for _, row := range v.Rows {
+							<a class="y-row" href={ templ.URL(row.Href) } data-index-row>
+								if row.Date != "" {
+									<span class="y-row__date">{ row.Date }</span>
+								}
+								<span class="y-row__title">{ row.Title }</span>
+								if row.Mark != "" {
+									<span class={ "y-navmark", templ.KV("y-navmark--warn", row.MarkWarn) }>{ row.Mark }</span>
+								}
+								if row.Measure != "" {
+									<span class="y-row__measure">{ row.Measure }</span>
+								}
+							</a>
+						}
+					</div>
+				}
+			</div>
+		</main>
+	}
+}
+
+// FolderIndex is the folder mode's page: the directory tree itself, which is
+// the one mode whose contents are not a list. Every folder is a closed
+// disclosure carrying what it holds, so the page opens at the shape of the
+// vault rather than at all of it.
+templ FolderIndex(v FolderIndexView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
+			<div class="y-home">
+				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
+				if v.Fault != "" {
+					<p class="y-homeempty" data-index-fault>
+						@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+					</p>
+				}
+				if len(v.RootNotes) == 0 && len(v.Folders) == 0 {
+					if v.Fault == "" {
+						<p class="y-homeempty" data-index-empty>{ v.Empty }</p>
+					}
+				} else {
+					<nav class="y-foldertree" aria-label={ wording.Folders.In(c.Lang) }>
+						for _, n := range v.RootNotes {
+							<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+						}
+						for _, f := range v.Folders {
+							@folderIndexNode(f, c)
+						}
+					</nav>
+				}
+			</div>
+		</main>
+	}
+}
+
+// folderIndexNode is one folder of the index tree: a closed disclosure whose
+// summary names the folder, says how much is under it, and reaches the folder's
+// own page. It recurses to whatever depth the directory structure has.
+templ folderIndexNode(f nav.Folder, c layouts.Chrome) {
+	<details>
+		<summary class="ui-navitem">
+			@chevron()
+			{ f.Name }
+			<span class="ui-navitem__count">{ folderNoteCount(&f, c.Lang) }</span>
+		</summary>
+		<div class="y-tree">
+			<a class="y-railitem__full" href={ templ.URL(folderHref(f.RelPath)) }>{ wording.OpenFolder.In(c.Lang) }</a>
+			for _, sub := range f.Subfolders {
+				@folderIndexNode(sub, c)
+			}
+			for _, n := range f.Notes {
+				<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+			}
+		</div>
+	</details>
+}
+
+// indexHead is the head every mode index carries: what the mode is called and
+// how much of it there is, the title, and the sentence saying what a reader is
+// looking at.
+templ indexHead(kicker, title, lede string, lang wording.Lang) {
+	<header class="y-home__head">
+		<div class="y-home__kicker">{ kicker }</div>
+		<h1 class="y-title">{ title }</h1>
+		<p>{ lede }</p>
+		<a class="y-back" href="/">{ wording.BackHome.In(lang) }</a>
+	</header>
+}

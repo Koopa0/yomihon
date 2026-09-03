@@ -19,9 +19,10 @@ const briefingSandbox = "sandbox; default-src 'none'; base-uri 'none'; connect-s
 	"script-src 'none'; script-src-attr 'none'; " +
 	"style-src 'unsafe-inline'; worker-src 'none'"
 
-// Register mounts the report shell page and the raw endpoint its iframe points
-// at.
+// Register mounts the report index, the report shell page, and the raw
+// endpoint its iframe points at.
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /reports", h.index)
 	mux.HandleFunc("GET /reports/{name}", h.show)
 	mux.HandleFunc("GET /reports/{name}/raw", h.raw)
 }

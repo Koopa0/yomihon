@@ -57,6 +57,11 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page", Search(recordedSearchView(model), recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
+		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), recordedChrome().Lang), recordedChrome())},
+		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), recordedChrome().Lang), recordedChrome())},
+		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
+		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
+		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang), recordedChrome())},
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
@@ -268,6 +273,25 @@ func recordedHomeView(model *nav.Model) HomeView {
 		ReadmeMissing: true,
 		Sidebar:       NewSidebar(model, ""),
 	}
+}
+
+// recordedReportIndexView carries both kinds of report the vault holds and the
+// newest mark, none of which the shared fixture vault has.
+func recordedReportIndexView() ListIndexView {
+	return NewReportIndex([]nav.Report{
+		{Name: "2026-07-10 vault audit.md", RelPath: "System/reports/2026-07-10 vault audit.md"},
+		{Name: "notes on the scan.md", RelPath: "System/reports/notes on the scan.md"},
+		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
+	}, recordedChrome().Lang)
+}
+
+// recordedWithheldIndexView is a mode index whose declaration could not be
+// read: no rows, and the reason in place of the sentence about a vault that
+// declared nothing.
+func recordedWithheldIndexView() ListIndexView {
+	view := NewMapIndex(nil, recordedChrome().Lang)
+	view.Fault = "the contract could not be read"
+	return view
 }
 
 func recordedHealthView(model *nav.Model) HealthView {

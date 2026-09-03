@@ -926,6 +926,23 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
   .y-homeblock--recent, .y-homeblock--paths, .y-homeblock--lifecycle, .y-homeblock--search, .y-homestandin { grid-column: 1 / -1; }
 }
 
+/* The four mode index pages — one kind of thing, listed whole. They carry no
+   left rail: the rail is the thing being read, and a list beside a copy of
+   itself is a second organisation of the same notes. The reading column is
+   therefore the page's only column. */
+.y-deskmain { flex: 1; }
+.y-back { display: inline-block; margin-top: 16px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--fg-faint); }
+.y-back:hover { color: var(--fg); }
+.y-list { border-top: 1px solid var(--border); }
+.y-row { display: flex; align-items: baseline; gap: 18px; padding: 14px 4px; border-bottom: 1px solid var(--border-faint); }
+.y-row:hover { background: var(--overlay); }
+.y-row:hover .y-row__title { color: var(--link); }
+.y-row__date { flex: none; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
+.y-row__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); overflow-wrap: anywhere; }
+.y-row__measure { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.y-foldertree { display: flex; flex-direction: column; border-top: 1px solid var(--border); padding-top: 6px; }
+.y-foldertree .y-tree { margin-left: 14px; border-left: 1px solid var(--border-faint); padding-left: 6px; }
+
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
    /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
@@ -1192,7 +1209,8 @@ html {
   .y-rail-left {
     position: static; width: auto; max-height: none;
   }
-  html[data-js] .y-hamburger { display: inline-flex; }
+  /* A page with no rail has nothing for the drawer to open. */
+  html[data-js] .yomihon:has(.y-rail-left) .y-hamburger { display: inline-flex; }
   html[data-js] .y-rail-left {
     position: fixed; top: 56px; bottom: 0; left: 0; width: min(300px, 86vw);
     max-height: none; z-index: 45; transform: translateX(-102%);
