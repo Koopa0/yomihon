@@ -50,7 +50,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(lang))).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write health page", "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write health page", "error", err)
 	}
 }
 

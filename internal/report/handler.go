@@ -57,7 +57,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
 	}
 	if err := pages.Report(view, layouts.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
-		h.log.Error("write report page", "name", rep.Name, "error", err)
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write report page", "name", rep.Name, "error", err)
 	}
 }
 
@@ -128,6 +128,6 @@ func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, lang word
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
 	if err := pages.NotFound(view, layouts.ChromeFromRequest(r, wording.NotFoundKicker.In(lang))).Render(r.Context(), w); err != nil {
-		h.log.Warn("write not-found page", "path", r.URL.Path, "error", err)
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", r.URL.Path, "error", err)
 	}
 }

@@ -111,7 +111,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	view := answerView(snap, q, results, total, diagnostic, tokens)
 	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
 	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
-		h.logQueryError("write search page", q, err)
+		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }
 
@@ -155,7 +155,7 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	view := answerView(snap, q, results, total, diagnostic, tokens)
 	if err := pages.SearchResults(view, origin.Language(r)).Render(r.Context(), w); err != nil {
-		h.logQueryError("write search results", q, err)
+		h.logQueryWriteFailure(r, "write search results", q, err)
 	}
 }
 
@@ -209,17 +209,30 @@ func stepBackViews(idx *lexical.Index, q string, results []lexical.Result, diagn
 }
 
 func (h *Handler) logQueryError(message, rawQuery string, err error) {
+	h.log.Error(message, queryFacts(rawQuery, err)...)
+}
+
+// logQueryWriteFailure reports a page that could not be finished. It carries
+// the same facts as a query fault and differs only in loudness: a reader who
+// closed the tab mid-response is not a fault an operator can act on.
+func (h *Handler) logQueryWriteFailure(r *http.Request, message, rawQuery string, err error) {
+	h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), message, queryFacts(rawQuery, err)...)
+}
+
+// queryFacts is what a search fault may say about the query: its shape and its
+// size, never its text.
+func queryFacts(rawQuery string, err error) []any {
 	query := lexical.Parse(rawQuery)
 	filters := query.Filters()
 	filterKeys := make([]string, 0, len(filters))
 	for _, filter := range filters {
 		filterKeys = append(filterKeys, filter.Key)
 	}
-	h.log.Error(message,
+	return []any{
 		"error_type", fmt.Sprintf("%T", err),
 		"query_bytes", len(rawQuery),
 		"filter_keys", filterKeys,
-	)
+	}
 }
 
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {

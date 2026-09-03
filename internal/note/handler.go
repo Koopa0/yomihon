@@ -169,7 +169,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
 	if err := pages.NotFound(view, layouts.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write not-found page", "path", asked, "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", asked, "error", err)
 	}
 }
 
@@ -200,7 +200,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Folder(view, layouts.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write folder page", "path", dir, "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder page", "path", dir, "error", err)
 	}
 }
 
@@ -336,7 +336,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// folder that holds no Japanese at all.
 	pageChrome.HasRuby = strings.Contains(result.HTML, "<ruby")
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write note page", "path", rel, "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write note page", "path", rel, "error", err)
 	}
 }
 

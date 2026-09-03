@@ -119,7 +119,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Sidebar:        pages.NewSidebar(visibleNav, ""),
 	}
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write home page", "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)
 	}
 }
 

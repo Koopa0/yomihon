@@ -62,13 +62,13 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)
 		if err := pages.NotFound(view, chrome).Render(r.Context(), w); err != nil {
-			h.log.Error("write study-path not-found page", "path", rel, "error", err)
+			h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path not-found page", "path", rel, "error", err)
 		}
 		return
 	}
 
 	view := pages.BuildPathView(current, shell.Nav.Paths())
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
-		h.log.Error("write syllabus page", "path", rel, "error", err)
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
 	}
 }

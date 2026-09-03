@@ -393,7 +393,7 @@ func (h *Handler) respondRecovery(
 	}
 	component := pages.StatusRecovery(view, chrome)
 	if err := writeRecovery(r.Context(), w, failure.code, failure.changed, component, lang); err != nil {
-		h.log.Error("render status recovery", "path", path, "changed", failure.changed, "error", err)
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "render status recovery", "path", path, "changed", failure.changed, "error", err)
 	}
 }
 
