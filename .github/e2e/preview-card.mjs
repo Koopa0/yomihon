@@ -54,6 +54,7 @@ const SITES = [
 	'a-coarse-pointer-opens-no-card',
 	'a-missing-note-answers-with-words',
 	'a-section-the-note-does-not-have-shows-none-of-it',
+	'an-open-card-adds-no-second-place-with-one-name',
 	'the-excerpt-comes-from-this-origin',
 ];
 
@@ -220,6 +221,13 @@ const MUTATIONS = {
 		target: 'a-section-the-note-does-not-have-shows-none-of-it',
 		apply: rewriteFragment('y-preview__morelink', 'y-preview__nolink'),
 	},
+	// The excerpt keeps the names the renderer stamped on it, so while the card
+	// is open the page holds two elements answering to one name and a fragment
+	// naming it reaches whichever came first.
+	're-anchor-the-excerpt': {
+		target: 'an-open-card-adds-no-second-place-with-one-name',
+		apply: rewriteFragment('<h2', '<h2 id="main-content"'),
+	},
 	// The card fills itself instead of asking the route that holds the
 	// excerpts. It looks like a working card and is showing something nothing
 	// in the vault said.
@@ -282,6 +290,7 @@ const cardState = (page) =>
 			activeInCard: Boolean(active && card.contains(active)),
 			viewport: { width: window.innerWidth, height: window.innerHeight },
 			anchoredCount: document.querySelectorAll('[data-preview-open]').length,
+			ids: [...document.querySelectorAll('[id]')].map((el) => el.id),
 			activeText: active ? active.textContent.replace(/\s+/g, ' ').trim() : null,
 		};
 	});
@@ -386,6 +395,23 @@ try {
 		}
 		if (state.text.includes(NOTE_OPENING)) {
 			fail('card-shows-the-section-the-link-addressed', 'the card carries the destination\'s opening words, so the link\'s own fragment was not asked for');
+		}
+
+		// Two elements answering to one name is a defect no server-side test can
+		// see: the excerpt is correct on its own and the page is correct on its
+		// own, and only the two together are wrong.
+		proveApplied('an-open-card-adds-no-second-place-with-one-name', proof);
+		if (state.ids.length < 5) {
+			broken(`the page names only ${state.ids.length} places with the card open, so a scan of them proves nothing`);
+		}
+		{
+			const count = new Map();
+			for (const id of state.ids) count.set(id, (count.get(id) ?? 0) + 1);
+			for (const [id, n] of count) {
+				if (n > 1) {
+					fail('an-open-card-adds-no-second-place-with-one-name', `with the card open the id ${JSON.stringify(id)} is on this page ${n} times, so a fragment naming it reaches whichever came first`);
+				}
+			}
 		}
 
 		proveApplied('focus-stays-on-the-link', proof);

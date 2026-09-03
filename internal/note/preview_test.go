@@ -389,3 +389,33 @@ func TestASectionTheNoteDoesNotHaveIsRefusedNotWidened(t *testing.T) {
 		})
 	}
 }
+
+// TestTheCardCarriesNoPlaceAnythingCanBeAddressed keeps the excerpt from
+// bringing names into the page that opened it. The card shares one document
+// with that page, so every id it carried would be a second element answering to
+// a name a heading or a block address there already has, and a fragment naming
+// one would reach whichever came first.
+func TestTheCardCarriesNoPlaceAnythingCanBeAddressed(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePreviewVault(t, root)
+	srv := newServer(t, root)
+
+	card := askPreview(t, srv.URL, previewTargetRel, "", wording.ZhHant)
+	if card.code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", card.code, http.StatusOK)
+	}
+	// The same note as a page of its own, which is where a heading is a place
+	// something can be addressed. Without this the check below would hold over
+	// a fixture whose headings the renderer never named.
+	code, page := getPage(t, srv.URL+"/notes/"+previewTargetRel)
+	if code != http.StatusOK {
+		t.Fatalf("the note's own page returned %d, want %d", code, http.StatusOK)
+	}
+	if !strings.Contains(page, `id="addressed"`) {
+		t.Fatalf("the note's own page names none of its headings, so there is nothing for the card to have dropped:\n%s", page)
+	}
+	if strings.Contains(card.body, `id="`) {
+		t.Errorf("the card brings a name of its own into the page that opened it:\n%s", card.body)
+	}
+}
