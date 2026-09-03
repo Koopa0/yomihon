@@ -71,9 +71,10 @@ const (
 	// convert; it was left untouched. At most one per render call.
 	DiagRiskyFence DiagnosticKind = "risky-fence"
 	// DiagEmbedFragmentMissing means an embed named a section or block its
-	// target's captured body does not contain, so the whole note was shown. An
-	// embed's fragment changes what is displayed, so falling back silently would
-	// present the wrong scope as the author's own choice.
+	// target's captured body does not contain, so nothing of that note is shown
+	// and a notice stands where the excerpt would. The author named one place;
+	// widening to the whole note would present a scope they never chose as
+	// their own.
 	DiagEmbedFragmentMissing DiagnosticKind = "embed-fragment-missing"
 	// DiagEmbedFragmentRepeated means an embed named a section its target carries
 	// more than once. The first is shown, and the count is reported because an
@@ -256,14 +257,15 @@ type composition struct {
 }
 
 // transcludedExcerpt is one embed a render actually expanded, recorded as the
-// page consumed it: the source note, the scope decision that cut the words, and
-// the sliced bytes. Identical bytes from two notes are two different excerpts,
-// because an image inside each resolves against its own note's directory.
+// page consumed it: the source note, how many places answered the address the
+// cut was made at, and the sliced bytes. Identical bytes from two notes are two
+// different excerpts, because an image inside each resolves against its own
+// note's directory; the same bytes cut as the only candidate and as the first
+// of several are two excerpts too, because the page says which it is showing.
 type transcludedExcerpt struct {
-	path      string
-	unmatched string
-	repeated  int
-	slice     string
+	path    string
+	matches int
+	slice   string
 }
 
 // transcludedIdentity is one digest over everything a render pulled in from other
@@ -278,8 +280,7 @@ func transcludedIdentity(excerpts []transcludedExcerpt) string {
 	for i := range excerpts {
 		e := &excerpts[i]
 		framed = frameValue(framed, e.path)
-		framed = frameValue(framed, e.unmatched)
-		framed = frameValue(framed, strconv.Itoa(e.repeated))
+		framed = frameValue(framed, strconv.Itoa(e.matches))
 		framed = frameValue(framed, e.slice)
 	}
 	sum := sha256.Sum256(framed)

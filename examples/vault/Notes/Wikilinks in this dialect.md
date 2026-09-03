@@ -36,4 +36,6 @@ that note carries.
 ## Embeds
 
 `![[Name]]` pulls the whole note in. With a fragment that does not place, the
-embed widens to the whole note and says so rather than showing nothing.
+embed shows nothing of the note: a notice names the address it could not find,
+and the note's name above it is the way on to the whole note. The author asked
+for one place, and the whole note would be a wider answer than they wrote.

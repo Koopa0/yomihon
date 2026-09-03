@@ -1,10 +1,13 @@
 package render
 
 import (
+	"fmt"
+	"path"
 	"regexp"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // The CommonMark block structure an embed reads before it can cut a section out
@@ -205,14 +208,56 @@ func headingSlice(body, heading string) (slice string, matches int) {
 // that wrote it; nothing here folds a name a second time.
 func Excerpt(body, fragment string) (slice string, found bool) {
 	stripped, _ := stripObsidianComments(body)
+	slice, matches := excerptOf(stripped, fragment)
+	return slice, matches > 0
+}
+
+// excerptOf is the one cut every excerpt is made with, over a body whose
+// comments are already off: it returns the part of it that fragment addresses,
+// spelled as Excerpt reads it, and counts the places that answered — one for a
+// block or for the note itself, and for a section every heading folding to the
+// name, of which the first is cut. Zero is an address the note does not answer
+// to, and then nothing is cut: there is no narrower answer than the one asked
+// for, and a wider one would be this renderer's rather than the author's.
+func excerptOf(stripped, fragment string) (slice string, matches int) {
 	switch {
 	case strings.HasPrefix(fragment, "^"):
-		return blockSlice(stripped, strings.TrimPrefix(fragment, "^"))
+		cut, ok := blockSlice(stripped, strings.TrimPrefix(fragment, "^"))
+		if !ok {
+			return "", 0
+		}
+		return cut, 1
 	case fragment != "":
-		cut, matches := headingSlice(stripped, fragment)
-		return cut, matches > 0
+		return headingSlice(stripped, fragment)
 	}
-	return stripped, true
+	return stripped, 1
+}
+
+// fragmentOf is the address an embed carries, in the spelling Excerpt reads. A
+// block wins when the author wrote both a block and a section, which is the
+// order a link's address resolves that conflict in too.
+func fragmentOf(link graph.Wikilink) string {
+	if link.Block != "" {
+		return "^" + link.Block
+	}
+	return link.Heading
+}
+
+// ExcerptWithheld is what a surface says where an excerpt it could not cut
+// would have stood: the address the note does not answer to, spelled the way
+// the author's own link spells it, and the note it was asked of. The reading
+// page says it inside the block an embed leaves behind and the hover card says
+// it under the note's name, from this one sentence, so the two report one fact
+// in one voice. fragment is the one Excerpt reads.
+func ExcerptWithheld(relPath, fragment string, lang wording.Lang) string {
+	return fmt.Sprintf(wording.ExcerptWithheldFmt.In(lang), "#"+fragment, noteName(relPath))
+}
+
+// noteName is the name a note is cited by: its file's own, without the
+// extension. A provenance line and a withheld notice both call a note this,
+// because it is the name a citation resolves by.
+func noteName(relPath string) string {
+	return strings.TrimSuffix(path.Base(relPath), ".md")
 }
 
 // ExcerptHeading is the words a reader sees in the heading an excerpt opens on,

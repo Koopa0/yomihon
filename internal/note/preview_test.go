@@ -356,7 +356,10 @@ func TestALongNoteIsCutAndSaysSo(t *testing.T) {
 // TestASectionTheNoteDoesNotHaveIsRefusedNotWidened holds the card to the place
 // the reader named. Showing them the top of the note instead answers a question
 // nobody asked, and does it silently: the words that arrive are the note's own,
-// so nothing on screen says they are not the section the link promised.
+// so nothing on screen says they are not the section the link promised. What
+// the card says instead names the address that matched nothing and the note it
+// was asked of, in the sentence the reading page's own withheld embed says, so
+// the two surfaces report one fact in one voice.
 func TestASectionTheNoteDoesNotHaveIsRefusedNotWidened(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -366,27 +369,35 @@ func TestASectionTheNoteDoesNotHaveIsRefusedNotWidened(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		section string
-		notice  wording.Phrase
+		notice  map[wording.Lang]string
 	}{
-		{name: "a section", section: "nowhere-in-this-note", notice: wording.DiagSectionNote},
-		{name: "a block", section: "^nowhere", notice: wording.DiagBlockNote},
+		{name: "a section", section: "nowhere-in-this-note", notice: map[wording.Lang]string{
+			wording.ZhHant: "找不到「#nowhere-in-this-note」：〈target〉裡沒有這個位址。",
+			wording.En:     "Unable to find “#nowhere-in-this-note” in target.",
+		}},
+		{name: "a block", section: "^nowhere", notice: map[wording.Lang]string{
+			wording.ZhHant: "找不到「#^nowhere」：〈target〉裡沒有這個位址。",
+			wording.En:     "Unable to find “#^nowhere” in target.",
+		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			card := askPreview(t, srv.URL, previewTargetRel, tt.section, wording.ZhHant)
-			if card.code != http.StatusOK {
-				t.Fatalf("status = %d, want %d; the note is there and only the place inside it is not", card.code, http.StatusOK)
-			}
-			for _, sentinel := range []string{previewBeforeSentinel, previewInsideSentinel, previewAfterSentinel, previewBlockSentinel} {
-				if strings.Contains(card.body, sentinel) {
-					t.Errorf("the card carries %q, so an address the note does not answer to was widened into words the reader did not ask for:\n%s", sentinel, card.body)
+			for lang, notice := range tt.notice {
+				card := askPreview(t, srv.URL, previewTargetRel, tt.section, lang)
+				if card.code != http.StatusOK {
+					t.Fatalf("status = %d, want %d; the note is there and only the place inside it is not", card.code, http.StatusOK)
 				}
-			}
-			if !strings.Contains(card.body, tt.notice.In(wording.ZhHant)) {
-				t.Errorf("the card does not say the note has no such place:\n%s", card.body)
-			}
-			if !strings.Contains(card.body, "y-preview__sourcelink") {
-				t.Errorf("the card refuses and offers no way on to the note itself:\n%s", card.body)
+				for _, sentinel := range []string{previewBeforeSentinel, previewInsideSentinel, previewAfterSentinel, previewBlockSentinel} {
+					if strings.Contains(card.body, sentinel) {
+						t.Errorf("%s: the card carries %q, so an address the note does not answer to was widened into words the reader did not ask for:\n%s", lang, sentinel, card.body)
+					}
+				}
+				if !strings.Contains(card.body, `<p class="y-preview__notice">`+notice+`</p>`) {
+					t.Errorf("%s: the card does not say which place the note lacks:\nwant %s\ngot  %s", lang, notice, card.body)
+				}
+				if !strings.Contains(card.body, "y-preview__sourcelink") {
+					t.Errorf("%s: the card refuses and offers no way on to the note itself:\n%s", lang, card.body)
+				}
 			}
 		})
 	}

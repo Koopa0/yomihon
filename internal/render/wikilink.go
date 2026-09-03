@@ -799,17 +799,25 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			})
 			return degradedSpan("wikilink-broken", source, wording.EmbedUnreadable.In(col.page.lang), col.page.lang)
 		}
-		body, unmatched, repeated := embedScope(link, res.RelPath, body, col)
+		slice, matches := embedScope(link, res.RelPath, body, col)
+		if matches == 0 {
+			// The author named one place in the note and the note has no such
+			// place, so nothing of it is shown: the block says which address
+			// failed, and the provenance line is the way on to the note for a
+			// reader who wants the rest. It is not recorded as transcluded,
+			// because no words of the note reached the page.
+			return `<div class="` + embedClass(true) + `">` + embedSourceLine(res.RelPath, col.page.lang) +
+				withheldNotice(res.RelPath, fragmentOf(link), col.page.lang) + `</div>`
+		}
 		// The excerpt is recorded exactly as cut, at the one point where expansion
 		// happens: the freshness stamp derives from these entries, so a wider or
 		// narrower one would move for words the page never showed.
 		col.page.transcluded = append(col.page.transcluded, transcludedExcerpt{
-			path:      res.RelPath,
-			unmatched: unmatched,
-			repeated:  repeated,
-			slice:     body,
+			path:    res.RelPath,
+			matches: matches,
+			slice:   slice,
 		})
-		inner := r.render(body, embedsDenied, col.page)
+		inner := r.render(slice, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		heldBack := false
 		for _, d := range inner.Diagnostics {
@@ -820,89 +828,80 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 		}
 		// An image inside a transcluded body was written relative to the note it
 		// came from, so it is resolved here, where that path is still known.
-		return `<div class="` + embedClass(unmatched) + `">` + embedSourceLine(res.RelPath, col.page.lang) +
-			widenedNotice(unmatched, col.page.lang) +
-			repeatedNotice(link.Heading, repeated, col.page.lang) + notExpandedNotice(heldBack, col.page.lang) +
+		return `<div class="` + embedClass(false) + `">` + embedSourceLine(res.RelPath, col.page.lang) +
+			repeatedNotice(link.Heading, matches, col.page.lang) + notExpandedNotice(heldBack, col.page.lang) +
 			resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
 	default:
 		panic("render: unknown graph.Kind: " + res.Kind.String())
 	}
 }
 
-// embedScope narrows a transcluded body to the section or block the embed's
-// fragment named. A fragment matching nothing falls back to the whole note and
-// reports it, since widening silently would present content the author left out as
-// their choice. Where the excerpt's edges are unruled the narrower reading is
+// embedScope cuts a transcluded body to the section or block the embed's
+// fragment named, with the one cut every excerpt is made with, and reports on
+// the cut. An address the note does not answer to comes back with no matches
+// and nothing cut: the author named one place, and the whole note would be a
+// wider answer than the one they wrote. A section name the note carries more
+// than once is cut at the first and counted, so the page can say which one it
+// is showing. Where the excerpt's edges are unruled the narrower reading is
 // taken. This is the only place a transcluded body's Obsidian %% comments come
 // off, so no later pass can reopen a marker this one ruled literal.
-func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped, unmatched string, repeated int) {
+func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped string, matches int) {
 	stripped, unclosed := stripObsidianComments(body)
 	if unclosed != 0 {
 		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
 		col.report(&unclosedDiagnostic)
 	}
+	scoped, matches = excerptOf(stripped, fragmentOf(link))
 	switch {
-	case link.Block != "":
-		if slice, ok := blockSlice(stripped, link.Block); ok {
-			return slice, "", 0
-		}
+	case matches == 0 && link.Block != "":
 		col.report(&Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
 			Target:  link.Target,
 			Block:   link.Block,
-			Message: fmt.Sprintf("no block in %q matched %q; the whole note is shown", resPath, "^"+link.Block),
+			Message: fmt.Sprintf("no block in %q matched %q; the excerpt is withheld", resPath, "^"+link.Block),
 		})
-		return stripped, "#^" + link.Block, 0
-	case link.Heading != "":
-		if slice, matches := headingSlice(stripped, link.Heading); matches > 0 {
-			if matches > 1 {
-				col.report(&Diagnostic{
-					Kind:    DiagEmbedFragmentRepeated,
-					Target:  link.Target,
-					Section: link.Heading,
-					Message: fmt.Sprintf("%d headings in %q matched %q; the first is shown", matches, resPath, link.Heading),
-				})
-			}
-			return slice, "", matches
-		}
+	case matches == 0:
 		col.report(&Diagnostic{
 			Kind:    DiagEmbedFragmentMissing,
 			Target:  link.Target,
 			Section: link.Heading,
-			Message: fmt.Sprintf("no heading in %q matched %q; the whole note is shown", resPath, link.Heading),
+			Message: fmt.Sprintf("no heading in %q matched %q; the excerpt is withheld", resPath, link.Heading),
 		})
-		return stripped, "#" + link.Heading, 0
+	case matches > 1:
+		col.report(&Diagnostic{
+			Kind:    DiagEmbedFragmentRepeated,
+			Target:  link.Target,
+			Section: link.Heading,
+			Message: fmt.Sprintf("%d headings in %q matched %q; the first is shown", matches, resPath, link.Heading),
+		})
 	}
-	return stripped, "", 0
+	return scoped, matches
 }
 
-// embedClass marks an excerpt whose fragment matched nothing, so the widening
-// is visible in the article rather than only in the diagnostics face.
-func embedClass(unmatched string) string {
-	if unmatched == "" {
-		return "embed"
+// embedClass marks the block an embed leaves behind when its fragment matched
+// nothing, so a withheld excerpt is visible in the article rather than only in
+// the diagnostics face.
+func embedClass(withheld bool) string {
+	if withheld {
+		return "embed embed--withheld"
 	}
-	return "embed embed--widened"
+	return "embed"
 }
 
 // embedSourceLine opens an excerpt with the name of the note its words came from,
 // as a link there, because the page around it otherwise never says whose words
 // these are. The name is the file's own, the one a citation resolves by.
 func embedSourceLine(relPath string, lang wording.Lang) string {
-	name := strings.TrimSuffix(path.Base(relPath), ".md")
 	return `<p class="embed__source">` + html.EscapeString(wording.EmbedSourceFrom.In(lang)) +
-		`<a href="` + notesHref(relPath) + `">` + html.EscapeString(name) + `</a></p>`
+		`<a href="` + notesHref(relPath) + `">` + html.EscapeString(noteName(relPath)) + `</a></p>`
 }
 
-// widenedNotice states, inside the excerpt itself, that the author's fragment
-// found nothing and the whole source note stands in its place. The diagnostics
-// rail says so too, but it collapses on a narrow viewport, and the words the
-// author scoped out are on the page either way.
-func widenedNotice(unmatched string, lang wording.Lang) string {
-	if unmatched == "" {
-		return ""
-	}
-	return `<p class="embed__widened">` + html.EscapeString(wording.EmbedWidenedBefore.In(lang)) + `<code>` + html.EscapeString(unmatched) + `</code>` + html.EscapeString(wording.EmbedWidenedAfter.In(lang)) + `</p>`
+// withheldNotice states, where the excerpt would have stood, which address the
+// note does not answer to. The diagnostics rail says so too, but it collapses
+// on a narrow viewport, and a block that shows nothing says nothing about
+// whether anything was asked for unless it says this.
+func withheldNotice(relPath, fragment string, lang wording.Lang) string {
+	return `<p class="embed__note">` + html.EscapeString(ExcerptWithheld(relPath, fragment, lang)) + `</p>`
 }
 
 // repeatedNotice states, above the excerpt, that the fragment named a section the
@@ -1014,19 +1013,13 @@ func (r *Pipeline) embedBringsHeading(body, heading string) bool {
 
 // headingBroughtBy reports whether the heading is inside the part of an embedded
 // body the embed actually shows: a fragment narrows the excerpt, so a heading
-// outside it never reaches the page, while a fragment matching nothing widens back
-// to the whole note. Both readings are the ones embedScope applies for display.
+// outside it never reaches the page, and a fragment matching nothing withholds
+// the excerpt, so nothing of that body reaches the page at all. Both readings
+// are the ones embedScope applies for display, from the same cut.
 func headingBroughtBy(link graph.Wikilink, embedded, heading string) bool {
-	scoped := embedded
-	switch {
-	case link.Block != "":
-		if slice, ok := blockSlice(embedded, link.Block); ok {
-			scoped = slice
-		}
-	case link.Heading != "":
-		if slice, matches := headingSlice(embedded, link.Heading); matches > 0 {
-			scoped = slice
-		}
+	scoped, matches := excerptOf(embedded, fragmentOf(link))
+	if matches == 0 {
+		return false
 	}
 	if _, found := headingSlice(scoped, heading); found > 0 {
 		return true
