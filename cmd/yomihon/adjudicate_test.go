@@ -153,13 +153,17 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 	folders := []struct {
 		name  string
 		build func(*testing.T) string
-		want  string
+		// want takes the folder because one of the three answers names it. A
+		// fixed string could not: the folder is made by the test run.
+		want func(root string) string
 	}{
 		{
 			name:  "a folder carrying no contract",
 			build: func(t *testing.T) string { t.Helper(); return t.TempDir() },
-			want: "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
-				absentContractGuidance,
+			want: func(string) string {
+				return "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
+					absentContractGuidance
+			},
 		},
 		{
 			name: "a contract that cannot be read",
@@ -169,8 +173,10 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 				writeFile(t, root, schema.ContractRelPath, "[malformed\n")
 				return root
 			},
-			want: "yomihon: privacy authority unavailable; agent-facing output disabled\n" +
-				unresolvedContractGuidance,
+			want: func(string) string {
+				return "yomihon: privacy authority unavailable; agent-facing output disabled\n" +
+					unresolvedContractGuidance
+			},
 		},
 		{
 			name: "a folder that is not there",
@@ -178,7 +184,16 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 				t.Helper()
 				return filepath.Join(t.TempDir(), "no-folder-of-this-name")
 			},
-			want: "yomihon: vault scan failed\n",
+			// The machine's own words for what it could not open, asked for
+			// the same way the reader asks, so this pins the folder and the
+			// reason rather than a guess at how they are spelled.
+			want: func(root string) string {
+				_, err := filepath.EvalSymlinks(root)
+				if err == nil {
+					t.Fatalf("EvalSymlinks(%q) succeeded; the folder this row needs absent is there", root)
+				}
+				return "yomihon: vault scan failed: open vault root: " + err.Error() + "\n"
+			},
 		},
 	}
 	commands := []struct {
@@ -199,14 +214,15 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 					t.Parallel()
 
 					var stdout, stderr bytes.Buffer
-					exit := runCommand(t.Context(), command.name, command.args(folder.build(t)), &stdout, &stderr, false)
+					root := folder.build(t)
+					exit := runCommand(t.Context(), command.name, command.args(root), &stdout, &stderr, false)
 					if exit != 2 {
 						t.Errorf("exit = %d, want 2", exit)
 					}
 					if stdout.Len() != 0 {
 						t.Errorf("stdout = %q, want empty", stdout.String())
 					}
-					if diff := cmp.Diff(folder.want, stderr.String()); diff != "" {
+					if diff := cmp.Diff(folder.want(root), stderr.String()); diff != "" {
 						t.Errorf("stderr mismatch (-want +got):\n%s", diff)
 					}
 				})
