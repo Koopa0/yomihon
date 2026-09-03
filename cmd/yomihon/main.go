@@ -56,16 +56,10 @@ func main() {
 	}
 }
 
-// dispatch decides what the arguments ask for. Reading a folder is what this
-// program is for, so it is what bare `yomihon` does — in the folder you are
-// standing in, the way every other tool that serves a directory behaves, and
-// the way this program's own check and search commands already behaved while
-// serve alone insisted on a flag.
-//
-// A first argument that names a command is that command. Anything else is
-// taken as the folder to read, so `yomihon ~/notes` needs no flag; and when it
-// is neither a command nor a directory, saying so beats silently serving the
-// current folder under a name the reader clearly did not mean.
+// dispatch decides what the arguments ask for. A first argument naming a
+// command is that command; anything else is the folder to read, so
+// `yomihon ~/notes` needs no flag. A word that is neither is reported rather
+// than serving the current folder under a name the reader did not mean.
 func dispatch(argv []string) (command string, args []string) {
 	if len(argv) == 0 {
 		return "serve", nil
@@ -85,19 +79,9 @@ func dispatch(argv []string) (command string, args []string) {
 }
 
 // serveRoot resolves which folder to read: the one just typed, or the one the
-// reader is standing in. It exists because the folder is the one thing a first
-// run must be able to state without reading the source — every other command
-// already takes --root, and serve silently reading a different directory than
-// the one the operator was standing in is the failure this closes.
-//
-// There is deliberately no third answer. A path compiled into the binary came
-// first — one particular person's vault wearing the costume of a default, so
-// anyone else's first run read a directory they had never mentioned, while
-// this program's own check and search commands had always read the current
-// folder. An environment variable naming the folder went the same way
-// afterwards: where you are standing and what you name on the line already
-// answer the question between them, and a third answer is only somewhere else
-// for the two to disagree.
+// reader is standing in. There is deliberately no third answer — no compiled-in
+// path and no environment variable — because those two already answer the
+// question between them, and a third is only somewhere for them to disagree.
 func serveRoot(args []string) (string, error) {
 	switch {
 	case len(args) == 0:

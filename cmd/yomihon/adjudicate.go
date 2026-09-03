@@ -134,20 +134,10 @@ func validateCommandArgs(command string, args *commandArgs) error {
 }
 
 // scopeIsNotTheVaultItself refuses a scope written as an absolute path, before
-// any folder is opened, and names the word to move.
-//
-// This command takes two directory-shaped words that read alike at a shell and
-// mean opposite things: the vault to judge, which goes after --root, and a
-// filter narrowing the judging to part of that vault, which is spelled the way
-// the vault spells it — from the vault's own root, with no leading slash. A
-// reader who types the vault where a filter goes has written something that
-// cannot name a filter at all.
-//
-// The engine refuses the same shape for its own callers, in its own words. It
-// cannot say this sentence, because the word to move is a flag and the engine
-// takes no flags; and saying it only there would mean opening a folder first,
-// so a reader standing outside their vault would be told their folder carries
-// no contract rather than which word they misplaced.
+// any folder is opened, and names the word to move. The command takes two
+// directory-shaped words that read alike: the vault, after --root, and a
+// filter, spelled from the vault's own root. Refusing here rather than in the
+// engine keeps a reader outside their vault from being told it has no contract.
 func scopeIsNotTheVaultItself(positionals []string) error {
 	for _, p := range positionals {
 		if !filepath.IsAbs(p) && !strings.HasPrefix(p, "/") {
@@ -235,15 +225,9 @@ func (args *commandArgs) setFlag(name, value string) error {
 }
 
 // contractGuidance is the paragraph a person needs after a refusal a program
-// only needs the first line of. It is written for whoever typed the command:
-// what is missing, where it belongs, why these commands need it, and the face
-// that needs none of it.
-//
-// Naming the contract's path is not the redaction those commands refuse. What
-// they refuse is the decoder's account of an existing file's keys, which would
-// send vault content out under the very policy that is missing. Where the file
-// is supposed to live is not vault content, and a refusal that will not say
-// what is missing leaves the reader with nothing to do.
+// only needs the first line of. Naming where the contract belongs is not the
+// redaction these commands refuse: what they withhold is an account of an
+// existing file's keys, which is vault content, and a path is not.
 func contractGuidance(err error) string {
 	switch {
 	case errors.Is(err, judge.ErrNoVaultContract):

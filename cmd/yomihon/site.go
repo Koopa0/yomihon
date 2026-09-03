@@ -47,20 +47,11 @@ type readingSite struct {
 	closeErr  error
 }
 
-// logPolicyFaults says why a contract that loaded still could not be used.
-//
-// The adjudication commands refuse to print this themselves: their output is
-// written for a program to read, and stating the reason would quote the vault
-// back out under exactly the policy that is missing. What they do instead is
-// name two places the operator can read it — the page, and this log — so the
-// silence there is only defensible if the naming here is true.
-//
-// The reason is given in full. This log is written on the operator's own
-// machine, for the operator, about a file they wrote; the withholding is a
-// rule about what a program consuming the output may be shown, and nothing
-// here is that output. A policy that was read cleanly earns no line, because a
-// warning printed on every ordinary start is one nobody reads on the start
-// that matters.
+// logPolicyFaults says why a contract that loaded still could not be used. The
+// adjudication commands withhold the reason because their output is written
+// for a program to read; this log is written on the operator's own machine
+// about a file they wrote, so it carries the reason in full. A policy that was
+// read cleanly earns no line: a warning on every start is one nobody reads.
 func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 	for _, fault := range []struct {
 		capability string

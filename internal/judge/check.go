@@ -12,19 +12,13 @@ import (
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
-// Check scans the vault rooted at root for corpus-level findings — broken and
-// title-only links, alias collisions, unresolved provenance, syllabus-vs-disk
-// mismatches, dead file references, and frontmatter schema violations — and
-// returns them in the deterministic wire order. The graph is always built from
-// the whole vault; findings touching a contract-declared private path are
-// dropped in every scope, and the default scope additionally drops findings
-// that touch only System/ files, which cite reference material rather than
-// carry live links. A missing, malformed, or privacy-incomplete schema contract
-// is an error because agent-facing output has no authority without it.
-//
-// A cancelled ctx stops the scan: the contract load, the file walk and every
-// note read are checked against it, so a caller that gives up is not left
-// waiting on a whole vault.
+// Check scans the vault rooted at root for corpus-level findings and returns
+// them in the deterministic wire order. The graph is always built from the
+// whole vault; findings touching a contract-declared private path are dropped
+// in every scope, and the default scope also drops findings touching only
+// System/ files. A missing or privacy-incomplete contract is an error, because
+// agent-facing output has no authority without one. A cancelled ctx stops the
+// scan at the contract load, the walk, or any note read.
 func Check(ctx context.Context, root string) ([]Finding, error) {
 	return runCheckAction(ctx, root, nil, false)
 }
@@ -127,36 +121,11 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 }
 
 // filterByPaths keeps only findings that touch one of the given path prefixes.
-// A finding is kept when its citing path or any collision member equals a
-// prefix or lies beneath it. Each prefix is normalized the way the scan
-// canonicalizes what it observed — forward slashes, no trailing slash, no
-// leading "./", composed form — so a path typed at a shell matches the vault's
-// own spelling of it, including one written in decomposed form by a Mac
-// keyboard.
-//
-// A prefix that cannot match anything is refused rather than filtered with. An
-// argument that is empty or only slashes names no path at all; one that names
-// something the scan never observed is a scope this command cannot see; and one
-// the contract withholds from agent-facing output is a scope this command may
-// see but may report nothing from. All three would otherwise return no findings
-// and exit as though the scope were clean, which is the one answer an
-// adjudication face must never give about ground it did not cover — a typo, or
-// a private directory, would read as a verdict. The vault root is the exception
-// it looks like: it names everything, so it filters nothing out, and a whole
-// folder read carries no claim about any one directory inside it.
-//
-// The withheld check runs before the observation check on purpose. Answering
-// "names nothing in this vault" for a path inside a private directory would
-// make the pair of refusals an existence oracle over exactly the directory the
-// contract closed; one uniform answer for every path under it tells the caller
-// only what their own contract already says.
-//
-// The shape check runs ahead of both, and cannot be an oracle for the same
-// reason: it reads the argument's own letters and asks neither the contract nor
-// the scan anything. It is here rather than in whatever parsed the argument so
-// that every caller gets it. A vault path handed straight to this function used
-// to come back as a scope the contract withholds, which told an operator whose
-// contract withholds nothing that his own vault root was private.
+// Each is canonicalized the way the scan canonicalizes what it observed, so a
+// decomposed spelling still matches the vault's own. A prefix that cannot match
+// anything is refused rather than filtered with, since an empty answer would
+// read as a clean verdict over ground never covered; the refusals are ordered
+// — shape, then withheld, then unobserved — so none becomes an existence oracle.
 func filterByPaths(findings []Finding, paths []string, scan vaultfs.Scan, authority scanAuthority) ([]Finding, error) {
 	if err := scopeIsWrittenFromTheVaultRoot(paths); err != nil {
 		return nil, err
@@ -179,18 +148,11 @@ func filterByPaths(findings []Finding, paths []string, scan vaultfs.Scan, author
 	}), nil
 }
 
-// scopeIsWrittenFromTheVaultRoot refuses a scope written as an absolute path.
-//
-// A scope names part of the vault the way the vault spells it — from the
-// vault's own root, with no leading slash — so an absolute one names nothing
-// this face can hold. Without this the refusal came from the withheld check
-// further down, because a path outside the vault is a path the privacy policy
-// cannot answer about, and an operator whose contract withholds nothing was
-// told his own vault root was private.
-//
-// It reads the shape of the argument and not what is on disk at it, which keeps
-// it truthful whether or not a vault happens to sit there, and keeps this face
-// out of the filesystem it reaches through one rooted path only.
+// scopeIsWrittenFromTheVaultRoot refuses a scope written as an absolute path. A
+// scope names part of the vault the way the vault spells it, from the vault's
+// own root, so an absolute one names nothing this face can hold. It reads the
+// argument's shape and not what is on disk at it, which keeps it truthful
+// wherever it is called and keeps this face out of the filesystem.
 func scopeIsWrittenFromTheVaultRoot(scopes []string) error {
 	for _, p := range scopes {
 		if !filepath.IsAbs(p) && !strings.HasPrefix(p, "/") {

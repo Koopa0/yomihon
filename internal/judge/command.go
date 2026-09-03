@@ -15,14 +15,11 @@ import (
 
 // The three subcommands — check, coverage, exists — run as stateless actions:
 // a process opens the selected vault once, captures its complete file domain,
-// prints, and exits. There is no server, daemon, or persistent store behind
-// them. Each runner takes already-parsed options and returns the bytes to print
-// and the process exit code, so the binary's main only wires arguments in and
-// the exit code out, and every exit-code decision is exercised by a test.
-//
-// Exit codes match the frozen contract the pipelines depend on: 0 clean, 1 a
-// gate hit or a "does not exist", 2 a tool error. A tool error is returned as a
-// non-nil error, which the binary reports and turns into exit 2.
+// prints, and exits. Each runner takes already-parsed options and returns the
+// bytes to print and the process exit code, so the binary's main only wires
+// arguments in and the exit code out. Those codes are the frozen contract the
+// pipelines depend on: 0 clean, 1 a gate hit or a "does not exist", 2 a tool
+// error, which a runner reports as a non-nil error.
 
 // ruleIDs is every rule a finding can carry. A --deny value is validated
 // against it so a typo fails loudly instead of silently disabling the gate.
@@ -30,10 +27,8 @@ var ruleIDs = allRuleIDs()
 
 // allRuleIDs lists the rules this package decides for itself, then appends the
 // study-path rules from the grammar that names them. The grammar's half is
-// asked for rather than copied: a rule it gains later arrives here with it, so
-// a vault that trips the new rule can still be gated on it by name. A hand copy
-// would leave that rule undeniable and the omission would show up as a working
-// gate that quietly lets one rule through.
+// asked for rather than copied, so a rule it gains later can still be gated on
+// by name instead of being silently undeniable.
 func allRuleIDs() []string {
 	ids := []string{
 		"link.title_not_alias",
@@ -57,9 +52,8 @@ func allRuleIDs() []string {
 		"collision.name",
 		predecessorNotArchivedRule,
 		archivedNavigationRule,
-		// The authoring contract's own rules. schema.language is emitted but was
-		// never listed here, so this list is kept honest by a test that compares it
-		// against what the rules actually emit.
+		// The authoring contract's own rules. This list has to match what the
+		// rules emit, in both directions.
 		"schema.language",
 	}
 	for _, rule := range sequence.Rules() {
@@ -83,9 +77,8 @@ const (
 )
 
 // String names a format with the spelling ParseFormat accepts, so a message
-// about a format and the flag a reader would type to ask for it are the same
-// word. A value outside the three constants is a programming error and has no
-// spelling, so it panics rather than inventing one a reader could not type.
+// and the flag a reader would type are the same word. A value outside the three
+// constants has no spelling and panics rather than inventing one.
 func (f Format) String() string {
 	switch f {
 	case FormatJSON:
@@ -319,12 +312,10 @@ func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionH
 	return preparedCommand{stdout: stdout, exit: exit, action: a}, nil
 }
 
-// gated reports whether any finding reaches the deny gate. A --deny token is
-// either a severity keyword or a rule id, and the two coexist: a severity
-// keyword gates any finding at or above the lowest denied severity — so
-// denying error gates every error without naming each schema rule — while a
-// rule id gates a finding of that rule, but only at warn or above, so an
-// info-level tracked forward-reference never gates through its rule id.
+// gated reports whether any finding reaches the deny gate. A severity keyword
+// gates any finding at or above the lowest denied severity; a rule id gates a
+// finding of that rule, but only at warn or above, so an info-level tracked
+// forward-reference never gates through its rule id.
 func gated(findings []Finding, deny []string) bool {
 	threshold, hasThreshold := minDeniedSeverity(deny)
 	for i := range findings {
@@ -376,13 +367,10 @@ func isSeverityKeyword(s string) bool {
 }
 
 // parseBaseline collects the fingerprints from a prior run's JSONL, for a
-// delta. The file is held to what this binary itself writes: every non-blank
-// line must be a JSON object carrying a string fingerprint whose value starts
-// with the current algorithm-version prefix. Anything less stops the run with
-// the offending line's number — a skipped line would subtract less than the
-// caller believes and report old findings as new, and a whole file of
-// foreign-version fingerprints would subtract nothing at all while looking
-// honored. An empty file is a valid, empty baseline.
+// delta. Every non-blank line must be a JSON object carrying a string
+// fingerprint starting with the current algorithm-version prefix; anything less
+// stops the run with the offending line's number, because a skipped line would
+// subtract less than the caller believes. An empty file is a valid baseline.
 func parseBaseline(jsonl string) (map[string]bool, error) {
 	set := make(map[string]bool)
 	lineNo := 0

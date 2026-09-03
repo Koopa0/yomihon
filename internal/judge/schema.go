@@ -13,23 +13,10 @@ import (
 )
 
 // checkSchema validates every knowledge note's frontmatter against the
-// contract and returns the resulting findings, all at error severity. Scope
-// follows the contract's own scan policy: only notes whose first path segment
-// is a knowledge directory, and never a skipped basename. The findings are in
-// per-note emission order; the deterministic total order is applied before
-// they are written.
-//
-// A contract that declares no knowledge directory lints nothing here. That is
-// the opposite of what the reading surfaces answer for the same silence, and
-// deliberately so: a surface that hid every file would show an empty vault,
-// while a judge that linted every file would hold notes to rules their author
-// never claimed covered them. Which spelling of a directory counts is not
-// deliberate in the same way, so the membership test folds case the way the
-// privacy and artifact scopes do.
-//
-// The only failure is a slug pattern in the contract that is not a valid
-// regular expression, which is a fault in the contract file rather than in
-// any note.
+// contract, all findings at error severity. Scope follows the contract's own
+// scan policy, and a contract declaring no knowledge directory lints nothing:
+// linting every file would hold notes to rules their author never claimed. The
+// only failure is a slug pattern that is not a valid regular expression.
 func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 	run, err := newLintRun(contract)
 	if err != nil {
@@ -52,21 +39,9 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 
 // checkKnowledgeScope reports each knowledge directory the contract declares
 // that nothing in this vault answers to. Such an entry turns the frontmatter
-// rules off for the ground its author meant to govern — a misspelling, a folder
-// that was renamed, a contract copied from another vault — and every gate stays
-// green while it does, because the notes the rules were written for are simply
-// never examined. It is the configuration that speaks here rather than each
-// note, and at error severity: a whole set of rules reaching nothing outweighs
-// any single note breaking one.
-//
-// A directory the scan saw answers whether or not anything is in it: an inbox
-// its owner has emptied is the folder the contract named, waiting for the next
-// capture, and telling him to fix his contract over it would be advice to
-// break a vault that is correct. So a declaration is answered either by the
-// directory itself or by a file below it — the scan's files, not its notes,
-// since a folder holding only pictures is governed ground with no frontmatter
-// to judge yet, and since the directory is only observable under the exact
-// spelling that was declared while a file below it is matched under any.
+// rules off for the ground its author meant to govern while every gate stays
+// green. A declaration is answered by the directory itself or by any file
+// below it, so an emptied inbox is still the folder the contract named.
 func checkKnowledgeScope(scan vaultfs.Scan, contract *schema.Contract) []Finding {
 	declared := contract.Definition().Scan.KnowledgeDirs
 	if len(declared) == 0 {
@@ -92,13 +67,9 @@ func checkKnowledgeScope(scan vaultfs.Scan, contract *schema.Contract) []Finding
 }
 
 // unmatchedKnowledgeDir builds one finding for a declared knowledge directory
-// nothing on disk answers to. The declared value is the path the finding
-// carries: it is the ground the contract claims, it is a single safe component
-// by the contract's own validation, and it is what the contract's privacy
-// policy is asked about, so a directory declared both private and knowledge
-// drops out of agent-facing output through the ordinary filter. The fingerprint
-// keys on the declared value alone, since the fault is one line of the contract
-// rather than anything in the vault's files.
+// nothing on disk answers to. The finding carries the declared value as its
+// path, so the privacy policy is asked about that same value; the fingerprint
+// keys on it alone, the fault being one line of the contract.
 func unmatchedKnowledgeDir(dir string) Finding {
 	return Finding{
 		RuleID:          "schema.unmatched_knowledge_dir",
@@ -113,29 +84,17 @@ func unmatchedKnowledgeDir(dir string) Finding {
 	}
 }
 
-// systemDocumentGroup is the status group whose members are a vault's own
-// working documents — its templates, guides and system notes — rather than
-// knowledge it wrote. Membership is the contract's answer, one type at a time;
-// only the name of the group is this face's, and it is a word rather than a
-// derivation because nothing in the contract marks a group as holding
-// documents. That is a gap in the contract's vocabulary, and until it is
-// closed, a vault filing its documents under a group of another name has the
-// full knowledge-note rules applied to its templates. Naming it once at least
-// keeps the routing and the enum the routed rule reads from drifting apart.
+// systemDocumentGroup is the status group holding a vault's own working
+// documents rather than knowledge it wrote. Membership is the contract's
+// answer; only the group's name is this face's, because nothing in the
+// contract marks a group as holding documents. A vault filing its documents
+// under another name has the full knowledge-note rules applied to them.
 const systemDocumentGroup = "system"
 
 // lintRun is one contract resolved into everything the frontmatter rules read,
 // held together for the length of one scan. Every field is derived from the
-// contract and derived exactly once: the definition it publishes, the slug
-// pattern compiled from that definition, whether a note has to carry a
-// frontmatter block at all, what a capture of undecided shape is required to
-// carry, and which type this vault files its distilled ideas under — together
-// with whether it keeps such a corpus at all, since a vault that keeps none has
-// nothing for the provenance rule to be about.
-//
-// They travel together because they have to agree. Passed separately they were
-// six arguments a caller could mix from two different contracts with nothing
-// objecting, and each new rule added a seventh.
+// contract exactly once, and they travel together because they have to agree:
+// passed separately, a caller could mix them from two different contracts.
 type lintRun struct {
 	contract            *schema.Contract
 	definition          schema.Definition
@@ -168,10 +127,9 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 }
 
 // note returns the frontmatter findings for one in-scope note, in the
-// contract's reading order: the type enum, unknown keys, the optional article
-// language, the lesson-only rules, then either the light document rules or the
-// full knowledge-note rules. That order is the tiebreak the stable sort
-// preserves among findings that share a path and rule id.
+// contract's reading order: the type enum, unknown keys, the article language,
+// the lesson-only rules, then either the light document rules or the full
+// knowledge-note rules. That order is the tiebreak the stable sort preserves.
 func (r *lintRun) note(n *note, seg []string) []Finding {
 	if n.noFrontmatter {
 		if r.requiresFrontmatter {
@@ -196,10 +154,8 @@ func (r *lintRun) note(n *note, seg []string) []Finding {
 		out = append(out, r.lessonSlug(n)...)
 	}
 
-	// A vault's templates, guides and system documents carry only the light
-	// status rule; the full knowledge-note rules below do not apply to them.
-	// The group the type belongs to is resolved once and travels to the rule,
-	// so the enum the rule reads is the group it was routed by.
+	// The group is resolved once and travels to the rule, so the enum the rule
+	// reads is the group it was routed by.
 	if hasType && r.contract.StatusGroup(ty) == systemDocumentGroup {
 		return append(out, r.documentStatus(n, systemDocumentGroup)...)
 	}
@@ -254,9 +210,8 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 }
 
 // documentStatus reports a document's status outside the status set its own
-// group declares. The group is the one the caller routed by rather than a
-// second spelling of it, so the enum checked here is always the enum that
-// decided this note is a document.
+// group declares. The group is the one the caller routed by, so the enum
+// checked here is the enum that decided this note is a document.
 func (r *lintRun) documentStatus(n *note, group string) []Finding {
 	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(r.definition.Enums.Status[group], st) {
 		return []Finding{schemaFinding(n, "schema.enum", "status", true, st, "is not a valid system status")}
@@ -270,11 +225,8 @@ func (r *lintRun) documentStatus(n *note, group string) []Finding {
 func (r *lintRun) knowledge(n *note, seg []string) []Finding {
 	var out []Finding
 	out = append(out, r.required(n)...)
-	// The contract resolves a declared type's group; a type outside the
-	// contract resolves to none, and its status still reads against the
-	// general note group — the type already carries its own finding, and a
-	// group that does not exist could neither name the enum to check nor
-	// the group to blame in the reason.
+	// A type outside the contract resolves to no group and reads against the
+	// general note group; it already carries its own finding.
 	group := cmp.Or(r.contract.StatusGroup(n.noteType), "note")
 	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(r.definition.Enums.Status[group], st) {
 		reason := "is not a valid status"
@@ -288,12 +240,10 @@ func (r *lintRun) knowledge(n *note, seg []string) []Finding {
 	return out
 }
 
-// required reports each required field that is absent or blank. A capture
-// of undecided shape answers to the field set the contract declares for one, in
-// place of the general set; where the contract declares none it answers to the
-// general set with the domain requirement waived, since such a capture is not
-// classified by knowledge domain. The same waiver covers the types the contract
-// exempts (system docs, research briefs).
+// required reports each required field that is absent or blank. A capture of
+// undecided shape answers to the field set the contract declares for one; where
+// the contract declares none it answers to the general set with the domain
+// requirement waived, as do the types the contract exempts.
 func (r *lintRun) required(n *note) []Finding {
 	ty, hasType := fmScalar(n.frontmatter, "type")
 	isInbox := hasType && ty == r.inboxType
@@ -339,17 +289,10 @@ func (r *lintRun) enumFields(n *note) []Finding {
 }
 
 // conceptDomainRoot and lessonDomainRoot are the two folders the human and
-// markdown reports read a finding's knowledge domain out of. They are written
-// here, beside the rule that derives the same convention, so the one spelled
-// twice is visible as such: the rule below takes its roots from what the
-// contract declares under domain_equals_folder_under, and this vault declares
-// Concepts there — so the report's copy of that folder disagrees with the rules
-// the day a vault renames it, and it disagrees quietly, filing everything under
-// the no-domain heading while the rules go on working.
-//
-// The lesson root cannot be derived at all: no key in the contract names where
-// a vault keeps its lessons, so there is nothing to ask. Naming it beside its
-// derivable neighbour states the gap rather than inventing a derivation.
+// markdown reports read a finding's knowledge domain out of. The concept root
+// is a second spelling of what the contract declares under
+// domain_equals_folder_under, so a vault that renames it files everything under
+// the no-domain heading; the lesson root no contract key names at all.
 const (
 	conceptDomainRoot = "Concepts/"
 	lessonDomainRoot  = "Writing/lessons/"
@@ -374,11 +317,9 @@ func (r *lintRun) structural(n *note, seg []string) []Finding {
 			}
 		}
 	}
-	// Asking a distilled idea where it came from presupposes a corpus of them,
-	// and which type holds that corpus — and whether this vault keeps one at
-	// all — is the contract's to say. A vault that declares none has nothing
-	// for this rule to be about, and its notes already carry the finding that
-	// says the type is not one the contract lists.
+	// Which type holds the corpus of distilled ideas, and whether this vault
+	// keeps one at all, is the contract's to say; a vault declaring none has
+	// nothing for this rule to be about.
 	if ty, ok := fmScalar(n.frontmatter, "type"); ok && r.conceptDeclared && ty == r.conceptType &&
 		!hasProvenance(n.frontmatter, r.definition.Rules.ConceptRequiresProvenance) {
 		out = append(out, schemaFinding(n, "schema.provenance", "", false, "", "concept has neither based_on nor source_locator"))
@@ -412,11 +353,8 @@ func hasProvenance(fm map[string]fmValue, fields []string) bool {
 
 // schemaRuleSource names the artifact holding one frontmatter rule's
 // authority. The four structural rules each enforce a single key the
-// contract's [rules] table declares — slug_pattern,
-// domain_equals_folder_under, forbid_tag_with_slash, and
-// concept_requires_provenance — so they anchor there; every other
-// frontmatter rule reads the contract's type, field, and status declarations
-// across several tables and cites the file without an anchor.
+// contract's [rules] table declares, so they anchor there; every other rule
+// reads several tables and cites the file without an anchor.
 func schemaRuleSource(ruleID string) string {
 	switch ruleID {
 	case "schema.slug", "schema.domain_folder", "schema.legacy_tag", "schema.provenance":
@@ -427,20 +365,17 @@ func schemaRuleSource(ruleID string) string {
 }
 
 // schemaFinding builds one frontmatter finding. The message reads "<field>
-// <reason>" for a blank value and `<field> "<value>" <reason>` otherwise,
-// where the field name falls back to "frontmatter" when the fault is not tied
-// to a single field. The evidence and action strings are fixed, the source
-// follows the rule, and the fingerprint folds the field name and the
-// violating value together so two blank-valued findings on one note stay
-// distinct.
+// <reason>" for a blank value and `<field> "<value>" <reason>` otherwise, with
+// the field name falling back to "frontmatter". The fingerprint folds the field
+// name and the violating value together, so two blank-valued findings on one
+// note stay distinct.
 func schemaFinding(n *note, ruleID, field string, hasField bool, value, reason string) Finding {
 	what := "frontmatter"
 	if hasField {
 		what = field
 	}
-	// The value is wrapped in literal double quotes and left otherwise
-	// verbatim; the JSON encoder escapes those quotes when the line is
-	// written, so the value's own bytes stay unchanged in the message.
+	// The value is wrapped in literal double quotes and otherwise unchanged;
+	// the encoder escapes those quotes, so its own bytes reach the message.
 	message := what + " " + reason
 	if value != "" {
 		message = what + ` "` + value + `" ` + reason
@@ -465,22 +400,11 @@ func schemaFinding(n *note, ruleID, field string, hasField bool, value, reason s
 }
 
 // LintFrontmatter reports what the check command would say about one note's
-// frontmatter, given the note's vault-relative path and its bytes.
-//
-// It exists so the reading pages can show a reader the same verdict the
-// command reports. They had no way to reach it and went nearly silent about
-// faults the command calls errors, which left the two faces of one program
-// disagreeing about the same file.
-//
-// The note's own bytes are what this takes, rather than a frontmatter already
-// parsed elsewhere, because the two parses are deliberately different: the
-// reading parse decodes into a map and is content with what it can read, while
-// this one walks the YAML nodes so it can see a key written twice and refuse a
-// name the schema would resolve to a number. Linting the looser parse would be
-// a second, quieter set of rules — the thing that must not exist twice.
-//
-// The findings come back in the order the command puts them in, so a page and
-// a command listing the same note's faults list them the same way round.
+// frontmatter, so a reading page and the command cannot disagree about a file.
+// It takes the note's own bytes rather than a frontmatter parsed elsewhere,
+// because this parse walks the YAML nodes to see a key written twice; linting
+// the reading parse would be a second, quieter set of rules. The findings come
+// back in the order the command puts them in.
 func LintFrontmatter(relPath string, data []byte, contract *schema.Contract) ([]Finding, error) {
 	if contract == nil {
 		return nil, nil
