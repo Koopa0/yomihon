@@ -98,8 +98,10 @@ The schema rules judge the files inside the contract's
 `scan.knowledge_dirs`, and the judge drops every finding under `System/`
 by a rule of its own, written in code rather than in the contract. The
 write face follows the same declared layer: a note outside it is read
-like any other, its page names the layer that withheld the controls, and
-a transition posted for it is refused without touching the file. A
+like any other; when the schema has nothing to report about its
+frontmatter, its status panel names the layer that withheld the controls
+(a frontmatter fault is reported first there, as on any page); and a
+transition posted for it is refused without touching the file. A
 contract that declares no `scan.knowledge_dirs` declares no boundary, and
 the write face stays open everywhere — that is the declaration's meaning,
 not a gap. The boundary lives in the contract and nowhere else: a note
