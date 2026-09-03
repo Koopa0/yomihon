@@ -85,7 +85,11 @@ try {
 
   const before = await page.evaluate(() => document.scrollingElement.scrollTop);
   await page.keyboard.press('Space');
-  await page.waitForTimeout(200);
+  // A key scroll is animated and lands whenever the compositor gets to it, so
+  // the probe waits for the movement itself rather than a fixed slice of time;
+  // a slow runner is not a page that failed to move, but a page that never
+  // moves still fails at the deadline below.
+  await page.waitForFunction((from) => document.scrollingElement.scrollTop > from, before, { timeout: 2000 }).catch(() => {});
   const after = await page.evaluate(() => document.scrollingElement.scrollTop);
   if (after <= before) {
     fail('space-moves-the-prose',
