@@ -126,7 +126,7 @@ func TestAnAliasHitRanksWithTheTitleItStandsFor(t *testing.T) {
 			Aliases: []string{"green thread"}, PlainText: "unrelated words"},
 	}, validArtifactPolicy(t))
 
-	results, err := idx.Search(lexical.Parse("green thread"))
+	results, _, err := idx.SearchN(lexical.Parse("green thread"), -1)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}

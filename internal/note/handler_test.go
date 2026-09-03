@@ -3182,7 +3182,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 			if shown != f.wantText {
 				t.Errorf("GET /notes/%s renders its characters = %v, want %v", f.rel, shown, f.wantText)
 			}
-			results, err := store.Current().Search().Search(lexical.Parse(f.term))
+			results, _, err := store.Current().Search().SearchN(lexical.Parse(f.term), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", f.term, err)
 			}

@@ -77,7 +77,7 @@ func TestViewConcurrentReadersCannotMutateGeneration(t *testing.T) {
 					folders := request.Navigation().Folders()
 					folders[0].Name = "mutated"
 
-					results, err := request.Search().Search(lexical.Parse("Foo"))
+					results, _, err := request.Search().SearchN(lexical.Parse("Foo"), -1)
 					if err != nil {
 						t.Errorf("Search(Foo) error = %v", err)
 						continue

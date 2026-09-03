@@ -12,7 +12,7 @@ func BenchmarkSearch(b *testing.B) {
 	q := Parse("kafka concept")
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = idx.Search(q) //nolint:errcheck // benchmark fixture is validated before timing; only ranking cost is measured
+		_, _, _ = idx.SearchN(q, -1) //nolint:errcheck // benchmark fixture is validated before timing; only ranking cost is measured
 	}
 }
 
