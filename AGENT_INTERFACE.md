@@ -95,13 +95,15 @@ vault declaration.
 
 The schema rules judge the files inside the contract's
 `scan.knowledge_dirs`, and the judge drops every finding under `System/`
-by a rule of its own, written in code rather than in the contract. A
-governed-looking file elsewhere is scanned for links but not held to the
-schema, while the reading page shows its schema faults and the write
-face accepts its transitions regardless. The boundary lives in the
-contract and nowhere else — a note cannot declare itself into governance
-by carrying the fields — and whether the notes under `System/` join it
-is the contract owner's open question.
+by a rule of its own, written in code rather than in the contract. The
+write face follows the same declared layer: a note outside it is read
+like any other, its page names the layer that withheld the controls, and
+a transition posted for it is refused without touching the file. A
+contract that declares no `scan.knowledge_dirs` declares no boundary, and
+the write face stays open everywhere — that is the declaration's meaning,
+not a gap. The boundary lives in the contract and nowhere else: a note
+cannot declare itself into governance by carrying the fields, and the
+directories the contract leaves out join it the day they are declared.
 
 ### `coverage --format json` — one JSON object
 

@@ -58,6 +58,15 @@ func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 			token: "instance",
 			mark:  wording.StatusUnreadable.In(wording.ZhHant),
 		},
+		faceOutsideScope: {
+			view: with(func(v *NoteView) {
+				v.RelPath = "System/agent-guides/L05.md"
+				v.Status = "draft"
+				v.OutsideKnowledgeScope = true
+			}),
+			token: "instance",
+			mark:  wording.OutsideKnowledgeScope.In(wording.ZhHant),
+		},
 		faceNoTransitions: {
 			view:  with(func(v *NoteView) { v.Status = "published" }),
 			token: "instance",
@@ -124,28 +133,33 @@ func TestTheWriteFaceStatesOverrideInOneOrder(t *testing.T) {
 	}{
 		{
 			name: "a note the folder does not govern says so before anything else",
-			view: NoteView{Governed: true, NonInstance: true, WriteDiagnostic: "unreadable", NoFrontmatter: true},
+			view: NoteView{Governed: true, NonInstance: true, WriteDiagnostic: "unreadable", NoFrontmatter: true, OutsideKnowledgeScope: true},
 			want: faceNonInstance,
 		},
 		{
 			name: "a write face that could not open outranks what the frontmatter says",
-			view: NoteView{Governed: true, WriteDiagnostic: "unreadable", NoFrontmatter: true, Status: "seed", StatusUnknown: true},
+			view: NoteView{Governed: true, WriteDiagnostic: "unreadable", NoFrontmatter: true, Status: "seed", StatusUnknown: true, OutsideKnowledgeScope: true},
 			want: faceWriteUnavailable,
 		},
 		{
 			name: "no frontmatter at all outranks the status read out of it",
-			view: NoteView{Governed: true, NoFrontmatter: true},
+			view: NoteView{Governed: true, NoFrontmatter: true, OutsideKnowledgeScope: true},
 			want: faceNoFrontmatter,
 		},
 		{
 			name: "a status outside the list outranks having no move to offer",
-			view: NoteView{Governed: true, Status: "seed", StatusUnknown: true},
+			view: NoteView{Governed: true, Status: "seed", StatusUnknown: true, OutsideKnowledgeScope: true},
 			want: faceStatusUnknown,
 		},
 		{
 			name: "a status nothing could be read from outranks having no move to offer",
-			view: NoteView{Governed: true},
+			view: NoteView{Governed: true, OutsideKnowledgeScope: true},
 			want: faceStatusUnreadable,
+		},
+		{
+			name: "the layer that withheld the moves is named before the schema is blamed for them",
+			view: NoteView{Governed: true, Status: "draft", OutsideKnowledgeScope: true},
+			want: faceOutsideScope,
 		},
 		{
 			name: "a readable status with nowhere to go is its own state",
@@ -163,32 +177,49 @@ func TestTheWriteFaceStatesOverrideInOneOrder(t *testing.T) {
 	}
 }
 
-// TestTheNonInstanceNoticeSpeaksTheReadersLanguage holds the one sentence that
-// used to be resolved once at start-up, in the default language, for every
-// reader. Both status faces show it, and both are handed a view that says which
-// language the page is written in.
-func TestTheNonInstanceNoticeSpeaksTheReadersLanguage(t *testing.T) {
+// TestTheUngovernedNoticesSpeakTheReadersLanguage holds the two sentences that
+// say the lifecycle does not reach this note. One of them used to be resolved
+// once at start-up, in the default language, for every reader. Both status
+// faces show either, and both are handed the language the page is written in.
+func TestTheUngovernedNoticesSpeakTheReadersLanguage(t *testing.T) {
 	t.Parallel()
 
-	if wording.NonInstanceReason.In(wording.ZhHant) == wording.NonInstanceReason.In(wording.En) {
-		t.Fatal("the notice reads the same in both languages, so nothing below can tell them apart")
+	notices := []struct {
+		name   string
+		view   NoteView
+		phrase wording.Phrase
+	}{
+		{
+			name:   "the folder holds this note outside its lifecycle",
+			view:   NoteView{Governed: true, NonInstance: true, RelPath: "System/templates/T.md"},
+			phrase: wording.NonInstanceReason,
+		},
+		{
+			name:   "the declared knowledge layer withheld the moves",
+			view:   NoteView{Governed: true, Status: "draft", OutsideKnowledgeScope: true, RelPath: "System/agent-guides/L05.md"},
+			phrase: wording.OutsideKnowledgeScope,
+		},
 	}
-	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		t.Run(string(lang), func(t *testing.T) {
-			t.Parallel()
-			view := NoteView{Governed: true, NonInstance: true, RelPath: "System/templates/T.md"}
-			for faceName, component := range map[string]templ.Component{
-				"the rail panel": statusPanel(view, lang),
-				"the foot bar":   statusBar(view, lang),
-			} {
-				var buf bytes.Buffer
-				if err := component.Render(t.Context(), &buf); err != nil {
-					t.Fatalf("render %s: %v", faceName, err)
+	for _, notice := range notices {
+		if notice.phrase.In(wording.ZhHant) == notice.phrase.In(wording.En) {
+			t.Fatalf("%s reads the same in both languages, so nothing below can tell them apart", notice.name)
+		}
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			t.Run(notice.name+"/"+string(lang), func(t *testing.T) {
+				t.Parallel()
+				for faceName, component := range map[string]templ.Component{
+					"the rail panel": statusPanel(notice.view, lang),
+					"the foot bar":   statusBar(notice.view, lang),
+				} {
+					var buf bytes.Buffer
+					if err := component.Render(t.Context(), &buf); err != nil {
+						t.Fatalf("render %s: %v", faceName, err)
+					}
+					if got := buf.String(); !strings.Contains(got, notice.phrase.In(lang)) {
+						t.Errorf("%s does not say why in %q; html = %q", faceName, lang, got)
+					}
 				}
-				if got := buf.String(); !strings.Contains(got, wording.NonInstanceReason.In(lang)) {
-					t.Errorf("%s does not say why in %q; html = %q", faceName, lang, got)
-				}
-			}
-		})
+			})
+		}
 	}
 }

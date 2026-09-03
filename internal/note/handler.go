@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -325,6 +326,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		StatusUnknown:       state.statusUnknown,
 		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, lang),
 		FlippedFrom:         flippedFrom,
+		// The layer that withheld the transition set, when that is why it is
+		// empty, so the page names it instead of the schema.
+		OutsideKnowledgeScope: state.outsideLayer(),
 		// The receipt for a change the face cannot walk back carries the
 		// recovery sentence; a reversible one leaves undoing to the controls
 		// already on the page.
@@ -460,10 +464,11 @@ func titleTruncatedAtHash(relPath, title string, lang wording.Lang) (render.Diag
 }
 
 // governance is where the request's two authorities put one note: the folder
-// governs it, the folder holds it outside the lifecycle, or neither can be
-// asked. The three answers are exclusive and exhaustive, which is what a pair
-// of booleans could not state — the pair also admits both-true, and reads on
-// an unanswerable request as "not an artifact, therefore an instance".
+// governs it, the folder declared a knowledge layer this note sits outside of,
+// the folder holds it outside the lifecycle, or neither authority can be asked.
+// The four answers are exclusive and exhaustive, which is what a set of
+// booleans could not state — booleans also admit both-true, and read on an
+// unanswerable request as "not an artifact, therefore an instance".
 type governance uint8
 
 const (
@@ -474,6 +479,11 @@ const (
 	// governedInstance is a note the folder's lifecycle governs: the page
 	// offers its status face and, for a lesson, its lesson affordances.
 	governedInstance
+	// outsideKnowledgeLayer is a note the contract never placed under its state
+	// machine: it sits outside the directories scan.knowledge_dirs declares, so
+	// the page names the layer rather than claiming the schema defines nothing
+	// onward. It is still a note, and reads as one.
+	outsideKnowledgeLayer
 	// readableArtifact is a note the folder holds outside its lifecycle —
 	// readable, never adjudicated. The page says so rather than apologising
 	// for a status face that was never meant to be there.
@@ -483,13 +493,17 @@ const (
 // classifyGovernance places one note against two authority samples taken at
 // different instants: the request's captured lifecycle view, and the
 // snapshot's own artifact capture. A note is placed only while both still
-// answer, whichever was taken first.
+// answer, whichever was taken first. The knowledge layer is the contract's own
+// and does not move, so the lifecycle view answers for it alone.
 func classifyGovernance(lifecycle status.Authority, policy schema.ArtifactPolicy, relPath string) governance {
 	if lifecycle.Closed() || !policy.Available() {
 		return governanceUnavailable
 	}
 	if policy.IsNonInstance(relPath) {
 		return readableArtifact
+	}
+	if errors.Is(lifecycle.WhyUngoverned(relPath), status.ErrOutsideKnowledgeScope) {
+		return outsideKnowledgeLayer
 	}
 	return governedInstance
 }
@@ -513,13 +527,23 @@ type governanceState struct {
 	statusUnknown bool
 }
 
-// instance reports a note the folder's lifecycle governs.
-func (s *governanceState) instance() bool { return s.placement == governedInstance }
+// instance reports a note the folder holds under the lifecycle's vocabulary
+// rather than as a readable artifact, which is what decides whether the page
+// reads a status and dresses a lesson. The declared knowledge layer decides
+// where the state machine runs, not what a note is, so a note outside it is
+// still one.
+func (s *governanceState) instance() bool {
+	return s.placement == governedInstance || s.placement == outsideKnowledgeLayer
+}
 
 // nonInstance reports a note the folder holds outside its lifecycle. It is
 // not the negation of instance: a note neither authority could be asked about
 // is neither.
 func (s *governanceState) nonInstance() bool { return s.placement == readableArtifact }
+
+// outsideLayer reports a note the declared knowledge layer withheld, which is
+// why its transition set is empty and how the page knows to name the layer.
+func (s *governanceState) outsideLayer() bool { return s.placement == outsideKnowledgeLayer }
 
 func (h *Handler) governance(
 	ctx context.Context,

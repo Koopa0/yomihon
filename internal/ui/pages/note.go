@@ -190,7 +190,8 @@ func diagnosticAddress(d *render.Diagnostic) string {
 // the bottom bar offer the same states in the same order and read this one
 // answer, so neither keeps rules of its own. The states are ordered by which
 // fact overrides which: ungoverned first, then a face that could not be opened,
-// then the ways a status can fail to be readable, then a readable one.
+// then the ways a status can fail to be readable, then the two readings of an
+// empty set, then a readable status with moves to offer.
 type faceState uint8
 
 const (
@@ -199,11 +200,14 @@ const (
 	faceNoFrontmatter
 	faceStatusUnknown
 	faceStatusUnreadable
+	faceOutsideScope
 	faceNoTransitions
 	faceTransitions
 )
 
-// statusFace decides which state a note puts the write face in.
+// statusFace decides which state a note puts the write face in. An empty set
+// has two readings and they stay apart: the declared knowledge layer withheld
+// the moves, or the schema defines none onward from this status.
 func statusFace(v *NoteView) faceState {
 	switch {
 	case v.NonInstance:
@@ -216,6 +220,8 @@ func statusFace(v *NoteView) faceState {
 		return faceStatusUnknown
 	case v.Status == "":
 		return faceStatusUnreadable
+	case v.OutsideKnowledgeScope && len(v.Transitions) == 0:
+		return faceOutsideScope
 	case len(v.Transitions) == 0:
 		return faceNoTransitions
 	default:
@@ -232,7 +238,7 @@ func (f faceState) token() string {
 		return "non-instance"
 	case faceWriteUnavailable:
 		return "unavailable"
-	case faceNoFrontmatter, faceStatusUnknown, faceStatusUnreadable, faceNoTransitions, faceTransitions:
+	case faceNoFrontmatter, faceStatusUnknown, faceStatusUnreadable, faceOutsideScope, faceNoTransitions, faceTransitions:
 		return "instance"
 	}
 	panic("pages: unknown write-face state: " + strconv.Itoa(int(f)))
