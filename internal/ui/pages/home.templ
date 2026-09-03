@@ -253,11 +253,13 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
 							@homeBlockHead("home-search-title", wording.HomeSearchTitle.In(c.Lang), wording.HomeSearchLede.In(c.Lang))
-							<form class="y-homesearch" method="get" action="/search" role="search">
-								<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-								<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
-								<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
-							</form>
+							<search>
+								<form class="y-homesearch" method="get" action="/search">
+									<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+									<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
+									<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
+								</form>
+							</search>
 						</section>
 					</div>
 					// The folder's own introduction is a note like any other, and

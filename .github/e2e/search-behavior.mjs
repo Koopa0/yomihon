@@ -134,8 +134,8 @@ const MUTATIONS = {
         expected: 1,
       },
       {
-        needle: 'class="y-homesearch" method="get" action="/search" role="search"',
-        replacement: 'class="y-homesearch" method="get" action="/search" role="search" data-live-search-form',
+        needle: 'class="y-homesearch" method="get" action="/search"',
+        replacement: 'class="y-homesearch" method="get" action="/search" data-live-search-form',
         expected: 1,
       },
       {

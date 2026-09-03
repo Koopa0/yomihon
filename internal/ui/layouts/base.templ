@@ -180,11 +180,17 @@ templ header(c Chrome) {
 // without JavaScript the header link still reaches the full search page.
 templ searchDialog(lang wording.Lang) {
 	<dialog class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label={ wording.SearchNotes.In(lang) }>
-		<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
-			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
-			<span class="ui-kbd">esc</span>
-		</form>
+		// The palette a reader opens with the keyboard is the same capability
+		// the full page offers, so it is announced as the same landmark. The
+		// element carries that meaning itself, which is one fewer attribute to
+		// keep in step across the two surfaces.
+		<search>
+			<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
+				<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+				<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
+				<span class="ui-kbd">esc</span>
+			</form>
+		</search>
 		@LiveSearchStatus(lang)
 		<div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>
 		<div class="y-searchdialog__foot">

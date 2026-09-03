@@ -138,11 +138,13 @@ templ Search(v SearchView, c layouts.Chrome) {
 					// was a text field, with no word for where it sat. The count
 					// is already stated above the hits, so this says only that.
 					<h1 class="y-title">{ wording.SearchTitle.In(c.Lang) }</h1>
-					<form class="y-searchpage__form" method="get" action="/search" role="search" data-live-search-form>
-						<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-						<input type="search" name="q" value={ v.Query } placeholder={ wording.SearchNotesField.In(c.Lang) } aria-label={ wording.SearchNotesField.In(c.Lang) } data-live-search-input autofocus/>
-						<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
-					</form>
+					<search>
+						<form class="y-searchpage__form" method="get" action="/search" data-live-search-form>
+							<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+							<input type="search" name="q" value={ v.Query } placeholder={ wording.SearchNotesField.In(c.Lang) } aria-label={ wording.SearchNotesField.In(c.Lang) } data-live-search-input autofocus/>
+							<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
+						</form>
+					</search>
 					@layouts.LiveSearchStatus(c.Lang)
 					@SearchResults(v, c.Lang)
 				</div>
