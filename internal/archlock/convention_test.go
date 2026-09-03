@@ -315,13 +315,6 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "giving these two their String method is another line of this work",
-		keys: []string{
-			"internal/nav/entry.go | EntryKind",
-			"internal/schema/grant.go | Reason",
-		},
-	}
 	numeric := map[string]bool{
 		"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
 		"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
@@ -365,7 +358,7 @@ func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 	if total == 0 {
 		t.Fatal("no exported numeric enum was found at all, so this check asserts nothing")
 	}
-	report(t, "an exported enum over a numeric type must have a String method", open.stillOpen(t, found))
+	report(t, "an exported enum over a numeric type must have a String method", found)
 }
 
 // TestAContextIsAlwaysTheFirstParameter keeps one shape for the value every

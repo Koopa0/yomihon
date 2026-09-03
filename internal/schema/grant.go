@@ -1,5 +1,7 @@
 package schema
 
+import "strconv"
+
 // grant records how far one declaration got. Absence of a declaration has two
 // meanings and only one of them is news: a folder that never carried a contract
 // asserted nothing, while a contract that exists and then omits, mangles, or
@@ -39,6 +41,24 @@ const (
 	// fault in whichever language it is speaking.
 	ReasonContractUnreadable
 )
+
+// String names a rejection reason for a diagnostic, a log line or a panic.
+// These words are yomihon's own, for an operator reading a machine's output —
+// the sentence a reader sees is chosen from the dictionary at the surface, and
+// this is not it.
+//
+// A reason outside the constants is a programming error and stops here naming
+// its number.
+func (r Reason) String() string {
+	switch r {
+	case ReasonUnstated:
+		return "unstated"
+	case ReasonContractUnreadable:
+		return "contract-unreadable"
+	default:
+		panic("schema: unknown Reason: " + strconv.Itoa(int(r)))
+	}
+}
 
 // Claim is one declaration's outcome: how far it got, why it failed where a
 // caller can act on the answer, and the operator-facing sentence when the
