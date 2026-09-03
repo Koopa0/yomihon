@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/preference"
 	"github.com/koopa0/yomihon/internal/report"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
@@ -155,6 +156,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		Log:            log,
 	}).Register(mux)
 	status.NewHandler(writer, shellProvider, log).Register(mux)
+	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(shellProvider, log).Register(mux)
 	report.New(source, reportProvider, log).Register(mux)

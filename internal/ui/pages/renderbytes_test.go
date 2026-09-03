@@ -57,6 +57,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page", Search(recordedSearchView(model), recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
+		{"preferences-page", Preferences(recordedPreferencesView(), recordedChrome())},
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
@@ -100,6 +101,39 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 				t.Errorf("%s bytes moved (-recorded +rendered):\n%s", tt.name, diff)
 			}
 		})
+	}
+}
+
+// recordedPreferencesView is one page's worth of choices, written out here
+// rather than built by the endpoint that assembles the real one. What this
+// recording locks is the markup a set of choices turns into — the fieldset, the
+// described note, the hidden return address, the visible submit — and reaching
+// through the endpoint to get it would put the assembly under the recording too,
+// where a moved label and a moved tag would look like one change.
+func recordedPreferencesView() PreferencesView {
+	return PreferencesView{
+		ReturnTo: "/notes/Writing/lessons/go/L01.md",
+		Fields: []PreferenceField{
+			{
+				Name:   "theme",
+				Legend: "外觀",
+				Note:   "跟隨系統時，深淺由作業系統決定。",
+				Options: []PreferenceOption{
+					{Value: "system", Label: "跟隨系統", Checked: true},
+					{Value: "light", Label: "亮色"},
+					{Value: "dark", Label: "暗色"},
+				},
+			},
+			{
+				Name:   "ruby",
+				Legend: "振假名",
+				Note:   "只影響有振假名的頁面。",
+				Options: []PreferenceOption{
+					{Value: "on", Label: "開啟", Checked: true},
+					{Value: "off", Label: "關閉"},
+				},
+			},
+		},
 	}
 }
 

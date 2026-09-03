@@ -1,0 +1,114 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// PreferencesView is the reading as this browser currently has it set: every
+// choice on offer, in the order the page shows them, and the address applying
+// one sends the reader back to.
+//
+// The values and their words are already resolved. This page decides how a
+// choice looks and nothing about what a choice is — which of them exist, what
+// each may be set to, and which is in force are all settled before the view is
+// built, so no second answer to any of those questions is reachable from here.
+type PreferencesView struct {
+	Fields []PreferenceField
+	// ReturnTo is the address every form carries, so applying a choice lands
+	// the reader back on what they were reading. It has already been checked
+	// as a path this site can return to.
+	ReturnTo string
+}
+
+// PreferenceField is one choice: the form field it is submitted under, the
+// heading it sits behind, the sentence that says what it does and what it
+// leaves alone, and the options a reader picks between. Options is never
+// empty, and exactly one of them is marked.
+type PreferenceField struct {
+	Name    string
+	Legend  string
+	Note    string
+	Options []PreferenceOption
+}
+
+// PreferenceOption is one answer a choice may be given: the value the form
+// sends, the word the reader picks it by, and whether it is the answer in force
+// for this request.
+type PreferenceOption struct {
+	Value   string
+	Label   string
+	Checked bool
+}
+
+// Preferences is the page a reader sets the reading on.
+//
+// It carries no folder tree. Every other page here is somewhere in the library
+// and needs the way onward; this one is reached from a control on whatever page
+// the reader was already holding, and returns them to it the moment a choice is
+// applied. A rail down the side would invite a walk this page has no business
+// starting.
+//
+// Each choice is its own form with its own submit, so the page works with no
+// scripting at all — which is not a courtesy here but the mechanism: the words
+// on a page are written by the server, and the only honest way to change them
+// is to ask the server for the page again.
+templ Preferences(v PreferencesView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<main id="main-content" tabindex="-1" class="y-prefs">
+			<h1 class="y-title">{ wording.PreferencesTitle.In(c.Lang) }</h1>
+			<p class="y-prefs__lede">{ wording.PreferencesLede.In(c.Lang) }</p>
+			for _, field := range v.Fields {
+				@preferenceField(field, v.ReturnTo, c.Lang)
+			}
+			@layouts.KeyboardKeys(c.Lang)
+			@preferenceReset(v.ReturnTo, c.Lang)
+			<footer class="y-prefs__storage">
+				<h2>{ wording.PrefStorageTitle.In(c.Lang) }</h2>
+				<ul>
+					<li>{ wording.PrefStorageCookies.In(c.Lang) }</li>
+					<li>{ wording.PrefStorageSession.In(c.Lang) }</li>
+				</ul>
+				<p>{ wording.PrefStorageNote.In(c.Lang) }</p>
+			</footer>
+		</main>
+	}
+}
+
+// preferenceField is one choice and the form that applies it. The submit stays
+// visible even where scripting turns a pick into a submit on its own: a reader
+// arrowing through a radio group would otherwise be committing every option
+// they pass over on the way to the one they want.
+templ preferenceField(f PreferenceField, returnTo string, lang wording.Lang) {
+	<form class="y-preffield" method="post" action="/preferences">
+		<fieldset>
+			<legend>{ f.Legend }</legend>
+			<p class="y-preffield__note" id={ "pref-note-" + f.Name }>{ f.Note }</p>
+			<div class="y-preffield__options">
+				for _, option := range f.Options {
+					<label>
+						<input type="radio" name={ f.Name } value={ option.Value } checked?={ option.Checked } aria-describedby={ "pref-note-" + f.Name }/><span>{ option.Label }</span>
+					</label>
+				}
+			</div>
+			<input type="hidden" name="next" value={ returnTo }/>
+			<button class="y-preffield__apply" type="submit">{ wording.PrefApply.In(lang) }</button>
+		</fieldset>
+	</form>
+}
+
+// preferenceReset clears everything the page above it can set. It is a single
+// button rather than a pair of options because there is no second state to
+// choose: the sentence beside it names what goes, including the one thing a
+// reader would not predict — the interface comes back speaking the language it
+// started in.
+templ preferenceReset(returnTo string, lang wording.Lang) {
+	<form class="y-preffield" method="post" action="/preferences">
+		<fieldset>
+			<legend>{ wording.PrefReset.In(lang) }</legend>
+			<p class="y-preffield__note" id="pref-note-reset">{ wording.PrefResetNote.In(lang) }</p>
+			<input type="hidden" name="next" value={ returnTo }/>
+			<button class="y-preffield__apply" type="submit" name="reset" value="1" aria-describedby="pref-note-reset">{ wording.PrefReset.In(lang) }</button>
+		</fieldset>
+	</form>
+}

@@ -121,6 +121,11 @@ templ header(c Chrome) {
 			</button>
 		}
 		<a class="y-healthlinkbtn" href="/health" title={ wording.HealthLinkTitle.In(c.Lang) }>{ wording.HealthLink.In(c.Lang) }</a>
+		// The way to the reading choices is a word rather than a gear, because
+		// a gear promises a machine and what is behind this one is seven
+		// sentences. It carries the page the reader is on, so applying a choice
+		// returns them to it.
+		<a class="y-prefslink" href={ templ.URL(preferencesHref(c.ReturnTo)) }>{ wording.PreferencesLink.In(c.Lang) }</a>
 		// The three size names ride on the control in the page's own language,
 		// so the script that moves the size — on a press, or re-syncing after a
 		// back/forward-cache restore — renames the control from the same
@@ -152,6 +157,9 @@ templ header(c Chrome) {
 				// otherwise.
 				<p class="y-kbdpref__note" id="kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
 			</div>
+			// A reader who opened this panel came looking for how the interface
+			// behaves, and the rest of that answer is one page away.
+			<a class="y-kbdhelp__prefs" href={ templ.URL(preferencesHref(c.ReturnTo)) }>{ wording.PreferencesLink.In(c.Lang) }</a>
 		</div>
 		// The language switch is a plain form, not a scripted button: the words
 		// on every page are the server's, so the choice is stored server-side

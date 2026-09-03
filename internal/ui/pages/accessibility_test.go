@@ -23,6 +23,7 @@ func TestPageMainRegionsAreSkipTargets(t *testing.T) {
 		{name: "report", page: Report(ReportView{}, layouts.Chrome{})},
 		{name: "syllabus", page: Syllabus(PathView{}, layouts.Chrome{})},
 		{name: "status recovery", page: StatusRecovery(StatusRecoveryView{}, layouts.Chrome{})},
+		{name: "preferences", page: Preferences(PreferencesView{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
