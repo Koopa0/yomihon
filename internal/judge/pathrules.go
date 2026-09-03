@@ -56,11 +56,14 @@ func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
 // arrives from the grammar, not from a closed set this file owns, so a rule
 // name it has never seen is a rule somebody added over there — and the author,
 // whose note is being judged, would learn about it as a check that died on an
-// ordinary vault. What is missing in that case is one sentence of advice; the
-// grammar's own sentence still says what is wrong, so the finding is worth
-// more than the abort it replaces.
+// ordinary vault. The finding still carries the grammar's own sentence about
+// what is wrong, and the action falls back to pointing at it, because a control
+// that says nothing to do is worth less to the author than a general direction.
 func pathFinding(n *note, d sequence.Diagnostic) Finding {
-	action := pathRuleAction[d.Rule]
+	action, ok := pathRuleAction[d.Rule]
+	if !ok {
+		action = "resolve the study-path problem the message describes"
+	}
 	evidence := d.Evidence
 	if evidence == "" {
 		evidence = "the branch lists rows but declares no part in the course"

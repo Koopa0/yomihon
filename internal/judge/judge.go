@@ -114,26 +114,35 @@ type Finding struct {
 }
 
 // The complete set of values SourceRule may carry. A finding points a reader
-// at where its rule is written down, so each of these has to name a thing that
-// can actually be opened: the vault artifacts are spelled the way the vault
-// spells them, and an anchor is a table the contract really declares. Two were
-// invented — an "#aliases" heading Note-Schema.md does not have, and a
-// "#provenance" table nothing declares, the rule being
-// concept_requires_provenance under [rules] — which left the field reading as
-// authority while resolving to nothing. Declaring the set in one place is what
-// makes adding a third an edit somebody has to make deliberately.
+// at where its rule's authority is written down, so each of these has to name
+// a thing that holds it: a vault artifact is spelled the way the vault spells
+// it, an anchor is a table the contract really declares and whose keys the
+// rule really reads, and a rule no vault artifact declares names the product
+// itself, whose golden files pin the behaviour. Anchors were once invented —
+// a heading the vault's note schema does not have, a contract table nothing
+// declares — and rules were hung on artifacts that never state them, which
+// left the field reading as authority while resolving to nothing. Declaring
+// the set in one place is what makes adding another an edit somebody has to
+// make deliberately.
 const (
-	// sourceContract is the vault's machine contract, for a rule it declares
-	// directly.
+	// sourceContract is the vault's machine contract, for the frontmatter
+	// rules that read its type, field, and status declarations across
+	// several of its tables.
 	sourceContract = "vault-schema.toml"
-	// sourceContractRules is its [rules] table, where reference resolution,
-	// provenance, and the disk-reference rules all live.
+	// sourceContractRules is its [rules] table, for a rule that enforces a
+	// key that table declares.
 	sourceContractRules = "vault-schema.toml#rules"
-	// sourceContractSupersession is its [supersession] table.
+	// sourceContractScan is its [scan] table, which declares the knowledge
+	// directories the frontmatter rules govern.
+	sourceContractScan = "vault-schema.toml#scan"
+	// sourceContractSupersession is its [supersession] table, which names
+	// the replacement-ledger fields and the archived status.
 	sourceContractSupersession = "vault-schema.toml#supersession"
-	// sourceNoteSchema is the vault's human note schema, where a reader finds
-	// what aliases are for and why a title is not one of them.
-	sourceNoteSchema = "Note-Schema.md"
+	// sourceYomihon is the product itself, for the rules that are its own
+	// dialect — link resolution, name and alias collisions, reference and
+	// path liveness, and the syllabus-versus-disk reconciliation. No vault
+	// artifact declares them; this repository's golden files pin them.
+	sourceYomihon = "yomihon"
 	// sourceAuthoring is this repository's authoring contract, which ships
 	// with the parser that reads it.
 	sourceAuthoring = "AUTHORING.md"

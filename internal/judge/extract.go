@@ -31,8 +31,21 @@ import (
 // several links, and one name can be written on several lines, so a rule that
 // has to say which of them it means says it with the offset. It addresses the
 // body a note was read from and never leaves the process.
+//
+// address, heading, and block carry the fragment half of the link, read the
+// way the reading page reads it: heading is the section name after "#", block
+// the block name after "^" or "#^", and address the author's whole addressing
+// text — target and fragment together, without any display alias. target
+// stays the frozen stripping this package has always done; the fragment split
+// is the resolver's, so the two faces cannot disagree about which part of the
+// text addresses a place inside the file. embed records whether the author
+// wrote the occurrence as a transclusion.
 type wikiLink struct {
 	target          string
+	address         string
+	heading         string
+	block           string
+	embed           bool
 	offset          int
 	line            int
 	underGapHeading bool
@@ -100,8 +113,13 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 		if !ok {
 			continue // a bare anchor like [[#heading]]
 		}
+		parsed, _ := graph.ParseWikilink(raw.inner)
 		links = append(links, wikiLink{
 			target:          target,
+			address:         writtenAddress(raw.inner),
+			heading:         parsed.Heading,
+			block:           parsed.Block,
+			embed:           raw.offset > 0 && body[raw.offset-1] == '!',
 			offset:          raw.offset,
 			line:            bodyStartLine + strings.Count(body[:raw.offset], "\n"),
 			underGapHeading: inGapSection(headings, raw.offset),
@@ -299,6 +317,16 @@ func rawWikilinks(body string) []rawLink {
 		i = after + relEnd + 2
 	}
 	return out
+}
+
+// writtenAddress is the author's whole addressing text: everything before a
+// display alias, kept as written so a diagnostic can quote the address the
+// author typed rather than a reconstruction of it. Only the escape a table
+// cell needs in front of its pipe comes off, since that backslash is syntax
+// rather than part of the name.
+func writtenAddress(inner string) string {
+	beforePipe, _, _ := strings.Cut(inner, "|")
+	return strings.TrimSpace(strings.TrimRight(beforePipe, `\`))
 }
 
 // stripTarget reduces a wikilink's inner text to its resolution target,

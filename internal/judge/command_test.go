@@ -387,23 +387,38 @@ func TestRunCheckDenySupersessionRules(t *testing.T) {
 	}
 }
 
-// TestParseBaseline asserts a baseline collects the fingerprint of each parsable
-// line and skips a malformed line and a line with no fingerprint.
+// TestParseBaseline pins the parser itself: current-version fingerprints are
+// collected, blank lines and the trailing newline are not findings, and each
+// shape the strict reader refuses — a line that is not a JSON object, a
+// finding without a fingerprint, a non-string fingerprint, and a fingerprint
+// of another version — is an error rather than a silent skip. The
+// command-level surface of the same refusals is TestRunCheckBaselineStrictness.
 func TestParseBaseline(t *testing.T) {
 	t.Parallel()
-	jsonl := `{"rule_id":"link.broken","fingerprint":"aaaa"}
-not json at all
-{"rule_id":"collision.alias"}
-{"fingerprint":"bbbb"}
-`
-	got := parseBaseline(jsonl)
-	want := map[string]bool{"aaaa": true, "bbbb": true}
+	jsonl := `{"rule_id":"link.broken","fingerprint":"v1:aaaa"}` + "\n\n" + `{"fingerprint":"v1:bbbb"}` + "\n"
+	got, err := parseBaseline(jsonl)
+	if err != nil {
+		t.Fatalf("parseBaseline(valid) error = %v", err)
+	}
+	want := map[string]bool{"v1:aaaa": true, "v1:bbbb": true}
 	if len(got) != len(want) {
 		t.Fatalf("parseBaseline collected %v, want %v", got, want)
 	}
 	for fp := range want {
 		if !got[fp] {
 			t.Errorf("parseBaseline missing fingerprint %q", fp)
+		}
+	}
+
+	refused := map[string]string{
+		"not a JSON object":      "not json at all\n",
+		"no fingerprint":         `{"rule_id":"collision.alias"}` + "\n",
+		"non-string fingerprint": `{"fingerprint":7}` + "\n",
+		"foreign version":        `{"fingerprint":"aaaa"}` + "\n",
+	}
+	for name, input := range refused {
+		if _, err := parseBaseline(input); err == nil {
+			t.Errorf("parseBaseline(%s) = nil error, want a refusal", name)
 		}
 	}
 }
@@ -452,6 +467,89 @@ func TestRunCheckBaseline(t *testing.T) {
 	if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: filepath.Join(dir, "missing.jsonl")}); err == nil {
 		t.Error("an unreadable baseline should be a tool error")
 	}
+}
+
+// TestRunCheckBaselineStrictness asserts the baseline reader refuses input it
+// cannot fully honor: a fingerprint carrying another algorithm version, a line
+// that is not a JSON object, and a finding without a string fingerprint each
+// stop the run instead of being silently skipped, since a skipped line
+// subtracts less than the caller believes and reports old findings as new. An
+// empty file stays a valid, empty baseline. Each refusal is a tool error here;
+// the exit code a caller scripts against is decided by the binary, and pinned
+// beside the command line that decides it.
+func TestRunCheckBaselineStrictness(t *testing.T) {
+	t.Parallel()
+	const root = "testdata/vault-report"
+	writeBaseline := func(t *testing.T, content string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "baseline.jsonl")
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write baseline: %v", err)
+		}
+		return path
+	}
+
+	t.Run("a bare-hex fingerprint is a version mismatch", func(t *testing.T) {
+		t.Parallel()
+		base := writeBaseline(t, `{"rule_id":"link.broken","fingerprint":"c6a289a5d2524c77"}`+"\n")
+		_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
+		if err == nil {
+			t.Fatal("a baseline of another fingerprint version must be an error, not a silent no-op subtraction")
+		}
+		if !strings.Contains(err.Error(), "version") {
+			t.Errorf("error %q should name the version mismatch", err)
+		}
+	})
+
+	t.Run("an unparsable line is an error naming its line", func(t *testing.T) {
+		t.Parallel()
+		base := writeBaseline(t, `{"fingerprint":"v1:c6a289a5d2524c77"}`+"\nnot json at all\n")
+		_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
+		if err == nil {
+			t.Fatal("an unparsable baseline line must be an error, not skipped")
+		}
+		if !strings.Contains(err.Error(), "line 2") {
+			t.Errorf("error %q should name line 2", err)
+		}
+	})
+
+	t.Run("a finding without a fingerprint is an error", func(t *testing.T) {
+		t.Parallel()
+		base := writeBaseline(t, `{"rule_id":"collision.alias"}`+"\n")
+		_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
+		if err == nil {
+			t.Fatal("a baseline finding without a fingerprint must be an error, not skipped")
+		}
+		if !strings.Contains(err.Error(), "line 1") {
+			t.Errorf("error %q should name line 1", err)
+		}
+	})
+
+	t.Run("a non-string fingerprint is an error", func(t *testing.T) {
+		t.Parallel()
+		base := writeBaseline(t, `{"fingerprint":7}`+"\n")
+		if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base}); err == nil {
+			t.Fatal("a non-string fingerprint must be an error, not skipped")
+		}
+	})
+
+	t.Run("an empty file is a valid empty baseline", func(t *testing.T) {
+		t.Parallel()
+		full, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+		if err != nil {
+			t.Fatalf("RunCheck without baseline: %v", err)
+		}
+		got, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: writeBaseline(t, "")})
+		if err != nil {
+			t.Fatalf("RunCheck with empty baseline: %v", err)
+		}
+		if !bytes.Equal(got, full) {
+			t.Error("an empty baseline must subtract nothing")
+		}
+		if exit != 0 {
+			t.Errorf("exit = %d, want 0", exit)
+		}
+	})
 }
 
 // TestResolveFormat asserts an explicit flag wins and, without one, a terminal

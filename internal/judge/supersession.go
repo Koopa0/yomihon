@@ -91,7 +91,9 @@ func archivedNavigationTargets(
 			!liveStatus(authority.contract, source, vocabulary.ArchivedStatus) {
 			continue
 		}
-		for _, link := range navigationLinks(source, roles) {
+		links := navigationLinks(source, roles)
+		for l := range links {
+			link := &links[l]
 			resolution := idx.Resolve(link.target)
 			if resolution.Kind != graph.Unique {
 				continue
@@ -116,7 +118,7 @@ func liveStatus(contract *schema.Contract, n *note, archivedStatus string) bool 
 
 func archivedNavigationFinding(
 	source, target *note,
-	link wikiLink,
+	link *wikiLink,
 	vocabulary schema.Supersession,
 ) Finding {
 	return Finding{

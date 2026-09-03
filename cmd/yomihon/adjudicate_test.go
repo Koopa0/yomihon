@@ -216,9 +216,10 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 }
 
 // TestTheTypedWordsReachTheEngine holds the wiring between them: which folder,
-// which output shape, which name, which gate. Each of these is a word the
-// reader typed that has to arrive somewhere specific, and the engine's own
-// tests cannot see any of them — they are handed already-resolved options.
+// which output shape, which name, which gate, which prior run to subtract.
+// Each of these is a word the reader typed that has to arrive somewhere
+// specific, and the engine's own tests cannot see any of them — they are handed
+// already-resolved options, and they never decide an exit code.
 func TestTheTypedWordsReachTheEngine(t *testing.T) {
 	t.Parallel()
 
@@ -284,6 +285,27 @@ func TestTheTypedWordsReachTheEngine(t *testing.T) {
 		}
 		if diff := cmp.Diff(ungated.String(), gated.String()); diff != "" {
 			t.Errorf("the gate changed the payload (-ungated +gated):\n%s", diff)
+		}
+	})
+
+	t.Run("a baseline this binary cannot honor exits two", func(t *testing.T) {
+		t.Parallel()
+
+		base := filepath.Join(t.TempDir(), "baseline.jsonl")
+		if err := os.WriteFile(base, []byte(`{"fingerprint":"c6a289a5d2524c77"}`+"\n"), 0o600); err != nil {
+			t.Fatalf("write baseline: %v", err)
+		}
+		var stdout, stderr bytes.Buffer
+		exit := runCommand(t.Context(), "check",
+			[]string{"--root=" + root, "--format=json", "--baseline=" + base}, &stdout, &stderr, false)
+		if exit != 2 {
+			t.Errorf("exit = %d, want 2 for a baseline written by another fingerprint version", exit)
+		}
+		if !strings.Contains(stderr.String(), "version") {
+			t.Errorf("stderr %q should name the version mismatch", stderr.String())
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("a refused baseline still printed %d bytes of findings", stdout.Len())
 		}
 	})
 

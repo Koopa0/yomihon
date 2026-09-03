@@ -240,3 +240,24 @@ func (f faceState) token() string {
 func (v *NoteView) showsFlipReceipt() bool {
 	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status
 }
+
+// schemaNoticesID names the block of schema findings so the transition
+// controls can point at it as their description. One note page renders at
+// most one such block — the rail panel's — which is what lets the id be a
+// fixed string.
+const schemaNoticesID = "schema-notices"
+
+// schemaNoticesRef is the description a transition submit carries beside the
+// findings: the amber notices reach a sighted reader by sitting next to the
+// buttons, and say nothing to a reader whose control is announced on its own.
+// On a page with findings every submit names the notices block; on a page
+// with none the attribute is absent, so no control describes itself by an
+// element that is not in the document. The bar's controls reference the rail
+// panel's block across the page — both faces render under one guard, so a
+// face never offers a control on a page whose panel is missing.
+func schemaNoticesRef(v *NoteView) templ.Attributes {
+	if len(v.SchemaNotices) == 0 {
+		return nil
+	}
+	return templ.Attributes{"aria-describedby": schemaNoticesID}
+}

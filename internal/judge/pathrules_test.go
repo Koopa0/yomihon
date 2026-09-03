@@ -68,9 +68,12 @@ func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 // list written by hand and checked against a list written by hand agrees with
 // itself and with nothing else — which is how the registry drifted before.
 //
-// A rule with no advice is no longer fatal, so this is what keeps the advice
-// complete: without it, the author of a note tripping the newest rule would be
-// told what is wrong and left with no sentence saying what to do about it.
+// A rule with no advice is no longer fatal — it falls back to a general
+// direction — so this is what keeps the tailored advice complete: without it,
+// the author of a note tripping the newest rule would be told what is wrong and
+// handed the generic sentence instead of the one written for that rule. The
+// table is read directly rather than through the finding, because the finding
+// supplies the fallback and would never come back empty.
 func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 	t.Parallel()
 
@@ -88,15 +91,17 @@ func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 	}
 }
 
-// TestARuleThisFaceHasNoAdviceForIsStillReported pins the answer to the case
-// the completeness check above cannot cover: a rule name arriving from the
-// grammar that this table has never seen. The two tables are derived from the
-// grammar now, so the only way to reach it is a rule value built somewhere
-// else — which is exactly what a check run must not die on. The author gets the
-// grammar's own sentence about what is wrong, and an empty line where the
-// advice would be, because inventing advice for a rule nobody here understands
-// would be worse than admitting there is none.
-func TestARuleThisFaceHasNoAdviceForIsStillReported(t *testing.T) {
+// TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough pins the answer to
+// the case the completeness check above cannot cover: a rule name arriving from
+// the grammar that this table has never seen. The two tables are derived from
+// the grammar now, so the only way to reach it is a rule value built somewhere
+// else — which is exactly what a check run must not die on. The finding stays
+// well formed: deniable by its id, carrying the grammar's own sentence about
+// what is wrong, and a general direction in place of the advice nobody wrote,
+// because a control that says nothing to do leaves the author worse off than
+// one that points back at the message. The judge used to panic here, which
+// turned one rule added to the grammar into a crash on an ordinary vault.
+func TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough(t *testing.T) {
 	t.Parallel()
 
 	const invented = sequence.Rule("path.a_rule_added_after_this_table")
@@ -118,11 +123,14 @@ func TestARuleThisFaceHasNoAdviceForIsStillReported(t *testing.T) {
 	if got.Message != "the grammar's own account of what is wrong" {
 		t.Errorf("Message = %q, want the grammar's sentence carried through", got.Message)
 	}
-	if got.SuggestedAction != "" {
-		t.Errorf("SuggestedAction = %q, want none; no advice was written for this rule", got.SuggestedAction)
+	if got.SuggestedAction == "" {
+		t.Error("SuggestedAction is empty; a finding must always tell the author something to do")
 	}
 	if got.Severity != SeverityWarn {
 		t.Errorf("Severity = %v, want a warning like every other study-path rule", got.Severity)
+	}
+	if !strings.HasPrefix(got.Fingerprint, "v1:") {
+		t.Errorf("Fingerprint = %q, want a versioned value", got.Fingerprint)
 	}
 }
 

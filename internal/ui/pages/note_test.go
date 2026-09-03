@@ -368,6 +368,63 @@ func TestStatusBarFlagsAStatusOutsideTheSchema(t *testing.T) {
 	}
 }
 
+// TestTransitionButtonsAreDescribedByTheSchemaNotices holds both states of the
+// wiring between the transition controls and the schema's findings about this
+// note's frontmatter. The amber notices sit beside the buttons, which reaches
+// a sighted reader and says nothing to one whose reader announces a focused
+// control on its own — so on a page carrying findings, every transition submit
+// names the notices block as its description and the block carries the id
+// being named; on a page carrying none, the reference is absent rather than
+// dangling. The form count is the yardstick for "every": each transition form
+// holds exactly one submit, on both status faces, so the number of references
+// must equal the number of forms — fewer leaves a button unexplained, more
+// means the description leaked onto a control it does not govern.
+func TestTransitionButtonsAreDescribedByTheSchemaNotices(t *testing.T) {
+	t.Parallel()
+
+	base := NoteView{
+		Governed:    true,
+		RelPath:     "a.md",
+		Status:      "draft",
+		Transitions: []Transition{{To: schema.SealStatus}, {To: "archived", NoReturn: true}},
+	}
+
+	t.Run("a page with findings describes every submit", func(t *testing.T) {
+		t.Parallel()
+
+		v := base
+		v.SchemaNotices = [][]wording.SchemaPart{{{Text: "slug", Code: true}, {Text: " is written as no slug"}}}
+		var buf bytes.Buffer
+		if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render: %v", err)
+		}
+		html := buf.String()
+		if got := strings.Count(html, ` id="schema-notices"`); got != 1 {
+			t.Fatalf("the schema-notices id appears %d times, want exactly 1 block for the buttons to point at", got)
+		}
+		forms := strings.Count(html, `name="to"`)
+		if forms == 0 {
+			t.Fatal("no transition form rendered, so nothing below checks the description wiring")
+		}
+		if got := strings.Count(html, `aria-describedby="schema-notices"`); got != forms {
+			t.Errorf("%d of %d transition submits name the notices block as their description", got, forms)
+		}
+	})
+
+	t.Run("a page without findings leaves the controls bare", func(t *testing.T) {
+		t.Parallel()
+
+		var buf bytes.Buffer
+		if err := Note(base, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render: %v", err)
+		}
+		html := buf.String()
+		if strings.Contains(html, "schema-notices") {
+			t.Errorf("a page with no findings still carries a schema-notices reference or id:\n%s", html)
+		}
+	})
+}
+
 // TestInlineDiagnosticsFoldAboveTheProse pins the placement, not the contents.
 // At widths where the right rail is gone this block sits between the title and
 // the first sentence, so an open list of findings was the last thing the page

@@ -10,29 +10,38 @@ import (
 
 var goldenSourceRule = regexp.MustCompile(`"source_rule":"([^"]*)"`)
 
-// TestEveryEmittedSourceRuleIsOneThatCanBeOpened is the lock the two invented
-// anchors got past. A finding's source_rule tells a reader where its rule is
-// written down, and nothing checked that the thing it named existed: for forty
-// findings it was a heading Note-Schema.md does not have, and for two more a
-// contract table nothing declares. The field read as authority in every one of
+// TestEveryEmittedSourceRuleIsOneThatCanBeOpened is the lock the invented
+// anchors got past. A finding's source_rule tells a reader where its rule's
+// authority is written down, and nothing checked that the thing it named held
+// it: findings anchored into a heading their document does not have, into a
+// contract table nothing declares, and onto artifacts that never state the
+// convention being enforced. The field read as authority in every one of
 // them.
 //
 // Every value a golden carries has to be one of the declared set, and every
-// value in that set has to be a file this test can find and — where the value
-// carries an anchor — a table that file really opens. The repository's own
-// authoring contract is checked as a file here; the two vault artifacts are
-// checked against the fixture contracts committed under testdata, because a
-// clean clone has no vault and a test that skipped when the vault was absent
-// would be the check that never runs.
+// value in that set has to answer for itself by its class. A repository file
+// is checked as a file. The vault contract's anchors are checked against the
+// fixture contracts committed under testdata, because a clean clone has no
+// vault and a test that skipped when the vault was absent would be the check
+// that never runs. The product's own name is not a file at all: its authority
+// is the golden set this test is reading, so what it must never do is grow an
+// anchor and pose as a document. And a value naming the vault's human note
+// schema — a form no current rule earns, since that document states no link
+// or collision convention — must never anchor into a document this repository
+// cannot open, which is exactly how it went wrong the first time.
 func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 	t.Parallel()
 
 	declared := map[string]bool{
 		sourceContract:             true,
 		sourceContractRules:        true,
+		sourceContractScan:         true,
 		sourceContractSupersession: true,
-		sourceNoteSchema:           true,
+		sourceYomihon:              true,
 		sourceAuthoring:            true,
+		// A vault-kept document is an admissible source in principle, but no
+		// rule cites one, so none is declared: reintroducing one means adding
+		// it here deliberately, with a class check of its own below.
 	}
 
 	goldens, err := filepath.Glob(filepath.Join("testdata", "golden", "*.jsonl"))
@@ -58,8 +67,11 @@ func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 	if len(seen) == 0 {
 		t.Fatal("no source_rule value appears in any golden; the scan matched nothing")
 	}
+	if !seen[sourceYomihon] {
+		t.Errorf("no golden emits source_rule %q; the product-dialect rules should be citing it", sourceYomihon)
+	}
 
-	// Now the other direction: each declared source names something openable.
+	// Now the other direction: each declared source answers for itself.
 	contracts, err := filepath.Glob(filepath.Join("testdata", "*", "System", "schemas", "vault-schema.toml"))
 	if err != nil {
 		t.Fatalf("glob fixture contracts: %v", err)
@@ -85,13 +97,15 @@ func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 			}
 		case sourceContract:
 			// Named without a directory the way the vault names it; the
-			// committed fixture is the copy this test can open.
-		case sourceNoteSchema:
-			// A vault artifact with no committed copy. Its existence is the
-			// vault's to keep; what this test can hold is that no anchor is
-			// invented onto it, which is exactly how it went wrong.
+			// committed fixtures are the copies this test can open, and the
+			// anchor check below holds each named table to them.
+		case sourceYomihon:
+			// The product itself. Its rules are declared by no artifact;
+			// the goldens this test has already read are what pin them, so
+			// the one thing this value must never do is anchor into a
+			// document as if one held the rule.
 			if hasAnchor {
-				t.Errorf("source_rule %q anchors into a vault document this repository cannot check; name the file alone", value)
+				t.Errorf("source_rule %q anchors into the product name; the product is not a document", value)
 			}
 		default:
 			t.Errorf("declared source %q has no rule for checking it", value)

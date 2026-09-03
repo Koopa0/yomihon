@@ -44,12 +44,15 @@ func fold(s string) string {
 // the folded string with a map back to its source — cannot come to disagree
 // about what a match is.
 //
-// A line break between two characters of a script that writes without spaces
-// is dropped rather than kept. Such a script has no separator for a break to
-// stand in for, so a sentence wrapped mid-phrase is split in the index while
-// the same sentence in English is not: its words were already parted by a
-// space, and the break is one more piece of whitespace between them. Dropping
-// it there instead would fuse two words into one nobody wrote.
+// A line break is dropped only when the characters on both of its sides
+// belong to scripts that do not divide words with spaces (writesWithoutSpaces
+// says which). There the break interrupts a phrase the page shows whole, and
+// keeping it would leave that phrase unfindable as the reader sees it.
+// Everywhere else the break is kept: it stands where words were already
+// parted, so it is one more piece of whitespace between them, and dropping it
+// would fuse two words into one nobody wrote. Both sides must qualify — a
+// spaceless character standing beside an English word is still parted from
+// it.
 func foldRunes(s string, emit func(r rune, at int)) {
 	var prev rune
 	for i, r := range s {
@@ -73,10 +76,14 @@ func nextRune(s string, i int) rune {
 // does not part its words with spaces, so a line break beside it is a place
 // the text was broken rather than a place its words divide.
 //
-// Han, hiragana and katakana are those scripts here, which is what this vault
-// is written in besides English. Hangul is deliberately not among them: modern
-// Korean does space its words, so a break there is a separator and dropping it
-// would join two of them.
+// The test is a property of the script's own writing convention — the
+// distinction Unicode text segmentation (UAX #29) draws for scripts whose
+// word boundaries are not marked by spaces. Han, hiragana and katakana carry
+// it, and are the spaceless scripts this vault is written in besides English.
+// Hangul does not carry it, and its exclusion is that script property rather
+// than a case left for later: modern Korean divides its words with spaces, so
+// the whitespace at a wrapped seam is a real separator, and keeping it is the
+// correct join for Korean text — closing it would fuse two words.
 func writesWithoutSpaces(r rune) bool {
 	return unicode.Is(unicode.Han, r) ||
 		unicode.Is(unicode.Hiragana, r) ||

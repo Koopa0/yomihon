@@ -294,8 +294,11 @@ const (
 
 // Rules are every rule this grammar can report, in the order they are declared
 // above — which is the order the consumers' own registries already list them
-// in, so reading the set from here changes no listing anyone has published.
-// The caller owns the returned slice.
+// in, so reading the set from here changes no listing anyone has published. A
+// consumer that must cover the complete set — a deny registry, an advice
+// table, a test that locks either — ranges over this list rather than keeping a
+// copy, so a rule added beside the constants above reaches every consumer
+// without a second edit anywhere else. The caller owns the returned slice.
 func Rules() []Rule {
 	return []Rule{
 		RuleRoleMissing,

@@ -460,17 +460,24 @@ templ statusPanel(v NoteView) {
 // alternative to any of those — a note can carry a status worth reporting and
 // a slug worth reporting at once — so these are said alongside, and each names
 // the field it is about rather than the one that happens to be governed here.
+// The block carries the id the transition submits describe themselves by, and
+// it renders only when there is a finding to hold, so the id and every
+// reference to it appear together or not at all.
 templ schemaNotices(v NoteView) {
-	for _, notice := range v.SchemaNotices {
-		<p class="y-statuspanel__notice y-statusflag">
-			for _, part := range notice {
-				if part.Code {
-					<code>{ part.Text }</code>
-				} else {
-					{ part.Text }
-				}
+	if len(v.SchemaNotices) > 0 {
+		<div id={ schemaNoticesID }>
+			for _, notice := range v.SchemaNotices {
+				<p class="y-statuspanel__notice y-statusflag">
+					for _, part := range notice {
+						if part.Code {
+							<code>{ part.Text }</code>
+						} else {
+							{ part.Text }
+						}
+					}
+				</p>
 			}
-		</p>
+		</div>
 	}
 }
 
@@ -529,10 +536,10 @@ templ transitionForm(v NoteView, t Transition) {
 			<details class="y-statusconfirm">
 				<summary class="y-xbtn y-statusconfirm__summary">{ t.To }</summary>
 				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(v.Lang) }{ t.To }{ wording.NoReturnTargetAfter.In(v.Lang) }</p>
-				<button class="y-xbtn y-statusconfirm__submit" type="submit">{ wording.ConfirmSetBefore.In(v.Lang) }{ t.To }{ wording.ConfirmSetAfter.In(v.Lang) }</button>
+				<button class="y-xbtn y-statusconfirm__submit" type="submit" { schemaNoticesRef(&v)... }>{ wording.ConfirmSetBefore.In(v.Lang) }{ t.To }{ wording.ConfirmSetAfter.In(v.Lang) }</button>
 			</details>
 		} else {
-			<button class="y-xbtn" type="submit">{ t.To }</button>
+			<button class="y-xbtn" type="submit" { schemaNoticesRef(&v)... }>{ t.To }</button>
 		}
 	</form>
 }

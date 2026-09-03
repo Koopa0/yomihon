@@ -38,6 +38,8 @@ func allRuleIDs() []string {
 	ids := []string{
 		"link.title_not_alias",
 		"link.broken",
+		"link.section_missing",
+		"link.block_missing",
 		"collision.alias",
 		"provenance.unresolved",
 		"map.disk_mismatch",
@@ -178,7 +180,11 @@ func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHoo
 		if err != nil {
 			return preparedCommand{}, a.abort(fmt.Errorf("read baseline %s: %w", o.Baseline, err))
 		}
-		findings = retainNew(findings, parseBaseline(string(data)))
+		baseline, parseErr := parseBaseline(string(data))
+		if parseErr != nil {
+			return preparedCommand{}, a.abort(fmt.Errorf("baseline %s: %w", o.Baseline, parseErr))
+		}
+		findings = retainNew(findings, baseline)
 	}
 	var stdout []byte
 	switch o.Format {
@@ -353,25 +359,41 @@ func isSeverityKeyword(s string) bool {
 }
 
 // parseBaseline collects the fingerprints from a prior run's JSONL, for a
-// delta. A line that does not parse or carries no string fingerprint is
-// skipped: a baseline is advisory input, not a hard contract.
-func parseBaseline(jsonl string) map[string]bool {
+// delta. The file is held to what this binary itself writes: every non-blank
+// line must be a JSON object carrying a string fingerprint whose value starts
+// with the current algorithm-version prefix. Anything less stops the run with
+// the offending line's number — a skipped line would subtract less than the
+// caller believes and report old findings as new, and a whole file of
+// foreign-version fingerprints would subtract nothing at all while looking
+// honored. An empty file is a valid, empty baseline.
+func parseBaseline(jsonl string) (map[string]bool, error) {
 	set := make(map[string]bool)
+	lineNo := 0
 	for line := range strings.SplitSeq(jsonl, "\n") {
-		var obj map[string]json.RawMessage
-		if json.Unmarshal([]byte(line), &obj) != nil {
+		lineNo++
+		if strings.TrimSpace(line) == "" {
 			continue
+		}
+		var obj map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			return nil, fmt.Errorf("line %d is not a JSON object: %w", lineNo, err)
 		}
 		raw, ok := obj["fingerprint"]
 		if !ok {
-			continue
+			return nil, fmt.Errorf("line %d carries no fingerprint", lineNo)
 		}
 		var fp string
-		if json.Unmarshal(raw, &fp) == nil {
-			set[fp] = true
+		if err := json.Unmarshal(raw, &fp); err != nil {
+			return nil, fmt.Errorf("line %d fingerprint is not a string: %w", lineNo, err)
 		}
+		if !strings.HasPrefix(fp, fingerprintVersion) {
+			return nil, fmt.Errorf(
+				"line %d fingerprint %q was written by a different fingerprint version; regenerate the baseline with this binary, whose values start with %q",
+				lineNo, fp, fingerprintVersion)
+		}
+		set[fp] = true
 	}
-	return set
+	return set, nil
 }
 
 // retainNew drops findings whose fingerprint is already in the baseline,

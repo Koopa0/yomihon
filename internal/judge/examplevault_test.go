@@ -25,14 +25,18 @@ func TestTheExampleVaultScans(t *testing.T) {
 		t.Fatalf("Check(%q) error = %v; the example vault no longer scans", root, err)
 	}
 
-	// The vault sets out to show two faults and no others. An example that
+	// The vault sets out to show three faults and no others. An example that
 	// demonstrates a diagnostic has to actually produce it — a demonstration
 	// that quietly stopped demonstrating is the failure this catches from one
-	// side — and an example that produces a third is teaching something nobody
+	// side — and an example that produces a fourth is teaching something nobody
 	// chose to teach, which is the failure from the other.
 	demonstrates := map[string]int{
 		"schema.enum": 1, // a note whose status is outside the declared list
 		"link.broken": 1, // a wikilink whose target nobody has written
+		// The dialect note writes a live link into a section its target does
+		// not have, and its own prose says the link degrades rather than
+		// breaks; the judge now reports the same miss the page shows.
+		"link.section_missing": 1,
 	}
 	found := map[string]int{}
 	for _, f := range findings {
