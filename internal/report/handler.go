@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -36,12 +37,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	request := h.snapshot()
 	snap := request.Generation
+	shell := request.Shell
 	rep, ok := resolveReport(snap.Navigation(), r.PathValue("name"))
 	if !ok {
-		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
+		h.showNotFound(w, r, lang, shell)
 		return
 	}
-	shell := request.Shell
 
 	// The frame refuses scripts, which is right — a briefing that fetches from a
 	// CDN would be reaching off this machine. Reading the bytes here is what
@@ -115,4 +116,18 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = w.Write(b) //nolint:errcheck // response is committed and Handler has no later recovery channel
+}
+
+// showNotFound answers a report name that is not one of the enumerated
+// briefings with the reading shell rather than a line of text. A reader who
+// mistypes a name is one route away from a page that carries the folder tree,
+// the search and a way home, and there is no reason for this route to be the
+// one that leaves them on a blank page.
+func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, lang wording.Lang, shell nav.Shell) {
+	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	if err := pages.NotFound(view, layouts.ChromeFromRequest(r, wording.NotFoundKicker.In(lang))).Render(r.Context(), w); err != nil {
+		h.log.Warn("write not-found page", "path", r.URL.Path, "error", err)
+	}
 }
