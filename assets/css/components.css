@@ -415,8 +415,14 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--fg-muted); font-family: var(--font-serif); }
 .y-prose tr:last-child td { border-bottom: none; }
 
-/* highlight (==text== → <mark>, no class) */
-.y-prose mark { background: color-mix(in oklch, var(--gold) 26%, transparent); color: inherit; padding: 0 .15rem; border-radius: 2px; }
+/* highlight (==text== → <mark>, no class). Scoped to the shell rather than to
+   the prose, because the reading column is not the only place a mark appears:
+   a search result marks every hit in its title, its path and its snippet, and
+   those sit outside the column. Left prose-scoped, a results page fell back to
+   the browser's own pure yellow — the one saturated primary colour anywhere in
+   the product, fired dozens of times at once on a page of hits, and on a dark
+   evening it landed on a near-black ground. */
+.yomihon mark { background: color-mix(in oklch, var(--gold) 26%, transparent); color: inherit; padding: 0 .15rem; border-radius: 2px; }
 
 /* wikilinks — the renderer's real classes (a.wikilink / .wikilink-broken / .wikilink-ambiguous) */
 .y-prose a.wikilink { color: var(--link); border-bottom: 1px solid var(--accent-muted); }
