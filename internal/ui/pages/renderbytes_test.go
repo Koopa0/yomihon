@@ -60,8 +60,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
-			surface{"statuspanel-" + state.name, statusPanel(state.view)},
-			surface{"statusbar-" + state.name, statusBar(state.view)},
+			surface{"statuspanel-" + state.name, statusPanel(state.view, wording.ZhHant)},
+			surface{"statusbar-" + state.name, statusBar(state.view, wording.ZhHant)},
 		)
 	}
 	if len(cases) < 30 {
@@ -103,13 +103,21 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 	}
 }
 
-// drawsNothing names the recordings that are meant to be empty. The bottom bar
-// stays away from an ungoverned folder, which has no lifecycle to control, and
-// from a note whose frontmatter could not be read, where no status was parsed
-// to act on.
+// drawsNothing names the recordings that are meant to be empty. Both status
+// faces stay away from an ungoverned folder, which has no lifecycle to control,
+// and from a note whose frontmatter could not be read, where no status was
+// parsed to act on.
+//
+// The rail panel's two entries used to hold a full panel each, byte for byte
+// the same as one another, because the condition that keeps it away lived in
+// its caller: the recording drew a component the page never draws in those
+// states, so it locked nothing and could not tell the two apart. The condition
+// is the panel's own now, as it always was the bar's.
 var drawsNothing = map[string]bool{
-	"statusbar-ungoverned":             true,
-	"statusbar-frontmatter-diagnostic": true,
+	"statusbar-ungoverned":               true,
+	"statusbar-frontmatter-diagnostic":   true,
+	"statuspanel-ungoverned":             true,
+	"statuspanel-frontmatter-diagnostic": true,
 }
 
 // recordedChrome is one fixed request's chrome, so the recording says nothing
@@ -135,7 +143,6 @@ func recordedNoteView(model *nav.Model, current string) NoteView {
 	return NoteView{
 		Title:           "L01",
 		RelPath:         current,
-		Lang:            wording.ZhHant,
 		Language:        "ja",
 		Type:            "lesson",
 		Status:          "draft",
@@ -188,7 +195,7 @@ func recordedStatusStates() []struct {
 	name string
 	view NoteView
 } {
-	base := NoteView{Lang: wording.ZhHant, RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123"}
+	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123"}
 	with := func(mutate func(v *NoteView)) NoteView {
 		v := base
 		mutate(&v)

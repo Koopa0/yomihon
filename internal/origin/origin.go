@@ -28,6 +28,23 @@ const (
 	dnsPrefetchOff      = "off"
 )
 
+// Language reads which language this request asked the interface to speak,
+// falling back to the default when the reader has chosen none or has sent a
+// value the dictionary does not know.
+//
+// It lives here rather than beside the cookie's name because reading it means
+// reading a request, and the dictionary answers surfaces that have no request
+// to read — a report rendered from the command line, a page composed before
+// anyone asked for it. This package already owns what arrives from a browser,
+// and every surface that answers a reader passes through it.
+func Language(r *http.Request) wording.Lang {
+	c, err := r.Cookie(wording.CookieName)
+	if err != nil {
+		return wording.ZhHant
+	}
+	return wording.FromCookieValue(c.Value)
+}
+
 type nonceContextKey struct{}
 
 // Nonce returns the application-script nonce issued for this response. It is
@@ -151,7 +168,7 @@ func Protect(next http.Handler) http.Handler {
 func LoopbackOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !loopbackHost(r.Host) {
-			http.Error(w, wording.ServerIsForThisMachine.In(wording.LanguageFromRequest(r)), http.StatusForbidden)
+			http.Error(w, wording.ServerIsForThisMachine.In(Language(r)), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)

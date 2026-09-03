@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
@@ -160,7 +161,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 		Unreadable: unreadable,
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
 	if unreadable {
 		title = wording.NotReadableKicker.In(lang)
@@ -168,7 +169,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
 	if err := pages.NotFound(view, layouts.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write not-found page", "path", asked, "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", asked, "error", err)
 	}
 }
 
@@ -199,7 +200,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Folder(view, layouts.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write folder page", "path", dir, "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder page", "path", dir, "error", err)
 	}
 }
 
@@ -215,7 +216,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 // to the browser through the sandboxed raw endpoint, never poured into this
 // page as live markup.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		h.showNotFound(w, r, r.URL.Path)
@@ -247,7 +248,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state := h.governance(r.Context(), &n, snap, authority)
+	state := h.governance(r.Context(), &n, snap, authority, lang)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body, lang)
@@ -285,7 +286,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
-		Lang:              lang,
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,
@@ -335,7 +335,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// folder that holds no Japanese at all.
 	pageChrome.HasRuby = strings.Contains(result.HTML, "<ruby")
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write note page", "path", rel, "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write note page", "path", rel, "error", err)
 	}
 }
 
@@ -524,13 +524,14 @@ func (h *Handler) governance(
 	n *snapshot.Reading,
 	snap *snapshot.Generation,
 	authority status.Authority,
+	lang wording.Lang,
 ) governanceState {
 	policy := snap.ArtifactPolicy()
 	state := governanceState{
 		shell:     shell.Project(authority, snap),
 		placement: classifyGovernance(authority, policy, n.RelPath),
 	}
-	state.writeDiagnostic = authority.WriteDiagnostic()
+	state.writeDiagnostic = authority.WriteDiagnostic(lang)
 	if state.writeDiagnostic == "" && !policy.Available() {
 		state.writeDiagnostic = policy.Diagnostic()
 	}
@@ -543,7 +544,7 @@ func (h *Handler) governance(
 			// Legally no frontmatter (e.g. drills): no keys either.
 			state.noFrontmatter = true
 		default:
-			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath)
+			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath, lang)
 			if state.writeDiagnostic == "" {
 				state.transitions = offeredTransitions(authority, n.RelPath, n.Type, state.status)
 				state.statusUnknown = state.status != "" &&
@@ -627,7 +628,7 @@ func offeredTransitions(authority status.Authority, relPath, noteType, current s
 // holds may be exactly the one the reader has already moved away from, and a
 // transition offered from it is refused on arrival. Whatever prevented this
 // read is the same thing that would prevent the write.
-func (h *Handler) observedStatus(ctx context.Context, rel string) (current, blocked string) {
+func (h *Handler) observedStatus(ctx context.Context, rel string, lang wording.Lang) (current, blocked string) {
 	current, err := h.sources.ObservedStatus(ctx, rel)
 	if err != nil {
 		// A reader who navigated away is not a fault to report: the read was
@@ -637,7 +638,7 @@ func (h *Handler) observedStatus(ctx context.Context, rel string) (current, bloc
 		if ctx.Err() == nil {
 			h.sources.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
 		}
-		return "", status.NoteUnreadableDiagnostic
+		return "", wording.NoteStatusUnreadable.In(lang)
 	}
 	return current, ""
 }

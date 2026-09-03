@@ -616,7 +616,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 				return loadHomeContractWithArtifactSection(t, "")
 			},
 			want:       "contract declares no artifact policy; instance projections disabled until it does",
-			wantAbsent: status.CoreUnavailableDiagnostic,
+			wantAbsent: wording.ContractUnavailable.In(wording.ZhHant),
 		},
 		{
 			name: "artifact policy invalid",
@@ -625,7 +625,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
 			},
 			want:       `invalid artifact policy: non_instance_dirs contains "."`,
-			wantAbsent: status.CoreUnavailableDiagnostic,
+			wantAbsent: wording.ContractUnavailable.In(wording.ZhHant),
 		},
 	}
 	for _, tt := range tests {
@@ -2516,7 +2516,7 @@ func TestShowNoFrontmatter(t *testing.T) {
 	if !strings.Contains(body, "沒有 frontmatter") {
 		t.Errorf("page missing the no-frontmatter notice; body = %q", body)
 	}
-	if strings.Contains(body, status.CoreUnavailableDiagnostic) || strings.Contains(body, "fail-closed") {
+	if strings.Contains(body, wording.ContractUnavailable.In(wording.ZhHant)) || strings.Contains(body, "fail-closed") {
 		t.Errorf("page shows the fail-closed notice even though the contract loaded; body = %q", body)
 	}
 }
@@ -2649,7 +2649,7 @@ func TestShowTransitions(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("lesson after POST differs outside the one status line:\ngot:  %q\nwant: %q", got, want)
 	}
-	if strings.Contains(body, status.CoreUnavailableDiagnostic) || strings.Contains(body, "fail-closed") || strings.Contains(body, "沒有 frontmatter") {
+	if strings.Contains(body, wording.ContractUnavailable.In(wording.ZhHant)) || strings.Contains(body, "fail-closed") || strings.Contains(body, "沒有 frontmatter") {
 		t.Errorf("page shows the wrong status-panel branch; body = %q", body)
 	}
 }
@@ -3182,7 +3182,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 			if shown != f.wantText {
 				t.Errorf("GET /notes/%s renders its characters = %v, want %v", f.rel, shown, f.wantText)
 			}
-			results, err := store.Current().Search().Search(lexical.Parse(f.term))
+			results, _, err := store.Current().Search().SearchN(lexical.Parse(f.term), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", f.term, err)
 			}

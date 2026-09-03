@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // testRel is the vault-relative path every fixture note in this package
@@ -549,7 +550,7 @@ func TestArtifactPolicyClosureIsDistinct(t *testing.T) {
 			if !writer.Authority().Closed() {
 				t.Fatal("Closed() = false, want artifact-policy closure")
 			}
-			if got, want := writer.Authority().Diagnostic(), tt.want; got != want {
+			if got, want := writer.Authority().Diagnostic(wording.ZhHant), tt.want; got != want {
 				t.Errorf("WriteDiagnostic() = %q, want %q", got, want)
 			}
 			if got := writer.Authority().Order(); got != nil {

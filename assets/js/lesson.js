@@ -16,20 +16,43 @@ export function initLesson() {
   let speechGeneration = 0;
   let activeSpeakButton = null;
   let speechStatus = null;
+  // The read-aloud bar's words come from the page, in the language its reader
+  // asked for. A sentence written here would be written in one language for
+  // everyone, on a page that is otherwise theirs. Each is named in full rather
+  // than reached through the dataset object, so the check that pairs every
+  // attribute the server writes with something that reads it can see them.
+  const column = document.querySelector('[data-readaloud-controls]');
+  const controlsLabel = column?.dataset.readaloudControls ?? '';
+  const speedLabel = column?.dataset.readaloudSpeed ?? '';
+  const rateTemplate = column?.dataset.readaloudRate ?? '';
+  const stopLabel = column?.dataset.readaloudStop ?? '';
+  const stopThisLabel = column?.dataset.readaloudStopthis ?? '';
+  const stoppedLabel = column?.dataset.readaloudStopped ?? '';
+  const playingLabel = column?.dataset.readaloudPlaying ?? '';
+  const finishedLabel = column?.dataset.readaloudFinished ?? '';
+  const unavailableLabel = column?.dataset.readaloudUnavailable ?? '';
 
-  function resetSpeechButton() {
+  function resetSpeakButton() {
     if (!activeSpeakButton) return;
     activeSpeakButton.removeAttribute('data-speaking');
-    activeSpeakButton.setAttribute('aria-label', '朗讀這段日文');
+    // The server labelled this button; putting its own label back is one
+    // fewer copy of the same sentence than carrying a second one here.
+    if (activeSpeakButton.dataset.readaloudIdle) {
+      activeSpeakButton.setAttribute('aria-label', activeSpeakButton.dataset.readaloudIdle);
+    }
     activeSpeakButton = null;
+  }
+
+  function announce(text) {
+    if (speechStatus && text) speechStatus.textContent = text;
   }
 
   function stopSpeech() {
     if (!('speechSynthesis' in window)) return;
     speechGeneration += 1;
     speechSynthesis.cancel();
-    resetSpeechButton();
-    if (speechStatus) speechStatus.textContent = '已停止';
+    resetSpeakButton();
+    announce(stoppedLabel);
   }
 
   function speakJapanese(text, trigger = null) {
@@ -49,18 +72,23 @@ export function initLesson() {
     if (trigger) {
       activeSpeakButton = trigger;
       trigger.setAttribute('data-speaking', '');
-      trigger.setAttribute('aria-label', '停止朗讀');
+      trigger.dataset.readaloudIdle ??= trigger.getAttribute('aria-label') ?? '';
+      if (stopThisLabel) trigger.setAttribute('aria-label', stopThisLabel);
     }
     utterance.addEventListener('start', () => {
-      if (generation === speechGeneration && speechStatus) speechStatus.textContent = '播放中';
+      if (generation === speechGeneration) announce(playingLabel);
     }, { once: true });
     utterance.addEventListener('end', () => {
-      if (generation === speechGeneration && speechStatus) speechStatus.textContent = '播放完成';
-      if (generation === speechGeneration) resetSpeechButton();
+      if (generation === speechGeneration) {
+        announce(finishedLabel);
+        resetSpeakButton();
+      }
     }, { once: true });
     utterance.addEventListener('error', () => {
-      if (generation === speechGeneration && speechStatus) speechStatus.textContent = '目前無法播放日語語音';
-      if (generation === speechGeneration) resetSpeechButton();
+      if (generation === speechGeneration) {
+        announce(unavailableLabel);
+        resetSpeakButton();
+      }
     }, { once: true });
     speechSynthesis.speak(utterance);
   }
@@ -73,10 +101,10 @@ export function initLesson() {
     const toolbar = document.createElement('div');
     toolbar.className = 'y-ttsbar';
     toolbar.setAttribute('role', 'group');
-    toolbar.setAttribute('aria-label', '日文朗讀控制');
+    toolbar.setAttribute('aria-label', controlsLabel);
     const label = document.createElement('span');
     label.className = 'y-ttsbar__label';
-    label.textContent = '朗讀速度';
+    label.textContent = speedLabel;
     toolbar.append(label);
     [0.8, 1].forEach((rate) => {
       const rateButton = document.createElement('button');
@@ -89,7 +117,7 @@ export function initLesson() {
           candidate.setAttribute('aria-pressed', String(candidate === rateButton));
         });
         stopSpeech();
-        if (speechStatus) speechStatus.textContent = `速度 ${rate.toFixed(1)}×`;
+        announce(rateTemplate.replace('{rate}', rate.toFixed(1)));
       });
       rateButton.dataset.speechRate = String(rate);
       toolbar.append(rateButton);
@@ -101,7 +129,7 @@ export function initLesson() {
     const stopButton = document.createElement('button');
     stopButton.type = 'button';
     stopButton.className = 'y-ttsbar__stop';
-    stopButton.textContent = '停止';
+    stopButton.textContent = stopLabel;
     stopButton.addEventListener('click', stopSpeech);
     toolbar.append(stopButton);
     buttons[0].closest('.y-reading')?.before(toolbar);

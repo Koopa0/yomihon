@@ -21,7 +21,7 @@ import (
 func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 	t.Parallel()
 
-	governed := NoteView{Lang: wording.ZhHant, RelPath: "Writing/L01.md", Governed: true, ContentIdentity: "abc123"}
+	governed := NoteView{RelPath: "Writing/L01.md", Governed: true, ContentIdentity: "abc123"}
 	with := func(mutate func(v *NoteView)) NoteView {
 		v := governed
 		mutate(&v)
@@ -84,8 +84,8 @@ func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 			t.Errorf("state %d stamps data-status-state=%q, want %q", state, got, tt.token)
 		}
 		for faceName, component := range map[string]templ.Component{
-			"the rail panel": statusPanel(view),
-			"the foot bar":   statusBar(view),
+			"the rail panel": statusPanel(view, wording.ZhHant),
+			"the foot bar":   statusBar(view, wording.ZhHant),
 		} {
 			var buf bytes.Buffer
 			if err := component.Render(t.Context(), &buf); err != nil {
@@ -176,10 +176,10 @@ func TestTheNonInstanceNoticeSpeaksTheReadersLanguage(t *testing.T) {
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
-			view := NoteView{Lang: lang, Governed: true, NonInstance: true, RelPath: "System/templates/T.md"}
+			view := NoteView{Governed: true, NonInstance: true, RelPath: "System/templates/T.md"}
 			for faceName, component := range map[string]templ.Component{
-				"the rail panel": statusPanel(view),
-				"the foot bar":   statusBar(view),
+				"the rail panel": statusPanel(view, lang),
+				"the foot bar":   statusBar(view, lang),
 			} {
 				var buf bytes.Buffer
 				if err := component.Render(t.Context(), &buf); err != nil {

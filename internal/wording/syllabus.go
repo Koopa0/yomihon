@@ -73,6 +73,15 @@ var (
 		" 三者之一，寫在標題或開啟清單那一行的行尾。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
 		", at the end of a heading or of the row that opens a list. yomihon reports and never repairs; edit this note directly.",
 	)
+	// What the page says when the grammar reported a structural problem the
+	// page has no explanation for. It claims nothing about what the author
+	// wrote, because the page does not know which way it went; the two
+	// sentences above are both claims about somebody else's file, and one
+	// of them would be false.
+	NoCourseUnexplained = both(
+		"這條路徑有一個結構問題，這個頁面沒有可以說明的話。判讀報告會指出是哪一個。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
+		"This path has a structural problem this page has no words for. The adjudication report names which one. yomihon reports and never repairs; edit this note directly.",
+	)
 	// The joiners between the three spelled values. The two languages use
 	// different marks and different words, so they are phrases, not markup.
 	ValueJoin     = both("、", ", ")

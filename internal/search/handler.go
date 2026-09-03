@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -104,13 +105,13 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	results, total, diagnostic, tokens := h.query(snap.Index, q, lang)
 
 	view := answerView(snap, q, results, total, diagnostic, tokens)
 	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
 	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
-		h.logQueryError("write search page", q, err)
+		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }
 
@@ -147,14 +148,14 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, total, diagnostic, tokens := h.query(snap.Index, q, wording.LanguageFromRequest(r))
+	results, total, diagnostic, tokens := h.query(snap.Index, q, origin.Language(r))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	view := answerView(snap, q, results, total, diagnostic, tokens)
-	if err := pages.SearchResults(view, wording.LanguageFromRequest(r)).Render(r.Context(), w); err != nil {
-		h.logQueryError("write search results", q, err)
+	if err := pages.SearchResults(view, origin.Language(r)).Render(r.Context(), w); err != nil {
+		h.logQueryWriteFailure(r, "write search results", q, err)
 	}
 }
 
@@ -208,29 +209,46 @@ func stepBackViews(idx *lexical.Index, q string, results []lexical.Result, diagn
 }
 
 func (h *Handler) logQueryError(message, rawQuery string, err error) {
+	h.log.Error(message, queryFacts(rawQuery, err)...)
+}
+
+// logQueryWriteFailure reports a page that could not be finished. It carries
+// the same facts as a query fault and differs only in loudness: a reader who
+// closed the tab mid-response is not a fault an operator can act on.
+func (h *Handler) logQueryWriteFailure(r *http.Request, message, rawQuery string, err error) {
+	h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), message, queryFacts(rawQuery, err)...)
+}
+
+// queryFacts is what a search fault may say about the query: its shape and its
+// size, never its text. That is why the error arrives as a type and not under
+// the "error" key every other log line in this repository uses — a search
+// error's message can carry back the words it was built from, and what a
+// reader typed into the box is theirs. The type says which fault it was, which
+// is what an operator acts on.
+func queryFacts(rawQuery string, err error) []any {
 	query := lexical.Parse(rawQuery)
 	filters := query.Filters()
 	filterKeys := make([]string, 0, len(filters))
 	for _, filter := range filters {
 		filterKeys = append(filterKeys, filter.Key)
 	}
-	h.log.Error(message,
+	return []any{
 		"error_type", fmt.Sprintf("%T", err),
 		"query_bytes", len(rawQuery),
 		"filter_keys", filterKeys,
-	)
+	}
 }
 
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 	q := r.URL.Query().Get("q")
 	if len(q) > maxQueryBytes {
-		http.Error(w, wording.QueryTooLong.In(wording.LanguageFromRequest(r)), http.StatusBadRequest)
+		http.Error(w, wording.QueryTooLong.In(origin.Language(r)), http.StatusBadRequest)
 		return "", false
 	}
 	if strings.IndexFunc(q, func(r rune) bool {
 		return r <= 0x1f || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 	}) >= 0 {
-		http.Error(w, wording.QueryHasControlByte.In(wording.LanguageFromRequest(r)), http.StatusBadRequest)
+		http.Error(w, wording.QueryHasControlByte.In(origin.Language(r)), http.StatusBadRequest)
 		return "", false
 	}
 	return q, true

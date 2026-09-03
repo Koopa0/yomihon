@@ -28,7 +28,7 @@ func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func snapshotSearch(tb testing.TB, idx *lexical.Index, query string) []lexical.Result {
 	tb.Helper()
-	results, err := idx.Search(lexical.Parse(query))
+	results, _, err := idx.SearchN(lexical.Parse(query), -1)
 	if err != nil {
 		tb.Fatalf("Search(%q) error: %v", query, err)
 	}
@@ -161,7 +161,7 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 	}
 
 	resolution := view.Graph().Resolve("Foo")
-	if resolution.Kind != graph.Ambiguous || len(resolution.Candidates) != 2 {
+	if resolution.Kind != graph.KindAmbiguous || len(resolution.Candidates) != 2 {
 		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", resolution)
 	}
 	resolution.Candidates[0] = "mutated"
@@ -468,7 +468,7 @@ func TestNewBuildsSnapshot(t *testing.T) {
 	if got := snapshotSearch(t, snap.Search(), "kafka"); len(got) == 0 {
 		t.Error("kafka not found in the freshly built snapshot")
 	}
-	if got := snap.Graph().Resolve("Alpha"); got.Kind != graph.Unique {
+	if got := snap.Graph().Resolve("Alpha"); got.Kind != graph.KindUnique {
 		t.Errorf("graph.Resolve(Alpha).Kind = %v, want Unique", got.Kind)
 	}
 	if got := snap.Navigation().KnowledgeNotes(); len(got) != 1 || got[0].Modified.IsZero() {
@@ -592,7 +592,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if result := snapshotSearch(t, got.Search(), "Card"); len(result) != 1 || result[0].RelPath != "System/templates/Card.md" {
 		t.Errorf("plain lexical search after artifact drift = %+v, want locally readable template", result)
 	}
-	if _, err := got.Search().Search(lexical.Parse("status:ready")); err == nil {
+	if _, _, err := got.Search().SearchN(lexical.Parse("status:ready"), -1); err == nil {
 		t.Error("metadata search succeeded under source-stale artifact policy")
 	}
 }
@@ -1548,7 +1548,7 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := store.Current().Search().Search(lexical.Parse("rarespelunker"))
+	results, _, err := store.Current().Search().SearchN(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -1580,7 +1580,7 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := store.Current().Search().Search(lexical.Parse("rarespelunker"))
+	results, _, err := store.Current().Search().SearchN(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -1636,7 +1636,7 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 		t.Error("a note under the cap reports itself unsearchable")
 	}
 
-	results, err := view.Search().Search(lexical.Parse(needle))
+	results, _, err := view.Search().SearchN(lexical.Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}

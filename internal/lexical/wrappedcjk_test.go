@@ -45,7 +45,7 @@ func TestAPhraseFoundAcrossAWrappedLine(t *testing.T) {
 		// between two characters, it does not reorder them.
 		{"characters are not resequenced", "兒童不建議", 0},
 	} {
-		results, err := idx.Search(Parse(c.query))
+		results, _, err := idx.SearchN(Parse(c.query), -1)
 		if err != nil {
 			t.Fatalf("%s: Search: %v", c.name, err)
 		}

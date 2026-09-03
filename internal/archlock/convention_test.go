@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -21,44 +22,6 @@ type site struct {
 	path string
 	line int
 	text string
-}
-
-// key identifies a site across edits that only move it. A check that keyed on
-// the line number would fail every time an unrelated line was inserted above.
-func (s site) key() string { return s.path + " | " + s.text }
-
-// openSites are the violations a check knows about and has not fixed. Each one
-// must still be found: an entry that matches nothing is a fix that landed
-// without its permission being withdrawn, and the check fails until the entry
-// is deleted. That is the whole point of writing them here rather than
-// narrowing the pattern — a stale exemption is louder than a silent one.
-type openSites struct {
-	// why says who owns closing these, so a reader meeting a failure knows
-	// whether to fix the code or delete the line.
-	why  string
-	keys []string
-}
-
-// stillOpen removes the known violations from found, and reports any entry that
-// matched nothing so it can be deleted.
-func (o openSites) stillOpen(t *testing.T, found []site) []site {
-	t.Helper()
-
-	matched := make(map[string]bool, len(o.keys))
-	var remaining []site
-	for _, s := range found {
-		if slices.Contains(o.keys, s.key()) {
-			matched[s.key()] = true
-			continue
-		}
-		remaining = append(remaining, s)
-	}
-	for _, k := range o.keys {
-		if !matched[k] {
-			t.Errorf("this violation is gone, so delete its line from the list above:\n\t%q\n(%s)", k, o.why)
-		}
-	}
-	return remaining
 }
 
 // report fails with one line per violation, naming where it is and what to do.
@@ -78,6 +41,11 @@ func productionLines(t *testing.T) []site {
 
 	var sites []site
 	for _, path := range productionFiles(t, ".go") {
+		// A <type>_string.go is a stringer's output. The checks over text are
+		// about how this repository writes, and nobody writes that file.
+		if strings.HasSuffix(path, "_string.go") {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
@@ -143,33 +111,79 @@ func findLines(t *testing.T, accept func(string) bool) []site {
 // TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow keeps the last arm of a
 // switch over a closed set useful. A panic that says only which type it was
 // holding leaves whoever meets it in a log with no way to tell which value the
-// vault produced, and a %d says a number for something that reads as a word
-// everywhere else.
+// vault produced, and a number says a number for something that reads as a word
+// everywhere else — so a message the reader has to decode against a constant
+// block they do not have open is only half an answer.
+//
+// The one place a number is the whole answer is the method that produces the
+// names. It is exempted by shape rather than by a list: a panic over the
+// receiver of the method it sits in is that method, and it cannot ask itself
+// for a name it is in the middle of failing to supply.
 func TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "the switch-panic shapes are being changed by another line of this work; " +
-			"when its change lands, these lines stop matching and belong deleted",
-		keys: []string{
-			`internal/nav/map.go | panic(fmt.Sprintf("nav: unknown graph.Kind %d", res.Kind))`,
-			`internal/render/wikilink.go | panic(fmt.Sprintf("render: unknown graph.Kind %d", res.Kind))`,
-			`internal/sequence/sequence.go | panic("sequence: unknown Role")`,
-			`internal/sequence/sequence.go | panic("sequence: unknown EntryState")`,
-		},
+	naming := panicsOverTheirOwnReceiver(t)
+	var found []site
+	conforming := 0
+	for _, s := range productionLines(t) {
+		if !strings.Contains(s.text, "panic(") || !strings.Contains(s.text, "unknown") {
+			continue
+		}
+		if naming[s.path+":"+strconv.Itoa(s.line)] {
+			continue
+		}
+		namesTheValue := strings.Contains(s.text, ".String()") || strings.Contains(s.text, "+ string(")
+		asANumber := strings.Contains(s.text, "strconv.Itoa(int(") || strings.Contains(s.text, "%d")
+		if namesTheValue && !asANumber {
+			conforming++
+			continue
+		}
+		found = append(found, s)
 	}
-	found := findLines(t, func(line string) bool {
-		return strings.Contains(line, "panic(") && strings.Contains(line, "unknown") &&
-			!strings.Contains(line, `: " +`)
-	})
-	conforming := findLines(t, func(line string) bool {
-		return strings.Contains(line, "panic(") && strings.Contains(line, "unknown") &&
-			strings.Contains(line, `: " +`)
-	})
-	if len(conforming) == 0 {
+	if conforming == 0 {
 		t.Fatal("no panic in the tree uses the shape this check asks for, so it is checking a rule nobody follows")
 	}
-	report(t, `an exhaustive-switch panic must end with the value: panic("pkg: unknown Type: " + v.String())`, open.stillOpen(t, found))
+	report(t, `an exhaustive-switch panic must end with the value's own name: panic("pkg: unknown Type: " + v.String())`, found)
+}
+
+// panicsOverTheirOwnReceiver locates, as "path:line", every panic whose message
+// mentions the receiver of the method it is written in. Those are the sites
+// asked for a value's name, so a number there is the honest answer rather than
+// an unread one.
+func panicsOverTheirOwnReceiver(t *testing.T) map[string]bool {
+	t.Helper()
+
+	sites := make(map[string]bool)
+	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || fn.Recv == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+				continue
+			}
+			receiver := fn.Recv.List[0].Names[0].Name
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok || len(call.Args) != 1 {
+					return true
+				}
+				if name, ok := call.Fun.(*ast.Ident); !ok || name.Name != "panic" {
+					return true
+				}
+				mentions := false
+				ast.Inspect(call.Args[0], func(arg ast.Node) bool {
+					if id, ok := arg.(*ast.Ident); ok && id.Name == receiver {
+						mentions = true
+					}
+					return true
+				})
+				if mentions {
+					sites[path+":"+strconv.Itoa(fset.Position(call.Pos()).Line)] = true
+				}
+				return true
+			})
+		}
+	})
+	return sites
 }
 
 // TestAConstructorGuardSaysWhichDependencyWasNil keeps the one message a wiring
@@ -179,13 +193,6 @@ func TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow(t *testing.T) {
 func TestAConstructorGuardSaysWhichDependencyWasNil(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "these two guard messages are being corrected by another line of this work",
-		keys: []string{
-			`internal/render/render.go | panic("render: New requires non-nil Transclusions")`,
-			`internal/render/render.go | panic("render: New requires non-nil Titles")`,
-		},
-	}
 	found := findLines(t, func(line string) bool {
 		return strings.Contains(line, `panic("`) && !strings.Contains(line, "unknown") &&
 			!strings.Contains(line, "requires a non-nil")
@@ -196,7 +203,7 @@ func TestAConstructorGuardSaysWhichDependencyWasNil(t *testing.T) {
 	if len(conforming) == 0 {
 		t.Fatal("no constructor guard uses the shape this check asks for, so it is checking a rule nobody follows")
 	}
-	report(t, `a constructor guard must read panic("<package>: <Constructor> requires a non-nil <Field>")`, open.stillOpen(t, found))
+	report(t, `a constructor guard must read panic("<package>: <Constructor> requires a non-nil <Field>")`, found)
 }
 
 // TestNoResponseCarriesASentenceWrittenInTheSource keeps every string a reader
@@ -217,6 +224,56 @@ func TestNoResponseCarriesASentenceWrittenInTheSource(t *testing.T) {
 	report(t, "a response body a reader sees must come from internal/wording, not from a literal here", found)
 }
 
+// TestNoScriptCarriesASentenceOfItsOwn keeps the client's words where the
+// server's are. A script is one file for every reader, so a sentence written
+// into one is written in a single language and reaches the reader who asked
+// for the other in the middle of a page that is otherwise theirs — which is
+// what a live search's result count, a rail filter's overflow notice and a
+// read-aloud bar all used to do.
+//
+// The rule is stricter than the fault, and deliberately: no CJK anywhere in
+// these files, comments included. The interface's words live in the
+// dictionary, so a comment quoting one is a second copy of it, and a carve-out
+// for comments would have to decide what is a comment in a language where a
+// pair of slashes lives inside every URL. Describe the Japanese a passage
+// carries; do not paste it.
+func TestNoScriptCarriesASentenceOfItsOwn(t *testing.T) {
+	t.Parallel()
+
+	scripts := productionFiles(t, ".js")
+	if len(scripts) == 0 {
+		t.Fatal("no script was read at all, so this check asserts nothing")
+	}
+	for _, path := range scripts {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			for _, r := range line {
+				if cjk(r) {
+					t.Errorf("%s:%d a reader's words belong in internal/wording, rendered onto the element this script reads them from\n\t%s",
+						path, i+1, strings.TrimSpace(line))
+					break
+				}
+			}
+		}
+	}
+}
+
+// cjk reports whether a rune is one only a sentence would carry: the two kana
+// blocks, the ideographs, CJK punctuation, and the fullwidth forms.
+func cjk(r rune) bool {
+	switch {
+	case r >= 0x3000 && r <= 0x303f, // CJK punctuation
+		r >= 0x3040 && r <= 0x30ff, // hiragana and katakana
+		r >= 0x4e00 && r <= 0x9fff, // unified ideographs
+		r >= 0xff00 && r <= 0xffef: // fullwidth and halfwidth forms
+		return true
+	}
+	return false
+}
+
 // TestNoSentenceChoosesALanguageBeforeItsReaderArrives keeps the choice with
 // the surface that knows who is reading. A phrase resolved at package scope, or
 // against a fixed language in a handler, was written for whichever reader the
@@ -225,15 +282,6 @@ func TestNoResponseCarriesASentenceWrittenInTheSource(t *testing.T) {
 func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "carrying these phrases to their surface is another line of this work",
-		keys: []string{
-			`internal/snapshot/health.go | var vaultRootLabel = wording.VaultRoot.In(wording.ZhHant)`,
-			`internal/status/status.go | CoreUnavailableDiagnostic           = wording.ContractUnavailable.In(wording.ZhHant)`,
-			`internal/status/status.go | DurableInstallUnavailableDiagnostic = wording.DurabilityUnsupported.In(wording.ZhHant)`,
-			`internal/status/status.go | NoteUnreadableDiagnostic            = wording.NoteStatusUnreadable.In(wording.ZhHant)`,
-		},
-	}
 	fixed := func(line string) bool {
 		return strings.Contains(line, ".In(wording.ZhHant)") || strings.Contains(line, ".In(wording.En)")
 	}
@@ -250,47 +298,45 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 		}
 	}
 	conforming := findLines(t, func(line string) bool {
-		return strings.Contains(line, ".In(wording.LanguageFromRequest(r))") || strings.Contains(line, ".In(lang)")
+		return strings.Contains(line, ".In(origin.Language(r))") || strings.Contains(line, ".In(lang)")
 	})
 	if len(conforming) == 0 {
 		t.Fatal("nothing in the tree resolves a phrase from the request, so this check is comparing against nothing")
 	}
-	report(t, "a sentence must carry both languages until the surface that knows the reader resolves it", open.stillOpen(t, found))
+	report(t, "a sentence must carry both languages until the surface that knows the reader resolves it", found)
 }
 
 // TestEveryExportedNumericEnumCanSayItsOwnName keeps a closed set printable.
 // Without it a log line, a panic and a rendered fault all fall back to the
 // number, and a number means nothing to anyone who does not have the constant
 // block open beside them.
+//
+// The method is looked for across the whole package rather than beside the type,
+// because a package is the unit a method belongs to: a hand-written one in a
+// role-named file and a generated one in <type>_string.go both answer for the
+// type, and requiring the same file would report a type that already has a name.
 func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 	t.Parallel()
 
-	open := openSites{
-		why: "giving these five their String method is another line of this work",
-		keys: []string{
-			"internal/graph/graph.go | Kind",
-			"internal/judge/command.go | Format",
-			"internal/judge/judge.go | Severity",
-			"internal/nav/entry.go | EntryKind",
-			"internal/schema/grant.go | Reason",
-		},
-	}
 	numeric := map[string]bool{
 		"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
 		"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
 	}
 
-	var found []site
-	total := 0
-	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		stringers := make(map[string]bool)
+	stringers := make(map[string]bool)
+	forEachProductionFile(t, func(path string, _ *token.FileSet, file *ast.File) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Name.Name != "String" || fn.Recv == nil || len(fn.Recv.List) != 1 {
 				continue
 			}
-			stringers[receiverTypeName(fn.Recv.List[0].Type)] = true
+			stringers[filepath.Dir(path)+"."+receiverTypeName(fn.Recv.List[0].Type)] = true
 		}
+	})
+
+	var found []site
+	total := 0
+	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.TYPE {
@@ -306,7 +352,7 @@ func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 					continue
 				}
 				total++
-				if !stringers[ts.Name.Name] {
+				if !stringers[filepath.Dir(path)+"."+ts.Name.Name] {
 					found = append(found, site{path: path, line: fset.Position(ts.Pos()).Line, text: ts.Name.Name})
 				}
 			}
@@ -315,7 +361,7 @@ func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
 	if total == 0 {
 		t.Fatal("no exported numeric enum was found at all, so this check asserts nothing")
 	}
-	report(t, "an exported enum over a numeric type must have a String method", open.stillOpen(t, found))
+	report(t, "an exported enum over a numeric type must have a String method", found)
 }
 
 // TestAContextIsAlwaysTheFirstParameter keeps one shape for the value every

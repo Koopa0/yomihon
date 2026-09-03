@@ -54,12 +54,12 @@ const (
 	SeverityError
 )
 
-// name returns the wire name of the severity: "info", "warn", or "error". It
+// String returns the wire name of the severity: "info", "warn", or "error". It
 // is the single source for that spelling, shared by the JSONL encoder and the
 // human and markdown reports. A value outside the three constants is a
 // programming error, so it panics rather than yielding bytes consumers cannot
 // parse.
-func (s Severity) name() string {
+func (s Severity) String() string {
 	switch s {
 	case SeverityInfo:
 		return "info"
@@ -74,7 +74,7 @@ func (s Severity) name() string {
 
 // MarshalText returns the wire name of the severity for the JSONL encoder.
 func (s Severity) MarshalText() ([]byte, error) {
-	return []byte(s.name()), nil
+	return []byte(s.String()), nil
 }
 
 // Finding is one diagnostic, serialized as one JSONL line. The struct

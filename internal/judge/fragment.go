@@ -297,7 +297,7 @@ func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[strin
 		return Finding{}, false
 	}
 	res := idx.Resolve(link.target)
-	if res.Kind != graph.Unique || !vault.IsMarkdown(res.RelPath) {
+	if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 		return Finding{}, false
 	}
 	target := byPath[res.RelPath]
@@ -331,7 +331,7 @@ func transclusionBringsSection(target *note, idx *graph.Index, byPath map[string
 			continue
 		}
 		res := idx.Resolve(link.target)
-		if res.Kind != graph.Unique || !vault.IsMarkdown(res.RelPath) {
+		if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 			continue
 		}
 		if embedded := byPath[res.RelPath]; embedded != nil && embedded.sectionAnchors[want] {

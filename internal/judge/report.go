@@ -286,7 +286,7 @@ func humanReport(findings []Finding) string {
 	for _, sec := range p.sections {
 		fmt.Fprintf(&s, "\n▌ %s\n", sec.domain)
 		for _, i := range sec.items {
-			fmt.Fprintf(&s, "  [%s] %s%s  (%s)\n", i.severity.name(), blastPrefix(i.blast), i.message, i.samplePath)
+			fmt.Fprintf(&s, "  [%s] %s%s  (%s)\n", i.severity.String(), blastPrefix(i.blast), i.message, i.samplePath)
 		}
 	}
 	return s.String()
@@ -321,7 +321,7 @@ func markdownReport(findings []Finding) string {
 	for _, sec := range p.sections {
 		fmt.Fprintf(&s, "## %s\n\n", escapeMd(sec.domain))
 		for _, i := range sec.items {
-			fmt.Fprintf(&s, "- `%s` %s%s — %s\n", i.severity.name(), blastPrefix(i.blast), escapeMd(i.message), escapeMd(i.samplePath))
+			fmt.Fprintf(&s, "- `%s` %s%s — %s\n", i.severity.String(), blastPrefix(i.blast), escapeMd(i.message), escapeMd(i.samplePath))
 		}
 		s.WriteByte('\n')
 	}

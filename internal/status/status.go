@@ -102,17 +102,6 @@ var (
 	ErrInstallUncertain = errors.New("note rewritten but durability was not confirmed")
 )
 
-// The reading page's stable explanations for a closed write face. They read
-// from the dictionary so each sentence has one source, and they resolve to the
-// default language because they reach the page through a view that carries no
-// request and therefore no choice — the surface that would carry one is a
-// separate change.
-var (
-	CoreUnavailableDiagnostic           = wording.ContractUnavailable.In(wording.ZhHant)
-	DurableInstallUnavailableDiagnostic = wording.DurabilityUnsupported.In(wording.ZhHant)
-	NoteUnreadableDiagnostic            = wording.NoteStatusUnreadable.In(wording.ZhHant)
-)
-
 // The write face rewrites exactly the regular file a vault-relative path
 // names, so a symbolic link — whose target can sit outside the vault — and
 // every other special entry is refused, at the leaf and at every directory
@@ -282,6 +271,13 @@ type Authority struct {
 	contract *schema.Contract
 	policy   schema.ArtifactPolicy
 	governed bool
+	// released records that the process asserted a write face and then lost
+	// it, which is a fault about this process rather than about the folder's
+	// contract. It is kept as a fact rather than as a sentence because the
+	// sentence belongs to whichever reader is shown it, and no reader has
+	// asked anything at the moment an authority is captured. It sits beside
+	// the other flag so the two share one word of the struct.
+	released bool
 	claim    schema.Claim
 }
 
@@ -291,12 +287,12 @@ func (w *Writer) Authority() Authority {
 	// A released capability is a fault whichever folder it was pinned to: the
 	// process asserted a write face and then lost it.
 	if w == nil {
-		return Authority{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
+		return Authority{governed: true, claim: schema.Rejected(""), released: true}
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.root == nil {
-		return Authority{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
+		return Authority{governed: true, claim: schema.Rejected(""), released: true}
 	}
 	governed := w.governance.Governed()
 	if w.contract == nil {
@@ -335,28 +331,47 @@ func (v Authority) available() bool {
 	return v.contract != nil && v.policy.Available()
 }
 
-// Diagnostic explains why this captured view is closed. It is empty both when
-// lifecycle reads are available and when nothing ever claimed authority here —
-// a folder with no contract is not a folder in trouble.
-func (v Authority) Diagnostic() string {
+// Diagnostic explains, in lang, why this captured view is closed. It is empty
+// both when lifecycle reads are available and when nothing ever claimed
+// authority here — a folder with no contract is not a folder in trouble.
+//
+// A released write face is answered from the dictionary, because that fault is
+// yomihon's own and a reader is owed it in the language they chose. Everything
+// else is the contract's own sentence, which the package that read the
+// contract wrote and this only carries.
+func (v Authority) Diagnostic(lang wording.Lang) string {
+	if v.released {
+		return wording.ContractUnavailable.In(lang)
+	}
 	return v.claim.Diagnostic()
 }
 
-// WriteDiagnostic explains why this captured authority cannot offer status
-// transitions. Contract and artifact-policy failures also invalidate read-only
-// instance projections and therefore take precedence over a platform-only
-// write limitation. An empty result means a POST may be offered.
-func (v Authority) WriteDiagnostic() string {
-	if diagnostic := v.Diagnostic(); diagnostic != "" {
-		return diagnostic
-	}
-	if v.Closed() {
+// WriteDiagnostic explains, in lang, why this captured authority cannot offer
+// status transitions. Contract and artifact-policy failures also invalidate
+// read-only instance projections and therefore take precedence over a
+// platform-only write limitation. An empty result means a POST may be offered.
+func (v Authority) WriteDiagnostic(lang wording.Lang) string {
+	if !v.writeRefused() {
 		return ""
 	}
-	if !durableInstallSupported {
-		return DurableInstallUnavailableDiagnostic
+	if diagnostic := v.Diagnostic(lang); diagnostic != "" {
+		return diagnostic
 	}
-	return ""
+	return wording.DurabilityUnsupported.In(lang)
+}
+
+// writeRefused reports whether anything at all stands between this authority
+// and a status POST. It is the question WriteDiagnostic answers in words,
+// asked where only the answer's existence matters: which language a sentence
+// would be written in does not decide whether there is one to write.
+func (v Authority) writeRefused() bool {
+	if v.released || v.claim.Diagnostic() != "" {
+		return true
+	}
+	if v.Closed() {
+		return false
+	}
+	return !durableInstallSupported
 }
 
 // Transitions returns the from-list-legal target statuses from current in
@@ -366,7 +381,7 @@ func (v Authority) WriteDiagnostic() string {
 // can attest, so Flip would refuse it. It is pure over the captured view.
 func (v Authority) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
-	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
+	if err != nil || v.Closed() || v.writeRefused() || noteType == "" || current == "" ||
 		v.policy.IsNonInstance(relPath) {
 		return nil
 	}

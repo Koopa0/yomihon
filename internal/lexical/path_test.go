@@ -48,7 +48,7 @@ func TestFolderNamesFindTheNotesInThem(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			results, err := idx.Search(Parse(tt.query))
+			results, _, err := idx.SearchN(Parse(tt.query), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", tt.query, err)
 			}
@@ -79,7 +79,7 @@ func TestPathHitsAreAppendedAfterTextHits(t *testing.T) {
 		{RelPath: "Z筆記/深入.md", Title: "深入", PlainText: "這篇談索引的設計"},
 	}, validArtifactPolicy(t))
 
-	results, err := idx.Search(Parse("索引"))
+	results, _, err := idx.SearchN(Parse("索引"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}

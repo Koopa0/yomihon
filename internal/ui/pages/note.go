@@ -2,6 +2,7 @@ package pages
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 
@@ -55,11 +56,11 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 // noteDateLabel names the claim the metarow's date makes: the author's own
 // declared update, or the file's recorded change time when the note declares
 // none a date can be read from.
-func noteDateLabel(v *NoteView) string {
+func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	if v.UpdatedFromFile {
-		return wording.FileChangedOn.In(v.Lang)
+		return wording.FileChangedOn.In(lang)
 	}
-	return wording.UpdatedOn.In(v.Lang)
+	return wording.UpdatedOn.In(lang)
 }
 
 // articleLanguageAttrs states an article's language only where the note
@@ -121,6 +122,39 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 	return attrs
 }
 
+// readAloudAttrs carries the read-aloud bar's words to the page that will grow
+// one. The bar itself only exists where the browser can speak, so the browser
+// builds it — and a sentence built there is built in whichever language the
+// script was written in, which for a reader who asked for the other one is the
+// one part of the page that ignored them.
+//
+// They are withheld from a page with nothing to read aloud, on the same
+// condition the script uses to decide whether to build the bar at all: a
+// speak button in the body. The per-sentence buttons carry none of these; the
+// renderer already labels each one, and the script keeps that label to put
+// back rather than carrying a second copy of it.
+func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
+	if !strings.Contains(v.BodyHTML, speakButtonMarker) {
+		return nil
+	}
+	return templ.Attributes{
+		"data-readaloud-controls":    wording.ReadAloudControls.In(lang),
+		"data-readaloud-speed":       wording.ReadAloudSpeed.In(lang),
+		"data-readaloud-rate":        wording.ReadAloudRateFmt.In(lang),
+		"data-readaloud-stop":        wording.ReadAloudStop.In(lang),
+		"data-readaloud-stopthis":    wording.ReadAloudStopThis.In(lang),
+		"data-readaloud-stopped":     wording.ReadAloudStopped.In(lang),
+		"data-readaloud-playing":     wording.ReadAloudPlaying.In(lang),
+		"data-readaloud-finished":    wording.ReadAloudFinished.In(lang),
+		"data-readaloud-unavailable": wording.ReadAloudUnavailable.In(lang),
+	}
+}
+
+// speakButtonMarker is how a rendered body says it carries a read-aloud
+// control. It is the attribute the renderer writes and the script reads, so
+// asking for it is asking the same question the script asks.
+const speakButtonMarker = `data-tts="`
+
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
 // (0 or 1) plus every render diagnostic.
 func (v *NoteView) diagCount() int {
@@ -154,11 +188,11 @@ func (v *NoteView) citedByShown() bool {
 // onward from here through this interface, and recovery is a hand edit of the
 // frontmatter — through the editor link the page already carries, when it
 // does. Yomihon states the door; it never walks through it.
-func frontmatterDoorLine(v *NoteView) string {
+func frontmatterDoorLine(v *NoteView, lang wording.Lang) string {
 	if v.ObsidianHref == "" {
-		return wording.EditFrontmatterToRecover.In(v.Lang)
+		return wording.EditFrontmatterToRecover.In(lang)
 	}
-	return wording.EditFrontmatterToRecoverWithLink.In(v.Lang)
+	return wording.EditFrontmatterToRecoverWithLink.In(lang)
 }
 
 // diagnosticAddress spells an address the way its author wrote it. The
@@ -234,6 +268,22 @@ func (f faceState) token() string {
 		return "instance"
 	}
 	panic("pages: unknown write-face state: " + strconv.Itoa(int(f)))
+}
+
+// showsStatusFace reports whether the write face has anything to show about
+// this note. Both faces ask it — the rail panel and the bottom bar are one
+// answer shown in two places — and each asks it itself rather than trusting
+// whoever draws it, so a caller cannot draw one of them in a state where it
+// has nothing to say.
+//
+// A folder that governs nothing has no lifecycle, so neither face belongs on
+// any page it serves. A frontmatter fault suppresses them for a different
+// reason: no status was parsed, so there is nothing to report and nothing to
+// act on. A note outside the governed set stays named through both, because
+// that classification comes from its path and holds whatever its frontmatter
+// says.
+func (v *NoteView) showsStatusFace() bool {
+	return v.Governed && (v.Diagnostic == "" || v.NonInstance)
 }
 
 // showsFlipReceipt reports whether this reading has a change to state.

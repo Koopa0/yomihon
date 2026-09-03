@@ -578,6 +578,34 @@ func TestResolveFormat(t *testing.T) {
 	}
 }
 
+// TestFormatNamesTheSpellingThatAsksForIt walks the format constants back
+// through ParseFormat, so the word a message prints is the word a reader can
+// type after --format. A spelling that drifts from the parser would leave a
+// message telling the reader to ask for something the flag refuses.
+func TestFormatNamesTheSpellingThatAsksForIt(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		format Format
+		want   string
+	}{
+		{FormatJSON, "json"},
+		{FormatHuman, "human"},
+		{FormatMarkdown, "md"},
+	} {
+		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+			got := tt.format.String()
+			if got != tt.want {
+				t.Errorf("Format.String() = %q, want %q", got, tt.want)
+			}
+			parsed, ok := ParseFormat(got)
+			if !ok || parsed != tt.format {
+				t.Errorf("ParseFormat(%q) = %d, %t; want %d, true", got, parsed, ok, tt.format)
+			}
+		})
+	}
+}
+
 // TestRunOnEmptyVault asserts the three commands run cleanly over a directory
 // with no notes, emitting the empty forms and the expected exit codes rather
 // than failing.

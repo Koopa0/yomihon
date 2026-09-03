@@ -238,7 +238,7 @@ func TestSnippetGivesEveryScriptTheSameWindow(t *testing.T) {
 
 func snippetFor(t *testing.T, idx *Index, query string) string {
 	t.Helper()
-	results, err := idx.Search(Parse(query))
+	results, _, err := idx.SearchN(Parse(query), -1)
 	if err != nil {
 		t.Fatalf("Search(%q) error = %v", query, err)
 	}

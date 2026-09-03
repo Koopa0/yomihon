@@ -21,10 +21,11 @@ import (
 type NoteView struct {
 	Title   string
 	RelPath string
-	// Lang is the language the page's own words are in. Language, below, is a
-	// different question: it is what the note is written in, which the note
-	// declares and this does not touch.
-	Lang     wording.Lang
+	// Language is what the note is written in, which the note declares and
+	// this does not touch. The language the page's own words are in is not
+	// here: it arrives with the chrome, so one page cannot have two answers
+	// to it — a view that carried its own could disagree with the frame
+	// around it, and every part would still render.
 	Language string
 	Type     string
 	Status   string
@@ -157,25 +158,26 @@ type Transition struct {
 // it shows is either the note's own bytes rendered faithfully or a diagnostic
 // about them — it repairs nothing.
 templ Note(v NoteView, c layouts.Chrome) {
+	{{ lang := c.Lang }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, c.Lang)... }>
-				@flipReceipt(v)
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... }>
+				@flipReceipt(v, lang)
 				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
-					@articleHead(v)
-					@inlineAids(v)
+					@articleHead(v, lang)
+					@inlineAids(v, lang)
 					<div class="y-prose">
 						@templ.Raw(v.BodyHTML)
 					</div>
-					@sequenceSteps(v)
+					@sequenceSteps(v, lang)
 				</article>
 			</main>
-			@rightRail(v)
+			@rightRail(v, lang)
 		</div>
-		@statusBar(v)
-		@conceptSheet(v.Concepts, v.Lang)
+		@statusBar(v, lang)
+		@conceptSheet(v.Concepts, lang)
 	}
 }
 
@@ -205,7 +207,7 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 
 // articleHead is the breadcrumb + title + type meta + the kintsugi seam above
 // the rendered body.
-templ articleHead(v NoteView) {
+templ articleHead(v NoteView, lang wording.Lang) {
 	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
 		<div class="y-crumbs">
 			for i, seg := range crumbs {
@@ -233,7 +235,7 @@ templ articleHead(v NoteView) {
 			// which claim it makes: the author's declared update, or the file's
 			// recorded change when the note declares none.
 			if v.Updated != "" {
-				<span>{ noteDateLabel(&v) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
+				<span>{ noteDateLabel(&v, lang) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
 			}
 			if v.RelPath != "" {
 				<span>{ v.RelPath }</span>
@@ -241,7 +243,7 @@ templ articleHead(v NoteView) {
 				// did, so the one surface where a reader is most likely to ask
 				// "what does the file actually say" was the one with no way to
 				// look. The endpoint was there; only the door was missing.
-				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(v.Lang) }</a>
+				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
 			}
 			if v.ObsidianHref != "" {
 				// Every repair yomihon reports is a hand edit, so the page
@@ -249,15 +251,15 @@ templ articleHead(v NoteView) {
 				// is already built and escaped server-side from the vault root
 				// and a route-validated relative path, so it bypasses the URL
 				// sanitizer that would reject its custom scheme.
-				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(v.Lang) }</a>
+				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
 			}
 		</div>
 	}
 	if v.Unsearchable {
-		<p class="y-fileinfo__note" data-note-unsearchable>{ wording.NoteTooLargeToIndex.In(v.Lang) }</p>
+		<p class="y-fileinfo__note" data-note-unsearchable>{ wording.NoteTooLargeToIndex.In(lang) }</p>
 	}
 	if v.Stale {
-		<p class="y-fileinfo__note" data-note-stale>{ wording.NoteStale.In(v.Lang) }</p>
+		<p class="y-fileinfo__note" data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
 	<div class="y-seam" aria-hidden="true"></div>
 }
@@ -269,19 +271,17 @@ templ articleHead(v NoteView) {
 // this product is built around was, on most notes, somewhere the reader never
 // looked. Ordering it first pins it a fixed distance from the rail's top on
 // every note, whatever the outline's length.
-templ rightRail(v NoteView) {
-	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(v.Lang) }>
-		if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
-			@statusPanel(v)
-		}
+templ rightRail(v NoteView, lang wording.Lang) {
+	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(lang) }>
+		@statusPanel(v, lang)
 		if len(v.TOC) > 0 {
-			<nav aria-label={ wording.OnThisPage.In(v.Lang) }>
-				<div class="ui-side__label">{ wording.OnThisPage.In(v.Lang) }</div>
-				@tocList(v)
+			<nav aria-label={ wording.OnThisPage.In(lang) }>
+				<div class="ui-side__label">{ wording.OnThisPage.In(lang) }</div>
+				@tocList(v, lang)
 			</nav>
 		}
-		@citedBy(v)
-		@diagnostics(v)
+		@citedBy(v, lang)
+		@diagnostics(v, lang)
 	</aside>
 }
 
@@ -289,18 +289,18 @@ templ rightRail(v NoteView) {
 // answer here and gets said out loud: a note nothing cites is an island, and a
 // block that vanished when the count reached zero would leave the reader
 // unable to tell "no one cites this" from "this interface does not know".
-templ citedBy(v NoteView) {
+templ citedBy(v NoteView, lang wording.Lang) {
 	if v.citedByShown() {
-		@citedByBlock(v)
+		@citedByBlock(v, lang)
 	}
 }
 
 // citedByBlock is the block itself, rendered only where the answer means
 // something.
-templ citedByBlock(v NoteView) {
-	<nav class="y-citedby" aria-label={ wording.CitedByNav.In(v.Lang) }>
+templ citedByBlock(v NoteView, lang wording.Lang) {
+	<nav class="y-citedby" aria-label={ wording.CitedByNav.In(lang) }>
 		<div class="ui-side__label">
-			{ wording.CitedBy.In(v.Lang) }
+			{ wording.CitedBy.In(lang) }
 			if len(v.CitedBy) > 0 {
 				<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
 			}
@@ -310,7 +310,7 @@ templ citedByBlock(v NoteView) {
 				<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a>
 			}
 		} else {
-			<p class="y-citedby__none">{ wording.CitedByNone.In(v.Lang) }</p>
+			<p class="y-citedby__none">{ wording.CitedByNone.In(lang) }</p>
 		}
 	</nav>
 }
@@ -329,20 +329,20 @@ templ citedByBlock(v NoteView) {
 // The step words carry the same fact per link: a course hands over the next
 // lesson, a folder merely the file beside this one. The printed label and the
 // accessible name render one field, so the two can never drift apart.
-templ sequenceSteps(v NoteView) {
+templ sequenceSteps(v NoteView, lang wording.Lang) {
 	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
 		<nav class="y-steps" aria-label={ v.StepsLabel }>
 			<p class="y-steps__source">{ v.StepsLabel }</p>
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
 					<span class="y-steps__dir" aria-hidden="true">←</span>
-					<span class="y-steps__role">{ stepWordPrev(v.StepsCourse, v.Lang) }</span>
+					<span class="y-steps__role">{ stepWordPrev(v.StepsCourse, lang) }</span>
 					<span class="y-steps__name">{ v.Prev.Name }</span>
 				</a>
 			}
 			if v.Next.RelPath != "" {
 				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
-					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, v.Lang) }</span>
+					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, lang) }</span>
 					<span class="y-steps__name">{ v.Next.Name }</span>
 					<span class="y-steps__dir" aria-hidden="true">→</span>
 				</a>
@@ -353,7 +353,7 @@ templ sequenceSteps(v NoteView) {
 
 // tocList is the table-of-contents link list, shared by the right rail and
 // the inline disclosure so the two render one surface, never two variants.
-templ tocList(v NoteView) {
+templ tocList(v NoteView, lang wording.Lang) {
 	<div class="y-toc__list">
 		for _, h := range v.TOC {
 			<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
@@ -365,16 +365,16 @@ templ tocList(v NoteView) {
 // is hidden: the table of contents as a closed native disclosure at the top
 // of the article, the diagnostics list beneath it. Wide viewports hide this
 // block and show the rail instead; a note with no aids renders nothing here.
-templ inlineAids(v NoteView) {
+templ inlineAids(v NoteView, lang wording.Lang) {
 	if v.hasAids() {
-		<div class="y-inlineaids" lang={ v.Lang.Tag() }>
+		<div class="y-inlineaids" lang={ lang.Tag() }>
 			if len(v.TOC) > 0 {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						{ wording.OnThisPage.In(v.Lang) }
+						{ wording.OnThisPage.In(lang) }
 					</summary>
-					@tocList(v)
+					@tocList(v, lang)
 				</details>
 			}
 			// At these widths the rail is gone and this block sits between the
@@ -386,10 +386,10 @@ templ inlineAids(v NoteView) {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						{ wording.NoteHealth.In(v.Lang) }
+						{ wording.NoteHealth.In(lang) }
 						<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 					</summary>
-					@diagnostics(v)
+					@diagnostics(v, lang)
 				</details>
 			}
 			// What links here is a fact about the library, not a decoration the
@@ -399,12 +399,12 @@ templ inlineAids(v NoteView) {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
 						@chevron()
-						{ wording.CitedBy.In(v.Lang) }
+						{ wording.CitedBy.In(lang) }
 						if len(v.CitedBy) > 0 {
 							<span class="y-diagcount">{ strconv.Itoa(len(v.CitedBy)) }</span>
 						}
 					</summary>
-					@citedByBlock(v)
+					@citedByBlock(v, lang)
 				</details>
 			}
 		</div>
@@ -416,43 +416,45 @@ templ inlineAids(v NoteView) {
 // target the reader can walk back from, a two-step confirm for a no-return
 // one. The fixed-bottom status bar is the second status face. The legal set
 // is only what the schema contract returns — never a fabricated key.
-templ statusPanel(v NoteView) {
-	{{ face := statusFace(&v) }}
-	<section class="y-statuspanel" data-status-state={ face.token() }>
-		if face == faceNonInstance {
-			<p class="y-statuspanel__notice">{ wording.NonInstanceReason.In(v.Lang) }</p>
-		} else {
-			<div class="y-statuspanel__head">
-				<div class="y-statuspanel__row">
-					<span class="ui-side__label">{ wording.StatusLabel.In(v.Lang) }</span>
-				</div>
-				if v.Status != "" {
-					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
-				}
-			</div>
-			switch face {
-				case faceWriteUnavailable:
-					<p class="y-statuspanel__notice">
-						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
-					</p>
-				case faceNoFrontmatter:
-					<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
-				case faceStatusUnknown:
-					@statusUnknownFlag(v, "y-statuspanel__notice")
-				case faceStatusUnreadable:
-					@statusUnreadableFlag(v, "y-statuspanel__notice")
-				case faceNoTransitions:
-					<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
-					<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v) }</p>
-				default:
-					@transitionEffectLine("y-statuspanel__notice", v.Lang)
-					<div class="y-statuspanel__forms">
-						@legalTransitionForms(v)
+templ statusPanel(v NoteView, lang wording.Lang) {
+	if v.showsStatusFace() {
+		{{ face := statusFace(&v) }}
+		<section class="y-statuspanel" data-status-state={ face.token() }>
+			if face == faceNonInstance {
+				<p class="y-statuspanel__notice">{ wording.NonInstanceReason.In(lang) }</p>
+			} else {
+				<div class="y-statuspanel__head">
+					<div class="y-statuspanel__row">
+						<span class="ui-side__label">{ wording.StatusLabel.In(lang) }</span>
 					</div>
+					if v.Status != "" {
+						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					}
+				</div>
+				switch face {
+					case faceWriteUnavailable:
+						<p class="y-statuspanel__notice">
+							@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
+						</p>
+					case faceNoFrontmatter:
+						<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(lang) }</p>
+					case faceStatusUnknown:
+						@statusUnknownFlag(v, "y-statuspanel__notice", lang)
+					case faceStatusUnreadable:
+						@statusUnreadableFlag(v, "y-statuspanel__notice", lang)
+					case faceNoTransitions:
+						<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(lang) }</p>
+						<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v, lang) }</p>
+					default:
+						@transitionEffectLine("y-statuspanel__notice", lang)
+						<div class="y-statuspanel__forms">
+							@legalTransitionForms(v, lang)
+						</div>
+				}
+				@schemaNotices(v, lang)
 			}
-			@schemaNotices(v)
-		}
-	</section>
+		</section>
+	}
 }
 
 // schemaNotices states what the schema made of this note's frontmatter. The
@@ -463,7 +465,7 @@ templ statusPanel(v NoteView) {
 // The block carries the id the transition submits describe themselves by, and
 // it renders only when there is a finding to hold, so the id and every
 // reference to it appear together or not at all.
-templ schemaNotices(v NoteView) {
+templ schemaNotices(v NoteView, lang wording.Lang) {
 	if len(v.SchemaNotices) > 0 {
 		<div id={ schemaNoticesID }>
 			for _, notice := range v.SchemaNotices {
@@ -500,8 +502,8 @@ templ transitionEffectLine(noticeClass string, lang wording.Lang) {
 	<p class={ noticeClass }>{ wording.TransitionEffect.In(lang) }</p>
 }
 
-templ statusUnknownFlag(v NoteView, noticeClass string) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(v.Lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(v.Lang) }</p>
+templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
+	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }</p>
 }
 
 // statusUnreadableFlag states that this note's frontmatter yielded no status
@@ -511,8 +513,8 @@ templ statusUnknownFlag(v NoteView, noticeClass string) {
 // same either way. The panel used to fall through to the empty-transition
 // notice here, which says the contract defines nothing onward from the note's
 // status — a claim about a status nobody could read.
-templ statusUnreadableFlag(v NoteView, noticeClass string) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(v.Lang) }{ frontmatterDoorLine(&v) }</p>
+templ statusUnreadableFlag(v NoteView, noticeClass string, lang wording.Lang) {
+	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
 }
 
 // transitionForm is one transition control: a plain POST form whose
@@ -526,7 +528,7 @@ templ statusUnreadableFlag(v NoteView, noticeClass string) {
 // disclosure: the first interaction opens the confirm and states what is
 // lost, the second one submits. The disclosure needs no script and no
 // dialog; a reader without JavaScript walks the same two steps.
-templ transitionForm(v NoteView, t Transition) {
+templ transitionForm(v NoteView, t Transition, lang wording.Lang) {
 	<form class="y-statusform" method="post" action="/status">
 		<input type="hidden" name="path" value={ v.RelPath }/>
 		<input type="hidden" name="from" value={ v.Status }/>
@@ -535,8 +537,8 @@ templ transitionForm(v NoteView, t Transition) {
 		if t.NoReturn {
 			<details class="y-statusconfirm">
 				<summary class="y-xbtn y-statusconfirm__summary">{ t.To }</summary>
-				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(v.Lang) }{ t.To }{ wording.NoReturnTargetAfter.In(v.Lang) }</p>
-				<button class="y-xbtn y-statusconfirm__submit" type="submit" { schemaNoticesRef(&v)... }>{ wording.ConfirmSetBefore.In(v.Lang) }{ t.To }{ wording.ConfirmSetAfter.In(v.Lang) }</button>
+				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(lang) }{ t.To }{ wording.NoReturnTargetAfter.In(lang) }</p>
+				<button class="y-xbtn y-statusconfirm__submit" type="submit" { schemaNoticesRef(&v)... }>{ wording.ConfirmSetBefore.In(lang) }{ t.To }{ wording.ConfirmSetAfter.In(lang) }</button>
 			</details>
 		} else {
 			<button class="y-xbtn" type="submit" { schemaNoticesRef(&v)... }>{ t.To }</button>
@@ -546,9 +548,9 @@ templ transitionForm(v NoteView, t Transition) {
 
 // legalTransitionForms renders the complete schema-provided set for either
 // status face.
-templ legalTransitionForms(v NoteView) {
+templ legalTransitionForms(v NoteView, lang wording.Lang) {
 	for _, t := range v.Transitions {
-		@transitionForm(v, t)
+		@transitionForm(v, t, lang)
 	}
 }
 
@@ -572,11 +574,11 @@ templ fragmentSplit(target, section string, lang wording.Lang) {
 
 // diagnostics is the read-only diagnostics rail: the frontmatter
 // diagnostic and every render diagnostic, amber, stated but never repaired.
-templ diagnostics(v NoteView) {
+templ diagnostics(v NoteView, lang wording.Lang) {
 	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {
 		<section>
 			<div class="ui-side__label y-diaghead">
-				{ wording.NoteHealth.In(v.Lang) }
+				{ wording.NoteHealth.In(lang) }
 				<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 			</div>
 			<div class="y-diaglist">
@@ -584,15 +586,15 @@ templ diagnostics(v NoteView) {
 					<div class="y-diag">
 						<div class="y-diag__label">frontmatter</div>
 						<p class="y-diag__body">
-							@browserDiagnostic(wording.FrontmatterNotYAML.In(v.Lang), v.Diagnostic)
+							@browserDiagnostic(wording.FrontmatterNotYAML.In(lang), v.Diagnostic)
 						</p>
 					</div>
 				}
 				for _, d := range v.RenderDiagnostics {
 					<div class="y-diag">
-						<div class="y-diag__label">{ diagKindLabel(d.Kind, v.Lang) }</div>
+						<div class="y-diag__label">{ diagKindLabel(d.Kind, lang) }</div>
 						<p class="y-diag__body">
-							{ renderDiagnosticSummary(d.Kind, v.Lang) }
+							{ renderDiagnosticSummary(d.Kind, lang) }
 							if d.Target != "" {
 								<code>{ diagnosticAddress(&d) }</code>
 							}
@@ -601,12 +603,12 @@ templ diagnostics(v NoteView) {
 							}
 						</p>
 						if d.Kind == render.DiagWikilinkBroken && d.Section != "" {
-							@fragmentSplit(d.Target, d.Section, v.Lang)
+							@fragmentSplit(d.Target, d.Section, lang)
 						}
 					</div>
 				}
 			</div>
-			<p class="y-diag__note">{ wording.ReportsOnlyNote.In(v.Lang) }</p>
+			<p class="y-diag__note">{ wording.ReportsOnlyNote.In(lang) }</p>
 		</section>
 	}
 }
@@ -622,36 +624,36 @@ templ diagnostics(v NoteView) {
 // remains named because that classification comes from its path, independent
 // of frontmatter. The y-sealbar class names are kept: the layout they carry
 // predates this bar being a plain control surface.
-templ statusBar(v NoteView) {
-	if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
+templ statusBar(v NoteView, lang wording.Lang) {
+	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
 		<div class="y-sealbar" data-status-state={ face.token() }>
 			switch face {
 				case faceNonInstance:
-					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(v.Lang) }</p>
+					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(lang) }</p>
 				case faceWriteUnavailable:
 					<p class="y-sealbar__notice">
-						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
+						@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
 					</p>
 				case faceNoFrontmatter:
-					<p class="y-sealbar__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
+					<p class="y-sealbar__notice">{ wording.NoFrontmatter.In(lang) }</p>
 				case faceStatusUnknown:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
-					@statusUnknownFlag(v, "y-sealbar__notice")
+					@statusUnknownFlag(v, "y-sealbar__notice", lang)
 				case faceStatusUnreadable:
-					@statusUnreadableFlag(v, "y-sealbar__notice")
+					@statusUnreadableFlag(v, "y-sealbar__notice", lang)
 				case faceNoTransitions:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
-					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(v.Lang) }{ frontmatterDoorLine(&v) }</p>
+					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
-					@transitionEffectLine("y-sealbar__notice", v.Lang)
-					@legalTransitionForms(v)
+					@transitionEffectLine("y-sealbar__notice", lang)
+					@legalTransitionForms(v, lang)
 			}
 		</div>
 	}
@@ -672,12 +674,12 @@ templ statusBar(v NoteView) {
 // reading the redirect lands, and reaching the same address again — from
 // history, from a bookmark, from the back button — states nothing, because
 // there is no longer a write to vouch for it.
-templ flipReceipt(v NoteView) {
+templ flipReceipt(v NoteView, lang wording.Lang) {
 	if v.showsFlipReceipt() {
 		<p class="y-flipreceipt" role="status">
-			{ wording.FlipReceiptBefore.In(v.Lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(v.Lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(v.Lang) }
+			{ wording.FlipReceiptBefore.In(lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(lang) }
 			if v.FlipNoReturn {
-				{ frontmatterDoorLine(&v) }
+				{ frontmatterDoorLine(&v, lang) }
 			}
 		</p>
 	}

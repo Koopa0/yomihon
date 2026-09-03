@@ -52,6 +52,13 @@ type Sidebar struct {
 // the chrome each component is handed at render is where that answer lives. A
 // copy stored here could disagree with the page it sits in, and nothing would
 // have said so.
+// NewSidebar tolerates a nil model where every other constructor in this
+// repository panics, and the difference is the rail's job rather than an
+// oversight. A missing dependency is a wiring fault, and stopping on one is
+// right for a package that produces an answer — but the rail is drawn beside
+// every answer, including the not-found page a reader reaches when the vault
+// could not be projected at all. A rail that stopped there would take down the
+// page that exists to explain why.
 func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	// The current path arrives from the request URL; the model's indexes are
 	// keyed by NFC paths, so fold it once here to match on either form.
@@ -281,8 +288,10 @@ func ancestorDirs(relPath string) []string {
 }
 
 // CapabilityFault is one closed navigation projection stated in the rail: the
-// Traditional Chinese summary of what is unavailable, and the contract's own
-// English detail.
+// summary of what is unavailable, in the reader's language, and the detail
+// written by whoever refused. Detail is empty where the refusal has no
+// sentence of its own to add — a write face this process lost says everything
+// it has to say in the summary.
 type CapabilityFault struct {
 	Summary string
 	Detail  string
@@ -297,20 +306,20 @@ func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 	if s.Model == nil {
 		return nil
 	}
-	navigation := s.Model.NavigationClosure().Diagnostic()
-	artifact := s.Model.ArtifactClosure().Diagnostic()
+	navigation := s.Model.NavigationClosure()
+	artifact := s.Model.ArtifactClosure()
 	switch {
-	case navigation != "" && navigation == artifact:
-		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation}}
-	case navigation != "" && artifact != "":
+	case navigation.Closed() && artifact.Closed() && navigation.Diagnostic() == artifact.Diagnostic():
+		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+	case navigation.Closed() && artifact.Closed():
 		return []CapabilityFault{
-			{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation},
-			{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact},
+			{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()},
+			{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()},
 		}
-	case navigation != "":
-		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation}}
-	case artifact != "":
-		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact}}
+	case navigation.Closed():
+		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+	case artifact.Closed():
+		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()}}
 	default:
 		return nil
 	}

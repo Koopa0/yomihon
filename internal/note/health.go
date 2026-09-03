@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
@@ -20,7 +21,7 @@ import (
 // it is already computed for the single-note pages; nobody opens every note, so
 // gathering them is the only way they are ever seen.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(authority, snap)
@@ -30,7 +31,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	view := pages.HealthView{
 		Unwritten:             healthLinks(health.Unwritten),
 		TitleOnly:             healthTitleLinks(health.TitleOnly),
-		Islands:               healthIslands(health.Islands),
+		Islands:               healthIslands(health.Islands, lang),
 		IslandCount:           healthIslandCount(health.Islands),
 		Collisions:            healthCollisions(health.Collisions),
 		Blocked:               healthBlocked(fresh.Blocked),
@@ -44,12 +45,12 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// of the closed flag. What it carries is whatever actually failed: a
 		// contract that could not be read, or one that read and named a
 		// folder its artifacts section may not name.
-		SchemaScopeUnknown: authority.Diagnostic(),
+		SchemaScopeUnknown: authority.Diagnostic(lang),
 		LastComplete:       lastCompleteBuild(&fresh),
 		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(lang))).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write health page", "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write health page", "error", err)
 	}
 }
 
@@ -139,10 +140,18 @@ func healthLinks(links []snapshot.HealthLink) []pages.HealthLink {
 	return out
 }
 
-func healthIslands(groups []snapshot.HealthIslandGroup) []pages.HealthIslandGroup {
+// healthIslands names each folder for the reader in front of it. The folder at
+// the top of the vault has no name of its own, and what stands in for it is a
+// word rather than a path, so it is chosen here — where the request says which
+// language to choose it in — rather than by the scan that grouped the notes.
+func healthIslands(groups []snapshot.HealthIslandGroup, lang wording.Lang) []pages.HealthIslandGroup {
 	out := make([]pages.HealthIslandGroup, 0, len(groups))
 	for _, g := range groups {
-		out = append(out, pages.HealthIslandGroup{Dir: g.Dir, Name: g.Name, Notes: g.Notes})
+		name := g.Dir
+		if name == "" {
+			name = wording.VaultRoot.In(lang)
+		}
+		out = append(out, pages.HealthIslandGroup{Dir: g.Dir, Name: name, Notes: g.Notes})
 	}
 	return out
 }

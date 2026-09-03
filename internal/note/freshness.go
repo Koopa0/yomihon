@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -100,7 +101,7 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // bytes are level — so a page that transcluded nothing keeps exactly the ask
 // and the answer it always had.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) || !vault.IsMarkdown(rel) {
 		http.Error(w, wording.FreshnessNotWatchable.In(lang), http.StatusNotFound)

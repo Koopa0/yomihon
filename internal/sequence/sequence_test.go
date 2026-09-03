@@ -5,6 +5,7 @@ import (
 	goparser "go/parser"
 	"go/token"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -897,6 +898,37 @@ func TestARowNobodyJudgedIsNotAccepted(t *testing.T) {
 	}
 }
 
+// ruleNamed matches what a rule constant is called, so a declaration the scan
+// below cannot classify is still recognised as one it was supposed to read.
+var ruleNamed = regexp.MustCompile(`^Rule[A-Z]`)
+
+// ruleText reads the rule string out of one constant's value, whichever of the
+// two spellings the author used: a typed declaration whose value is a literal,
+// or an untyped one whose value is a conversion. It answers false for a
+// constant that is neither, and stops the test for one that is a rule written
+// in a form no reader could evaluate here.
+func ruleText(t *testing.T, typed bool, name string, value goast.Expr) (string, bool) {
+	t.Helper()
+
+	if call, isCall := value.(*goast.CallExpr); isCall && len(call.Args) == 1 {
+		if fn, isIdent := call.Fun.(*goast.Ident); isIdent && fn.Name == "Rule" {
+			value, typed = call.Args[0], true
+		}
+	}
+	if !typed {
+		return "", false
+	}
+	literal, isLiteral := value.(*goast.BasicLit)
+	if !isLiteral || literal.Kind != token.STRING {
+		t.Fatalf("%s is declared a Rule but not from a string literal", name)
+	}
+	unquoted, err := strconv.Unquote(literal.Value)
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	return unquoted, true
+}
+
 // TestRulesListsEveryDeclaredRule holds the enumeration to the declarations.
 // Rules is what a consumer reads instead of keeping a list of its own, so a
 // rule added to the constants and forgotten there would hand every consumer a
@@ -930,6 +962,11 @@ func TestRulesListsEveryDeclaredRule(t *testing.T) {
 		t.Fatal("no package source was read; the scan would prove nothing")
 	}
 
+	// A rule is written either as a typed constant or as a conversion, and
+	// both spellings compile to the same thing. An enumerator that reads only
+	// one of them answers with a short list and says nothing about the half it
+	// could not see, so anything named like a rule and not classified stops the
+	// scan rather than being left out of it.
 	declared := map[string]Rule{}
 	for _, file := range files {
 		for _, decl := range file.Decls {
@@ -942,20 +979,38 @@ func TestRulesListsEveryDeclaredRule(t *testing.T) {
 				if !isValue {
 					continue
 				}
-				name, isName := value.Type.(*goast.Ident)
-				if !isName || name.Name != "Rule" {
-					continue
+				typed := false
+				if name, isName := value.Type.(*goast.Ident); isName && name.Name == "Rule" {
+					typed = true
 				}
 				for i, ident := range value.Names {
-					literal, isLiteral := value.Values[i].(*goast.BasicLit)
-					if !isLiteral || literal.Kind != token.STRING {
-						t.Fatalf("%s is declared a Rule but not from a string literal", ident.Name)
+					if i >= len(value.Values) {
+						continue
 					}
-					unquoted, unquoteErr := strconv.Unquote(literal.Value)
-					if unquoteErr != nil {
-						t.Fatalf("%s: %v", ident.Name, unquoteErr)
+					text, isRule := ruleText(t, typed, ident.Name, value.Values[i])
+					if !isRule {
+						continue
 					}
-					declared[ident.Name] = Rule(unquoted)
+					declared[ident.Name] = Rule(text)
+				}
+			}
+		}
+	}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			gen, isGen := decl.(*goast.GenDecl)
+			if !isGen || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, isValue := spec.(*goast.ValueSpec)
+				if !isValue {
+					continue
+				}
+				for _, ident := range value.Names {
+					if ruleNamed.MatchString(ident.Name) && declared[ident.Name] == "" {
+						t.Fatalf("%s is named like a rule but this scan did not classify it, so the list below is short by at least one", ident.Name)
+					}
 				}
 			}
 		}

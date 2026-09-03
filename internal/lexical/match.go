@@ -48,7 +48,7 @@ const (
 	snippetAfter  = 160
 )
 
-// Search runs a parsed query against the index and returns results in the final
+// SearchN runs a parsed query against the index and returns results in the final
 // deterministic order, six groups concatenated: a note's title hits (every
 // token in TitleFold) first, then a note's body hits (every token in PlainFold,
 // not already a title hit), then the same two groups over vault files that are
@@ -72,17 +72,14 @@ const (
 // ErrMetadataUnavailable with the contract diagnostic; text and folder queries
 // continue against the complete readable corpus. A vault that never declared
 // one excludes nothing, so those filters run over raw frontmatter.
-func (idx *Index) Search(q *Query) ([]Result, error) {
-	results, _, err := idx.SearchN(q, -1)
-	return results, err
-}
-
-// SearchN is Search with a bound: at most limit results are materialized (a
-// negative limit materializes them all), while total reports how many hits the
-// query truly has. The tail beyond limit is counted but never built — a
-// snippet is the per-hit cost, and skipping it is what keeps a broad query's
-// work proportional to the page rather than to the vault. The kept results are
-// exactly the opening stretch of the unbounded answer, in the same order.
+//
+// At most limit results are materialized; a negative limit materializes them
+// all, which is what a caller wanting the whole answer asks for. total reports
+// how many hits the query truly has. The tail beyond limit is counted but
+// never built — a snippet is the per-hit cost, and skipping it is what keeps a
+// broad query's work proportional to the page rather than to the vault. The
+// kept results are exactly the opening stretch of the unbounded answer, in the
+// same order.
 func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err error) {
 	if len(q.tokens) == 0 && len(q.filters) == 0 {
 		return nil, 0, nil

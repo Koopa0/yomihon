@@ -11,6 +11,11 @@ import (
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
+// errVaultScan is what an observation that could not be made answers with. It
+// and the withheld variant below are declared here rather than with the
+// package's other types because choosing between them is this file's whole
+// subject: how much an observation may say about what it could not read. A
+// reader following that decision needs both in front of the code that makes it.
 var errVaultScan = errors.New("vault scan failed")
 
 // errWithheldUnreadable is the whole answer about a file the contract keeps out
@@ -54,7 +59,12 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		// file that, for the ordinary case of a mistyped folder, is not there to
 		// be at fault — and it carried a paragraph telling the reader where that
 		// file lives. A scan that could not start is what happened.
-		return nil, errVaultScan
+		//
+		// It says which folder and why, because both are already the reader's:
+		// the folder is the one they typed and the reason is the machine's
+		// answer about it. Withholding them left somebody who mistyped a
+		// directory with nothing to correct.
+		return nil, fmt.Errorf("%w: %w", errVaultScan, err)
 	}
 	a := &action{reader: reader}
 	a.authority, err = loadScanAuthority(ctx, reader)

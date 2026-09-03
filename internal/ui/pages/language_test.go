@@ -59,10 +59,19 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 						Message: "wikilink does not resolve",
 					}},
 				}
-				if err := statusPanel(view).Render(t.Context(), buf); err != nil {
+				// The panel is asked in the state the page draws it in: a
+				// folder with a lifecycle, and a frontmatter that was read.
+				// A note carrying an unread frontmatter has no status to act
+				// on, so the page shows the diagnostics and no panel at all,
+				// and asking for both from one note asks for a page that does
+				// not exist.
+				governed := view
+				governed.Governed = true
+				governed.Diagnostic = ""
+				if err := statusPanel(governed, wording.ZhHant).Render(t.Context(), buf); err != nil {
 					return err
 				}
-				return diagnostics(view).Render(t.Context(), buf)
+				return diagnostics(view, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{"生命週期寫入目前無法使用", "frontmatter 不是有效的 YAML", "這個 wikilink 或嵌入的目標尚未建立", `lang="en"`},
 			forbidden: []string{"Diagnostics", "Contract unavailable", "not a governable artifact"},

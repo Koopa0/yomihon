@@ -38,7 +38,7 @@ func newBacklinks(notes []*vault.Note, idx *graph.Index) *Backlinks {
 		seen := make(map[string]bool)
 		for _, target := range judge.LinkTargets(n.Body) {
 			res := idx.Resolve(target)
-			if res.Kind != graph.Unique || res.RelPath == n.RelPath || seen[res.RelPath] {
+			if res.Kind != graph.KindUnique || res.RelPath == n.RelPath || seen[res.RelPath] {
 				continue
 			}
 			seen[res.RelPath] = true

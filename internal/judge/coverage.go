@@ -213,14 +213,14 @@ func resolveTargets(idx *graph.Index, value string) []string {
 	}
 	res := idx.Resolve(target)
 	switch res.Kind {
-	case graph.Unique:
+	case graph.KindUnique:
 		return []string{res.RelPath}
-	case graph.Ambiguous:
+	case graph.KindAmbiguous:
 		return res.Candidates
-	case graph.Unresolved:
+	case graph.KindUnresolved:
 		return nil
 	default:
-		panic("judge: unknown graph.Kind: " + strconv.Itoa(int(res.Kind)))
+		panic("judge: unknown graph.Kind: " + res.Kind.String())
 	}
 }
 

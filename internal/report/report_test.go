@@ -626,3 +626,26 @@ func TestRawWithholdsABriefingItCannotSandbox(t *testing.T) {
 		t.Errorf("body = %q, want the sentence saying the isolation could not be established", body)
 	}
 }
+
+// TestAMissingReportGetsTheReadingShell holds the answer for a mistyped report
+// name to the one the reading face already gives: a page carrying the folder
+// tree, the search, and a way home, rather than a line of grey text on a white
+// page with nothing on it to press.
+func TestAMissingReportGetsTheReadingShell(t *testing.T) {
+	t.Parallel()
+	h := newHandler(t, vaultWithBriefing(t))
+
+	rr := get(t, h, "/reports/nope.html")
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("GET /reports/nope.html = %d, want 404", rr.Code)
+	}
+	if got := rr.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
+		t.Errorf("Content-Type = %q, want an HTML page", got)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{"y-shell2", "nope.html"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the answer is missing %q; body = %q", want, body)
+		}
+	}
+}

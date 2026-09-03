@@ -267,48 +267,6 @@ func TestCSSCarriesTheMotionGuarantees(t *testing.T) {
 	}
 }
 
-func TestLessonJavaScriptUsesTraditionalChineseSpeechLabels(t *testing.T) {
-	t.Parallel()
-
-	b, err := os.ReadFile("js/lesson.js")
-	if err != nil {
-		t.Fatalf("read lesson JavaScript: %v", err)
-	}
-	js := string(b)
-	for _, label := range []string{
-		"'朗讀這段日文'",
-		"'停止朗讀'",
-		"'日文朗讀控制'",
-	} {
-		if !strings.Contains(js, label) {
-			t.Errorf("speech controls do not carry Traditional Chinese label %s", label)
-		}
-	}
-}
-
-func TestSearchJavaScriptUsesTraditionalChineseStatusMessages(t *testing.T) {
-	t.Parallel()
-
-	b, err := Files.ReadFile("js/search.js")
-	if err != nil {
-		t.Fatalf("read search JavaScript: %v", err)
-	}
-	js := string(b)
-	for _, want := range []string{
-		"有 ${count} 筆結果",
-		"即時結果目前無法使用；按 Enter 執行完整搜尋",
-	} {
-		if !strings.Contains(js, want) {
-			t.Errorf("search status messages do not carry Traditional Chinese text %q", want)
-		}
-	}
-	for _, legacy := range []string{"result' : 'results", "Live results unavailable"} {
-		if strings.Contains(js, legacy) {
-			t.Errorf("search JavaScript retains legacy English status copy %q", legacy)
-		}
-	}
-}
-
 func TestThirdPartyAssetProvenance(t *testing.T) {
 	t.Parallel()
 

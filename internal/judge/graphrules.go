@@ -127,7 +127,7 @@ func linkHealth(
 			if lessons[link.offset] {
 				continue
 			}
-			if idx.Resolve(link.target).Kind != graph.Unresolved {
+			if idx.Resolve(link.target).Kind != graph.KindUnresolved {
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
@@ -427,7 +427,7 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	if !ok {
 		return true
 	}
-	if idx.Resolve(target).Kind != graph.Unresolved {
+	if idx.Resolve(target).Kind != graph.KindUnresolved {
 		return true
 	}
 	if _, listed := slugs[target]; listed {
@@ -494,14 +494,14 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 		}
 		res := idx.Resolve(link.target)
 		switch res.Kind {
-		case graph.Unique:
+		case graph.KindUnique:
 			listed[res.RelPath] = true
-		case graph.Ambiguous:
+		case graph.KindAmbiguous:
 			// An ambiguous link resolves to some note; leave it to the collision rule.
-		case graph.Unresolved:
+		case graph.KindUnresolved:
 			out = append(out, syllabusListsMissing(syllabus, link))
 		default:
-			panic("judge: unknown graph.Kind: " + strconv.Itoa(int(res.Kind)))
+			panic("judge: unknown graph.Kind: " + res.Kind.String())
 		}
 	}
 	if syllabus.domain == "" {

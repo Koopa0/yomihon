@@ -90,7 +90,7 @@ func paths(results []Result) []string {
 
 func searchResults(tb testing.TB, idx *Index, q *Query) []Result {
 	tb.Helper()
-	results, err := idx.Search(q)
+	results, _, err := idx.SearchN(q, -1)
 	if err != nil {
 		tb.Fatalf("Search() error: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestSearchNonInstanceCapability(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := idx.Search(Parse(tt.query))
+			got, _, err := idx.SearchN(Parse(tt.query), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error: %v", tt.query, err)
 			}
@@ -194,7 +194,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 			}}, policyTest.policy)
 
 			for _, query := range metadataQueries {
-				results, err := idx.Search(Parse(query))
+				results, _, err := idx.SearchN(Parse(query), -1)
 				if !errors.Is(err, ErrMetadataUnavailable) {
 					t.Errorf("Search(%q) = (%v, %v), want ErrMetadataUnavailable", query, results, err)
 					continue
@@ -205,7 +205,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 			}
 
 			for _, query := range plainQueries {
-				results, err := idx.Search(Parse(query))
+				results, _, err := idx.SearchN(Parse(query), -1)
 				if err != nil {
 					t.Errorf("Search(%q) error: %v", query, err)
 					continue
@@ -232,24 +232,24 @@ func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
 	}}, validArtifactPolicy(t))
 	closed := idx.WithArtifactPolicy(undeclaredArtifactPolicy(t))
 
-	openResults, err := idx.Search(Parse("Note"))
+	openResults, _, err := idx.SearchN(Parse("Note"), -1)
 	if err != nil {
 		t.Fatalf("original Search(Note) error = %v", err)
 	}
 	if len(openResults) != 1 || openResults[0].Status != "draft" {
 		t.Fatalf("original Search(Note) = %+v, want draft metadata badge", openResults)
 	}
-	closedResults, err := closed.Search(Parse("Note"))
+	closedResults, _, err := closed.SearchN(Parse("Note"), -1)
 	if err != nil {
 		t.Fatalf("closed Search(Note) error = %v", err)
 	}
 	if len(closedResults) != 1 || closedResults[0].Status != "" {
 		t.Errorf("closed Search(Note) = %+v, want lexical result without metadata badge", closedResults)
 	}
-	if _, err := closed.Search(Parse("status:draft")); !errors.Is(err, ErrMetadataUnavailable) {
+	if _, _, err := closed.SearchN(Parse("status:draft"), -1); !errors.Is(err, ErrMetadataUnavailable) {
 		t.Errorf("closed Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
 	}
-	if _, err := idx.Search(Parse("status:draft")); err != nil {
+	if _, _, err := idx.SearchN(Parse("status:draft"), -1); err != nil {
 		t.Errorf("original Search(status:draft) error = %v, want functional copy not to mutate original", err)
 	}
 }
@@ -262,12 +262,12 @@ func TestZeroValueIndexAnswersNothingWithoutInventingAFault(t *testing.T) {
 	t.Parallel()
 
 	idx := &Index{}
-	results, err := idx.Search(Parse("type:concept"))
+	results, _, err := idx.SearchN(Parse("type:concept"), -1)
 	if err != nil {
-		t.Errorf("zero Index.Search(type:concept) error = %v, want nil", err)
+		t.Errorf("zero Index.SearchN(type:concept, -1) error = %v, want nil", err)
 	}
 	if len(results) != 0 {
-		t.Errorf("zero Index.Search(type:concept) = %v, want no results", results)
+		t.Errorf("zero Index.SearchN(type:concept, -1) = %v, want no results", results)
 	}
 	typeCounts, err := idx.CountByTypeStatus()
 	if err != nil || len(typeCounts) != 0 {
@@ -288,7 +288,7 @@ func TestWithheldCapabilitiesRefuseMetadataWithSomethingToSay(t *testing.T) {
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft"},
 	}, policy)
 
-	_, err := idx.Search(Parse("status:draft"))
+	_, _, err := idx.SearchN(Parse("status:draft"), -1)
 	if !errors.Is(err, ErrMetadataUnavailable) {
 		t.Fatalf("Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
 	}
@@ -314,7 +314,7 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 		{RelPath: "System/templates/Card.md", Title: "Card", NoteType: "lesson", PlainText: "needle"},
 	}, schema.ArtifactPolicy{})
 
-	results, err := idx.Search(Parse("type:concept"))
+	results, _, err := idx.SearchN(Parse("type:concept"), -1)
 	if err != nil {
 		t.Fatalf("Search(type:concept) with an unclaimed policy error = %v, want an answer", err)
 	}
@@ -323,7 +323,7 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 	}
 	// Nothing declared System/templates as an artifact, so it is an ordinary
 	// note and a plain query reaches it.
-	plain, err := idx.Search(Parse("needle"))
+	plain, _, err := idx.SearchN(Parse("needle"), -1)
 	if err != nil {
 		t.Fatalf("Search(needle) error = %v", err)
 	}
@@ -737,7 +737,7 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 		t.Errorf("CountByTypeStatus() error = %v, want %v", countErr, ErrMetadataUnavailable)
 	}
 	query := Parse("needle")
-	results, err := idx.Search(query)
+	results, _, err := idx.SearchN(query, -1)
 	if err != nil {
 		t.Fatalf("bare-text Search() error = %v", err)
 	}
@@ -771,7 +771,7 @@ func TestSearchQuotedPhraseMatchesAdjacentText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			results, err := idx.Search(Parse(tt.query))
+			results, _, err := idx.SearchN(Parse(tt.query), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", tt.query, err)
 			}
@@ -808,7 +808,7 @@ func TestBoundedSearchKeepsTheOpeningStretch(t *testing.T) {
 	docs = append(docs, Document{RelPath: "Notes/z-title.md", Title: "needle in the title", PlainText: "no match here"})
 	idx := NewIndex(docs, validArtifactPolicy(t))
 
-	all, err := idx.Search(Parse("needle"))
+	all, _, err := idx.SearchN(Parse("needle"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}

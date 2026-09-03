@@ -283,7 +283,7 @@ func (v *Generation) TrackedForwardReference(target string) bool {
 	if v == nil || v.graph == nil {
 		return false
 	}
-	return v.graph.Resolve(target).Kind == graph.Unresolved && v.planned.Has(target)
+	return v.graph.Resolve(target).Kind == graph.KindUnresolved && v.planned.Has(target)
 }
 
 // Navigation returns the immutable navigation model for this generation.

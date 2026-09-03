@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -36,7 +37,7 @@ const homeReadmePath = "README.md"
 // the vault README through the same markdown pipeline used by a note page. It
 // is a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	lang := wording.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
 	// Home links to the folder's own introduction rather than reprinting it,
@@ -98,7 +99,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		// closed a block here has to reach this column, not only the one the
 		// write authority happens to know about.
 		Fault: statedOnce(
-			authority.Diagnostic(),
+			authority.Diagnostic(lang),
 			visibleNav.NavigationClosure().Diagnostic(),
 			visibleNav.ArtifactClosure().Diagnostic(),
 		),
@@ -118,7 +119,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Sidebar:        pages.NewSidebar(visibleNav, ""),
 	}
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
-		h.sources.Log.Error("write home page", "error", err)
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)
 	}
 }
 

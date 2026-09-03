@@ -37,12 +37,14 @@ type PathView struct {
 	Entries int
 	Ready   int
 
-	// MarkerFault says at least one written sequence marker is among what
-	// the grammar reported: a value it could not read, a placement it could
-	// not use, or a declared branch it had to refuse. The empty-course page
-	// switches its explanation on this, because telling the author of a
-	// written marker that markers are absent is false exactly there.
-	MarkerFault bool
+	// NoCourse is which explanation the empty-course page is entitled to
+	// give: that a written sequence marker is among what the grammar
+	// reported — a value it could not read, a placement it could not use, a
+	// declared branch it had to refuse — that none is, or that the grammar
+	// reported something this page has no explanation for. Telling the
+	// author of a written marker that markers are absent is false exactly
+	// where it matters, and so is the reverse.
+	NoCourse markerVerdict
 }
 
 // PathBranchView is one branch of the course as the page draws it. A top-level
@@ -199,9 +201,22 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		Entries:    current.Planned,
 		Ready:      current.Ready,
 	}
+	// A written marker outranks the rest: it is the one claim the page can
+	// make about the author from what the grammar reported. A rule the page
+	// does not know outranks the no-marker reading, which would otherwise
+	// put words in the author's mouth on the strength of not recognising a
+	// rule name.
 	for _, d := range current.Diagnostics {
-		if markerWritten(d.Rule) {
-			v.MarkerFault = true
+		switch verdict := markerVerdictFor(d.Rule); verdict {
+		case markerWritten:
+			v.NoCourse = markerWritten
+		case markerUnknownRule:
+			if v.NoCourse == markerNotWritten {
+				v.NoCourse = verdict
+			}
+		case markerNotWritten:
+		}
+		if v.NoCourse == markerWritten {
 			break
 		}
 	}
@@ -342,19 +357,30 @@ func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {
 	}
 }
 
-// markerWritten reports whether one grammar rule implies the author actually
-// wrote a sequence marker: a marker with an unreadable value, doubled or
-// misplaced, or a declared role the grammar had to refuse — a conflict, an
-// orphaned side branch, one nested too deep, a role on a lesson row. The
-// rules on the other side arise with no marker anywhere near them.
-//
-// The division is total over the grammar's declared rules and a test holds it
-// so. A rule outside it answers that no marker was written, because that is
-// the reading that claims less: the rules on that side arise with no marker
-// anywhere near them, and the page then explains the empty course the way it
-// explains one nobody has marked up. The grammar owns this set and can grow
-// it, and a course page is not a place to abort on a rule it has not met.
-func markerWritten(rule sequence.Rule) bool {
+// markerVerdict is what one grammar rule lets the page say about the author of
+// the note it came from.
+type markerVerdict uint8
+
+const (
+	// markerNotWritten is a rule that arises with no sequence marker
+	// anywhere near it, so the page may say the note carries none.
+	markerNotWritten markerVerdict = iota
+	// markerWritten is a rule that only arises where a marker was written:
+	// a value the grammar could not read, one doubled or misplaced, or a
+	// declared role it had to refuse.
+	markerWritten
+	// markerUnknownRule is a rule this page has not been told about. It is
+	// its own answer rather than either of the two above, because both of
+	// those are claims about what somebody wrote in a file, and a rule name
+	// nobody here recognises is no evidence for either one.
+	markerUnknownRule
+)
+
+// markerVerdictFor classifies one grammar rule. The division is total over the
+// grammar's declared rules and a test holds it so; the third answer exists for
+// a rule the grammar gains later, since the grammar owns this set and a course
+// page is not a place to abort on a rule it has not met.
+func markerVerdictFor(rule sequence.Rule) markerVerdict {
 	switch rule {
 	case sequence.RuleRoleInvalid,
 		sequence.RuleRoleDuplicate,
@@ -363,14 +389,14 @@ func markerWritten(rule sequence.Rule) bool {
 		sequence.RuleRoleOnEntry,
 		sequence.RuleLocalOrphan,
 		sequence.RuleNestingTooDeep:
-		return true
+		return markerWritten
 	case sequence.RuleRoleMissing,
 		sequence.RuleEntryOutsideBranch,
 		sequence.RuleEntryMultiTarget,
 		sequence.RuleEntryNoncanonical:
-		return false
+		return markerNotWritten
 	default:
-		return false
+		return markerUnknownRule
 	}
 }
 

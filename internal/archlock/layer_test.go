@@ -27,6 +27,7 @@ var enginePackages = []string{
 	"internal/snapshot",
 	"internal/vault",
 	"internal/vaultfs",
+	"internal/wording",
 }
 
 // presentationPackages are what an engine package must not reach: the
@@ -78,6 +79,28 @@ func TestTheEnginePackagesCannotSeeTheReadingInterface(t *testing.T) {
 	}
 }
 
+// TestTheDictionaryNeverReadsARequest keeps what yomihon says separable from
+// who is asking.
+//
+// The dictionary is a pair of strings per sentence and nothing else, which is
+// what lets a report rendered from the command line and a page rendered for a
+// browser reach for the same words. One function that took a request was enough
+// to put the whole server library inside the closure of every package that only
+// wanted a noun, and the reading of a cookie belongs where the request already
+// is. Reading one header looks harmless at the moment it is written, so the
+// cost has to be asserted rather than remembered.
+func TestTheDictionaryNeverReadsARequest(t *testing.T) {
+	t.Parallel()
+
+	const server = "net/http"
+	if !slices.Contains(allDependencies(t, module+"/internal/origin"), server) {
+		t.Fatalf("nothing in this module reaches %s any more, so this check passes for the wrong reason", server)
+	}
+	if slices.Contains(allDependencies(t, module+"/internal/wording"), server) {
+		t.Errorf("the dictionary reaches %s; a sentence is answered without a request, and reading one belongs in internal/origin", server)
+	}
+}
+
 // TestTheNoteModelIsReachableWithoutTheReadCapability keeps the two halves of
 // the vault split apart from the side that is easy to lose.
 //
@@ -111,7 +134,21 @@ func TestTheNoteModelIsReachableWithoutTheReadCapability(t *testing.T) {
 func dependencies(t *testing.T, pkg string) []string {
 	t.Helper()
 
-	format := `{{if .Module}}{{if eq .Module.Path "` + module + `"}}{{.ImportPath}}{{"\n"}}{{end}}{{end}}`
+	return listDeps(t, pkg, `{{if .Module}}{{if eq .Module.Path "`+module+`"}}{{.ImportPath}}{{"\n"}}{{end}}{{end}}`)
+}
+
+// allDependencies lists every package building pkg links, this module's and the
+// standard library's alike, for a check about what a package drags in from
+// outside the module.
+func allDependencies(t *testing.T, pkg string) []string {
+	t.Helper()
+
+	return listDeps(t, pkg, `{{.ImportPath}}{{"\n"}}`)
+}
+
+func listDeps(t *testing.T, pkg, format string) []string {
+	t.Helper()
+
 	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "-f", format, pkg) // #nosec G204 -- fixed Go invocation over a package path this file spells out
 	cmd.Dir = ".."
 	out, err := cmd.Output()
