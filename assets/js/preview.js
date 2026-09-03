@@ -94,8 +94,8 @@ export function initPreview() {
   }
 
   // A hover is a question only once it has been held; a pointer crossing three
-  // links on its way somewhere asked nothing. Reaching a link by keyboard is
-  // already deliberate, so that one opens at once.
+  // links on its way somewhere asked nothing. Tabbing through six of them is
+  // the same crossing made with a keyboard, so it waits the same.
   function schedule(link, delay) {
     if (link === anchored) return;
     // The note the reader is already on has nothing to preview, and a pointer
@@ -117,11 +117,24 @@ export function initPreview() {
     timer = setTimeout(close, travelGrace);
   }
 
-  const links = root.querySelectorAll('.y-prose a.wikilink:not(.wikilink-degraded)');
+  // The one place that decides which links have a card. Every term is a class
+  // or an address the renderer itself writes: a link whose fragment it could
+  // not place carries a second class, a concept term in a lesson carries the
+  // class of the sheet that opens on click, and a link out of the vault is not
+  // a note link at all. Nothing on the server asks this question a second time.
+  //
+  // The last term is the address rather than a class, because a wikilink may
+  // name any file the vault holds and the renderer marks a picture or a plain
+  // text file exactly as it marks a note. They travel the same route, so what
+  // tells them apart is the name at the end of it: a note's does end in .md and
+  // a file's does not, and only a note has anything a card could cut.
+  const links = [...root.querySelectorAll(
+    '.y-prose a.wikilink:not(.wikilink-degraded):not(.concept-link)[href^="/notes/"]',
+  )].filter((link) => link.pathname.endsWith('.md'));
   for (const link of links) {
     link.addEventListener('pointerenter', () => schedule(link, openDelay));
     link.addEventListener('pointerleave', release);
-    link.addEventListener('focus', () => schedule(link, 0));
+    link.addEventListener('focus', () => schedule(link, openDelay));
     link.addEventListener('blur', close);
   }
 

@@ -140,21 +140,6 @@ func (v *NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown()
 }
 
-// hasPreviewableLinks reports whether the prose carries a link that resolved to
-// exactly one note. Those are the links a hover card can show something for: a
-// link whose fragment was not found carries a second class beside this one, and
-// a name that placed nothing, or several notes, is not an anchor at all. The
-// marker is the renderer's own attribute text, so this asks the question the
-// client's selector asks rather than a second version of it.
-func (v *NoteView) hasPreviewableLinks() bool {
-	return strings.Contains(v.BodyHTML, resolvedWikilinkMarker)
-}
-
-// resolvedWikilinkMarker is how a link the renderer placed on exactly one note
-// opens, and how a degraded one does not: the class attribute closes after the
-// single name.
-const resolvedWikilinkMarker = `class="wikilink"`
-
 // citedByShown reports whether the answer about what links here means anything
 // on this page: either there are citations, or the library has links at all and
 // their absence is itself the finding. It counts among the aids, so a rail

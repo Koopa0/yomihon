@@ -28,6 +28,8 @@ const previewTarget = "---\ntitle: Target\n---\n\n" +
 	"## Addressed\n\n" +
 	previewInsideSentinel + "\n\n" +
 	previewBlockSentinel + " ^marked\n\n" +
+	"A claim the note supports elsewhere[^note].\n\n" +
+	"[^note]: The support, which the card has no way to reach.\n\n" +
 	"## The next one\n\n" +
 	previewAfterSentinel + "\n"
 
@@ -383,7 +385,7 @@ func TestASectionTheNoteDoesNotHaveIsRefusedNotWidened(t *testing.T) {
 			if !strings.Contains(card.body, tt.notice.In(wording.ZhHant)) {
 				t.Errorf("the card does not say the note has no such place:\n%s", card.body)
 			}
-			if !strings.Contains(card.body, wording.PreviewOpenNote.In(wording.ZhHant)) {
+			if !strings.Contains(card.body, "y-preview__sourcelink") {
 				t.Errorf("the card refuses and offers no way on to the note itself:\n%s", card.body)
 			}
 		})
@@ -417,5 +419,53 @@ func TestTheCardCarriesNoPlaceAnythingCanBeAddressed(t *testing.T) {
 	}
 	if strings.Contains(card.body, `id="`) {
 		t.Errorf("the card brings a name of its own into the page that opened it:\n%s", card.body)
+	}
+	// And no address reaching one. A footnote number that survives its own
+	// definition's name is a control that looks live, does nothing, and leaves
+	// a fragment in the address bar.
+	if !strings.Contains(page, `href="#`) {
+		t.Fatalf("the note's own page addresses nothing inside itself, so there is nothing for the card to have dropped:\n%s", page)
+	}
+	if strings.Contains(card.body, `href="#`) {
+		t.Errorf("the card carries an address reaching a place inside itself that it no longer has:\n%s", card.body)
+	}
+}
+
+// TestTheCardNamesTheNoteItIsShowing holds the one thing adjacency to the link
+// cannot supply. A link written at an alias shows words that are not the note's
+// name, and a card cut at a section opens on a heading that says nothing about
+// whose section it is — so without this line a reader has no way to confirm
+// they are looking at what they aimed for.
+func TestTheCardNamesTheNoteItIsShowing(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePreviewVault(t, root)
+	srv := newServer(t, root)
+
+	whole := askPreview(t, srv.URL, previewTargetRel, "", wording.ZhHant)
+	if whole.code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", whole.code, http.StatusOK)
+	}
+	// The name and the destination in one assertion: a name that is not the way
+	// on, or a way on that is not named, each leave the reader where they were.
+	const named = `<a class="y-preview__sourcelink" href="/notes/Notes/target.md">Target`
+	if !strings.Contains(whole.body, named) {
+		t.Errorf("the card does not name the note it is showing as the way on to it; want %s in:\n%s", named, whole.body)
+	}
+	if strings.Contains(whole.body, "y-preview__section") {
+		t.Errorf("a card of a whole note claims a section:\n%s", whole.body)
+	}
+
+	section := askPreview(t, srv.URL, previewTargetRel, "addressed", wording.ZhHant)
+	if !strings.Contains(section.body, "Addressed") {
+		t.Errorf("a card cut at a section does not name that section:\n%s", section.body)
+	}
+	if !strings.Contains(section.body, "y-preview__section") {
+		t.Errorf("the section is not marked as one, so it reads as part of the note's own name:\n%s", section.body)
+	}
+
+	block := askPreview(t, srv.URL, previewTargetRel, "^marked", wording.ZhHant)
+	if strings.Contains(block.body, "y-preview__section") {
+		t.Errorf("a card cut at a block claims a section it has no heading for:\n%s", block.body)
 	}
 }

@@ -32,8 +32,25 @@ const WHOLE_NOTE_LINK = 'Glass Tide#Glass Tide';
 // anchor that stamped it and the cut that answers to it.
 const CJK_LINK = 'Glass Tide#第三節：失約的燈';
 const CJK_HEADING = '第三節：失約的燈';
+// The destination's own name, which no link on the source page shows: two of
+// them are written at sections and one at an alias.
+const DESTINATION_TITLE = 'Glass Tide';
 const DEGRADED_LINK = 'Glass Tide#A section nobody wrote';
 const EXTERNAL_LINK = 'https://example.invalid/lamps';
+// A wikilink naming a vault file that is not a note. The renderer marks it
+// exactly as it marks a note and sends it down the same route, so only the
+// address at the end of that route tells the two apart.
+const NON_NOTE_LINK = 'plain.txt';
+// A concept term inside a governed lesson. It is a resolved wikilink wearing a
+// second class, and clicking it opens the in-app grammar sheet — so a hover
+// card on it would be a second affordance on one element, showing the same note
+// the sheet shows.
+const LESSON_PATH = '/notes/Writing/lessons/japanese/L01.md';
+const CONCEPT_LINK = 'は';
+// A plain wikilink on the same lesson, so the check below can first prove a
+// card opens on that page at all. Without it, "the concept term opened no card"
+// would hold just as well over a page where nothing opens one.
+const LESSON_PLAIN_LINK = 'Glass Tide';
 
 // The opening words of the destination, which a card cut at a section must not
 // carry, and the words of the section itself, which it must.
@@ -43,10 +60,13 @@ const SITES = [
 	'card-opens-on-hover',
 	'card-waits-out-a-passing-pointer',
 	'card-opens-on-focus',
+	'the-keyboard-waits-the-same-as-the-pointer',
 	'card-anchored-to-its-link',
 	'card-shows-the-section-the-link-addressed',
+	'the-card-names-the-note-it-shows',
 	'card-scrolls-inside-itself',
 	'a-link-that-cannot-be-previewed-opens-nothing',
+	'a-vault-file-that-is-not-a-note-opens-nothing',
 	'escape-dismisses-the-card',
 	'the-pointer-leaving-dismisses-the-card',
 	'scrolling-dismisses-the-card',
@@ -143,7 +163,16 @@ const MUTATIONS = {
 	// Reaching a link by keyboard stops asking the question a hover asks.
 	'ignore-the-keyboard': {
 		target: 'card-opens-on-focus',
-		apply: rewriteModule("link.addEventListener('focus', () => schedule(link, 0));", ''),
+		apply: rewriteModule("link.addEventListener('focus', () => schedule(link, openDelay));", ''),
+	},
+	// The keyboard stops waiting, so tabbing through a paragraph of links
+	// throws up one card per link on the way past.
+	'open-on-focus-with-no-delay': {
+		target: 'the-keyboard-waits-the-same-as-the-pointer',
+		apply: rewriteModule(
+			"link.addEventListener('focus', () => schedule(link, openDelay));",
+			"link.addEventListener('focus', () => schedule(link, 0));",
+		),
 	},
 	// The card keeps its content and loses its place: with no anchor it falls
 	// back to the corner of the window, beside nothing.
@@ -168,6 +197,19 @@ const MUTATIONS = {
 	'preview-every-wikilink': {
 		target: 'a-link-that-cannot-be-previewed-opens-nothing',
 		apply: rewriteModule(':not(.wikilink-degraded)', ''),
+	},
+	// The selector stops excluding the term that opens the grammar sheet, so
+	// one element grows two affordances showing the same note two ways.
+	'preview-concept-terms': {
+		target: 'a-link-that-cannot-be-previewed-opens-nothing',
+		apply: rewriteModule(':not(.concept-link)', ''),
+	},
+	// Every wikilink becomes previewable whatever it names, so a working link to
+	// a picture or a plain text file answers with a card saying there is nothing
+	// at an address the reader can plainly open.
+	'preview-every-vault-file': {
+		target: 'a-vault-file-that-is-not-a-note-opens-nothing',
+		apply: rewriteModule("link.pathname.endsWith('.md')", 'true'),
 	},
 	// Nothing answers the key a reader presses to get a card out of the way
 	// without moving the pointer.
@@ -219,7 +261,13 @@ const MUTATIONS = {
 	// a reader told what they cannot see and not told where it is.
 	'remove-the-way-on': {
 		target: 'a-section-the-note-does-not-have-shows-none-of-it',
-		apply: rewriteFragment('y-preview__morelink', 'y-preview__nolink'),
+		apply: rewriteFragment('y-preview__sourcelink', 'y-preview__nolink'),
+	},
+	// The card stops saying whose words it holds, which is what a link written
+	// at an alias, or at a section, never says either.
+	'unname-the-note': {
+		target: 'the-card-names-the-note-it-shows',
+		apply: rewriteFragment('class="y-preview__source"', 'class="y-preview__unsourced"'),
 	},
 	// The excerpt keeps the names the renderer stamped on it, so while the card
 	// is open the page holds two elements answering to one name and a fragment
@@ -285,6 +333,8 @@ const cardState = (page) =>
 			present: true,
 			open: card.matches(':popover-open'),
 			text: card.textContent.replace(/\s+/g, ' ').trim(),
+			proseText: (card.querySelector('.y-prose')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+			sourceText: (card.querySelector('.y-preview__source')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
 			box: { top: box.top, left: box.left, right: box.right, bottom: box.bottom, width: box.width, height: box.height },
 			contentHeight: card.scrollHeight,
 			activeInCard: Boolean(active && card.contains(active)),
@@ -390,11 +440,19 @@ try {
 		}
 
 		proveApplied('card-shows-the-section-the-link-addressed', proof);
-		if (!state.text.includes(SECTION_HEADING)) {
-			fail('card-shows-the-section-the-link-addressed', `the card does not carry ${JSON.stringify(SECTION_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.text.slice(0, 160))}`);
+		// The excerpt, not the whole card: the line above it names the section
+		// too, and asking the card would be answered by that line however the
+		// cut had gone.
+		if (!state.proseText.includes(SECTION_HEADING)) {
+			fail('card-shows-the-section-the-link-addressed', `the excerpt does not carry ${JSON.stringify(SECTION_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.proseText.slice(0, 160))}`);
 		}
-		if (state.text.includes(NOTE_OPENING)) {
-			fail('card-shows-the-section-the-link-addressed', 'the card carries the destination\'s opening words, so the link\'s own fragment was not asked for');
+		if (state.proseText.includes(NOTE_OPENING)) {
+			fail('card-shows-the-section-the-link-addressed', 'the excerpt carries the destination\'s opening words, so the link\'s own fragment was not asked for');
+		}
+
+		proveApplied('the-card-names-the-note-it-shows', proof);
+		if (!state.sourceText.includes(DESTINATION_TITLE)) {
+			fail('the-card-names-the-note-it-shows', `the card's head line reads ${JSON.stringify(state.sourceText)} and does not name ${JSON.stringify(DESTINATION_TITLE)}, so a link written at an alias leaves the reader no way to confirm what they are looking at`);
 		}
 
 		// Two elements answering to one name is a defect no server-side test can
@@ -430,8 +488,32 @@ try {
 		fail('escape-dismisses-the-card', 'Escape left the card open, so a reader has to move the pointer to get the paragraph under it back');
 	}
 
+	// A passing pointer. The excerpt is already held from the hover above, so
+	// what is being measured here is the wait and not a fetch. It is asked
+	// before the keyboard's own wait, because one constant governs both and
+	// whichever is asked first is the one that reports it. The pointer leaves
+	// the link first: it has been resting on it since the card above opened,
+	// and a pointer that never left never arrives again.
+	await page.mouse.move(4, 4);
+	await settles(page, false, 2000);
+	await section.hover();
+	await page.waitForTimeout(120);
+	proveApplied('card-waits-out-a-passing-pointer', proof);
+	if ((await cardState(page)).open) {
+		fail('card-waits-out-a-passing-pointer', 'the card opened within 120ms of the pointer arriving, so crossing a paragraph of links flashes one for each');
+	}
+	await page.mouse.move(4, 4);
+	await settles(page, false, 2000);
+
 	// The keyboard. Reaching a link is already deliberate, so it opens at once.
 	await section.focus();
+	// The excerpt is already held from the hover above, so what is measured
+	// here is the wait and not a fetch.
+	await page.waitForTimeout(120);
+	proveApplied('the-keyboard-waits-the-same-as-the-pointer', proof);
+	if ((await cardState(page)).open) {
+		fail('the-keyboard-waits-the-same-as-the-pointer', 'the card opened within 120ms of the link taking focus, so tabbing through a paragraph of links throws up one card per link on the way past');
+	}
 	proveApplied('card-opens-on-focus', proof);
 	if (!(await settles(page, true, 4000))) {
 		fail('card-opens-on-focus', `reaching ${JSON.stringify(SECTION_LINK)} by keyboard opened no card, so the feature is a pointer's alone`);
@@ -448,8 +530,8 @@ try {
 		}
 		const state = await cardState(page);
 		proveApplied('card-shows-the-section-the-link-addressed', proof);
-		if (!state.text.includes(CJK_HEADING)) {
-			fail('card-shows-the-section-the-link-addressed', `the card does not carry ${JSON.stringify(CJK_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.text.slice(0, 160))}`);
+		if (!state.proseText.includes(CJK_HEADING)) {
+			fail('card-shows-the-section-the-link-addressed', `the excerpt does not carry ${JSON.stringify(CJK_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.proseText.slice(0, 160))}`);
 		}
 		await page.mouse.move(4, 4);
 		await settles(page, false, 2000);
@@ -500,22 +582,6 @@ try {
 	await page.evaluate(() => document.activeElement?.blur());
 	await settles(page, false, 2000);
 
-	// A passing pointer. The excerpt is already held from the hover above, so
-	// what is being measured here is the wait and not a fetch.
-	await page.mouse.move(4, 4);
-	await settles(page, false, 2000);
-	await whole.hover();
-	await page.waitForTimeout(120);
-	proveApplied('card-waits-out-a-passing-pointer', proof);
-	{
-		const state = await cardState(page);
-		if (state.open) {
-			fail('card-waits-out-a-passing-pointer', 'the card opened within 120ms of the pointer arriving, so crossing a paragraph of links flashes one for each');
-		}
-	}
-	await page.mouse.move(4, 4);
-	await settles(page, false, 2000);
-
 	// The two links that must open nothing: one the renderer marked as landing
 	// somewhere other than it says, and one that leaves this machine.
 	for (const label of [DEGRADED_LINK, EXTERNAL_LINK]) {
@@ -528,6 +594,61 @@ try {
 			fail('a-link-that-cannot-be-previewed-opens-nothing', `${JSON.stringify(label)} opened a card, and it reads ${JSON.stringify(state.text.slice(0, 160))} — a promise this link cannot keep`);
 		}
 		await page.mouse.move(4, 4);
+	}
+
+	// A wikilink to a vault file that is not a note. It resolved, it works, and
+	// clicking it opens that file's own page — so a card telling the reader
+	// there is nothing at the address would be contradicted by the link itself.
+	{
+		const file = await only(page, NON_NOTE_LINK);
+		await file.hover();
+		await page.waitForTimeout(900);
+		proveApplied('a-vault-file-that-is-not-a-note-opens-nothing', proof);
+		const state = await cardState(page);
+		if (state.open) {
+			fail('a-vault-file-that-is-not-a-note-opens-nothing', `${JSON.stringify(NON_NOTE_LINK)} opened a card reading ${JSON.stringify(state.text.slice(0, 140))}, on a link that opens a perfectly good page when it is followed`);
+		}
+		await page.mouse.move(4, 4);
+		await settles(page, false, 2000);
+	}
+
+	// The concept term, on the lesson page that has one. It is a resolved
+	// wikilink, so only the selector's own exclusion keeps a card off it.
+	{
+		const lesson = await context.newPage();
+		const lessonResponse = await lesson.goto(BASE + LESSON_PATH, { waitUntil: 'networkidle' });
+		if (!lessonResponse || lessonResponse.status() !== 200) {
+			broken(`the lesson returned ${lessonResponse?.status() ?? 'no response'}, want 200`);
+		}
+		const term = lesson.locator(`main a.concept-link:text-is("${CONCEPT_LINK}")`);
+		const found = await term.count();
+		if (found !== 1) {
+			broken(`the lesson carries ${found} concept terms labelled ${JSON.stringify(CONCEPT_LINK)}, want exactly 1 — without one this check asserts nothing`);
+		}
+		if (!(await lesson.evaluate(() => Boolean(document.querySelector('[data-preview-endpoint]'))))) {
+			broken('the lesson page advertises no preview endpoint, so no card could have opened on it either way');
+		}
+		// The page is proved able to open a card before it is asked not to.
+		const plain = await only(lesson, LESSON_PLAIN_LINK);
+		await plain.scrollIntoViewIfNeeded();
+		await lesson.waitForTimeout(300);
+		await plain.hover();
+		if (!(await settles(lesson, true, 4000))) {
+			broken(`the plain link ${JSON.stringify(LESSON_PLAIN_LINK)} opened no card on the lesson, so nothing there opens one and the check below would hold for the wrong reason`);
+		}
+		await lesson.mouse.move(4, 4);
+		if (!(await settles(lesson, false, 2000))) broken('the lesson card would not close before the concept term was tried');
+
+		await term.scrollIntoViewIfNeeded();
+		await lesson.waitForTimeout(300);
+		await term.hover();
+		await lesson.waitForTimeout(900);
+		proveApplied('a-link-that-cannot-be-previewed-opens-nothing', proof);
+		const state = await cardState(lesson);
+		if (state.present && state.open) {
+			fail('a-link-that-cannot-be-previewed-opens-nothing', `a concept term opened a card reading ${JSON.stringify(state.text.slice(0, 120))}, so the same note is offered twice on one element — as a card on hover and as the grammar sheet on click`);
+		}
+		await lesson.close();
 	}
 
 	// What the route says about an address with no note behind it, asked from
@@ -567,7 +688,7 @@ try {
 		if (!widened.body.includes('y-preview__notice')) {
 			fail('a-section-the-note-does-not-have-shows-none-of-it', 'the answer shows nothing and says nothing about why');
 		}
-		if (!widened.body.includes('y-preview__morelink')) {
+		if (!widened.body.includes('y-preview__sourcelink')) {
 			fail('a-section-the-note-does-not-have-shows-none-of-it', 'the answer refuses and offers no way on to the note itself');
 		}
 	}

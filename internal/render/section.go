@@ -215,6 +215,26 @@ func Excerpt(body, fragment string) (slice string, found bool) {
 	return stripped, true
 }
 
+// ExcerptHeading is the words a reader sees in the heading an excerpt opens on,
+// or empty when it does not open on one — a block excerpt, or a note read from
+// its first line. It reduces the heading the way the anchor pass does, so a
+// reading that names a section names it as its own table of contents does.
+func ExcerptHeading(slice string) string {
+	lines := strings.SplitN(slice, "\n", 3)
+	if len(lines) == 0 {
+		return ""
+	}
+	if m := atxHeadingLine.FindStringSubmatch(lines[0]); m != nil {
+		return headingSourceText(m[2])
+	}
+	// A heading written under its own underline opens on the line of text, so
+	// the line below it is what says the text was a heading at all.
+	if len(lines) > 1 && setextUnderline.MatchString(lines[1]) && !blankLine(lines[0]) {
+		return headingSourceText(lines[0])
+	}
+	return ""
+}
+
 // headingSourceText reduces a heading's markdown source to the text the page
 // stamps its anchor from. A wikilink contributes what it displays, which is what
 // the rendered heading shows and what a reader copies off the page.

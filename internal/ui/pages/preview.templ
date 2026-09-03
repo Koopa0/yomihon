@@ -1,7 +1,5 @@
 package pages
 
-import "github.com/koopa0/yomihon/internal/wording"
-
 // previewCard is the empty card the reading page carries for one hover at a
 // time: the client fills it from the note the pointer is resting on and opens
 // it beside that link. One card rather than one per link, because only one can
@@ -9,16 +7,41 @@ import "github.com/koopa0/yomihon/internal/wording"
 // boxes. It is a popover in the manual state, so nothing but the client opens
 // or closes it; with no scripting it is never opened, shows nothing, announces
 // nothing, and the link under the pointer stays the ordinary link it was.
+//
+// It is hidden from the accessibility tree rather than merely unannounced. A
+// reader who reaches the end of the document by virtual cursor would otherwise
+// find an unlabelled excerpt sitting there; hiding it makes the feature's own
+// decision true, and is safe only because focus never enters the card — a link
+// losing focus closes it, and a closed popover is not displayed. A change that
+// let focus travel into the card would have to take this attribute off again.
 templ previewCard() {
-	<div class="y-preview" popover="manual" data-preview-card></div>
+	<div class="y-preview" popover="manual" aria-hidden="true" data-preview-card></div>
 }
 
 // PreviewFragment is what the card is filled with: a bare fragment, no page
 // around it. The excerpt keeps the language its author wrote it in, which is
 // not always the language of the page showing it, so a reading voice announces
 // it as what it is.
-templ PreviewFragment(v PreviewView, lang wording.Lang) {
+//
+// The line above the excerpt names the note, and is the way on to it. A link
+// written at an alias shows words that are not the note's name, and a card cut
+// at a section opens on a heading that says nothing about whose section it is —
+// so the name is the one thing adjacency to the link cannot supply. It is a
+// link because a pointer that has travelled into the card has left the link it
+// came from behind, and this is then the only control in reach.
+templ PreviewFragment(v PreviewView) {
 	<div class="y-preview__body" data-preview-body { articleLanguageAttrs(v.Language)... }>
+		if v.RelPath != "" {
+			<p class="y-preview__source">
+				<a class="y-preview__sourcelink" href={ templ.SafeURL(notesHref(v.RelPath)) }>
+					{ v.Title }
+					if v.Section != "" {
+						<span class="y-preview__sep" aria-hidden="true">·</span>
+						<span class="y-preview__section">{ v.Section }</span>
+					}
+				</a>
+			</p>
+		}
 		if v.BodyHTML != "" {
 			<div class="y-prose">
 				@templ.Raw(v.BodyHTML)
@@ -26,11 +49,6 @@ templ PreviewFragment(v PreviewView, lang wording.Lang) {
 		}
 		if v.Notice != "" {
 			<p class="y-preview__notice">{ v.Notice }</p>
-			if v.RelPath != "" {
-				<p class="y-preview__more">
-					<a class="y-preview__morelink" href={ templ.SafeURL(notesHref(v.RelPath)) }>{ wording.PreviewOpenNote.In(lang) }</a>
-				</p>
-			}
 		}
 	</div>
 }

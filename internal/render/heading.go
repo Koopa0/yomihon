@@ -62,20 +62,29 @@ func headingInnerText(inner string) string {
 	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
 }
 
-// anchorAttribute matches one id attribute in this package's own output, where
+// The two halves of a place inside a document, as this package writes them:
 // every attribute value is double-quoted and every quote an author wrote inside
-// one arrived escaped. It is deliberately not a general HTML rule: it reads
-// bytes this package wrote.
-var anchorAttribute = regexp.MustCompile(` id="[^"]*"`)
+// one arrived escaped. Deliberately not general HTML rules — they read bytes
+// this package wrote.
+var (
+	anchorAttribute = regexp.MustCompile(` id="[^"]*"`)
+	anchorAddress   = regexp.MustCompile(` href="#[^"]*"`)
+)
 
-// StripAnchorIDs returns rendered HTML with every id removed and the markup
-// around them untouched. It is for an excerpt shown beside the page it was
-// fetched for rather than as a page of its own: nothing links into such an
-// excerpt, and while it is on screen each id it carried would be a second
-// element answering to a name the page's own headings and blocks already have,
-// so a fragment naming one would reach whichever came first.
-func StripAnchorIDs(htmlOut string) string {
-	return anchorAttribute.ReplaceAllString(htmlOut, "")
+// StripAnchors returns rendered HTML with every place inside it removed: the
+// names, and the addresses that reach them. It is for an excerpt shown beside
+// the page it was fetched for rather than as a page of its own. Each name it
+// carried would be a second element answering to one the page's own headings
+// and blocks already have, so a fragment naming it would reach whichever came
+// first; and each address left behind afterwards would be a footnote number
+// that looks live, does nothing, and drops a fragment in the address bar.
+//
+// The addresses are dropped rather than pointed at the note's own page: an
+// excerpt's footnote ids are qualified for the region it was rendered in, so
+// the name the address carries is one the note's page does not have either. The
+// footnote marker stays visible and stops being a control.
+func StripAnchors(htmlOut string) string {
+	return anchorAddress.ReplaceAllString(anchorAttribute.ReplaceAllString(htmlOut, ""), "")
 }
 
 // assignHeadingSlugs walks the final rendered HTML, assigns each h1-h6 a
