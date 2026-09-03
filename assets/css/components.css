@@ -1228,6 +1228,27 @@ html {
   }
   .y-shell, .y-shell2 { display: block; }
   .y-main { min-width: 0; }
+  /* Paper has edges the screen does not, and a block that runs across one
+     comes back cut with no way to rejoin it: half a diagram, a listing whose
+     indentation restarts, an excerpt separated from the line naming the note
+     it came from, a row with one cell on each sheet. So the sheet is given
+     margins wide enough to hold and to bind, and the blocks that mean nothing
+     in halves are asked to stay whole. One that genuinely cannot fit is
+     broken by the browser anyway, which is the right answer and not this
+     rule's to make.
+
+     A heading keeps at least the opening of what it announces beside it, and
+     a paragraph neither leaves one line behind nor carries one over. A note's
+     own top-level heading starts a fresh sheet, because that is where one
+     part of it ends and the next begins — except a first one, which would
+     otherwise put a blank sheet in front of the opening line. */
+  @page { margin: 18mm 16mm; }
+  .y-prose pre, .y-prose blockquote, .y-prose .callout, .y-prose .embed,
+  .y-prose .mermaid-diagram, .y-prose table, .y-prose tr,
+  .y-slotcard, .y-healthlist li { break-inside: avoid; }
+  .y-title, .y-prose h1, .y-prose h2, .y-prose h3, .y-prose h4 { break-after: avoid; }
+  .y-prose h1:not(:first-child) { break-before: page; }
+  .y-prose p, .y-prose li { orphans: 2; widows: 2; }
 }
 
 /* Keyboard help: a native popover the header's ? opens. It exists because the
