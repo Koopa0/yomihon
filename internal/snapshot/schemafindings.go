@@ -7,14 +7,10 @@ import (
 )
 
 // SchemaFindings returns what the schema said about relPath's frontmatter when
-// this generation read it — the same verdict the check command reaches over
-// the same bytes, so a reader and a command are never told different things
-// about one file. A note the schema is content with, and a path this
-// generation does not hold, both answer with nothing.
-//
-// The returned slice is the caller's own. The findings in it are read-only:
-// they carry pointers into what this generation still holds, so a slice that
-// is safe to keep is not a licence to write through what it points at.
+// this generation read it — the same verdict the check command reaches over the
+// same bytes. A note the schema is content with, and a path this generation does
+// not hold, both answer with nothing. The slice is the caller's own; the
+// findings in it point into what the generation holds and are read-only.
 func (v *Generation) SchemaFindings(relPath string) []judge.Finding {
 	if v == nil {
 		return nil
