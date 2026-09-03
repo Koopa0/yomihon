@@ -37,6 +37,10 @@ const CJK_HEADING = '第三節：失約的燈';
 const DESTINATION_TITLE = 'Glass Tide';
 const DEGRADED_LINK = 'Glass Tide#A section nobody wrote';
 const EXTERNAL_LINK = 'https://example.invalid/lamps';
+// A wikilink naming a vault file that is not a note. The renderer marks it
+// exactly as it marks a note and sends it down the same route, so only the
+// address at the end of that route tells the two apart.
+const NON_NOTE_LINK = 'plain.txt';
 // A concept term inside a governed lesson. It is a resolved wikilink wearing a
 // second class, and clicking it opens the in-app grammar sheet — so a hover
 // card on it would be a second affordance on one element, showing the same note
@@ -62,6 +66,7 @@ const SITES = [
 	'the-card-names-the-note-it-shows',
 	'card-scrolls-inside-itself',
 	'a-link-that-cannot-be-previewed-opens-nothing',
+	'a-vault-file-that-is-not-a-note-opens-nothing',
 	'escape-dismisses-the-card',
 	'the-pointer-leaving-dismisses-the-card',
 	'scrolling-dismisses-the-card',
@@ -198,6 +203,13 @@ const MUTATIONS = {
 	'preview-concept-terms': {
 		target: 'a-link-that-cannot-be-previewed-opens-nothing',
 		apply: rewriteModule(':not(.concept-link)', ''),
+	},
+	// Every wikilink becomes previewable whatever it names, so a working link to
+	// a picture or a plain text file answers with a card saying there is nothing
+	// at an address the reader can plainly open.
+	'preview-every-vault-file': {
+		target: 'a-vault-file-that-is-not-a-note-opens-nothing',
+		apply: rewriteModule("link.pathname.endsWith('.md')", 'true'),
 	},
 	// Nothing answers the key a reader presses to get a card out of the way
 	// without moving the pointer.
@@ -582,6 +594,22 @@ try {
 			fail('a-link-that-cannot-be-previewed-opens-nothing', `${JSON.stringify(label)} opened a card, and it reads ${JSON.stringify(state.text.slice(0, 160))} — a promise this link cannot keep`);
 		}
 		await page.mouse.move(4, 4);
+	}
+
+	// A wikilink to a vault file that is not a note. It resolved, it works, and
+	// clicking it opens that file's own page — so a card telling the reader
+	// there is nothing at the address would be contradicted by the link itself.
+	{
+		const file = await only(page, NON_NOTE_LINK);
+		await file.hover();
+		await page.waitForTimeout(900);
+		proveApplied('a-vault-file-that-is-not-a-note-opens-nothing', proof);
+		const state = await cardState(page);
+		if (state.open) {
+			fail('a-vault-file-that-is-not-a-note-opens-nothing', `${JSON.stringify(NON_NOTE_LINK)} opened a card reading ${JSON.stringify(state.text.slice(0, 140))}, on a link that opens a perfectly good page when it is followed`);
+		}
+		await page.mouse.move(4, 4);
+		await settles(page, false, 2000);
 	}
 
 	// The concept term, on the lesson page that has one. It is a resolved

@@ -122,9 +122,15 @@ export function initPreview() {
   // not place carries a second class, a concept term in a lesson carries the
   // class of the sheet that opens on click, and a link out of the vault is not
   // a note link at all. Nothing on the server asks this question a second time.
-  const links = root.querySelectorAll(
+  //
+  // The last term is the address rather than a class, because a wikilink may
+  // name any file the vault holds and the renderer marks a picture or a plain
+  // text file exactly as it marks a note. They travel the same route, so what
+  // tells them apart is the name at the end of it: a note's does end in .md and
+  // a file's does not, and only a note has anything a card could cut.
+  const links = [...root.querySelectorAll(
     '.y-prose a.wikilink:not(.wikilink-degraded):not(.concept-link)[href^="/notes/"]',
-  );
+  )].filter((link) => link.pathname.endsWith('.md'));
   for (const link of links) {
     link.addEventListener('pointerenter', () => schedule(link, openDelay));
     link.addEventListener('pointerleave', release);
