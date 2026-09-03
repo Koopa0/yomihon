@@ -185,7 +185,7 @@ templ searchDialog(lang wording.Lang) {
 			<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
 			<span class="ui-kbd">esc</span>
 		</form>
-		<p class="y-live-search__status" data-live-search-status data-live-search-countone={ wording.LiveSearchCountOne.In(lang) } data-live-search-countmany={ wording.LiveSearchCountMany.In(lang) } data-live-search-offline={ wording.LiveSearchOffline.In(lang) } role="status" aria-live="polite" aria-atomic="true"></p>
+		@LiveSearchStatus(lang)
 		<div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>
 		<div class="y-searchdialog__foot">
 			<span>↵ { wording.SearchDialogEnter.In(lang) }</span>

@@ -143,7 +143,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 						<input type="search" name="q" value={ v.Query } placeholder={ wording.SearchNotesField.In(c.Lang) } aria-label={ wording.SearchNotesField.In(c.Lang) } data-live-search-input autofocus/>
 						<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
 					</form>
-					<p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p>
+					@layouts.LiveSearchStatus(c.Lang)
 					@SearchResults(v, c.Lang)
 				</div>
 			</main>
