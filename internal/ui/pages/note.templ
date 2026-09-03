@@ -536,7 +536,7 @@ templ transitionForm(v NoteView, t Transition, lang wording.Lang) {
 		<input type="hidden" name="content_identity" value={ v.ContentIdentity }/>
 		if t.NoReturn {
 			<details class="y-statusconfirm">
-				<summary class="y-xbtn y-statusconfirm__summary">{ t.To }</summary>
+				<summary class="y-xbtn y-statusconfirm__summary" aria-label={ wording.NoReturnSummaryBefore.In(lang) + t.To + wording.NoReturnSummaryAfter.In(lang) }>{ t.To }</summary>
 				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(lang) }{ t.To }{ wording.NoReturnTargetAfter.In(lang) }</p>
 				<button class="y-xbtn y-statusconfirm__submit" type="submit" { schemaNoticesRef(&v)... }>{ wording.ConfirmSetBefore.In(lang) }{ t.To }{ wording.ConfirmSetAfter.In(lang) }</button>
 			</details>
