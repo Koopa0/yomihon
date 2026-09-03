@@ -55,8 +55,10 @@ func nextRune(s string, i int) rune {
 
 // writesWithoutSpaces reports whether a character belongs to a script that does
 // not part its words with spaces, the distinction Unicode text segmentation
-// (UAX #29) draws. Han, hiragana and katakana carry it; Hangul does not, because
-// modern Korean divides its words with spaces.
+// (UAX #29) draws. Han, hiragana and katakana carry it. Hangul does not, and
+// its exclusion is that script property rather than a case left for later:
+// modern Korean divides its words with spaces, so closing a wrapped seam
+// would fuse two words.
 func writesWithoutSpaces(r rune) bool {
 	return unicode.Is(unicode.Han, r) ||
 		unicode.Is(unicode.Hiragana, r) ||
