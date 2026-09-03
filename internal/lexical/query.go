@@ -99,21 +99,14 @@ func isFilterKey(key string) bool {
 	return ok
 }
 
-// Parse turns a raw query string into a Query:
-//
-//   - a token is a filter only if its pre-fold key is exactly one of the six
-//     lowercase keys, split on the first colon ("slug:a:b" → "slug", "a:b");
-//     every other token is a bare token, folded.
-//   - a filter value is NFC only, and a "folder:" value drops a trailing slash.
-//   - a span in matched quotes — ASCII double quotes or the full-width 「」and
-//     『』 pairs — is one bare token, whitespace and all, so its words match
-//     only where they sit together; a run of whitespace in it matches any run
-//     in the note, a wrapped line's break included. An unpartnered quote is
-//     dropped where it stands.
-//   - quoting a key asks for those characters as text; quoting only the value
-//     leaves the filter standing, which is how a value with a space is written.
-//
-// An empty or whitespace-only query yields an empty Query, answered with nothing.
+// Parse turns a raw query string into a Query. A token is a filter only if its
+// pre-fold key is exactly one of the six lowercase keys, split on the first
+// colon; every other token is a folded bare token. A filter value is NFC only,
+// and a "folder:" value drops a trailing slash. A span in matched quotes — ASCII
+// or the full-width pairs — is one bare token, whitespace and all, so its words
+// match only where they sit together, and a run of whitespace in it matches any
+// run in the note; an unpartnered quote is dropped. Quoting a key asks for those
+// characters as text, while quoting only the value leaves a filter standing.
 func Parse(q string) *Query {
 	var out Query
 	for _, field := range quoteFields(q) {
