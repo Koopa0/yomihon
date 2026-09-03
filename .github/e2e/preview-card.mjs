@@ -32,6 +32,9 @@ const WHOLE_NOTE_LINK = 'Glass Tide#Glass Tide';
 // anchor that stamped it and the cut that answers to it.
 const CJK_LINK = 'Glass Tide#第三節：失約的燈';
 const CJK_HEADING = '第三節：失約的燈';
+// The destination's own name, which no link on the source page shows: two of
+// them are written at sections and one at an alias.
+const DESTINATION_TITLE = 'Glass Tide';
 const DEGRADED_LINK = 'Glass Tide#A section nobody wrote';
 const EXTERNAL_LINK = 'https://example.invalid/lamps';
 // A concept term inside a governed lesson. It is a resolved wikilink wearing a
@@ -55,6 +58,7 @@ const SITES = [
 	'card-opens-on-focus',
 	'card-anchored-to-its-link',
 	'card-shows-the-section-the-link-addressed',
+	'the-card-names-the-note-it-shows',
 	'card-scrolls-inside-itself',
 	'a-link-that-cannot-be-previewed-opens-nothing',
 	'escape-dismisses-the-card',
@@ -235,7 +239,13 @@ const MUTATIONS = {
 	// a reader told what they cannot see and not told where it is.
 	'remove-the-way-on': {
 		target: 'a-section-the-note-does-not-have-shows-none-of-it',
-		apply: rewriteFragment('y-preview__morelink', 'y-preview__nolink'),
+		apply: rewriteFragment('y-preview__sourcelink', 'y-preview__nolink'),
+	},
+	// The card stops saying whose words it holds, which is what a link written
+	// at an alias, or at a section, never says either.
+	'unname-the-note': {
+		target: 'the-card-names-the-note-it-shows',
+		apply: rewriteFragment('class="y-preview__source"', 'class="y-preview__unsourced"'),
 	},
 	// The excerpt keeps the names the renderer stamped on it, so while the card
 	// is open the page holds two elements answering to one name and a fragment
@@ -301,6 +311,8 @@ const cardState = (page) =>
 			present: true,
 			open: card.matches(':popover-open'),
 			text: card.textContent.replace(/\s+/g, ' ').trim(),
+			proseText: (card.querySelector('.y-prose')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+			sourceText: (card.querySelector('.y-preview__source')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
 			box: { top: box.top, left: box.left, right: box.right, bottom: box.bottom, width: box.width, height: box.height },
 			contentHeight: card.scrollHeight,
 			activeInCard: Boolean(active && card.contains(active)),
@@ -406,11 +418,19 @@ try {
 		}
 
 		proveApplied('card-shows-the-section-the-link-addressed', proof);
-		if (!state.text.includes(SECTION_HEADING)) {
-			fail('card-shows-the-section-the-link-addressed', `the card does not carry ${JSON.stringify(SECTION_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.text.slice(0, 160))}`);
+		// The excerpt, not the whole card: the line above it names the section
+		// too, and asking the card would be answered by that line however the
+		// cut had gone.
+		if (!state.proseText.includes(SECTION_HEADING)) {
+			fail('card-shows-the-section-the-link-addressed', `the excerpt does not carry ${JSON.stringify(SECTION_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.proseText.slice(0, 160))}`);
 		}
-		if (state.text.includes(NOTE_OPENING)) {
-			fail('card-shows-the-section-the-link-addressed', 'the card carries the destination\'s opening words, so the link\'s own fragment was not asked for');
+		if (state.proseText.includes(NOTE_OPENING)) {
+			fail('card-shows-the-section-the-link-addressed', 'the excerpt carries the destination\'s opening words, so the link\'s own fragment was not asked for');
+		}
+
+		proveApplied('the-card-names-the-note-it-shows', proof);
+		if (!state.sourceText.includes(DESTINATION_TITLE)) {
+			fail('the-card-names-the-note-it-shows', `the card's head line reads ${JSON.stringify(state.sourceText)} and does not name ${JSON.stringify(DESTINATION_TITLE)}, so a link written at an alias leaves the reader no way to confirm what they are looking at`);
 		}
 
 		// Two elements answering to one name is a defect no server-side test can
@@ -464,8 +484,8 @@ try {
 		}
 		const state = await cardState(page);
 		proveApplied('card-shows-the-section-the-link-addressed', proof);
-		if (!state.text.includes(CJK_HEADING)) {
-			fail('card-shows-the-section-the-link-addressed', `the card does not carry ${JSON.stringify(CJK_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.text.slice(0, 160))}`);
+		if (!state.proseText.includes(CJK_HEADING)) {
+			fail('card-shows-the-section-the-link-addressed', `the excerpt does not carry ${JSON.stringify(CJK_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.proseText.slice(0, 160))}`);
 		}
 		await page.mouse.move(4, 4);
 		await settles(page, false, 2000);
@@ -622,7 +642,7 @@ try {
 		if (!widened.body.includes('y-preview__notice')) {
 			fail('a-section-the-note-does-not-have-shows-none-of-it', 'the answer shows nothing and says nothing about why');
 		}
-		if (!widened.body.includes('y-preview__morelink')) {
+		if (!widened.body.includes('y-preview__sourcelink')) {
 			fail('a-section-the-note-does-not-have-shows-none-of-it', 'the answer refuses and offers no way on to the note itself');
 		}
 	}

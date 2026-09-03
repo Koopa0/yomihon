@@ -1407,9 +1407,14 @@ html {
 /* The excerpt opens flush: the space a first heading or paragraph normally
    keeps above it belongs to a page, and the card is not one. */
 .y-preview .y-prose > :first-child { margin-block-start: 0; }
+/* The line above the excerpt: which note this is, and the way to it. Quiet
+   enough to read past on the way to the words, and the only thing on the card
+   that is not the other note's. */
+.y-preview__source { margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.04em; line-height: 1.5; }
+.y-preview__sourcelink { color: var(--fg-muted); text-decoration: none; }
+.y-preview__sourcelink:hover { color: var(--accent); }
+.y-preview__sep { margin: 0 6px; color: var(--fg-faint); }
+.y-preview__section { color: var(--fg-subtle); }
 /* The two sentences the card says in its own voice: why it is empty, and where
    the rest of a note it cut short can be read. */
 .y-preview__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }
-.y-preview__more { margin: 12px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; }
-.y-preview__morelink { color: var(--accent); text-decoration: none; }
-.y-preview__morelink:hover { text-decoration: underline; }

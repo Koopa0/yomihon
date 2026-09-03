@@ -59,7 +59,7 @@ func (h *Handler) preview(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		w.WriteHeader(http.StatusNotFound)
 	}
-	if err := pages.PreviewFragment(view, lang).Render(r.Context(), w); err != nil {
+	if err := pages.PreviewFragment(view).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write preview card", "path", rel, "error", err)
 	}
 }
@@ -86,11 +86,13 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 	}
 	slice, found := render.Excerpt(n.Body, section)
 	if !found {
-		return pages.PreviewView{RelPath: rel, Notice: missingPlace(section, lang)}, true
+		return pages.PreviewView{RelPath: rel, Title: n.Title, Notice: missingPlace(section, lang)}, true
 	}
 	source, truncated := capPreviewSource(slice)
 	view := pages.PreviewView{
 		RelPath:  rel,
+		Title:    n.Title,
+		Section:  render.ExcerptHeading(source),
 		Language: n.Language,
 		// Rendered through the same generation the excerpt was cut from, so a
 		// link inside the card resolves against the vault the card is showing.
