@@ -24,6 +24,9 @@ other than where it says.
 A fifth points out of the vault altogether, at <https://example.invalid/lamps>,
 which is a page this machine can neither read nor preview.
 
+A sixth names a vault file that is not a note at all, [[plain.txt]], which has a
+page of its own and nothing a preview could cut a section out of.
+
 > [!note] A callout with a note of its own
 > The callout is rendered on its own and spliced in, so its footnote[^aside]
 > starts numbering from one just as the host's does.

@@ -1,0 +1,1 @@
+not markdown, and not a note: a plain vault file a wikilink can still name.

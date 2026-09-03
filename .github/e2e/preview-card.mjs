@@ -34,6 +34,16 @@ const CJK_LINK = 'Glass Tide#第三節：失約的燈';
 const CJK_HEADING = '第三節：失約的燈';
 const DEGRADED_LINK = 'Glass Tide#A section nobody wrote';
 const EXTERNAL_LINK = 'https://example.invalid/lamps';
+// A concept term inside a governed lesson. It is a resolved wikilink wearing a
+// second class, and clicking it opens the in-app grammar sheet — so a hover
+// card on it would be a second affordance on one element, showing the same note
+// the sheet shows.
+const LESSON_PATH = '/notes/Writing/lessons/japanese/L01.md';
+const CONCEPT_LINK = 'は';
+// A plain wikilink on the same lesson, so the check below can first prove a
+// card opens on that page at all. Without it, "the concept term opened no card"
+// would hold just as well over a page where nothing opens one.
+const LESSON_PLAIN_LINK = 'Glass Tide';
 
 // The opening words of the destination, which a card cut at a section must not
 // carry, and the words of the section itself, which it must.
@@ -168,6 +178,12 @@ const MUTATIONS = {
 	'preview-every-wikilink': {
 		target: 'a-link-that-cannot-be-previewed-opens-nothing',
 		apply: rewriteModule(':not(.wikilink-degraded)', ''),
+	},
+	// The selector stops excluding the term that opens the grammar sheet, so
+	// one element grows two affordances showing the same note two ways.
+	'preview-concept-terms': {
+		target: 'a-link-that-cannot-be-previewed-opens-nothing',
+		apply: rewriteModule(':not(.concept-link)', ''),
 	},
 	// Nothing answers the key a reader presses to get a card out of the way
 	// without moving the pointer.
@@ -528,6 +544,45 @@ try {
 			fail('a-link-that-cannot-be-previewed-opens-nothing', `${JSON.stringify(label)} opened a card, and it reads ${JSON.stringify(state.text.slice(0, 160))} — a promise this link cannot keep`);
 		}
 		await page.mouse.move(4, 4);
+	}
+
+	// The concept term, on the lesson page that has one. It is a resolved
+	// wikilink, so only the selector's own exclusion keeps a card off it.
+	{
+		const lesson = await context.newPage();
+		const lessonResponse = await lesson.goto(BASE + LESSON_PATH, { waitUntil: 'networkidle' });
+		if (!lessonResponse || lessonResponse.status() !== 200) {
+			broken(`the lesson returned ${lessonResponse?.status() ?? 'no response'}, want 200`);
+		}
+		const term = lesson.locator(`main a.concept-link:text-is("${CONCEPT_LINK}")`);
+		const found = await term.count();
+		if (found !== 1) {
+			broken(`the lesson carries ${found} concept terms labelled ${JSON.stringify(CONCEPT_LINK)}, want exactly 1 — without one this check asserts nothing`);
+		}
+		if (!(await lesson.evaluate(() => Boolean(document.querySelector('[data-preview-endpoint]'))))) {
+			broken('the lesson page advertises no preview endpoint, so no card could have opened on it either way');
+		}
+		// The page is proved able to open a card before it is asked not to.
+		const plain = await only(lesson, LESSON_PLAIN_LINK);
+		await plain.scrollIntoViewIfNeeded();
+		await lesson.waitForTimeout(300);
+		await plain.hover();
+		if (!(await settles(lesson, true, 4000))) {
+			broken(`the plain link ${JSON.stringify(LESSON_PLAIN_LINK)} opened no card on the lesson, so nothing there opens one and the check below would hold for the wrong reason`);
+		}
+		await lesson.mouse.move(4, 4);
+		if (!(await settles(lesson, false, 2000))) broken('the lesson card would not close before the concept term was tried');
+
+		await term.scrollIntoViewIfNeeded();
+		await lesson.waitForTimeout(300);
+		await term.hover();
+		await lesson.waitForTimeout(900);
+		proveApplied('a-link-that-cannot-be-previewed-opens-nothing', proof);
+		const state = await cardState(lesson);
+		if (state.present && state.open) {
+			fail('a-link-that-cannot-be-previewed-opens-nothing', `a concept term opened a card reading ${JSON.stringify(state.text.slice(0, 120))}, so the same note is offered twice on one element — as a card on hover and as the grammar sheet on click`);
+		}
+		await lesson.close();
 	}
 
 	// What the route says about an address with no note behind it, asked from

@@ -117,7 +117,14 @@ export function initPreview() {
     timer = setTimeout(close, travelGrace);
   }
 
-  const links = root.querySelectorAll('.y-prose a.wikilink:not(.wikilink-degraded)');
+  // The one place that decides which links have a card. Every term is a class
+  // or an address the renderer itself writes: a link whose fragment it could
+  // not place carries a second class, a concept term in a lesson carries the
+  // class of the sheet that opens on click, and a link out of the vault is not
+  // a note link at all. Nothing on the server asks this question a second time.
+  const links = root.querySelectorAll(
+    '.y-prose a.wikilink:not(.wikilink-degraded):not(.concept-link)[href^="/notes/"]',
+  );
   for (const link of links) {
     link.addEventListener('pointerenter', () => schedule(link, openDelay));
     link.addEventListener('pointerleave', release);
