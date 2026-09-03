@@ -3015,12 +3015,15 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	}
 }
 
-// TestStatusPanelPrecedesOutline locks the right rail's order. The rail is its
-// own scroll container, so whatever renders first decides what the reader sees
-// without scrolling — and an outline of any length used to push the transition
-// controls past the bottom of the window on most notes, where scrolling the
-// article moved them not at all.
-func TestStatusPanelPrecedesOutline(t *testing.T) {
+// TestReadingPrecedesTheRulingInTheRail locks the right rail's order. The rail
+// is its own scroll container, so whatever renders first decides what a reader
+// sees there without scrolling, and what they came for is the note: its own
+// shape first, then what leads to it from elsewhere in the vault. The ruling is
+// a small verb beside the reading rather than the frame around it, so it takes
+// the last position and is reached by scrolling the rail like everything else
+// in it. The panel opened the rail before this, which put the smallest control
+// on the page above both of the things the reader was reading.
+func TestReadingPrecedesTheRulingInTheRail(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	// A long outline is the case that used to bury the panel.
@@ -3055,15 +3058,35 @@ func TestStatusPanelPrecedesOutline(t *testing.T) {
 
 	panelAt := strings.Index(rail, "y-statuspanel")
 	outlineAt := strings.Index(rail, `<nav aria-label="本頁內容">`)
+	citedAt := strings.Index(rail, "y-citedby")
 	if panelAt < 0 {
 		t.Fatalf("right rail has no status panel; rail = %q", rail)
 	}
 	if outlineAt < 0 {
 		t.Fatalf("this fixture must render an outline for the ordering to mean anything; rail = %q", rail)
 	}
-	if panelAt > outlineAt {
-		t.Errorf("outline renders before the status panel (panel at %d, outline at %d); a long outline then pushes the transition controls out of view",
-			panelAt, outlineAt)
+	// The rail draws only what a note has, and this note cites nobody, so the
+	// middle block is held where it appears rather than demanded here. The
+	// browser probe drives a note that has one.
+	type block struct {
+		what string
+		at   int
+	}
+	var order []block
+	for _, b := range []block{
+		{"the note's own shape", outlineAt},
+		{"what leads to this note", citedAt},
+		{"the ruling", panelAt},
+	} {
+		if b.at >= 0 {
+			order = append(order, b)
+		}
+	}
+	for i := 1; i < len(order); i++ {
+		if order[i-1].at > order[i].at {
+			t.Errorf("%s renders after %s in the rail (%d against %d); reading comes first there and the verb comes last",
+				order[i-1].what, order[i].what, order[i-1].at, order[i].at)
+		}
 	}
 }
 
