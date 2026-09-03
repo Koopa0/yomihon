@@ -81,13 +81,6 @@ var (
 	)
 )
 
-// TransitionEffect states what pressing a status control does, before it is
-// pressed and beside the controls themselves.
-var TransitionEffect = both(
-	"這個按鈕只會改寫這篇筆記 frontmatter 的 status 欄位。",
-	"This button rewrites one field of this note's frontmatter: status.",
-)
-
 // What the status face says about a value it cannot rule on. Both end the same
 // way, because the repair is the same one and it is a hand edit.
 var (
