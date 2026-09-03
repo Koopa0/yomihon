@@ -48,8 +48,8 @@ Then open <http://127.0.0.1:9610>. Any folder works as it is;
   notes nothing cites, and one name two files answer to; each note carries its
   own diagnostics; the same checks run as `yomihon check` on the command line.
   Nothing is repaired for you — you edit the file.
-- **Reports.** HTML briefings kept in the vault open inside the same room,
-  sandboxed.
+- **Reports.** Daily briefings kept under the vault's
+  `System/reports/daily-briefing/` folder open inside the same room, sandboxed.
 - **Two languages.** The interface speaks English or Traditional Chinese; every
   note keeps the language it was written in.
 - **Yours.** It binds to `127.0.0.1` only, never makes a network call, and
