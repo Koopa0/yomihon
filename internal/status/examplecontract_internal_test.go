@@ -75,6 +75,7 @@ func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 		{"draft", "ready"},
 		{"ready", "archived"},
 		{"ready", "published"},
+		{"ready", "draft"},
 	}
 	walked := make(map[string]bool, len(walk))
 	for _, step := range walk {

@@ -15,6 +15,7 @@ can be reached from.
 flowchart LR
   draft -->|initial| draft2[draft]
   draft2 --> ready
+  ready --> draft2
   ready --> published
   draft2 --> archived
   ready --> archived
