@@ -77,7 +77,8 @@ One JSON object per finding, one finding per line, in a stable order. Fields:
 `rule_id`, `severity`, `path`, `line` (omitted when the finding has no line),
 `field` (omitted when not field-bound), `message`, `evidence`,
 `suggested_action`, `source_rule`, `target` / `resolved_to` /
-`collision_members` (link and collision findings only, omitted otherwise),
+`collision_members` (link, embed, and collision findings only, omitted
+otherwise),
 and `fingerprint` — the identity of one finding, its algorithm version as a
 `v1:` prefix on the value, which `--baseline <file>` uses to subtract a
 prior run's findings so only new ones are reported and gated. A baseline is

@@ -35,6 +35,8 @@ func allRuleIDs() []string {
 		"link.broken",
 		"link.section_missing",
 		"link.block_missing",
+		"embed.section_missing",
+		"embed.block_missing",
 		"collision.alias",
 		"provenance.unresolved",
 		"map.disk_mismatch",
