@@ -220,7 +220,11 @@ func (h *Handler) logQueryWriteFailure(r *http.Request, message, rawQuery string
 }
 
 // queryFacts is what a search fault may say about the query: its shape and its
-// size, never its text.
+// size, never its text. That is why the error arrives as a type and not under
+// the "error" key every other log line in this repository uses — a search
+// error's message can carry back the words it was built from, and what a
+// reader typed into the box is theirs. The type says which fault it was, which
+// is what an operator acts on.
 func queryFacts(rawQuery string, err error) []any {
 	query := lexical.Parse(rawQuery)
 	filters := query.Filters()

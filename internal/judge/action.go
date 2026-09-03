@@ -11,6 +11,11 @@ import (
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
+// errVaultScan is what an observation that could not be made answers with. It
+// and the withheld variant below are declared here rather than with the
+// package's other types because choosing between them is this file's whole
+// subject: how much an observation may say about what it could not read. A
+// reader following that decision needs both in front of the code that makes it.
 var errVaultScan = errors.New("vault scan failed")
 
 // errWithheldUnreadable is the whole answer about a file the contract keeps out

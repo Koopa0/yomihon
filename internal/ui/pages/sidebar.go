@@ -52,6 +52,13 @@ type Sidebar struct {
 // the chrome each component is handed at render is where that answer lives. A
 // copy stored here could disagree with the page it sits in, and nothing would
 // have said so.
+// NewSidebar tolerates a nil model where every other constructor in this
+// repository panics, and the difference is the rail's job rather than an
+// oversight. A missing dependency is a wiring fault, and stopping on one is
+// right for a package that produces an answer — but the rail is drawn beside
+// every answer, including the not-found page a reader reaches when the vault
+// could not be projected at all. A rail that stopped there would take down the
+// page that exists to explain why.
 func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	// The current path arrives from the request URL; the model's indexes are
 	// keyed by NFC paths, so fold it once here to match on either form.

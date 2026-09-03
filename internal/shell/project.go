@@ -1,16 +1,17 @@
 // Package shell projects the navigation and lifecycle state shared by every
-// full-page reading surface. It owns the cross-feature projection, while the
-// pages package owns the resulting presentation value.
+// full-page reading surface. It owns the cross-feature projection; the value
+// it produces is nav.Shell, which belongs to the navigation model and knows
+// nothing about where its parts were gathered from.
 //
 // One function in a directory of its own looks like a package that should be
 // folded into a neighbour, and there is no neighbour to fold it into. Beside
-// the presentation value it returns is impossible: the write face renders its
-// own recovery page, so status already imports pages, and pages importing
-// status would close the loop. On the snapshot it would compile, and it would
-// point the read generation at both the write face and the presentation layer,
-// which inverts the model. In the reading feature it would be out of reach of
-// the write face, which that feature already imports. What is left is a
-// package every consumer may import, which is this one.
+// the value it returns is impossible: the generation already imports the
+// navigation model, so the model importing it back would not compile, and the
+// model reaching the write face as well would make what a projection is out of
+// what one is made from. On the generation it would compile, and it would point
+// the read side at the write face, which inverts the model. In the reading
+// feature it would be out of reach of every other face that draws a rail. What
+// is left is a package every consumer may import, which is this one.
 package shell
 
 import (
