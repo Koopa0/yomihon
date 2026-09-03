@@ -271,7 +271,7 @@ const MUTATIONS = {
     target: 'live-error-recovery',
     before: rewriteScript([
       {
-        needle: "        status.textContent = '即時結果目前無法使用；按 Enter 執行完整搜尋。';",
+        needle: "        status.textContent = status.dataset.liveSearchOffline ?? '';",
         replacement: "        status.textContent = '';",
       },
     ], 'live-search recovery message'),
