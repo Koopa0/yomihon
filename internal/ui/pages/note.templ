@@ -404,7 +404,6 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 						<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(lang) }</p>
 						<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v, lang) }</p>
 					default:
-						@transitionEffectLine("y-statuspanel__notice", lang)
 						<div class="y-statuspanel__forms">
 							@legalTransitionForms(v, lang)
 						</div>
@@ -442,15 +441,6 @@ templ schemaNotices(v NoteView, lang wording.Lang) {
 // contract's declared list. It replaces the empty-transitions notice, which
 // would imply the contract defines nothing onward from a value it never
 // defined.
-// transitionEffectLine states what pressing one of these controls does, before
-// any of them is pressed: a receipt after the fact reaches that reader too late.
-// It is written once and handed the class each face dresses its quiet notices
-// with, so the rail and the bar cannot describe the same button differently, and
-// it appears only beside real controls.
-templ transitionEffectLine(noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass }>{ wording.TransitionEffect.In(lang) }</p>
-}
-
 templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
 	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }</p>
 }
@@ -589,7 +579,6 @@ templ statusBar(v NoteView, lang wording.Lang) {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
-					@transitionEffectLine("y-sealbar__notice", lang)
 					@legalTransitionForms(v, lang)
 			}
 		</div>
