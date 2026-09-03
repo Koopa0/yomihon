@@ -13,28 +13,16 @@ var chineseDigits = map[rune]int{
 	'五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
 }
 
-// chineseUnits maps the multipliers a Chinese numeral is built from. Anything
-// larger than a thousand does not appear in a lesson or chapter number, and
-// treating it as ordinary text is better than guessing at it.
+// chineseUnits maps the multipliers a Chinese numeral is built from. Nothing
+// larger than a thousand appears in a lesson number, so the rest stays text.
 var chineseUnits = map[rune]int{'十': 10, '百': 100, '千': 1000}
 
 // ComparePaths orders two vault paths the way their reader would, and is the
-// one order every list of them is sorted by: a course in the rail, a results
-// page, a backlinks panel and a folder's uncited notes all answer with the
-// same lessons in the same sequence.
-//
-// Paths are sorted for a reader, not for a machine, and a reader who numbered
-// their notes expects them in that order. Comparing code points puts 第三課
-// before 第二課, because 三 is U+4E09 and 二 is U+4E8C — an order with no meaning
-// on screen, and one that gets worse with every lesson added. Arabic numerals
-// fare no better: 第10課 lands between 第1課 and 第2課. So a run of digits is
-// compared as the number it spells, and everything else by its code points,
-// which leaves every path carrying no number exactly where it was.
-//
-// It falls back to a code-point comparison whenever the numbers are equal, so
-// the order stays total and two paths never compare equal unless they are.
-// Names derived from a path — the label a list shows for one — read the same
-// way, so they are compared through here too.
+// one order every list of them sorts by. A run of digits compares as the number
+// it spells, because comparing code points puts 第三課 before 第二課 and 第10課
+// between 第1課 and 第2課; everything else compares by code point, so a path
+// carrying no number stays where it was. Equal numbers fall back to a code-point
+// comparison, which keeps the order total.
 func ComparePaths(a, b string) int {
 	ar, br := []rune(a), []rune(b)
 	i, j := 0, 0
@@ -55,8 +43,7 @@ func ComparePaths(a, b string) int {
 		i++
 		j++
 	}
-	// One is a prefix of the other, or they matched rune for rune; the shorter
-	// sorts first, and identical strings compare equal.
+	// One is a prefix of the other, or they matched rune for rune.
 	if c := cmp.Compare(len(ar)-i, len(br)-j); c != 0 {
 		return c
 	}
@@ -80,8 +67,7 @@ func numberAt(rs []rune, i int) (value, width int) {
 func asciiNumberAt(rs []rune, i int) (value, width int) {
 	n := 0
 	for i+n < len(rs) && unicode.IsDigit(rs[i+n]) {
-		// A path long enough to overflow this is not a numbered note; stop
-		// growing the value and let the remaining digits compare as text.
+		// A path long enough to overflow this is not a numbered note.
 		if value < 1<<40 {
 			value = value*10 + int(rs[i+n]-'0')
 		}

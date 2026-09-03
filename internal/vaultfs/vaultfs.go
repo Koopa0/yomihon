@@ -1,13 +1,8 @@
 // Package vaultfs pins one vault directory as a read capability and answers
-// questions about the files under it: what is there, what each one was when it
-// was observed, and what its bytes are now. It never writes.
-//
-// Every read descends the recorded path component by component and refuses the
-// moment the object under a component stops being the one that was observed,
-// so a rename or a swapped-in file under a reader's feet costs the read rather
-// than handing over bytes from somewhere else. What a note's bytes mean once
-// they are read is the note model's question, in the vault package this one
-// depends on for the single spelling of a path.
+// what is under it, what each file was when observed, and what its bytes are
+// now. It never writes. Every read descends the recorded path component by
+// component and refuses the moment an object stops being the one observed, so
+// a rename under a reader's feet costs the read rather than yielding bytes.
 package vaultfs
 
 import (
@@ -37,10 +32,8 @@ var ErrSourceChanged = errors.New("vault entry no longer names the observed file
 var ErrNotRegular = errors.New("vault path is not a regular file")
 
 // ErrNotDirectory means a component in the middle of a path exists but is not a
-// directory, so the walk cannot descend through it. Distinct from
-// [ErrNotRegular] because reporting "not a regular file" about a path that is
-// one — a plain file standing where a directory belongs — would be its own
-// false diagnosis.
+// directory, so the walk cannot descend through it. It is distinct from
+// [ErrNotRegular], which a plain file standing there would be misdescribed by.
 var ErrNotDirectory = errors.New("vault path component is not a directory")
 
 // ErrSymbolicLink means a path is a symbolic link. The pinned root never
@@ -70,14 +63,11 @@ type Reader struct {
 }
 
 // File is an opened regular file selected through a Reader. Its descriptor
-// keeps referring to the selected filesystem object if its path is renamed or
-// atomically replaced. Like os.File, it does not freeze bytes written through
-// another descriptor to that same object.
-//
-// It wraps the *os.File beneath it rather than returning it, so a caller can
-// reach Read, Seek and Close and nothing else. Nothing in this package writes
-// to the vault, and a value that also carried Write, Chmod and Truncate would
-// make the first breach of that a caller's slip instead of a compile error.
+// keeps referring to the selected object if the path is renamed or atomically
+// replaced, and like os.File it does not freeze bytes another descriptor
+// writes. It wraps the *os.File rather than returning it so a caller reaches
+// Read, Seek and Close and nothing else: a write to the vault is then a
+// compile error rather than a slip.
 type File struct {
 	file *os.File
 }
@@ -499,11 +489,10 @@ func (r *Reader) Lookup(relPath string) (Entry, error) {
 	return r.observe(relPath)
 }
 
-// Refresh selects the current regular file at e's original filesystem
-// spelling under this Reader's pinned root. It lets a live reading surface see
-// an atomic local edit without reopening the configured root path. A symlink,
-// non-regular component, canonical-identity change, or Entry from another
-// Reader fails closed.
+// Refresh selects the current regular file at e's original filesystem spelling
+// under this Reader's pinned root, so a live surface sees an atomic local edit
+// without reopening the root. A symlink, a non-regular component, a changed
+// canonical identity, or an Entry from another Reader fails closed.
 func (r *Reader) Refresh(e Entry) (Entry, error) {
 	if !r.owns(e) {
 		return Entry{}, errors.New("entry does not belong to vault reader")
@@ -862,10 +851,8 @@ func readHookWithContext(ctx context.Context, hook readHook) readHook {
 
 // refuse names why a present path cannot be used at the position it occupies.
 // The symbolic-link test comes first because a link is neither a regular file
-// nor a directory: asking about the mode before asking about the link would
-// report every link as some other unusable kind. wantDir distinguishes the two
-// positions, so a plain file standing where a directory belongs is not reported
-// as "not a regular file" — which it is.
+// nor a directory, and wantDir separates the two positions so a plain file
+// standing where a directory belongs is not called "not a regular file".
 func refuse(op, relPath string, mode fs.FileMode, wantDir bool) error {
 	switch {
 	case mode&fs.ModeSymlink != 0:
@@ -878,10 +865,9 @@ func refuse(op, relPath string, mode fs.FileMode, wantDir bool) error {
 }
 
 // revalidated classifies a filesystem error met while re-checking an object
-// this reader already observed. Only absence proves the selected object is
-// gone; a refusal or an exhausted descriptor table means the machine could not
-// answer, which is not evidence that anyone edited anything, so it is reported
-// as itself rather than as a change.
+// this reader already observed. Only absence proves the object is gone; a
+// refusal or an exhausted descriptor table means the machine could not answer,
+// so it is reported as itself rather than as a change.
 func revalidated(err error) error {
 	if errors.Is(err, fs.ErrNotExist) {
 		return ErrSourceChanged
@@ -890,9 +876,8 @@ func revalidated(err error) error {
 }
 
 // pathErrorAt restates a filesystem error against the vault-relative path the
-// caller named. The walk descends one component at a time into progressively
-// opened child roots, so the raw error names the bare component it was standing
-// on — "System" where the caller asked for
+// caller named. The walk descends one component at a time, so the raw error
+// names the bare component it stood on — "System" for a caller who asked for
 // "System/schemas/vault-schema.toml", which reads as a different file missing.
 func pathErrorAt(relPath string, err error) error {
 	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
@@ -908,9 +893,8 @@ func hiddenName(name string) bool {
 
 // OutsideScan reports whether relPath lies beyond what a scan ever looks at, so
 // a caller can tell "I looked and it was not there" apart from "I never looked".
-// A judgement about a path this returns true for cannot rest on the scan: the
-// scan holds no evidence either way, and reporting absence from silence is how
-// a tool ends up asserting that a file which plainly exists does not.
+// A judgement about such a path cannot rest on the scan, which holds no
+// evidence either way.
 func OutsideScan(relPath string) bool {
 	for segment := range strings.SplitSeq(relPath, "/") {
 		if hiddenName(segment) {

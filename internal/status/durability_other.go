@@ -4,7 +4,6 @@ package status
 
 import "os"
 
-// These targets do not expose a proven directory durability barrier. Flip
-// refuses before filesystem access; this sentinel is the defensive backstop
-// if a future internal path bypasses that preflight.
+// These targets expose no proven directory durability barrier. Flip refuses
+// before filesystem access; this sentinel backstops any path that bypasses it.
 func syncDirectory(*os.Root) error { return ErrDurabilityUnsupported }

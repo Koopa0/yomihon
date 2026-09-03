@@ -17,8 +17,7 @@ type Segment struct {
 }
 
 // ParseTemplate splits a template like "{A}は {B}です" into ordered segments:
-// [{Key:"A"}, {Text:"は "}, {Key:"B"}, {Text:"です"}]. The renderer walks these
-// to draw each slot in its colour with the literal particles between.
+// [{Key:"A"}, {Text:"は "}, {Key:"B"}, {Text:"です"}].
 func ParseTemplate(tmpl string) []Segment {
 	var segs []Segment
 	last := 0
@@ -64,9 +63,8 @@ func FirstFill(p Position) Fill {
 }
 
 // GlossInitial renders the gloss with each {Key} replaced by its first fill's
-// Chinese: the default the page shows before any interaction, so the slot
-// machine reads correctly with JS disabled. Only TEMPLATE keys are substituted,
-// matching PatternJSON so the server-rendered default and the JS agree.
+// Chinese, the default the page shows before any interaction. Only template
+// keys are substituted, so this default and PatternJSON agree.
 func GlossInitial(p Pattern) string {
 	inTemplate := make(map[string]bool)
 	for _, k := range TemplateKeys(p.Template) {
@@ -82,9 +80,7 @@ func GlossInitial(p Pattern) string {
 }
 
 // jsSlot and jsPattern are the compact wire shape embedded in each card's
-// <script type="application/json"> slot-data blob and consumed by the slot
-// machine controller — kept separate from the on-disk structs so the wire form
-// carries only what the client needs.
+// slot-data blob, kept separate from the on-disk structs.
 type jsSlot struct {
 	Color string `json:"color"`
 	Fills []Fill `json:"fills"`
@@ -98,9 +94,8 @@ type jsPattern struct {
 }
 
 // PatternJSON serialises a pattern into the slot-data blob. json.Marshal
-// \u-escapes < > &, so the blob cannot break out of its <script> element even
-// if a fill holds markup — the sole reason this goes through encoding/json
-// rather than string assembly.
+// escapes < > &, so the blob cannot break out of its <script> element even if
+// a fill holds markup — the sole reason this is not string assembly.
 func PatternJSON(p Pattern) string {
 	keys := TemplateKeys(p.Template)
 	js := jsPattern{
@@ -115,11 +110,8 @@ func PatternJSON(p Pattern) string {
 	}
 	b, err := json.Marshal(js)
 	if err != nil {
-		// The wire struct is this package's own and holds only strings,
-		// slices of them and a string-keyed map, so nothing in it can refuse
-		// to encode. Returning an empty pattern instead would draw a slot card
-		// with no slots — a lesson quietly missing its practice panel, which
-		// reads as an authoring mistake rather than as the fault it is.
+		// The wire struct holds only strings, slices of them and a
+		// string-keyed map, so nothing in it can refuse to encode.
 		panic(fmt.Sprintf("lesson: pattern %q cannot be encoded: %v", p.ID, err))
 	}
 	return string(b)

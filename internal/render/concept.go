@@ -6,25 +6,16 @@ import (
 	"strings"
 )
 
-// conceptLink matches one resolved wikilink as renderWikilink emits it —
-// `<a href="…" class="wikilink">…</a>`, the Unique case only. An ambiguous or
-// broken wikilink is a <span>, never this shape, so it is never turned into a
-// trigger (a term the reader cannot reliably follow should not open a sheet).
+// conceptLink matches one resolved wikilink as renderWikilink emits it, the
+// unique case only. An ambiguous or broken one is a span, never this shape, so a
+// term the reader cannot reliably follow never opens a sheet.
 var conceptLink = regexp.MustCompile(`<a href="([^"]*)" class="wikilink">`)
 
-// InjectConceptTriggers upgrades the wikilinks that point at concept notes into
-// concept-sheet triggers, and reports which concepts a body references.
-//
-// A trigger stays a real navigable <a> (no-JS opens the concept note's reading
-// page — the approved degradation); it only gains data-concept + the
-// concept-link class, so lesson.js can intercept the click and open the sheet
-// instead. Like InjectTTS this is a lesson-gated post-pass over already-rendered
-// HTML — render.HTML stays a generic note renderer, and the locked wikilink
-// output is not reshaped, only annotated.
-//
-// lookup reports whether a href's decoded vault-relative path is a concept and
-// its sheet ID. The returned refs are the concept paths referenced, deduped in
-// first-seen order, for the caller to load into the sheet's <template>s.
+// InjectConceptTriggers upgrades the wikilinks pointing at concept notes into
+// concept-sheet triggers, and reports which concepts a body references. A trigger
+// stays a real navigable anchor and only gains an attribute and a class, so
+// without scripting it still opens the concept note's own page. The returned refs
+// are the concept paths, deduped in first-seen order.
 func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (id string, ok bool)) (out string, refs []string) {
 	seen := map[string]bool{}
 	out = conceptLink.ReplaceAllStringFunc(htmlOut, func(tag string) string {

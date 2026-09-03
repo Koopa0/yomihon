@@ -1,13 +1,8 @@
 // Package lesson loads the hand-authored data that enriches lesson reading
 // pages: Japanese slot-machine sentence patterns from System/slots/*.yaml and
-// the cross-domain concept-note index used by in-page sheets.
-//
-// Everything here is read-only: the vault owns the data, this package only
-// parses and validates it. The slot sidecar's shape — patterns, slots, fills,
-// and the closed colour set — is yomihon's own vocabulary expressed as a Go
-// struct and checked here, not the note frontmatter contract: vault-schema.toml
-// is the single source of schema truth for notes, but this machine-owned
-// sidecar sits outside that schema.
+// the cross-domain concept-note index used by in-page sheets. Everything here
+// is read-only, and the sidecar's shape is yomihon's own vocabulary rather
+// than the note frontmatter contract vault-schema.toml governs.
 package lesson
 
 import (
@@ -21,12 +16,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// slotColors is the closed set of slot colour tokens; each maps to a
-// light/dark pair in the stylesheet. Validate rejects any other value so an
-// authoring typo surfaces at load rather than shipping a miscoloured card.
-// This is yomihon's own vocabulary for the slot sidecar, deliberately not a
-// vault-schema.toml enum — that schema governs note frontmatter, not this
-// machine-owned file.
+// slotColors is the closed set of slot colour tokens, each mapping to a
+// light/dark pair in the stylesheet. It is this sidecar's own vocabulary, not
+// a vault-schema.toml enum: that schema governs note frontmatter.
 var slotColors = map[string]bool{
 	"topic": true, "pred": true, "poss": true, "obj": true,
 	"place": true, "time": true, "verb": true, "num": true,
@@ -41,9 +33,8 @@ type Fill struct {
 }
 
 // Position is one replaceable slot in a pattern template, keyed by its
-// placeholder name (e.g. "A"). It carries only yaml tags: the compact JSON the
-// slot machine consumes is assembled separately by PatternJSON, so the wire
-// shape stays decoupled from the on-disk one.
+// placeholder name. It carries only yaml tags; PatternJSON assembles the
+// compact JSON the slot machine consumes.
 type Position struct {
 	LabelZH string `yaml:"label_zh"`
 	Color   string `yaml:"color"` // one of slotColors, or empty for a neutral (uncoloured) slot
@@ -60,21 +51,15 @@ type Pattern struct {
 	Slots    map[string]Position `yaml:"slots"`
 }
 
-// Sidecar is the slot-machine data for one lesson — the contents of one
-// System/slots/Lxx.yaml file. It joins to a lesson note by Slug, never by
-// filename: the note carries slug "jp-minna-l01", this file's Slug field
-// matches it, and the two filenames (the note's Japanese title, the sidecar's
-// Lxx.yaml) deliberately do not.
+// Sidecar is the slot-machine data for one lesson. It joins to a lesson note
+// by Slug, never by filename: the note's slug and this file's Slug field
+// match, while their filenames deliberately do not.
 type Sidecar struct {
 	Lesson string `yaml:"lesson"`
 	Slug   string `yaml:"slug"`
 	Title  string `yaml:"title"`
-	// Note is what this drill does not cover, in the lesson author's own words.
-	// A pattern is something whose parts swap; a rule that holds across the
-	// whole lesson has nowhere to go among them, and without somewhere to say
-	// so the panel silently presents itself as the lesson's patterns when its
-	// author knows it is a subset. It reads as plain text, like the labels and
-	// glosses beside it.
+	// Note is what this drill does not cover, in the author's own words — a
+	// rule holding across the lesson has nowhere to go among the patterns.
 	Note     string    `yaml:"note"`
 	Patterns []Pattern `yaml:"patterns"`
 }
@@ -97,10 +82,8 @@ func parseSidecar(source string, data []byte) (*Sidecar, error) {
 }
 
 // Validate reports every contract problem in the sidecar, one message per
-// problem; an empty result means valid. It is the load-time guard against
-// freezing wrong content as truth — a template key with no slot, a slot with no
-// fills, an unknown colour, or a gloss key absent from the template. It reports
-// only, never repairs: yomihon surfaces problems, a human edits the file.
+// problem; an empty result means valid. It reports only and never repairs: a
+// human edits the file.
 func (s *Sidecar) Validate() []string {
 	var problems []string
 	for _, p := range s.Patterns {

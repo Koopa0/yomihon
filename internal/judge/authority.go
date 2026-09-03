@@ -9,16 +9,10 @@ import (
 )
 
 // The two refusals a caller has to be able to tell apart. Both mean the same
-// thing to the engine — there is no vocabulary to judge notes against, so no
-// verdict is possible — and different things to whoever pointed the command at
-// this folder, who is owed a different paragraph for each. Distinguishing them
-// is the caller's job, so they are exported; the paragraphs themselves are the
-// binary's, since they are written for a person at a terminal.
-//
-// They are declared here rather than with the package's other types because
-// the difference between them is this file's whole subject, and a reader
-// deciding which one a folder earns has to have both in front of the code that
-// decides it.
+// thing to the engine — no vocabulary to judge notes against — and different
+// things to whoever pointed the command at this folder, who is owed a different
+// paragraph for each. Distinguishing them is the caller's job, so they are
+// exported; the paragraphs are the binary's, written for a person at a terminal.
 var (
 	// ErrPrivacyAuthorityUnavailable reports a contract that exists and could
 	// not be honoured. The reason is deliberately not carried: a decoder's

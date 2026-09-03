@@ -9,27 +9,19 @@ import (
 )
 
 var (
-	// ttsMarkedParagraph is the explicit authoring contract for a speakable
-	// paragraph. A lesson author places <!-- read-aloud: ja --> immediately before
-	// the Markdown paragraph; goldmark preserves that trusted raw-HTML comment,
-	// and this pass consumes it into one read-aloud line. This is what lets pure
-	// kana practice opt in without pretending ruby is a language declaration.
+	// ttsMarkedParagraph is the authoring contract for a speakable paragraph: an
+	// author places <!-- read-aloud: ja --> immediately before it, and this pass
+	// consumes the comment into one read-aloud line.
 	ttsMarkedParagraph = regexp.MustCompile(`(?s)<!--\s*read-aloud:\s*ja\s*-->\s*<p>(.*?)</p>`)
-	// rubyReading matches a ruby reading annotation — an <rt>…</rt> or an
-	// <rp>…</rp>, each closed by its own tag — so a caller that strips it keeps
-	// the base characters and drops the furigana. The open tag may carry
-	// attributes; only its name is anchored, so an annotation is removed whole
-	// rather than having its wrapper stripped and the reading left behind. Two
-	// alternations (not a single [tp] class) so an <rt> can never pair with a
-	// stray </rp> on malformed markup. <rp> does not appear in current content,
-	// but it is stripped too, defensively — its fallback parentheses are
-	// reading apparatus, not part of the base text.
+	// rubyReading matches a ruby reading annotation, each closed by its own tag,
+	// so a caller stripping it keeps the base characters and drops the furigana.
+	// Only the tag name is anchored, so an annotation carrying attributes is
+	// removed whole. Two alternations rather than one character class, so an <rt>
+	// can never pair with a stray </rp> on malformed markup.
 	rubyReading = regexp.MustCompile(`(?s)<rt[^>]*>.*?</rt>|<rp[^>]*>.*?</rp>`)
-	// nestedParaOpen detects a raw inline paragraph tag (<p> or <p …>) inside a
-	// paragraph's own inner HTML. goldmark never nests block <p>, so this only
-	// ever fires on a hand-authored raw inline <p> pasted mid-sentence — the one
-	// input that would make ttsParagraph's non-greedy match stop at the wrong
-	// </p>. The `[>\s]` guard keeps it from matching inline SVG's <path>.
+	// nestedParaOpen detects a raw inline paragraph tag inside a paragraph's own
+	// inner HTML — the one input that would make ttsParagraph's non-greedy match
+	// stop at the wrong close. The `[>\s]` guard keeps it off inline SVG's <path>.
 	nestedParaOpen = regexp.MustCompile(`<p[>\s]`)
 	// ttsTag matches any remaining tag, reducing a segment's inner HTML to its
 	// text: the <ruby> wrappers, emphasis, links and the rest fall away.
@@ -40,22 +32,11 @@ var (
 // the repo's other inline SVGs).
 const ttsSpeaker = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`
 
-// InjectTTS gives each explicitly marked Japanese paragraph a speak button
-// whose data-tts attribute holds the segment's spoken text, computed here
-// (server-side) with the furigana
-// stripped: the front end reads data-tts, it never crawls the DOM to
-// reconstruct reading-free text.
-//
-// It ADDS a control to such segments; it does not reshape the locked dialect
-// constructs (wikilinks, callouts, embeds, ==highlight==, or the <ruby>
-// itself), which the render fixtures pin as substrings and which survive
-// untouched. This is read-path enrichment, not a content edit — the
-// never-edit-a-note contract governs a note's own bytes, not derived HTML.
-//
-// Ruby is reading apparatus, not a language or interaction declaration. A
-// paragraph, recall item, or answer that merely contains ruby stays untouched;
-// the author must opt a paragraph in with <!-- read-aloud: ja -->. Keeping that
-// semantic decision in source content prevents presentation from guessing.
+// InjectTTS gives each explicitly marked Japanese paragraph a speak button whose
+// data-tts attribute holds the segment's spoken text, computed here with the
+// furigana stripped, so the front end never crawls the DOM for it. It only adds a
+// control. Ruby is reading apparatus rather than a language declaration, so a
+// paragraph merely containing it stays untouched and the author opts in.
 func InjectTTS(htmlOut string, lang wording.Lang) string {
 	return injectMarkedParagraphTTS(htmlOut, lang)
 }

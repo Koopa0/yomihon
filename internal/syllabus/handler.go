@@ -1,7 +1,6 @@
-// Package syllabus serves the study-path page: a full-page render of one
-// parsed study-path tree, with a switcher across every study-path in the vault.
-// It reads internal/nav's already-parsed Paths plus the shared shell projection,
-// both captured from one atomic snapshot; it never parses notes itself.
+// Package syllabus serves the study-path page: one study-path tree with a
+// switcher across every study-path in the vault. It reads paths the navigation
+// model already parsed, and parses no note itself.
 package syllabus
 
 import (
@@ -40,15 +39,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 // show renders the study-path whose vault path matches the request. An unknown
-// path (or an empty model, before the first scan) is a 404 — the same page the
-// reading surface answers a missing note with, for the same reason: whoever
-// arrives here mistyped an address or followed a link into a course that is no
-// longer there, and needs the folder tree, the search and the way home they
-// were already using rather than one line of text and a dead end.
+// path, and an empty model before the first scan, both answer the not-found
+// page rather than a line of text.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	// A vault holds its names composed, and a request can carry either
-	// spelling of the same letter, so the name is composed before it is
-	// looked up — the way every other path route already reads one.
+	// A vault holds its names composed and a request can carry either spelling
+	// of the same letter, so the name is composed before it is looked up.
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 
 	shell := h.shell()
@@ -56,8 +51,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	if current == nil {
 		lang := origin.Language(r)
 		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
-		// The title names which route refused, because the address alone does
-		// not say and the page below it speaks for every one of them.
+		// The title names which route refused; the page below it is shared.
 		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)

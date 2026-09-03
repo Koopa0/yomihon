@@ -13,45 +13,26 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Health is what the whole folder looks like at once, rather than one note at a
-// time. Every fact in it was already being computed to render single pages —
-// the resolver knew which citations land nowhere, the backlink index knew which
-// notes nothing reaches, the name index knew which names two files both claim.
-// Read per note, none of it answers "what should I fix"; gathered, it does.
-//
-// It reports and never repairs, the same rule the note panel follows.
-//
-// Every link answer here comes from one extractor, and that extractor reads
-// [[…]] citations and nothing else. An ordinary Markdown link to a file that
-// is not there is therefore outside this whole picture — the reading page
-// navigates it to a 404 and the command line warns about it, while nothing
-// below counts it. The page says which links it read for that reason: an
-// all-clear is only worth what it covers.
+// Health is what the whole folder looks like at once rather than one note at a
+// time, gathered from facts the single pages already compute. It reports and
+// never repairs. Every link answer comes from the one extractor, which reads
+// [[…]] citations and nothing else, so an ordinary markdown link to a missing
+// file is outside this picture and the page says which links it read.
 type Health struct {
 	// InstanceScopeUnknown is why the citation and island lists could not be
-	// worked out, and empty when they could. It is filled here, by the build,
-	// because the fact it reports is one the build meets: the artifact policy
-	// this generation was handed was declared and could not be honoured, so
-	// which files are instances is unknown for the whole of it.
+	// worked out, and empty when they could: the artifact policy this
+	// generation was handed was declared and could not be honoured.
 	InstanceScopeUnknown string
 
 	// Unwritten are citations to names no file carries and no ledger declared.
-	// A name the vault has planned is not here: it is on the page because it is
-	// owed, not because it is wrong.
+	// A name the vault has planned is owed rather than wrong, and is not here.
 	Unwritten []HealthLink
 	// TitleOnly are citations naming a note's title. The note exists; the link
-	// fails because a title is never a name this vault resolves by, which is
-	// the resolver's single most consequential rule and the one that fails
-	// silently. Separating it from the unwritten is not a nicety: the two need
-	// opposite repairs, and calling a written note unwritten sends the reader
-	// to write it again.
+	// fails because a title is never a name this vault resolves by. It is kept
+	// apart from the unwritten because the two need opposite repairs.
 	TitleOnly []HealthTitleLink
-	// Islands are notes nothing cites, grouped by the folder they live in. The
-	// flat list was a true answer nobody could use — a real vault produced a
-	// hundred and thirty-seven rows, and sixty of them were one course's
-	// transcripts, which nothing cites because nothing ever would. Grouping
-	// drops no row: it lets the shape of the number be seen before the rows
-	// are read, which is the difference between a finding and a wall of text.
+	// Islands are notes nothing cites, grouped by the folder they live in so the
+	// shape of the number is visible before the rows are read. No row is dropped.
 	Islands []HealthIslandGroup
 	// Collisions are names more than one file answers to, where a citation
 	// resolves to none of them because the vault refuses to guess.
@@ -64,25 +45,21 @@ type HealthLink struct {
 	Target string
 }
 
-// HealthIslandGroup is one folder's uncited notes. Dir is the folder, empty
-// for the one at the top, which has no name of its own — what a page calls
-// that folder instead is a word in the reader's language, and this is built by
-// a scan that no reader has asked anything of yet.
+// HealthIslandGroup is one folder's uncited notes. Dir is the folder, empty for
+// the one at the top, which a page names in the reader's own language instead.
 type HealthIslandGroup struct {
 	Dir   string
 	Notes []nav.NoteRef
 }
 
-// HealthTitleLink is one citation that names a note's title, with the note it
-// was reaching for.
+// HealthTitleLink is one citation naming a note's title, with the note meant.
 type HealthTitleLink struct {
 	From   nav.NoteRef
 	Target string
 	Note   nav.NoteRef
 }
 
-// HealthCollision is one name several files claim, with every claimant listed —
-// the vault never picks one, so neither does this.
+// HealthCollision is one name several files claim, with every claimant listed.
 type HealthCollision struct {
 	Name       string
 	Candidates []string
@@ -94,9 +71,7 @@ func (h *Health) Empty() bool {
 }
 
 // newHealth gathers the whole-folder view from projections this generation
-// already built. It walks the same bodies through the same extractor as every
-// other link answer here, so a citation counted broken on this page is broken
-// on the note's own page too.
+// already built, through the same extractor as every other link answer here.
 func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
 	var h Health
 	var islands []nav.NoteRef
@@ -105,16 +80,10 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 		return h
 	}
 	// Which files are instances decides which citations are anyone's to answer
-	// for, and a policy that was declared and could not be honoured leaves
-	// that unknown. Reading it anyway answers false for every path, so a
-	// template's placeholders arrive as work the reader owes — a repair nobody
-	// can make. The three lists that depend on it are therefore not computed
-	// at all: an answer built from an unknown scope is worse than no answer,
-	// because it looks exactly like a real one.
-	//
-	// A vault that declared nothing is a different case and keeps its answers.
-	// Excluding nothing is what an undeclared exclusion means, and inventing a
-	// rule its owner never wrote would be the larger error.
+	// for, so a policy that was declared and could not be honoured leaves the
+	// three lists depending on it uncomputed: an answer built from an unknown
+	// scope looks exactly like a real one. A vault that declared nothing is a
+	// different case and keeps its answers.
 	if !policy.Trustworthy() {
 		h.InstanceScopeUnknown = policy.Diagnostic()
 		h.Collisions = collisions(idx)
@@ -125,11 +94,7 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 		if n == nil {
 			continue
 		}
-		// A template's citations name its own slots, not notes anyone owes. The
-		// contract already says which folders hold artifacts rather than
-		// instances; reading every note the same way put a template's
-		// placeholders on this page as work to do, which is a repair nobody
-		// can make.
+		// A template's citations name its own slots, not notes anyone owes.
 		if policy.IsNonInstance(n.RelPath) {
 			continue
 		}
@@ -140,10 +105,7 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 			switch {
 			case res.Kind != graph.KindUnresolved || planned.Has(target) || seen[target]:
 				// Resolved, owed, or already reported for this note.
-			// One holder only: naming a note out of several would be a
-			// guess, and this page does not make those. The whole-vault index
-			// keeps every holder, so the choice of what to do about a shared
-			// title is made here rather than settled for everyone upstream.
+			// One holder only: naming a note out of several would be a guess.
 			case len(titles[graph.NormalizeKey(target)]) == 1:
 				seen[target] = true
 				titleReferenced[titles[graph.NormalizeKey(target)][0].RelPath] = true
@@ -155,11 +117,8 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 				h.Unwritten = append(h.Unwritten, HealthLink{From: from, Target: target})
 			}
 		}
-		// A note reached only by its title is cited by nobody as far as the
-		// resolver is concerned, because a title is not a name a link follows.
-		// Calling it uncited would be true of the graph and false of the
-		// vault: someone wrote its name down. The set is the one this same
-		// pass already collected, not a third definition of what a citation is.
+		// A note reached only by its title is uncited as far as the resolver is
+		// concerned, but someone did write its name down.
 		if back.Citing(n.RelPath) == 0 && !titleReferenced[n.RelPath] {
 			islands = append(islands, from)
 		}
@@ -170,15 +129,10 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 	return h
 }
 
-// collisions lists every name several files claim, asked of the resolution
-// index rather than of the citations anyone happened to write. Two files can
-// share a name for years before the first link to it is typed, and that link
-// failing is the moment this page exists to prevent; reading the answer off
-// the links instead found the pair only after the damage.
-//
-// Which of the index's collisions count is the resolver's own answer, shared
-// with the judge that gates on the same folder: one repair belongs on this page
-// once, and the two faces must not report different totals for it.
+// collisions lists every name several files claim, asked of the resolution index
+// rather than of the citations anyone happened to write: two files can share a
+// name for years before the first link to it is typed. Which of them count is
+// the resolver's own answer, shared with the judge gating the same folder.
 func collisions(idx *graph.Index) []HealthCollision {
 	byName := idx.DistinctCollisions()
 	out := make([]HealthCollision, 0, len(byName))
@@ -189,9 +143,7 @@ func collisions(idx *graph.Index) []HealthCollision {
 }
 
 // groupByFolder collects uncited notes under the folder each lives in, largest
-// group first — the shape a reader needs to see before deciding which of them
-// is worth their attention. Nothing is dropped or capped: every note that had
-// a row still has one, inside its folder.
+// group first. Nothing is dropped or capped.
 func groupByFolder(notes []nav.NoteRef) []HealthIslandGroup {
 	byDir := make(map[string][]nav.NoteRef)
 	for _, n := range notes {
@@ -209,9 +161,8 @@ func groupByFolder(notes []nav.NoteRef) []HealthIslandGroup {
 	return groups
 }
 
-// sortHealth puts every list in one stable order so two runs over an unchanged
-// folder produce the same page, and a reader working down the list finds it
-// where they left it.
+// sortHealth puts every list in one stable order, so two runs over an unchanged
+// folder produce the same page.
 func sortHealth(h *Health) {
 	slices.SortFunc(h.Unwritten, func(a, b HealthLink) int {
 		return cmp.Or(vault.ComparePaths(a.From.RelPath, b.From.RelPath), vault.ComparePaths(a.Target, b.Target))
