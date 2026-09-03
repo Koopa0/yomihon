@@ -97,6 +97,21 @@ func (m *Model) ArtifactClosure() Closure {
 	return m.artifact
 }
 
+// DeclaredClosure is the one answer for whether the projections a contract's
+// own declarations produce — study paths and maps — were withheld, and why.
+// Either closure can withhold them, and one cause commonly trips both, so a
+// surface listing paths or maps asks here rather than keeping its own rule for
+// joining two answers.
+func (m *Model) DeclaredClosure() Closure {
+	if m == nil {
+		return Closure{}
+	}
+	if m.navigation.Closed() {
+		return m.navigation
+	}
+	return m.artifact
+}
+
 // Folders returns the top-level lifecycle folders in vault order. The complete
 // returned tree is independent of the model.
 func (m *Model) Folders() []Folder {

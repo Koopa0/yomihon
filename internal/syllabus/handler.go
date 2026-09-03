@@ -33,8 +33,9 @@ func New(shell func() nav.Shell, log *slog.Logger) *Handler {
 	return &Handler{shell: shell, log: log}
 }
 
-// Register mounts the feature's route.
+// Register mounts the study-path index and one study path's own page.
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /paths", h.index)
 	mux.HandleFunc("GET /syllabus/{path...}", h.show)
 }
 
