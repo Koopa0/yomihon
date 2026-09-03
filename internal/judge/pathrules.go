@@ -50,15 +50,9 @@ func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
 }
 
 // pathFinding turns one grammar diagnostic into a wire finding. The message is
-// the grammar's own sentence: one rule, one wording, wherever it is read.
-//
-// A rule this table has no advice for still reaches the author. The diagnostic
-// arrives from the grammar, not from a closed set this file owns, so a rule
-// name it has never seen is a rule somebody added over there — and the author,
-// whose note is being judged, would learn about it as a check that died on an
-// ordinary vault. The finding still carries the grammar's own sentence about
-// what is wrong, and the action falls back to pointing at it, because a control
-// that says nothing to do is worth less to the author than a general direction.
+// the grammar's own sentence: one rule, one wording, wherever it is read. A
+// rule this table has no advice for still reaches the author, carrying that
+// sentence with a general action, rather than dying on an ordinary vault.
 func pathFinding(n *note, d sequence.Diagnostic) Finding {
 	action, ok := pathRuleAction[d.Rule]
 	if !ok {
@@ -82,18 +76,10 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 }
 
 // courseLessonLinks are the exact wikilinks a course lists as its lessons: the
-// body offset of each accepted row's own target, as the grammar read it. A
-// rule that reconciles a course against disk reads the note's extracted links
-// and keeps these, so the link's own context — whether it sits under a heading
-// marking the section as planned — travels with it.
-//
-// The identity is the occurrence, not the name and not the line. A name can be
-// written on two rows, and a row can hold more than the lesson it names: an
-// embed showing a retired note beside it, a same-file anchor, a mention in the
-// same sentence. Matching by name would let one row answer for another's, and
-// matching by line would hand the course everything the author wrote on that
-// line, so a picture of an archived note would be read as the course still
-// pointing at it.
+// body offset of each accepted row's target, as the grammar read it, so the
+// link's own context travels with it. The identity is the occurrence, not the
+// name and not the line: a name can be written on two rows, and a row can hold
+// an embed or a mention beside the lesson it names.
 func courseLessonLinks(n *note) map[int]bool {
 	offsets := make(map[int]bool)
 	var walk func(g *sequence.Group)

@@ -7,13 +7,10 @@ import (
 )
 
 // The exists oracle answers "does a note for this name already exist?" for a
-// dedup check before writing. It is deliberately wider than the resolver: a
-// writer searches by filename, title, alias, or English title, so all four are
-// matched, even though the resolver never resolves by a title. Each hit reports
-// which field matched, so a caller can tell a real duplicate from a
-// merely-similar name. The error cost is the opposite of the resolver's — a
-// false "no" makes an agent write a duplicate — so this over-recalls. The shape
-// is part of the frozen output.
+// dedup check before writing. It is deliberately wider than the resolver,
+// matching filename, title, alias and English title, and each hit reports which
+// field matched. A false "no" would make a caller write a duplicate, so it
+// over-recalls. The shape is part of the frozen output.
 
 // existsMatch is one note that exposes the queried name, and the field it
 // matched on.
@@ -28,23 +25,17 @@ type existsReport struct {
 	Query   string        `json:"query"`
 	Matches []existsMatch `json:"matches"`
 	// Withheld says a note the contract keeps out of agent-facing output
-	// answers to the name. It carries nothing else — no path, no field, no
-	// count — because the caller supplied the name and needs only two
-	// warnings: do not create a second note under it, and do not assume a
-	// link to it resolves cleanly. The second is why the flag stays beside
-	// describable matches — the reading page resolves names with no privacy
-	// filter, so a withheld note sharing a name renders that name's links
-	// ambiguous. The field is omitted when nothing was withheld, so an
-	// ordinary answer's bytes are unchanged.
+	// answers to the name. It carries nothing else, because the caller needs
+	// only two warnings: do not create a second note under the name, and do not
+	// assume a link to it resolves cleanly. The field is omitted when nothing
+	// was withheld, so an ordinary answer's bytes are unchanged.
 	Withheld bool `json:"withheld,omitempty"`
 }
 
 // found reports whether any note answers to the queried name, including one
-// this command may not describe. A withheld note is a note: the oracle exists
-// so a caller can gate a write-if-absent on the exit code, and answering
-// "absent" for a note that is merely unreportable would have that caller
-// create a duplicate of it — putting a second, describable note under a
-// private note's own name.
+// this command may not describe. A withheld note is a note: answering "absent"
+// for one would have a caller gating on the exit code put a second,
+// describable note under a private note's own name.
 func (r existsReport) found() bool {
 	return len(r.Matches) > 0 || r.Withheld
 }
@@ -60,10 +51,9 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 	for i := range notes {
 		n := &notes[i]
 		if !authority.egressAllowed(n.path) {
-			// A contract-private note never describes itself through the
-			// existence oracle: no path, no field, no value. That it answers
-			// to the name is reported, because the alternative is telling the
-			// caller the name is free.
+			// A contract-private note never describes itself here: no path, no
+			// field, no value. That it answers to the name is still reported,
+			// because the alternative tells the caller the name is free.
 			if len(noteMatches(n, key)) > 0 {
 				withheld = true
 			}

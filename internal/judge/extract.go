@@ -15,31 +15,19 @@ import (
 
 // The diagnostics extract [[wikilinks]] and file references from a note body
 // with the same discipline the vault's live linker uses: a markdown parser
-// locates the structures a bracket must not be read inside (code spans and
-// blocks) and the headings that mark a section as planned, while the brackets
+// locates the structures a bracket must not be read inside, while the brackets
 // themselves are scanned from the raw text so link parsing never mangles them.
-// Line numbers count from the top of the file, so a body offset is added to the
-// line the body starts on; a note with an N-line frontmatter block reports its
-// first body line as line N+1.
+// Line numbers count from the top of the file, so a note with an N-line
+// frontmatter block reports its first body line as line N+1.
 
-// wikiLink is one [[target]] occurrence: its resolution target (delimiters
-// stripped), the byte offset of its opening bracket in the body, its 1-based
-// line in the file, and whether it sits under a heading that marks the section
-// as a planned gap.
+// wikiLink is one [[target]] occurrence. offset is what makes it an occurrence
+// rather than a name: one line can hold several links and one name can be
+// written on several lines, so a rule says which it means with the offset.
 //
-// offset is what makes it an occurrence rather than a name: one line can hold
-// several links, and one name can be written on several lines, so a rule that
-// has to say which of them it means says it with the offset. It addresses the
-// body a note was read from and never leaves the process.
-//
-// address, heading, and block carry the fragment half of the link, read the
-// way the reading page reads it: heading is the section name after "#", block
-// the block name after "^" or "#^", and address the author's whole addressing
-// text — target and fragment together, without any display alias. target
-// stays the frozen stripping this package has always done; the fragment split
-// is the resolver's, so the two faces cannot disagree about which part of the
-// text addresses a place inside the file. embed records whether the author
-// wrote the occurrence as a transclusion.
+// address, heading and block carry the fragment half, read the way the reading
+// page reads it — heading after "#", block after "^" or "#^", address the whole
+// addressing text without a display alias. target keeps the frozen stripping;
+// the fragment split is the resolver's, so the two faces cannot disagree.
 type wikiLink struct {
 	target          string
 	address         string
@@ -330,12 +318,10 @@ func writtenAddress(inner string) string {
 }
 
 // stripTarget reduces a wikilink's inner text to its resolution target,
-// discarding a |display, #heading, or ^block suffix. It takes the text before
-// the first pipe, strips a trailing backslash — a table cell escapes the
-// display pipe as \| and the backslash is not part of the name — then drops the
-// heading and block fragments and trims. ok is false for a bare same-file anchor
-// that leaves no target. The same stripping runs on a frontmatter provenance
-// reference, so a body link and a provenance value resolve identically.
+// discarding a |display, #heading or ^block suffix and a trailing backslash,
+// which a table cell writes to escape the display pipe. ok is false for a bare
+// same-file anchor. The same stripping runs on a provenance reference, so a
+// body link and a frontmatter value resolve identically.
 func stripTarget(inner string) (string, bool) {
 	beforePipe, _, _ := strings.Cut(inner, "|")
 	beforePipe = strings.TrimRight(beforePipe, `\`)
