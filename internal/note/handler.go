@@ -286,7 +286,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	view := pages.NoteView{
-		Lang:              lang,
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,

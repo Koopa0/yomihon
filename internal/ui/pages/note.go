@@ -56,11 +56,11 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 // noteDateLabel names the claim the metarow's date makes: the author's own
 // declared update, or the file's recorded change time when the note declares
 // none a date can be read from.
-func noteDateLabel(v *NoteView) string {
+func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	if v.UpdatedFromFile {
-		return wording.FileChangedOn.In(v.Lang)
+		return wording.FileChangedOn.In(lang)
 	}
-	return wording.UpdatedOn.In(v.Lang)
+	return wording.UpdatedOn.In(lang)
 }
 
 // articleLanguageAttrs states an article's language only where the note
@@ -188,11 +188,11 @@ func (v *NoteView) citedByShown() bool {
 // onward from here through this interface, and recovery is a hand edit of the
 // frontmatter — through the editor link the page already carries, when it
 // does. Yomihon states the door; it never walks through it.
-func frontmatterDoorLine(v *NoteView) string {
+func frontmatterDoorLine(v *NoteView, lang wording.Lang) string {
 	if v.ObsidianHref == "" {
-		return wording.EditFrontmatterToRecover.In(v.Lang)
+		return wording.EditFrontmatterToRecover.In(lang)
 	}
-	return wording.EditFrontmatterToRecoverWithLink.In(v.Lang)
+	return wording.EditFrontmatterToRecoverWithLink.In(lang)
 }
 
 // diagnosticAddress spells an address the way its author wrote it. The

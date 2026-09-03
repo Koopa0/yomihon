@@ -60,8 +60,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
-			surface{"statuspanel-" + state.name, statusPanel(state.view)},
-			surface{"statusbar-" + state.name, statusBar(state.view)},
+			surface{"statuspanel-" + state.name, statusPanel(state.view, wording.ZhHant)},
+			surface{"statusbar-" + state.name, statusBar(state.view, wording.ZhHant)},
 		)
 	}
 	if len(cases) < 30 {
@@ -143,7 +143,6 @@ func recordedNoteView(model *nav.Model, current string) NoteView {
 	return NoteView{
 		Title:           "L01",
 		RelPath:         current,
-		Lang:            wording.ZhHant,
 		Language:        "ja",
 		Type:            "lesson",
 		Status:          "draft",
@@ -196,7 +195,7 @@ func recordedStatusStates() []struct {
 	name string
 	view NoteView
 } {
-	base := NoteView{Lang: wording.ZhHant, RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123"}
+	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123"}
 	with := func(mutate func(v *NoteView)) NoteView {
 		v := base
 		mutate(&v)

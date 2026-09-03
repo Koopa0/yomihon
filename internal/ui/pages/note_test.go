@@ -320,7 +320,7 @@ func TestStatusBarMirrorsTheStatusPanelGuard(t *testing.T) {
 			Transitions: []Transition{{To: schema.SealStatus}, {To: "archived"}},
 		}
 		var buf bytes.Buffer
-		if err := statusBar(v).Render(t.Context(), &buf); err != nil {
+		if err := statusBar(v, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 			t.Fatalf("render status bar: %v", err)
 		}
 		html := buf.String()
@@ -356,7 +356,7 @@ func TestStatusBarFlagsAStatusOutsideTheSchema(t *testing.T) {
 		Transitions:   []Transition{{To: "archived"}},
 	}
 	var buf bytes.Buffer
-	if err := statusBar(v).Render(t.Context(), &buf); err != nil {
+	if err := statusBar(v, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render status bar: %v", err)
 	}
 	html := buf.String()
@@ -386,7 +386,7 @@ func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	if err := inlineAids(view).Render(t.Context(), &buf); err != nil {
+	if err := inlineAids(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render inlineAids: %v", err)
 	}
 	got := buf.String()

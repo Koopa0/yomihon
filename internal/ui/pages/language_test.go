@@ -68,10 +68,10 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 				governed := view
 				governed.Governed = true
 				governed.Diagnostic = ""
-				if err := statusPanel(governed).Render(t.Context(), buf); err != nil {
+				if err := statusPanel(governed, wording.ZhHant).Render(t.Context(), buf); err != nil {
 					return err
 				}
-				return diagnostics(view).Render(t.Context(), buf)
+				return diagnostics(view, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{"生命週期寫入目前無法使用", "frontmatter 不是有效的 YAML", "這個 wikilink 或嵌入的目標尚未建立", `lang="en"`},
 			forbidden: []string{"Diagnostics", "Contract unavailable", "not a governable artifact"},

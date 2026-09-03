@@ -55,7 +55,7 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 			// The freshness notice is the server's too: the script that shows it
 			// reads the sentence off the page rather than carrying its own copy.
 			var note bytes.Buffer
-			view := NoteView{RelPath: "Writing/n.md", ContentIdentity: "abc", Lang: lang}
+			view := NoteView{RelPath: "Writing/n.md", ContentIdentity: "abc"}
 			if err := Note(view, chrome).Render(t.Context(), &note); err != nil {
 				t.Fatalf("render note: %v", err)
 			}
@@ -63,8 +63,9 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 				t.Errorf("the freshness notice does not travel to the page in %q: want %q", lang, wording.FreshnessNewVersion.In(lang))
 			}
 			// The reading page's own furniture and the rail it shares with every
-			// other page are two more routes the language takes to reach words:
-			// one on the view, one on the chrome each rail component is handed.
+			// other page both take the language from the chrome. The view used
+			// to carry a second copy, which is how a page could have rendered
+			// an English frame around Chinese words with nothing failing.
 			if !strings.Contains(note.String(), wording.RawFile.In(lang)) {
 				t.Errorf("the reading page is not speaking %q: want %q", lang, wording.RawFile.In(lang))
 			}

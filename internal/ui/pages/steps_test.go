@@ -81,7 +81,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := sequenceSteps(tt.view).Render(t.Context(), &buf); err != nil {
+			if err := sequenceSteps(tt.view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render sequence steps: %v", err)
 			}
 			html := buf.String()
@@ -242,7 +242,7 @@ func TestAFootWithNoStepsSaysNothing(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	if err := sequenceSteps(NoteView{StepsLabel: "同資料夾的前後檔案"}).Render(t.Context(), &buf); err != nil {
+	if err := sequenceSteps(NoteView{StepsLabel: "同資料夾的前後檔案"}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render sequence steps: %v", err)
 	}
 	if html := buf.String(); strings.Contains(html, "y-steps") {
