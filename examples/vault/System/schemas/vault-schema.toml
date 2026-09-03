@@ -59,7 +59,9 @@ never_egress_dirs = []
 status = "draft"
 applies_to = ["*"]
 initial = true
-from = []
+# A note pressed to ready by mistake comes back here; without this edge the
+# only way back is an editor, and the page can offer nothing.
+from = ["ready"]
 owner = ["author"]
 
 [[lifecycle]]
