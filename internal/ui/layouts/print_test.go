@@ -55,6 +55,7 @@ func TestPrintGivesThePaperItsMarginsAndKeepsBlocksWhole(t *testing.T) {
 		{".y-prose .mermaid-diagram", "break-inside", "avoid", "half a diagram is not a diagram"},
 		{".y-prose table", "break-inside", "avoid", "a table split from its heading row is a grid of unlabelled numbers"},
 		{".y-prose tr", "break-inside", "avoid", "a row split down the middle puts one cell of it on each sheet"},
+		{".y-preview", "display", "none !important", "a hover card is still in the top layer when the print job is composed, and it prints as a bordered box over whatever paragraph it was covering"},
 		{".y-slotcard", "break-inside", "avoid", "a pattern card carries a sentence and its parts together or it carries nothing"},
 		{".y-healthlist li", "break-inside", "avoid", "a finding and the note it is about belong on one sheet"},
 		{".y-title", "break-after", "avoid", "a title alone at the foot of a sheet announces a page that is not there"},
