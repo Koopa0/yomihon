@@ -1,3 +1,6 @@
+// Package search is the reading surface for a query: the route, the language
+// the answer is written in, and the view a result becomes. It puts the query
+// to the lexical index and owns nothing about how the index answers.
 package search
 
 import (
@@ -6,61 +9,46 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/lexical"
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const maxQueryBytes = 4096
 
-// maxRenderedResults bounds how many hits one search response materializes
-// and renders. A broad term over a vault of ten thousand notes matches most
-// of it, and the full answer is a multi-megabyte page rebuilt on every pause
-// in typing; the tally stays exact while the list holds only this opening
-// stretch.
+// maxRenderedResults bounds how many hits one response renders. The tally
+// stays exact; only the list is cut.
 const maxRenderedResults = 200
 
 // RequestSnapshot is the search index and shell state bound to one request
 // capture of an atomic vault generation and its artifact authority.
 type RequestSnapshot struct {
-	Index *Index
-	Shell pages.Shell
+	Index *lexical.Index
+	Shell nav.Shell
 
-	// Status is the read-only status vocabulary the row rules against. A
-	// result row states a note's status, and a status is a value drawn from a
-	// list; without the contract that declared it the row can print the word
-	// but cannot say whether the vault allows it, which is the one thing a
-	// reader scanning the list needs. It may be absent, and a search face
-	// then names statuses without ruling on them.
+	// Status is the read-only status vocabulary a result row rules against.
+	// It may be absent, and rows then name statuses without ruling on them.
 	Status StatusVocabulary
 }
 
-// StatusVocabulary is the minimal capability the search face needs from the
-// vault contract, declared here in the consumer so the read-only status
-// projection satisfies it without this package importing the write face.
-// That direction is load-bearing rather than stylistic: the offline
-// retrieval commands are built from this package and are the only part of
-// yomihon allowed to reach a network, and their dependency closure is held
-// to a reviewed list. Naming the write face here
-// would put the one component that edits the vault inside the closure of the
-// one component that can leave the machine.
+// StatusVocabulary is the read-only half of the status projection, declared
+// here in the consumer so a face that only reads does not put the component
+// able to change the vault inside its import closure.
 type StatusVocabulary interface {
 	// Closed reports whether this view can classify a governed instance at
-	// all. A folder that declared no contract and one whose contract cannot be
-	// honoured are both closed: neither holds a vocabulary to measure against.
+	// all: a folder with no contract, or one that cannot be honoured.
 	Closed() bool
 	// KnownStatus reports whether the contract declares status for noteType.
 	KnownStatus(noteType, status string) bool
 }
 
-// Handler serves the search face: the full GET /search page and its read-only
-// results fragment. It reads one request snapshot through the provider closure
-// (main projects it from one Store read),
-// so an edited note is reflected within one scan cycle and the index, sidebar,
-// Journal, and pending chip cannot come from different generations. All
-// business logic stays in this package (Parse + Index.Search); the handler only
-// parses the query, calls, and renders.
+// Handler serves the search page and its read-only results fragment, reading
+// one request snapshot so index and sidebar cannot come from two generations.
 type Handler struct {
 	snapshot func() RequestSnapshot
 	log      *slog.Logger
@@ -93,29 +81,27 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	lang := pages.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	results, total, diagnostic, tokens := h.query(snap.Index, q, lang)
 
 	view := answerView(snap, q, results, total, diagnostic, tokens)
-	view.Nav = snap.Shell.Nav
-	if err := pages.Search(view, pages.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
-		h.logQueryError("write search page", q, err)
+	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
+	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
+		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }
 
-// answerView is everything both faces say about one query. The full page and
-// the live region are the same answer rendered in two places, so what they say
-// is built once: a sentence added to one and forgotten in the other is a
-// difference a reader meets by typing rather than submitting.
+// answerView is everything both faces say about one query, built once so the
+// full page and the live region cannot drift apart.
 func answerView(
 	snap RequestSnapshot,
 	q string,
-	results []Result,
+	results []lexical.Result,
 	total int,
 	diagnostic string,
 	tokens []string,
 ) pages.SearchView {
-	parsed := Parse(q)
+	parsed := lexical.Parse(q)
 	return pages.SearchView{
 		Query:             q,
 		Results:           viewResults(results, snap.Shell.Governed, snap.Status, tokens),
@@ -124,7 +110,7 @@ func answerView(
 		Governed:          snap.Shell.Governed,
 		StepBacks:         stepBackViews(snap.Index, q, results, diagnostic),
 		UnknownFilterKeys: parsed.UnknownFilterKeys(),
-		FilterKeys:        FilterKeys(),
+		FilterKeys:        lexical.FilterKeys(),
 	}
 }
 
@@ -136,26 +122,25 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, total, diagnostic, tokens := h.query(snap.Index, q, pages.LanguageFromRequest(r))
+	results, total, diagnostic, tokens := h.query(snap.Index, q, origin.Language(r))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	view := answerView(snap, q, results, total, diagnostic, tokens)
-	if err := pages.SearchResults(view, pages.LanguageFromRequest(r)).Render(r.Context(), w); err != nil {
-		h.logQueryError("write search results", q, err)
+	if err := pages.SearchResults(view, origin.Language(r)).Render(r.Context(), w); err != nil {
+		h.logQueryWriteFailure(r, "write search results", q, err)
 	}
 }
 
-// query parses once and hands back the hits, the true match tally, and the
-// terms that produced them, so the page can mark those terms in a snippet
-// without parsing again. The hits are bounded by maxRenderedResults; total is
-// not, so the page can stay honest about what the bounded list leaves out.
-func (h *Handler) query(idx *Index, q string, lang wording.Lang) (results []Result, total int, diagnostic string, tokens []string) {
-	parsed := Parse(q)
-	results, total, err := idx.search(parsed, maxRenderedResults)
-	if errors.Is(err, ErrMetadataUnavailable) {
-		return nil, 0, err.Error(), nil
+// query hands back the hits, the true match tally, and the terms that produced
+// them. The hits are bounded by maxRenderedResults; total is not, so the page
+// can stay honest about what the bounded list leaves out.
+func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang) (results []lexical.Result, total int, diagnostic string, tokens []string) {
+	parsed := lexical.Parse(q)
+	results, total, err := idx.SearchN(parsed, maxRenderedResults)
+	if errors.Is(err, lexical.ErrMetadataUnavailable) {
+		return nil, 0, unavailableSentence(err, lang), nil
 	}
 	if err != nil {
 		h.logQueryError("search query", q, err)
@@ -164,10 +149,22 @@ func (h *Handler) query(idx *Index, q string, lang wording.Lang) (results []Resu
 	return results, total, "", parsed.Tokens()
 }
 
+// unavailableSentence says why a metadata query could not be answered, in this
+// reader's language. Every other rejection already carries an operator's line.
+func unavailableSentence(err error, lang wording.Lang) string {
+	claim, ok := lexical.MetadataClaim(err)
+	if !ok || claim.Reason() != schema.ReasonContractUnreadable {
+		return err.Error()
+	}
+	if cause := claim.Cause(); cause != nil {
+		return wording.ContractUnreadablePrefix.In(lang) + cause.Error()
+	}
+	return wording.ContractUnreadable.In(lang)
+}
+
 // stepBackViews computes the loosened offers for an empty answer, and nothing
-// for any other page state: a capability diagnostic already explains itself,
-// and a page with results needs no loosening.
-func stepBackViews(idx *Index, q string, results []Result, diagnostic string) []pages.SearchStepBack {
+// for any other page state.
+func stepBackViews(idx *lexical.Index, q string, results []lexical.Result, diagnostic string) []pages.SearchStepBack {
 	if len(results) > 0 || diagnostic != "" || strings.TrimSpace(q) == "" {
 		return nil
 	}
@@ -180,49 +177,53 @@ func stepBackViews(idx *Index, q string, results []Result, diagnostic string) []
 }
 
 func (h *Handler) logQueryError(message, rawQuery string, err error) {
-	query := Parse(rawQuery)
+	h.log.Error(message, queryFacts(rawQuery, err)...)
+}
+
+// logQueryWriteFailure reports a page that could not be finished: the same
+// facts as a query fault, at the loudness a reader who left deserves.
+func (h *Handler) logQueryWriteFailure(r *http.Request, message, rawQuery string, err error) {
+	h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), message, queryFacts(rawQuery, err)...)
+}
+
+// queryFacts is what a search fault may say about a query: its shape and its
+// size, never its text — which is why the error arrives as a type rather than
+// under the "error" key the rest of this repository logs errors under.
+func queryFacts(rawQuery string, err error) []any {
+	query := lexical.Parse(rawQuery)
 	filters := query.Filters()
 	filterKeys := make([]string, 0, len(filters))
 	for _, filter := range filters {
 		filterKeys = append(filterKeys, filter.Key)
 	}
-	h.log.Error(message,
+	return []any{
 		"error_type", fmt.Sprintf("%T", err),
 		"query_bytes", len(rawQuery),
 		"filter_keys", filterKeys,
-	)
+	}
 }
 
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 	q := r.URL.Query().Get("q")
 	if len(q) > maxQueryBytes {
-		http.Error(w, wording.QueryTooLong.In(pages.LanguageFromRequest(r)), http.StatusBadRequest)
+		http.Error(w, wording.QueryTooLong.In(origin.Language(r)), http.StatusBadRequest)
 		return "", false
 	}
 	if strings.IndexFunc(q, func(r rune) bool {
 		return r <= 0x1f || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 	}) >= 0 {
-		http.Error(w, wording.QueryHasControlByte.In(pages.LanguageFromRequest(r)), http.StatusBadRequest)
+		http.Error(w, wording.QueryHasControlByte.In(origin.Language(r)), http.StatusBadRequest)
 		return "", false
 	}
 	return q, true
 }
 
-// viewResults maps the engine's results onto the view's plain field type,
-// keeping internal/ui/pages free of any dependency on this package (the same
-// one-directional import shape the reading page uses).
-//
-// A hit's status is carried only for a vault something governs. The index will
-// happily match and return raw frontmatter for an ungoverned folder — that is a
-// text field like any other — but a status chip presents it as a value drawn
-// from a declared vocabulary, which is a claim no contract backs there.
-func viewResults(results []Result, governed bool, vocabulary StatusVocabulary, tokens []string) []pages.SearchResult {
-	// One question decides it, asked of the vocabulary itself rather than
-	// inferred from the shell beside it: can this view classify a governed
-	// instance at all. A folder that declared no contract and one whose
-	// contract cannot be honoured both answer no, and both would otherwise
-	// answer "not declared" to every value — marking every governed row in the
-	// vault as a fault. Knowing no vocabulary, the row accuses nothing.
+// viewResults maps the engine's results onto the view's plain field type. A
+// hit's status is carried only for a governed vault: elsewhere a status chip
+// would present raw frontmatter as a value drawn from a declared vocabulary.
+func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocabulary, tokens []string) []pages.SearchResult {
+	// Asked of the vocabulary rather than inferred from the shell beside it: a
+	// view that knows none would otherwise mark every governed row a fault.
 	rules := vocabulary != nil && !vocabulary.Closed()
 	out := make([]pages.SearchResult, len(results))
 	for i, r := range results {
@@ -230,14 +231,12 @@ func viewResults(results []Result, governed bool, vocabulary StatusVocabulary, t
 			RelPath:     r.RelPath,
 			Title:       r.Title,
 			Snippet:     r.Snippet,
-			SnippetRuns: markHits(r.Snippet, tokens),
-			PathRuns:    markHits(r.RelPath, tokens),
-			AliasRuns:   markHits(r.Alias, tokens),
+			SnippetRuns: snippetRuns(r.Snippet, tokens),
+			PathRuns:    snippetRuns(r.RelPath, tokens),
+			AliasRuns:   snippetRuns(r.Alias, tokens),
 			File:        r.File,
 		}
-		// The warning is a property of the status the row shows, so it is
-		// decided where that status is set: a row that names no status can
-		// never carry a verdict about one.
+		// A row that names no status can carry no verdict about one.
 		if governed {
 			out[i].Status = r.Status
 			if rules && r.Status != "" {
@@ -248,109 +247,16 @@ func viewResults(results []Result, governed bool, vocabulary StatusVocabulary, t
 	return out
 }
 
-// markHits cuts a piece of text into the stretches that matched and the
-// stretches that did not, so the page can show the reader why this result is
-// here.
-//
-// Nothing in it is particular to a snippet. A result can answer a query
-// through any of the names a note is known by, and the row has to be able to
-// say which — so the same cut serves the body excerpt and the path, and will
-// serve any other name that can match without being visible.
-//
-// Matching is done on the same folded form the index matched on, and the runs
-// carry slices of the original text, so what the reader sees is their own note
-// and not a re-cased copy of it. Overlapping matches are merged: two tokens
-// that cover the same words produce one mark rather than nested ones.
-//
-// A match offset lives in the folded copy, and lowercasing does not preserve
-// length, so every offset is carried back through the fold's source mapping
-// before it touches the snippet: covered is marked and the runs are sliced in
-// the snippet's own bytes, never the fold's.
-func markHits(snippet string, tokens []string) []pages.SnippetRun {
-	if snippet == "" || len(tokens) == 0 {
+// snippetRuns dresses one piece of matched text for the page. Where the query
+// fell is the index's answer; what a matched stretch looks like is this page's.
+func snippetRuns(text string, tokens []string) []pages.SnippetRun {
+	marked := lexical.MarkHits(text, tokens)
+	if len(marked) == 0 {
 		return nil
 	}
-	fold, src := foldWithSourceOffsets(snippet)
-	covered := make([]bool, len(snippet))
-	found := false
-	for _, t := range tokens {
-		if t == "" {
-			continue
-		}
-		for at := 0; at <= len(fold); {
-			i, stop := phraseIndex(fold, t, at)
-			if i < 0 {
-				break
-			}
-			for j := src[i]; j < src[stop]; j++ {
-				covered[j] = true
-			}
-			found = true
-			at = max(stop, i+1)
-		}
-	}
-	if !found {
-		return nil
-	}
-	var runs []pages.SnippetRun
-	start := 0
-	for i := 1; i <= len(snippet); i++ {
-		if i < len(snippet) && covered[i] == covered[start] {
-			continue
-		}
-		runs = append(runs, pages.SnippetRun{Text: snippet[start:i], Hit: covered[start]})
-		start = i
+	runs := make([]pages.SnippetRun, len(marked))
+	for i, run := range marked {
+		runs[i] = pages.SnippetRun{Text: run.Text, Hit: run.Hit}
 	}
 	return runs
-}
-
-// foldWithSourceOffsets lowercases s, and maps every byte position of the
-// folded copy — including one past its end — back to the byte offset in s of
-// the character it came from. The index's fold is NFC then lowercase; this
-// applies the lowercase half alone, which reproduces the index's fold under
-// one precondition: s is already NFC. Every snippet satisfies it, because a
-// snippet is cut from the entry's stored text and the entry stored that text
-// normalized. Lowercasing does not preserve length: Ⱥ grows from two bytes to
-// three, a byte that is not valid UTF-8 becomes the three-byte replacement
-// character, and Turkish İ shrinks from two bytes to one. An offset found in
-// the folded copy therefore cannot index s directly; it has to come back
-// through this mapping.
-func foldWithSourceOffsets(s string) (fold string, src []int) {
-	var folded strings.Builder
-	folded.Grow(len(s))
-	src = make([]int, 0, len(s)+1)
-	foldRunes(s, func(r rune, at int) {
-		n := folded.Len()
-		folded.WriteRune(r)
-		for ; n < folded.Len(); n++ {
-			src = append(src, at)
-		}
-	})
-	return folded.String(), append(src, len(s))
-}
-
-// sourceOffsetOfFold maps one byte offset in the lowercased copy of s back to
-// the byte offset in s of the character that produced it. It answers exactly
-// what foldWithSourceOffsets tabulates, walked to a single position instead of
-// materialized for every byte, because its caller measures a whole note rather
-// than a snippet and a table over one costs eight bytes per byte of it.
-//
-// The two are held to the same answer by a test that compares them position by
-// position; they are one rule with two shapes, and a rule with two shapes is
-// one that drifts.
-func sourceOffsetOfFold(s string, foldOff int) int {
-	folded, at := 0, len(s)
-	found := false
-	foldRunes(s, func(r rune, i int) {
-		if found {
-			return
-		}
-		next := folded + utf8.RuneLen(r)
-		if next > foldOff {
-			at, found = i, true
-			return
-		}
-		folded = next
-	})
-	return at
 }

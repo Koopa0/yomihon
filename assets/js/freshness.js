@@ -210,20 +210,41 @@ export function initFreshness() {
   const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}${statusQuery}${embedsQuery}`;
   let latched = false;
   let timer = null;
+  // The one request that may be open. A watch that is called off has to reach
+  // the question it already asked, not only the ones it has not asked yet: an
+  // answer landing on a page the reader has left parks the write face and
+  // latches the banner with nothing on screen to say why, and a request still
+  // open is one of the things that keeps a document out of the store the back
+  // button reads from.
+  let activeController = null;
 
   async function ask() {
+    // An earlier ask that has not answered describes a page state this one
+    // supersedes, so it is dropped rather than raced: with exactly one request
+    // open, calling the watch off always reaches it.
+    activeController?.abort();
+    const requestController = new AbortController();
+    activeController = requestController;
     try {
-      const response = await fetch(endpoint, { headers: { Accept: 'text/plain' } });
+      const response = await fetch(endpoint, {
+        headers: { Accept: 'text/plain' },
+        signal: requestController.signal,
+      });
       if (!response.ok) return null;
       return (await response.text()).trim();
     } catch {
-      // A network blip is not news about the file. Saying nothing is the same
-      // refusal the write face makes when it cannot confirm what it replaces.
+      // A network blip is not news about the file, and neither is a question
+      // this page withdrew. Saying nothing is the same refusal the write face
+      // makes when it cannot confirm what it replaces.
       return null;
+    } finally {
+      if (activeController === requestController) activeController = null;
     }
   }
 
   function stop() {
+    activeController?.abort();
+    activeController = null;
     if (timer === null) return;
     clearInterval(timer);
     timer = null;
@@ -240,6 +261,10 @@ export function initFreshness() {
     // 'unreadable', a failed request, and any answer a later server might add
     // leave the page as it stands and keep the question open.
     if (state === null || state === 'unreadable') return;
+    // Asked again, because the page may have settled while this answer was on
+    // its way: once one answer has latched there is nothing further to learn,
+    // and acting on a second would rule twice over one change.
+    if (latched) return;
     if (rulings) rulings(state);
     if (present(state)) {
       latched = true;
@@ -255,6 +280,10 @@ export function initFreshness() {
     start();
     tick();
   });
+  // Leaving the page ends the watch outright. The reader who comes back gets
+  // it again through the visibility change that restores the document, which
+  // is the same door a tab switch already used.
+  window.addEventListener('pagehide', stop);
 
   start();
   tick();

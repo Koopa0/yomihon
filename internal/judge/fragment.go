@@ -13,29 +13,17 @@ import (
 )
 
 // The fragment rules judge the half of a link after its "#": a name that
-// resolves to a real note can still address a section or a block the note
-// does not have, and the reading page already tells its reader so when it
-// renders the link. These rules say the same thing on the agent surface, so
-// the two faces cannot disagree about one vault.
-//
-// The matching reproduces how that page answers a fragment — the fold both
-// fragment kinds share, the deliberately generous second reading of section
-// names, and the one level of transclusion the page really expands — and the
-// golden fixtures pin the agreement. Where the two faces could read a corner
-// differently, this one takes the quieter reading: a fragment warning the
-// page would not raise tells the author their page is broken while the page
-// in front of them looks fine.
-//
-// A transclusion's fragment is deliberately out of scope here. The page does
-// validate it, but it degrades differently — the excerpt widens and says so
-// in the article — so its finding is its own rule when it lands, not a link
-// finding wearing the wrong name.
+// resolves to a real note can still address a section or a block the note does
+// not have. The matching reproduces how the reading page answers a fragment,
+// and the golden fixtures pin the agreement; where the two faces could read a
+// corner differently, this one takes the quieter reading, since a warning the
+// page would not raise tells the author their page is broken while it looks
+// fine in front of them. A transclusion's own fragment is out of scope: the
+// page degrades it differently, so its finding is its own rule.
 
-// foldAddress folds an address the way both fragment kinds fold on the
-// reading page: Unicode form and letter case, and nothing else. A name
-// written decomposed by the filesystem and composed by an editor, or typed in
-// different capitals than the destination wrote, is one name; every other
-// difference is one the author chose.
+// foldAddress folds an address the way both fragment kinds fold on the reading
+// page: Unicode form and letter case, and nothing else. Every other difference
+// is one the author chose.
 func foldAddress(s string) string {
 	return strings.ToLower(vault.NormalizeNFC(s))
 }
@@ -44,11 +32,10 @@ func foldAddress(s string) string {
 // that is not a Unicode letter or digit collapses to a single hyphen.
 var sectionDrop = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 
-// sectionSlug reduces a section name to the id the destination page stamps
-// for a heading: fold, keep letters and digits, collapse every other run to
-// one hyphen, trim the ends, and fall back to "section" when nothing is
-// left. It is the same reduction on both sides of the comparison, so what a
-// link writes and what a heading answers to cannot drift apart.
+// sectionSlug reduces a section name to the id the destination page stamps for
+// a heading: fold, keep letters and digits, collapse every other run to one
+// hyphen, trim the ends, and fall back to "section" when nothing is left. Both
+// sides of the comparison run it, so a link and a heading cannot drift apart.
 func sectionSlug(s string) string {
 	s = strings.Trim(sectionDrop.ReplaceAllString(foldAddress(s), "-"), "-")
 	if s == "" {
@@ -148,12 +135,9 @@ var (
 
 // collectGenerousHeadings adds what a deliberately generous line reading
 // accepts as a heading: quote markers and one list marker stripped, both
-// heading forms read, and no fence or HTML-block tracking at all. The
-// reading page runs this same scan before it claims a section is missing,
-// because its ids are stamped over rendered output that keeps headings
-// inside quotes and list items; erring toward finding one costs a silent
-// miss, while erring the other way reports a section the reader can see.
-// Mirroring the generosity keeps this face quiet wherever that page is.
+// heading forms read, no fence or HTML-block tracking. The reading page runs
+// the same scan before claiming a section is missing, so mirroring its
+// generosity keeps this face quiet wherever that page is.
 func collectGenerousHeadings(body string, into map[string]bool) {
 	var paragraph []string
 	for line := range strings.SplitSeq(body, "\n") {
@@ -196,12 +180,9 @@ func withoutQuoteAndListMarks(line string) string {
 var oneQuoteMark = regexp.MustCompile(`^\s*>\s?`)
 
 // collectBlockLines keeps the folded text of every line that could answer a
-// block address, trailing whitespace off, so a link's "^name" can be matched
-// against the exact reading the destination page uses. A line inside a
-// fenced code block is code rather than an address; a row that opens with a
-// pipe is table syntax whose tail the renderer drops, so no address written
-// there survives onto the page. Only lines carrying a caret are kept, since
-// no other line can end in an address.
+// block address, so a link's "^name" matches the reading the destination page
+// uses. A line inside a fence is code, and a row opening with a pipe is table
+// syntax whose tail the renderer drops. Only lines carrying a caret are kept.
 func collectBlockLines(body string) []string {
 	var out []string
 	inFence, fenceByte := false, byte(0)
@@ -264,12 +245,9 @@ func blockAddressed(lines []string, want string) bool {
 }
 
 // fragmentFindings judges the fragment half of every plain link whose name
-// resolved to exactly one markdown note. A name that resolved to nothing or
-// to several files already has its own finding, and adding a fragment
-// verdict on top would report one repair twice; a picture or any other
-// non-note has no sections or blocks to address; and a bare same-file
-// fragment never reaches here, because the page renders it as plain text and
-// resolves nothing.
+// resolved to exactly one markdown note. A name that resolved to nothing or to
+// several files already carries its own finding, and a non-note has no sections
+// to address. A bare same-file fragment never reaches here.
 func fragmentFindings(notes []note, idx *graph.Index) []Finding {
 	byPath := make(map[string]*note, len(notes))
 	for i := range notes {
@@ -297,7 +275,7 @@ func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[strin
 		return Finding{}, false
 	}
 	res := idx.Resolve(link.target)
-	if res.Kind != graph.Unique || !vault.IsMarkdown(res.RelPath) {
+	if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 		return Finding{}, false
 	}
 	target := byPath[res.RelPath]
@@ -317,21 +295,18 @@ func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[strin
 	return sectionMissing(n, link, res.RelPath), true
 }
 
-// transclusionBringsSection reports whether a section absent from a note's
-// own body arrives through a note it transcludes. The page expands a
-// transclusion one level and stamps ids for the headings it brings, so a
-// name found there is a name the destination answers to, and the walk stops
-// at that one level exactly where the expansion does. The transclusion's own
-// fragment narrows what the page shows, and this reading deliberately skips
-// that narrowing: it can only keep quiet about a miss the page would report,
-// never claim one the page would not.
+// transclusionBringsSection reports whether a section absent from a note's own
+// body arrives through a note it transcludes. The page expands a transclusion
+// one level, so the walk stops at that level too. It skips the narrowing the
+// transclusion's own fragment applies, which can only keep it quieter than the
+// page, never louder.
 func transclusionBringsSection(target *note, idx *graph.Index, byPath map[string]*note, want string) bool {
 	for _, link := range target.wikilinks {
 		if !link.embed {
 			continue
 		}
 		res := idx.Resolve(link.target)
-		if res.Kind != graph.Unique || !vault.IsMarkdown(res.RelPath) {
+		if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 			continue
 		}
 		if embedded := byPath[res.RelPath]; embedded != nil && embedded.sectionAnchors[want] {

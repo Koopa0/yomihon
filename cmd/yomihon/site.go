@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/asset"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/report"
@@ -18,18 +19,25 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
-	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // readingSite is the production HTTP composition and the snapshot scanner it
 // serves. Keeping listener lifecycle out of this type lets acceptance tests
 // drive the exact production handler without opening the command's port.
 type readingSite struct {
-	handler   http.Handler
+	handler http.Handler
+	// snapshots outlives construction for the acceptance run that stops the
+	// scanner and then reads the published generation directly, so every
+	// request it makes is answered from one frozen generation. No route
+	// through the handler yields that generation — the handler returns HTML —
+	// and that run is selected by a build constraint the ordinary test command
+	// compiles but never executes, so "delete it and see what breaks" reports
+	// nothing here and is wrong.
 	snapshots *snapshot.Store
 	writer    *status.Writer
-	source    *vault.Reader
+	source    *vaultfs.Reader
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
 	requestMu sync.Mutex
@@ -39,20 +47,11 @@ type readingSite struct {
 	closeErr  error
 }
 
-// logPolicyFaults says why a contract that loaded still could not be used.
-//
-// The adjudication commands refuse to print this themselves: their output is
-// written for a program to read, and stating the reason would quote the vault
-// back out under exactly the policy that is missing. What they do instead is
-// name two places the operator can read it — the page, and this log — so the
-// silence there is only defensible if the naming here is true.
-//
-// The reason is given in full. This log is written on the operator's own
-// machine, for the operator, about a file they wrote; the withholding is a
-// rule about what a program consuming the output may be shown, and nothing
-// here is that output. A policy that was read cleanly earns no line, because a
-// warning printed on every ordinary start is one nobody reads on the start
-// that matters.
+// logPolicyFaults says why a contract that loaded still could not be used. The
+// adjudication commands withhold the reason because their output is written
+// for a program to read; this log is written on the operator's own machine
+// about a file they wrote, so it carries the reason in full. A policy that was
+// read cleanly earns no line: a warning on every start is one nobody reads.
 func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 	for _, fault := range []struct {
 		capability string
@@ -70,7 +69,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 }
 
 func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *readingSite, resultErr error) {
-	source, err := vault.Open(root)
+	source, err := vaultfs.Open(root)
 	if err != nil {
 		return nil, fmt.Errorf("open vault source: %w", err)
 	}
@@ -120,26 +119,27 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	if err != nil {
 		return nil, err
 	}
-	projectShell := func(statusView status.View, snap *snapshot.View) pages.Shell {
-		return shell.Project(statusView, snap.ArtifactPolicy(), snap)
-	}
-	shellForSnapshot := func(snap *snapshot.View) pages.Shell {
-		return projectShell(writer.View(), snap)
-	}
-	shellProvider := func() pages.Shell {
-		statusView := writer.View()
-		return projectShell(statusView, store.Current().Capture())
+	// Each face is handed one closure that answers with everything that face
+	// reads from the current generation, captured together. Two calls could
+	// straddle a rebuild, and a page assembled from two generations states
+	// things about a vault that never existed at once.
+	shellProvider := func() nav.Shell {
+		return shell.Project(writer.Authority(), store.Current().Capture())
 	}
 	searchProvider := func() search.RequestSnapshot {
-		statusView := writer.View()
+		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: projectShell(statusView, snap), Status: statusView}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
+	}
+	reportProvider := func() report.RequestSnapshot {
+		snap := store.Current().Capture()
+		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
 	}
 
 	mux := http.NewServeMux()
-	note.New(&note.Dependencies{
+	note.New(&note.Sources{
 		Source:         source,
-		Status:         writer.View,
+		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
@@ -148,7 +148,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	status.NewHandler(writer, shellProvider, log).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(shellProvider, log).Register(mux)
-	report.New(source, store.Current, shellForSnapshot, log).Register(mux)
+	report.New(source, reportProvider, log).Register(mux)
 	asset.Register(mux)
 
 	handler := http.NewCrossOriginProtection().Handler(mux)
@@ -168,7 +168,7 @@ func (site *readingSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	site.requestMu.Lock()
 	if site.closing {
 		site.requestMu.Unlock()
-		http.Error(w, "server is shutting down", http.StatusServiceUnavailable)
+		http.Error(w, wording.ServerStopping.In(origin.Language(r)), http.StatusServiceUnavailable)
 		return
 	}
 	site.requests.Add(1)

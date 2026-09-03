@@ -8,21 +8,29 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
+// errVaultScan is what an observation that could not be made answers with. It
+// and the withheld variant below are declared here rather than with the
+// package's other types because choosing between them is this file's whole
+// subject: how much an observation may say about what it could not read. A
+// reader following that decision needs both in front of the code that makes it.
 var errVaultScan = errors.New("vault scan failed")
 
 // errWithheldUnreadable is the whole answer about a file the contract keeps out
-// of agent-facing output. One file yomihon cannot read stops the judgement,
-// which the caller has to be told; which file it was, and what the machine said
-// about it, are description of ground the contract closed, so they are withheld
-// the way a path filter into the same ground is refused. The sentence is fixed,
-// so it says the same thing for every such file and every cause and answers
-// nothing about what is in there.
+// of agent-facing output. The caller is told the judgement stopped; which file
+// and what the machine said about it would describe ground the contract closed.
+// The sentence is fixed, so every such file and cause reads the same.
 var errWithheldUnreadable = errors.New(
 	"vault scan failed: a file under a directory this vault's contract withholds from agent-facing output could not be read; naming it or the reason would describe ground the contract closed",
 )
 
+// actionHooks are the two seams a test drives an observation through: after the
+// scan is pinned, and after each note is read. Nothing in production sets
+// either, and no caller outside this package can — the moments they name are
+// inside the observation, which is why the coverage they buy cannot be had from
+// the binary that drives it.
 type actionHooks struct {
 	afterScan     func()
 	afterNoteRead func(string)
@@ -32,18 +40,28 @@ type actionHooks struct {
 // reader, contract authority, file membership, and parsed notes all belong to
 // the same selected vault directory.
 type action struct {
-	reader    *vault.Reader
-	scan      vault.Scan
+	reader    *vaultfs.Reader
+	scan      vaultfs.Scan
 	authority scanAuthority
 	notes     []note
 	resources []string
 }
 
-func openAction(root string, hooks actionHooks) (*action, error) {
-	ctx := context.Background()
-	reader, err := vault.Open(root)
+func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		return nil, errPrivacyAuthorityUnavailable
+		// Opening the folder fails before one vault byte is read, so there is
+		// no policy state to report and nothing observed to withhold. Answering
+		// that a privacy authority is unavailable named a fault in a contract
+		// file that, for the ordinary case of a mistyped folder, is not there to
+		// be at fault — and it carried a paragraph telling the reader where that
+		// file lives. A scan that could not start is what happened.
+		//
+		// It says which folder and why, because both are already the reader's:
+		// the folder is the one they typed and the reason is the machine's
+		// answer about it. Withholding them left somebody who mistyped a
+		// directory with nothing to correct.
+		return nil, fmt.Errorf("%w: %w", errVaultScan, err)
 	}
 	a := &action{reader: reader}
 	a.authority, err = loadScanAuthority(ctx, reader)
@@ -76,12 +94,9 @@ func openAction(root string, hooks actionHooks) (*action, error) {
 }
 
 // entryUnreadable names the file a read stopped on and the reason the machine
-// gave for it. One file that cannot be read ends the whole judgement, because a
-// report built on a partial corpus would answer about ground it never read; the
-// operator's only route back is being told which file to look at, which the
-// reading face's diagnostics have always said and this face did not. The
-// vault-relative path comes from the scan entry rather than from the error,
-// whose own path names only the component the read was standing on.
+// gave. One unreadable file ends the whole judgement, because a report built on
+// a partial corpus would answer about ground it never read. The path comes from
+// the scan entry, not from the error, whose own path names one component.
 func entryUnreadable(relPath string, cause error, authority scanAuthority) error {
 	if !authority.egressAllowed(relPath) {
 		return errWithheldUnreadable
@@ -90,14 +105,10 @@ func entryUnreadable(relPath string, cause error, authority scanAuthority) error
 }
 
 // scanStopped names the path a scan stopped on, when the failure carries one.
-// A scan walks the whole folder rather than one selected file, so the path has
-// to be recovered from the error rather than taken from the entry that was
-// being read; the walk states it relative to the vault root, in whichever
-// composed or decomposed spelling the filesystem handed over, and the privacy
-// policy canonicalizes what it is asked about, so the contract answers about
-// the directory it declared and not about a different string for the same name.
-// A cause that names nothing keeps the bare refusal: a path invented for a
-// message the operator would go looking with is worse than no path.
+// A scan walks the whole folder, so the path is recovered from the error; the
+// privacy policy canonicalizes what it is asked, so a decomposed spelling still
+// resolves to the directory the contract declared. A cause that names nothing
+// keeps the bare refusal rather than inventing a path to go looking with.
 func scanStopped(cause error, authority scanAuthority) error {
 	pathErr, ok := errors.AsType[*fs.PathError](cause)
 	if !ok || !nameableVaultPath(pathErr.Path) {
@@ -110,20 +121,15 @@ func scanStopped(cause error, authority scanAuthority) error {
 }
 
 // nameableVaultPath reports whether a path recovered from a failure names one
-// thing inside the vault, which is what the contract can be asked a question
-// about. A walk that fails on the folder itself reports "." and one that fails
-// before it starts may report nothing usable; asking the privacy policy about
-// either gets a refusal for the reason that the string is unanswerable, not
-// because anything is withheld, and reporting that refusal would tell an
-// operator whose contract withholds nothing that his own vault root is private.
+// thing inside the vault, which is what the contract can be asked about. A walk
+// failing on the folder itself reports "." and one failing before it starts may
+// report nothing usable; asking about either would refuse for unanswerability
+// and read as though the operator's own vault root were private.
 func nameableVaultPath(relPath string) bool {
 	return relPath != vaultRoot && !strings.Contains(relPath, `\`) && fs.ValidPath(relPath)
 }
 
 func (a *action) finish() error {
-	if a == nil {
-		return errVaultScan
-	}
 	authorityErr := a.authority.validate()
 	closeErr := a.close()
 	if authorityErr != nil {
@@ -139,8 +145,11 @@ func (a *action) abort(cause error) error {
 	return cause
 }
 
+// close releases the vault capability once. The reader field is the idempotency
+// latch: finish closes, and an abort on the way out of a finished run closes
+// again, so the second call has to be a no-op rather than a double close.
 func (a *action) close() error {
-	if a == nil || a.reader == nil {
+	if a.reader == nil {
 		return nil
 	}
 	reader := a.reader

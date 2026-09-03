@@ -120,7 +120,7 @@ func TestWriteRecoveryBuffersBeforeCommittingResponse(t *testing.T) {
 	})
 	for _, changed := range []bool{false, true} {
 		recorder := httptest.NewRecorder()
-		err := writeRecovery(recorder, t.Context(), http.StatusConflict, changed, component, wording.ZhHant)
+		err := writeRecovery(t.Context(), recorder, http.StatusConflict, changed, component, wording.ZhHant)
 		if !errors.Is(err, wantErr) {
 			t.Errorf("writeRecovery(changed=%v) error = %v, want %v", changed, err, wantErr)
 		}
@@ -148,7 +148,7 @@ func TestWriteRecoveryReportsFallbackWriteFailure(t *testing.T) {
 		return renderErr
 	})
 	w := &failingResponseWriter{header: make(http.Header), err: writeErr}
-	err := writeRecovery(w, t.Context(), http.StatusConflict, false, component, wording.ZhHant)
+	err := writeRecovery(t.Context(), w, http.StatusConflict, false, component, wording.ZhHant)
 	if !errors.Is(err, renderErr) || !errors.Is(err, writeErr) {
 		t.Errorf("writeRecovery() error = %v, want both render and fallback-write failures", err)
 	}
@@ -176,7 +176,7 @@ func TestWriteRecoverySetsBrowserSafetyHeaders(t *testing.T) {
 		_, err := io.WriteString(w, "<!doctype html><title>recovery</title>")
 		return err
 	})
-	if err := writeRecovery(recorder, t.Context(), http.StatusConflict, false, component, wording.ZhHant); err != nil {
+	if err := writeRecovery(t.Context(), recorder, http.StatusConflict, false, component, wording.ZhHant); err != nil {
 		t.Fatalf("writeRecovery() error = %v", err)
 	}
 	if recorder.Code != http.StatusConflict {

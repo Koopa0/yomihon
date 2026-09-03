@@ -85,7 +85,7 @@ func TestUnmatchedKnowledgeDirIsVisibleInTheDefaultScope(t *testing.T) {
 
 	root := judgeFixtureRoot(t, "testdata/vault-knowledge-scope")
 	for _, all := range []bool{false, true} {
-		findings, err := check(root, nil, all)
+		findings, err := runCheckAction(t.Context(), root, nil, all)
 		if err != nil {
 			t.Fatalf("check(all=%v): %v", all, err)
 		}
@@ -127,7 +127,7 @@ func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
 		t.Fatalf("MkdirAll(Inbox) error = %v", mkdirErr)
 	}
 
-	findings, err := check(root, nil, false)
+	findings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("check(): %v", err)
 	}
@@ -316,9 +316,10 @@ func TestLintArticleLanguage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := parseNote("Writing/T.md", []byte("---\n"+tt.yaml+"\n---\n"))
-			got := lintArticleLanguage(&n, &definition)
+			run := &lintRun{definition: definition}
+			got := run.articleLanguage(&n)
 			if len(got) != tt.want {
-				t.Fatalf("lintArticleLanguage() = %#v, want %d finding(s)", got, tt.want)
+				t.Fatalf("articleLanguage() = %#v, want %d finding(s)", got, tt.want)
 			}
 			if tt.want == 1 && (got[0].RuleID != "schema.language" || got[0].Field == nil || *got[0].Field != "lang") {
 				t.Errorf("finding = %#v, want schema.language on lang", got[0])
@@ -356,9 +357,9 @@ func TestCheckSchemaIncludesArticleLanguage(t *testing.T) {
 // and returns the wire bytes.
 func runSchema(t *testing.T, root string) []byte {
 	t.Helper()
-	notes, err := collectNotes(root)
+	notes, err := collectNotes(t.Context(), root)
 	if err != nil {
-		t.Fatalf("collectNotes(%q): %v", root, err)
+		t.Fatalf("collectNotes(t.Context(), %q): %v", root, err)
 	}
 	s, err := schema.Load(root)
 	if err != nil {
@@ -374,4 +375,125 @@ func runSchema(t *testing.T, root string) []byte {
 		t.Fatalf("WriteJSONL: %v", err)
 	}
 	return buf.Bytes()
+}
+
+// TestTheProvenanceRuleFollowsTheContractsOwnConceptType holds the frontmatter
+// rules to the vocabulary the contract layer owns. The rule that asks a
+// distilled idea where it came from is written for a corpus of them, and
+// whether this vault keeps such a corpus is the contract's answer, not a word
+// spelled here — the coverage face already asks it that way, and this file
+// asked instead whether one note happened to be typed with the same letters.
+//
+// The cost of the literal is a rule that fires where there is no corpus for it
+// to be about: the type already draws its own finding for being undeclared,
+// and a second one demanding provenance of it holds the author to a rule their
+// contract never claimed covered anything. The same reading builds the notices
+// the reading page prints beside a note, so the wrong answer was shown on the
+// page as well as printed by the command.
+func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
+	t.Parallel()
+
+	const body = "---\ntitle: Idea\ntype: concept\ndomain: golang\n" +
+		"status: seedling\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\nbody\n"
+	const relPath = "Concepts/golang/Idea.md"
+
+	tests := []struct {
+		name         string
+		replacements [][2]string
+		want         []string
+	}{
+		{
+			name: "a vault whose contract declares a concept corpus",
+			want: []string{"schema.provenance"},
+		},
+		{
+			name: "a vault whose contract declares none",
+			replacements: [][2]string{
+				{`"source-note", "concept", "writing"`, `"source-note", "writing"`},
+				{"[[lifecycle]]\nstatus = \"seedling\"\napplies_to = [\"concept\"]\ninitial = false\nfrom = [\"cleaned\"]\nowner = [\"hermes\", \"claude\"]\n\n", ""},
+			},
+			want: []string{"schema.enum"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, contractFixture(t, nil, tt.replacements...))
+			contract := loadTestAuthority(t, root).contract
+
+			findings, err := LintFrontmatter(relPath, []byte(body), contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			var rules []string
+			for _, f := range findings {
+				rules = append(rules, f.RuleID)
+			}
+			if diff := cmp.Diff(tt.want, rules); diff != "" {
+				t.Errorf("rules reported (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestADocumentsStatusIsJudgedAgainstItsOwnGroup holds the light rule that
+// templates, guides and system notes answer to. Which statuses that group
+// allows is the contract's declaration, and the rule reads the group the note
+// was routed by rather than naming a set of its own — the routing and the enum
+// were two separate spellings of the same word, and two spellings drift.
+//
+// The vault's own working documents keep a short lifecycle that has nothing in
+// common with the one a written note travels, so a status legal for a template
+// is illegal for an essay and the reverse. A rule reading the wrong group would
+// therefore be wrong in both directions at once, which is what the last case
+// here varies the contract to show.
+func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		status       string
+		replacements [][2]string
+		want         []string
+	}{
+		{
+			name:   "a status the contract lists for documents",
+			status: "active",
+		},
+		{
+			name:   "a status the contract lists only for written notes",
+			status: "draft",
+			want:   []string{"schema.enum"},
+		},
+		{
+			name:         "a vault that lists other statuses for its documents",
+			status:       "active",
+			replacements: [][2]string{{`system = ["active", "archived"]`, `system = ["operational", "archived"]`}},
+			want:         []string{"schema.enum"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, contractFixture(t, nil, tt.replacements...))
+			contract := loadTestAuthority(t, root).contract
+
+			body := "---\ntitle: Template\ntype: template\nstatus: " + tt.status + "\n---\nbody\n"
+			findings, err := LintFrontmatter("Concepts/golang/Template.md", []byte(body), contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			var rules []string
+			for _, f := range findings {
+				rules = append(rules, f.RuleID)
+			}
+			if diff := cmp.Diff(tt.want, rules); diff != "" {
+				t.Errorf("rules reported (-want +got):\n%s", diff)
+			}
+		})
+	}
 }

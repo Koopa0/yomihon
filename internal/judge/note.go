@@ -11,21 +11,11 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// note is one markdown file as the diagnostics see it: its vault-relative
-// NFC path, whether it carries a frontmatter block at all, whether that
-// block was present but failed to parse, and — when it parsed — every
-// frontmatter key with its raw value. The frontmatter checks need the whole
-// key set to flag unknown fields and the raw scalar text to validate enums,
-// beyond the handful of typed fields the reader surfaces.
-//
-// The typed fields below and the extracted body references drive the graph
-// rules. Unlike the frontmatter map — which keeps a coerced scalar for every
-// key so the schema checks can read a value written as a number or boolean —
-// the typed fields keep only genuine string values, dropping a title or alias
-// that reads as a number, boolean, or null, because a graph reference is a name
-// and a name is a string. The body references are extracted whatever the
-// frontmatter's state, so a note with broken frontmatter still contributes its
-// links.
+// note is one markdown file as the diagnostics see it: its NFC path, whether
+// it carries a frontmatter block, whether that block failed to parse, and every
+// frontmatter key with its raw value. The typed fields below keep only genuine
+// string values, because a graph reference is a name and a name is a string;
+// the body references are extracted whatever the frontmatter's state.
 type note struct {
 	path           string
 	noFrontmatter  bool
@@ -50,24 +40,20 @@ type note struct {
 	// sectionAnchors and blockAnchorLines are what this note's body answers a
 	// link fragment with: the folded ids of every heading a reader could be
 	// sent to, and the folded text of every line that could carry a "^name"
-	// block address. They are collected the way the reading page collects them
-	// so the two faces judge one fragment the same way; see the anchor scans
-	// for the exact reading.
+	// block address, collected the way the reading page collects them.
 	sectionAnchors   map[string]bool
 	blockAnchorLines []string
 
-	// sequence is the note's declared course structure, read by the one
-	// grammar navigation reads. It is parsed for every note and consulted only
-	// for a path type: what a course lists must be one answer, not the judge's
-	// reading and the reader's reading agreeing by luck.
+	// sequence is the note's declared course structure, read by the one grammar
+	// navigation reads, so what a course lists is one answer rather than two
+	// readings agreeing by luck. It is parsed for every note.
 	sequence sequence.Document
 }
 
-// fmValue is a raw frontmatter value: either a scalar kept as the exact text
-// the author wrote, or a list of such texts. The distinction is load-bearing
-// for the checks — an enum check reads a scalar and skips a value written as
-// a list, and a required-field check treats an empty scalar or an empty list
-// as absent.
+// fmValue is a raw frontmatter value: a scalar kept as the exact text the
+// author wrote, or a list of such texts. The distinction is load-bearing — an
+// enum check reads a scalar and skips a list, and a required-field check treats
+// an empty scalar or an empty list as absent.
 type fmValue struct {
 	scalar         string
 	list           []string
@@ -106,12 +92,10 @@ func (v fmValue) stringValues() []string {
 }
 
 // parseNote splits a file's leading frontmatter and reads it into the note
-// model. A file with no frontmatter block is legal (a raw transcript, scanned
-// but never faulted). A block that is present but does not parse — or that a
-// stricter reading rejects, such as a mapping with a repeated key, which is
-// ill-formed even though this parser tolerates it — yields a note flagged bad,
-// which the frontmatter check reports as a single fault rather than a cascade
-// of "field missing" for fields that may sit above the fault.
+// model. A file with no frontmatter block is legal. A block that is present but
+// does not parse — or that a stricter reading rejects, such as a mapping with a
+// repeated key — yields a note flagged bad, reported as one fault rather than a
+// cascade of "field missing" for fields sitting above it.
 func parseNote(rel string, data []byte) note {
 	block, found := vault.SplitFrontmatter(data)
 	body := string(block.Body)
@@ -142,10 +126,8 @@ func parseNote(rel string, data []byte) note {
 }
 
 // readTypedFields fills the note's typed graph fields from the parsed
-// frontmatter. Each reads only a genuine string value (or list of them),
-// matching how the vault's linker reads a reference: a title, alias, or slug
-// that the core schema would resolve to a number, boolean, or null is dropped,
-// because a name is a string.
+// frontmatter. Each reads only a genuine string value: a title, alias or slug
+// the core schema would resolve to a number, boolean or null is dropped.
 func readTypedFields(n *note, doc *yaml.Node) {
 	root := doc
 	if doc.Kind == yaml.DocumentNode {
@@ -170,9 +152,8 @@ func readTypedFields(n *note, doc *yaml.Node) {
 }
 
 // mappingValue returns the value node for a top-level key, or false when the
-// mapping has no such key. Duplicate keys never reach here — they flag the
-// frontmatter bad before the typed fields are read — so the first match is the
-// only match.
+// mapping has none. A duplicate key flags the frontmatter bad before the typed
+// fields are read, so the first match is the only match.
 func mappingValue(m *yaml.Node, key string) (*yaml.Node, bool) {
 	for i := 0; i+1 < len(m.Content); i += 2 {
 		if k := m.Content[i]; k.Kind == yaml.ScalarNode && k.Value == key {
@@ -221,12 +202,10 @@ func listField(m *yaml.Node, key string) []string {
 	}
 }
 
-// asString reports a scalar's text when it reads as a genuine string, and false
-// otherwise. A quoted or block scalar is always a string; an explicitly tagged
-// scalar is a string unless its tag is one of the non-string core tags
-// (boolean, integer, float, null), which is how a mapping key is read too; an
-// unquoted scalar is a string unless the core schema resolves it to a number,
-// boolean, or null.
+// asString reports a scalar's text when it reads as a genuine string. A quoted
+// or block scalar is always a string; an explicitly tagged scalar is a string
+// unless its tag is one of the non-string core tags; an unquoted scalar is a
+// string unless the core schema resolves it to a number, boolean or null.
 func asString(n *yaml.Node) (string, bool) {
 	n = resolveAlias(n)
 	if n.Kind != yaml.ScalarNode {
@@ -249,12 +228,9 @@ func asString(n *yaml.Node) (string, bool) {
 	return "", false
 }
 
-// hasDuplicateKey reports whether any mapping anywhere in the document repeats a
-// key. A repeated key is ill-formed YAML that the stricter reference reading
-// rejects outright, so it is treated as a parse fault rather than silently
-// resolved to the last value. Every mapping is checked — nested in a value, an
-// item of a sequence, or the top level alike — to match where the reference
-// reading raises the fault.
+// hasDuplicateKey reports whether any mapping anywhere in the document repeats
+// a key. It is treated as a parse fault rather than resolved to the last value,
+// and every mapping is checked, not only the top level.
 func hasDuplicateKey(n *yaml.Node) bool {
 	if n.Kind == yaml.MappingNode {
 		seen := make(map[string]bool, len(n.Content)/2)
@@ -271,11 +247,8 @@ func hasDuplicateKey(n *yaml.Node) bool {
 }
 
 // buildFrontmatter reads a parsed frontmatter document into the flat key/value
-// map the checks consume. Only keys that read as strings are kept, matching how
-// the author's mapping is read: a key the core schema would resolve to a
-// number, boolean, or null is dropped, while an ordinary word or a token like
-// the merge indicator is kept as itself. A non-mapping document (a bare scalar
-// or list at the top) contributes no keys.
+// map the checks consume. Only keys that read as strings are kept; a bare
+// scalar or list at the top contributes no keys.
 func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 	m := make(map[string]fmValue)
 	root := doc
@@ -297,10 +270,8 @@ func buildFrontmatter(doc *yaml.Node) map[string]fmValue {
 }
 
 // keyText reports a mapping key's text when it reads as a string, and false
-// when the core schema would resolve it to a number, boolean, or null (which
-// the reference reading does not admit as a key). A quoted key is always a
-// string; an unquoted key is a string unless it resolves to one of those other
-// scalar types.
+// when the core schema would resolve it to a number, boolean or null. A quoted
+// key is always a string.
 func keyText(n *yaml.Node) (string, bool) {
 	n = resolveAlias(n)
 	if n.Kind != yaml.ScalarNode {
@@ -324,9 +295,8 @@ func keyText(n *yaml.Node) (string, bool) {
 }
 
 // plainIsString reports whether an unquoted, untagged scalar reads as a string
-// under the core schema — that is, it is none of an integer (in any of the
-// hexadecimal, octal, signed, or decimal spellings), a boolean word, a null
-// word, or a real number.
+// under the core schema: none of an integer in any of its spellings, a boolean
+// word, a null word, or a real number.
 func plainIsString(v string) bool {
 	switch {
 	case strings.HasPrefix(v, "0x"):
@@ -353,9 +323,8 @@ func plainIsString(v string) bool {
 }
 
 // nodeValue converts one frontmatter value node into an fmValue: a sequence
-// becomes a list, a scalar keeps its resolved text, and any other shape (a
-// nested mapping) collapses to an empty scalar, so the checks see the same
-// shape the resolver does. An alias is followed to the value it points at.
+// becomes a list, a scalar keeps its resolved text, and any other shape
+// collapses to an empty scalar. An alias is followed to what it points at.
 func nodeValue(n *yaml.Node) fmValue {
 	n = resolveAlias(n)
 	switch n.Kind {
@@ -388,11 +357,9 @@ func resolveAlias(n *yaml.Node) *yaml.Node {
 
 // scalarText is a scalar value's text as the frontmatter checks read it. A
 // quoted or block scalar is taken verbatim. An unquoted scalar is resolved
-// under the YAML core schema — independent of how the parser happens to tag
-// the token — so a boolean normalizes to lowercase, an integer to its decimal
-// form, and a null (empty, "~", or "null") to an empty string, while every
-// other token (including the 1.1 boolean words yes/no/on/off, an out-of-range
-// number, and any real number) keeps exactly what the author wrote.
+// under the YAML core schema — a boolean normalizes to lowercase, an integer to
+// its decimal form, a null to an empty string — while every other token,
+// yes/no/on/off and any real number included, keeps what the author wrote.
 func scalarText(n *yaml.Node) string {
 	n = resolveAlias(n)
 	if n.Kind != yaml.ScalarNode {
@@ -408,13 +375,10 @@ func scalarText(n *yaml.Node) string {
 }
 
 // resolveTaggedScalar maps an unquoted scalar carrying an explicit core-schema
-// tag to the string the wire format carries for it. The tag directs the
-// reading: a boolean tag admits only the six boolean words and drops anything
-// else; an integer tag reads a plain decimal integer and drops the rest; a
-// float tag keeps a valid real number as written; a null tag is always empty;
-// a string tag (and any tag outside the core schema) keeps the text verbatim.
-// A value the tag cannot read collapses to an empty string, which the checks
-// treat as absent.
+// tag to the string the wire format carries. A boolean tag admits only the six
+// boolean words; an integer tag reads a plain decimal integer; a float tag
+// keeps a valid real number; a null tag is always empty; any other tag keeps
+// the text verbatim. A value the tag cannot read collapses to an empty string.
 func resolveTaggedScalar(tag, v string) string {
 	switch tag {
 	case "!!bool":
@@ -444,11 +408,8 @@ func resolveTaggedScalar(tag, v string) string {
 }
 
 // isCoreFloat reports whether v is a real number under the YAML core schema:
-// one of the infinity or not-a-number spellings, or a decimal real. The core
-// schema's real is decimal only — digits, a point, an e-exponent, and a sign —
-// so a token carrying any other character is text, even though Go's float
-// parser would accept its own extensions such as digit-separating underscores
-// (1_000) and hexadecimal floats (0x1p4).
+// an infinity or not-a-number spelling, or a decimal real. That real is decimal
+// only, so Go's own extensions (1_000, 0x1p4) read as text here.
 func isCoreFloat(v string) bool {
 	switch v {
 	case ".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF",
@@ -481,12 +442,10 @@ func isPlain(n *yaml.Node) bool {
 }
 
 // resolvePlainScalar maps an unquoted scalar's text to the string the wire
-// format carries for it under the YAML core schema: a hexadecimal (0x…),
-// octal (0o…), explicitly-signed, or plain decimal integer collapses to its
-// decimal form; the null and boolean words collapse as noted; anything the
-// core schema does not read as an integer, boolean, or null — a real number,
-// a number too large for a signed 64-bit integer, or plain text — is kept
-// exactly as written.
+// format carries under the YAML core schema: a hexadecimal, octal, signed or
+// plain decimal integer collapses to its decimal form, the null and boolean
+// words collapse as noted, and anything else — a real number, an out-of-range
+// number, plain text — is kept exactly as written.
 func resolvePlainScalar(v string) string {
 	switch {
 	case strings.HasPrefix(v, "0x"):

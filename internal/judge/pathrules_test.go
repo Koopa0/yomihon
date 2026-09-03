@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
@@ -61,58 +63,111 @@ func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 }
 
 // TestEveryStudyPathRuleHasAnAction is the other direction: the grammar owns
-// the rule names, and a rule with no tailored advice would reach the author
-// with only the generic fallback sentence. The enumeration is the grammar's
-// own, not a copy kept here, so a rule added to the grammar is checked by this
-// test without anyone editing it.
+// the rule names, and this face owes each of them a sentence saying what to do
+// next. The set is asked of the grammar rather than written out here, because a
+// list written by hand and checked against a list written by hand agrees with
+// itself and with nothing else — which is how the registry drifted before.
+//
+// A rule with no advice is no longer fatal — it falls back to a general
+// direction — so this is what keeps the tailored advice complete: without it,
+// the author of a note tripping the newest rule would be told what is wrong and
+// handed the generic sentence instead of the one written for that rule. The
+// table is read directly rather than through the finding, because the finding
+// supplies the fallback and would never come back empty.
 func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 	t.Parallel()
 
 	rules := sequence.Rules()
 	if len(rules) == 0 {
-		t.Fatal("sequence.Rules() is empty; the checks below would pass over nothing")
+		t.Fatal("the grammar reports no rules at all; this check would pass over an empty set and prove nothing")
 	}
 	for _, rule := range rules {
 		if pathRuleAction[rule] == "" {
 			t.Errorf("rule %q has no suggested action", rule)
 		}
-		if !slices.Contains(ruleIDs, rule) {
+		if !slices.Contains(ruleIDs, string(rule)) {
 			t.Errorf("rule %q is not in the --deny registry", rule)
 		}
 	}
 }
 
-// TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough pins the judge's
-// side of the vocabulary boundary: the grammar owns the rule names, so a rule
-// it reports that this package has no tailored advice for must still become a
-// well-formed finding — deniable by its id, carrying the grammar's own message
-// and a generic action — rather than stopping the whole check run. The judge
-// used to panic here, which turned one new grammar rule into a crash on an
-// ordinary vault.
+// TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough pins the answer to
+// the case the completeness check above cannot cover: a rule name arriving from
+// the grammar that this table has never seen. The two tables are derived from
+// the grammar now, so the only way to reach it is a rule value built somewhere
+// else — which is exactly what a check run must not die on. The finding stays
+// well formed: deniable by its id, carrying the grammar's own sentence about
+// what is wrong, and a general direction in place of the advice nobody wrote,
+// because a control that says nothing to do leaves the author worse off than
+// one that points back at the message. The judge used to panic here, which
+// turned one rule added to the grammar into a crash on an ordinary vault.
 func TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough(t *testing.T) {
 	t.Parallel()
 
-	n := &note{path: "Maps/course.md"}
-	d := sequence.Diagnostic{
-		Rule:     "path.test_unknown",
-		Line:     3,
-		Message:  "the grammar found something new",
-		Evidence: "a row the grammar refused",
+	const invented = sequence.Rule("path.a_rule_added_after_this_table")
+	if _, known := pathRuleAction[invented]; known {
+		t.Fatalf("%q is in the action table, so this test proves nothing about an unknown rule", invented)
 	}
-	f := pathFinding(n, d)
-	if f.RuleID != d.Rule {
-		t.Errorf("RuleID = %q, want %q", f.RuleID, d.Rule)
+
+	n := &note{path: "Maps/Course.md"}
+	got := pathFinding(n, sequence.Diagnostic{
+		Rule:     invented,
+		Line:     7,
+		Message:  "the grammar's own account of what is wrong",
+		Evidence: "the row it read",
+	})
+
+	if got.RuleID != string(invented) {
+		t.Errorf("RuleID = %q, want %q", got.RuleID, invented)
 	}
-	if f.Severity != SeverityWarn {
-		t.Errorf("Severity = %v, want SeverityWarn", f.Severity)
+	if got.Message != "the grammar's own account of what is wrong" {
+		t.Errorf("Message = %q, want the grammar's sentence carried through", got.Message)
 	}
-	if f.SuggestedAction == "" {
+	if got.SuggestedAction == "" {
 		t.Error("SuggestedAction is empty; a finding must always tell the author something to do")
 	}
-	if f.Message != d.Message {
-		t.Errorf("Message = %q, want the grammar's own %q", f.Message, d.Message)
+	if got.Severity != SeverityWarn {
+		t.Errorf("Severity = %v, want a warning like every other study-path rule", got.Severity)
 	}
-	if !strings.HasPrefix(f.Fingerprint, "v1:") {
-		t.Errorf("Fingerprint = %q, want a versioned value", f.Fingerprint)
+	if !strings.HasPrefix(got.Fingerprint, "v1:") {
+		t.Errorf("Fingerprint = %q, want a versioned value", got.Fingerprint)
+	}
+}
+
+// TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem holds the reading of
+// a course whose parts are headings that list nothing themselves. Both of this
+// vault's real courses are written that way — a level-2 part holding a level-3
+// module that carries the rows — so the walk that collects a course's lesson
+// rows has to descend through a branch that lists none of its own.
+//
+// The discrimination is which rule speaks about the missing lesson. A row the
+// walk found is the course's own listing, reconciled against disk by the map
+// rule and deliberately left out of ordinary link health; a row the walk missed
+// falls back to being prose, and the reader is told a link is broken instead of
+// that the course promises a note nobody wrote. Both are one finding on one
+// line, so a count would not tell them apart.
+func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	write(t, root, "Maps/Course.md",
+		"---\ntitle: Course\ntype: study-path\nstatus: ready\n---\n\n"+
+			"## Part\n\n### Module {sequence=primary}\n\n- [[L01]]\n")
+
+	findings, err := Check(t.Context(), root)
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+
+	var rules []string
+	for _, f := range findings {
+		rules = append(rules, f.RuleID)
+	}
+	if diff := cmp.Diff([]string{"map.disk_mismatch"}, rules); diff != "" {
+		t.Errorf("rules reported (-want +got):\n%s", diff)
+	}
+	if slices.Contains(rules, "link.broken") {
+		t.Error("the lesson row was read as loose prose, so the part that only groups modules was never descended into")
 	}
 }

@@ -34,12 +34,9 @@ func newHTTPServer(handler http.Handler) *http.Server {
 }
 
 // shutdownGrace is how long graceful shutdown waits for requests already
-// accepted. It is derived from the server's own read deadlines rather than
-// written as a number beside them: a grace period equal to one of those
-// deadlines lets a connection that merely opened, or stalled part-way through
-// a body, trip the shutdown deadline at the same instant its own deadline
-// fires, and an ordinary interrupt then reports a handler that overran when
-// none did. Deriving it means a later edit to a read deadline carries.
+// accepted. It is derived from the server's own read deadlines so a stalled
+// connection cannot trip both deadlines at once and report an overrun that did
+// not happen, and so a later edit to a read deadline carries here.
 func shutdownGrace(srv *http.Server) time.Duration {
 	return max(srv.ReadHeaderTimeout, srv.ReadTimeout) + shutdownSlack
 }

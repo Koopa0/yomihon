@@ -278,7 +278,7 @@ func TestRunCheckDeniesFragmentRules(t *testing.T) {
 			t.Parallel()
 
 			root := judgeFixtureRoot(t, "testdata/vault-fragments")
-			_, exit, err := RunCheck(&CheckOptions{
+			_, exit, err := RunCheck(t.Context(), &CheckOptions{
 				Root:   root,
 				Format: FormatJSON,
 				Deny:   []string{ruleID},

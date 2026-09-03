@@ -28,7 +28,7 @@ func TestLintFrontmatterAgreesWithTheCheckCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.Load() error = %v", err)
 	}
-	commanded, err := Check(root)
+	commanded, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}

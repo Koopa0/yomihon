@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -80,7 +81,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := sequenceSteps(tt.view).Render(t.Context(), &buf); err != nil {
+			if err := sequenceSteps(tt.view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render sequence steps: %v", err)
 			}
 			html := buf.String()
@@ -200,9 +201,9 @@ func buildStepsModel(t *testing.T) *nav.Model {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -241,7 +242,7 @@ func TestAFootWithNoStepsSaysNothing(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	if err := sequenceSteps(NoteView{StepsLabel: "同資料夾的前後檔案"}).Render(t.Context(), &buf); err != nil {
+	if err := sequenceSteps(NoteView{StepsLabel: "同資料夾的前後檔案"}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render sequence steps: %v", err)
 	}
 	if html := buf.String(); strings.Contains(html, "y-steps") {

@@ -4,11 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
-	"strconv"
 	"sync"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -100,15 +101,16 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // bytes are level — so a page that transcluded nothing keeps exactly the ask
 // and the answer it always had.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
+	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) || !vault.IsMarkdown(rel) {
-		http.NotFound(w, r)
+		http.Error(w, wording.FreshnessNotWatchable.In(lang), http.StatusNotFound)
 		return
 	}
 	query := r.URL.Query()
 	rendered, ok := parseIdentity(query.Get("identity"))
 	if !ok {
-		http.Error(w, "identity must be "+strconv.Itoa(identityHexLen)+" hex digits", http.StatusBadRequest)
+		http.Error(w, malformedIdentity("identity", lang), http.StatusBadRequest)
 		return
 	}
 	ask := freshnessAsk{
@@ -119,7 +121,7 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	if query.Has("embeds") {
 		transcluded, ok := parseIdentity(query.Get("embeds"))
 		if !ok {
-			http.Error(w, "embeds must be "+strconv.Itoa(identityHexLen)+" hex digits", http.StatusBadRequest)
+			http.Error(w, malformedIdentity("embeds", lang), http.StatusBadRequest)
 			return
 		}
 		ask.transcluded, ask.transcludedCarried = transcluded, true
@@ -132,6 +134,13 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write([]byte(answer)); err != nil {
 		return
 	}
+}
+
+// malformedIdentity says which of the poll's two identity fields was not the
+// digest it has to be, and how long one is. The field name is the one written
+// in the address, so it is quoted rather than translated.
+func malformedIdentity(field string, lang wording.Lang) string {
+	return fmt.Sprintf(wording.FreshnessIdentityFmt.In(lang), field, identityHexLen)
 }
 
 // freshnessAsk is everything one polling page states about itself: the
@@ -152,7 +161,7 @@ type freshnessAsk struct {
 // compareNote settles the five answers for one note, against everything the
 // page carries in its ask.
 func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) freshness {
-	entry, err := h.deps.Source.Lookup(rel)
+	entry, err := h.sources.Source.Lookup(rel)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return freshGone
@@ -160,7 +169,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 		h.noteFreshnessFailure(rel, "lookup", err)
 		return freshUnreadable
 	}
-	data, err := h.deps.Source.ReadFile(r.Context(), entry)
+	data, err := h.sources.Source.ReadFile(r.Context(), entry)
 	if err != nil {
 		h.noteFreshnessFailure(rel, "read", err)
 		return freshUnreadable
@@ -171,7 +180,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 	// about the page: what decides whether a reload is worth offering is
 	// whether the generation a reload would render already holds what this
 	// read just saw.
-	snap := h.deps.Snapshot().Capture()
+	snap := h.sources.Snapshot().Capture()
 	published, ok := snap.Note(rel)
 	if !ok || published.ContentIdentity != disk {
 		return freshPreparing
@@ -209,7 +218,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 // of the body, keeping the digest and discarding the page. The language is
 // pinned because the digest covers source bytes pulled from other notes,
 // which no language of the interface's own sentences can reach.
-func (h *Handler) transcludedNow(snap *snapshot.View, rel, body string) string {
+func (h *Handler) transcludedNow(snap *snapshot.Generation, rel, body string) string {
 	return snap.Render(rel, body, wording.ZhHant).TranscludedIdentity
 }
 
@@ -219,7 +228,7 @@ func (h *Handler) transcludedNow(snap *snapshot.View, rel, body string) string {
 func (h *Handler) noteFreshnessFailure(rel, op string, err error) {
 	cause := op + ": " + err.Error()
 	if h.freshnessFailures.changed(rel, cause) {
-		h.deps.Log.Warn("freshness check could not read the note", "path", rel, "operation", op, "error", err)
+		h.sources.Log.Warn("freshness check could not read the note", "path", rel, "operation", op, "error", err)
 	}
 }
 

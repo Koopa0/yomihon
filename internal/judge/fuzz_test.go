@@ -316,7 +316,7 @@ func assertLineRoundTrips(t *testing.T, want *Finding, line []byte) {
 	}
 	expected := wireFinding{
 		RuleID:           want.RuleID,
-		Severity:         want.Severity.name(),
+		Severity:         want.Severity.String(),
 		Path:             want.Path,
 		Line:             want.Line,
 		Field:            want.Field,

@@ -1,31 +1,25 @@
 // Package shell projects the navigation and lifecycle state shared by every
-// full-page reading surface. It owns the cross-feature projection, while the
-// pages package owns the resulting presentation value.
+// full-page reading surface. It stands alone rather than beside the nav.Shell
+// it returns because the navigation model cannot import the generation and the
+// write face that feed it, and every reading face imports this.
 package shell
 
 import (
-	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
-// Project derives one shell from one vault snapshot and the two immutable
-// request authorities captured by the composition point. The projector performs
-// no source reads of its own. Instance-derived navigation and counts close
-// together when either authority can no longer be honoured — not merely when it
-// is absent, because a folder that declared nothing excluded nothing and its
-// projections are answerable.
-func Project(
-	lifecycle status.View,
-	policy schema.ArtifactPolicy,
-	snap *snapshot.View,
-) pages.Shell {
+// Project derives one shell from one vault snapshot and the lifecycle view
+// captured for the same request, reading no source of its own. It takes the
+// artifact authority from the snapshot rather than from its caller so that the
+// signature cannot express a mismatched pair.
+func Project(lifecycle status.Authority, snap *snapshot.Generation) nav.Shell {
+	policy := snap.ArtifactPolicy()
 	governed := lifecycle.Governed()
-	projected := pages.Shell{Nav: snap.Navigation(), Governed: governed}
-	// The two authorities are sampled at different instants, so a projection
-	// stays open only while both are still answerable. Either one refusing
-	// closes the shared navigation, whichever was captured first.
+	projected := nav.Shell{Nav: snap.Navigation(), Governed: governed}
+	// Either authority refusing closes the instance-derived navigation and
+	// counts: the two are sampled at different instants and both must answer.
 	if claim := lifecycle.Claim(); !claim.Trustworthy() {
 		return projected.WithoutInstanceProjections(claim)
 	}

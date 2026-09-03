@@ -1,18 +1,8 @@
-// Package judge implements the vault diagnostics behind the check,
-// exists, and coverage commands, and their JSONL wire format.
-//
-// The wire format is frozen. External pipelines parse the emitted lines
-// and exit codes byte for byte, so every shape in this package — field
-// order, omitted fields, escaping, hashing — is a compatibility
-// contract rather than a design choice. The golden files under
-// testdata/golden/ pin the exact bytes, and the tests assert that this
-// package reproduces them.
-//
-// Diagnostic strings, including mixed Chinese and English text, are
-// part of the frozen format. Rewording, translating, or reformatting
-// them changes bytes that consumers match against, so they stay exactly
-// as they are even where yomihon's own text would otherwise be English
-// only.
+// Package judge implements the vault diagnostics behind the check, exists and
+// coverage commands, and their JSONL wire format; the reading server consumes
+// the same findings, so a page and a command cannot disagree. The format is
+// frozen — external pipelines parse the lines and exit codes byte for byte,
+// the goldens pin them, and the diagnostic strings are part of those bytes.
 package judge
 
 import (
@@ -28,7 +18,7 @@ import (
 
 // Severity classifies one diagnostic. The order is significant: gating
 // compares a finding's severity against a deny threshold, so the three
-// constants must remain in ascending order of weight.
+// constants ascend by weight.
 type Severity int
 
 const (
@@ -43,12 +33,10 @@ const (
 	SeverityError
 )
 
-// name returns the wire name of the severity: "info", "warn", or "error". It
+// String returns the wire name of the severity: "info", "warn" or "error". It
 // is the single source for that spelling, shared by the JSONL encoder and the
-// human and markdown reports. A value outside the three constants is a
-// programming error, so it panics rather than yielding bytes consumers cannot
-// parse.
-func (s Severity) name() string {
+// human and markdown reports; a value outside the three constants panics.
+func (s Severity) String() string {
 	switch s {
 	case SeverityInfo:
 		return "info"
@@ -63,60 +51,48 @@ func (s Severity) name() string {
 
 // MarshalText returns the wire name of the severity for the JSONL encoder.
 func (s Severity) MarshalText() ([]byte, error) {
-	return []byte(s.name()), nil
+	return []byte(s.String()), nil
 }
 
-// Finding is one diagnostic, serialized as one JSONL line. The struct
-// layout is the wire contract: fields serialize in declaration order,
-// and only the four pointer fields and the slice are omitted when
-// empty. Reordering fields, renaming a JSON key, or adding or removing
-// an omitempty option changes frozen bytes.
+// Finding is one diagnostic, serialized as one JSONL line. The struct layout
+// is the wire contract: fields serialize in declaration order, and only the
+// four pointer fields and the slice are omitted when empty. Reordering fields,
+// renaming a key, or changing an omitempty option changes frozen bytes.
 type Finding struct {
 	RuleID   string   `json:"rule_id"`
 	Severity Severity `json:"severity"`
-	// Path is the file that carries the finding, relative to the vault
-	// root.
+	// Path is the file that carries the finding, relative to the vault root.
 	Path string `json:"path"`
-	// Line is the 1-based body line the finding points at, or nil when
-	// the finding is not tied to a line.
+	// Line is the 1-based body line the finding points at, or nil when the
+	// finding is not tied to a line.
 	Line *int `json:"line,omitempty"`
 	// Field names the frontmatter field at fault, when one is.
 	Field *string `json:"field,omitempty"`
-	// Message, Evidence, SuggestedAction, and SourceRule are frozen
-	// diagnostic strings; see the package comment.
+	// Message, Evidence, SuggestedAction and SourceRule are frozen diagnostic
+	// strings.
 	Message         string `json:"message"`
 	Evidence        string `json:"evidence"`
 	SuggestedAction string `json:"suggested_action"`
 	SourceRule      string `json:"source_rule"`
-	// Target is the original link or value text, kept structured so
-	// consumers need no prose parsing.
+	// Target is the original link or value text, kept structured so consumers
+	// need no prose parsing.
 	Target *string `json:"target,omitempty"`
-	// ResolvedTo is the path the target resolved to; nil means it did
-	// not resolve.
+	// ResolvedTo is the path the target resolved to; nil means it did not resolve.
 	ResolvedTo *string `json:"resolved_to,omitempty"`
-	// CollisionMembers lists every path involved in a name collision,
-	// so a single finding describes the whole collision.
+	// CollisionMembers lists every path involved in a name collision, so one
+	// finding describes the whole collision.
 	CollisionMembers []string `json:"collision_members,omitempty"`
-	// Fingerprint identifies the finding across runs; see
-	// fingerprint.go.
+	// Fingerprint identifies the finding across runs.
 	Fingerprint string `json:"fingerprint"`
 }
 
 // The complete set of values SourceRule may carry. A finding points a reader
-// at where its rule's authority is written down, so each of these has to name
-// a thing that holds it: a vault artifact is spelled the way the vault spells
-// it, an anchor is a table the contract really declares and whose keys the
-// rule really reads, and a rule no vault artifact declares names the product
-// itself, whose golden files pin the behaviour. Anchors were once invented —
-// a heading the vault's note schema does not have, a contract table nothing
-// declares — and rules were hung on artifacts that never state them, which
-// left the field reading as authority while resolving to nothing. Declaring
-// the set in one place is what makes adding another an edit somebody has to
-// make deliberately.
+// at where its rule's authority is written down, so each of these names
+// something that really holds it: an artifact spelled the way the vault spells
+// it, an anchor a table really declares, or the product itself.
 const (
 	// sourceContract is the vault's machine contract, for the frontmatter
-	// rules that read its type, field, and status declarations across
-	// several of its tables.
+	// rules that read its type, field and status declarations.
 	sourceContract = "vault-schema.toml"
 	// sourceContractRules is its [rules] table, for a rule that enforces a
 	// key that table declares.
@@ -128,24 +104,20 @@ const (
 	// the replacement-ledger fields and the archived status.
 	sourceContractSupersession = "vault-schema.toml#supersession"
 	// sourceYomihon is the product itself, for the rules that are its own
-	// dialect — link resolution, name and alias collisions, reference and
-	// path liveness, and the syllabus-versus-disk reconciliation. No vault
-	// artifact declares them; this repository's golden files pin them.
+	// dialect — link resolution, name and alias collisions, reference and path
+	// liveness. No vault artifact declares them; this repository's goldens do.
 	sourceYomihon = "yomihon"
 	// sourceAuthoring is this repository's authoring contract, which ships
 	// with the parser that reads it.
 	sourceAuthoring = "AUTHORING.md"
 )
 
-// WriteJSONL writes findings to w, one compact JSON object and a
-// trailing newline per finding. It is the only serialization path for
-// findings in this repository, because the frozen format differs from
-// what encoding/json produces by default in two ways: it leaves HTML
-// characters unescaped, which SetEscapeHTML(false) covers, and it
-// carries U+2028 and U+2029 as raw UTF-8, which the encoder offers no
-// switch for, so those two escape sequences are rewritten after
-// encoding. A plain json.Marshal elsewhere would reintroduce both
-// divergences and corrupt, for example, every message containing "->".
+// WriteJSONL writes findings to w, one compact JSON object and a trailing
+// newline per finding. It is the only serialization path for findings here,
+// because the frozen format departs from encoding/json's defaults twice: HTML
+// characters are left unescaped, and U+2028 and U+2029 are carried as raw
+// UTF-8, which the encoder offers no switch for and which is rewritten after
+// encoding. A plain json.Marshal elsewhere would reintroduce both.
 func WriteJSONL(w io.Writer, findings []Finding) error {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -162,11 +134,23 @@ func WriteJSONL(w io.Writer, findings []Finding) error {
 	return nil
 }
 
+// marshalWire encodes v as a compact JSON object and a trailing newline, the
+// on-wire form for the coverage and exists payloads. It makes the same two
+// departures from the encoder's defaults that WriteJSONL names.
+func marshalWire(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return unescapeLineSeparators(buf.Bytes()), nil
+}
+
 // sortFindings orders findings into the deterministic total order the wire
 // format is emitted in: by path, then by line (a line-less finding sorts as
-// line zero, before line one of the same path), then by rule id. Comparison
-// is bytewise on the UTF-8 of path and rule id, and the sort is stable, so
-// findings that tie on all three keep the order the checks produced them in.
+// line zero), then by rule id. Comparison is bytewise on the UTF-8 of path and
+// rule id, and the sort is stable, so ties keep the order the checks produced.
 func sortFindings(findings []Finding) {
 	line := func(f *Finding) int {
 		if f.Line != nil {
@@ -185,12 +169,10 @@ func sortFindings(findings []Finding) {
 	})
 }
 
-// unescapeLineSeparators rewrites the escape sequences the encoder
-// produces for U+2028 and U+2029 into the raw UTF-8 bytes the frozen
-// format carries. It steps over escape sequences pairwise, so a literal
-// backslash in a value — which the encoder renders as a doubled
-// backslash — cannot be misread as the start of one of the two
-// sequences.
+// unescapeLineSeparators rewrites the escape sequences the encoder produces
+// for U+2028 and U+2029 into the raw UTF-8 bytes the frozen format carries. It
+// steps over escape sequences pairwise, so a doubled backslash in a value
+// cannot be misread as the start of one of the two sequences.
 func unescapeLineSeparators(line []byte) []byte {
 	if !bytes.Contains(line, []byte(`\u202`)) {
 		return line

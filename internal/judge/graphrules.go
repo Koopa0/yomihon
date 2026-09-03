@@ -17,11 +17,9 @@ import (
 // the same way the vault's linker does; the diagnostic strings are frozen.
 
 // normalizeKey folds a name to the key its resolution is stored under, so the
-// title, alias, and slug indexes built here agree with the resolver about what
-// a written name matches. It is the resolver's own function rather than a
-// local reproduction of its steps: the two were identical by maintenance, and
-// any drift between them would show up as this judge and the reading page
-// disagreeing about a name neither of them could see was ambiguous.
+// title, alias and slug indexes built here agree with the resolver about what a
+// written name matches. It is the resolver's own function, because any drift
+// would show as two faces disagreeing about a name neither saw as ambiguous.
 func normalizeKey(name string) string {
 	return graph.NormalizeKey(name)
 }
@@ -82,14 +80,12 @@ func slugIndex(notes []note, authority scanAuthority) map[string]string {
 	return idx
 }
 
-// plannedNamesSet is the set of every concept name listed as planned anywhere
-// in the public corpus, harvested from the names this scan already collected
-// per note. A contract-private note is not a source: a name planned only there
-// must not soften a public broken link, or a reader of the finding could infer
-// that private content names that target. That narrowing is this face's alone —
-// see NewPlanned for why the reading page draws from the whole vault instead.
+// plannedNamesSet is every concept name listed as planned anywhere in the
+// public corpus. A contract-private note is not a source: a name planned only
+// there must not soften a public broken link, or a reader of the finding could
+// infer that private content names that target.
 func plannedNamesSet(notes []note, authority scanAuthority) Planned {
-	set := make(Planned)
+	set := Planned{names: make(map[string]bool)}
 	for i := range notes {
 		if !authority.egressAllowed(notes[i].path) {
 			continue
@@ -114,10 +110,7 @@ func linkHealth(
 	for i := range notes {
 		n := &notes[i]
 		// A course's own lesson rows are reconciled against disk by the
-		// study-path rule, which knows what the course lists. Every other link
-		// in the file is ordinary prose and gets ordinary link health: a broken
-		// link in a course's introduction was invisible while the whole file
-		// was skipped.
+		// study-path rule; every other link in the file is ordinary prose.
 		lessons := map[int]bool{}
 		if roles.IsPathType(n.noteType) {
 			lessons = courseLessonLinks(n)
@@ -127,7 +120,7 @@ func linkHealth(
 			if lessons[link.offset] {
 				continue
 			}
-			if idx.Resolve(link.target).Kind != graph.Unresolved {
+			if idx.Resolve(link.target).Kind != graph.KindUnresolved {
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
@@ -141,17 +134,10 @@ func linkHealth(
 }
 
 // titleNotAlias is a link whose target is a note's title but not its filename
-// or alias, which the vault's linker fails to resolve silently.
-//
-// A single holder is named directly and the advice points at it. When several
-// notes hold the title, the finding describes the collision instead: every
-// holder is listed in the evidence and in collision_members, and the advice
-// names none of them, because singling one out would send the author to a
-// note the link may never have meant. The holders arrive already filtered by
-// the title index, which drops withheld notes before anything here counts or
-// names them — the order the collision rules keep — so a title whose other
-// holders are all withheld reads as singly held and takes the single-holder
-// wording.
+// or alias, which the vault's linker fails to resolve silently. A single holder
+// is named directly; several holders make it a collision finding that names
+// none of them. Withheld notes are dropped by the title index before anything
+// here counts them, so a title held only publicly once reads as singly held.
 func titleNotAlias(n *note, link *wikiLink, targetNotes []string) Finding {
 	f := Finding{
 		RuleID:      "link.title_not_alias",
@@ -206,14 +192,9 @@ func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 }
 
 // aliasCollisions maps each alias more than one note declares in frontmatter to
-// the paths declaring it, sorted. Matching is case-insensitive and NFC, across
-// all note kinds; only the aliases field counts, not prose mentions.
-//
-// A contract-private note is filtered out before the count, not after, so a
-// pair whose second member is private is not a collision this face knows about:
-// counting it first and censoring the member afterwards would report a
-// collision whose other half the caller could not be told about, which describes
-// the withheld note by arithmetic.
+// the paths declaring it, sorted. Matching is case-insensitive and NFC; only
+// the aliases field counts. A contract-private note is filtered out before the
+// count, because censoring a member afterwards would describe it by arithmetic.
 func aliasCollisions(notes []note, authority scanAuthority) map[string][]string {
 	byAlias := make(map[string][]string)
 	for i := range notes {
@@ -251,25 +232,11 @@ func collisionAlias(byAlias map[string][]string) []Finding {
 }
 
 // collisionName reports each resolvable name more than one file answers to,
-// which the resolver refuses to choose between: every [[name]] written against
-// it fails, whether or not anyone has written one yet. The alias rule owns the
-// names it already reported — an alias two notes declare is one repair, and
-// stating it twice under two rule ids would have the operator fix it twice —
-// but only those: a name shared by a file and someone else's alias, or by two
-// files in different folders, reaches no other rule.
-//
-// It warns rather than errors. Every vault that upgrades into this rule has
-// whatever name collisions it already had, and turning a standing condition
-// into a red gate at the moment the rule lands fails runs over notes nobody
-// touched; an operator who wants the gate asks for it with --deny warn.
-//
-// Privacy filters the members before anything is counted or compared, the way
-// the alias rule does: a name one public file and one private file share is not
-// reported, since the report would be a statement about the private file, and a
-// name two public files share is reported with those two named and no others.
-// The restatement question is asked afterwards, over the members that survived,
-// so a private file claiming a name under one of its forms and not the other
-// cannot split one repair into two rows.
+// which the resolver refuses to choose between. The alias rule owns the names
+// it already reported, so one repair is not stated twice. It warns rather than
+// errors, since a standing condition should not become a red gate by itself.
+// Privacy filters the members before anything is counted, and the restatement
+// question is asked afterwards, so one repair cannot be split into two rows.
 func collisionName(idx *graph.Index, byAlias map[string][]string, authority scanAuthority) []Finding {
 	describable := make(map[string][]string)
 	for name, members := range idx.Collisions() {
@@ -376,7 +343,7 @@ func provenanceUnresolved(
 }
 
 func supersessionForNote(contract *schema.Contract, n *note) (schema.Supersession, bool) {
-	if contract == nil || contract.StatusGroup(n.noteType) == "" {
+	if contract.StatusGroup(n.noteType) == "" {
 		return schema.Supersession{}, false
 	}
 	return contract.Supersession()
@@ -427,7 +394,7 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	if !ok {
 		return true
 	}
-	if idx.Resolve(target).Kind != graph.Unresolved {
+	if idx.Resolve(target).Kind != graph.KindUnresolved {
 		return true
 	}
 	if _, listed := slugs[target]; listed {
@@ -494,14 +461,14 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 		}
 		res := idx.Resolve(link.target)
 		switch res.Kind {
-		case graph.Unique:
+		case graph.KindUnique:
 			listed[res.RelPath] = true
-		case graph.Ambiguous:
+		case graph.KindAmbiguous:
 			// An ambiguous link resolves to some note; leave it to the collision rule.
-		case graph.Unresolved:
+		case graph.KindUnresolved:
 			out = append(out, syllabusListsMissing(syllabus, link))
 		default:
-			panic("judge: unknown graph.Kind: " + strconv.Itoa(int(res.Kind)))
+			panic("judge: unknown graph.Kind: " + res.Kind.String())
 		}
 	}
 	if syllabus.domain == "" {

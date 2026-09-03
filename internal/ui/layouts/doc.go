@@ -1,9 +1,7 @@
 // Package layouts holds the outer HTML shell: the themed document, the shared
-// header chrome, and the ⌘K search dialog. Styling is the repository-owned
-// sheet at /static/app.css plus the chroma syntax sheet — no inline <style>.
-//
-// The package doc lives in this hand-written file rather than in a .templ:
-// generation splits a comment written there away from the package clause, so
-// it reaches neither the rendered documentation nor the linter that checks a
-// package has one. A non-generated file must own the package comment.
+// header chrome, the ⌘K search dialog, and the per-request state stamped onto
+// the document root. A page is written by supplying a body to the document
+// here, so nothing above a page's own body is decided anywhere else. The doc
+// lives in a hand-written file because generation splits one written in a
+// template away from the package clause, leaving the package without a comment.
 package layouts

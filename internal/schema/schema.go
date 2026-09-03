@@ -1,10 +1,7 @@
 // Package schema loads the vault's machine-readable contract
 // (System/schemas/vault-schema.toml) and answers status state-machine
-// questions.
-//
-// It is the only package in this repo allowed to read the contract:
-// no other package may hardcode a second copy of any enum, field list, or
-// lifecycle rule.
+// questions. It is the only package allowed to read that contract: nowhere
+// else holds a second copy of an enum, a field list, or a lifecycle rule.
 package schema
 
 import (
@@ -23,6 +20,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 const (
@@ -30,31 +28,22 @@ const (
 	ContractRelPath  = "System/schemas/vault-schema.toml"
 	supportedVersion = "1"
 
-	// SealStatus is the status of a note that has been reviewed and
-	// approved. Reading surfaces render it with a distinct accent and
-	// nothing more. It stays pinned here rather than derived because no
-	// contract field singles the value out.
+	// SealStatus is the status of a note that has been reviewed and approved.
+	// It is pinned here rather than derived because no contract field singles
+	// the value out.
 	SealStatus = "ready"
 
-	// PublishedStatus is the status recording a completed publication — a
-	// receipt-backed fact about the world outside the vault, not a verdict
-	// a reader reaches. Nothing in yomihon can attest such a receipt, so no
-	// interactive control offers a transition to it and the write face
-	// refuses one on arrival; the value enters a note only by hand. It is
-	// pinned here for the same reason as SealStatus.
+	// PublishedStatus records a completed publication outside the vault.
+	// Nothing here can attest one, so no control offers a transition to it and
+	// the write face refuses one; the value enters a note by hand.
 	PublishedStatus = "published"
 
-	// conceptType is the note type a vault-schema.toml reserves for its
-	// distilled-idea notes. The contract itself gives the word meaning: a
-	// contract listing it in enums.type has to say which fields give such a
-	// note its provenance. It is spelled once, here, so no face keeps a second
-	// copy of it.
+	// conceptType is the note type a vault-schema.toml reserves for distilled
+	// ideas, spelled once so no face keeps a second copy.
 	conceptType = "concept"
 
 	// inboxType is the note type a vault-schema.toml reserves for captures
-	// whose shape is not yet decided. The contract gives this word meaning too:
-	// a contract declaring fields.required_inbox has to list the type in
-	// enums.type.
+	// whose shape is not yet decided.
 	inboxType = "inbox"
 )
 
@@ -65,7 +54,10 @@ var (
 )
 
 // Contract is the validated, immutable vault authority. Its zero value carries
-// no authority; load one with [Load], [LoadFile], or [LoadReader].
+// no authority; load one with [Load], [LoadFile], or [LoadReader]. A nil
+// *Contract answers as an ungoverned vault: every method is safe to call and
+// returns what a folder that declared nothing declares — no version, no
+// vocabulary, no capability, no legal transition.
 type Contract struct {
 	version    string
 	definition Definition
@@ -97,6 +89,8 @@ type contractFile struct {
 
 	Version string `toml:"schema_version"`
 
+	// The coordination keys are named so strict decoding accepts a contract
+	// that carries them; nothing here reads them back.
 	AlignedWith          string               `toml:"aligned_with"`
 	GeneratedAtMustMatch bool                 `toml:"generated_at_must_match"`
 	Navigation           toml.Primitive       `toml:"navigation"`
@@ -106,22 +100,18 @@ type contractFile struct {
 	Lifecycle            []rawLifecycleStage  `toml:"lifecycle"`
 }
 
-// writtenKeys records which optional keys the contract actually wrote down.
-// Both of these carry a value that is also its own Go zero value, so without
-// this a key nobody wrote would be indistinguishable from one written as false
-// or as an empty list — and the two say opposite things about the vault.
+// writtenKeys records which optional keys the contract wrote down. Each holds
+// a value that is also its Go zero value, so absence has to be recorded
+// separately from a key written as false or as an empty list.
 type writtenKeys struct {
 	noFrontmatterIsLegal bool
 	requiredInbox        bool
 }
 
-// contractMetadata retains machine-readable coordination and supersession
-// vocabulary for its schema-owned validation and consumer work. Strict
-// decoding must not silently discard authority that is not consumed yet.
+// contractMetadata retains the supersession vocabulary the replacement ledger
+// is validated against.
 type contractMetadata struct {
-	alignedWith          string
-	generatedAtMustMatch bool
-	supersession         *supersessionSection
+	supersession *supersessionSection
 }
 
 type navigationPrimitives struct {
@@ -204,11 +194,9 @@ type ScanPolicy struct {
 // note may start there, its legal predecessor states, and who may set it.
 // "*" in From or AppliesTo means any.
 //
-// Initial and From answer separate questions, and a contract that names the
-// initial key says both out loud. A contract that names it nowhere is read the
-// older way, where an empty or wildcard From was taken to mean a starting
-// point — an inference that could not express a status which is both a place
-// to begin and a place to return to.
+// Initial and From answer separate questions. A contract naming the initial
+// key states both; one that names it nowhere has Initial inferred from an
+// empty or wildcard From.
 type Stage struct {
 	Status    string   `toml:"status"`
 	AppliesTo []string `toml:"applies_to"`
@@ -228,22 +216,19 @@ type Supersession struct {
 
 // ContractAbsent reports whether err from Load, LoadFile, or LoadReader means
 // the folder carries no contract at all, as distinct from one that exists and
-// could not be read.
-//
-// The two are different facts about a folder and the surfaces that report them
-// must not merge: a folder that declared nothing is not a folder in trouble.
-// The question belongs here because contract loading does, rather than with
-// each caller matching an error shape of its own.
+// could not be read. A folder that declared nothing is not one in trouble.
 func ContractAbsent(err error) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
 
-// Load reads the contract from the vault rooted at root.
+// Load reads the contract from the vault rooted at root, and LoadFile from an
+// explicit path. Neither is on the served path, which loads through LoadReader
+// so a capability binds to the exact file it came from; these two serve a
+// caller that holds only a path.
 func Load(root string) (*Contract, error) {
 	return LoadFile(filepath.Join(root, filepath.FromSlash(ContractRelPath)))
 }
 
-// LoadFile reads the contract from an explicit path.
 func LoadFile(path string) (*Contract, error) {
 	sourcePath, err := filepath.Abs(path)
 	if err != nil {
@@ -263,7 +248,7 @@ func LoadFile(path string) (*Contract, error) {
 
 // LoadReader reads the contract through the same pinned vault capability that
 // an agent-facing action uses for note collection and source revalidation.
-func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
+func LoadReader(ctx context.Context, reader *vaultfs.Reader) (*Contract, error) {
 	if reader == nil {
 		return nil, errors.New("read vault contract: vault reader is nil")
 	}
@@ -303,11 +288,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 			noFrontmatterIsLegal: tomlMeta.IsDefined("scan", "no_frontmatter_is_legal"),
 			requiredInbox:        tomlMeta.IsDefined("fields", "required_inbox"),
 		},
-		metadata: contractMetadata{
-			alignedWith:          decoded.AlignedWith,
-			generatedAtMustMatch: decoded.GeneratedAtMustMatch,
-			supersession:         decoded.Supersession,
-		},
+		metadata: contractMetadata{supersession: decoded.Supersession},
 	}
 	if !tomlMeta.IsDefined("schema_version") {
 		return nil, errors.New(`missing required key "schema_version"`)
@@ -359,8 +340,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 }
 
 func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
-	// Which reading this contract asked for. The first row decides, and the
-	// loop below refuses any row that disagrees with it.
+	// Which reading this contract asked for; the first row decides.
 	declared := len(rows) > 0 && rows[0].Initial != nil
 	stages := make([]Stage, len(rows))
 	for i, row := range rows {
@@ -375,9 +355,7 @@ func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
 		case row.Owner == nil:
 			return nil, fmt.Errorf(`lifecycle row %d: missing required key "owner"`, ordinal)
 		}
-		// Every status word this row names is folded here, once, so nothing
-		// downstream has to remember to. The wildcard passes through: it is
-		// grammar, not a status.
+		// The wildcard is grammar rather than a status, so the fold skips it.
 		from := slices.Clone(*row.From)
 		for j, predecessor := range from {
 			if predecessor != "*" {
@@ -400,14 +378,9 @@ func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
 }
 
 // resolveInitial answers whether a note may be given this row's status as its
-// first one, under whichever reading the contract asked for. declared says the
-// file names the key at all, decided by its first row.
-//
-// A file that names the key on some rows and not others is refused rather than
-// guessed at: it would be read two ways at once, the rows carrying it as
-// written and the rest by inference, and no reader could say what the file
-// means. A row that is neither a starting point nor reachable from anywhere is
-// refused for the same reason — it declares a status nothing could ever hold.
+// first one. declared says the file names the key at all, decided by its first
+// row; a file naming it on some rows and not others is refused, because it
+// would be read two ways at once.
 func resolveInitial(row rawLifecycleStage, ordinal int, declared bool, from []string) (bool, error) {
 	if (row.Initial != nil) != declared {
 		return false, fmt.Errorf(
@@ -583,26 +556,12 @@ func resolvePrivacyPolicy(
 
 // validateDistinctKeys refuses a contract that spells one key two ways.
 //
-// A table's key reaches a Go field by its exact name and, when no name
-// matches, by a name that differs only in case; the table is walked in map
-// order, so two spellings that fold together have no fixed winner. The same
-// bytes then load one way on one call and the other way on the next within a
-// single run, and whichever spelling loses is dropped without a word. Asking
-// the decoder for a case-sensitive binding is not on offer, so a contract
-// holding such a pair is refused rather than read.
-//
-// Sibling names are compared with strings.EqualFold because that is the
-// comparison the decoder makes. Comparing lowercased names disagrees with it
-// in both directions: it joins U+0130 to "i", which the decoder keeps apart,
-// and it separates U+017F from "s", which the decoder joins.
-//
-// Two of the contract's tables are read into maps rather than into fields —
-// the status enum and the status groups, both keyed by a name the vault
-// chooses — and a map keeps both spellings, so nothing is dropped and nothing
-// is decided by iteration order there. Those pairs are refused all the same,
-// for the other reason: the contract is the one place the vault's vocabulary
-// is written down, and two keys a reader cannot tell apart have no settled
-// reading whatever the decoder does with them.
+// A table's key reaches a Go field by its exact name and, failing that, by one
+// differing only in case; the table is walked in map order, so two spellings
+// that fold together have no fixed winner and whichever loses is dropped
+// without a word. Sibling names are compared with strings.EqualFold, the
+// comparison the decoder makes. Keys read into a map keep both spellings and
+// are refused anyway: the vault's vocabulary has one place to be written down.
 func validateDistinctKeys(data []byte) error {
 	var tables map[string]any
 	if _, err := toml.Decode(string(data), &tables); err != nil {
@@ -646,11 +605,9 @@ func siblingsThatFold(prefix string, names []string) []string {
 	return pairs
 }
 
-// foldedKeyPairsUnder walks the tables a value holds: a table, a list of
-// tables, or a list written inline whose elements are tables. Rows of a list
-// are walked one at a time, because each row binds on its own and two rows
-// spelling one field differently is not an ambiguity. Any other value holds no
-// keys.
+// foldedKeyPairsUnder walks the tables a value holds. Rows of a list are walked
+// one at a time: each binds on its own, so two rows spelling one field
+// differently is not an ambiguity.
 func foldedKeyPairsUnder(prefix string, value any) []string {
 	switch value := value.(type) {
 	case map[string]any:
@@ -1092,10 +1049,9 @@ func validateLifecycleValues(row int, field string, values []string, wildcard bo
 	return nil
 }
 
-// cloneStage copies a row so a caller holding one cannot reach the slices
-// another caller holds. Every field is named: a field added to Stage and
-// forgotten here would read as its zero value everywhere the contract is
-// consulted, which for a bool is silently the opposite of what the row says.
+// cloneStage copies a row so callers cannot reach each other's slices. Every
+// field is named: one added to Stage and forgotten here would read as its zero
+// value wherever the contract is consulted.
 func cloneStage(stage *Stage) Stage {
 	return Stage{
 		Status:    stage.Status,
@@ -1226,19 +1182,30 @@ func validateSupersessionType(contract *Contract, noteType, archivedStatus strin
 	return nil
 }
 
-// Version returns the contract format version.
+// Version returns the contract format version, empty for a vault no contract
+// governs.
 func (c *Contract) Version() string {
+	if c == nil {
+		return ""
+	}
 	return c.version
 }
 
 // Definition returns a detached copy of the contract's declarative
-// vocabulary and validation policy.
+// vocabulary and validation policy. A vault no contract governs declares an
+// empty vocabulary.
 func (c *Contract) Definition() Definition {
+	if c == nil {
+		return Definition{}
+	}
 	return cloneDefinition(&c.definition)
 }
 
 // StageCount returns the number of lifecycle rows declared by the contract.
 func (c *Contract) StageCount() int {
+	if c == nil {
+		return 0
+	}
 	return len(c.stages)
 }
 
@@ -1289,6 +1256,9 @@ func cloneStringSliceMap(source map[string][]string) map[string][]string {
 // Supersession returns the configured replacement-ledger vocabulary, or false
 // when the contract declares none.
 func (c *Contract) Supersession() (Supersession, bool) {
+	if c == nil {
+		return Supersession{}, false
+	}
 	section := c.metadata.supersession
 	if section == nil {
 		return Supersession{}, false
@@ -1302,10 +1272,8 @@ func (c *Contract) Supersession() (Supersession, bool) {
 }
 
 // ConceptType returns the note type a vault files as its distilled ideas, and
-// whether this contract declares it at all. The name is always returned so a
-// caller can say which type it looked for; declared is the answer to whether
-// this vault has such a corpus. A vault that never lists the type has none, and
-// a face that judges how well that corpus is filed has nothing to judge.
+// whether this contract declares it at all. The name comes back either way, so
+// a caller can say which type it looked for.
 func (c *Contract) ConceptType() (name string, declared bool) {
 	if c == nil {
 		return conceptType, false
@@ -1314,12 +1282,9 @@ func (c *Contract) ConceptType() (name string, declared bool) {
 }
 
 // InboxRequiredFields returns the note type a vault reserves for captures whose
-// shape is not yet decided, the fields it requires of such a note, and whether
-// the contract declared that requirement at all. A vault that declared none
-// holds its captures to the same fields as any other note, which is what a
-// reader of a contract that says nothing about them can honestly conclude. An
-// explicitly empty list is still a declaration: it says a capture is required
-// to carry nothing.
+// shape is not yet decided, the fields it requires of one, and whether the
+// contract declared that requirement at all. An explicitly empty list is still
+// a declaration: it says a capture is required to carry nothing.
 func (c *Contract) InboxRequiredFields() (noteType string, fields []string, declared bool) {
 	if c == nil {
 		return inboxType, nil, false
@@ -1329,9 +1294,7 @@ func (c *Contract) InboxRequiredFields() (noteType string, fields []string, decl
 
 // RequiresFrontmatter reports whether this vault treats a note carrying no
 // frontmatter block as a fault. Only a contract that wrote the scan declaration
-// down and set it against legality asks for that: a contract that says nothing
-// has not ruled on raw files, and reading silence as a prohibition would fault
-// every transcript a vault keeps.
+// down and set it against legality asks for that; silence is not a prohibition.
 func (c *Contract) RequiresFrontmatter() bool {
 	if c == nil {
 		return false
@@ -1340,8 +1303,7 @@ func (c *Contract) RequiresFrontmatter() bool {
 }
 
 // DeclaresType reports whether noteType is listed in the contract's own type
-// vocabulary, so a face can decline to apply a rule about a type this vault
-// never named.
+// vocabulary, so a face can decline a rule about a type this vault never named.
 func (c *Contract) DeclaresType(noteType string) bool {
 	if c == nil {
 		return false
@@ -1358,8 +1320,7 @@ func (c *Contract) NavigationRoles() NavigationRoles {
 }
 
 // KnowledgeScope returns the top-level directories this vault calls its
-// knowledge layer, so every face that answers "what is in this vault" answers
-// it the same way.
+// knowledge layer.
 func (c *Contract) KnowledgeScope() KnowledgeScope {
 	if c == nil {
 		return KnowledgeScope{}
@@ -1387,7 +1348,7 @@ func (c *Contract) PrivacyPolicy() PrivacyPolicy {
 // An empty note type selects the default "note" group for aggregate views.
 // An undeclared non-empty type returns "".
 func (c *Contract) StatusGroup(noteType string) string {
-	if c.version == "" {
+	if c == nil || c.version == "" {
 		return ""
 	}
 	if noteType == "" {
@@ -1400,26 +1361,21 @@ func (c *Contract) StatusGroup(noteType string) string {
 }
 
 // Statuses returns the legal status values for a declared note type. An empty
-// note type selects the default "note" group; an undeclared type returns nil.
+// note type selects the default "note" group; an undeclared type returns nil,
+// and so does a vault no contract governs.
 func (c *Contract) Statuses(noteType string) []string {
+	if c == nil {
+		return nil
+	}
 	return slices.Clone(c.statusesByGroup[c.StatusGroup(noteType)])
 }
 
-// NormalizeStatus is the one spelling rule for a status word, and every
-// comparison against a declared status goes through it — the declared values
-// when the contract is read, and the note's own value when it is judged
-// against them.
-//
-// A status arrives from two places that disagree about bytes without
-// disagreeing about the word: a note's line as the filesystem hands it over,
-// which on macOS is decomposed, and the same value after the search index
-// stored it, which composes. Comparing raw bytes therefore had one page call a
-// note's status legal while another called it outside the schema, and a note
-// whose word reached the disk decomposed was offered no transition at all —
-// its write face closed with nothing on screen saying why. This is the fold
-// the resolver already applies to a name for the same reason; a status is not
-// case-folded with it, because two statuses differing only in case are two
-// declarations and the contract's author meant them.
+// NormalizeStatus is the one spelling rule for a status word: every comparison
+// against a declared status goes through it, both the contract's values as they
+// are read and a note's own value as it is judged. A status arrives decomposed
+// from the filesystem and composed from the search index, so the bytes are
+// folded before anything compares them. Case is deliberately not folded — two
+// statuses differing only in case are two declarations the contract meant.
 func NormalizeStatus(s string) string {
 	return vault.NormalizeNFC(s)
 }
@@ -1435,19 +1391,20 @@ func (c *Contract) Stage(noteType, status string) (Stage, bool) {
 }
 
 func (c *Contract) stage(noteType, status string) (Stage, bool) {
+	if c == nil {
+		return Stage{}, false
+	}
 	stage, ok := c.stageByTypeStatus[lifecycleKey{noteType: noteType, status: NormalizeStatus(status)}]
 	return stage, ok
 }
 
-// Transition reports whether a note of the given type may move from one
-// status to another. An empty from means the note is being given its initial
-// status. Lifecycle owner lists are declarative data and play no part in the
-// answer. The returned error wraps one of the package sentinels.
+// Transition reports whether a note of the given type may move from one status
+// to another. An empty from means the note is being given its initial status.
+// Lifecycle owner lists are declarative data and play no part. The returned
+// error wraps one of the package sentinels; a vault no contract governs refuses
+// every move as an unknown status.
 func (c *Contract) Transition(noteType, from, to string) error {
-	// Both ends are folded before anything is compared: one arrives from a
-	// note's own line as the filesystem spelled it, the other from a form or
-	// from this contract, and the three sources agree about the word without
-	// agreeing about its bytes.
+	// The sources agree about the word without agreeing about its bytes.
 	from, to = NormalizeStatus(from), NormalizeStatus(to)
 	st, ok := c.stage(noteType, to)
 	if !ok {
@@ -1464,9 +1421,8 @@ func (c *Contract) Transition(noteType, from, to string) error {
 	}
 	switch {
 	case from == "":
-		// Whether a note may start here is the row's own declaration, not
-		// something read off its predecessor list: a status can be both a
-		// place to begin and a place to come back to.
+		// A status can be both a place to begin and a place to come back to,
+		// so this is the row's own declaration, not its predecessor list.
 		if !st.Initial {
 			return fmt.Errorf("%w: %q is not an initial status for type %q", ErrIllegalTransition, to, noteType)
 		}

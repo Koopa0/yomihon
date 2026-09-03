@@ -2,9 +2,17 @@ package wording
 
 // The syllabus: a study path read as a course rather than as a note.
 
-// SyllabusKicker sits above the title. The Japanese half is the vault's own
-// word for the thing and is not translated: it is what the notes call it.
+// SyllabusKicker sits above the title, before the vault's own word for the
+// thing, which the markup writes and neither half of this pair carries.
 var SyllabusKicker = both("課綱 · ", "Syllabus · ")
+
+// PathItemUnreadable stands where a course lists something the page could not
+// read as either a lesson or a branch. Dropping such a row would take it off a
+// page whose whole job is showing the course as it is written, and the reader
+// would be looking at a list quietly missing an item.
+var PathItemUnreadable = both(
+	"這條路徑列了一項無法判讀的內容,這一頁沒有把它讀成課程或分部。",
+	"This path lists something that could not be read as either a lesson or a branch.")
 
 // The invitation shown to a reader who has not walked this path before, and
 // the way into the note it points at. The lede says what this page is — the
@@ -64,6 +72,15 @@ var (
 	NoCourseMarkerFaultTail = both(
 		" 三者之一，寫在標題或開啟清單那一行的行尾。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
 		", at the end of a heading or of the row that opens a list. yomihon reports and never repairs; edit this note directly.",
+	)
+	// What the page says when the grammar reported a structural problem the
+	// page has no explanation for. It claims nothing about what the author
+	// wrote, because the page does not know which way it went; the two
+	// sentences above are both claims about somebody else's file, and one
+	// of them would be false.
+	NoCourseUnexplained = both(
+		"這條路徑有一個結構問題，這個頁面沒有可以說明的話。判讀報告會指出是哪一個。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
+		"This path has a structural problem this page has no words for. The adjudication report names which one. yomihon reports and never repairs; edit this note directly.",
 	)
 	// The joiners between the three spelled values. The two languages use
 	// different marks and different words, so they are phrases, not markup.

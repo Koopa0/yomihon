@@ -1,7 +1,6 @@
 package nav
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -9,10 +8,8 @@ import (
 )
 
 // Placement records one appearance of a note as a map entry: the map that lists
-// it and the chain of branch headings from that map's root down to the branch
-// the entry sits under. A note listed by
-// several branches yields several placements, so the sidebar can open every
-// containing map and mark each occurrence instead of choosing one.
+// it and the chain of branch headings down to the entry's own branch. A note
+// several branches list yields several placements rather than one chosen one.
 type Placement struct {
 	// MapRelPath identifies the containing map by its own note path.
 	MapRelPath string
@@ -22,8 +19,8 @@ type Placement struct {
 }
 
 // Placements returns every map placement that lists the note at relPath, or nil
-// when no map references it. relPath is a vault-relative NFC path, the
-// same form the rest of the model uses, so no re-normalization is needed.
+// when no map references it. relPath is a vault-relative NFC path, the form the
+// rest of the model uses.
 func (m *Model) Placements(relPath string) []Placement {
 	if m == nil {
 		return nil
@@ -35,11 +32,44 @@ func (m *Model) Placements(relPath string) []Placement {
 	return placements
 }
 
-// Siblings returns the files sharing a directory with the note at relPath — the
-// "here" list the sidebar shows — together with that directory's vault-relative
-// path (empty for a vault-root note). The note at relPath is itself in the list,
-// for the caller to mark; the order matches the captured generation's reading
-// order. The notes slice is nil when the directory holds nothing.
+// IsPath reports whether relPath names one of the study paths. Asking by name
+// costs no copy of the tree.
+func (m *Model) IsPath(relPath string) bool {
+	return m.indexOfPath(relPath) >= 0
+}
+
+// IsMap reports whether relPath names one of the general maps.
+func (m *Model) IsMap(relPath string) bool {
+	if m == nil {
+		return false
+	}
+	return slices.IndexFunc(m.maps, func(x Map) bool { return x.RelPath == relPath }) >= 0
+}
+
+// Path returns the study path at relPath, or nil when no course in this
+// generation answers to that name. What comes back is the caller's own, one
+// course copied rather than all of them.
+func (m *Model) Path(relPath string) *Path {
+	at := m.indexOfPath(relPath)
+	if at < 0 {
+		return nil
+	}
+	cloned := m.paths[at].clone()
+	return &cloned
+}
+
+// indexOfPath is where relPath sits among the study paths, or -1.
+func (m *Model) indexOfPath(relPath string) int {
+	if m == nil {
+		return -1
+	}
+	return slices.IndexFunc(m.paths, func(p Path) bool { return p.RelPath == relPath })
+}
+
+// Siblings returns the files sharing a directory with the note at relPath,
+// together with that directory's vault-relative path (empty for a vault-root
+// note). relPath is itself in the list, for the caller to mark, in the captured
+// reading order; the slice is nil when the directory holds nothing.
 func (m *Model) Siblings(relPath string) (dir string, notes []NoteRef) {
 	dir, _ = splitDir(relPath)
 	if m == nil {
@@ -48,10 +78,8 @@ func (m *Model) Siblings(relPath string) (dir string, notes []NoteRef) {
 	return dir, slices.Clone(m.dirNotes[dir])
 }
 
-// buildDirNotes groups every listed file by its directory, so the sidebar can
-// show a note's same-directory siblings in one lookup rather than descending the
-// folder tree per request. It mirrors the folder tree's contents and order:
-// paths arrive in the captured reading order, and each directory keeps it.
+// buildDirNotes groups every listed file by its directory, keeping the captured
+// reading order so the grouping matches the folder tree.
 func buildDirNotes(paths []string) map[string][]NoteRef {
 	byDir := make(map[string][]NoteRef)
 	for _, p := range paths {
@@ -61,10 +89,8 @@ func buildDirNotes(paths []string) map[string][]NoteRef {
 	return byDir
 }
 
-// buildPlacementIndex inverts the map trees into a note-path -> placements map,
-// so a note page can find every containing branch in one lookup instead of
-// re-walking every map. Study paths may also contain warning rows, so only
-// explicitly resolved entries with non-empty paths enter the reverse index.
+// buildPlacementIndex inverts the map trees into a note-path -> placements map.
+// Only resolved entries with a path enter it: a warning row places nothing.
 func buildPlacementIndex(index map[string][]Placement, maps []Map) map[string][]Placement {
 	for i := range maps {
 		relPath := maps[i].RelPath
@@ -72,9 +98,8 @@ func buildPlacementIndex(index map[string][]Placement, maps []Map) map[string][]
 		walk = func(branches []Branch, chain []string) {
 			for i := range branches {
 				branch := &branches[i]
-				// Concat always returns a fresh slice, so sibling branches never
-				// overwrite each other's heading chain and the stored value is
-				// never mutated afterward.
+				// Concat returns a fresh slice, so sibling branches never
+				// overwrite each other's heading chain.
 				here := slices.Concat(chain, []string{branch.Heading})
 				for _, entry := range branch.Entries {
 					if entry.Kind != EntryResolved || entry.RelPath == "" {
@@ -94,13 +119,9 @@ func buildPlacementIndex(index map[string][]Placement, maps []Map) map[string][]
 }
 
 // Directory returns what a folder holds directly: its files in the captured
-// generation's order, and the folders immediately inside it. Both are what the
-// browse tree already shows at that level, answered here for a page rather
-// than a rail — a reader looking at one folder wants the whole of it at once,
-// which a tree that fits in a sidebar cannot give them.
-//
-// ok is false for a path no folder in this generation answers to, so a caller
-// can tell an empty folder from one that is not there.
+// order, and the folders immediately inside it. ok is false for a path no
+// folder in this generation answers to, so a caller can tell an empty folder
+// from one that is not there.
 func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 	if m == nil {
 		return nil, nil, false
@@ -122,23 +143,19 @@ func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
 		seen[child] = true
 		subfolders = append(subfolders, NoteRef{Name: child, RelPath: prefix + child})
 	}
-	slices.SortFunc(subfolders, func(a, b NoteRef) int { return cmp.Compare(a.Name, b.Name) })
+	slices.SortFunc(subfolders, func(a, b NoteRef) int { return vault.ComparePaths(a.Name, b.Name) })
 	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
 }
 
-// Adjacent returns the neighbors on either side of relPath inside its own
-// folder, in the folder's captured order. A folder of dated entries is a line,
-// and a reader walking it wants the next one — which the rail can only offer
-// as a scroll through everything the folder holds.
+// FolderStep returns the neighbors on either side of relPath inside its own
+// folder, in the folder's captured order — the folder's answer to what is near
+// this note, where PathNeighbors gives a course's.
 //
-// What the line holds depends on what is being read. From a note, prev and
-// next are the folder's notes: an image or a PDF stored between two entries
-// belongs to the folder, not to the rhythm of reading it, so the step passes
-// over assets — they stay reachable in the sibling rail and on the folder's
-// own page. From a file that is not a note, the walk is the whole folder,
-// because a run of scans or figures is its own line. A course's lessons, a
-// month of entries, and a book's chapters remain the same shape on disk.
-func (m *Model) Adjacent(relPath string) (prev, next NoteRef) {
+// What the line holds depends on what is being read. From a note the step
+// passes over assets, because an image stored between two entries belongs to
+// the folder rather than to the rhythm of reading it; from a file that is not a
+// note the walk is the whole folder, a run of scans being its own line.
+func (m *Model) FolderStep(relPath string) (prev, next NoteRef) {
 	if m == nil || relPath == "" {
 		return NoteRef{}, NoteRef{}
 	}

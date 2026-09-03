@@ -15,11 +15,10 @@ import (
 // decides, and a decision only the author can make is not information.
 
 // pathRuleAction names what to do about each rule, in the author's terms. The
-// rule vocabulary is the grammar's own, so this table can only follow it: a
-// test derives the expected keys from the grammar's exported enumeration, and
-// a rule the table has not yet learned falls back to a generic action rather
-// than failing the run.
-var pathRuleAction = map[string]string{
+// wording belongs to this face — the grammar states what is wrong and this
+// table states what to do next — but the key set belongs to the grammar, and a
+// test holds this table to every rule the grammar can report.
+var pathRuleAction = map[sequence.Rule]string{
 	sequence.RuleRoleMissing:        "declare the branch {sequence=primary}, {sequence=local} or {sequence=none}",
 	sequence.RuleRoleDuplicate:      "keep one sequence declaration on the branch",
 	sequence.RuleRoleConflict:       "move the branch out from under the one declared none, or declare it none too",
@@ -51,13 +50,9 @@ func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
 }
 
 // pathFinding turns one grammar diagnostic into a wire finding. The message is
-// the grammar's own sentence: one rule, one wording, wherever it is read.
-//
-// The rule id arrives from the grammar, which owns that vocabulary, so a rule
-// this package has no tailored advice for is not a programming error here: the
-// finding still carries the grammar's message and line, and the action falls
-// back to pointing at them. Panicking instead turned one rule added to the
-// grammar into a crash on an ordinary vault.
+// the grammar's own sentence: one rule, one wording, wherever it is read. A
+// rule this table has no advice for still reaches the author, carrying that
+// sentence with a general action, rather than dying on an ordinary vault.
 func pathFinding(n *note, d sequence.Diagnostic) Finding {
 	action, ok := pathRuleAction[d.Rule]
 	if !ok {
@@ -68,7 +63,7 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 		evidence = "the branch lists rows but declares no part in the course"
 	}
 	return Finding{
-		RuleID:          d.Rule,
+		RuleID:          string(d.Rule),
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Line:            new(d.Line),
@@ -76,23 +71,15 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 		Evidence:        evidence,
 		SuggestedAction: action,
 		SourceRule:      sourceAuthoring,
-		Fingerprint:     fingerprint(d.Rule, n.path, evidence),
+		Fingerprint:     fingerprint(string(d.Rule), n.path, evidence),
 	}
 }
 
 // courseLessonLinks are the exact wikilinks a course lists as its lessons: the
-// body offset of each accepted row's own target, as the grammar read it. A
-// rule that reconciles a course against disk reads the note's extracted links
-// and keeps these, so the link's own context — whether it sits under a heading
-// marking the section as planned — travels with it.
-//
-// The identity is the occurrence, not the name and not the line. A name can be
-// written on two rows, and a row can hold more than the lesson it names: an
-// embed showing a retired note beside it, a same-file anchor, a mention in the
-// same sentence. Matching by name would let one row answer for another's, and
-// matching by line would hand the course everything the author wrote on that
-// line, so a picture of an archived note would be read as the course still
-// pointing at it.
+// body offset of each accepted row's target, as the grammar read it, so the
+// link's own context travels with it. The identity is the occurrence, not the
+// name and not the line: a name can be written on two rows, and a row can hold
+// an embed or a mention beside the lesson it names.
 func courseLessonLinks(n *note) map[int]bool {
 	offsets := make(map[int]bool)
 	var walk func(g *sequence.Group)
@@ -108,7 +95,7 @@ func courseLessonLinks(n *note) map[int]bool {
 					offsets[item.Entry.TargetSpan.Start] = true
 				}
 			case item.Branch != nil:
-				if projectable || (g.Role == sequence.RoleStructural && !g.Invalid) {
+				if projectable || g.Carries() {
 					walk(item.Branch)
 				}
 			}

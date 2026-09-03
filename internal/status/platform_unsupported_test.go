@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
@@ -20,15 +21,20 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 	root := t.TempDir()
 	writer := newWriter(t, root, loadContract(t))
 
-	view := writer.View()
+	view := writer.Authority()
 	if view.Closed() {
-		t.Fatalf("View().Closed() = true, want read authority preserved: %s", view.Diagnostic())
+		t.Fatalf("View().Closed() = true, want read authority preserved: %s", view.Diagnostic(wording.ZhHant))
 	}
-	if got := view.Diagnostic(); got != "" {
+	if got := view.Diagnostic(wording.ZhHant); got != "" {
 		t.Errorf("View().Diagnostic() = %q, want empty read-authority diagnostic", got)
 	}
-	if got := view.WriteDiagnostic(); got != status.DurableInstallUnavailableDiagnostic {
-		t.Errorf("View().WriteDiagnostic() = %q, want %q", got, status.DurableInstallUnavailableDiagnostic)
+	// Asked in each language, because a platform that cannot install durably
+	// is yomihon's own news rather than the contract's, and the reader is owed
+	// it in the language they chose.
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		if got, want := view.WriteDiagnostic(lang), wording.DurabilityUnsupported.In(lang); got != want {
+			t.Errorf("View().WriteDiagnostic(%q) = %q, want %q", lang, got, want)
+		}
 	}
 	if got := view.Order(); len(got) == 0 {
 		t.Error("View().Order() is empty, want read-only lifecycle projection preserved")
@@ -37,7 +43,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 		t.Errorf("View().Transitions() = %v, want none on a platform without a durable install", got)
 	}
 
-	err := writer.Flip(testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrDurabilityUnsupported) {
 		t.Fatalf("Flip() = %v, want %v before opening the target", err, status.ErrDurabilityUnsupported)
 	}

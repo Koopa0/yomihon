@@ -9,20 +9,16 @@ import (
 )
 
 // The human and markdown reports pack the same findings into a scannable
-// triage view: a per-domain debt scoreboard (which area owes the most), a
-// "most leveraged" callout (one target whose creation resolves many
-// references), the actionable findings grouped by domain and folded by
-// identity, and a hidden count of the tracked forward-references and external
-// paths, which are informational and kept out of the actionable body. Both
-// renderers share one packing, so they never disagree on the numbers. The
-// human view goes to a terminal; the markdown view is a fileable note body the
-// caller stores. Both are part of the frozen output the pipelines read.
+// triage view: a per-domain debt scoreboard, a most-leveraged callout, the
+// actionable findings grouped by domain and folded by identity, and a hidden
+// count of the informational ones. Both renderers share one packing, so they
+// never disagree on the numbers, and both are part of the frozen output.
 
-// domainOf infers a finding's knowledge domain from its vault path — the folder
-// convention under Concepts/ and Writing/lessons/ — and reports "(other)" when
-// the path carries no domain (Maps, Sources, and the like).
+// domainOf infers a finding's knowledge domain from its vault path, following
+// the folder convention under the two knowledge roots, and reports "(other)"
+// when the path carries no domain.
 func domainOf(path string) string {
-	for _, prefix := range []string{"Concepts/", "Writing/lessons/"} {
+	for _, prefix := range []string{conceptDomainRoot, lessonDomainRoot} {
 		if rest, ok := strings.CutPrefix(path, prefix); ok {
 			seg, _, _ := strings.Cut(rest, "/")
 			return seg
@@ -283,7 +279,7 @@ func humanReport(findings []Finding) string {
 	for _, sec := range p.sections {
 		fmt.Fprintf(&s, "\n▌ %s\n", sec.domain)
 		for _, i := range sec.items {
-			fmt.Fprintf(&s, "  [%s] %s%s  (%s)\n", i.severity.name(), blastPrefix(i.blast), i.message, i.samplePath)
+			fmt.Fprintf(&s, "  [%s] %s%s  (%s)\n", i.severity.String(), blastPrefix(i.blast), i.message, i.samplePath)
 		}
 	}
 	return s.String()
@@ -291,8 +287,7 @@ func humanReport(findings []Finding) string {
 
 // markdownReport renders the packed findings as a fileable markdown note body.
 // The frontmatter is deterministic — no timestamp — so the caller stamps and
-// routes it. The tool identity names yomihon, the tool that produced it, rather
-// than reproducing the reference tool's name in a note yomihon files.
+// routes it, and the tool identity names whatever produced the note.
 func markdownReport(findings []Finding) string {
 	p := pack(findings)
 	var s strings.Builder
@@ -318,7 +313,7 @@ func markdownReport(findings []Finding) string {
 	for _, sec := range p.sections {
 		fmt.Fprintf(&s, "## %s\n\n", escapeMd(sec.domain))
 		for _, i := range sec.items {
-			fmt.Fprintf(&s, "- `%s` %s%s — %s\n", i.severity.name(), blastPrefix(i.blast), escapeMd(i.message), escapeMd(i.samplePath))
+			fmt.Fprintf(&s, "- `%s` %s%s — %s\n", i.severity.String(), blastPrefix(i.blast), escapeMd(i.message), escapeMd(i.samplePath))
 		}
 		s.WriteByte('\n')
 	}

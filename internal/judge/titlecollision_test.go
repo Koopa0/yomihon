@@ -38,7 +38,7 @@ func TestTitleCollisionListsEveryHolder(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRoot(t, "testdata/vault-titlecollision")
 	wantGolden(t, runCheck(t, root), "testdata/golden/titlecollision.jsonl")
-	findings, err := Check(root)
+	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check(): %v", err)
 	}
@@ -79,7 +79,7 @@ func TestTitleCollisionWithholdsBeforeCounting(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-titlecollision", "Private")
 	wantGolden(t, runCheck(t, root), "testdata/golden/titlecollision-privacy.jsonl")
-	findings, err := Check(root)
+	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check(): %v", err)
 	}

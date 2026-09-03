@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // TestNewRealVault checks anonymous structural invariants against an
@@ -21,7 +22,7 @@ func TestNewRealVault(t *testing.T) {
 	defer redactRealVaultPanic(t)
 
 	root := requireRealVaultRoot(t)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal("open configured real vault failed")
 	}
@@ -58,10 +59,10 @@ func TestNewRealVault(t *testing.T) {
 		noteList = append(noteList, note)
 	}
 	model := New(scan.Files(), notes, graph.New(noteList, resources), roles, contract.KnowledgeScope(), policy)
-	if roles.Available() == (model.NavigationDiagnostic() != "") {
+	if roles.Available() == (model.NavigationClosure().Diagnostic() != "") {
 		t.Error("real-vault navigation diagnostic disagrees with capability availability")
 	}
-	if policy.Available() == (model.ArtifactDiagnostic() != "") {
+	if policy.Available() == (model.ArtifactClosure().Diagnostic() != "") {
 		t.Error("real-vault artifact diagnostic disagrees with capability availability")
 	}
 
@@ -131,8 +132,8 @@ func validateRealVaultMaps(t *testing.T, category string, maps []Map) int {
 	return entryCount
 }
 
-func flattenRealVaultEntries(branches []Branch) []Entry {
-	var entries []Entry
+func flattenRealVaultEntries(branches []Branch) []MapEntry {
+	var entries []MapEntry
 	for _, branch := range branches {
 		entries = append(entries, branch.Entries...)
 		entries = append(entries, flattenRealVaultEntries(branch.Subbranches)...)

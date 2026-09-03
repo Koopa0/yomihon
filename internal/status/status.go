@@ -1,14 +1,13 @@
-// Package status is the write face: the only package in this repo allowed
-// to write vault files. It flips a note's frontmatter `status` field — a
-// surgical, single-line rewrite, never a YAML re-serialization — and leaves
-// every other byte of the file, and everything else on the machine, exactly
-// as it found it. Within this tool's single-user, local-trust model nothing
-// authenticates who triggered a flip; the file's new bytes are the whole
-// record.
+// Package status is the write face: the only package here allowed to write
+// vault files. It flips a note's frontmatter status field as a surgical,
+// single-line rewrite — never a YAML re-serialization — and leaves every other
+// byte of the file exactly as it found it. Nothing authenticates who triggered
+// a flip; the file's new bytes are the whole record.
 package status
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
@@ -26,104 +25,73 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // Sentinel errors. Callers match with errors.Is.
 var (
-	// ErrClosed means the write face is fail-closed: either the vault contract
-	// failed to load or its pinned root capability has been closed. Fault
-	// tolerance is asymmetric by direction — reading tolerates a missing
-	// contract, but a write without one could destroy a file, so writing refuses.
-	ErrClosed = errors.New("status: write face is closed")
+	// ErrClosed means the write face is fail-closed: the vault contract failed
+	// to load, or its pinned root capability has been closed. Reading tolerates
+	// a missing contract; a write without one could destroy a file.
+	ErrClosed = errors.New("write face is closed")
 	// ErrArtifactPolicyUnavailable means the core contract loaded but its
 	// artifact policy is unavailable, so instance writes cannot be classified.
-	ErrArtifactPolicyUnavailable = errors.New("status: artifact policy unavailable")
+	ErrArtifactPolicyUnavailable = errors.New("artifact policy unavailable")
 	// ErrNonInstance means the requested path is a readable artifact rather
 	// than a governed note instance.
-	ErrNonInstance = errors.New("status: target is not a governable artifact")
+	ErrNonInstance = errors.New("target is not a governable artifact")
 	// ErrOutsideKnowledgeScope means the requested path is a note the lifecycle
-	// never reaches: it lies outside the directories the contract's
-	// scan.knowledge_dirs names as the knowledge layer, and the state machine
-	// runs only there.
-	ErrOutsideKnowledgeScope = errors.New("status: target is outside the knowledge layer scan.knowledge_dirs declares")
+	// never reaches: it lies outside the directories scan.knowledge_dirs names
+	// as the knowledge layer, and the state machine runs only there.
+	ErrOutsideKnowledgeScope = errors.New("target is outside the knowledge layer scan.knowledge_dirs declares")
 	// ErrInvalidPath means a status request did not name a local vault-relative
 	// slash path.
-	ErrInvalidPath = errors.New("status: invalid vault-relative path")
-	// ErrStale means the submitted form's "from" no longer matches the
-	// note's on-disk status: the page was loaded before someone else
-	// changed the file.
-	ErrStale = errors.New("status: note is stale, reload and try again")
-	// ErrConcurrentWrite means the named regular file, its parent identity,
-	// mode, mtime, or exact bytes changed between Flip's descriptor read and
-	// its pre-write recheck. An external tool such as Obsidian raced the flip
-	// itself. Distinct from ErrStale: the two cases carry different user-facing
-	// presentations and this sentinel must not satisfy errors.Is(err, ErrStale).
-	ErrConcurrentWrite = errors.New("status: note changed while flipping")
-	// ErrContentChanged means the note's bytes on disk no longer carry the
-	// content identity the caller read: something outside the status line was
-	// edited between the page render and the flip, so the ruling was made
-	// against content the disk no longer holds. The status line itself is
-	// bound through "from" and its divergence reports as ErrStale; this
-	// sentinel covers every other byte, which the stale check cannot see.
-	ErrContentChanged = errors.New("status: note content changed after it was read")
-	// ErrStatusLine means the frontmatter block does not contain exactly
-	// one line beginning with "status:" — a schema violation yomihon does
-	// not repair. yomihon only reports faults; fixing the file belongs to
-	// a human editor.
-	ErrStatusLine = errors.New("status: frontmatter does not have exactly one status line")
-	// ErrPublishedReserved means the flip named published as its target.
-	// That status records a completed publication — a receipt-backed fact
-	// about the world outside the vault — and nothing in yomihon can attest
-	// one, so the write face refuses before touching the note. The value
-	// enters a note only by hand.
-	ErrPublishedReserved = errors.New("status: published records a completed publication and no publisher exists to attest one")
+	ErrInvalidPath = errors.New("invalid vault-relative path")
+	// ErrStale means the submitted form's "from" no longer matches the note's
+	// on-disk status: the page was loaded before someone else changed the file.
+	ErrStale = errors.New("note is stale, reload and try again")
+	// ErrConcurrentWrite means the file's identity, mode, mtime or bytes
+	// changed between Flip's descriptor read and its pre-write recheck. It is
+	// distinct from ErrStale and does not satisfy errors.Is(err, ErrStale).
+	ErrConcurrentWrite = errors.New("note changed while flipping")
+	// ErrContentChanged means the note's bytes no longer carry the content
+	// identity the caller read: something outside the status line was edited
+	// after the page rendered. The status line's own divergence is ErrStale.
+	ErrContentChanged = errors.New("note content changed after it was read")
+	// ErrStatusLine means the frontmatter block does not contain exactly one
+	// line beginning with "status:". yomihon reports; a human edits the file.
+	ErrStatusLine = errors.New("frontmatter does not have exactly one status line")
+	// ErrPublishedReserved means the flip named published as its target. That
+	// status records a completed publication outside the vault, which nothing
+	// here can attest, so the value enters a note only by hand.
+	ErrPublishedReserved = errors.New("published records a completed publication and no publisher exists to attest one")
 	// ErrStatusSyntaxUnsupported means the reader understands the note's
-	// status, but the frontmatter writes that field in a form the surgical
-	// single-line rewriter does not support — an explicit or quoted key, a
-	// flow mapping, or a YAML anchor the rewrite would sever. The note is
-	// refused unchanged: rewriting here would either be impossible or leave
-	// frontmatter the reader can no longer parse, and yomihon reports the
-	// fault for a human to edit rather than guessing.
-	ErrStatusSyntaxUnsupported = errors.New("status: frontmatter writes status in a syntax the surgical rewriter does not support")
-	// ErrDurabilityUnsupported means the running platform cannot prove that an
-	// atomic rename's directory entry reached durable storage. The write face
-	// refuses before reading or creating any vault path rather than changing a
-	// note whose new bytes a crash could silently discard.
-	ErrDurabilityUnsupported = errors.New("status: durable install is unsupported on this platform")
+	// status but the frontmatter writes it in a form the surgical rewriter
+	// cannot preserve — an explicit or quoted key, a flow mapping, an anchor
+	// the rewrite would sever. The note is refused unchanged.
+	ErrStatusSyntaxUnsupported = errors.New("frontmatter writes status in a syntax the surgical rewriter does not support")
+	// ErrDurabilityUnsupported means the platform cannot prove an atomic
+	// rename's directory entry reached durable storage, so the write face
+	// refuses rather than leave new bytes a crash could silently discard.
+	ErrDurabilityUnsupported = errors.New("durable install is unsupported on this platform")
 	// ErrInstallStranded means another program edited the note inside the
-	// install window and the write face could not finish putting that edit
-	// back under the note's own name. Both versions are on disk — one under the
-	// note's name and one beside it, named in the error — and nothing was
-	// removed. It is deliberately distinct from ErrConcurrentWrite: that
-	// refusal leaves the note as the other program wrote it, while this one
-	// cannot say which of the two the note carries.
-	ErrInstallStranded = errors.New("status: an edit raced the flip and both versions were left on disk")
-	// ErrInstallUncertain means the atomic replacement completed, but the
-	// containing directory could not be synchronized. The new bytes are visible
-	// now, but their survival across an immediate crash was not confirmed.
-	ErrInstallUncertain = errors.New("status: note rewritten but durability was not confirmed")
+	// install window and the edit could not be put back under the note's own
+	// name. Both versions are on disk, one named in the error, and nothing was
+	// removed. Unlike ErrConcurrentWrite it cannot say which the note carries.
+	ErrInstallStranded = errors.New("an edit raced the flip and both versions were left on disk")
+	// ErrInstallUncertain means the atomic replacement completed but the
+	// containing directory could not be synchronized, so the new bytes are
+	// visible without their survival across an immediate crash being confirmed.
+	ErrInstallUncertain = errors.New("note rewritten but durability was not confirmed")
 )
 
-// The reading page's stable explanations for a closed write face. They read
-// from the dictionary so each sentence has one source, and they resolve to the
-// default language because they reach the page through a view that carries no
-// request and therefore no choice — the surface that would carry one is a
-// separate change.
+// The write face rewrites exactly the regular file a path names, so a symbolic
+// link — whose target can sit outside the vault — and every other special
+// entry is refused, at the leaf and at every directory on the way.
 var (
-	CoreUnavailableDiagnostic           = wording.ContractUnavailable.In(wording.ZhHant)
-	DurableInstallUnavailableDiagnostic = wording.DurabilityUnsupported.In(wording.ZhHant)
-	NoteUnreadableDiagnostic            = wording.NoteStatusUnreadable.In(wording.ZhHant)
-)
-
-// The write face rewrites exactly the regular file a vault-relative path
-// names, so a symbolic link — whose target can sit outside the vault — and
-// every other special entry is refused, at the leaf and at every directory
-// on the way. Two sentinels because the operator repairs them in the same
-// way but the error should name which part of the path was not plain.
-var (
-	errNotRegular     = errors.New("status: target is not a regular file")
-	errPathNotRegular = errors.New("status: path passes through a non-directory or symbolic link")
+	errNotRegular     = errors.New("target is not a regular file")
+	errPathNotRegular = errors.New("path passes through a non-directory or symbolic link")
 )
 
 // ArtifactPolicyUnavailableError carries the contract-derived diagnostic for
@@ -143,36 +111,28 @@ func (e *ArtifactPolicyUnavailableError) Unwrap() error {
 }
 
 // Writer is the write face: it flips one note's frontmatter status field.
-// Constructed once per process with the loaded vault contract (or nil,
-// meaning fail-closed).
+// Constructed once per process with the loaded contract, or nil to fail closed.
 type Writer struct {
 	root       *os.Root
 	contract   *schema.Contract
 	governance schema.Governance
 	policy     schema.ArtifactPolicy
-	// log carries the one thing this package has to say that no caller asked
-	// for: that a flip killed mid-write left a file behind, and the sweep has
-	// set it aside rather than deleting it. Nothing else here reports, because
-	// everything else has a caller waiting for an answer.
+	// log carries the one thing this package says that no caller asked for: a
+	// flip killed mid-write left a file behind and the sweep set it aside.
 	log *slog.Logger
-	// mu serializes View, Flip, ObservedStatus, and Close: the pinned root
-	// capability is a shared resource, two flips must never interleave their
+	// mu serializes View, Flip, ObservedStatus and Close: the pinned root is a
+	// shared resource, two flips must never interleave their
 	// read-check-replace windows, and Close cannot release the root under an
-	// operation. One lock for the whole writer is deliberately simpler than
-	// per-file locking: this is a local, single-operator tool where correctness
-	// matters far more than throughput.
+	// operation. A flip holds it across two synchronizations, so Flip and
+	// ObservedStatus consult the request's context before they queue for it.
 	mu sync.Mutex
-	// receipts is the write face's short-lived memory of flips it performed
-	// whose confirmation no reading page has shown yet, keyed by the note's
-	// normalized vault-relative path. Only the write face can attest that a
-	// transition actually ran, so the attestation lives here rather than in
-	// any address a hand can type. At most one receipt per note: a second
-	// flip before the first receipt is read replaces it, and the page then
-	// states the change the note most recently made.
+	// receipts is this face's short-lived memory of flips whose confirmation
+	// no reading page has shown yet, keyed by normalized path. Only the write
+	// face can attest that a transition ran, so the attestation lives here
+	// rather than in any address a hand can type. At most one per note.
 	receipts map[string]receipt
-	// receiptMu guards receipts on its own, so a reading page consuming a
-	// receipt never waits behind a flip holding mu across a full write. It
-	// is always taken alone or inside mu, never the other way around.
+	// receiptMu guards receipts alone, so a page consuming one never waits
+	// behind a flip. It is taken alone or inside mu, never the other way.
 	receiptMu sync.Mutex
 }
 
@@ -183,10 +143,8 @@ type receipt struct {
 	at   time.Time
 }
 
-// receiptTTL bounds how long a completed flip vouches for its receipt. A
-// browser follows the redirect within moments; minutes of slack cover a
-// throttled or backgrounded tab without leaving a stale attestation around
-// for the rest of the process's life.
+// receiptTTL bounds how long a completed flip vouches for its receipt: enough
+// slack for a throttled tab, not enough to leave a stale attestation around.
 const receiptTTL = 2 * time.Minute
 
 type fileSnapshot struct {
@@ -198,33 +156,24 @@ type fileSnapshot struct {
 }
 
 // Open pins an independent write capability for source's already-selected
-// vault. The pathname is used only to open that second capability; both open
-// directory identities must match before Open returns.
-//
-// A nil core contract or its unavailable artifact policy closes the write
-// face: no transitions are offered and every Flip is rejected. Deriving the
-// policy here makes it impossible to combine lifecycle authority from one
-// contract with instance classification from another.
-//
+// vault; both open directory identities must match before it returns. A nil
+// contract, or an unavailable artifact policy, closes the write face.
 // governance is what the folder asserted about its own contract, which a nil
-// contract cannot answer: a folder carrying no contract and a folder whose
-// contract could not be read both arrive here with no contract, and only the
-// second one is a fault. When contract is non-nil, governance must be
-// contract.Governance().
-func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
+// contract cannot answer; with a contract it must be contract.Governance().
+func Open(source *vaultfs.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
 	if source == nil {
-		return nil, errors.New("status: open writer: vault reader is nil")
+		panic("status: Open requires a non-nil Reader")
 	}
 	root, err := os.OpenRoot(source.Name())
 	if err != nil {
-		return nil, fmt.Errorf("status: open writer root: %w", err)
+		return nil, fmt.Errorf("open writer root: %w", err)
 	}
 	same, err := source.SameRoot(root)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("status: compare writer root: %w", err), root.Close())
+		return nil, errors.Join(fmt.Errorf("compare writer root: %w", err), root.Close())
 	}
 	if !same {
-		return nil, errors.Join(errors.New("status: vault root changed while opening writer"), root.Close())
+		return nil, errors.Join(errors.New("vault root changed while opening writer"), root.Close())
 	}
 	var policy schema.ArtifactPolicy
 	if contract != nil {
@@ -267,106 +216,107 @@ func (w *Writer) close(hooks closeHooks) error {
 	return root.Close()
 }
 
-// View is one immutable read-only lifecycle projection captured from a
-// Writer. Its query methods perform no filesystem or contract-source I/O,
-// so one request can derive every status decision from the same authority
-// sample. A later request captures another View and observes a latched source
-// change.
-type View struct {
+// Authority is one immutable read-only lifecycle projection captured from a
+// Writer. Its query methods perform no filesystem or contract-source I/O, so
+// one request derives every status decision from the same sample.
+type Authority struct {
 	contract *schema.Contract
 	policy   schema.ArtifactPolicy
 	governed bool
+	// released records that the process asserted a write face and then lost
+	// it, which is a fault about this process rather than about the folder's
+	// contract. It is a fact, not a sentence: no reader has asked yet.
+	released bool
 	claim    schema.Claim
 }
 
-// View captures the write face's current read-only authority. Flip does not use
-// this snapshot: writes revalidate the source under the writer's lock.
-func (w *Writer) View() View {
-	// A released capability is a fault whichever folder it was pinned to: the
-	// process asserted a write face and then lost it.
+// Authority captures the write face's current read-only authority. Flip does
+// not use this snapshot: writes revalidate the source under the writer's lock.
+func (w *Writer) Authority() Authority {
 	if w == nil {
-		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
+		return Authority{governed: true, claim: schema.Rejected(""), released: true}
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.root == nil {
-		return View{governed: true, claim: schema.Rejected(CoreUnavailableDiagnostic)}
+		return Authority{governed: true, claim: schema.Rejected(""), released: true}
 	}
 	governed := w.governance.Governed()
 	if w.contract == nil {
-		// Either nothing ever claimed authority here, in which case the closed
-		// write face is the ordinary shape of a folder and says nothing, or the
-		// contract claimed it and could not be read, in which case the vault
-		// level carries the one sentence.
-		return View{governed: governed, claim: w.governance.Claim()}
+		// A folder that never claimed authority says nothing; one whose
+		// contract could not be read carries the sentence at the vault level.
+		return Authority{governed: governed, claim: w.governance.Claim()}
 	}
 	policy := w.policy.Capture()
 	if !policy.Available() {
-		return View{governed: governed, claim: policy.Claim()}
+		return Authority{governed: governed, claim: policy.Claim()}
 	}
-	return View{contract: w.contract, policy: policy, governed: governed, claim: w.governance.Claim()}
+	return Authority{contract: w.contract, policy: policy, governed: governed, claim: w.governance.Claim()}
 }
 
 // Governed reports whether anything claimed authority over this vault. A false
-// answer is not a failure: the folder has no lifecycle, so no status face
-// belongs on any page it serves.
-func (v View) Governed() bool {
+// answer is not a failure: the folder simply has no lifecycle.
+func (v Authority) Governed() bool {
 	return v.governed
 }
 
 // Claim reports how far the lifecycle authority got, so a caller that closes a
 // projection carries the same reason value the contract produced.
-func (v View) Claim() schema.Claim {
+func (v Authority) Claim() schema.Claim {
 	return v.claim
 }
 
 // Closed reports whether this captured view can classify governed instances.
-func (v View) Closed() bool {
+func (v Authority) Closed() bool {
 	return !v.available()
 }
 
-func (v View) available() bool {
+func (v Authority) available() bool {
 	return v.contract != nil && v.policy.Available()
 }
 
-// Diagnostic explains why this captured view is closed. It is empty both when
-// lifecycle reads are available and when nothing ever claimed authority here —
-// a folder with no contract is not a folder in trouble.
-func (v View) Diagnostic() string {
+// Diagnostic explains, in lang, why this captured view is closed. It is empty
+// both when lifecycle reads are available and when nothing ever claimed
+// authority. A released write face is yomihon's own fault and is answered from
+// the dictionary; everything else carries the contract's own sentence.
+func (v Authority) Diagnostic(lang wording.Lang) string {
+	if v.released {
+		return wording.ContractUnavailable.In(lang)
+	}
 	return v.claim.Diagnostic()
 }
 
-// WriteDiagnostic explains why this captured authority cannot offer status
-// transitions. Contract and artifact-policy failures also invalidate read-only
-// instance projections and therefore take precedence over a platform-only
-// write limitation. An empty result means a POST may be offered.
-func (v View) WriteDiagnostic() string {
-	if diagnostic := v.Diagnostic(); diagnostic != "" {
-		return diagnostic
-	}
-	if v.Closed() {
+// WriteDiagnostic explains, in lang, why this captured authority cannot offer
+// status transitions. Contract and artifact-policy failures take precedence
+// over a platform-only write limitation. Empty means a POST may be offered.
+func (v Authority) WriteDiagnostic(lang wording.Lang) string {
+	if !v.writeRefused() {
 		return ""
 	}
-	if !durableInstallSupported {
-		return DurableInstallUnavailableDiagnostic
+	if diagnostic := v.Diagnostic(lang); diagnostic != "" {
+		return diagnostic
 	}
-	return ""
+	return wording.DurabilityUnsupported.In(lang)
+}
+
+// writeRefused reports whether anything stands between this authority and a
+// status POST — the question WriteDiagnostic answers in words.
+func (v Authority) writeRefused() bool {
+	if v.released || v.claim.Diagnostic() != "" {
+		return true
+	}
+	if v.Closed() {
+		return false
+	}
+	return !durableInstallSupported
 }
 
 // ungoverned reports why the lifecycle does not reach the note at rel, or nil
-// when it does. Two questions are asked in turn and stay two: a path under a
-// declared artifact directory is not a note instance at all, while a note
-// outside the directories scan.knowledge_dirs declares is an instance the
-// contract never placed under its state machine. The reading page and the
-// write path both ask here, so what one offers is exactly what the other
-// accepts, and the scope they consult is the contract's own — the same one
-// the navigation draws its knowledge layer from.
-//
-// A contract that declares no knowledge_dirs draws no boundary, and the scope
-// then includes every path: nothing was excluded, so nothing is refused here.
-// That is the declared meaning of silence rather than an opening — a
-// declaration that is present and malformed is refused when the contract
-// loads, and no contract carrying one reaches this predicate.
+// when it does. The two questions stay two: a path under a declared artifact
+// directory is no note instance at all, while a note outside the directories
+// scan.knowledge_dirs declares is an instance the contract never placed under
+// its state machine. A contract declaring no knowledge layer draws no boundary
+// and its scope then includes every path, which is what silence declares.
 func ungoverned(policy schema.ArtifactPolicy, scope schema.KnowledgeScope, rel string) error {
 	if policy.IsNonInstance(rel) {
 		return ErrNonInstance
@@ -377,14 +327,10 @@ func ungoverned(policy schema.ArtifactPolicy, scope schema.KnowledgeScope, rel s
 	return nil
 }
 
-// WhyUngoverned reports why the lifecycle does not reach the note at relPath
-// — the refusal Flip would return before reading it — or nil when it does. A
-// reading page whose transition set came back empty asks it, so the page can
-// say which it was: a note the knowledge layer withheld, or a note the schema
-// defines nothing onward from. A closed view reaches nothing and says so
-// through Diagnostic, and a path the write face cannot name is no note at
-// all; both answer nil here rather than inventing a reason about the note.
-func (v View) WhyUngoverned(relPath string) error {
+// WhyUngoverned reports the refusal Flip would return for relPath, so a page
+// with an empty transition set can name the reason. A note the lifecycle
+// reaches, a closed authority and a path it cannot name all answer nil.
+func (v Authority) WhyUngoverned(relPath string) error {
 	relPath, named := noteName(relPath)
 	if !named || !v.available() {
 		return nil
@@ -393,8 +339,7 @@ func (v View) WhyUngoverned(relPath string) error {
 }
 
 // noteName is the vault-relative name the write face would use for relPath,
-// and whether it can name one at all: a path it cannot normalize is no note,
-// so there is nothing to explain about it.
+// and whether it can name one at all: a path it cannot normalize is no note.
 func noteName(relPath string) (string, bool) {
 	rel, _, err := normalizeRelPath(relPath)
 	if err != nil {
@@ -403,17 +348,13 @@ func noteName(relPath string) (string, bool) {
 	return rel, true
 }
 
-// Transitions returns the from-list-legal target statuses from current in
-// contract order. The lifecycle rows' owner lists are declarative data and
-// never subtract from the answer. The published status is never among the
-// results: it records a completed publication, which no interactive control
-// can attest, so Flip would refuse it. A note the lifecycle does not reach —
-// under a declared artifact directory, or outside the knowledge layer
-// scan.knowledge_dirs declares — gets none, by the same test Flip applies. It
-// is pure over the captured view.
-func (v View) Transitions(relPath, noteType, current string) []string {
+// Transitions returns the from-list-legal target statuses from current, in
+// contract order. Owner lists are declarative data and never subtract from the
+// answer. The published status is never among them: Flip would refuse it, and
+// a note the lifecycle does not reach gets none by the same test Flip applies.
+func (v Authority) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
-	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
+	if err != nil || v.Closed() || v.writeRefused() || noteType == "" || current == "" ||
 		ungoverned(v.policy, v.contract.KnowledgeScope(), relPath) != nil {
 		return nil
 	}
@@ -429,22 +370,11 @@ func (v View) Transitions(relPath, noteType, current string) []string {
 	return legal
 }
 
-// CanReturn reports whether, after a note of this type moves from one status
-// to another, the write face could still walk it back: whether some chain of
-// contract-legal transitions leads from "to" back to "from". It is derived
-// from the same transition rules Transitions reads, never configured on its
-// own, and it is what decides between a quiet single press and a two-step
-// confirm — the press worth confirming is the one the reader cannot undo
-// from where it lands, not the one whose destination happens to offer
-// nothing onward.
-//
-// The walk never passes through the published status: it records a completed
-// publication no interactive control can attest, so no offered chain can
-// enter it, and a return that would exist only by way of it does not exist
-// here. Both spellings of a status name the same stop, matching how every
-// other verdict over the captured contract reads them. A closed view claims
-// nothing and reports false.
-func (v View) CanReturn(noteType, from, to string) bool {
+// CanReturn reports whether some chain of contract-legal transitions leads
+// from "to" back to "from", which is what decides between a quiet single press
+// and a two-step confirm. The walk never enters the published status, so no
+// return exists only by way of it. A closed view claims nothing and is false.
+func (v Authority) CanReturn(noteType, from, to string) bool {
 	if !v.available() || from == "" || to == "" {
 		return false
 	}
@@ -477,11 +407,9 @@ func (v View) CanReturn(noteType, from, to string) bool {
 }
 
 // LegalTransition reports whether the contract legalises moving a note of this
-// type from one status to another. It answers the reading page's question
-// about a transition that has already happened — whether the move a redirect
-// claims to have made is one this contract admits — and never authorises a
-// write, which Flip settles for itself against the note's own bytes.
-func (v View) LegalTransition(noteType, from, to string) bool {
+// type from one status to another. It answers a question about a transition
+// that already happened and never authorises a write, which Flip settles.
+func (v Authority) LegalTransition(noteType, from, to string) bool {
 	if !v.available() || from == "" || to == "" {
 		return false
 	}
@@ -489,32 +417,22 @@ func (v View) LegalTransition(noteType, from, to string) bool {
 }
 
 // KnownStatus reports whether status is among the contract's declared values
-// for the given note type. A closed view knows no values, and an undeclared
-// type declares none. The reading page uses it to flag a status the schema
-// never listed, instead of implying the schema defines no onward transitions
-// from a value it never defined.
-func (v View) KnownStatus(noteType, status string) bool {
+// for the given note type. A closed view knows none; so does an undeclared type.
+func (v Authority) KnownStatus(noteType, status string) bool {
 	return v.available() && slices.Contains(v.contract.Statuses(noteType), schema.NormalizeStatus(status))
 }
 
 // DeclaresStatuses reports whether the contract gives this note type a status
-// vocabulary at all, which is what has to be true before any answer about a
-// particular status means anything.
-//
-// KnownStatus cannot carry that distinction: it answers false both for a value
-// outside a list and for a type that has no list, and those call for opposite
-// sentences. A note whose type the schema never declared has a status that is
-// legal under every type it did declare, so telling its author the value is
-// outside the list points them at the one field that is fine — while the field
-// actually at fault is the type, which the page names separately.
-func (v View) DeclaresStatuses(noteType string) bool {
+// vocabulary at all. KnownStatus cannot carry that distinction — it answers
+// false both for a value outside a list and for a type that has no list — and
+// the two call for opposite sentences.
+func (v Authority) DeclaresStatuses(noteType string) bool {
 	return v.available() && len(v.contract.Statuses(noteType)) > 0
 }
 
 // Order returns the default note group's statuses in declared order. A nil
-// result means this view is closed; an empty non-nil result is a valid empty
-// declaration.
-func (v View) Order() []string {
+// result means the view is closed; an empty non-nil one is a valid declaration.
+func (v Authority) Order() []string {
 	if !v.available() {
 		return nil
 	}
@@ -525,8 +443,7 @@ func (v View) Order() []string {
 	return order
 }
 
-// VaultRoot reports the absolute path of the vault this writer writes
-// into: the resolved directory its capability was pinned to at Open. It is
+// VaultRoot is the absolute path of the vault this writer writes into. It is
 // empty on a nil Writer and after Close.
 func (w *Writer) VaultRoot() string {
 	if w == nil {
@@ -540,20 +457,19 @@ func (w *Writer) VaultRoot() string {
 	return w.root.Name()
 }
 
-// ObservedStatus reports the status the note carries on disk right now.
-//
-// The reading page takes everything else from a scan that is up to a couple of
-// seconds old, which is right for a body, a title and a link graph: those are
-// projections over the whole folder and they have to agree with each other. A
-// status is not one of those. It is a statement about one file, the write path
-// re-reads that same file under its own lock before allowing anything, and a
-// page that shows an older value offers a transition from a state the note has
-// already left — most visibly right after a write, when the reader is looking
-// straight at the thing they just did.
-func (w *Writer) ObservedStatus(rel string) (string, error) {
+// ObservedStatus reports the status the note carries on disk right now. The
+// reading page's other values come from a scan seconds old, which is right for
+// a body or a link graph; an older status would offer a transition from a
+// state the note has already left.
+func (w *Writer) ObservedStatus(ctx context.Context, rel string) (string, error) {
 	relSlash, osPath, err := normalizeRelPath(rel)
 	if err != nil {
 		return "", err
+	}
+	// The lock can be held by a flip across two synchronizations, so a reader
+	// who navigated away is refused here rather than parked behind one.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return "", ctxErr
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -569,15 +485,12 @@ func (w *Writer) ObservedStatus(rel string) (string, error) {
 
 // Flip moves the note at rel from status "from" to status "to": it validates
 // the transition against the contract, confirms the note's bytes still carry
-// contentIdentity — the vault.ContentIdentity of the source the caller read
-// before ruling — rewrites exactly the frontmatter status line, and
-// atomically installs the rewritten bytes under the note's own name. Every
-// refusal before the install leaves the file untouched.
-//
-// Flip holds the Writer's lock for its entire duration (see the mu field
-// doc): concurrent callers are serialized, never interleaved.
-func (w *Writer) Flip(rel, from, to string, contentIdentity [sha256.Size]byte) error {
-	return w.flip(rel, from, to, contentIdentity, flipHooks{})
+// contentIdentity, rewrites exactly the frontmatter status line, and atomically
+// installs the result under the note's own name. Every refusal before the
+// install leaves the file untouched. ctx is honoured up to the lock and not
+// after: past that point the install runs to completion or refuses.
+func (w *Writer) Flip(ctx context.Context, rel, from, to string, contentIdentity [sha256.Size]byte) error {
+	return w.flip(ctx, rel, from, to, contentIdentity, flipHooks{})
 }
 
 type flipHooks struct {
@@ -593,7 +506,12 @@ type flipHooks struct {
 	afterInstall func()
 }
 
-func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, hooks flipHooks) error {
+func (w *Writer) flip(
+	ctx context.Context,
+	rel, from, to string,
+	contentIdentity [sha256.Size]byte,
+	hooks flipHooks,
+) error {
 	relSlash, rel, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
@@ -603,6 +521,9 @@ func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, h
 	}
 	if hooks.beforeLock != nil {
 		hooks.beforeLock()
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -628,15 +549,14 @@ func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, h
 	if current := n.Status(); current != from {
 		return fmt.Errorf("%w: status is %q, page said %q", ErrStale, current, from)
 	}
-	// The stale check above compares one parsed value; this one binds the
-	// ruling to every other byte the caller read. The order matters: when the
-	// status line itself moved on, the stale page names the actual repair.
+	// The stale check compares one parsed value; this binds the ruling to every
+	// other byte. Order matters: a moved status line names the actual repair.
 	if vault.ContentIdentity(data) != contentIdentity {
 		return fmt.Errorf("%w: %s", ErrContentChanged, relSlash)
 	}
 
 	if err = w.contract.Transition(n.Type(), from, to); err != nil {
-		return fmt.Errorf("status: %s %s -> %s: %w", relSlash, from, to, err)
+		return fmt.Errorf("move %s from %s to %s: %w", relSlash, from, to, err)
 	}
 
 	rewritten, err := rewriteStatusChecked(relSlash, data, n.Status() != "", to)
@@ -646,17 +566,15 @@ func (w *Writer) flip(rel, from, to string, contentIdentity [sha256.Size]byte, h
 	if err := w.install(rel, relSlash, &source, rewritten, hooks); err != nil {
 		return err
 	}
-	// The durable install is the fact the receipt attests, so the receipt is
-	// minted only after it, still under the writer's lock: a racing second
-	// flip of the same note cannot interleave, and the later mint wins.
+	// Minted only after the durable install and still under the lock, so a
+	// racing second flip cannot interleave and the later mint wins.
 	w.vouchReceipt(relSlash, from)
 	return nil
 }
 
-// vouchReceipt records that a completed flip left status "from" on the note
-// at relSlash, replacing any receipt not yet read. Receipts other notes never
-// collected are swept once they expire, so the map never outgrows the handful
-// of notes flipped in the last couple of minutes.
+// vouchReceipt records that a completed flip left status "from" on relSlash,
+// replacing any receipt not yet read. Expired receipts are swept here, so the
+// map never outgrows the notes flipped in the last couple of minutes.
 func (w *Writer) vouchReceipt(relSlash, from string) {
 	w.receiptMu.Lock()
 	defer w.receiptMu.Unlock()
@@ -672,13 +590,9 @@ func (w *Writer) vouchReceipt(relSlash, from string) {
 }
 
 // ConsumeReceipt reports whether this write face recently completed a flip
-// that left status "from" on the note at rel, and spends the receipt when it
-// does: the first reading that asks gets true, every later one false. A
-// mismatched origin spends nothing, so a hand-typed address cannot burn the
-// receipt the real redirect is about to collect; an expired receipt answers
-// false and is dropped. The reading page keeps its own contract checks — this
-// method only attests that the write happened, not that repeating it is a
-// sentence the page can stand behind.
+// that left status "from" at rel, and spends the receipt when it does: the
+// first reading gets true, every later one false. A mismatched origin spends
+// nothing, so a hand-typed address cannot burn the real redirect's receipt.
 func (w *Writer) ConsumeReceipt(rel, from string) bool {
 	if w == nil || from == "" {
 		return false
@@ -704,10 +618,9 @@ func (w *Writer) ConsumeReceipt(rel, from string) bool {
 	return true
 }
 
-// install crosses Flip's irreversible boundary. It revalidates the current
-// artifact authority inside replaceRegularFile's install window, atomically
-// installs the rewritten bytes, and reports only after the durable
-// replacement is visible.
+// install crosses Flip's irreversible boundary: it revalidates the artifact
+// authority inside the install window, atomically installs the rewritten
+// bytes, and reports only once the durable replacement is visible.
 func (w *Writer) install(
 	rel, relSlash string,
 	source *fileSnapshot,
@@ -720,7 +633,8 @@ func (w *Writer) install(
 		relSlash,
 		source,
 		rewritten,
-		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, log: w.log},
+		w.log,
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall},
 		func() error {
 			_, authorityErr := w.validatedArtifactPolicy()
 			return authorityErr
@@ -730,7 +644,7 @@ func (w *Writer) install(
 		if errors.Is(err, ErrArtifactPolicyUnavailable) {
 			return err
 		}
-		return fmt.Errorf("status: write %s: %w", relSlash, err)
+		return fmt.Errorf("write %s: %w", relSlash, err)
 	}
 	if hooks.afterInstall != nil {
 		hooks.afterInstall()
@@ -749,15 +663,12 @@ func (w *Writer) validateWriteTarget(rel, relSlash string) error {
 	if err != nil {
 		return err
 	}
-	// The reading scan defines a note as a file whose path ends in ".md" and
-	// carries no dot-prefixed component: it does not descend into a hidden
-	// directory and does not serve a hidden file. The write face applies the
-	// whole of that definition before touching the file, so a resource
-	// carrying note-shaped frontmatter cannot acquire a note-lifecycle
-	// transition for something the reading face never shows. It is asked
-	// before the lifecycle's reach is, because whether a file is a note at
-	// all comes before which folder the note sits in.
-	if !vault.IsMarkdown(relSlash) || vault.OutsideScan(relSlash) {
+	// The reading scan defines a note as a Markdown file with no dot-prefixed
+	// component. The write face applies the whole of that definition, so a
+	// resource the reading face never shows cannot acquire a transition. It is
+	// asked before the lifecycle's reach is, because whether a file is a note
+	// at all comes before which folder the note sits in.
+	if !vault.IsMarkdown(relSlash) || vaultfs.OutsideScan(relSlash) {
 		return ErrNonInstance
 	}
 	if err := ungoverned(policy, w.contract.KnowledgeScope(), relSlash); err != nil {
@@ -766,31 +677,29 @@ func (w *Writer) validateWriteTarget(rel, relSlash string) error {
 	return w.targetSpelledAsRequested(rel, relSlash)
 }
 
-// targetSpelledAsRequested answers a request whose spelling the directory
-// does not hold as a missing note, whatever the filesystem would open for it.
-// A case-insensitive volume opens "L06.MD" for "L06.md"; the vault holds no
-// such note, and the answer is the same one a case-sensitive volume gives.
+// targetSpelledAsRequested answers a request whose spelling the directory does
+// not hold as a missing note, whatever the filesystem would open. A
+// case-insensitive volume opens "L06.MD" for "L06.md"; the vault holds no such
+// note, and the answer is the one a case-sensitive volume gives.
 func (w *Writer) targetSpelledAsRequested(rel, relSlash string) error {
 	parent, _, name, err := openRegularParent(w.root, rel, relSlash)
 	if err != nil {
-		// The walk to the note's directory failed, and reading the note
-		// reports that failure in the operator's own terms a moment later.
+		// Reading the note reports this failure in the operator's own terms.
 		return nil
 	}
 	defer closeRoot(parent)
 	if _, statErr := parent.Lstat(name); statErr != nil {
-		// The name resolves to nothing at all, which is a missing note rather
-		// than a resource, and the read says so.
+		// Nothing resolves here, which the read reports as a missing note.
 		return nil
 	}
 	dir, err := parent.Open(".")
 	if err != nil {
-		return fmt.Errorf("status: confirm the name of %s: %w", relSlash, err)
+		return fmt.Errorf("confirm the name of %s: %w", relSlash, err)
 	}
 	names, err := dir.Readdirnames(-1)
 	_ = dir.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
 	if err != nil {
-		return fmt.Errorf("status: confirm the name of %s: %w", relSlash, err)
+		return fmt.Errorf("confirm the name of %s: %w", relSlash, err)
 	}
 	if !slices.Contains(names, name) {
 		return fmt.Errorf("%s: %w", relSlash, fs.ErrNotExist)
@@ -814,12 +723,12 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 	parentInfo, err := parent.Stat(".")
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: stat parent of %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("stat parent of %s: %w", relSlash, err)
 	}
 	before, err := parent.Lstat(name)
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: stat %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("stat %s: %w", relSlash, err)
 	}
 	if !before.Mode().IsRegular() {
 		closeRoot(parent)
@@ -828,13 +737,13 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 	file, err := parent.Open(name)
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: %w", relSlash, err)
 	}
 	opened, err := file.Stat()
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the stat error is the actionable failure
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: stat open file: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: stat open file: %w", relSlash, err)
 	}
 	if !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
 		_ = file.Close() //nolint:errcheck // the identity mismatch is the actionable failure
@@ -845,16 +754,16 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the read error is the actionable failure
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: %w", relSlash, err)
 	}
 	if err = file.Close(); err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: read %s: close: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("read %s: close: %w", relSlash, err)
 	}
 	after, err := parent.Lstat(name)
 	if err != nil {
 		closeRoot(parent)
-		return fileSnapshot{}, fmt.Errorf("status: stat %s after read: %w", relSlash, err)
+		return fileSnapshot{}, fmt.Errorf("stat %s after read: %w", relSlash, err)
 	}
 	if !after.Mode().IsRegular() || !os.SameFile(opened, after) {
 		closeRoot(parent)
@@ -874,7 +783,7 @@ func readRegularFile(root *os.Root, rel, relSlash string) (fileSnapshot, error) 
 func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, parentPath, name string, err error) {
 	current, err := root.OpenRoot(".")
 	if err != nil {
-		return nil, "", "", fmt.Errorf("status: duplicate vault root for %s: %w", relSlash, err)
+		return nil, "", "", fmt.Errorf("duplicate vault root for %s: %w", relSlash, err)
 	}
 	parentPath, name = filepath.Split(rel)
 	parentPath = filepath.Clean(parentPath)
@@ -886,7 +795,7 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 		before, statErr := current.Lstat(component)
 		if statErr != nil {
 			closeRoot(current)
-			return nil, "", "", fmt.Errorf("status: stat directory of %s: %w", relSlash, statErr)
+			return nil, "", "", fmt.Errorf("stat directory of %s: %w", relSlash, statErr)
 		}
 		if !before.IsDir() || before.Mode()&os.ModeSymlink != 0 {
 			closeRoot(current)
@@ -895,19 +804,19 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 		next, openErr := current.OpenRoot(component)
 		if openErr != nil {
 			closeRoot(current)
-			return nil, "", "", fmt.Errorf("status: open directory of %s: %w", relSlash, openErr)
+			return nil, "", "", fmt.Errorf("open directory of %s: %w", relSlash, openErr)
 		}
 		opened, openStatErr := next.Stat(".")
 		after, afterErr := current.Lstat(component)
 		if openStatErr != nil {
 			closeRoot(current)
 			closeRoot(next)
-			return nil, "", "", fmt.Errorf("status: stat open directory of %s: %w", relSlash, openStatErr)
+			return nil, "", "", fmt.Errorf("stat open directory of %s: %w", relSlash, openStatErr)
 		}
 		if afterErr != nil {
 			closeRoot(current)
 			closeRoot(next)
-			return nil, "", "", fmt.Errorf("status: restat directory of %s: %w", relSlash, afterErr)
+			return nil, "", "", fmt.Errorf("restat directory of %s: %w", relSlash, afterErr)
 		}
 		if !after.IsDir() || after.Mode()&os.ModeSymlink != 0 || !os.SameFile(before, opened) || !os.SameFile(opened, after) {
 			closeRoot(current)
@@ -916,7 +825,7 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 		}
 		if closeErr := current.Close(); closeErr != nil {
 			closeRoot(next)
-			return nil, "", "", fmt.Errorf("status: close directory of %s: %w", relSlash, closeErr)
+			return nil, "", "", fmt.Errorf("close directory of %s: %w", relSlash, closeErr)
 		}
 		current = next
 	}
@@ -924,9 +833,8 @@ func openRegularParent(root *os.Root, rel, relSlash string) (parent *os.Root, pa
 }
 
 func closeRoot(root *os.Root) {
-	// Root holds only a directory descriptor. A close failure cannot change a
-	// completed read or rename, so reporting it as a Flip failure would call a
-	// finished write unsuccessful.
+	// A close failure cannot change a completed read or rename, so reporting it
+	// would call a finished write unsuccessful.
 	_ = root.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
 }
 
@@ -944,32 +852,20 @@ func normalizeRelPath(rel string) (relSlash, osPath string, err error) {
 	return normalized, osPath, nil
 }
 
-// hasControlByte reports whether s carries a byte no note's name can carry.
-//
-// A zero byte ends a path as far as the operating system is concerned, so no
-// file has ever been named with one; asking to flip such a path reached the
-// filesystem and came back as an unrecognized failure, which the reader was
-// shown as "yomihon could not do this" rather than as the malformed request it
-// was. The rest of the range — line endings, tabs, escapes — has the same
-// character: no note is named with one, so a request carrying one is
-// malformed, and it is refused up front rather than quoted onward into
-// errors and logs.
+// hasControlByte reports whether s carries a byte no note's name can carry. A
+// zero byte ends a path as far as the operating system is concerned, and no
+// note is named with a line ending or a tab either, so a request carrying one
+// is malformed and is refused rather than quoted onward into errors and logs.
 func hasControlByte(s string) bool {
 	return strings.ContainsFunc(s, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
 
 // rewriteStatusChecked computes the surgical rewrite and refuses, in the
 // reader's terms, whenever the byte-level rewriter cannot honor what the
-// reader read. The reader parses frontmatter as full YAML while the rewriter
-// locates one column-zero "status:" line, and the two definitions disagree
-// on legal syntax in both directions. When the reader understood a status
-// (readable) but the rewriter finds no such line, the note is written in a
-// key form the rewriter does not support — not a schema violation. When the
-// rewriter succeeds, the rewritten bytes are parsed again with the same
-// reader the product uses: a result that no longer parses (a severed YAML
-// anchor leaves a dangling alias) or does not read back as the target
-// status is refused before anything is written, so a reported success can
-// never leave a note the reader cannot parse.
+// reader read: the reader parses full YAML while the rewriter locates one
+// column-zero "status:" line. The rewritten bytes are parsed again with the
+// reader the product uses, so a reported success can never leave a note the
+// reader cannot parse.
 func rewriteStatusChecked(relSlash string, data []byte, readable bool, to string) ([]byte, error) {
 	rewritten, err := rewriteStatusLine(data, to)
 	if err != nil {
@@ -984,19 +880,12 @@ func rewriteStatusChecked(relSlash string, data []byte, readable bool, to string
 	return rewritten, nil
 }
 
-// rewriteStatusLine replaces the frontmatter status value inside data with
-// to, leaving every other byte — the block's own delimiters, the rest of the
-// status line, the body — byte-identical to the original. It never
-// re-serializes YAML. The bytes it replaces are the span
-// vault.StatusValueSpan reports, the same bytes the content identity excises,
-// so a write can never move something the identity still covers.
-//
-// Writing the whole line instead would deletes the author's own words on it:
-// a reason recorded in a trailing comment, the quoting they chose. Worse, it
-// could not tell those apart from a value whose shape no replacement fits —
-// a sequence, an anchor, a scalar continuing onto the next line — and rewrote
-// those into something never written, because the result still read back as
-// the target status. Where the span reports nothing, the note keeps its bytes.
+// rewriteStatusLine replaces the frontmatter status value inside data with to,
+// leaving every other byte — the block's delimiters, the rest of the status
+// line, the body — byte-identical. It never re-serializes YAML and never
+// rewrites the whole line: that would delete the author's own words on it, and
+// could not tell them from a value whose shape no replacement fits. Where
+// vault.StatusValueSpan reports nothing, the note keeps its bytes.
 func rewriteStatusLine(data []byte, to string) ([]byte, error) {
 	start, end, ok := vault.StatusValueSpan(data)
 	if !ok {
@@ -1009,40 +898,34 @@ func rewriteStatusLine(data []byte, to string) ([]byte, error) {
 	return out, nil
 }
 
+// installHooks is a seam set: every field is a place a test can stand inside
+// an install that no temporary directory could otherwise reach.
 type installHooks struct {
 	beforeAuthority func()
 	afterAuthority  func()
-	// beforeInstall runs inside the install window: after the source has
-	// been confirmed unmodified and before the rewritten bytes take the
-	// note's name. It is the only seam that can place an external writer
-	// exactly where the install has to survive one.
+	// beforeInstall runs inside the install window: after the source has been
+	// confirmed unmodified and before the rewritten bytes take the note's name.
 	beforeInstall func()
 	syncTemp      func(*os.File) error
 	syncParent    func(*os.Root) error
-	// log receives the sweep's account of a file it set aside. Nil is legal:
-	// an install with no logger simply says nothing.
-	log *slog.Logger
-	// rung, when set, replaces the per-filesystem probe for this install.
-	// The probe's answer is cached for the whole process, so a test that needs
-	// a particular rung says so for its own call instead of deciding for every
-	// other install on the same filesystem.
+	// rung, when set, replaces the per-filesystem probe for this install,
+	// whose answer is otherwise cached for the whole process.
 	rung func() installRung
-	// ops, when set, wraps the install's filesystem operations, which is
-	// how a test reproduces a driver or a race no temporary directory offers.
+	// ops, when set, wraps the install's filesystem operations, reproducing a
+	// driver or a race no temporary directory offers.
 	ops func(installOps) installOps
 }
 
-// replaceRegularFile prepares the complete replacement beside the source,
-// then reopens the source's named parent, validates caller-supplied write
-// authority, and finally verifies the same regular-file identity, mode, mtime,
-// and bytes immediately before installing the replacement under the note's own
-// name. The rung the install ran on — which is what any guarantee about a
-// racing external edit rests on — is named in every failure it can produce.
+// replaceRegularFile prepares the complete replacement beside the source, then
+// reopens the source's named parent, validates write authority, and verifies
+// the same regular-file identity, mode, mtime and bytes immediately before
+// installing. The rung it ran on is named in every failure it can produce.
 func replaceRegularFile(
 	root *os.Root,
 	rel, relSlash string,
 	source *fileSnapshot,
 	data []byte,
+	log *slog.Logger,
 	hooks installHooks,
 	authorize func() error,
 ) error {
@@ -1050,7 +933,7 @@ func replaceRegularFile(
 	if err != nil {
 		return err
 	}
-	quarantineStaleTemps(preparedParent, relSlash, hooks.log)
+	quarantineStaleTemps(preparedParent, relSlash, log)
 	rung := selectRung(preparedParent, hooks)
 	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp)
 	if err != nil {
@@ -1089,9 +972,8 @@ func replaceRegularFile(
 	if hooks.beforeInstall != nil {
 		hooks.beforeInstall()
 	}
-	// The temporary entry stops being spare scratch here. Once the install
-	// starts, that name can hold the version another program wrote, so only
-	// the install — which reads the bytes before it decides — may remove it.
+	// Once the install starts, the temporary name can hold the version another
+	// program wrote, so only the install may remove it.
 	removeTemp = false
 	ops := installOpsFor(installParent, hooks)
 	if err = installRewritten(ops, relSlash, tmpName, rung, source, data); err != nil {
@@ -1118,7 +1000,7 @@ func openSameParent(root *os.Root, rel, relSlash string, source *fileSnapshot) (
 	parentInfo, err := parent.Stat(".")
 	if err != nil {
 		closeRoot(parent)
-		return nil, fmt.Errorf("status: stat parent of %s: %w", relSlash, err)
+		return nil, fmt.Errorf("stat parent of %s: %w", relSlash, err)
 	}
 	if parentPath != source.parentPath || name != source.name || !os.SameFile(parentInfo, source.parent) {
 		closeRoot(parent)
@@ -1148,19 +1030,19 @@ func readCurrentSource(parent *os.Root, relSlash string, source *fileSnapshot) (
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil, fmt.Errorf("%w: %s was removed while flipping", ErrConcurrentWrite, relSlash)
 		}
-		return nil, nil, fmt.Errorf("status: stat %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("stat %s before write: %w", relSlash, err)
 	}
 	if !before.Mode().IsRegular() || !os.SameFile(before, source.file) {
 		return nil, nil, fmt.Errorf("%w: %s changed identity while flipping", ErrConcurrentWrite, relSlash)
 	}
 	file, err := parent.Open(source.name)
 	if err != nil {
-		return nil, nil, fmt.Errorf("status: reopen %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("reopen %s before write: %w", relSlash, err)
 	}
 	opened, err := file.Stat()
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the stat error is the actionable failure
-		return nil, nil, fmt.Errorf("status: stat open %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("stat open %s before write: %w", relSlash, err)
 	}
 	if !opened.Mode().IsRegular() || !os.SameFile(opened, source.file) {
 		_ = file.Close() //nolint:errcheck // the identity mismatch is the actionable failure
@@ -1169,19 +1051,17 @@ func readCurrentSource(parent *os.Root, relSlash string, source *fileSnapshot) (
 	current, err := io.ReadAll(file)
 	if err != nil {
 		_ = file.Close() //nolint:errcheck // the read error is the actionable failure
-		return nil, nil, fmt.Errorf("status: reread %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("reread %s before write: %w", relSlash, err)
 	}
 	if err = file.Close(); err != nil {
-		return nil, nil, fmt.Errorf("status: close %s before write: %w", relSlash, err)
+		return nil, nil, fmt.Errorf("close %s before write: %w", relSlash, err)
 	}
 	return current, opened, nil
 }
 
 // statusTempPrefix and statusTempSuffix bracket the names writeTemp creates
-// beside the note, around exactly tempRandomLength characters of the base32
-// alphabet crypto/rand's Text produces. The sweep recognizes an abandoned
-// temp by that whole shape, so the pieces stay defined in one place and a
-// name that merely starts the same way is left alone.
+// beside the note, around exactly tempRandomLength base32 characters. The
+// sweep matches that whole shape, so a name that merely starts alike is left.
 const (
 	statusTempPrefix = ".yomihon-status-"
 	statusTempSuffix = ".tmp"
@@ -1189,33 +1069,22 @@ const (
 )
 
 // statusOrphanPrefix and statusOrphanSuffix bracket the name a stale temp is
-// moved to. The sweep never deletes: a temp a dead flip left behind can hold
-// the version another program wrote, displaced there by the atomic exchange
-// and never put back because the process died first, and there is no way to
-// tell that from the note's own retired bytes by looking at the name. Moving
-// it out of the temp shape leaves it where a person can compare it against
-// the note, and keeps it out of every later sweep.
+// moved to. The sweep never deletes: such a temp can hold the version another
+// program wrote, and no name tells that from the note's own retired bytes.
 const (
 	statusOrphanPrefix = ".yomihon-orphaned-"
 	statusOrphanSuffix = ".keep"
 )
 
-// staleTempAge is how old an abandoned temp file must be before the write
-// face moves it aside. Only process death inside the install window can
-// strand one — every in-process failure clears its own temp or names it in
-// the error — and a stranded file is invisible to the reading scan, which
-// hides dot-prefixed names, so nothing else ever reclaims it. An hour is far
-// beyond any flip's lifetime and keeps a temp belonging to a concurrently
-// running process out of reach.
+// staleTempAge is how old an abandoned temp must be before the write face
+// moves it aside. Only process death inside the install window can strand one,
+// and an hour keeps a concurrently running process's temp out of reach.
 const staleTempAge = time.Hour
 
 // quarantineStaleTemps moves aside the temp files a crashed flip abandoned in
-// the note's directory. The sweep is deliberately narrow: only a regular file
-// named in exactly the shape writeTemp creates, older than staleTempAge, is
-// touched; directories, symbolic links, young files, and every other name are
-// left where they are. Nothing is deleted, and an entry already sitting under
-// the destination name is left alone rather than overwritten. Best-effort
-// throughout — the flip about to run does not depend on it.
+// the note's directory: only a regular file in exactly writeTemp's shape and
+// older than staleTempAge. Nothing is deleted, nothing is overwritten, and the
+// flip about to run does not depend on any of it.
 func quarantineStaleTemps(parent *os.Root, relSlash string, log *slog.Logger) {
 	dir, err := parent.Open(".")
 	if err != nil {
@@ -1242,11 +1111,8 @@ func quarantineStaleTemps(parent *os.Root, relSlash string, log *slog.Logger) {
 		if parent.Rename(name, orphan) != nil {
 			continue
 		}
-		// The file stays because deleting it could destroy the only copy of a
-		// note a crash caught mid-write, and it is dot-prefixed, so nothing
-		// the reader ever opens will show it. Saying so once is what keeps it
-		// from being kept forever and known to nobody: it is the operator's to
-		// read and to remove.
+		// Deleting it could destroy the only copy of a note caught mid-write,
+		// and dot-prefixed it is invisible to the reader, so it is said once.
 		if log != nil {
 			log.Warn("a status write left a file behind and it has been set aside; remove it once you are satisfied the note is intact",
 				"note", relSlash, "kept", orphan)

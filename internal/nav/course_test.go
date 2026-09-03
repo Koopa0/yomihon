@@ -59,7 +59,7 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 		Prev: ref("L02 咖啡豆基礎", "Writing/L02 咖啡豆基礎.md"),
 		Next: ref("L04 水溫", "Writing/L04 水溫.md"),
 	}}
-	if diff := cmp.Diff(wantL03, m.Neighbors("Writing/L03 研磨.md")); diff != "" {
+	if diff := cmp.Diff(wantL03, m.PathNeighbors("Writing/L03 研磨.md")); diff != "" {
 		t.Errorf("the main line steps into the side branch (-want +got):\n%s", diff)
 	}
 
@@ -68,7 +68,7 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 		PathTitle: "手沖咖啡", PathRelPath: "Maps/Course.md",
 		Prev: ref("L06 比例與時間", "Writing/L06 比例與時間.md"),
 	}}
-	if diff := cmp.Diff(wantL07, m.Neighbors("Writing/L07 品飲.md")); diff != "" {
+	if diff := cmp.Diff(wantL07, m.PathNeighbors("Writing/L07 品飲.md")); diff != "" {
 		t.Errorf("a trailing planned lesson gave the one before it a next (-want +got):\n%s", diff)
 	}
 
@@ -85,12 +85,12 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 	// The third part is undeclared, so nothing in it projects however it is
 	// written — and each row shape is refused for its own stated reason.
 	doc := sequence.Parse(string(body), note.BodyLine)
-	wantRules := map[string]int{
+	wantRules := map[sequence.Rule]int{
 		sequence.RuleRoleMissing:       2, // the undeclared part, and the nested list inside it
 		sequence.RuleEntryNoncanonical: 1, // "補充：[[L01]]" does not open with its link
 		sequence.RuleEntryMultiTarget:  1, // a row naming two lessons
 	}
-	got := make(map[string]int)
+	got := make(map[sequence.Rule]int)
 	for _, d := range doc.Diagnostics {
 		got[d.Rule]++
 	}

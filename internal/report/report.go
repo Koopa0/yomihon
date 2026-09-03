@@ -1,25 +1,8 @@
-// Package report serves the reports face: the daily-briefing HTML under
-// System/reports/, presented verbatim inside a sandboxed iframe. A requested
-// <name> must match the snapshot's already-enumerated report allowlist, and the
-// resulting canonical path must resolve to an Entry in that same snapshot. The
-// process-owned vault Reader refreshes the Entry through its observed raw
-// filesystem spelling and validates every directory and file identity before
-// any response bytes are committed. A name that is not an enumerated briefing
-// — unknown, a .md report (those are ordinary notes, served at /notes/), or any
-// traversal-shaped string — simply does not match. The shell page renders
-// header + sidebar + title + one iframe; the /raw endpoint writes the fully read
-// file bytes unchanged (no templ, no renderer, correct charset), so a briefing
-// round-trips byte-for-byte. The iframe carries a bare sandbox: authored scripts
-// and automatic features do not run, and the document lands in an opaque origin.
-// That sandbox is enforced on
-// the /raw resource itself with a Content-Security-Policy sandbox header — not
-// only through the shell's iframe attribute — so the containment holds however a
-// briefing is loaded (framed by the shell, framed cross-origin, or opened
-// top-level), never depending on the embedder. The resource policy permits
-// self-contained inline styles, SVG, and data assets but no script or
-// automatic network fetch. An explicit user navigation remains a user action,
-// not something this automatic-egress boundary claims to suppress. yomihon
-// styles only the frame — the renderer never touches the content inside it.
+// Package report serves the daily-briefing HTML under System/reports/ inside a
+// sandboxed iframe. A requested name matches a briefing the snapshot already
+// enumerated or it matches nothing; the raw endpoint writes the file's bytes
+// unchanged under a sandbox policy set on the resource itself, so containment
+// does not depend on the embedder.
 package report
 
 import (
@@ -30,50 +13,43 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 const briefingRoot = "System/reports/daily-briefing"
 
+// RequestSnapshot is the reading generation and the shell state captured
+// together from one atomic vault generation. Two separate captures could name
+// a report the rail beside it has never heard of.
+type RequestSnapshot struct {
+	Generation *snapshot.Generation
+	Shell      nav.Shell
+}
+
 // Handler serves the reports face through one process-owned vault Reader.
 type Handler struct {
-	source  *vault.Reader
-	current func() *snapshot.View
-	shell   func(*snapshot.View) pages.Shell
-	log     *slog.Logger
+	source   *vaultfs.Reader
+	snapshot func() RequestSnapshot
+	log      *slog.Logger
 }
 
 // New wires the reports feature. Every dependency must be non-nil: a nil is a
 // wiring bug that must fail here, not on the first request.
-func New(
-	source *vault.Reader,
-	current func() *snapshot.View,
-	shell func(*snapshot.View) pages.Shell,
-	log *slog.Logger,
-) *Handler {
+func New(source *vaultfs.Reader, snapshotProvider func() RequestSnapshot, log *slog.Logger) *Handler {
 	if source == nil {
 		panic("report: New requires a non-nil Source")
 	}
-	if current == nil {
+	if snapshotProvider == nil {
 		panic("report: New requires a non-nil Snapshot provider")
-	}
-	if shell == nil {
-		panic("report: New requires a non-nil Shell provider")
 	}
 	if log == nil {
 		panic("report: New requires a non-nil Log")
 	}
-	return &Handler{source: source, current: current, shell: shell, log: log}
+	return &Handler{source: source, snapshot: snapshotProvider, log: log}
 }
 
-// resolveReport looks a requested report name up against the report allowlist:
-// the .html briefings nav already enumerated under System/reports/daily-briefing/
-// (nav.Report.Briefing). The request's <name> is compared, never joined, so a
-// name that is not an enumerated briefing (an unknown file, a .md report served
-// at /notes/, or any traversal-shaped string) simply does not match. The
-// matched RelPath is separately confined by readReport; neither boundary
-// stands in for the other.
+// resolveReport matches a requested name against the briefings nav enumerated.
+// The name is compared, never joined, so nothing outside that set can match.
 func resolveReport(model *nav.Model, name string) (nav.Report, bool) {
 	if model == nil {
 		return nav.Report{}, false
@@ -88,8 +64,8 @@ func resolveReport(model *nav.Model, name string) (nav.Report, bool) {
 
 func readReport(
 	ctx context.Context,
-	source *vault.Reader,
-	view *snapshot.View,
+	source *vaultfs.Reader,
+	view *snapshot.Generation,
 	relPath string,
 ) ([]byte, error) {
 	name, ok := strings.CutPrefix(relPath, briefingRoot+"/")

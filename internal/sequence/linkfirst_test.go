@@ -27,7 +27,7 @@ func TestAnUnpairedDelimiterIsVisible(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := Parse("## P {sequence=primary}\n\n"+tt.row, 1)
-			entries := doc.Groups[0].Entries()
+			entries := doc.Groups[0].entries()
 			if len(entries) != 1 {
 				t.Fatalf("row %q produced %d entries, want 1", tt.row, len(entries))
 			}
@@ -99,7 +99,7 @@ func TestAContainerDeclarationIsReadOnTheRowsOwnLine(t *testing.T) {
 }
 
 // countRule is how many times a rule fired.
-func countRule(doc Document, rule string) int {
+func countRule(doc Document, rule Rule) int {
 	n := 0
 	for _, d := range doc.Diagnostics {
 		if d.Rule == rule {

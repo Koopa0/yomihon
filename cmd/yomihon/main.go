@@ -13,8 +13,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-
-	"github.com/koopa0/yomihon/internal/judge"
 )
 
 func main() {
@@ -43,23 +41,25 @@ func main() {
 			os.Exit(1)
 		}
 	case "check", "coverage", "exists":
-		os.Exit(judge.RunCommand(command, args, os.Stdout, os.Stderr, stdoutIsTerminal()))
+		// A whole-vault scan is the slow part of these three, and the reader
+		// who presses Ctrl-C in the middle of one is asking for it to stop.
+		// The scan checks this at the contract load, the file walk and every
+		// note read, so the interrupt lands rather than being noticed once the
+		// work is already done.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		exit := runCommand(ctx, command, args, os.Stdout, os.Stderr, stdoutIsTerminal())
+		stop()
+		os.Exit(exit)
 	default:
 		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, and exists\n", command)
 		os.Exit(2)
 	}
 }
 
-// dispatch decides what the arguments ask for. Reading a folder is what this
-// program is for, so it is what bare `yomihon` does — in the folder you are
-// standing in, the way every other tool that serves a directory behaves, and
-// the way this program's own check and search commands already behaved while
-// serve alone insisted on a flag.
-//
-// A first argument that names a command is that command. Anything else is
-// taken as the folder to read, so `yomihon ~/notes` needs no flag; and when it
-// is neither a command nor a directory, saying so beats silently serving the
-// current folder under a name the reader clearly did not mean.
+// dispatch decides what the arguments ask for. A first argument naming a
+// command is that command; anything else is the folder to read, so
+// `yomihon ~/notes` needs no flag. A word that is neither is reported rather
+// than serving the current folder under a name the reader did not mean.
 func dispatch(argv []string) (command string, args []string) {
 	if len(argv) == 0 {
 		return "serve", nil
@@ -78,16 +78,14 @@ func dispatch(argv []string) (command string, args []string) {
 	return argv[0], argv[1:]
 }
 
-// serveRoot resolves which folder to read, in the order a reader would expect:
-// what they just typed, then what their environment says, then the default. It
-// exists because the folder is the one thing a first run must be able to state
-// without reading the source — every other command already takes --root, and
-// serve silently reading a different directory than the one the operator was
-// standing in is the failure this closes.
+// serveRoot resolves which folder to read: the one just typed, or the one the
+// reader is standing in. There is deliberately no third answer — no compiled-in
+// path and no environment variable — because those two already answer the
+// question between them, and a third is only somewhere for them to disagree.
 func serveRoot(args []string) (string, error) {
 	switch {
 	case len(args) == 0:
-		return configuredVaultRoot()
+		return os.Getwd()
 	case len(args) == 1 && !strings.HasPrefix(args[0], "-"):
 		return args[0], nil
 	case len(args) == 2 && args[0] == "--root":
@@ -100,21 +98,6 @@ func serveRoot(args []string) (string, error) {
 	}
 }
 
-// configuredVaultRoot answers which folder to read when the arguments named
-// none: the folder the reader is standing in.
-//
-// It used to end at a path compiled into the binary — one particular person's
-// vault — which is the author's own setup wearing the costume of a default.
-// Anyone else's first run read a directory they had never mentioned, and the
-// program's own check and search commands had meanwhile always read the
-// current folder, so serve was the one face disagreeing. An environment
-// variable naming the folder went the same way afterwards: where you are
-// standing and what you name on the line already answer the question between
-// them, and a third answer is only somewhere else for the two to disagree.
-func configuredVaultRoot() (string, error) {
-	return os.Getwd()
-}
-
 // stdoutIsTerminal reports whether stdout is a terminal rather than a pipe or a
 // file, so the output format can default to the human view for a person and the
 // machine view for an agent reading a pipe.
@@ -122,6 +105,12 @@ func stdoutIsTerminal() bool {
 	info, err := os.Stdout.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
+
+// defaultPort is the port the listener binds when the environment names none.
+// The help text builds its line from this constant rather than repeating the
+// number, because a help line naming a port the server does not listen on is
+// worse than no help line at all: the operator trusts it over the source.
+const defaultPort = "9610"
 
 type config struct {
 	root string
@@ -131,7 +120,7 @@ type config struct {
 func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
 	if cfg.port == "" {
-		cfg.port = "9610"
+		cfg.port = defaultPort
 	}
 	info, err := os.Stat(cfg.root) // #nosec G703 -- root is the operator's own vault path from local config
 	if err != nil {

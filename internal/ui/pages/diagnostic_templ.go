@@ -8,15 +8,11 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import (
-	"github.com/koopa0/yomihon/internal/render"
-	"github.com/koopa0/yomihon/internal/wording"
-)
+import "github.com/koopa0/yomihon/internal/wording"
 
-// browserDiagnostic leads with Traditional Chinese interface copy while
-// preserving the exact low-level diagnostic as explicitly English technical
-// detail. The diagnostic itself remains an internal contract; templates never
-// parse its prose to decide behavior.
+// browserDiagnostic leads with the reader's own words and keeps the low-level
+// diagnostic beside them as technical detail. No template parses that
+// diagnostic's prose to decide anything.
 func browserDiagnostic(summary, detail string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -45,7 +41,7 @@ func browserDiagnostic(summary, detail string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(summary)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 13, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 9, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -63,7 +59,7 @@ func browserDiagnostic(summary, detail string) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(detail)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 16, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 12, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -80,25 +76,16 @@ func browserDiagnostic(summary, detail string) templ.Component {
 
 // statusOutsideEnumMark is the compact form of the note page's out-of-enum
 // notice, for the places that name a status in passing and have room for a
-// phrase rather than a sentence: a search hit, and the landing page's recent
-// rows and distribution chips. Those three render this one component, so the
-// fault reads as one thing across them and none can drift into a colour with
-// no words without a test going red.
+// phrase rather than a sentence. The three that do render this one component,
+// so the fault reads as one thing across them.
 //
-// Two surfaces state the same fault in their own register rather than through
-// this component, because they have the room to be more useful than a phrase.
-// The reading page carries the whole sentence, naming the offending value and
-// saying who repairs it. The whole-folder page lists each note beside its value
-// and the type that never declared it, which is what makes that page reachable
-// rather than merely true.
-//
-// A course's lesson rows carry no mark at all. A course lists its lessons in
-// their taught order, and a contract fault belongs to the note rather than to
-// the shape of the course; the whole-folder page is where those are gathered.
+// The reading page and the whole-folder page state it in their own register
+// instead, having room to be more useful than a phrase. A course's lesson rows
+// carry no mark: a contract fault belongs to the note rather than to the shape
+// of the course.
 //
 // The words are the element's own text rather than a label or a title, so what
-// is printed and what is announced are the same thing, and what a reader sees
-// does not depend on their pointing at it.
+// is printed and what is announced are the same thing.
 func statusOutsideEnumMark(lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -127,7 +114,7 @@ func statusOutsideEnumMark(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(wording.StatusOutsideEnumChip.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 42, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/diagnostic.templ`, Line: 29, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -139,39 +126,6 @@ func statusOutsideEnumMark(lang wording.Lang) templ.Component {
 		}
 		return nil
 	})
-}
-
-func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
-	switch kind {
-	case render.DiagWikilinkBroken:
-		return wording.DiagUnwrittenNote.In(lang)
-	case render.DiagWikilinkTitleOnly:
-		return wording.DiagTitleOnlyNote.In(lang)
-	case render.DiagTitleTruncatedAtHash:
-		return wording.DiagTitleCutNote.In(lang)
-	case render.DiagWikilinkAmbiguous:
-		return wording.DiagAmbiguousNote.In(lang)
-	case render.DiagUnknownCallout:
-		return wording.DiagCalloutNote.In(lang)
-	case render.DiagRiskyFence:
-		return wording.DiagFenceNote.In(lang)
-	case render.DiagEmbedFragmentMissing:
-		return wording.DiagEmbedNote.In(lang)
-	case render.DiagEmbedFragmentRepeated:
-		return wording.DiagEmbedManyNote.In(lang)
-	case render.DiagEmbedNotExpanded:
-		return wording.DiagEmbedDepthNote.In(lang)
-	case render.DiagLinkFragmentMissing:
-		return wording.DiagBlockNote.In(lang)
-	case render.DiagLinkSectionMissing:
-		return wording.DiagSectionNote.In(lang)
-	case render.DiagCommentUnclosed:
-		return wording.DiagCommentNote.In(lang)
-	case render.DiagRenderFailed:
-		return wording.DiagRenderNote.In(lang)
-	default:
-		return wording.DiagUnknownNote.In(lang)
-	}
 }
 
 var _ = templruntime.GeneratedTemplate

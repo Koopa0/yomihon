@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// corpHeader names the refusal, in one place, so the two spots that must agree
-// about it cannot drift apart.
 const (
 	corpHeader          = "Cross-Origin-Resource-Policy"
 	corpValue           = "same-origin"
@@ -25,6 +25,17 @@ const (
 	contentTypeNoSniff  = "nosniff"
 	dnsPrefetchOff      = "off"
 )
+
+// Language reads which language this request asked the interface to speak,
+// falling back to the default when the reader has chosen none or has sent a
+// value the dictionary does not know.
+func Language(r *http.Request) wording.Lang {
+	c, err := r.Cookie(wording.CookieName)
+	if err != nil {
+		return wording.ZhHant
+	}
+	return wording.FromCookieValue(c.Value)
+}
 
 type nonceContextKey struct{}
 
@@ -40,13 +51,23 @@ func Nonce(ctx context.Context) string {
 }
 
 // SetContentSecurityPolicy replaces the reading shell's default policy for a
-// response whose content owns a stricter, distinct sandbox. Calling Header.Set
-// directly is intentionally insufficient: Protect overwrites accidental or
-// local policy changes at the commit boundary.
-func SetContentSecurityPolicy(w http.ResponseWriter, policy string) {
+// response whose content owns a stricter sandbox, and reports whether that
+// policy will reach the reader. A false answer means Protect will overwrite it
+// at the commit boundary, so the bytes that needed it must not be written.
+func SetContentSecurityPolicy(ctx context.Context, w http.ResponseWriter, policy string) bool {
 	w.Header().Set(cspHeader, policy)
-	if setter, ok := w.(interface{ setContentSecurityPolicy(string) }); ok {
-		setter.setContentSecurityPolicy(policy)
+	for {
+		switch writer := w.(type) {
+		case interface{ setContentSecurityPolicy(string) }:
+			writer.setContentSecurityPolicy(policy)
+			return true
+		case interface{ Unwrap() http.ResponseWriter }:
+			w = writer.Unwrap()
+		default:
+			// Protect issues the nonce and nothing else does, so its absence
+			// distinguishes a response no commit boundary will rewrite.
+			return Nonce(ctx) == ""
+		}
 	}
 }
 
@@ -59,34 +80,17 @@ func readingPolicy(nonce string) string {
 }
 
 // finalResponseStatus follows net/http's response state machine: informational
-// statuses remain open for a later response, except 101, which transfers the
-// connection to the selected protocol and is terminal.
+// statuses stay open for a later response, except 101, which is terminal.
 func finalResponseStatus(statusCode int) bool {
 	return statusCode == http.StatusSwitchingProtocols || statusCode >= 200
 }
 
-// Protect stamps every final response with a refusal to be embedded
-// by any origin but yomihon's own. The listener is loopback, but a browser is a
-// confused deputy: a page the reader visits elsewhere can still reach
-// 127.0.0.1 with its own credentials and pull a response in as an image, a
-// frame, or a script — learning from the load whether a named file exists and
-// how large it is, and running any servable script file in its own origin.
-// That is exactly the crossing the loopback boundary is meant to forbid.
-// Same-origin is the whole app: the shell, its assets, and the sandboxed
-// frames all load from this one origin, so nothing legitimate is refused.
-//
-// A final response can be committed by a named status, a body written without
-// one, a copy through the writer's reader-from, a flush, or the server's
-// implicit 200 after a handler returns without writing. Informational statuses
-// other than 101 do not commit the final response; a later final status can
-// therefore restore the header after an Early Hints handler changes it.
-// Hijacking is not among these paths: it takes the connection and yomihon
-// writes no HTTP response at all.
-//
-// What this does not defend against is a handler that reaches past the wrapper
-// on purpose, unwrapping to the real writer and writing there. That is not a
-// policy weakened by accident, which is what this guards, and such a handler
-// could take the connection outright anyway.
+// Protect stamps every final response with the refusal to be embedded by any
+// origin but yomihon's own, the reading shell's content policy, and the
+// referrer and sniffing headers. Every path that commits a response reasserts
+// them first — a named status, a body written without one, a ReadFrom copy, a
+// flush, and the implicit 200 after a handler writes nothing — and a new
+// commit path has to do the same.
 func Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nonce := rand.Text()
@@ -100,31 +104,15 @@ func Protect(next http.Handler) http.Handler {
 	})
 }
 
-// LoopbackOnly refuses any request addressed to a name that is not this
-// machine's own loopback.
-//
-// Binding the listener to 127.0.0.1 keeps other machines out, but it does not
-// keep other names out. A page the reader visits can publish a domain whose
-// address it controls, let the browser load the page, then re-answer the same
-// name with 127.0.0.1. Every later request goes to yomihon while the browser
-// still believes the page and the response share one origin — so it sends
-// same-origin fetch metadata, the cross-origin check passes, and the script
-// reads the response. The whole vault, and the one endpoint that writes, are
-// then reachable from a web page. The packet never left the machine; the
-// boundary did.
-//
-// What separates that request from a real one is the name the reader typed.
-// A browser copies it into Host verbatim, so a request that arrives claiming
-// any name but loopback was addressed somewhere else and is refused before a
-// handler sees it. Loopback covers the whole 127.0.0.0/8 range, the IPv6
-// loopback, and the reserved name localhost, which is every way a reader can
-// legitimately reach a listener on this machine. The name is compared without
-// case and with the root label removed, both of which the domain name system
-// treats as the same name.
+// LoopbackOnly refuses any request whose Host names something other than this
+// machine's loopback. Binding the listener to 127.0.0.1 keeps other machines
+// out but not other names: a page whose own domain re-answers as 127.0.0.1
+// would otherwise reach yomihon with the browser treating the two as one
+// origin.
 func LoopbackOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !loopbackHost(r.Host) {
-			http.Error(w, "yomihon serves this machine only", http.StatusForbidden)
+			http.Error(w, wording.ServerIsForThisMachine.In(Language(r)), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -144,9 +132,8 @@ func loopbackHost(host string) bool {
 	return err == nil && addr.IsLoopback()
 }
 
-// writer reasserts the embed refusal at the last moment it can still be
-// written — when the status line is committed, after every handler has had its
-// say about the headers and before any of them reach the reader.
+// writer reasserts the response headers at the last moment they can still be
+// written: when the status line is committed.
 type writer struct {
 	http.ResponseWriter
 
@@ -194,23 +181,18 @@ func (w *writer) Write(b []byte) (int, error) {
 }
 
 // Unwrap hands the real writer back, so the abilities this wrapper does not
-// name for itself — hijacking, setting a deadline — stay reachable through an
-// http.ResponseController rather than disappearing behind it. Flushing is named
-// below precisely because it commits a response, and a response controller
-// consults the outermost writer before it unwraps.
+// name — hijacking, deadlines — stay reachable through an http.ResponseController.
 func (w *writer) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// Flush commits the response, so like every other path that does, it restores
-// the refusal first. A handler reaching http.Flusher by assertion lands here.
+// Flush commits the response, so like every other path that does it reasserts
+// the headers first.
 func (w *writer) Flush() {
-	// http.Flusher cannot report an error. Callers that need it use FlushError.
 	_ = w.FlushError() //nolint:errcheck // http.Flusher has no error return
 }
 
-// FlushError is the form an http.ResponseController looks for before it looks
-// for a Flusher and before it unwraps. Naming it here is what keeps a flush
-// from reaching the writer underneath and committing headers this wrapper never
-// saw.
+// FlushError is the form an http.ResponseController looks for before Flusher
+// and before it unwraps, which is what keeps a flush from reaching the writer
+// underneath with headers this wrapper never saw.
 func (w *writer) FlushError() error {
 	if !w.wroteFinalHeader {
 		w.WriteHeader(http.StatusOK)
@@ -218,9 +200,8 @@ func (w *writer) FlushError() error {
 	return http.NewResponseController(w.ResponseWriter).Flush()
 }
 
-// ReadFrom keeps the copy that serves a file's bytes on the writer's own fast
-// path. Without it the wrapper would hide the underlying io.ReaderFrom, and
-// every image and document would be copied through a buffer for no reason.
+// ReadFrom keeps a file's bytes on the underlying io.ReaderFrom's fast path,
+// which the wrapper would otherwise hide.
 func (w *writer) ReadFrom(r io.Reader) (int64, error) {
 	if !w.wroteFinalHeader {
 		w.WriteHeader(http.StatusOK)

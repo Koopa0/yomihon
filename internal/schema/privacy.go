@@ -10,9 +10,8 @@ import (
 )
 
 // undeclaredPrivacyDiagnostic is said only about a contract that exists and
-// left the section out. A folder carrying no contract asserted nothing, so it
-// reports nothing — egress stays closed either way, because permission is
-// positive authority and silence is not permission.
+// left the section out. Egress stays closed either way: permission is positive
+// authority and silence is not permission.
 const undeclaredPrivacyDiagnostic = "contract declares no privacy policy; agent-facing output disabled until it does"
 
 const stalePrivacyDiagnostic = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
@@ -21,14 +20,11 @@ type privacySection struct {
 	NeverEgressDirs []string `toml:"never_egress_dirs"`
 }
 
-// PrivacyPolicy is the vault contract's fail-closed egress capability. Its
-// zero value is unavailable. Callers ask the positive EgressAllowed question
-// so a missing or invalid policy cannot be mistaken for permission.
-//
-// Egress is the one place where an unclaimed declaration and a rejected one
-// behave identically: sending bytes off the machine is an act, and without a
-// held declaration yomihon cannot know what must never leave. Only the
-// reporting differs — a rejected declaration is news, an absent one is not.
+// PrivacyPolicy is the vault contract's fail-closed egress capability. Its zero
+// value is unavailable, and callers ask the positive EgressAllowed question so
+// a missing or invalid policy cannot be mistaken for permission. It is the one
+// capability where an unclaimed declaration and a rejected one behave alike;
+// only the reporting differs.
 type PrivacyPolicy struct {
 	state *privacyPolicyState
 }
@@ -53,7 +49,7 @@ func (p PrivacyPolicy) Claim() Claim {
 
 // Available reports whether the contract declared a valid privacy policy.
 func (p PrivacyPolicy) Available() bool {
-	return p.Claim().Held()
+	return p.Claim().held()
 }
 
 // Trustworthy reports whether the never-egress set may be reasoned over.
@@ -87,41 +83,23 @@ func (p PrivacyPolicy) EgressAllowed(rel string) bool {
 	return true
 }
 
-// SameDirName reports whether two path components name the same directory.
-// It is the one comparison every vault directory scope makes — the privacy
-// policy's never-egress set, the artifact policy's non-instance set, and the
-// knowledge layer's first-segment membership — so no scope can drift from
-// another on how a directory name is spelled.
+// SameDirName reports whether two path components name the same directory. It
+// is the one comparison every vault directory scope makes, so no scope drifts
+// from another on how a directory name is spelled.
 //
 // Case folds because a case-insensitive filesystem opens the same file under
-// any case spelling, which makes a scope that depended on the spelling depend
-// on a coincidence: the same note would be governed or ungoverned according to
-// which case its owner happened to type into the contract. strings.EqualFold
-// applies Unicode simple case folding per rune, so ß matches ẞ but never "ss".
-//
-// Composition is a separate dimension and is deliberately not folded here: the
-// decomposed and composed spellings of one name stay different components. A
-// scan reports composed paths, so a contract that spells a directory in
-// decomposed form matches nothing — which the knowledge layer now reports
-// rather than silently applying to no file.
+// any case spelling; strings.EqualFold folds per rune, so ß matches ẞ but never
+// "ss". Composition is deliberately not folded: a scan reports composed paths,
+// so a contract spelling a directory in decomposed form matches nothing.
 func SameDirName(a, b string) bool {
 	return strings.EqualFold(a, b)
 }
 
 // pathHasFoldedPrefix reports whether rel is dir itself or a path below it,
-// comparing whole components with SameDirName. It is the single directory
-// membership identity for both vault directory policies — the privacy policy's
-// never-egress set and the artifact policy's non-instance set — so the two
-// cannot drift apart on any normalization dimension.
-//
-// The fold is unconditional, which costs something on a case-sensitive
-// filesystem: two genuinely distinct sibling directories differing only in
-// case are treated as one, so a declared "System/templates" also covers a
-// separate "system/templates" that the scan would otherwise govern. Both
-// policies are exclusion sets, so the error is always toward excluding more —
-// a refusal or a withheld artifact, never a write to the wrong file or an
-// unintended egress — and reading a spelling out of the classification is the
-// direction that cannot be recovered from.
+// comparing whole components with SameDirName. The fold is unconditional, so on
+// a case-sensitive filesystem two distinct siblings differing only in case are
+// treated as one. Both policies are exclusion sets, so that errs toward
+// excluding more — never toward an unintended egress.
 func pathHasFoldedPrefix(rel, dir string) bool {
 	relComponents := strings.Split(rel, "/")
 	dirComponents := strings.Split(dir, "/")
@@ -136,13 +114,11 @@ func pathHasFoldedPrefix(rel, dir string) bool {
 	return true
 }
 
-// ValidateSource returns p only while the exact contract source from which it
-// was derived is unchanged. Every copy derived from one Contract shares the
-// same one-way stale latch, so once any consumer observes drift, all
-// agent-facing output remains unavailable until a freshly loaded Contract
-// replaces it.
+// ValidateSource returns p only while the contract source it was derived from
+// is unchanged. Copies of one Contract share a one-way stale latch, so once any
+// consumer observes drift all agent-facing output stays unavailable.
 func (p PrivacyPolicy) ValidateSource() PrivacyPolicy {
-	if p.state == nil || !p.state.claim.Held() || p.state.stale.Load() {
+	if p.state == nil || !p.state.claim.held() || p.state.stale.Load() {
 		return p
 	}
 	if !p.state.source.unchanged() {

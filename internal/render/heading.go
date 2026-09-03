@@ -14,50 +14,33 @@ var (
 	slugDrop   = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 	tagStrip   = regexp.MustCompile(`<[^>]+>`)
 
-	// offscreenNote matches the explanation this renderer attaches, out of
-	// sight, to a link whose target is unwritten. It is dropped with its
-	// contents rather than unwrapped: those words say why the link goes
-	// nowhere, which is an answer to the reader who pauses on the link and
-	// never part of what the section holding it is called. Left in, they
-	// became the heading's anchor, its table-of-contents entry, and the
-	// fragment of every address written at that section. The element is
-	// renderer-owned and never nests another, so the shortest close is its
-	// own.
+	// offscreenNote matches the explanation this renderer attaches out of sight
+	// to a link whose target is unwritten. It is dropped with its contents rather
+	// than unwrapped, since those words are never part of what the section
+	// holding the link is called. The element is renderer-owned and never nests
+	// another, so the shortest close is its own.
 	offscreenNote = regexp.MustCompile(`(?s)<span class="` + offscreenNoteClass + `">.*?</span>`)
 
 	// nestedHeadingOpen detects a raw inline <h1-6> inside a heading's own inner
-	// HTML. goldmark never nests block headings, so this only fires on a raw
-	// inline <hN> pasted mid-heading — the one input that makes headingTag's
-	// non-greedy match stop at the wrong </hN>, truncating the heading. The
-	// `[>\s]` guard keeps <h1-6> from matching <hr>/<header>/<hgroup>.
+	// HTML — the one input that makes headingTag's non-greedy match stop at the
+	// wrong close and truncate the heading. The `[>\s]` guard keeps it off
+	// <hr>, <header> and <hgroup>.
 	nestedHeadingOpen = regexp.MustCompile(`<h[1-6][>\s]`)
 )
 
-// foldFragment is the fold the two kinds of "#fragment" share: Unicode form
-// and letter case, and nothing else. A name written on one side of the vault
-// and read back on the other differs in exactly these two ways for reasons the
-// author never chose — the filesystem hands over decomposed Japanese while the
-// editor composes it, and a name typed in a link rarely repeats the heading's
-// capitals — while every other difference is something they did choose.
+// foldFragment is the fold the two kinds of "#fragment" share: Unicode form and
+// letter case, and nothing else. Those are the two ways a name differs for
+// reasons its author never chose; every other difference they did choose.
 func foldFragment(s string) string {
 	return strings.ToLower(vault.NormalizeNFC(s))
 }
 
-// slugify makes a CJK-safe fragment/DOM id from heading text: normalize to
-// NFC, lowercase, keep only Unicode letters and digits (\p{L}, \p{N}),
-// collapse every run of anything else to a single hyphen, trim
-// leading/trailing hyphens, and fall back to "section" when nothing is left.
-// Keeping every Unicode letter, not just ASCII, is what lets a CJK heading
-// produce a usable id instead of an empty string.
-//
-// The NFC step comes first because two spellings of the same Japanese word are
-// the ordinary case here, not an exotic one: this vault's filenames arrive
-// decomposed from the filesystem and its prose arrives composed from an
-// editor. Left as bytes, a combining mark counts as "not a letter" and becomes
-// a hyphen, so か+◌゙ん slugs to "か-ん" while がん slugs to "がん" — two anchors
-// for one heading, and a link that misses with nothing on screen to show why.
-// It uses vault.NormalizeNFC so the repository keeps one definition of the
-// fold rather than a second one that agrees only by maintenance.
+// slugify makes a CJK-safe fragment id from heading text: NFC, lowercase, keep
+// only Unicode letters and digits, collapse every other run to one hyphen, trim
+// hyphens, and fall back to "section" when nothing is left. Keeping every Unicode
+// letter is what lets a CJK heading produce a usable id. The NFC step comes first
+// because a combining mark otherwise counts as "not a letter" and becomes a
+// hyphen, so か+◌゙ん and がん would stamp two anchors for one heading.
 func slugify(s string) string {
 	s = slugDrop.ReplaceAllString(foldFragment(s), "-")
 	s = strings.Trim(s, "-")
@@ -67,45 +50,50 @@ func slugify(s string) string {
 	return s
 }
 
-// headingInnerText reduces a heading's inner markup to the words the reader
-// sees in it: a ruby heading carries its reading inside <rt>, and a link to an
-// unwritten note carries the sentence saying so out of sight, and both are
-// dropped with their contents before the remaining tags are — so the text keeps
-// the base characters once rather than the kana echoed after them, and names a
-// section by the words on screen rather than by an explanation of one of them.
-// Character references then resolve to the characters they name. The scan that
-// answers an embed's "#section" fragment reduces heading source through this
-// same step, so the two surfaces agree on what a section is called.
-//
-// Both removals run before the tags do, and therefore before any character
-// reference is resolved: authored markup arrives escaped, so a note writing
-// either element by hand keeps it as the text it is.
+// headingInnerText reduces a heading's inner markup to the words the reader sees:
+// a ruby reading and the offscreen explanation of an unwritten link are dropped
+// with their contents before the remaining tags are, so the text keeps the base
+// characters once and names a section by what is on screen. Character references
+// then resolve. Both removals run before the tags, and so before any reference
+// resolves, since authored markup arrives escaped and stays the text it is.
 func headingInnerText(inner string) string {
 	inner = offscreenNote.ReplaceAllString(inner, "")
 	inner = rubyReading.ReplaceAllString(inner, "")
 	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
 }
 
+// The two halves of a place inside a document, as this package writes them:
+// every attribute value is double-quoted and every quote an author wrote inside
+// one arrived escaped. Deliberately not general HTML rules — they read bytes
+// this package wrote.
+var (
+	anchorAttribute = regexp.MustCompile(` id="[^"]*"`)
+	anchorAddress   = regexp.MustCompile(` href="#[^"]*"`)
+)
+
+// StripAnchors returns rendered HTML with every place inside it removed: the
+// names, and the addresses that reach them. It is for an excerpt shown beside
+// the page it was fetched for rather than as a page of its own. Each name it
+// carried would be a second element answering to one the page's own headings
+// and blocks already have, so a fragment naming it would reach whichever came
+// first; and each address left behind afterwards would be a footnote number
+// that looks live, does nothing, and drops a fragment in the address bar.
+//
+// The addresses are dropped rather than pointed at the note's own page: an
+// excerpt's footnote ids are qualified for the region it was rendered in, so
+// the name the address carries is one the note's page does not have either. The
+// footnote marker stays visible and stops being a control.
+func StripAnchors(htmlOut string) string {
+	return anchorAddress.ReplaceAllString(anchorAttribute.ReplaceAllString(htmlOut, ""), "")
+}
+
 // assignHeadingSlugs walks the final rendered HTML, assigns each h1-h6 a
-// slugify'd id, and collects the TOC in document order. Two headings
-// producing the same base slug are disambiguated by bumping a numeric
-// suffix until it lands on an id not already assigned anywhere earlier
-// in the document — not merely counted per base slug — so a heading whose
-// own natural text happens to collide with a generated "-2" form can
-// never silently duplicate an id.
-//
-// Every heading gets an id, because every heading is really on this page and
-// a link may land on it — a transcluded excerpt's included. The TOC takes
-// fewer: a heading inside an excerpt is another note's structure, so the list
-// of this page's own contents does not claim it. Obsidian's outline reads its
-// page the same way. The excerpt's headings keep taking part in id
-// disambiguation all the same, since the ids share one document.
-//
-// reserved is an id already spoken for elsewhere on the page — the anchor a
-// removed opening heading passed to the visible title — and is taken as
-// assigned before the walk begins. The title is above this HTML and outside
-// it, so nothing in the walk could otherwise see it, and a section further
-// down reducing to the same name would quietly issue the id a second time.
+// slugify'd id, and collects the table of contents in document order. A repeated
+// base slug bumps a numeric suffix until it lands on an id assigned nowhere
+// earlier. Every heading gets an id, a transcluded excerpt's included, while the
+// contents list takes fewer; reserved is an id already spoken for elsewhere on the
+// page. It reads the HTML this package just wrote rather than a parsed tree,
+// because no single tree ever holds the page's headings together.
 func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
@@ -121,10 +109,9 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 		level := int(htmlOut[m[2]] - '0') // headingTag guarantees a single 1-6 digit
 		inner := htmlOut[m[4]:m[5]]
 
-		// A raw inline <hN> inside this heading would have made the non-greedy
-		// match stop at the inner </hN> — truncating the heading and unbalancing
-		// tags. Leave it byte-identical (no id, no TOC entry): degrade, never
-		// corrupt (mirrors tts.go's nested-<p> guard).
+		// A raw inline <hN> here would make the non-greedy match stop at the
+		// inner close, truncating the heading, so it is left byte-identical with
+		// no id and no entry: degrade rather than corrupt.
 		if nestedHeadingOpen.MatchString(inner) {
 			out.WriteString(htmlOut[m[0]:m[1]])
 			continue
@@ -160,21 +147,16 @@ var embedOpeners = []string{
 	`<div class="` + embedClass("#miss") + `">`,
 }
 
-// embedSpans reports the byte ranges of transcluded excerpts in fully
-// assembled page HTML, each running from its container's opening tag to the
-// close that balances it. Counting div tags is sound here because authored
-// markup never reaches this scan as markup — every authored tag outside the
-// inert ruby subset arrives escaped, and code, mermaid payloads, and
-// attribute values are escaped or percent-encoded — so each literal div is
-// this renderer's own, and the renderer writes them balanced. Excerpts do not
-// nest (an embed inside one renders as a link), so the spans are disjoint.
+// embedSpans reports the byte ranges of transcluded excerpts in fully assembled
+// page HTML, each running from its container's opening tag to the close that
+// balances it. Counting div tags is sound because authored markup never reaches
+// this scan as markup, so every literal div is this renderer's own and balanced.
+// Excerpts do not nest, so the spans are disjoint.
 func embedSpans(htmlOut string) [][2]int {
 	var spans [][2]int
-	// Each opener keeps a cursor to its own next occurrence, and only a
-	// cursor a chosen span has passed is re-aimed — the same walk the marker
-	// substitution pass takes over its three delimiter families — so the scan
-	// prices the page at its length rather than at its excerpt count
-	// multiplied by its length.
+	// Each opener keeps a cursor to its own next occurrence and only a cursor a
+	// chosen span has passed is re-aimed, so the scan prices the page at its
+	// length rather than at its length times its excerpt count.
 	next := make([]int, len(embedOpeners))
 	for i, opener := range embedOpeners {
 		next[i] = nextMark(htmlOut, opener, 0)

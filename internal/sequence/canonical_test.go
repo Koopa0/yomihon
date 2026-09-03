@@ -27,7 +27,7 @@ func TestTheFirstVisibleInlineDecidesCanonicalForm(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := Parse("## P {sequence=primary}\n\n"+tt.row, 1)
-			entries := doc.Groups[0].Entries()
+			entries := doc.Groups[0].entries()
 			if len(entries) != 1 {
 				t.Fatalf("row %q produced %d entries, want 1: %+v", tt.row, len(entries), doc.Groups[0].Items)
 			}
@@ -180,7 +180,7 @@ func allGroups(groups []*Group) []*Group {
 	return out
 }
 
-func ruleMessage(doc Document, rule string) string {
+func ruleMessage(doc Document, rule Rule) string {
 	for _, d := range doc.Diagnostics {
 		if d.Rule == rule {
 			return d.Message

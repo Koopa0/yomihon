@@ -1,9 +1,8 @@
-// Package vault reads notes from the Obsidian vault on disk. The vault is
-// the single source of truth; nothing in this package ever writes to it.
-//
-// Reading is fault-tolerant by contract: a broken frontmatter block
-// yields a note with a diagnostic attached, never an error that would stop
-// rendering.
+// Package vault is the note model: what a markdown file in the Obsidian vault
+// means once its bytes are in hand. It splits frontmatter from body, reads
+// frontmatter values, locates the spans the status write face replaces, and
+// holds the one order vault paths sort by. It opens nothing, and it reads
+// fault-tolerantly: broken frontmatter yields a diagnostic, never an error.
 package vault
 
 import (
@@ -22,20 +21,17 @@ type Note struct {
 	RelPath     string
 	Frontmatter map[string]any
 	// FMDiagnostic is non-empty when the frontmatter block exists but is not
-	// valid YAML. Display-only: yomihon reports the fault; a human edits the file.
+	// valid YAML. Display-only: yomihon reports, a human edits the file.
 	FMDiagnostic string
 	Body         string
 	// BodyLine is the 1-based file line Body begins on — 1 for a note with no
-	// frontmatter — so a parser reading the body can report the lines an
-	// editor shows rather than lines counted from the split.
+	// frontmatter — so a body parser cites the lines an editor shows.
 	BodyLine int
 }
 
 // Parse splits raw file bytes into frontmatter and body and decodes the
-// frontmatter. rel is stored on the returned Note as-is (callers pass a
-// slash-form vault-relative path). This is the one place that decides what a
-// captured note's frontmatter means, so read and write projections cannot
-// disagree about the current status.
+// frontmatter into a map. rel is stored as given, in slash form. Broken YAML
+// becomes the note's FMDiagnostic rather than an error.
 func Parse(rel string, data []byte) *Note {
 	n := &Note{RelPath: rel}
 	block, found := SplitFrontmatter(data)
@@ -45,13 +41,9 @@ func Parse(rel string, data []byte) *Note {
 		return n
 	}
 	content := block.Content
-	// The yaml parser numbers lines from the first byte it is handed.
-	// Prefixing the newlines that precede the block in the file makes it
-	// count in the file's geometry rather than the block's, so the line
-	// numbers in the diagnostic are the file's own — where the parser
-	// places a fault exactly, that is the line an editor shows. Leading
-	// blank lines carry no YAML meaning, so a block that decodes cleanly
-	// decodes identically.
+	// The yaml parser numbers lines from the first byte it is handed, so the
+	// newlines preceding the block go in front to make a fault cite the file's
+	// own line. Leading blank lines carry no YAML meaning.
 	if newlines := bytes.Count(data[:block.ContentStart], []byte("\n")); newlines > 0 {
 		content = slices.Concat(bytes.Repeat([]byte("\n"), newlines), block.Content)
 	}
@@ -64,51 +56,20 @@ func Parse(rel string, data []byte) *Note {
 	return n
 }
 
-// Title is the frontmatter title, falling back to the filename stem.
-func (n *Note) Title() string {
-	if t, ok := n.Frontmatter["title"].(string); ok && t != "" {
-		return t
-	}
-	base := filepath.Base(filepath.FromSlash(n.RelPath))
-	return strings.TrimSuffix(base, filepath.Ext(base))
+// String reads one frontmatter value the vault writes as text, reporting
+// whether the note wrote that key as text at all — a declared but blank field
+// is a different state from an absent one. Any other shape answers "", false,
+// so a malformed field costs that field and nothing else.
+func (n *Note) String(key string) (string, bool) {
+	s, ok := n.Frontmatter[key].(string)
+	return s, ok
 }
 
-// Status is the frontmatter status, empty when absent (legal for e.g.
-// drills: the contract says no_frontmatter_is_legal).
-func (n *Note) Status() string {
-	if s, ok := n.Frontmatter["status"].(string); ok {
-		return s
-	}
-	return ""
-}
-
-// Type is the frontmatter type, empty when absent.
-func (n *Note) Type() string {
-	if t, ok := n.Frontmatter["type"].(string); ok {
-		return t
-	}
-	return ""
-}
-
-// Domain is the frontmatter domain, empty when absent.
-func (n *Note) Domain() string {
-	if d, ok := n.Frontmatter["domain"].(string); ok {
-		return d
-	}
-	return ""
-}
-
-// Aliases are the other names this note answers to, in the order it declared
-// them, and nothing when it declared none or wrote them as a shape that is not
-// a list of text.
-//
-// It lives here because it is a question about the note, and because more than
-// one face asks it: a link resolves by these names, and a search has to find
-// the note by them too. Answered in each caller instead, the two would be free
-// to disagree about what a note is called, and a reader would meet that
-// disagreement as a link that works and a search that returns nothing.
-func (n *Note) Aliases() []string {
-	raw, ok := n.Frontmatter["aliases"].([]any)
+// Strings reads one frontmatter value the vault writes as a list of text, in
+// declaration order, dropping a member that is not text. It answers nil when
+// the key is absent or holds no list, and an empty slice for a list of no text.
+func (n *Note) Strings(key string) []string {
+	raw, ok := n.Frontmatter[key].([]any)
 	if !ok {
 		return nil
 	}
@@ -121,11 +82,42 @@ func (n *Note) Aliases() []string {
 	return out
 }
 
+// Title is the frontmatter title, falling back to the filename stem.
+func (n *Note) Title() string {
+	if t, _ := n.String("title"); t != "" {
+		return t
+	}
+	base := filepath.Base(filepath.FromSlash(n.RelPath))
+	return strings.TrimSuffix(base, filepath.Ext(base))
+}
+
+// Status is the frontmatter status, empty when absent, which is legal.
+func (n *Note) Status() string {
+	s, _ := n.String("status")
+	return s
+}
+
+// Type is the frontmatter type, empty when absent.
+func (n *Note) Type() string {
+	t, _ := n.String("type")
+	return t
+}
+
+// Domain is the frontmatter domain, empty when absent.
+func (n *Note) Domain() string {
+	d, _ := n.String("domain")
+	return d
+}
+
+// Aliases are the other names this note answers to, in declaration order, and
+// nothing when it declared none. Link resolution and search both read these.
+func (n *Note) Aliases() []string {
+	return n.Strings("aliases")
+}
+
 // Updated is the note's declared update date, or the zero time when the
-// frontmatter carries none or carries a shape no date can be read from.
-// YAML hands an unquoted date over as a time and a quoted one as text, so
-// both shapes are read — a date alone, or a full timestamp; anything else
-// falls to the caller's fallback rather than being guessed at.
+// frontmatter carries none or a shape no date reads from. YAML hands an
+// unquoted date over as a time and a quoted one as text, so both are read.
 func (n *Note) Updated() time.Time {
 	switch v := n.Frontmatter["updated"].(type) {
 	case time.Time:
@@ -140,22 +132,22 @@ func (n *Note) Updated() time.Time {
 	return time.Time{}
 }
 
-// Slug is the frontmatter slug, empty when absent. It is a lesson's stable
-// identity (jp-minna-lNN) and the join key to its slot sidecar — the
-// filename is never that key (lesson filenames carry a human title and are
-// not derivable from the sidecar's name).
+// Slug is the frontmatter slug, empty when absent: a lesson's stable identity
+// and the join key to its slot sidecar, which the filename never is.
 func (n *Note) Slug() string {
-	if s, ok := n.Frontmatter["slug"].(string); ok {
-		return s
-	}
-	return ""
+	s, _ := n.String("slug")
+	return s
+}
+
+// IsMarkdown reports whether relPath ends in the exact extension ".md". The
+// match is case-sensitive, so "Note.MD" names a resource rather than a note.
+func IsMarkdown(relPath string) bool {
+	return strings.HasSuffix(relPath, ".md")
 }
 
 // FrontmatterSplit is the byte-level split of one note. Content is the YAML
-// between the fence lines, including the newline before the closing fence
-// when one is present. ContentStart locates that slice in the original input
-// so the status write face can replace one line without rebuilding any
-// delimiter or newline.
+// between the fence lines; ContentStart locates it in the original input so a
+// status write replaces one line without rebuilding a delimiter or a newline.
 type FrontmatterSplit struct {
 	Content       []byte
 	Body          []byte
@@ -163,21 +155,12 @@ type FrontmatterSplit struct {
 	BodyStartLine int
 }
 
-// SplitFrontmatter separates a leading YAML frontmatter block from the body.
-// A block opens with a "---" line and closes with the next "---" or "..."
-// line. LF and CRLF are accepted, as is a closing fence at EOF. An unterminated
-// opening fence is body text, not a partial block. The split happens before
-// body preprocessing, so frontmatter values that resemble body syntax remain
-// untouched.
-//
-// A byte-order mark before the opening fence is stepped over, the same reading
-// charity already extended to a CRLF fence. Some editors write one; the note is
-// then indistinguishable to a reader from any other, and refusing to see its
-// fence cost it everything the fence carries — its title, its type, its place
-// in the lifecycle — while every face reported the note as legally having no
-// frontmatter at all. The mark is stepped over, never removed: the offsets
-// below stay measured against the original bytes, so the writer that replaces
-// one status line still leaves every other byte, this one included, as it was.
+// SplitFrontmatter separates a leading YAML frontmatter block from the body. A
+// block opens with a "---" line and closes with the next "---" or "..." line;
+// LF and CRLF are accepted, as is a closing fence at EOF, and an unterminated
+// opening fence is body text. A byte-order mark before the fence — some editors
+// write one — is stepped over but never removed, so the offsets stay measured
+// against the original bytes and a status write disturbs nothing else.
 func SplitFrontmatter(data []byte) (FrontmatterSplit, bool) {
 	block := FrontmatterSplit{Body: data, BodyStartLine: 1}
 	opening, _ := bytes.CutPrefix(data, []byte("\xef\xbb\xbf"))
@@ -210,14 +193,11 @@ func SplitFrontmatter(data []byte) (FrontmatterSplit, bool) {
 	return block, false
 }
 
-// StatusLineSpan locates the single line beginning with "status:" inside
-// data's frontmatter block and returns the byte range of the line's text in
-// data — its trailing newline excluded, a carriage return before that newline
-// included. It reports false when data has no frontmatter block or when the
-// block holds any number of such lines other than one. The span is the one
-// definition of where a note's status lives: the content identity excises
-// exactly these bytes, and the surgical status write replaces exactly these
-// bytes, so the two cannot disagree about which line the status is.
+// StatusLineSpan locates the single line beginning with "status:" inside data's
+// frontmatter block and returns the byte range of the line's text — its
+// trailing newline excluded, a carriage return before that newline included. It
+// reports false when data has no frontmatter block, or when the block holds any
+// number of such lines other than one.
 func StatusLineSpan(data []byte) (start, end int, ok bool) {
 	block, found := SplitFrontmatter(data)
 	if !found {
@@ -239,20 +219,13 @@ func StatusLineSpan(data []byte) (start, end int, ok bool) {
 }
 
 // StatusValueSpan locates the scalar value inside the frontmatter status line
-// and returns the byte range of the value's own text in data — the quotes
-// around a quoted value excluded, so the quoting style is not part of it. It
-// reports false when data has no single status line, or when the value is any
-// shape whose meaning a byte replacement cannot preserve: absent, a sequence
-// or mapping, an anchor, an alias, a tag, a block scalar that continues onto
-// following lines, or a quoted value with no closing quote.
-//
-// This narrower span, not the whole line, is the one definition of where a
-// note's status lives. The line also carries whatever else its author put
-// there — a reason in a trailing comment, a chosen quoting, alignment — and
-// that is content like any other byte of the note. Excising the whole line
-// from the content identity left all of it outside the check a ruling is bound
-// by, and replacing the whole line deleted it; both follow from the same
-// span being one byte wider than the value it stands for.
+// and returns the byte range of the value's own text — the quotes around a
+// quoted value excluded, so the quoting style is not part of it. It is the one
+// definition of where a note's status lives, narrower than the line so that
+// everything else its author wrote there, a trailing comment included, stays
+// content. It reports false when data has no single status line, or the value
+// is a shape a byte replacement cannot preserve: absent, a sequence or mapping,
+// an anchor, an alias, a tag, a multi-line block scalar, or an unclosed quote.
 func StatusValueSpan(data []byte) (start, end int, ok bool) {
 	lineStart, lineEnd, ok := StatusLineSpan(data)
 	if !ok {
@@ -261,11 +234,8 @@ func StatusValueSpan(data []byte) (start, end int, ok bool) {
 	line := bytes.TrimSuffix(data[lineStart:lineEnd], []byte("\r"))
 	rest := line[len("status:"):]
 
-	// Space and tab both separate a key from its value in YAML, so both
-	// separate one here: the reader parses a tab-separated line, shows its
-	// status and offers its transitions, and a writer that refused it closed
-	// the write face on a note nothing else called wrong. A colon with nothing
-	// after it does not open a mapping at all.
+	// A tab separates a key from its value in YAML as readily as a space, and
+	// a colon with nothing after it opens no mapping.
 	spaces := 0
 	for spaces < len(rest) && (rest[spaces] == ' ' || rest[spaces] == '\t') {
 		spaces++
@@ -281,9 +251,8 @@ func StatusValueSpan(data []byte) (start, end int, ok bool) {
 	return valueStart, valueStart + width, true
 }
 
-// scalarValue reports where a status value's own text starts within value —
-// the bytes following the separator — and how long it is, or false when the
-// value is a shape no byte replacement can preserve.
+// scalarValue reports where a status value's own text starts within the bytes
+// following the separator and how long it is.
 func scalarValue(value []byte) (offset, width int, ok bool) {
 	switch quote := value[0]; {
 	case quote == '"' || quote == '\'':
@@ -296,10 +265,8 @@ func scalarValue(value []byte) (offset, width int, ok bool) {
 	if !ok {
 		return 0, 0, false
 	}
-	// A control byte inside the run is a line break the reader honours and
-	// this line scan does not, so the two disagree about where the value even
-	// ends. A carriage return ending the line is the ordinary Windows note and
-	// was taken off before any of this; one in the middle is not that.
+	// A control byte inside the run is a line break the YAML reader honours and
+	// this line scan does not, so the two would disagree where the value ends.
 	for _, b := range value[offset : offset+width] {
 		if b < 0x20 {
 			return 0, 0, false
@@ -309,8 +276,7 @@ func scalarValue(value []byte) (offset, width int, ok bool) {
 }
 
 // quotedScalar measures the text between a value's quotes. An escape inside
-// them means those bytes are not the value, so the line is left to a human
-// rather than spliced into.
+// them means those bytes are not the value, so the line is refused.
 func quotedScalar(value []byte, quote byte) (offset, width int, ok bool) {
 	closing := bytes.IndexByte(value[1:], quote)
 	if closing < 0 || !onlyCommentFollows(value[1+closing+1:]) {
@@ -322,13 +288,11 @@ func quotedScalar(value []byte, quote byte) (offset, width int, ok bool) {
 	return 1, closing, true
 }
 
-// plainScalar measures an unquoted value: it starts where the separator left
-// off, and runs up to a comment or the end of the line, with trailing spaces
-// left outside it.
+// plainScalar measures an unquoted value: from the separator up to a comment
+// or the end of the line, trailing spaces left outside it.
 func plainScalar(value []byte) (width int, ok bool) {
 	plain := value
-	// A comment opens at a "#" that follows white space, and YAML counts a tab
-	// as white space as readily as a space.
+	// A comment opens at a "#" that follows white space, tab included.
 	if at := bytes.IndexAny(plain, " \t"); at >= 0 {
 		for i := at; i < len(plain)-1; i++ {
 			if (plain[i] == ' ' || plain[i] == '\t') && plain[i+1] == '#' {
@@ -344,9 +308,8 @@ func plainScalar(value []byte) (width int, ok bool) {
 	return len(plain), true
 }
 
-// onlyCommentFollows reports whether the tail after a closing quote is what a
-// value may legally be followed by: nothing, white space, or white space then
-// a comment.
+// onlyCommentFollows reports whether the tail after a closing quote is nothing,
+// white space, or white space then a comment.
 func onlyCommentFollows(tail []byte) bool {
 	trimmed := bytes.TrimLeft(tail, " \t")
 	if len(trimmed) == 0 {
@@ -355,11 +318,8 @@ func onlyCommentFollows(tail []byte) bool {
 	return len(trimmed) < len(tail) && trimmed[0] == '#'
 }
 
-// isYAMLIndicator reports whether c opens something other than a plain scalar:
-// a collection, an anchor, an alias, a tag, a block scalar, a comment, or one
-// of the characters YAML reserves. A status word never begins with one, so
-// refusing them all costs nothing and keeps the scan from splicing into a
-// value whose text is not the whole of its meaning.
+// isYAMLIndicator reports whether c opens something other than a plain scalar.
+// A status word never begins with one, so refusing them all costs nothing.
 func isYAMLIndicator(c byte) bool {
 	return bytes.IndexByte([]byte("-?:,[]{}#&*!|>%@`\"'"), c) >= 0
 }

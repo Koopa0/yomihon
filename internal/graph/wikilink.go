@@ -3,47 +3,29 @@ package graph
 import "strings"
 
 // Wikilink is one wikilink's inner text — the characters between its enclosing
-// "[[" and "]]" — split into the four separate things a caller can want from
-// it. They are kept apart because they answer to different owners: Target is
-// the only part resolution looks at, Display is what a reader sees, and the two
-// fragments address a place inside the file rather than the file itself.
-//
-// Heading and Block are the raw authored text with no interpretation applied.
-// Nothing here checks that either one exists in the target file; whether an
-// anchor can be reached is a question about the destination's rendering, and
-// this package only answers what a name refers to.
+// "[[" and "]]" — split into what resolution reads, what a reader sees, and
+// the two fragments. The fragments are the raw authored text; nothing here
+// checks that either addresses a place the target file actually has.
 type Wikilink struct {
-	// Target is the note or resource name to resolve, with both fragment
-	// markers and any display text removed. Empty means the link addresses a
-	// place in the current file and names no other file at all.
+	// Target is the name to resolve, fragments and display text removed.
+	// Empty means the link addresses a place in the current file.
 	Target string
-	// Display is the text a reader sees. It is the words after the display
-	// separator when the author wrote one, and otherwise the whole inner
-	// text with any fragment still visible in it — at that point the
-	// fragment is part of what the author chose to show, not an address.
+	// Display is the text a reader sees: the words after the display
+	// separator, or the whole inner text when the author wrote none.
 	Display string
 	// Heading is the section name written after "#", empty when absent.
 	Heading string
 	// Block is the block name written after "^", empty when absent. Obsidian
 	// writes a block address as "#^name", so a fragment opening with "^" is
-	// one of these and not a section called "^name"; the bare "^name" form,
-	// stripped from the segment ahead of any "#", is read as one too.
+	// one of these and not a section named "^name".
 	Block string
 }
 
 // EscapedWikilinkAt reports whether the wikilink whose "[[" begins at open is
 // written to be shown rather than followed: the CommonMark backslash escape,
-// an odd-length run of '\' immediately in front of it. An even-length run is
-// pairs of literal backslashes and escapes nothing, which is the counting that
-// rule implies. An embed writes its '!' between the escape and the brackets,
-// so the run is counted from in front of whichever of the two the author's
-// link opens with.
-//
-// It lives here because every reader of this vault has to agree about it. A
-// name the author showed is not a name they cited: the reading page prints it
-// as text, the adjudicator counts no link, and the list of notes citing a note
-// gains no entry — otherwise one product reports a broken link on a page that
-// displays no link at all.
+// an odd-length run of '\' in front of it, counted from in front of an embed's
+// '!' when the author wrote one. A shown name is not a cited name, so every
+// reader of this vault answers this question the same way.
 func EscapedWikilinkAt(text string, open int) bool {
 	if open > 0 && text[open-1] == '!' {
 		open--
@@ -55,27 +37,13 @@ func EscapedWikilinkAt(text string, open int) bool {
 	return n%2 == 1
 }
 
-// ParseWikilink splits inner into its target, display text, and fragments.
+// ParseWikilink splits inner into its target, display text, and fragments,
+// stripping the markers in a fixed order: '|', then '#', then '^'. An escaped
+// pipe, which a GFM table cell writes as "\|", splits the same as a bare one
+// and yields the same target, so the escape never changes what resolves.
 //
-// The markers are stripped in a fixed order: first '|' (display separator),
-// then '#' (heading fragment), then '^' (block fragment). Both fragments are
-// always removed from the target, because a link addresses a file by name and
-// the part after the marker addresses a place inside it.
-//
-// A fragment that opens with '^' is a block address, not a section whose name
-// begins with a caret: "#^name" is how Obsidian writes one. Reading it as a
-// heading is not a cosmetic mistake — a caller that turns heading text into an
-// anchor would then produce an address for a place that has no anchor at all.
-//
-// A markdown table cell escapes a literal '|' as '\|' so the GFM table syntax
-// doesn't split the cell on it. This treats an escaped and an unescaped pipe
-// identically: split on the first literal '|' regardless of a preceding
-// backslash, then trim any trailing backslash off the left side. That yields
-// the same target either way, so the escape never changes which file a link
-// resolves to.
-//
-// ok is false when the target strips to empty (e.g. "#heading" alone): a
-// same-file anchor jump, not a cross-file link.
+// ok is false when the target strips to empty ("#heading" alone): a same-file
+// anchor jump, not a cross-file link.
 func ParseWikilink(inner string) (Wikilink, bool) {
 	link := Wikilink{Display: strings.TrimSpace(inner)}
 
@@ -101,10 +69,8 @@ func ParseWikilink(inner string) (Wikilink, bool) {
 	return link, link.Target != ""
 }
 
-// SplitWikilink is ParseWikilink for the callers that only ever needed the
-// resolution target and the words to show for it — a map row, a study path
-// row, a note's searchable text. They resolve a name and print a label; where
-// inside the file the link pointed is not part of either job.
+// SplitWikilink is ParseWikilink for a caller that resolves a name and prints
+// a label, and has no use for where inside the file the link pointed.
 func SplitWikilink(inner string) (target, display string, ok bool) {
 	link, ok := ParseWikilink(inner)
 	return link.Target, link.Display, ok

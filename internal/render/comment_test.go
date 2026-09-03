@@ -62,9 +62,8 @@ func TestObsidianCommentsExcludedFromAllProjections(t *testing.T) {
 			t.Parallel()
 
 			projections := map[string]string{
-				"HTML":          r.HTML("note.md", "", tt.body, wording.ZhHant).HTML,
-				"PlainText":     render.PlainText(tt.body),
-				"PlainSections": joinedSectionText(render.PlainSections(tt.body)),
+				"HTML":      r.HTML("note.md", "", tt.body, wording.ZhHant).HTML,
+				"PlainText": render.PlainText(tt.body),
 			}
 			for projection, got := range projections {
 				for _, want := range tt.present {
@@ -257,12 +256,4 @@ func TestUnclosedCommentInAnotherNoteStaysOffThisPage(t *testing.T) {
 	if messages := unclosedCommentDiagnostics(&got); len(messages) != 0 {
 		t.Errorf("a citing page reported a marker written in the note it links to: %q", messages)
 	}
-}
-
-func joinedSectionText(sections []render.PlainSection) string {
-	parts := make([]string, 0, len(sections))
-	for _, section := range sections {
-		parts = append(parts, section.Text)
-	}
-	return strings.Join(parts, "\n")
 }

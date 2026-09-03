@@ -3,22 +3,6 @@ package wording
 // The reading page: the article's own furniture, the aids beside it, and the
 // two faces of the status control.
 
-// The labels on the diagnostic kinds the renderer can report. Each names the
-// fault in the fewest words that still distinguish it from its neighbours.
-var (
-	DiagLinkNoTarget          = both("連結沒有目標", "Link with no target")
-	DiagLinkManyTargets       = both("連結有多個目標", "Link with several targets")
-	DiagUnknownCallout        = both("沒見過的提示框類型", "Unrecognised callout type")
-	DiagRiskyFence            = both("程式碼區塊裡的筆記語法", "Note syntax inside a code block")
-	DiagEmbedFragmentGone     = both("找不到嵌入指定的段落", "The embedded section was not found")
-	DiagEmbedFragmentRepeated = both("嵌入指定的段落在該筆記裡不只一個", "The embedded section name belongs to more than one section")
-	DiagEmbedNotExpanded      = both("摘錄裡的嵌入改以連結呈現", "An embed inside an excerpt is shown as a link")
-	DiagRenderFailed          = both("內文無法轉譯,已改顯示原始文字", "The body could not be rendered; its source text is shown instead")
-	DiagLinkBlockGone         = both("找不到連結指定的區塊", "The linked block was not found")
-	DiagLinkSectionGone       = both("找不到連結指定的小節", "The linked section was not found")
-	DiagCommentUnclosed       = both("沒有配對的註解記號", "Unpaired comment marker")
-)
-
 // The concept sheet a lesson's wikilinks open.
 var (
 	GrammarNote  = both("文法筆記", "Grammar note")
@@ -97,13 +81,6 @@ var (
 	)
 )
 
-// TransitionEffect states what pressing a status control does, before it is
-// pressed and beside the controls themselves.
-var TransitionEffect = both(
-	"這個按鈕只會改寫這篇筆記 frontmatter 的 status 欄位。",
-	"This button rewrites one field of this note's frontmatter: status.",
-)
-
 // What the status face says about a value it cannot rule on. Both end the same
 // way, because the repair is the same one and it is a hand edit.
 var (
@@ -136,6 +113,18 @@ var (
 	NoReturnTargetAfter  = both(" 之後，這裡不再有回到目前狀態的路。", ", this offers no way back to the current status.")
 	ConfirmSetBefore     = both("確認設為 ", "Confirm ")
 	ConfirmSetAfter      = both("", "")
+)
+
+// The name the two-step control answers to. It shows the same word the quiet
+// one-press control shows — the status it leads to — so a reader who cannot
+// see the disclosure mark has nothing to tell a reversible press from one with
+// no way back, and the shape cue a collapsed disclosure gives is a cue about
+// shape rather than about stakes. The word on screen stays inside the name, so
+// what is heard still contains what is shown. Split around the value for the
+// same reason as the pair above.
+var (
+	NoReturnSummaryBefore = both("設為 ", "Set ")
+	NoReturnSummaryAfter  = both("，這一步不能回頭，需要再確認一次。", " — this step has no way back and asks to be confirmed.")
 )
 
 // How a link that named a section was read, for a link whose base name resolved
@@ -171,4 +160,17 @@ var (
 	DiagTitleCutNote = both(
 		"這篇的 title 恰好是檔名在空白加 # 處截斷的結果。未加引號的值到那裡就被 YAML 當成註解；若 title 原本要包含 #，用引號寫就能保留。",
 		"This note's title is exactly what its filename becomes when cut at a space followed by #. An unquoted value ends there, where YAML starts a comment; if the title was meant to carry the #, quoting it keeps it.")
+)
+
+// What the hover preview card says in its own voice. The excerpt inside it is
+// the other note's words and passes through untouched; these two are the
+// interface's. The first answers an address with no note behind it, so the card
+// says why it is empty instead of failing to appear — a card that never opens
+// reads as a broken hover. The second closes an excerpt that stops short of the
+// end. Neither names a way onward: the note's own name sits above them both and
+// is the link out, so what the card could not show, the line naming it still
+// reaches.
+var (
+	PreviewNoNote = both("這個位置沒有可以預覽的筆記。", "There is no note to preview at that address.")
+	PreviewMore   = both("預覽到此為止，筆記後面還有。", "The preview stops here; the note goes on.")
 )

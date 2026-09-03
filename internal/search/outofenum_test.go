@@ -9,18 +9,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // governedStatusView opens a real writer over the shared test contract. It
 // is a real contract rather than a stand-in because the question under test —
 // whether a value belongs to a type's declared list — is the contract's answer
 // and nothing else's.
-func governedStatusView(t *testing.T) status.View {
+func governedStatusView(t *testing.T) status.Authority {
 	t.Helper()
 	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
@@ -31,9 +31,9 @@ func governedStatusView(t *testing.T) status.View {
 
 // outOfEnumIndex holds two concept notes the query "needle" finds: one whose
 // status the default group declares, one whose status it does not.
-func outOfEnumIndex(t *testing.T) *Index {
+func outOfEnumIndex(t *testing.T) *lexical.Index {
 	t.Helper()
-	return NewIndex([]Document{
+	return lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/legal.md", Title: "Legal", NoteType: "concept", Status: "draft", PlainText: "needle body"},
 		{RelPath: "Concepts/outside.md", Title: "Outside", NoteType: "concept", Status: "reviewing", PlainText: "needle body"},
 	}, validArtifactPolicy(t))
@@ -80,7 +80,7 @@ func TestSearchRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	body := searchResultsBody(t, func() RequestSnapshot {
 		return RequestSnapshot{
 			Index:  idx,
-			Shell:  pages.Shell{Nav: &nav.Model{}, Governed: true},
+			Shell:  nav.Shell{Nav: &nav.Model{}, Governed: true},
 			Status: view,
 		}
 	}, "needle")
@@ -116,7 +116,7 @@ func TestSearchRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 // could not be read. It is governed and shut: the state that answers "not
 // declared" to every value while a contract is genuinely in force, which is
 // the one that would paint the warning on every row in the vault.
-func closedStatusView(t *testing.T) status.View {
+func closedStatusView(t *testing.T) status.Authority {
 	t.Helper()
 	return openStatusView(t, nil, schema.Unreadable(errors.New("contract unreadable")))
 }
@@ -124,11 +124,11 @@ func closedStatusView(t *testing.T) status.View {
 // openStatusView opens one writer over an empty folder and hands back its
 // read-only view. The three cases differ only in what authority they were
 // opened under, so they differ only in these two arguments.
-func openStatusView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
+func openStatusView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.Authority {
 	t.Helper()
-	reader, err := vault.Open(t.TempDir())
+	reader, err := vaultfs.Open(t.TempDir())
 	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+		t.Fatalf("vaultfs.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -144,13 +144,13 @@ func openStatusView(t *testing.T, contract *schema.Contract, governance schema.G
 			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
-	return writer.View()
+	return writer.Authority()
 }
 
 // ungovernedStatusView opens a writer over a folder that declared no
 // contract. It is the ordinary shape of any directory yomihon is pointed at,
 // and it governs nothing — so it has no list to find a value missing from.
-func ungovernedStatusView(t *testing.T) status.View {
+func ungovernedStatusView(t *testing.T) status.Authority {
 	t.Helper()
 	return openStatusView(t, nil, schema.Ungoverned())
 }
@@ -164,20 +164,20 @@ func ungovernedStatusView(t *testing.T) status.View {
 func TestSearchRowAccusesNothingWhenTheWriteFaceIsClosed(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name       string
-		statusView func(*testing.T) status.View
+		name      string
+		authority func(*testing.T) status.Authority
 	}{
 		{name: "no status vocabulary was supplied at all"},
-		{name: "a contract is in force and could not be read", statusView: closedStatusView},
-		{name: "the folder carries no contract at all", statusView: ungovernedStatusView},
+		{name: "a contract is in force and could not be read", authority: closedStatusView},
+		{name: "the folder carries no contract at all", authority: ungovernedStatusView},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			idx := outOfEnumIndex(t)
-			snap := RequestSnapshot{Index: idx, Shell: pages.Shell{Nav: &nav.Model{}, Governed: true}}
-			if tt.statusView != nil {
-				snap.Status = tt.statusView(t)
+			snap := RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
+			if tt.authority != nil {
+				snap.Status = tt.authority(t)
 			}
 			body := searchResultsBody(t, func() RequestSnapshot { return snap }, "needle")
 

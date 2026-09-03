@@ -38,3 +38,16 @@ var (
 		"This page no longer matches the file; the status controls are disabled. Reload first.",
 	)
 )
+
+// What the freshness endpoint says when it cannot answer at all. The page
+// polls it with the identity of the bytes it drew and never reads these
+// bodies, so they reach a person only through an address assembled by hand —
+// which is exactly when answering in a language they did not choose, or in the
+// router's own English, is a small piece of the same rudeness the reading
+// pages were built to stop.
+var (
+	FreshnessNotWatchable = both("這個位置沒有可以追蹤的筆記", "There is no note to watch at that address")
+	// The first substitution is a query field's own name, which is written in
+	// the address and is not a word to translate.
+	FreshnessIdentityFmt = both("%s 必須是 %d 位十六進位數字", "%s must be %d hex digits")
+)

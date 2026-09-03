@@ -46,7 +46,7 @@ func TestRegenerateGoldens(t *testing.T) {
 	}
 	for _, tt := range engine {
 		root := judgeFixtureRootWithPrivacy(t, tt.fixture, tt.private...)
-		findings, err := Check(root)
+		findings, err := Check(t.Context(), root)
 		if err != nil {
 			t.Fatalf("Check(%q): %v", tt.fixture, err)
 		}
@@ -69,7 +69,7 @@ func TestRegenerateGoldens(t *testing.T) {
 		{fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
 	}
 	for _, tt := range schemaOnly {
-		notes, err := collectNotes(tt.fixture)
+		notes, err := collectNotes(t.Context(), tt.fixture)
 		if err != nil {
 			t.Fatalf("collectNotes(%q): %v", tt.fixture, err)
 		}

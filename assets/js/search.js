@@ -66,7 +66,7 @@ export function initSearch() {
         const imported = document.importNode(fragment, true);
         results.replaceChildren(...imported.childNodes);
         results.dataset.resultCount = String(count);
-        status.textContent = `「${query}」有 ${count} 筆結果。`;
+        status.textContent = resultCount(status, query, count);
         if (syncsAddress) {
           // The results on screen just changed, so the address follows and a
           // copied URL reproduces them. Replaced, not pushed: typing is one
@@ -77,7 +77,7 @@ export function initSearch() {
         }
       } catch (error) {
         if (error.name === 'AbortError' || requestID !== latestRequest) return;
-        status.textContent = '即時結果目前無法使用；按 Enter 執行完整搜尋。';
+        status.textContent = status.dataset.liveSearchOffline ?? '';
       } finally {
         if (requestID === latestRequest) {
           results.setAttribute('aria-busy', 'false');
@@ -145,4 +145,14 @@ export function initSearch() {
     toggle,
     closeAndRestoreFocus,
   };
+}
+
+// resultCount fills in the sentence the page carries for this reader. Two
+// forms rather than one with a number spliced in: the two languages put the
+// plural in different places, and a sentence assembled from fragments here
+// would be right in whichever one it was assembled for.
+function resultCount(status, query, count) {
+  const template = count === 1 ? status.dataset.liveSearchCountone : status.dataset.liveSearchCountmany;
+  if (!template) return '';
+  return template.replace('{query}', query).replace('{count}', String(count));
 }

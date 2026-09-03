@@ -4,18 +4,18 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // The disk-reference rule resolves markdown [text](path) links and backticked
-// path tokens against the action's complete captured file and directory
-// membership. A relative path that stays inside the vault root but was absent
-// from that observation is a real dead link and a warning; a path that escapes
-// the root cannot be checked the same way on every machine, so it is reported
-// informational — "external, not stat'd" — and never as broken.
+// path tokens against the action's captured file and directory membership. A
+// relative path inside the root but absent from that observation is a dead link
+// and a warning; one that escapes the root cannot be checked the same way on
+// every machine, so it is reported informational and never as broken.
 
 // checkDiskRefs resolves every note's path references against the action's
 // complete captured membership and returns the findings.
-func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Finding {
+func checkDiskRefs(notes []note, scan vaultfs.Scan, authority scanAuthority) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -41,7 +41,7 @@ func classifyPathRef(
 	n *note,
 	noteDir string,
 	pref pathRef,
-	scan vault.Scan,
+	scan vaultfs.Scan,
 	authority scanAuthority,
 ) (Finding, bool) {
 	return classifyPathRefWithContains(n, noteDir, pref, authority, scan.Contains)
@@ -84,7 +84,7 @@ func classifyCodeRef(
 	if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {
 		return Finding{}, false
 	}
-	if !rootOK || vault.OutsideScan(rootRel) {
+	if !rootOK || vaultfs.OutsideScan(rootRel) {
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rootRel), true
@@ -106,10 +106,9 @@ func classifyProseRef(
 	if !authority.egressAllowed(rel) || contains(rel) {
 		return Finding{}, false
 	}
-	// The scan never visits a hidden path, so it holds no evidence about one.
-	// Calling such a link broken would report the scan's own boundary as a
-	// missing file — and the file it named may be sitting right there.
-	if vault.OutsideScan(rel) {
+	// The scan never visits a hidden path, so calling such a link broken would
+	// report the scan's own boundary as a missing file.
+	if vaultfs.OutsideScan(rel) {
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rel), true

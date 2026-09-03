@@ -1,13 +1,9 @@
 package render
 
-// This file extracts a note body's searchable plain text by walking a
-// goldmark AST — reusing the same markdown engine the HTML pipeline uses
-// rather than hand-rolling a second parser that could drift from it.
-// internal/search consumes PlainText; it lives here because deriving
-// plain text from a body is a rendering-adjacent concern that needs render's
-// dialect helpers (the wikilink and callout preprocessing goldmark has no
-// concept of), and duplicating those in search would be a second
-// implementation of the dialect, free to disagree with the renderer.
+// A note body's searchable plain text, walked off the same markdown engine the
+// HTML pipeline uses. It lives here rather than beside its consumer because it
+// needs this package's dialect passes, and a second copy of those would be free
+// to disagree with the renderer about what a note says.
 
 import (
 	"strings"
@@ -21,104 +17,17 @@ import (
 )
 
 // plainParser is a minimal goldmark parser used only to walk a note body for
-// PlainText. It enables Table and TaskList so table-cell and task text arrive
-// as clean text nodes, but deliberately NOT Linkify (a bare URL then stays a
-// plain Text node, indexed verbatim, matching what ripgrep sees in the file)
-// and NOT the HTML pipeline's own highlight/chroma renderers (PlainText walks
-// the parsed AST, it never renders HTML). Its Parser is safe for concurrent
-// use — each Parse call builds its own context.
-//
-// Footnotes are enabled because the reading page shows them. Without this the
-// two passes read one line two different ways: a definition whose text has no
-// spaces in it — every CJK one — is a valid link reference definition, so the
-// plain pass swallowed it and a note could display a sentence that no search
-// for it would ever find.
+// PlainText. Table and TaskList are on so cell and task text arrive as clean text
+// nodes; linkify is off, so a bare URL stays a plain text node indexed verbatim.
+// Footnotes are on because a definition whose text has no spaces — every CJK one —
+// otherwise parses as a link reference definition and no search could find it.
 var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote)).Parser()
 
-// PlainBlock is one top-level markdown block's searchable text. Code reports
-// whether it came from a fenced or indented code block so a downstream bounded
-// chunker can preserve code-line boundaries without parsing Markdown again.
-type PlainBlock struct {
-	Text string
-	Code bool
-}
-
-// PlainSection is the preamble or one heading-bounded section in document
-// order. Headings is the active document heading path. Text and Blocks use the
-// same extraction rules as PlainText; heading scaffolding itself is carried in
-// Headings rather than duplicated into Text.
-type PlainSection struct {
-	Headings []string
-	Text     string
-	Blocks   []PlainBlock
-}
-
-type headingFrame struct {
-	level int
-	text  string
-}
-
-// PlainSections returns the preamble followed by every heading-bounded section
-// in body. Empty sections are retained so the semantic chunker, not the
-// Markdown layer, owns the explicit drop rule. Frontmatter must already be
-// removed, exactly as for PlainText.
-func PlainSections(body string) []PlainSection {
-	src := []byte(plainPreprocess(body))
-	doc := plainParser.Parse(text.NewReader(src))
-
-	sections := make([]PlainSection, 0, 1)
-	current := PlainSection{}
-	var headings []headingFrame
-	flush := func() {
-		parts := make([]string, 0, len(current.Blocks))
-		for _, block := range current.Blocks {
-			parts = append(parts, block.Text)
-		}
-		current.Text = strings.TrimSpace(strings.Join(parts, "\n"))
-		sections = append(sections, current)
-	}
-
-	for node := doc.FirstChild(); node != nil; node = node.NextSibling() {
-		if heading, ok := node.(*ast.Heading); ok {
-			flush()
-			for len(headings) > 0 && headings[len(headings)-1].level >= heading.Level {
-				headings = headings[:len(headings)-1]
-			}
-			headings = append(headings, headingFrame{level: heading.Level, text: plainNode(node, src)})
-			path := make([]string, len(headings))
-			for i, frame := range headings {
-				path[i] = frame.text
-			}
-			current = PlainSection{Headings: path}
-			continue
-		}
-
-		blockText := plainNode(node, src)
-		if blockText == "" {
-			continue
-		}
-		current.Blocks = append(current.Blocks, PlainBlock{
-			Text: blockText,
-			Code: node.Kind() == ast.KindFencedCodeBlock || node.Kind() == ast.KindCodeBlock,
-		})
-	}
-	flush()
-	return sections
-}
-
-// PlainText returns the searchable plain text of a note body: body
-// text, headings, table cells,
-// task text, code-fence contents, and the base+rt of hand-written <ruby>
-// markup are included; the HTML tags themselves and the callout-marker syntax
-// ("> [!type]") are not. A wikilink [[target|display]] contributes both its
-// target and its display text, so searching a linked note's filename hits even
-// when a display alias is what is shown.
-//
-// The body must already have its frontmatter removed (vault.Parse does this) —
-// PlainText has no frontmatter concept; frontmatter's structured fields are
-// indexed separately, not as body text.
-// The text keeps its original case and Unicode form; internal/search applies
-// NFC + case folding when it stores and matches.
+// PlainText returns the searchable plain text of a note body: prose, headings,
+// table cells, task text, code-fence contents and the base and reading of
+// hand-written ruby, but not the HTML tags or the callout marker syntax. A
+// wikilink contributes both its target and its display text. The body must arrive
+// with its frontmatter removed, and the text keeps its case and Unicode form.
 func PlainText(body string) string {
 	src := []byte(plainPreprocess(body))
 	doc := plainParser.Parse(text.NewReader(src))
@@ -135,24 +44,11 @@ func PlainText(body string) string {
 	return strings.TrimSpace(b.String())
 }
 
-func plainNode(node ast.Node, source []byte) string {
-	var b strings.Builder
-	if err := ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		return walkPlain(&b, n, entering, source)
-	}); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(b.String())
-}
-
 // plainPreprocess rewrites the two Obsidian-dialect constructs goldmark has no
-// concept of into plain text before parsing, so the AST walk sees clean text:
-// each [[wikilink]] / ![[embed]] becomes "target display" (both, so a filename
-// search hits through a display alias), and a callout marker line
-// "> [!type] Title" loses its "[!type]" marker while keeping the title. It is
-// fence-aware — inside a fenced code block every line is preserved verbatim, so
-// a [[link]] written inside a code sample stays literal and is indexed as code
-// content, not resolved.
+// concept of into plain text before parsing: a wikilink or embed becomes "target
+// display", both, so a filename search hits through a display alias, and a
+// callout marker line loses its marker while keeping the title. It is
+// fence-aware, so a link written inside a code sample stays literal.
 func plainPreprocess(body string) string {
 	// The retrieval projections report nothing: a corpus entry is not a page,
 	// and a fault in a note is the reading page's news to break.
@@ -181,10 +77,8 @@ func plainPreprocess(body string) string {
 // the title) and rewrites wikilinks to plain "target display" text.
 func plainLine(line string) string {
 	if m := calloutStartPattern.FindStringSubmatch(line); m != nil {
-		// Drop the "> [!type][+-]" marker; keep only the callout's title text
-		// (m[3]). The marker syntax itself is not searchable content; the
-		// callout body lines that follow keep their "> " and are collected as
-		// ordinary blockquote text.
+		// Drop the marker, keep the callout's title. The body lines that follow
+		// keep their quote marker and are collected as ordinary quoted text.
 		line = m[3]
 	}
 	return replaceWikilinksPlain(line)
@@ -217,10 +111,8 @@ func walkPlain(b *strings.Builder, n ast.Node, entering bool, source []byte) (as
 	}
 	switch n.Kind() {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
-		// The HTML tags themselves are not content. Any inline text
-		// between them — e.g. the base and rt of a <ruby>…<rt>… run — are
-		// separate Text nodes collected by the KindText case, not children of
-		// these nodes, so skipping here drops only the tags.
+		// The tags are not content. Text between them arrives as separate text
+		// nodes rather than children, so skipping here drops only the tags.
 		return ast.WalkSkipChildren, nil
 	case ast.KindFencedCodeBlock, ast.KindCodeBlock:
 		// Code content lives in the node's line segments, not in child Text

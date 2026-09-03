@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // The refusal exactly as it must appear on the wire. These are spelled out
@@ -17,6 +19,7 @@ import (
 const (
 	wireCORPHeader = "Cross-Origin-Resource-Policy"
 	wireCORPValue  = "same-origin"
+	wireCSPHeader  = "Content-Security-Policy"
 )
 
 func TestFinalResponseStatus(t *testing.T) {
@@ -236,8 +239,8 @@ func TestProtectOnlyAcceptsExplicitContentSecurityPolicyOverrides(t *testing.T) 
 		},
 		{
 			name: "an explicit raw policy survives",
-			inner: func(w http.ResponseWriter, _ *http.Request) {
-				SetContentSecurityPolicy(w, "sandbox; default-src 'none'; frame-ancestors 'self'")
+			inner: func(w http.ResponseWriter, r *http.Request) {
+				SetContentSecurityPolicy(r.Context(), w, "sandbox; default-src 'none'; frame-ancestors 'self'")
 				w.WriteHeader(http.StatusOK)
 			},
 			wantPolicy: "sandbox; default-src 'none'; frame-ancestors 'self'",
@@ -450,6 +453,145 @@ func TestLoopbackOnly(t *testing.T) {
 			}
 			if want := tt.want == http.StatusOK; reached != want {
 				t.Errorf("Host %q reached the handler = %v, want %v", tt.host, reached, want)
+			}
+		})
+	}
+}
+
+// unwrappingWriter is the shape every well-behaved response wrapper in the
+// standard library has: it adds behaviour and hands the writer beneath it back
+// on request, so an optional capability behind it stays reachable.
+type unwrappingWriter struct{ http.ResponseWriter }
+
+func (w unwrappingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// opaqueWriter is the shape that loses the capability: it forwards writes and
+// names no way back to what it wrapped.
+type opaqueWriter struct{ http.ResponseWriter }
+
+// TestAStricterPolicySurvivesEveryWrapperThatUnwraps is the contract two
+// routes serving vault bytes rest on. Each hands the browser a document that
+// would otherwise run in yomihon's own origin, and the policy is the whole of
+// its confinement — so a middleware added between the commit boundary and the
+// handler must not be able to cost them that policy without either of them
+// noticing.
+func TestAStricterPolicySurvivesEveryWrapperThatUnwraps(t *testing.T) {
+	t.Parallel()
+
+	const strict = "sandbox; default-src 'none'; frame-ancestors 'self'"
+
+	tests := []struct {
+		name       string
+		wrap       func(http.ResponseWriter) http.ResponseWriter
+		wantPinned bool
+		wantPolicy string
+	}{
+		{
+			name:       "the commit boundary itself",
+			wrap:       func(w http.ResponseWriter) http.ResponseWriter { return w },
+			wantPinned: true, wantPolicy: strict,
+		},
+		{
+			name:       "one wrapper that unwraps",
+			wrap:       func(w http.ResponseWriter) http.ResponseWriter { return unwrappingWriter{w} },
+			wantPinned: true, wantPolicy: strict,
+		},
+		{
+			name: "two wrappers that unwrap",
+			wrap: func(w http.ResponseWriter) http.ResponseWriter {
+				return unwrappingWriter{unwrappingWriter{w}}
+			},
+			wantPinned: true, wantPolicy: strict,
+		},
+		{
+			// The case the answer exists for: nothing leads back to the
+			// commit boundary, so it reasserts the reading shell's own
+			// policy over the strict one and the caller is told.
+			name:       "a wrapper that names no way back",
+			wrap:       func(w http.ResponseWriter) http.ResponseWriter { return opaqueWriter{w} },
+			wantPinned: false, wantPolicy: "script-src 'nonce-",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var pinned bool
+			handler := Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				pinned = SetContentSecurityPolicy(r.Context(), tt.wrap(w), strict)
+				w.WriteHeader(http.StatusOK)
+			}))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/raw/icon.svg", http.NoBody)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if pinned != tt.wantPinned {
+				t.Errorf("SetContentSecurityPolicy() = %v, want %v", pinned, tt.wantPinned)
+			}
+			if got := rec.Result().Header.Get(wireCSPHeader); !strings.Contains(got, tt.wantPolicy) {
+				t.Errorf("committed policy = %q, want it to contain %q", got, tt.wantPolicy)
+			}
+		})
+	}
+}
+
+// TestAStricterPolicyStandsWhereNothingWouldRewriteIt keeps the answer from
+// meaning "a commit boundary was found" rather than "the policy reaches the
+// reader". A response served outside Protect has nothing that will rewrite the
+// header afterwards, so the plain header set is the whole mechanism and the
+// caller has no reason to withhold its bytes.
+func TestAStricterPolicyStandsWhereNothingWouldRewriteIt(t *testing.T) {
+	t.Parallel()
+
+	const strict = "sandbox; default-src 'none'"
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/raw/icon.svg", http.NoBody)
+	rec := httptest.NewRecorder()
+
+	if !SetContentSecurityPolicy(req.Context(), rec, strict) {
+		t.Error("SetContentSecurityPolicy() = false outside Protect, where the header it just set is final")
+	}
+	if got := rec.Header().Get(wireCSPHeader); got != strict {
+		t.Errorf("header = %q, want %q", got, strict)
+	}
+}
+
+// TestALoopbackRefusalSpeaksTheReadersLanguage covers the one sentence this
+// package writes for a person. It used to be an English literal, which a
+// reader working in the other language met as the only untranslated line the
+// interface ever showed them — and on a refusal, where being understood
+// matters most.
+func TestALoopbackRefusalSpeaksTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		cookie string
+		want   wording.Lang
+	}{
+		{name: "no choice means the default", want: wording.ZhHant},
+		{name: "a reader who chose English", cookie: string(wording.En), want: wording.En},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := LoopbackOnly(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Error("a refused request reached the handler")
+			}))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			request.Host = "evil.example"
+			if tt.cookie != "" {
+				request.Header.Set("Cookie", wording.CookieName+"="+tt.cookie)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d", response.Code, http.StatusForbidden)
+			}
+			want := wording.ServerIsForThisMachine.In(tt.want)
+			if got := strings.TrimSpace(response.Body.String()); got != want {
+				t.Errorf("refusal = %q, want %q", got, want)
 			}
 		})
 	}

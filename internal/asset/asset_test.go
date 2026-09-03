@@ -10,6 +10,7 @@ import (
 
 	projectassets "github.com/koopa0/yomihon/assets"
 	"github.com/koopa0/yomihon/internal/asset"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // newServer wires asset.Register the same way cmd/yomihon/main.go does and
@@ -359,4 +360,44 @@ func get(t *testing.T, url, ifNoneMatch string) response {
 		t.Fatalf("reading body of %s: %v", url, err)
 	}
 	return response{status: resp.StatusCode, header: resp.Header, body: body}
+}
+
+// TestAMissingAssetSpeaksTheReadersLanguage covers the one sentence this
+// package writes for a person. It used to resolve to the default language at
+// the call site, before any request existed to ask — so a reader working in
+// the other language met one untranslated line, on the response that already
+// told them nothing was there.
+func TestAMissingAssetSpeaksTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		cookie string
+		want   wording.Lang
+	}{
+		{name: "no choice means the default", want: wording.ZhHant},
+		{name: "a reader who chose English", cookie: string(wording.En), want: wording.En},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			asset.Register(mux)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/nothing-here.js", http.NoBody)
+			if tt.cookie != "" {
+				request.Header.Set("Cookie", wording.CookieName+"="+tt.cookie)
+			}
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, want %d", response.Code, http.StatusNotFound)
+			}
+			want := wording.AssetNotFound.In(tt.want)
+			if got := strings.TrimSpace(response.Body.String()); got != want {
+				t.Errorf("refusal = %q, want %q", got, want)
+			}
+		})
+	}
 }

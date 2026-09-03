@@ -1,0 +1,38 @@
+<h2 id="section">Section</h2>
+<p>Body text under a repeated name.</p>
+<h2 id="section-2">Section</h2>
+<p>The second heading reducing to the same name.</p>
+<h2 id="section-2-2">Section-2</h2>
+<p>A heading whose own words are the disambiguated form of the one above.</p>
+<h2 id="日本語の見出し">日本語の見出し</h2>
+<p>A CJK heading must still make a usable anchor.</p>
+<h2 id="今日の授業"><ruby>今日<rt>きょう</rt></ruby>の授業</h2>
+<p>A ruby reading is apparatus, not part of the section's name.</p>
+<h2 id="see-never-written">See <span class="wikilink-broken" title="還沒有「Never Written」這篇筆記">Never Written<span class="y-offscreen">（還沒有「Never Written」這篇筆記）</span></span></h2>
+<p>The sentence explaining an unwritten link is out of sight, and out of the name.</p>
+<div class="callout callout-note"><p class="callout-title"><span class="callout-icon" aria-hidden="true">ℹ</span>A callout around a heading</p><div class="callout-body"><h3 id="inside-a-callout">Inside a callout</h3>
+<p>A heading rendered from a separately parsed body.</p>
+</div></div>
+<div class="embed"><p class="embed__source">出自 <a href="/notes/Notes/Embedded%20Note.md">Embedded Note</a></p><p class="embed__note">這段摘錄裡有一個嵌入，因為嵌入只展開一層，改以連結呈現。</p><h2 id="heading-inside">Heading Inside</h2>
+<p>An embedded paragraph, with <span class="wikilink-broken" title="還沒有「Deeper Note」這篇筆記">Deeper Note<span class="y-offscreen">（還沒有「Deeper Note」這篇筆記）</span></span> one level too far.</p>
+</div>
+<!--
+title anchor: "duplicate-title"
+
+contents:
+  h2 "Section" id="section"
+  h2 "Section" id="section-2"
+  h2 "Section-2" id="section-2-2"
+  h2 "日本語の見出し" id="日本語の見出し"
+  h2 "今日の授業" id="今日の授業"
+  h2 "See Never Written" id="see-never-written"
+  h3 "Inside a callout" id="inside-a-callout"
+
+diagnostics:
+  wikilink-broken target="Never Written" section="" block=""
+    "wikilink \"Never Written\" does not resolve to any note or file"
+  embed-not-expanded target="Deeper Note" section="" block=""
+    "embed of \"Deeper Note\" inside a transcluded body was rendered as a link"
+  wikilink-broken target="Deeper Note" section="" block=""
+    "wikilink \"Deeper Note\" does not resolve to any note or file"
+-->

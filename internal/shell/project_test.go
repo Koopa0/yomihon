@@ -11,20 +11,20 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
-func lifecycleView(t *testing.T, contract *schema.Contract) status.View {
+func lifecycleView(t *testing.T, contract *schema.Contract) status.Authority {
 	t.Helper()
 	return governedLifecycleView(t, contract, contract.Governance())
 }
 
-func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.View {
+func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.Authority {
 	t.Helper()
 	root := t.TempDir()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -40,10 +40,10 @@ func governedLifecycleView(t *testing.T, contract *schema.Contract, governance s
 			t.Errorf("Lifecycle.Close() error = %v", closeErr)
 		}
 	})
-	return lifecycle.View()
+	return lifecycle.Authority()
 }
 
-func snapshotView(t *testing.T, contract *schema.Contract, notes map[string]string) *snapshot.View {
+func snapshotView(t *testing.T, contract *schema.Contract, notes map[string]string) *snapshot.Generation {
 	t.Helper()
 	return governedSnapshotView(t, contract, contract.Governance(), notes)
 }
@@ -53,7 +53,7 @@ func governedSnapshotView(
 	contract *schema.Contract,
 	governance schema.Governance,
 	notes map[string]string,
-) *snapshot.View {
+) *snapshot.Generation {
 	t.Helper()
 	root := t.TempDir()
 	for relPath, body := range notes {
@@ -65,9 +65,9 @@ func governedSnapshotView(
 			t.Fatalf("writing %q: %v", relPath, err)
 		}
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -108,8 +108,8 @@ func TestProjectOpensInstanceStateOnAGovernedLifecycle(t *testing.T) {
 	}
 	snap := snapshotView(t, contract, notes)
 
-	got := Project(lifecycleView(t, contract), contract.ArtifactPolicy().Capture(), snap)
-	if got.Nav.InstanceProjectionsClosed() {
+	got := Project(lifecycleView(t, contract), snap)
+	if got.Nav.ArtifactClosure().Closed() {
 		t.Error("Project() closed instance projections on an open lifecycle")
 	}
 	if !got.Governed {
@@ -139,8 +139,8 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 
 	tests := []struct {
 		name      string
-		lifecycle status.View
-		snap      *snapshot.View
+		lifecycle status.Authority
+		snap      *snapshot.Generation
 	}{
 		{name: "lifecycle", lifecycle: unreadable, snap: openSnapshot},
 		{name: "artifact policy", lifecycle: open, snap: rejectedSnapshot},
@@ -149,7 +149,7 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Project(tt.lifecycle, tt.snap.ArtifactPolicy(), tt.snap)
+			got := Project(tt.lifecycle, tt.snap)
 			// The recent-notes summary is plain reading and survives the
 			// refusal; what the refusal removes is the knowledge-layer
 			// citation, which is the refused contract's own claim.
@@ -162,12 +162,12 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 			if len(got.Nav.Paths()) != 0 {
 				t.Errorf("Project() retained %d study paths under a refusing authority", len(got.Nav.Paths()))
 			}
-			if !got.Nav.InstanceProjectionsClosed() {
+			if !got.Nav.ArtifactClosure().Closed() {
 				t.Error("Project() left instance projections open under a refusing authority")
 			}
 			// The closure carries the refusing authority's own sentence, so a
 			// surface reading only this model still has something true to say.
-			if got.Nav.ArtifactDiagnostic() == "" {
+			if got.Nav.ArtifactClosure().Diagnostic() == "" {
 				t.Error("Project() closed the projection and gave no reason")
 			}
 		})
@@ -186,16 +186,16 @@ func TestProjectKeepsProjectionsOpenForAnUngovernedFolder(t *testing.T) {
 	view := governedLifecycleView(t, nil, schema.Ungoverned())
 	snap := governedSnapshotView(t, nil, schema.Ungoverned(), notes)
 
-	got := Project(view, snap.ArtifactPolicy(), snap)
+	got := Project(view, snap)
 	if got.Governed {
 		t.Error("Project() reports an ungoverned folder as governed")
 	}
-	if got.Nav.InstanceProjectionsClosed() {
+	if got.Nav.ArtifactClosure().Closed() {
 		t.Error("Project() closed instance projections for a folder that declared no exclusions")
 	}
-	if got.Nav.ArtifactDiagnostic() != "" || got.Nav.NavigationDiagnostic() != "" {
+	if got.Nav.ArtifactClosure().Diagnostic() != "" || got.Nav.NavigationClosure().Diagnostic() != "" {
 		t.Errorf("Project() reported a fault on an ungoverned folder: artifact %q navigation %q",
-			got.Nav.ArtifactDiagnostic(), got.Nav.NavigationDiagnostic())
+			got.Nav.ArtifactClosure().Diagnostic(), got.Nav.NavigationClosure().Diagnostic())
 	}
 	if len(got.Nav.KnowledgeNotes()) != 1 {
 		t.Errorf("Project() KnowledgeNotes = %d, want 1: nothing was excluded", len(got.Nav.KnowledgeNotes()))

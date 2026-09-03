@@ -95,7 +95,7 @@ func archivedNavigationTargets(
 		for l := range links {
 			link := &links[l]
 			resolution := idx.Resolve(link.target)
-			if resolution.Kind != graph.Unique {
+			if resolution.Kind != graph.KindUnique {
 				continue
 			}
 			target := byPath[resolution.RelPath]
@@ -137,11 +137,9 @@ func archivedNavigationFinding(
 }
 
 // navigationLinks are the links through which a note points at another. A
-// course points by listing a lesson: a link in its prose, in a block declared
-// out of the course, in one nobody declared, or in a row the grammar refused is
-// not the course pointing anywhere, and telling the author to repair a course
-// that never listed the note sends them to the wrong file. A general map
-// declares no sequence, so it keeps answering for every link it carries.
+// course points only by listing a lesson, so a link in its prose or in a row
+// the grammar refused points nowhere; a general map declares no sequence and
+// keeps answering for every link it carries.
 func navigationLinks(source *note, roles schema.NavigationRoles) []wikiLink {
 	if !roles.IsPathType(source.noteType) {
 		return source.wikilinks

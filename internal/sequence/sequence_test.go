@@ -1,7 +1,14 @@
 package sequence
 
 import (
+	goast "go/ast"
+	goparser "go/parser"
+	"go/token"
+	"os"
+	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -65,7 +72,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 
 	// "Home reads 8 課" — the main line lists eight lessons, every one
 	// canonical, and the side branch's three are not among them.
-	entries := main.Entries()
+	entries := main.entries()
 	if got := len(entries); got != 8 {
 		t.Errorf("the main line lists %d lessons, want 8: %+v", got, entries)
 	}
@@ -75,7 +82,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 		}
 	}
 	// "The side branch shows as three, hanging under L03."
-	subgroups := main.Subgroups()
+	subgroups := main.subgroups()
 	if len(subgroups) != 1 {
 		t.Fatalf("the main line holds %d child branches, want 1: %+v", len(subgroups), subgroups)
 	}
@@ -86,8 +93,8 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 	if !side.Projectable() {
 		t.Errorf("a valid declared side branch is not projectable; nothing else may decide this but the type")
 	}
-	if got := len(side.Entries()); got != 3 {
-		t.Errorf("the side branch lists %d lessons, want 3: %+v", got, side.Entries())
+	if got := len(side.entries()); got != 3 {
+		t.Errorf("the side branch lists %d lessons, want 3: %+v", got, side.entries())
 	}
 	if side.AnchorTarget != "L03 研磨" {
 		t.Errorf("the side branch hangs from %q, want %q", side.AnchorTarget, "L03 研磨")
@@ -119,8 +126,8 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 	// The routine block reads normally on the page but lists nothing for the
 	// course; its rows are still recognized, which is why the branch is `none`
 	// rather than structural — and none never projects.
-	if got := len(routine.Entries()); got != 2 {
-		t.Errorf("the routine block lists %d rows, want 2: %+v", got, routine.Entries())
+	if got := len(routine.entries()); got != 2 {
+		t.Errorf("the routine block lists %d rows, want 2: %+v", got, routine.entries())
 	}
 	if routine.Projectable() {
 		t.Errorf("a branch declared out of the course reports itself projectable")
@@ -136,7 +143,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 		t.Errorf("main line order mismatch (-want +got):\n%s", diff)
 	}
 	wantSide := []string{"磨豆機校正基礎", "粒徑分布判讀", "校正實作"}
-	if diff := cmp.Diff(wantSide, targets(side.Entries())); diff != "" {
+	if diff := cmp.Diff(wantSide, targets(side.entries())); diff != "" {
 		t.Errorf("side branch order mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -149,7 +156,7 @@ func TestOrderedAndUnorderedRowsAreTheSameCandidate(t *testing.T) {
 	ordered := Parse("## P {sequence=primary}\n\n1. [[A]]\n2. [[B]]\n", 1)
 	unordered := Parse("## P {sequence=primary}\n\n- [[A]]\n* [[B]]\n", 1)
 
-	if diff := cmp.Diff(targets(ordered.Groups[0].Entries()), targets(unordered.Groups[0].Entries())); diff != "" {
+	if diff := cmp.Diff(targets(ordered.Groups[0].entries()), targets(unordered.Groups[0].entries())); diff != "" {
 		t.Errorf("ordered and unordered rows disagree (-ordered +unordered):\n%s", diff)
 	}
 	if len(ordered.Diagnostics) != 0 || len(unordered.Diagnostics) != 0 {
@@ -251,7 +258,7 @@ func TestNoncanonicalRowsAreCandidatesButNeverEntries(t *testing.T) {
 			t.Parallel()
 			doc := Parse("## P {sequence=primary}\n\n"+tt.body, 1)
 
-			entries := doc.Groups[0].Entries()
+			entries := doc.Groups[0].entries()
 			if len(entries) != 1 {
 				t.Fatalf("the branch lists %d rows, want 1; a noncanonical row is still a row", len(entries))
 			}
@@ -293,7 +300,7 @@ func TestTargetScopeReadsTheWholeItem(t *testing.T) {
 	if d.Line != 3 {
 		t.Errorf("%s reported on line %d, want 3, the row it is about", RuleEntryMultiTarget, d.Line)
 	}
-	entries := doc.Groups[0].Entries()
+	entries := doc.Groups[0].entries()
 	if len(entries) != 1 || entries[0].State != EntryMultiTarget {
 		t.Errorf("row = %+v, want one multi-target candidate", entries)
 	}
@@ -305,7 +312,7 @@ func TestTargetScopeReadsTheWholeItem(t *testing.T) {
 	if findRule(control, RuleEntryMultiTarget) != nil {
 		t.Fatalf("the nested list's own link was counted into the enclosing row's scope: %+v", control.Diagnostics)
 	}
-	got := control.Groups[0].Entries()
+	got := control.Groups[0].entries()
 	if len(got) != 1 || !got[0].Accepted() || got[0].Target != "A" {
 		t.Errorf("control row = %+v, want one accepted entry for A", got)
 	}
@@ -322,7 +329,7 @@ func TestCheckboxNeverAnchorsALocalBranch(t *testing.T) {
 	if findRule(doc, RuleLocalOrphan) == nil {
 		t.Fatalf("a side branch under a checkbox row was not reported as an orphan: %+v", doc.Diagnostics)
 	}
-	subgroups := doc.Groups[0].Subgroups()
+	subgroups := doc.Groups[0].subgroups()
 	if len(subgroups) != 1 {
 		t.Fatalf("branch holds %d subgroups, want the orphaned side branch alone: %+v", len(subgroups), subgroups)
 	}
@@ -333,7 +340,7 @@ func TestCheckboxNeverAnchorsALocalBranch(t *testing.T) {
 	if side.AnchorTarget != "" || !side.AnchorSpan.Zero() {
 		t.Errorf("orphaned side branch still carries anchor (%q, %+v); a checkbox row is not an anchor", side.AnchorTarget, side.AnchorSpan)
 	}
-	if got := len(doc.Groups[0].Entries()); got != 0 {
+	if got := len(doc.Groups[0].entries()); got != 0 {
 		t.Errorf("the checkbox row itself was counted as a row: %d entries", got)
 	}
 }
@@ -360,7 +367,7 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	if findRule(doc, RuleRoleMissing) == nil {
 		t.Errorf("an undeclared branch whose only row is conflicted was not asked to declare itself: %+v", doc.Diagnostics)
 	}
-	entries := branch.Entries()
+	entries := branch.entries()
 	if len(entries) != 1 {
 		t.Fatalf("branch lists %d rows, want 1: %+v", len(entries), entries)
 	}
@@ -370,7 +377,7 @@ func TestRoleOnEntryKeepsTheRowAndProjectsNothing(t *testing.T) {
 	if entries[0].Target != "B" {
 		t.Errorf("conflicted row target = %q, want %q kept for identity", entries[0].Target, "B")
 	}
-	subgroups := branch.Subgroups()
+	subgroups := branch.subgroups()
 	if len(subgroups) != 1 {
 		t.Fatalf("branch holds %d subgroups, want the conflicted container alone", len(subgroups))
 	}
@@ -389,7 +396,7 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 	t.Run("a role conflict does not project", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## Part {sequence=none}\n\n### Inner {sequence=primary}\n\n- [[A]]\n", 1)
-		inner := doc.Groups[0].Subgroups()[0]
+		inner := doc.Groups[0].subgroups()[0]
 		if !inner.Invalid || inner.Projectable() {
 			t.Errorf("conflicted branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
 		}
@@ -398,7 +405,7 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 	t.Run("an orphaned side branch does not project", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## Part {sequence=primary}\n\n- 旁支 {sequence=local}\n\t- [[A]]\n", 1)
-		side := doc.Groups[0].Subgroups()[0]
+		side := doc.Groups[0].subgroups()[0]
 		if !side.Invalid || side.Projectable() {
 			t.Errorf("orphaned branch = (invalid %t, projectable %t), want (true, false)", side.Invalid, side.Projectable())
 		}
@@ -407,11 +414,11 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 	t.Run("a side branch nested too deep does not project, and the outer one still does", func(t *testing.T) {
 		t.Parallel()
 		doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n", 1)
-		outer := doc.Groups[0].Subgroups()[0]
+		outer := doc.Groups[0].subgroups()[0]
 		if outer.Invalid || !outer.Projectable() {
 			t.Errorf("outer side branch = (invalid %t, projectable %t), want (false, true); the error is the inner one's", outer.Invalid, outer.Projectable())
 		}
-		inner := outer.Subgroups()[0]
+		inner := outer.subgroups()[0]
 		if !inner.Invalid || inner.Projectable() {
 			t.Errorf("inner side branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
 		}
@@ -425,14 +432,14 @@ func TestCandidateIdentityDisambiguatesRepeatedTargets(t *testing.T) {
 	t.Parallel()
 	doc := Parse("## P {sequence=primary}\n\n- [[A]]\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n", 1)
 
-	entries := doc.Groups[0].Entries()
+	entries := doc.Groups[0].entries()
 	if len(entries) != 2 {
 		t.Fatalf("branch lists %d rows, want the two that both name A", len(entries))
 	}
 	if entries[0].Span == entries[1].Span {
 		t.Fatalf("two distinct rows share one span %+v; a span that cannot tell rows apart identifies nothing", entries[0].Span)
 	}
-	side := doc.Groups[0].Subgroups()[0]
+	side := doc.Groups[0].subgroups()[0]
 	if side.AnchorSpan != entries[1].Span {
 		t.Errorf("side branch anchor span = %+v, want the second A row's span %+v", side.AnchorSpan, entries[1].Span)
 	}
@@ -463,7 +470,7 @@ func TestBranchStateComesFromCandidatesNotFromResolution(t *testing.T) {
 	if !hasRule(doc, RuleEntryMultiTarget) {
 		t.Errorf("a row naming two notes was not reported: %+v", doc.Diagnostics)
 	}
-	entries := doc.Groups[0].Entries()
+	entries := doc.Groups[0].entries()
 	if len(entries) != 1 || entries[0].State != EntryMultiTarget || entries[0].Target != "" {
 		t.Errorf("row = %+v, want one multi-target candidate with no target; naming one of two notes would be a guess", entries)
 	}
@@ -497,7 +504,7 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 	tests := []struct {
 		name     string
 		body     string
-		wantRule string
+		wantRule Rule
 		wantLine int
 	}{
 		{
@@ -793,11 +800,11 @@ func collected(groups []*Group) []string {
 	return out
 }
 
-func hasRule(doc Document, rule string) bool {
+func hasRule(doc Document, rule Rule) bool {
 	return findRule(doc, rule) != nil
 }
 
-func findRule(doc Document, rule string) *Diagnostic {
+func findRule(doc Document, rule Rule) *Diagnostic {
 	for i := range doc.Diagnostics {
 		if doc.Diagnostics[i].Rule == rule {
 			return &doc.Diagnostics[i]
@@ -824,7 +831,7 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 		// a candidate. Asserting the shape is what makes each case say
 		// anything; without it they pass on a parser that ignores the escape.
 		wantEntries []string
-		wantRule    string
+		wantRule    Rule
 		wantFinding bool
 	}{
 		{
@@ -858,12 +865,219 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 			}
 			var got []string
 			for _, g := range doc.Groups {
-				for _, e := range g.Entries() {
+				for _, e := range g.entries() {
 					got = append(got, e.Target)
 				}
 			}
 			if !slices.Equal(got, tt.wantEntries) {
 				t.Errorf("accepted entries = %v, want %v", got, tt.wantEntries)
+			}
+		})
+	}
+}
+
+// TestARowNobodyJudgedIsNotAccepted holds the zero value of the validation
+// outcome to the safe answer. Acceptance is what lets a row be counted, walked
+// and placed, so a Candidate that reached nobody's judgement claiming it was
+// accepted would hand every hand-built or partially-copied row the strongest
+// verdict the grammar has.
+func TestARowNobodyJudgedIsNotAccepted(t *testing.T) {
+	t.Parallel()
+	var unjudged Candidate
+	if unjudged.State != EntryUnread {
+		t.Errorf("the zero Candidate's state = %v, want %v", unjudged.State, EntryUnread)
+	}
+	if unjudged.Accepted() {
+		t.Error("a Candidate nobody judged reports itself accepted")
+	}
+	// The control: the state validation does assign still means what it said,
+	// so the guard above cannot be "nothing is ever accepted".
+	judged := Candidate{State: EntryAccepted}
+	if !judged.Accepted() {
+		t.Error("a row validation accepted does not report itself accepted")
+	}
+}
+
+// ruleNamed matches what a rule constant is called, so a declaration the scan
+// below cannot classify is still recognised as one it was supposed to read.
+var ruleNamed = regexp.MustCompile(`^Rule[A-Z]`)
+
+// ruleText reads the rule string out of one constant's value, whichever of the
+// two spellings the author used: a typed declaration whose value is a literal,
+// or an untyped one whose value is a conversion. It answers false for a
+// constant that is neither, and stops the test for one that is a rule written
+// in a form no reader could evaluate here.
+func ruleText(t *testing.T, typed bool, name string, value goast.Expr) (string, bool) {
+	t.Helper()
+
+	if call, isCall := value.(*goast.CallExpr); isCall && len(call.Args) == 1 {
+		if fn, isIdent := call.Fun.(*goast.Ident); isIdent && fn.Name == "Rule" {
+			value, typed = call.Args[0], true
+		}
+	}
+	if !typed {
+		return "", false
+	}
+	literal, isLiteral := value.(*goast.BasicLit)
+	if !isLiteral || literal.Kind != token.STRING {
+		t.Fatalf("%s is declared a Rule but not from a string literal", name)
+	}
+	unquoted, err := strconv.Unquote(literal.Value)
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	return unquoted, true
+}
+
+// TestRulesListsEveryDeclaredRule holds the enumeration to the declarations.
+// Rules is what a consumer reads instead of keeping a list of its own, so a
+// rule added to the constants and forgotten there would hand every consumer a
+// set that is quietly short — and a rule the judge cannot advise on reaches
+// the author as a panic during a check run.
+//
+// The declarations are read out of the package source rather than
+// restated here, because a second hand-written list is the thing this test
+// exists to catch.
+func TestRulesListsEveryDeclaredRule(t *testing.T) {
+	t.Parallel()
+
+	fset := token.NewFileSet()
+	dir, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("list the package source: %v", err)
+	}
+	var files []*goast.File
+	for _, entry := range dir {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, parseErr := goparser.ParseFile(fset, name, nil, 0)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", name, parseErr)
+		}
+		files = append(files, parsed)
+	}
+	if len(files) == 0 {
+		t.Fatal("no package source was read; the scan would prove nothing")
+	}
+
+	// A rule is written either as a typed constant or as a conversion, and
+	// both spellings compile to the same thing. An enumerator that reads only
+	// one of them answers with a short list and says nothing about the half it
+	// could not see, so anything named like a rule and not classified stops the
+	// scan rather than being left out of it.
+	declared := map[string]Rule{}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			gen, isGen := decl.(*goast.GenDecl)
+			if !isGen || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, isValue := spec.(*goast.ValueSpec)
+				if !isValue {
+					continue
+				}
+				typed := false
+				if name, isName := value.Type.(*goast.Ident); isName && name.Name == "Rule" {
+					typed = true
+				}
+				for i, ident := range value.Names {
+					if i >= len(value.Values) {
+						continue
+					}
+					text, isRule := ruleText(t, typed, ident.Name, value.Values[i])
+					if !isRule {
+						continue
+					}
+					declared[ident.Name] = Rule(text)
+				}
+			}
+		}
+	}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			gen, isGen := decl.(*goast.GenDecl)
+			if !isGen || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, isValue := spec.(*goast.ValueSpec)
+				if !isValue {
+					continue
+				}
+				for _, ident := range value.Names {
+					if ruleNamed.MatchString(ident.Name) && declared[ident.Name] == "" {
+						t.Fatalf("%s is named like a rule but this scan did not classify it, so the list below is short by at least one", ident.Name)
+					}
+				}
+			}
+		}
+	}
+	if len(declared) == 0 {
+		t.Fatal("no Rule constants were found in the source; the scan proved nothing")
+	}
+
+	listed := Rules()
+	if len(listed) != len(declared) {
+		t.Errorf("Rules() lists %d rules, %d are declared: %v vs %v", len(listed), len(declared), listed, declared)
+	}
+	seen := map[Rule]bool{}
+	for _, rule := range listed {
+		if seen[rule] {
+			t.Errorf("Rules() lists %q twice", rule)
+		}
+		seen[rule] = true
+	}
+	for name, rule := range declared {
+		if !seen[rule] {
+			t.Errorf("%s (%q) is declared but Rules() does not list it", name, rule)
+		}
+	}
+}
+
+// TestTheTwoBranchVerdictsOverEveryDeclaration states both verdicts for every
+// combination of declared role and structural error, so a consumer reading
+// either one has the whole table in front of it rather than a sentence about
+// the cases somebody thought of. The two are disjoint by construction — a
+// branch that projects lists rows of its own, one that carries merely groups
+// others — and an error stops both.
+func TestTheTwoBranchVerdictsOverEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		role            Role
+		invalid         bool
+		wantProjectable bool
+		wantCarries     bool
+	}{
+		{role: RoleStructural, invalid: false, wantProjectable: false, wantCarries: true},
+		{role: RoleStructural, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RoleUnclassified, invalid: false, wantProjectable: false, wantCarries: false},
+		{role: RoleUnclassified, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RolePrimary, invalid: false, wantProjectable: true, wantCarries: false},
+		{role: RolePrimary, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RoleLocal, invalid: false, wantProjectable: true, wantCarries: false},
+		{role: RoleLocal, invalid: true, wantProjectable: false, wantCarries: false},
+		{role: RoleNone, invalid: false, wantProjectable: false, wantCarries: false},
+		{role: RoleNone, invalid: true, wantProjectable: false, wantCarries: false},
+	}
+	for _, tt := range tests {
+		name := tt.role.String()
+		if tt.invalid {
+			name += " carrying a structural error"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := &Group{Role: tt.role, Invalid: tt.invalid}
+			if got := g.Projectable(); got != tt.wantProjectable {
+				t.Errorf("Projectable() = %t, want %t", got, tt.wantProjectable)
+			}
+			if got := g.Carries(); got != tt.wantCarries {
+				t.Errorf("Carries() = %t, want %t", got, tt.wantCarries)
+			}
+			if g.Projectable() && g.Carries() {
+				t.Error("one branch both projects and merely carries; the two verdicts overlap")
 			}
 		})
 	}

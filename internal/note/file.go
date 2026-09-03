@@ -16,8 +16,10 @@ import (
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -29,7 +31,7 @@ const sniffBytes = 512
 const (
 	textContentType  = "text/plain; charset=utf-8"
 	octetContentType = "application/octet-stream"
-	rawSandboxPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
+	vaultFileSandbox = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
 		"font-src 'none'; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
 		"img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; " +
 		"script-src-attr 'none'; style-src 'unsafe-inline'; worker-src 'none'"
@@ -87,30 +89,30 @@ func servable(rel string) bool {
 //
 // No status face, no ready accent, no diagnostics: a source file is not a
 // note, and the write face has no opinion about it.
-func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, statusView status.View, snap *snapshot.View) {
-	lang := pages.LanguageFromRequest(r)
+func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, authority status.Authority, snap *snapshot.Generation) {
+	lang := origin.Language(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
-	entry, err := h.deps.Source.Refresh(entry)
+	entry, err := h.sources.Source.Refresh(entry)
 	if err != nil {
 		// A refused path and a missing one answer alike: a file that vanished
 		// between the scan and this request, a directory, and a symlink the
 		// vault root turned away are all simply not here.
-		h.deps.Log.Warn("refresh vault file", "path", rel, "error", err)
+		h.sources.Log.Warn("refresh vault file", "path", rel, "error", err)
 		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
 
 	name := path.Base(rel)
-	pageShell := shell.Project(statusView, snap.ArtifactPolicy(), snap)
+	pageShell := shell.Project(authority, snap)
 	view := pages.FileView{
 		Title:   name,
 		RelPath: rel,
 		Size:    entry.Size(),
-		Sidebar: pages.NewSidebar(pageShell.Nav, rel, pages.LanguageFromRequest(r)),
+		Sidebar: pages.NewSidebar(pageShell.Nav, rel),
 	}
 
 	switch {
@@ -122,7 +124,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		view.ContentType = fileContentType(rel, nil)
 	case entry.Size() > render.MaxSourceBytes:
 		view.Kind = pages.FileInfo
-		head, readErr := h.deps.Source.ReadPrefix(r.Context(), entry, sniffBytes)
+		head, readErr := h.sources.Source.ReadPrefix(r.Context(), entry, sniffBytes)
 		if readErr != nil {
 			h.respondFileReadError(w, rel, "read vault file prefix", readErr, lang)
 			return
@@ -131,7 +133,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 	default:
 		// Bounded by the size check above, so the whole file is in hand and the
 		// text decision runs on all of it rather than a window.
-		data, readErr := h.deps.Source.ReadFile(r.Context(), entry)
+		data, readErr := h.sources.Source.ReadFile(r.Context(), entry)
 		if readErr != nil {
 			h.respondFileReadError(w, rel, "read vault file", readErr, lang)
 			return
@@ -145,8 +147,8 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 		view.SourceHTML = render.SourceHTML(name, string(data))
 	}
 
-	if err := pages.File(view, pages.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
-		h.deps.Log.Error("render file page", "path", rel, "error", err)
+	if err := pages.File(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "render file page", "path", rel, "error", err)
 	}
 }
 
@@ -154,7 +156,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 // briefings established. Every response states its content type outright and
 // forbids browser sniffing. Document types that could execute in yomihon's
 // origin also receive a Content-Security-Policy sandbox; PDF keeps the narrower
-// confinement described by rawContentSecurityPolicy.
+// confinement described by sandboxFor.
 //
 // The sandbox here is tighter than the report route's in one respect: both
 // policies refuse scripts, but the report policy admits data: fonts, images,
@@ -164,38 +166,49 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, s
 // or HTML document meets. Without it, opening one top-level would give it read
 // of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
-	lang := pages.LanguageFromRequest(r)
+	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	if !servable(rel) {
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
-	snap := h.deps.Snapshot().Capture()
+	snap := h.sources.Snapshot().Capture()
 	entry, ok := snap.Entry(rel)
 	if !ok {
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
-	entry, err := h.deps.Source.Refresh(entry)
+	entry, err := h.sources.Source.Refresh(entry)
 	if err != nil {
-		h.deps.Log.Warn("refresh vault file", "path", rel, "error", err)
+		h.sources.Log.Warn("refresh vault file", "path", rel, "error", err)
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
-	file, err := h.deps.Source.OpenFile(r.Context(), entry)
+	file, err := h.sources.Source.OpenFile(r.Context(), entry)
 	if err != nil {
 		h.respondFileReadError(w, rel, "open vault file", err, lang)
 		return
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			h.deps.Log.Warn("close raw vault file", "path", rel, "error", closeErr)
+			h.sources.Log.Warn("close raw vault file", "path", rel, "error", closeErr)
 		}
 	}()
 	if err := serveRaw(w, r, rel, entry.ModTime(), file); err != nil {
+		if errors.Is(err, errSandboxUnavailable) {
+			h.sources.Log.Error("serve raw vault file", "path", rel, "error", err)
+			http.Error(w, wording.SandboxUnavailable.In(lang), http.StatusInternalServerError)
+			return
+		}
 		h.respondFileReadError(w, rel, "prepare raw vault file", err, lang)
 	}
 }
+
+// errSandboxUnavailable means the response's own sandbox could not be
+// established, so this route wrote no vault bytes. It is not a read failure:
+// the file was in hand and readable, and what was missing was the confinement
+// a same-origin document has to be served under.
+var errSandboxUnavailable = errors.New("the response sandbox could not be established")
 
 // serveRaw writes one already-opened vault object. The caller establishes the
 // rooted path identity before entering this function; ServeContent then owns
@@ -215,7 +228,14 @@ func serveRaw(
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
-	origin.SetContentSecurityPolicy(w, rawContentSecurityPolicy(contentType))
+	// A same-origin document this route hands the browser gets its confinement
+	// from the policy, so bytes are written only once that policy is known to
+	// reach the reader. Serving them under the reading shell's own policy
+	// instead would give an authored SVG or HTML file script access to the
+	// whole surface, which is the one outcome the sandbox exists to prevent.
+	if !origin.SetContentSecurityPolicy(r.Context(), w, sandboxFor(contentType)) {
+		return fmt.Errorf("%w: %s", errSandboxUnavailable, rel)
+	}
 	// Cross-origin embedding is refused one layer up, in the server's own
 	// header seam, so every response — this one, the report bytes, and any
 	// future endpoint — carries the same refusal without each having to
@@ -227,16 +247,16 @@ func serveRaw(
 }
 
 func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation string, err error, lang wording.Lang) {
-	if errors.Is(err, vault.ErrSourceChanged) {
-		h.deps.Log.Warn(operation, "path", rel, "error", err)
+	if errors.Is(err, vaultfs.ErrSourceChanged) {
+		h.sources.Log.Warn(operation, "path", rel, "error", err)
 		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
 		return
 	}
-	h.deps.Log.Error(operation, "path", rel, "error", err)
+	h.sources.Log.Error(operation, "path", rel, "error", err)
 	http.Error(w, wording.FileUnreadable.In(lang), http.StatusInternalServerError)
 }
 
-// rawContentSecurityPolicy chooses how strongly a raw response is sandboxed.
+// sandboxFor chooses how strongly a raw response is sandboxed.
 //
 // The sandbox exists to neutralize a same-origin document that could run
 // scripts against the app's origin — an SVG or an HTML file served from this
@@ -248,12 +268,12 @@ func (h *Handler) respondFileReadError(w http.ResponseWriter, rel, operation str
 // therefore keeps only the framing confinement — yomihon's own shell is still
 // the sole page that may embed it, enforced here and again by the same-origin
 // resource policy the server stamps on every response — and everything else is
-// served under the raw sandbox policy.
-func rawContentSecurityPolicy(contentType string) string {
+// served under vaultFileSandbox.
+func sandboxFor(contentType string) string {
 	if strings.HasPrefix(contentType, "application/pdf") {
 		return "frame-ancestors 'self'"
 	}
-	return rawSandboxPolicy
+	return vaultFileSandbox
 }
 
 // fileContentType names a file's bytes: the pinned type for a kind this feature

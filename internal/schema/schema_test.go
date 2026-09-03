@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,7 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func TestContractExposesNoFields(t *testing.T) {
@@ -147,14 +148,29 @@ func loadContractTextWithPrivacy(t *testing.T, navigation, artifacts, privacy st
 	return s
 }
 
-func loadSemanticRootContract(t *testing.T, artifacts, privacy string) (string, *schema.Contract) {
+// The two sections below are what every caller of loadSemanticRootContract
+// writes. They stopped being parameters when the fingerprint tests that varied
+// them went with the corpus they fingerprinted; a caller that needs a different
+// contract writes one rather than passing the same two strings back in.
+const (
+	semanticArtifactSection = `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`
+	semanticPrivacySection = `
+[privacy]
+never_egress_dirs = ["Private"]
+`
+)
+
+func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 	t.Helper()
 	root := t.TempDir()
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("MkdirAll(%q) = %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(contractText("", artifacts, privacy)), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
+	if err := os.WriteFile(path, []byte(contractText("", semanticArtifactSection, semanticPrivacySection)), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
 		t.Fatalf("WriteFile(%q) = %v", path, err)
 	}
 	s, err := schema.Load(root)
@@ -240,97 +256,11 @@ never_egress_dirs = ["Private"]
 	}
 }
 
-func TestCorpusPolicyFingerprintHashesNormalizedSemantics(t *testing.T) {
-	t.Parallel()
-
-	firstRoot, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates", "System/./generated", "System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private/journal", "Private", "Private/journal"]
-`)
-	firstReader, first := loadPinnedSemanticContract(t, firstRoot)
-	secondRoot, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/generated", "System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private", "Private/journal"]
-`)
-	secondReader, second := loadPinnedSemanticContract(t, secondRoot)
-	firstHash, firstOK := schema.CorpusPolicyFingerprint(first.ArtifactPolicy(), first.PrivacyPolicy())
-	secondHash, secondOK := schema.CorpusPolicyFingerprint(second.ArtifactPolicy(), second.PrivacyPolicy())
-	if !firstOK || !secondOK {
-		t.Fatal("CorpusPolicyFingerprint() unavailable for valid capabilities")
-	}
-	if firstHash != secondHash {
-		t.Error("equivalent normalized policy sets produced different fingerprints")
-	}
-	firstSource, firstSourceOK := schema.PolicySourceFingerprint(firstReader, first.ArtifactPolicy(), first.PrivacyPolicy())
-	secondSource, secondSourceOK := schema.PolicySourceFingerprint(secondReader, second.ArtifactPolicy(), second.PrivacyPolicy())
-	if !firstSourceOK || !secondSourceOK {
-		t.Fatal("PolicySourceFingerprint() unavailable for capabilities from one valid contract")
-	}
-	if firstSource == secondSource {
-		t.Error("different exact contract bytes produced the same policy-source fingerprint")
-	}
-	if got, ok := schema.PolicySourceFingerprint(firstReader, first.ArtifactPolicy(), second.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Errorf("mixed-source policy fingerprint = (%x, %v), want zero, false", got, ok)
-	}
-
-	changed := loadContractTextWithPrivacy(t, "", `
-[artifacts]
-non_instance_dirs = ["System/generated", "System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Other"]
-`)
-	changedHash, changedOK := schema.CorpusPolicyFingerprint(changed.ArtifactPolicy(), changed.PrivacyPolicy())
-	if !changedOK || changedHash == firstHash {
-		t.Error("eligibility change did not change corpus-policy fingerprint")
-	}
-
-	if got, ok := schema.CorpusPolicyFingerprint(schema.ArtifactPolicy{}, first.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Errorf("unavailable capability fingerprint = (%x, %v), want zero, false", got, ok)
-	}
-}
-
-func TestPolicySourceFingerprintRejectsCapabilitiesLoadedFromAnotherRoot(t *testing.T) {
-	t.Parallel()
-
-	root, pathLoaded := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	reader, loaded := loadPinnedSemanticContract(t, root)
-	if _, ok := schema.PolicySourceFingerprint(reader, loaded.ArtifactPolicy(), loaded.PrivacyPolicy()); !ok {
-		t.Fatal("PolicySourceFingerprint() rejected capabilities loaded from the selected root")
-	}
-	if got, ok := schema.PolicySourceFingerprint(reader, pathLoaded.ArtifactPolicy(), pathLoaded.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Fatalf("PolicySourceFingerprint(path-loaded policies) = (%x, %t), want zero, false", got, ok)
-	}
-	otherRoot, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	otherReader, _ := loadPinnedSemanticContract(t, otherRoot)
-	if got, ok := schema.PolicySourceFingerprint(otherReader, loaded.ArtifactPolicy(), loaded.PrivacyPolicy()); ok || got != ([32]byte{}) {
-		t.Fatalf("PolicySourceFingerprint(other root) = (%x, %t), want zero, false", got, ok)
-	}
-}
-
-func loadPinnedSemanticContract(t *testing.T, root string) (*vault.Reader, *schema.Contract) {
+func loadPinnedSemanticContract(t *testing.T, root string) *schema.Contract {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -341,21 +271,15 @@ func loadPinnedSemanticContract(t *testing.T, root string) (*vault.Reader, *sche
 	if err != nil {
 		t.Fatalf("LoadReader(%q) error = %v", root, err)
 	}
-	return reader, contract
+	return contract
 }
 
 func TestLoadReaderPinsContractAuthorityToTheSelectedVault(t *testing.T) {
 	t.Parallel()
-	root, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	reader, err := vault.Open(root)
+	root, _ := loadSemanticRootContract(t)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -409,9 +333,9 @@ func TestLoadReaderRejectsSymlinkedContract(t *testing.T) {
 	if err := os.Symlink(outside, contractPath); err != nil {
 		t.Fatalf("symlink contract: %v", err)
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -426,13 +350,7 @@ func TestLoadReaderRejectsSymlinkedContract(t *testing.T) {
 func TestArtifactPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -469,13 +387,7 @@ never_egress_dirs = ["Private"]
 func TestArtifactPolicyCaptureIsAnImmutableRequestSnapshot(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	captured := contract.ArtifactPolicy().Capture()
 	if !captured.Available() || !captured.IsNonInstance("System/templates/Example.md") {
 		t.Fatalf("Capture() did not preserve the valid artifact classification")
@@ -500,13 +412,7 @@ never_egress_dirs = ["Private"]
 func TestArtifactPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -549,13 +455,7 @@ never_egress_dirs = ["Private"]
 func TestPrivacyPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -592,13 +492,7 @@ never_egress_dirs = ["Private"]
 func TestPrivacyPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
 	t.Parallel()
 
-	root, contract := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
+	root, contract := loadSemanticRootContract(t)
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
 	if err != nil {
@@ -1801,14 +1695,8 @@ func TestTransition(t *testing.T) {
 // the write face until restart while reporting a change that had not happened.
 func TestTouchingTheContractLeavesThePolicyAvailable(t *testing.T) {
 	t.Parallel()
-	root, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	_, contract := loadPinnedSemanticContract(t, root)
+	root, _ := loadSemanticRootContract(t)
+	contract := loadPinnedSemanticContract(t, root)
 	if !contract.ArtifactPolicy().ValidateSource().Available() {
 		t.Fatal("the policy was unavailable before anything touched the contract")
 	}
@@ -1854,14 +1742,8 @@ never_egress_dirs = ["Private"]
 // process is a contract this process cannot vouch for.
 func TestRewritingTheContractClosesThePolicy(t *testing.T) {
 	t.Parallel()
-	root, _ := loadSemanticRootContract(t, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
-[privacy]
-never_egress_dirs = ["Private"]
-`)
-	_, contract := loadPinnedSemanticContract(t, root)
+	root, _ := loadSemanticRootContract(t)
+	contract := loadPinnedSemanticContract(t, root)
 
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	original, err := os.ReadFile(path) // #nosec G304 -- path is rooted in t.TempDir
@@ -1878,4 +1760,226 @@ never_egress_dirs = ["Private"]
 	if contract.PrivacyPolicy().ValidateSource().Available() {
 		t.Error("the privacy policy stayed open after the contract's bytes changed")
 	}
+}
+
+// TestANilContractAnswersAsAnUngovernedVault states the type's nil policy as
+// one table, over every exported method rather than the ones somebody thought
+// of. Both reachable ways a vault ends up ungoverned — no contract file, and a
+// contract file that could not be read — hand every consumer a nil *Contract,
+// so a method that panicked on one would be a fault reachable from a folder
+// with nothing wrong with it.
+//
+// The method list is read out of the package source, so a method added without
+// a row here fails at this test rather than at whichever consumer meets the
+// nil first.
+func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
+	t.Parallel()
+
+	var c *schema.Contract
+	// Each row answers with the complaint to make, or empty when the method
+	// answered as a vault no contract governs.
+	answers := map[string]func() string{
+		"Version": func() string {
+			if got := c.Version(); got != "" {
+				return fmt.Sprintf("Version() = %q, want empty", got)
+			}
+			return ""
+		},
+		"Definition": func() string {
+			if diff := cmp.Diff(schema.Definition{}, c.Definition()); diff != "" {
+				return "Definition() mismatch (-want +got):\n" + diff
+			}
+			return ""
+		},
+		"StageCount": func() string {
+			if got := c.StageCount(); got != 0 {
+				return fmt.Sprintf("StageCount() = %d, want 0", got)
+			}
+			return ""
+		},
+		"Supersession": func() string {
+			if got, declared := c.Supersession(); declared || got != (schema.Supersession{}) {
+				return fmt.Sprintf("Supersession() = (%+v, %t), want the zero vocabulary and false", got, declared)
+			}
+			return ""
+		},
+		"ConceptType": func() string {
+			if _, declared := c.ConceptType(); declared {
+				return "ConceptType() reports a declared concept corpus"
+			}
+			return ""
+		},
+		"InboxRequiredFields": func() string {
+			if _, fields, declared := c.InboxRequiredFields(); declared || fields != nil {
+				return fmt.Sprintf("InboxRequiredFields() = (%v, %t), want no fields and false", fields, declared)
+			}
+			return ""
+		},
+		"RequiresFrontmatter": func() string {
+			if c.RequiresFrontmatter() {
+				return "RequiresFrontmatter() faults a note that carries none"
+			}
+			return ""
+		},
+		"DeclaresType": func() string {
+			if c.DeclaresType("lesson") {
+				return "DeclaresType() claims a type vocabulary"
+			}
+			return ""
+		},
+		"Capabilities": func() string {
+			caps := c.Capabilities(schema.Ungoverned())
+			if caps.Navigation.Available() || caps.Knowledge.Available() || caps.Artifacts.Available() {
+				return "Capabilities() claims a declared set for a vault nothing governs"
+			}
+			if caps.Navigation.Claim().Claimed() || caps.Artifacts.Claim().Claimed() {
+				return "Capabilities() reports a withheld declaration where none was ever made"
+			}
+			return ""
+		},
+		"Governance": func() string {
+			if c.Governance().Governed() {
+				return "Governance() claims authority over the vault"
+			}
+			return ""
+		},
+		"NavigationRoles": func() string {
+			roles := c.NavigationRoles()
+			if roles.Available() || roles.IsPathType("study-path") || roles.IsMapType("moc") {
+				return "NavigationRoles() claims a declared role set"
+			}
+			return ""
+		},
+		"KnowledgeScope": func() string {
+			if c.KnowledgeScope().Available() {
+				return "KnowledgeScope() claims a declared knowledge layer"
+			}
+			return ""
+		},
+		"ArtifactPolicy": func() string {
+			policy := c.ArtifactPolicy()
+			if policy.Available() || policy.IsNonInstance("System/templates/x.md") {
+				return "ArtifactPolicy() claims a declared exclusion set"
+			}
+			return ""
+		},
+		"PrivacyPolicy": func() string {
+			policy := c.PrivacyPolicy()
+			if policy.Available() || policy.EgressAllowed("Notes/a.md") {
+				return "PrivacyPolicy() permits egress with no declaration behind it"
+			}
+			return ""
+		},
+		"ArticleLanguage": func() string {
+			tag, err := c.ArticleLanguage().Resolve(map[string]any{"lang": "ja"})
+			if tag != "" || err != nil {
+				return fmt.Sprintf("ArticleLanguage().Resolve() = (%q, %v), want no tag and no fault: the field has no authority here", tag, err)
+			}
+			return ""
+		},
+		"StatusGroup": func() string {
+			if got := c.StatusGroup("lesson"); got != "" {
+				return fmt.Sprintf("StatusGroup() = %q, want empty", got)
+			}
+			if got := c.StatusGroup(""); got != "" {
+				return fmt.Sprintf("StatusGroup(%q) = %q, want empty", "", got)
+			}
+			return ""
+		},
+		"Statuses": func() string {
+			if got := c.Statuses("lesson"); got != nil {
+				return fmt.Sprintf("Statuses() = %v, want nil", got)
+			}
+			return ""
+		},
+		"Stage": func() string {
+			if got, ok := c.Stage("lesson", "draft"); ok {
+				return fmt.Sprintf("Stage() = (%+v, true), want no lifecycle row", got)
+			}
+			return ""
+		},
+		"Transition": func() string {
+			if err := c.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
+				return fmt.Sprintf("Transition() error = %v, want one wrapping ErrUnknownStatus", err)
+			}
+			if err := c.Transition("lesson", "", "draft"); !errors.Is(err, schema.ErrUnknownStatus) {
+				return fmt.Sprintf("Transition() into an initial status error = %v, want one wrapping ErrUnknownStatus", err)
+			}
+			return ""
+		},
+	}
+
+	byPointer, byValue := exportedContractMethods(t)
+	for _, name := range byValue {
+		t.Errorf("Contract.%s takes the contract by value, so calling it on the nil that every ungoverned vault "+
+			"hands out dereferences before the body runs; declare it on *Contract and give it a row here", name)
+	}
+	for _, name := range byPointer {
+		check, covered := answers[name]
+		if !covered {
+			t.Errorf("(*Contract).%s has no row here: state what it answers for a vault no contract governs", name)
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if complaint := check(); complaint != "" {
+				t.Error(complaint)
+			}
+		})
+	}
+	for name := range answers {
+		if !slices.Contains(byPointer, name) {
+			t.Errorf("this table states an answer for (*Contract).%s, which the package does not declare", name)
+		}
+	}
+}
+
+// exportedContractMethods reads the names of every exported method on Contract
+// out of the package source, so no hand-kept list can fall behind the type. The
+// two receiver forms come back apart because they differ in exactly what this
+// test is about: a pointer receiver reaches its body holding a nil contract and
+// can answer for it, and a value receiver never reaches its body at all.
+func exportedContractMethods(t *testing.T) (byPointer, byValue []string) {
+	t.Helper()
+	fset := token.NewFileSet()
+	dir, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("list the package source: %v", err)
+	}
+	for _, entry := range dir {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, parseErr := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", name, parseErr)
+		}
+		for _, decl := range parsed.Decls {
+			fn, isFunc := decl.(*ast.FuncDecl)
+			if !isFunc || fn.Recv == nil || len(fn.Recv.List) != 1 || !fn.Name.IsExported() {
+				continue
+			}
+			receiver := fn.Recv.List[0].Type
+			pointer := false
+			if star, isStar := receiver.(*ast.StarExpr); isStar {
+				receiver, pointer = star.X, true
+			}
+			ident, isIdent := receiver.(*ast.Ident)
+			if !isIdent || ident.Name != "Contract" {
+				continue
+			}
+			if pointer {
+				byPointer = append(byPointer, fn.Name.Name)
+			} else {
+				byValue = append(byValue, fn.Name.Name)
+			}
+		}
+	}
+	if len(byPointer) == 0 {
+		t.Fatal("no exported *Contract methods were found; the scan would prove nothing")
+	}
+	slices.Sort(byPointer)
+	slices.Sort(byValue)
+	return byPointer, byValue
 }

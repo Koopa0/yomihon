@@ -11,13 +11,14 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func capturedGraph(t *testing.T, root string) *graph.Index {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -50,7 +51,7 @@ func TestResolveCaseInsensitive(t *testing.T) {
 
 	for _, name := range []string{"go slice", "GO SLICE", "Go Slice"} {
 		got := idx.Resolve(name)
-		if got.Kind != graph.Unique || got.RelPath != "a/Go Slice.md" {
+		if got.Kind != graph.KindUnique || got.RelPath != "a/Go Slice.md" {
 			t.Errorf("Resolve(%q) = %+v, want Unique a/Go Slice.md", name, got)
 		}
 	}
@@ -68,7 +69,7 @@ func TestResolveNFCAndNFDAreEquivalent(t *testing.T) {
 	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "x.md", Aliases: []string{decomposed}}}, nil)
 
 	got := idx.Resolve(composed)
-	if got.Kind != graph.Unique || got.RelPath != "x.md" {
+	if got.Kind != graph.KindUnique || got.RelPath != "x.md" {
 		t.Errorf("Resolve(%q) = %+v, want Unique x.md", composed, got)
 	}
 }
@@ -97,7 +98,7 @@ func TestCapturedGraphResolvedPathIsNFCEvenWhenDiskFilenameIsNFD(t *testing.T) {
 	idx := capturedGraph(t, root)
 
 	got := idx.Resolve("だ体") // an NFC-typed target, as any human keyboard/IME input would be
-	if got.Kind != graph.Unique {
+	if got.Kind != graph.KindUnique {
 		t.Fatalf("Resolve(%q) = %+v, want Unique", "だ体", got)
 	}
 	if got.RelPath != composed {
@@ -120,11 +121,11 @@ func TestNewOwnsAliasExtractionFromParsedNotes(t *testing.T) {
 	}, []string{"Diagrams/overview.svg"})
 
 	for _, target := range []string{"Go Slice", "slice header", "overview.svg"} {
-		if got := idx.Resolve(target); got.Kind != graph.Unique {
+		if got := idx.Resolve(target); got.Kind != graph.KindUnique {
 			t.Errorf("Resolve(%q).Kind = %v, want Unique", target, got.Kind)
 		}
 	}
-	if got := idx.Resolve("A Title Is Not A Resolution Key"); got.Kind != graph.Unresolved {
+	if got := idx.Resolve("A Title Is Not A Resolution Key"); got.Kind != graph.KindUnresolved {
 		t.Errorf("frontmatter title resolved as a key: %+v", got)
 	}
 }
@@ -168,16 +169,16 @@ func TestAliasesContributeOnlyFromAStringList(t *testing.T) {
 				Frontmatter: map[string]any{"aliases": tt.aliases},
 			}}, nil)
 
-			if got := idx.Resolve("Aliased"); got.Kind != graph.Unique {
+			if got := idx.Resolve("Aliased"); got.Kind != graph.KindUnique {
 				t.Fatalf("Resolve(filename) = %+v, want Unique — a malformed aliases field costs alias keys, never the note's own keys", got)
 			}
 			for _, name := range tt.resolved {
-				if got := idx.Resolve(name); got.Kind != graph.Unique {
+				if got := idx.Resolve(name); got.Kind != graph.KindUnique {
 					t.Errorf("Resolve(%q) = %+v, want Unique", name, got)
 				}
 			}
 			for _, name := range tt.unresolved {
-				if got := idx.Resolve(name); got.Kind != graph.Unresolved {
+				if got := idx.Resolve(name); got.Kind != graph.KindUnresolved {
 					t.Errorf("Resolve(%q) = %+v, want Unresolved", name, got)
 				}
 			}
@@ -193,7 +194,7 @@ func TestResolveAliasSameAsFilename(t *testing.T) {
 
 	byFilename := idx.Resolve("Go Slice")
 	byAlias := idx.Resolve("Slice Header")
-	if byFilename.Kind != graph.Unique || byFilename.RelPath != "Concepts/golang/Go Slice.md" {
+	if byFilename.Kind != graph.KindUnique || byFilename.RelPath != "Concepts/golang/Go Slice.md" {
 		t.Errorf("Resolve(filename) = %+v, want Unique Concepts/golang/Go Slice.md", byFilename)
 	}
 	if diff := cmp.Diff(byFilename, byAlias); diff != "" {
@@ -222,13 +223,13 @@ func TestCapturedGraphTitleIsNotAResolutionKey(t *testing.T) {
 	idx := capturedGraph(t, root)
 
 	const path = "Concepts/golang/Go Slice.md"
-	if got := idx.Resolve("Go Slice"); got.Kind != graph.Unique || got.RelPath != path {
+	if got := idx.Resolve("Go Slice"); got.Kind != graph.KindUnique || got.RelPath != path {
 		t.Errorf("Resolve(filename) = %+v, want Unique %s", got, path)
 	}
-	if got := idx.Resolve("Slice Header"); got.Kind != graph.Unique || got.RelPath != path {
+	if got := idx.Resolve("Slice Header"); got.Kind != graph.KindUnique || got.RelPath != path {
 		t.Errorf("Resolve(alias) = %+v, want Unique %s", got, path)
 	}
-	if got := idx.Resolve("Go Slice 內部結構"); got.Kind != graph.Unresolved {
+	if got := idx.Resolve("Go Slice 內部結構"); got.Kind != graph.KindUnresolved {
 		t.Errorf("Resolve(title) = %+v, want Unresolved — title must never be a resolution key", got)
 	}
 }
@@ -242,7 +243,7 @@ func TestResolveDuplicateAliasIsAmbiguous(t *testing.T) {
 
 	got := idx.Resolve("Mechanical Sympathy")
 	want := graph.Resolution{
-		Kind:       graph.Ambiguous,
+		Kind:       graph.KindAmbiguous,
 		Candidates: []string{"Concepts/golang/A.md", "Concepts/golang/B.md"},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -258,7 +259,7 @@ func TestResolveSameFilenameDifferentFolderIsAmbiguous(t *testing.T) {
 	}, nil)
 
 	got := idx.Resolve("Foo")
-	if got.Kind != graph.Ambiguous {
+	if got.Kind != graph.KindAmbiguous {
 		t.Fatalf("Resolve(Foo) = %+v, want Ambiguous", got)
 	}
 	want := []string{"golang/Foo.md", "rust/Foo.md"}
@@ -275,7 +276,7 @@ func TestResolveReturnsIndependentCandidates(t *testing.T) {
 	}, nil)
 
 	first := idx.Resolve("Foo")
-	if first.Kind != graph.Ambiguous || len(first.Candidates) != 2 {
+	if first.Kind != graph.KindAmbiguous || len(first.Candidates) != 2 {
 		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", first)
 	}
 	first.Candidates[0] = "mutated"
@@ -294,12 +295,12 @@ func TestResolveNonMarkdownResourceNeedsExtension(t *testing.T) {
 	)
 
 	got := idx.Resolve("DDIA-Ch1-Overview.canvas")
-	if got.Kind != graph.Unique || got.RelPath != "Diagrams/canvas/DDIA-Ch1-Overview.canvas" {
+	if got.Kind != graph.KindUnique || got.RelPath != "Diagrams/canvas/DDIA-Ch1-Overview.canvas" {
 		t.Errorf("Resolve(with extension) = %+v, want Unique Diagrams/canvas/DDIA-Ch1-Overview.canvas", got)
 	}
 	// Without the extension, a resource does not resolve — Obsidian
 	// itself requires the extension to link a non-note file.
-	if got := idx.Resolve("DDIA-Ch1-Overview"); got.Kind != graph.Unresolved {
+	if got := idx.Resolve("DDIA-Ch1-Overview"); got.Kind != graph.KindUnresolved {
 		t.Errorf("Resolve(without extension) = %+v, want Unresolved", got)
 	}
 }
@@ -451,7 +452,7 @@ func TestWikilinkFragmentsResolveOnNameAloneRegardlessOfHeadingExistence(t *test
 		t.Fatalf("SplitWikilink() ok = false, want true")
 	}
 	got := idx.Resolve(target)
-	if got.Kind != graph.Unique || got.RelPath != "Go Slice.md" {
+	if got.Kind != graph.KindUnique || got.RelPath != "Go Slice.md" {
 		t.Errorf("Resolve(%q) = %+v, want Unique Go Slice.md", target, got)
 	}
 }
@@ -523,4 +524,44 @@ func TestCollisionsReturnsIndependentCandidates(t *testing.T) {
 	if diff := cmp.Diff(want, idx.Collisions()["foo"]); diff != "" {
 		t.Errorf("Collisions()[foo] after caller mutation mismatch (-want +got):\n%s", diff)
 	}
+}
+
+// A resolution kind reaches a log line, a panic and a rendered fault, and in
+// each of those places a number is a lookup the reader has to perform against
+// a constant block they do not have open.
+func TestKindNamesItself(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		kind graph.Kind
+		want string
+	}{
+		{graph.KindUnresolved, "unresolved"},
+		{graph.KindUnique, "unique"},
+		{graph.KindAmbiguous, "ambiguous"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.kind.String(); got != tc.want {
+				t.Errorf("Kind.String() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// A kind the constant block does not declare has no name, and answering with
+// one of the three would report a resolution that never happened.
+func TestKindRefusesToNameAValueItDoesNotDeclare(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		recovered := recover()
+		text, isText := recovered.(string)
+		if !isText || !strings.Contains(text, "99") {
+			t.Errorf("panic = %v, want a message naming the value 99", recovered)
+		}
+	}()
+	_ = graph.Kind(99).String()
+	t.Error("Kind(99).String() returned instead of panicking")
 }

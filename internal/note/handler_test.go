@@ -1,6 +1,7 @@
 package note_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
@@ -18,22 +19,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/lexical"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-func openReadingVault(t *testing.T, root string) *vault.Reader {
+func openReadingVault(t *testing.T, root string) *vaultfs.Reader {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if err := reader.Close(); err != nil {
@@ -49,7 +50,7 @@ func newSnapshotStore(
 	log *slog.Logger,
 	contract *schema.Contract,
 	governance schema.Governance,
-) (*snapshot.Store, *vault.Reader) {
+) (*snapshot.Store, *vaultfs.Reader) {
 	t.Helper()
 	source := openReadingVault(t, root)
 	store, err := snapshot.New(t.Context(), source, log, contract, governance)
@@ -61,7 +62,7 @@ func newSnapshotStore(
 
 func openStatusWriter(
 	t *testing.T,
-	source *vault.Reader,
+	source *vaultfs.Reader,
 	contract *schema.Contract,
 	governance schema.Governance,
 ) *status.Writer {
@@ -119,16 +120,16 @@ func newServerWithGovernance(
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, governance)
 	writer := openStatusWriter(t, source, contract, governance)
-	h := note.New(&note.Dependencies{
+	h := note.New(&note.Sources{
 		Source:         source,
-		Status:         writer.View,
+		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Log:            log,
 	})
 	h.Register(mux)
-	status.NewHandler(writer, func() pages.Shell { return pages.Shell{} }, log).Register(mux)
+	status.NewHandler(writer, func() nav.Shell { return nav.Shell{} }, log).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -237,13 +238,13 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	writer := openStatusWriter(t, source, contract, contract.Governance())
 	statusCaptures := 0
-	statusProvider := func() status.View {
+	statusProvider := func() status.Authority {
 		statusCaptures++
-		return writer.View()
+		return writer.Authority()
 	}
 
 	mux := http.NewServeMux()
-	handler := note.New(&note.Dependencies{
+	handler := note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
@@ -320,29 +321,29 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 			writer := openStatusWriter(t, source, contract, contract.Governance())
 
-			var statusView status.View
-			var captured *snapshot.View
+			var authority status.Authority
+			var captured *snapshot.Generation
 			if snapshotFirst {
 				captured = store.Current().Capture()
 			} else {
-				statusView = writer.View()
+				authority = writer.Authority()
 			}
 			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 				t.Fatalf("change contract between captures: %v", writeErr)
 			}
 			if snapshotFirst {
-				statusView = writer.View()
+				authority = writer.Authority()
 			} else {
 				captured = store.Current().Capture()
 			}
 
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         func() status.View { return statusView },
-				Snapshot:       func() *snapshot.View { return captured },
+				Status:         func() status.Authority { return authority },
+				Snapshot:       func() *snapshot.Generation { return captured },
 				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
@@ -414,29 +415,29 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 			writer := openStatusWriter(t, source, contract, contract.Governance())
 
-			var statusView status.View
-			var captured *snapshot.View
+			var authority status.Authority
+			var captured *snapshot.Generation
 			if snapshotFirst {
 				captured = store.Current().Capture()
 			} else {
-				statusView = writer.View()
+				authority = writer.Authority()
 			}
 			if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 				t.Fatalf("change contract between captures: %v", writeErr)
 			}
 			if snapshotFirst {
-				statusView = writer.View()
+				authority = writer.Authority()
 			} else {
 				captured = store.Current().Capture()
 			}
 
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         func() status.View { return statusView },
-				Snapshot:       func() *snapshot.View { return captured },
+				Status:         func() status.Authority { return authority },
+				Snapshot:       func() *snapshot.Generation { return captured },
 				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
@@ -508,13 +509,13 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	statusCaptures := 0
 	mux := http.NewServeMux()
-	note.New(&note.Dependencies{
+	note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
-		Status: func() status.View {
+		Status: func() status.Authority {
 			statusCaptures++
-			return writer.View()
+			return writer.Authority()
 		},
 		Snapshot: store.Current,
 		Log:      log,
@@ -615,7 +616,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 				return loadHomeContractWithArtifactSection(t, "")
 			},
 			want:       "contract declares no artifact policy; instance projections disabled until it does",
-			wantAbsent: status.CoreUnavailableDiagnostic,
+			wantAbsent: wording.ContractUnavailable.In(wording.ZhHant),
 		},
 		{
 			name: "artifact policy invalid",
@@ -624,7 +625,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 				return loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
 			},
 			want:       `invalid artifact policy: non_instance_dirs contains "."`,
-			wantAbsent: status.CoreUnavailableDiagnostic,
+			wantAbsent: wording.ContractUnavailable.In(wording.ZhHant),
 		},
 	}
 	for _, tt := range tests {
@@ -1539,16 +1540,16 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var current atomic.Pointer[snapshot.View]
+			var current atomic.Pointer[snapshot.Generation]
 			current.Store(firstStore.Current())
 			calls := 0
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         firstSource,
-				Status:         writer.View,
-				Snapshot: func() *snapshot.View {
+				Status:         writer.Authority,
+				Snapshot: func() *snapshot.Generation {
 					calls++
 					return current.Swap(secondStore.Current())
 				},
@@ -1602,12 +1603,12 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			t.Parallel()
 			calls := 0
 			mux := http.NewServeMux()
-			note.New(&note.Dependencies{
+			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         writer.View,
-				Snapshot: func() *snapshot.View {
+				Status:         writer.Authority,
+				Snapshot: func() *snapshot.Generation {
 					calls++
 					return store.Current()
 				},
@@ -1839,12 +1840,12 @@ body
 	statusCaptures := 0
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	writer := openStatusWriter(t, source, contract, contract.Governance())
-	requestStatus := func() status.View {
+	requestStatus := func() status.Authority {
 		statusCaptures++
-		return writer.View()
+		return writer.Authority()
 	}
 	mux := http.NewServeMux()
-	handler := note.New(&note.Dependencies{
+	handler := note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
@@ -2515,13 +2516,13 @@ func TestShowNoFrontmatter(t *testing.T) {
 	if !strings.Contains(body, "沒有 frontmatter") {
 		t.Errorf("page missing the no-frontmatter notice; body = %q", body)
 	}
-	if strings.Contains(body, status.CoreUnavailableDiagnostic) || strings.Contains(body, "fail-closed") {
+	if strings.Contains(body, wording.ContractUnavailable.In(wording.ZhHant)) || strings.Contains(body, "fail-closed") {
 		t.Errorf("page shows the fail-closed notice even though the contract loaded; body = %q", body)
 	}
 }
 
 // TestShowTransitions exercises handler.go's default branch (view.Transitions
-// = statusView.Transitions(n.RelPath, n.Type(), n.Status())) with a loaded contract.
+// = authority.Transitions(n.RelPath, n.Type(), n.Status())) with a loaded contract.
 // Getting the argument order backwards (Transitions(current, noteType)) or
 // swapping the switch's case order would silently render the wrong panel —
 // this test is the only one in the repo that would catch either.
@@ -2546,7 +2547,7 @@ func TestShowTransitions(t *testing.T) {
 	// draft -> [ready, archived] per testdata/contract.toml's lifecycle table
 	// (cross-checked by hand, mirroring the status package's TestTransitions).
 	transitionSource := openReadingVault(t, root)
-	transitions := openStatusWriter(t, transitionSource, contract, contract.Governance()).View().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
+	transitions := openStatusWriter(t, transitionSource, contract, contract.Governance()).Authority().Transitions("Writing/lessons/japanese/L01.md", "lesson", "draft")
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
@@ -2648,7 +2649,7 @@ func TestShowTransitions(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("lesson after POST differs outside the one status line:\ngot:  %q\nwant: %q", got, want)
 	}
-	if strings.Contains(body, status.CoreUnavailableDiagnostic) || strings.Contains(body, "fail-closed") || strings.Contains(body, "沒有 frontmatter") {
+	if strings.Contains(body, wording.ContractUnavailable.In(wording.ZhHant)) || strings.Contains(body, "fail-closed") || strings.Contains(body, "沒有 frontmatter") {
 		t.Errorf("page shows the wrong status-panel branch; body = %q", body)
 	}
 }
@@ -2815,44 +2816,44 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// nilDeps passes a nil *Dependencies instead of clearing one field.
+		// nilDeps passes a nil *Sources instead of clearing one field.
 		nilDeps bool
-		clear   func(*note.Dependencies)
+		clear   func(*note.Sources)
 		want    string
 	}{
 		{
 			name:    "no dependencies at all",
 			nilDeps: true,
-			want:    "note: New requires non-nil Dependencies",
+			want:    "note: New requires a non-nil Sources",
 		},
 		{
 			name:  "source",
-			clear: func(d *note.Dependencies) { d.Source = nil },
+			clear: func(d *note.Sources) { d.Source = nil },
 			want:  "note: New requires a non-nil Source",
 		},
 		{
 			name:  "status view",
-			clear: func(d *note.Dependencies) { d.Status = nil },
+			clear: func(d *note.Sources) { d.Status = nil },
 			want:  "note: New requires a non-nil Status",
 		},
 		{
 			name:  "snapshot provider",
-			clear: func(d *note.Dependencies) { d.Snapshot = nil },
+			clear: func(d *note.Sources) { d.Snapshot = nil },
 			want:  "note: New requires a non-nil Snapshot provider",
 		},
 		{
 			name:  "observed status provider",
-			clear: func(d *note.Dependencies) { d.ObservedStatus = nil },
+			clear: func(d *note.Sources) { d.ObservedStatus = nil },
 			want:  "note: New requires a non-nil ObservedStatus provider",
 		},
 		{
 			name:  "consume receipt provider",
-			clear: func(d *note.Dependencies) { d.ConsumeReceipt = nil },
+			clear: func(d *note.Sources) { d.ConsumeReceipt = nil },
 			want:  "note: New requires a non-nil ConsumeReceipt provider",
 		},
 		{
 			name:  "log",
-			clear: func(d *note.Dependencies) { d.Log = nil },
+			clear: func(d *note.Sources) { d.Log = nil },
 			want:  "note: New requires a non-nil Log",
 		},
 	}
@@ -2874,11 +2875,11 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			writer := openStatusWriter(t, source, nil, schema.Ungoverned())
-			deps := note.Dependencies{
+			deps := note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
 				Source:         source,
-				Status:         writer.View,
+				Status:         writer.Authority,
 				Snapshot:       store.Current,
 				Log:            log,
 			}
@@ -2888,7 +2889,7 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 	}
 }
 
-func TestNewCopiesDependencies(t *testing.T) {
+func TestNewCopiesItsSources(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const body = "constructor ownership sentinel\n"
@@ -2898,11 +2899,11 @@ func TestNewCopiesDependencies(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
-	deps := note.Dependencies{
+	deps := note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Source:         source,
-		Status:         writer.View,
+		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		Log:            log,
 	}
@@ -3014,12 +3015,15 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	}
 }
 
-// TestStatusPanelPrecedesOutline locks the right rail's order. The rail is its
-// own scroll container, so whatever renders first decides what the reader sees
-// without scrolling — and an outline of any length used to push the transition
-// controls past the bottom of the window on most notes, where scrolling the
-// article moved them not at all.
-func TestStatusPanelPrecedesOutline(t *testing.T) {
+// TestReadingPrecedesTheRulingInTheRail locks the right rail's order. The rail
+// is its own scroll container, so whatever renders first decides what a reader
+// sees there without scrolling, and what they came for is the note: its own
+// shape first, then what leads to it from elsewhere in the vault. The ruling is
+// a small verb beside the reading rather than the frame around it, so it takes
+// the last position and is reached by scrolling the rail like everything else
+// in it. The panel opened the rail before this, which put the smallest control
+// on the page above both of the things the reader was reading.
+func TestReadingPrecedesTheRulingInTheRail(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	// A long outline is the case that used to bury the panel.
@@ -3054,15 +3058,35 @@ func TestStatusPanelPrecedesOutline(t *testing.T) {
 
 	panelAt := strings.Index(rail, "y-statuspanel")
 	outlineAt := strings.Index(rail, `<nav aria-label="本頁內容">`)
+	citedAt := strings.Index(rail, "y-citedby")
 	if panelAt < 0 {
 		t.Fatalf("right rail has no status panel; rail = %q", rail)
 	}
 	if outlineAt < 0 {
 		t.Fatalf("this fixture must render an outline for the ordering to mean anything; rail = %q", rail)
 	}
-	if panelAt > outlineAt {
-		t.Errorf("outline renders before the status panel (panel at %d, outline at %d); a long outline then pushes the transition controls out of view",
-			panelAt, outlineAt)
+	// The rail draws only what a note has, and this note cites nobody, so the
+	// middle block is held where it appears rather than demanded here. The
+	// browser probe drives a note that has one.
+	type block struct {
+		what string
+		at   int
+	}
+	var order []block
+	for _, b := range []block{
+		{"the note's own shape", outlineAt},
+		{"what leads to this note", citedAt},
+		{"the ruling", panelAt},
+	} {
+		if b.at >= 0 {
+			order = append(order, b)
+		}
+	}
+	for i := 1; i < len(order); i++ {
+		if order[i-1].at > order[i].at {
+			t.Errorf("%s renders after %s in the rail (%d against %d); reading comes first there and the verb comes last",
+				order[i-1].what, order[i].what, order[i-1].at, order[i].at)
+		}
 	}
 }
 
@@ -3159,11 +3183,11 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 	}
 	store, source := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
 	mux := http.NewServeMux()
-	note.New(&note.Dependencies{
+	note.New(&note.Sources{
 		Source:         source,
-		Status:         func() status.View { return status.View{} },
+		Status:         func() status.Authority { return status.Authority{} },
 		Snapshot:       store.Current,
-		ObservedStatus: func(string) (string, error) { return "", nil },
+		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
 		ConsumeReceipt: func(string, string) bool { return false },
 		Log:            slog.New(slog.DiscardHandler),
 	}).Register(mux)
@@ -3181,7 +3205,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 			if shown != f.wantText {
 				t.Errorf("GET /notes/%s renders its characters = %v, want %v", f.rel, shown, f.wantText)
 			}
-			results, err := store.Current().Search().Search(search.Parse(f.term))
+			results, _, err := store.Current().Search().SearchN(lexical.Parse(f.term), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", f.term, err)
 			}

@@ -5,6 +5,7 @@ ACTIONLINT_VERSION := v1.7.12
 SHELLCHECK_VERSION := 0.11.0
 GOVULNCHECK_VERSION := v1.5.0
 BENCHSTAT_VERSION := v0.0.0-20260709024250-82a0b07e230d
+DEADCODE_VERSION := v0.49.0
 TAILWIND_VERSION := v4.1.17
 
 BENCH_BASELINE ?= /tmp/yomihon-bench-baseline.txt
@@ -37,7 +38,7 @@ needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
 }
 endef
 
-.PHONY: screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
+.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -155,9 +156,11 @@ tools:
 	go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install golang.org/x/perf/cmd/benchstat@$(BENCHSTAT_VERSION)
+	go install golang.org/x/tools/cmd/deadcode@$(DEADCODE_VERSION)
 
 workflow-check:
 	@$(call require-go-tool,actionlint,github.com/rhysd/actionlint,$(ACTIONLINT_VERSION))
+	@sh tools/check-ci-tools.sh
 	@shellcheck --version | awk '$$1 == "version:" && $$2 == "$(SHELLCHECK_VERSION)" { found = 1 } END { exit !found }' || { \
 		echo 'ShellCheck $(SHELLCHECK_VERSION) is required' >&2; \
 		exit 1; \
@@ -304,7 +307,27 @@ stylelint-check:
 	while IFS= read -r file; do set -- "$$@" "$$file"; done < "$$tmp/files"; \
 	npm exec --prefix .github -- stylelint --config .stylelintrc.json --config-basedir .github "$$@"
 
-verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test real-vault-build-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
+# convention-check runs the checks that keep the module's shape from drifting
+# while every individual change looks reasonable: the layer boundaries, the
+# repeated message shapes, and the code nothing reaches any more. They are Go
+# tests, so `make test` already runs them; naming them here gives the failure a
+# name an operator can act on, and keeps the count of things `verify` asserts
+# visible in one line.
+convention-check: deadcode-check
+	go test ./internal/archlock/ ./internal/sourcebytes/
+
+# deadcode-check reports functions nothing reaches, counting every test as a
+# caller. A function only its own tests reach is a real answer to a real
+# question and stays; a function nothing reaches at all is weight a reader
+# carries for nothing, and the report is empty today.
+deadcode-check:
+	@$(call require-go-tool,deadcode,golang.org/x/tools,$(DEADCODE_VERSION))
+	@set -eu; \
+	$(call owned-go-list); \
+	found=$$(deadcode -test $$list); \
+	[ -z "$$found" ] || { printf '%s\n' "$$found" >&2; echo 'nothing reaches the functions above; delete them or say in the code why they stay' >&2; exit 1; }
+
+verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test convention-check real-vault-build-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
 
 verify-spec:
 	@test -f tests/test-hooks.sh \

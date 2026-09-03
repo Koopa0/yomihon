@@ -1,7 +1,6 @@
-// Package syllabus serves the study-path page: a full-page render of one
-// parsed study-path tree, with a switcher across every study-path in the vault.
-// It reads internal/nav's already-parsed Paths plus the shared shell projection,
-// both captured from one atomic snapshot; it never parses notes itself.
+// Package syllabus serves the study-path page: one study-path tree with a
+// switcher across every study-path in the vault. It reads paths the navigation
+// model already parsed, and parses no note itself.
 package syllabus
 
 import (
@@ -9,6 +8,8 @@ import (
 	"net/http"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -16,13 +17,13 @@ import (
 
 // Handler serves the study-path page.
 type Handler struct {
-	shell func() pages.Shell
+	shell func() nav.Shell
 	log   *slog.Logger
 }
 
 // New wires the syllabus feature. Every dependency must be non-nil: a nil
 // is a wiring bug that must fail here, not on the first request.
-func New(shell func() pages.Shell, log *slog.Logger) *Handler {
+func New(shell func() nav.Shell, log *slog.Logger) *Handler {
 	if shell == nil {
 		panic("syllabus: New requires a non-nil Shell provider")
 	}
@@ -38,38 +39,30 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 // show renders the study-path whose vault path matches the request. An unknown
-// path (or an empty model, before the first scan) is a 404 — the same
-// fail-quiet stance the reading page takes for a missing note.
+// path, and an empty model before the first scan, both answer the not-found
+// page rather than a line of text.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
-	// A vault holds its names composed, and a request can carry either
-	// spelling of the same letter, so the name is composed before it is
-	// looked up — the way every other path route already reads one.
+	// A vault holds its names composed and a request can carry either spelling
+	// of the same letter, so the name is composed before it is looked up.
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 
 	shell := h.shell()
-	current := findPath(shell.Nav, rel)
+	current := shell.Nav.Path(rel)
 	if current == nil {
-		http.Error(w, wording.PathNotFound.In(pages.LanguageFromRequest(r)), http.StatusNotFound)
+		lang := origin.Language(r)
+		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
+		// The title names which route refused; the page below it is shared.
+		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		if err := pages.NotFound(view, chrome).Render(r.Context(), w); err != nil {
+			h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path not-found page", "path", rel, "error", err)
+		}
 		return
 	}
 
 	view := pages.BuildPathView(current, shell.Nav.Paths())
-	if err := pages.Syllabus(view, pages.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
-		h.log.Error("write syllabus page", "path", rel, "error", err)
+	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
 	}
-}
-
-// findPath returns the study-path with the given vault-relative path, or nil
-// when the model is nil or none matches.
-func findPath(model *nav.Model, rel string) *nav.Path {
-	if model == nil {
-		return nil
-	}
-	paths := model.Paths()
-	for i := range paths {
-		if paths[i].RelPath == rel {
-			return &paths[i]
-		}
-	}
-	return nil
 }

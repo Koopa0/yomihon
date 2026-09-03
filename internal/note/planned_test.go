@@ -10,18 +10,18 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // plainVaultView builds one generation over root — an ungoverned folder, which
 // is all the classifier needs: planning is a convention of the prose, not of
 // the contract.
-func plainVaultView(t *testing.T, root string) *snapshot.View {
+func plainVaultView(t *testing.T, root string) *snapshot.Generation {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
+		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -46,6 +46,8 @@ func plainVaultView(t *testing.T, root string) *snapshot.View {
 // that names nothing anyone ever intended to write — the same distinction the
 // adjudicator draws, reached the same way.
 func TestFaultsKeepsOnlyUnplannedBrokenLinks(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeNote(t, root, "Maps/plan.md", `---
 title: Plan
@@ -93,6 +95,8 @@ This cites [[Byzantine Broadcast]], which no note has said it will write.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			rendered := snap.Render(tt.relPath, tt.body, wording.ZhHant)
 			// The render pass must have seen every link as unresolved, or the
 			// filter below would be reported as working while never running.
@@ -112,6 +116,8 @@ This cites [[Byzantine Broadcast]], which no note has said it will write.
 // that failure has nothing to do with planning. Naming such a target in the gap
 // ledger must not silence it.
 func TestFaultsKeepsResolvedTargetsThatFailedToRender(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	writeNote(t, root, "Maps/plan.md", `---
 title: Plan

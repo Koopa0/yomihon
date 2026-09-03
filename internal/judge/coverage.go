@@ -213,26 +213,21 @@ func resolveTargets(idx *graph.Index, value string) []string {
 	}
 	res := idx.Resolve(target)
 	switch res.Kind {
-	case graph.Unique:
+	case graph.KindUnique:
 		return []string{res.RelPath}
-	case graph.Ambiguous:
+	case graph.KindAmbiguous:
 		return res.Candidates
-	case graph.Unresolved:
+	case graph.KindUnresolved:
 		return nil
 	default:
-		panic("judge: unknown graph.Kind: " + strconv.Itoa(int(res.Kind)))
+		panic("judge: unknown graph.Kind: " + res.Kind.String())
 	}
 }
 
-// coverageRoutes is the index each routable non-concept type belongs on. A
-// concept has its own three-way classification above; most types route only
-// once their index note exists, so the research brief is the single route.
-//
-// vault-schema.toml has no vocabulary for routes: it names types and their
-// roles, never the note a type is filed under. So this one route cannot be
-// derived, and it is offered only to a vault whose contract declares the type
-// it is about — a vault that never names the type is not told to file its notes
-// under an index it does not have.
+// coverageRoutes is the index each routable non-concept type belongs on.
+// vault-schema.toml has no vocabulary for routes — it names types and their
+// roles, never the note a type is filed under — so this one cannot be derived,
+// and it is offered only to a vault whose contract declares the type.
 func coverageRoutes(authority scanAuthority) map[string]string {
 	if !authority.declaresType(researchBriefType) {
 		return nil

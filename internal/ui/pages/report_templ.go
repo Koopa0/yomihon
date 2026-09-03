@@ -9,39 +9,30 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// ReportView is the minimal shell a sandboxed report needs: the report's name
-// (its title, and the key its /raw endpoint resolves against the allowlist) and
-// the whole-vault Nav for the shared sidebar. A report is not a note — no TOC,
-// no status panel, no diagnostics: the briefing HTML is served verbatim inside a
-// sandboxed iframe, and yomihon styles only the frame, never the content.
+// ReportView is the minimal shell a sandboxed report needs: the report's name,
+// which is both its title and the key its /raw endpoint resolves against the
+// allowlist, and the shared navigation rail. A report is not a note, so it has
+// no contents, no status panel and no diagnostics.
 type ReportView struct {
 	Name string
-	Nav  *nav.Model
-	// RelPath is the report file this shell frames, so the sidebar knows the
-	// reader is standing among the reports — the report drawer opens and the
-	// folder tree reveals the branch, exactly as it would had the same file
-	// been reached as a note.
-	RelPath string
+	// Sidebar is the resolved left navigation, built with this report as the
+	// current file so the drawer opens and the folder tree reveals the branch.
+	Sidebar Sidebar
 	// NeedsScript records that this document draws part of itself with a
-	// script. Scripts never run here, so that part of the page is absent — and
-	// a chart-shaped hole with nothing explaining it reads as a broken report
-	// rather than as the boundary working.
+	// script. Scripts never run here, and a chart-shaped hole with nothing
+	// explaining it reads as a broken report rather than the boundary working.
 	NeedsScript bool
 }
 
-// Report is the report shell page: the shared header and content navigation
-// sidebar, a title, and one iframe that
-// fills the reading column. The iframe carries a bare sandbox: authored scripts
-// and automatic navigation stay disabled, and the content lands in an opaque
-// origin that cannot inherit yomihon's first-party authority. A deliberate
-// user-followed link remains navigation, not an automatic action suppressed by
-// this boundary. Its src is this report's verbatim /raw endpoint, so the source
-// bytes remain unchanged.
+// Report is the report shell page: the shared chrome, a title, and one iframe
+// filling the reading column. The iframe carries a bare sandbox, so authored
+// scripts and automatic navigation stay disabled and the content lands in an
+// opaque origin that cannot inherit yomihon's first-party authority. Its src is
+// this report's verbatim /raw endpoint, so the source bytes stay unchanged.
 func Report(v ReportView, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -79,7 +70,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = sidebar(NewSidebar(v.Nav, v.RelPath, c.Lang), c.Nonce).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = sidebar(v.Sidebar, c).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -90,7 +81,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 43, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 34, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -108,7 +99,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ReportAsIs.In(c.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 46, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 37, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -126,7 +117,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.URL(reportRawHref(v.Name)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 51, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 42, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -139,7 +130,7 @@ func Report(v ReportView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 53, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/report.templ`, Line: 44, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {

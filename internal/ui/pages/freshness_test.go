@@ -42,7 +42,7 @@ func TestFreshnessAttrsWithholdTheWatchWhereItWouldDouble(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			attrs := freshnessAttrs(tt.view, wording.ZhHant)
+			attrs := freshnessAttrs(&tt.view, wording.ZhHant)
 			if got := len(attrs) > 0; got != tt.watch {
 				t.Fatalf("freshnessAttrs() watches = %t, want %t (attrs = %v)", got, tt.watch, attrs)
 			}
@@ -66,7 +66,7 @@ func TestFreshnessAttrsWithholdTheWatchWhereItWouldDouble(t *testing.T) {
 // narrow as it was before the stamp existed.
 func TestFreshnessAttrsStampTranscludedContentOnlyWhereItExists(t *testing.T) {
 	t.Parallel()
-	with := freshnessAttrs(NoteView{
+	with := freshnessAttrs(&NoteView{
 		RelPath:             "Writing/note.md",
 		ContentIdentity:     "3f2a",
 		TranscludedIdentity: "0a1b",
@@ -74,7 +74,7 @@ func TestFreshnessAttrsStampTranscludedContentOnlyWhereItExists(t *testing.T) {
 	if with["data-freshness-embeds"] != "0a1b" {
 		t.Errorf("data-freshness-embeds = %v, want %q", with["data-freshness-embeds"], "0a1b")
 	}
-	without := freshnessAttrs(NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, wording.ZhHant)
+	without := freshnessAttrs(&NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, wording.ZhHant)
 	if got, ok := without["data-freshness-embeds"]; ok {
 		t.Errorf("a page that transcluded nothing stamps data-freshness-embeds = %v; the attribute must be absent", got)
 	}
@@ -90,7 +90,7 @@ func TestFreshnessAttrsCarryTheWriteHoldSentence(t *testing.T) {
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
-			attrs := freshnessAttrs(NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, lang)
+			attrs := freshnessAttrs(&NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, lang)
 			want := wording.FreshnessWriteHold.In(lang)
 			if want == "" {
 				t.Fatal("the write-hold sentence is empty in this language, so the assertion below cannot mean anything")

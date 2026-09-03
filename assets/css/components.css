@@ -53,6 +53,15 @@ html, body { margin: 0; background: var(--bg); }
 .yomihon details > summary { list-style: none; cursor: pointer; }
 .yomihon summary::-webkit-details-marker { display: none; }
 .yomihon :focus-visible { outline: 2px solid var(--fg-subtle); outline-offset: 2px; border-radius: var(--r-sm); }
+/* The three search fields suppress that ring on purpose — they autofocus, and
+   a ring firing on every open is noise rather than news — and move the signal
+   to the field around them. Each already accented its own border on focus, but
+   a border is one pixel wide: enough to satisfy "something visible changed",
+   thin for a reader who has to find it. The wash widens that answer without
+   putting the ring back on the input. */
+.y-searchdialog__form:focus-within,
+.y-searchpage__form:focus-within,
+.y-homesearch:focus-within { box-shadow: 0 0 0 3px var(--accent-muted); }
 .yomihon ::selection { background: var(--accent-muted); }
 .yomihon *::-webkit-scrollbar { width: 11px; height: 11px; }
 .yomihon *::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
@@ -415,8 +424,14 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--fg-muted); font-family: var(--font-serif); }
 .y-prose tr:last-child td { border-bottom: none; }
 
-/* highlight (==text== → <mark>, no class) */
-.y-prose mark { background: color-mix(in oklch, var(--gold) 26%, transparent); color: inherit; padding: 0 .15rem; border-radius: 2px; }
+/* highlight (==text== → <mark>, no class). Scoped to the shell rather than to
+   the prose, because the reading column is not the only place a mark appears:
+   a search result marks every hit in its title, its path and its snippet, and
+   those sit outside the column. Left prose-scoped, a results page fell back to
+   the browser's own pure yellow — the one saturated primary colour anywhere in
+   the product, fired dozens of times at once on a page of hits, and on a dark
+   evening it landed on a near-black ground. */
+.yomihon mark { background: color-mix(in oklch, var(--gold) 26%, transparent); color: inherit; padding: 0 .15rem; border-radius: 2px; }
 
 /* wikilinks — the renderer's real classes (a.wikilink / .wikilink-broken / .wikilink-ambiguous) */
 .y-prose a.wikilink { color: var(--link); border-bottom: 1px solid var(--accent-muted); }
@@ -523,6 +538,19 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
   background: linear-gradient(100deg, var(--panel) 40%, var(--elevated) 50%, var(--panel) 60%);
   background-size: 200% 100%;
   animation: y-shimmer 1.4s linear infinite;
+}
+/* Never inside a hover card. The client binds the diagram renderer once, over
+   the document it booted on, and a card's prose arrives long afterwards — so
+   the wait above would run forever over source text it had already painted
+   transparent, and would leave a blank grey box for a reader who asked for
+   less motion. The card shows the fence as written, which is what a page with
+   no scripting at all shows. The selector carries the waiting rule's own shape
+   because it has to outrank it, not merely follow it. */
+[data-js]:not([data-mermaid-error]) .y-preview .y-prose .mermaid-diagram:not([data-mermaid-error]):not(:has(svg)) {
+  color: var(--fg-subtle);
+  background-image: none;
+  background-color: var(--panel);
+  animation-name: none;
 }
 [data-js][data-mermaid-error] .y-prose .mermaid-diagram:not(:has(svg)),
 [data-js] .y-prose .mermaid-diagram[data-mermaid-error]:not(:has(svg)) {
@@ -670,7 +698,13 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
    Ruby (furigana) — rt hidden by visibility only → zero reflow
    ============================================================ */
 .yomihon ruby { ruby-align: center; ruby-position: over; }
-.yomihon rt { font-family: var(--font-sans); font-size: 0.5em; font-weight: 400; color: var(--fg-subtle); letter-spacing: 0.02em; user-select: none; }
+/* The reading is what a learner is here to read, so it is not allowed to be
+   both the smallest and the faintest thing on the page. It takes the ink the
+   prose beside it takes — a reading fainter than the word it explains asks the
+   reader to work hardest on the part they know least — and it is set in em, so
+   it grows with the reader's own type choice instead of needing a rule per
+   step. */
+.yomihon rt { font-family: var(--font-sans); font-size: 0.55em; font-weight: 400; color: var(--fg-muted); letter-spacing: 0.02em; user-select: none; }
 [data-ruby="off"] rt:not([data-keep="1"]) { visibility: hidden; }
 
 /* ============================================================
@@ -1222,12 +1256,33 @@ html {
   }
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
-  .y-nav-scrim, .y-skiplink, .y-sealbar,
+  .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview,
   .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions {
     display: none !important;
   }
   .y-shell, .y-shell2 { display: block; }
   .y-main { min-width: 0; }
+  /* Paper has edges the screen does not, and a block that runs across one
+     comes back cut with no way to rejoin it: half a diagram, a listing whose
+     indentation restarts, an excerpt separated from the line naming the note
+     it came from, a row with one cell on each sheet. So the sheet is given
+     margins wide enough to hold and to bind, and the blocks that mean nothing
+     in halves are asked to stay whole. One that genuinely cannot fit is
+     broken by the browser anyway, which is the right answer and not this
+     rule's to make.
+
+     A heading keeps at least the opening of what it announces beside it, and
+     a paragraph neither leaves one line behind nor carries one over. A note's
+     own top-level heading starts a fresh sheet, because that is where one
+     part of it ends and the next begins — except a first one, which would
+     otherwise put a blank sheet in front of the opening line. */
+  @page { margin: 18mm 16mm; }
+  .y-prose pre, .y-prose blockquote, .y-prose .callout, .y-prose .embed,
+  .y-prose .mermaid-diagram, .y-prose table, .y-prose tr,
+  .y-slotcard, .y-healthlist li { break-inside: avoid; }
+  .y-title, .y-prose h1, .y-prose h2, .y-prose h3, .y-prose h4 { break-after: avoid; }
+  .y-prose h1:not(:first-child) { break-before: page; }
+  .y-prose p, .y-prose li { orphans: 2; widows: 2; }
 }
 
 /* Keyboard help: a native popover the header's ? opens. It exists because the
@@ -1330,3 +1385,36 @@ html {
 .y-filter-partial { margin: 8px 8px 4px; font-family: var(--font-serif); font-size: var(--fs-12); line-height: 1.6; color: var(--fg-subtle); }
 .y-filter-partial a { color: var(--accent); text-decoration: none; }
 .y-filter-partial a:hover { text-decoration: underline; }
+
+/* The hover preview: the note a link leads to, shown beside that link. Where it
+   lands is settled here rather than in script — the client names an anchor on
+   the link under the pointer and nothing else about geometry — and the
+   fallbacks are what keeps a card opened near an edge of the window on screen.
+   The excerpt scrolls inside the card without taking the page with it. */
+.y-prose a.wikilink[data-preview-open] { anchor-name: --y-preview-anchor; border-bottom-color: var(--accent); }
+.y-preview {
+  inset: auto; position: fixed; margin: 0; position-anchor: --y-preview-anchor;
+  position-area: block-end span-inline-end;
+  position-try-fallbacks: flip-block, flip-inline, block-start span-inline-start;
+  inline-size: min(38rem, calc(100vw - 2rem)); max-block-size: min(18rem, 60vh);
+  overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow-2);
+}
+.y-preview:popover-open { transition: opacity var(--dur-base) var(--ease-standard); }
+@starting-style { .y-preview:popover-open { opacity: 0; } }
+.y-preview__body { content-visibility: auto; contain-intrinsic-block-size: auto 20rem; }
+/* The excerpt opens flush: the space a first heading or paragraph normally
+   keeps above it belongs to a page, and the card is not one. */
+.y-preview .y-prose > :first-child { margin-block-start: 0; }
+/* The line above the excerpt: which note this is, and the way to it. Quiet
+   enough to read past on the way to the words, and the only thing on the card
+   that is not the other note's. */
+.y-preview__source { margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.04em; line-height: 1.5; }
+.y-preview__sourcelink { color: var(--fg-muted); text-decoration: none; }
+.y-preview__sourcelink:hover { color: var(--accent); }
+.y-preview__sep { margin: 0 6px; color: var(--fg-faint); }
+.y-preview__section { color: var(--fg-subtle); }
+/* The two sentences the card says in its own voice: why it is empty, and where
+   the rest of a note it cut short can be read. */
+.y-preview__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }

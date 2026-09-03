@@ -1,41 +1,36 @@
 package judge
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
-// Check scans the vault rooted at root for corpus-level findings — broken and
-// title-only links, alias collisions, unresolved provenance, syllabus-vs-disk
-// mismatches, dead file references, and frontmatter schema violations — and
-// returns them in the deterministic wire order. The graph is always built from
-// the whole vault; findings touching a contract-declared private path are
-// dropped in every scope, and the default scope additionally drops findings
-// that touch only System/ files, which cite reference material rather than
-// carry live links. A missing, malformed, or privacy-incomplete schema contract
-// is an error because agent-facing output has no authority without it.
-func Check(root string) ([]Finding, error) {
-	return runCheckAction(root, nil, false)
+// Check scans the vault rooted at root for corpus-level findings and returns
+// them in the deterministic wire order. The graph is always built from the
+// whole vault; findings touching a contract-declared private path are dropped
+// in every scope, and the default scope also drops findings touching only
+// System/ files. A missing or privacy-incomplete contract is an error, because
+// agent-facing output has no authority without one. A cancelled ctx stops the
+// scan at the contract load, the walk, or any note read.
+func Check(ctx context.Context, root string) ([]Finding, error) {
+	return runCheckAction(ctx, root, nil, false)
 }
 
-// check is the whole-engine scan behind the check command. The graph is always
-// built from the entire vault; paths and all only decide which findings are
-// kept. Findings that touch a contract-declared private path are always
-// dropped, whatever all is. Without all, findings that touch only System/ are
-// dropped, since those files cite reference material rather than carry live
-// links. When paths are given, a finding is kept only if one of the paths it
-// touches lies at or below one of them. The findings are returned in the
-// deterministic wire order.
-func check(root string, paths []string, all bool) ([]Finding, error) {
-	return runCheckAction(root, paths, all)
-}
-
-func runCheckAction(root string, paths []string, all bool) ([]Finding, error) {
-	a, err := openAction(root, actionHooks{})
+// runCheckAction is the whole-engine scan, with the two knobs a command line
+// can turn on top of what Check describes: a scope filter keeping only findings
+// that touch one of the given paths, and all, which keeps the findings touching
+// nothing outside System/. Neither widens what is read — the graph is built
+// from the whole vault either way — and neither reaches a path the contract
+// withholds, which is dropped ahead of both.
+func runCheckAction(ctx context.Context, root string, paths []string, all bool) ([]Finding, error) {
+	a, err := openAction(ctx, root, actionHooks{})
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +85,9 @@ func buildIndex(notes []note, resources []string) *graph.Index {
 // any collision member — lies under System/. A finding is kept when at least
 // one path it touches is outside System/.
 func dropSystemScoped(findings []Finding) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if touchesOutsideSystem(&findings[i]) {
-			out = append(out, findings[i])
-		}
-	}
-	return out
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return !touchesOutsideSystem(&f)
+	})
 }
 
 // touchesOutsideSystem reports whether a finding touches any path outside
@@ -112,13 +103,9 @@ func touchesOutsideSystem(f *Finding) bool {
 // a public link resolves consistently, but their paths never surface in a
 // finding and the drop holds even for the full, unfiltered set.
 func dropEgressDenied(findings []Finding, authority scanAuthority) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if !touchesEgressDenied(&findings[i], authority) {
-			out = append(out, findings[i])
-		}
-	}
-	return out
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return touchesEgressDenied(&f, authority)
+	})
 }
 
 // touchesEgressDenied reports whether a finding's resolution touches a
@@ -134,30 +121,15 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 }
 
 // filterByPaths keeps only findings that touch one of the given path prefixes.
-// A finding is kept when its citing path or any collision member equals a
-// prefix or lies beneath it. Each prefix is normalized the way the scan
-// canonicalizes what it observed — forward slashes, no trailing slash, no
-// leading "./", composed form — so a path typed at a shell matches the vault's
-// own spelling of it, including one written in decomposed form by a Mac
-// keyboard.
-//
-// A prefix that cannot match anything is refused rather than filtered with. An
-// argument that is empty or only slashes names no path at all; one that names
-// something the scan never observed is a scope this command cannot see; and one
-// the contract withholds from agent-facing output is a scope this command may
-// see but may report nothing from. All three would otherwise return no findings
-// and exit as though the scope were clean, which is the one answer an
-// adjudication face must never give about ground it did not cover — a typo, or
-// a private directory, would read as a verdict. The vault root is the exception
-// it looks like: it names everything, so it filters nothing out, and a whole
-// folder read carries no claim about any one directory inside it.
-//
-// The withheld check runs before the observation check on purpose. Answering
-// "names nothing in this vault" for a path inside a private directory would
-// make the pair of refusals an existence oracle over exactly the directory the
-// contract closed; one uniform answer for every path under it tells the caller
-// only what their own contract already says.
-func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authority scanAuthority) ([]Finding, error) {
+// Each is canonicalized the way the scan canonicalizes what it observed, so a
+// decomposed spelling still matches the vault's own. A prefix that cannot match
+// anything is refused rather than filtered with, since an empty answer would
+// read as a clean verdict over ground never covered; the refusals are ordered
+// — shape, then withheld, then unobserved — so none becomes an existence oracle.
+func filterByPaths(findings []Finding, paths []string, scan vaultfs.Scan, authority scanAuthority) ([]Finding, error) {
+	if err := scopeIsWrittenFromTheVaultRoot(paths); err != nil {
+		return nil, err
+	}
 	prefixes := make([]string, len(paths))
 	for i, p := range paths {
 		prefixes[i] = canonicalPathFilter(p)
@@ -171,13 +143,26 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 			return nil, fmt.Errorf("path filter %q names nothing in this vault; give a vault-relative path such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)
 		}
 	}
-	out := findings[:0]
-	for i := range findings {
-		if anyTouchedPath(&findings[i], func(p string) bool { return underAnyPrefix(p, prefixes) }) {
-			out = append(out, findings[i])
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return !anyTouchedPath(&f, func(p string) bool { return underAnyPrefix(p, prefixes) })
+	}), nil
+}
+
+// scopeIsWrittenFromTheVaultRoot refuses a scope written as an absolute path. A
+// scope names part of the vault the way the vault spells it, from the vault's
+// own root, so an absolute one names nothing this face can hold. It reads the
+// argument's shape and not what is on disk at it, which keeps it truthful
+// wherever it is called and keeps this face out of the filesystem.
+func scopeIsWrittenFromTheVaultRoot(scopes []string) error {
+	for _, p := range scopes {
+		if !filepath.IsAbs(p) && !strings.HasPrefix(p, "/") {
+			continue
 		}
+		return fmt.Errorf(
+			"path filter %q is an absolute path, and a filter names part of the vault from the vault's own root, such as %s",
+			p, vaultRelativeExample)
 	}
-	return out, nil
+	return nil
 }
 
 // vaultRelativeExample stands in for a real path in the refusal above. It is a

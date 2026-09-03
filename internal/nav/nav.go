@@ -1,27 +1,9 @@
-// Package nav builds the vault's read-only navigation model. It turns a
-// scanner-captured vault projection into the structures used by the sidebar
-// and Home:
-//
-//  1. a lifecycle folder tree (browse every note without typing a URL),
-//  2. parsed map-note trees (heading branches -> resolved note entries, in
-//     document order),
-//  3. a flat list of the reports under System/reports/, and
-//  4. recent Journal entries and knowledge-note summaries carrying
-//     scanner-captured modification times.
-//
-// Each Model is immutable after construction and is published as part of the
-// atomic vault snapshot, so requests need no locking or filesystem metadata
-// reads.
-//
-// Two invariants shape every decision here:
-//
-//   - Fault-tolerant. A malformed map, a broken entry link,
-//     an unreadable note, an odd folder — none may panic or drop the rest.
-//     Study paths retain unresolved, ambiguous, and non-instance targets as
-//     warnings because their order is a curriculum; general maps omit warnings
-//     because their tree is link navigation.
-//   - Contract-derived. Navigation roles and artifact boundaries are immutable
-//     values derived by internal/schema at startup; nav never reads the contract.
+// Package nav turns a scanner-captured vault projection into the folder tree,
+// map and study-path trees, report list and recent-note summaries the sidebar
+// and Home read. Each Model is immutable after construction and published with
+// the atomic vault snapshot, so a request needs no lock and no metadata read.
+// A malformed map or unreadable note is reported, never fatal, and every
+// contract-derived value arrives from internal/schema — nav reads no contract.
 package nav
 
 import (
@@ -33,13 +15,13 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
-// Closure records why a projection carries nothing. It is a reason, not a
-// message: a projection can be withheld while a broader fault owns the only
-// sentence worth printing, and a projection that is simply empty must stay
-// distinguishable from one that was withheld. The zero Closure is open — the
-// contents are the vault's true answer.
+// Closure records why a projection carries nothing. It is a reason rather than
+// a message: a projection can be withheld while a broader fault owns the only
+// sentence worth printing, and an empty projection stays distinguishable from a
+// withheld one. The zero Closure is open — the contents are the true answer.
 type Closure struct {
 	claim schema.Claim
 }
@@ -67,48 +49,35 @@ type Model struct {
 	// artifact records whether instance projections were withheld, and why.
 	artifact Closure
 
-	// folders are the top-level lifecycle folders in the vault's own
-	// artifact-lifecycle order (see lifecycleOrder), each holding its notes
-	// and subfolders recursively.
+	// folders are the top-level folders in lifecycleOrder, each holding its
+	// notes and subfolders recursively.
 	folders []Folder
-	// rootNotes are files that live at the vault root itself (README.md and
-	// its siblings), which belong to no top-level folder.
+	// rootNotes are files at the vault root itself, belonging to no folder.
 	rootNotes []NoteRef
-	// paths are study paths in vault path order, read once through the
-	// declared-sequence grammar (internal/sequence) at snapshot build.
+	// paths are study paths in vault path order.
 	paths []Path
 	// maps are every other map-note tree, ordered by domain and then title.
 	maps []Map
-	// journal is the most recent captured journal entries, newest first. It comes
-	// from the scanner's file listing and mtime capture, independent of note type.
+	// journal is the most recent captured journal entries, newest first, taken
+	// from the file listing rather than from any note type.
 	journal []JournalEntry
 	// reports enumerates System/reports/ — the .md reports first, then the
 	// daily-briefing/ HTML briefings; contents are never parsed.
 	reports []Report
-	// knowledgeNotes are typed markdown notes in vault path order. Home sorts a
-	// copy by Modified for its recent-changes block; the time is the scanner's
-	// captured value, so rendering never stats a note. It is plain reading, so
-	// it is built in every contract state: over the declared knowledge layer
-	// when the declarations were read cleanly, and over every readable note
-	// both when none was ever made and when what was made could not be
-	// honoured — an unknown exclusion set may not silently hide files, and a
-	// folder whose contract broke must not show less than one that never had a
-	// contract at all.
+	// knowledgeNotes are markdown notes in vault path order, carrying the
+	// scanner's captured times so rendering never stats a note. It is plain
+	// reading and is built in every contract state: a folder whose contract
+	// broke must not show less than one that never had a contract at all.
 	knowledgeNotes []NoteSummary
-	// knowledgeScoped records that the contract declared a knowledge layer,
-	// so knowledgeNotes lists less than the whole folder. Home's recent block
-	// says so beside its heading, because the status distribution next to it
-	// counts every indexed note and the two would otherwise read as a
-	// contradiction.
+	// knowledgeScoped records that the contract declared a knowledge layer, so
+	// knowledgeNotes lists less than the whole folder.
 	knowledgeScoped bool
 
-	// placementIndex maps a note's rel-path to every map placement that lists it,
-	// built once so the sidebar can open each containing branch without re-walking
-	// every map per request. Read it through Placements.
+	// placementIndex maps a note's rel-path to every map placement that lists
+	// it. Read it through Placements.
 	placementIndex map[string][]Placement
-	// dirNotes maps a directory's rel-path to the files directly inside it, built
-	// once so the sidebar can show a note's same-directory siblings without
-	// descending the folder tree per request. Read it through Siblings.
+	// dirNotes maps a directory's rel-path to the files directly inside it.
+	// Read it through Siblings.
 	dirNotes map[string][]NoteRef
 }
 
@@ -128,28 +97,6 @@ func (m *Model) ArtifactClosure() Closure {
 	return m.artifact
 }
 
-// NavigationDiagnostic explains why contract-derived paths and maps could not
-// be built. It is empty when navigation roles were read cleanly, empty when
-// nothing declared them, and empty when a broader fault owns the sentence — ask
-// NavigationClosure whether the projection was withheld.
-func (m *Model) NavigationDiagnostic() string {
-	return m.NavigationClosure().Diagnostic()
-}
-
-// ArtifactDiagnostic explains why instance projections could not be built,
-// under the same rule as NavigationDiagnostic.
-func (m *Model) ArtifactDiagnostic() string {
-	return m.ArtifactClosure().Diagnostic()
-}
-
-// InstanceProjectionsClosed reports whether the artifact-dependent projections
-// were withheld rather than genuinely empty. Without it a vault whose
-// exclusions could not be read is indistinguishable from a vault that has no
-// study paths, which is the conflation this model exists to keep apart.
-func (m *Model) InstanceProjectionsClosed() bool {
-	return m.ArtifactClosure().Closed()
-}
-
 // Folders returns the top-level lifecycle folders in vault order. The complete
 // returned tree is independent of the model.
 func (m *Model) Folders() []Folder {
@@ -167,9 +114,25 @@ func (m *Model) RootNotes() []NoteRef {
 	return slices.Clone(m.rootNotes)
 }
 
+// PathCount reports how many study paths the model holds, so asking whether
+// there is a course to show costs a length rather than a copy of every tree.
+func (m *Model) PathCount() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.paths)
+}
+
+// MapCount reports how many general maps the model holds.
+func (m *Model) MapCount() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.maps)
+}
+
 // Paths returns the study paths in vault path order. Everything the caller
-// receives is its own: the model is read by every request at once, so a caller
-// that could reach into it would change what the next reader sees.
+// receives is its own: the model is read by every request at once.
 func (m *Model) Paths() []Path {
 	if m == nil {
 		return nil
@@ -214,23 +177,17 @@ func (m *Model) KnowledgeNotes() []NoteSummary {
 }
 
 // KnowledgeScoped reports whether KnowledgeNotes lists less than the whole
-// folder: the contract declared a knowledge layer, so files outside it are
-// not among them. Where nothing was declared, nothing is out of scope and
-// this is false.
+// folder. Where nothing was declared, nothing is out of scope and this is
+// false.
 func (m *Model) KnowledgeScoped() bool {
 	return m != nil && m.knowledgeScoped
 }
 
 // WithoutInstanceProjections returns a request-local view that keeps ordinary
-// browsing surfaces but closes every artifact-policy-dependent projection. The
-// closure travels with the model so a later reader can tell a withheld
-// projection from an empty one.
-//
-// The recent-notes summary is plain reading and stays: its titles, paths and
-// times come from the scan, not from any declaration. What it loses is the
-// knowledge-layer citation — the layer is the contract's own claim, and a
-// view built because an authority refused may not keep repeating that claim
-// beside the refusal.
+// browsing surfaces but closes every artifact-policy-dependent projection; the
+// closure travels with it so a later reader can tell withheld from empty. The
+// recent-notes summary stays, being plain reading, but loses its
+// knowledge-layer citation — that layer is the contract's own claim.
 func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 	if m == nil {
 		return &Model{artifact: closure}
@@ -245,8 +202,8 @@ func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 }
 
 // NoteSummary is the navigation metadata Home needs for one knowledge note.
-// Modified is captured by the snapshot scanner before the model build; it is
-// zero only when that scan could not stat a note which remained readable.
+// Modified is the scanner's captured time, zero only where the scan could not
+// stat a note that remained readable.
 type NoteSummary struct {
 	Title    string
 	RelPath  string
@@ -255,8 +212,8 @@ type NoteSummary struct {
 	Modified time.Time
 }
 
-// JournalEntry is one recent Diary markdown file. Modified is the scanner's
-// captured value, not a timestamp read while rendering a request.
+// JournalEntry is one recent Diary markdown file, carrying the scanner's
+// captured time rather than one read while rendering.
 type JournalEntry struct {
 	Title    string
 	RelPath  string
@@ -298,18 +255,11 @@ type Report struct {
 	Latest   bool
 }
 
-// lifecycleOrder is the vault's documented artifact-lifecycle order for the
-// top-level folders: the main flow Inbox -> Sources -> Concepts -> Maps /
-// Synthesis -> Writing, then System = governance, Views = dashboards,
-// Diagrams = diagrams. It is an architectural ordering, not a schema enum —
-// the toml has no display-order field (its [scan] knowledge_dirs is a
-// checker scan policy in a different order and omitting
-// System/Views/Diagrams), so there is nothing to read it from: this list is
-// not a forbidden second copy of a vault-schema.toml enum. A top-level
-// folder not in this list (a future Diary/, the current Drafts/) sorts
-// after all known ones, keeping the reading order the captured path list
-// arrived in — the stable sort below reorders nothing it ranks equal — so
-// it stays reachable rather than silently vanishing from the sidebar.
+// lifecycleOrder is the reading order of the top-level folders. It is a
+// display ordering, not a vocabulary: vault-schema.toml carries no
+// display-order field, so there is nothing here to read it from. A folder the
+// list does not name sorts after every named one and keeps the captured path
+// order, so it stays reachable instead of vanishing from the sidebar.
 var lifecycleOrder = []string{
 	"Inbox", "Sources", "Concepts", "Maps", "Synthesis", "Writing",
 	"System", "Views", "Diagrams",
@@ -324,13 +274,12 @@ func lifecycleRank(name string) int {
 	return len(lifecycleOrder)
 }
 
-// New constructs a navigation model from one captured vault projection.
-// entries supply the canonical paths and observed modification times; notes
-// contains the successfully parsed Markdown notes keyed by canonical path.
-// A missing note is treated as an unreadable note and does not affect its
-// neighbors. New neither enumerates nor reopens the vault.
+// New constructs a navigation model from one captured vault projection: entries
+// supply the canonical paths and observed times, notes the parsed Markdown keyed
+// by canonical path. A missing note reads as an unreadable one and does not
+// affect its neighbors. New neither enumerates nor reopens the vault.
 func New(
-	entries []vault.Entry,
+	entries []vaultfs.Entry,
 	notes map[string]*vault.Note,
 	resolver *graph.Index,
 	roles schema.NavigationRoles,
@@ -342,8 +291,8 @@ func New(
 	}
 
 	observed := slices.Clone(entries)
-	slices.SortFunc(observed, func(a, b vault.Entry) int {
-		return comparePathsForReading(a.Path(), b.Path())
+	slices.SortFunc(observed, func(a, b vaultfs.Entry) int {
+		return vault.ComparePaths(a.Path(), b.Path())
 	})
 	files := make([]capturedFile, 0, len(observed))
 	for _, entry := range observed {
@@ -392,13 +341,9 @@ func newModel(
 	m.dirNotes = buildDirNotes(paths)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
-	// The recent-notes summary is collected in every contract state: a scope
-	// that cannot be trusted includes everything and claims no layer, and a
-	// policy that cannot be trusted excludes nothing, so a broken declaration
-	// degrades this list to the same all-inclusive answer an undeclared one
-	// gives. The projections below it are different: paths and maps exist only
-	// as a contract's own classification, so either closed declaration ends
-	// the build here with none.
+	// The recent-notes summary is collected in every contract state; paths and
+	// maps exist only as a contract's own classification, so either closed
+	// declaration ends the build with none of them.
 	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
 	m.knowledgeNotes = knowledgeNotes
 	m.knowledgeScoped = scope.Available()
@@ -408,8 +353,8 @@ func newModel(
 
 	for _, n := range mapNotes {
 		if roles.IsPathType(n.Type()) {
-			// A study path reads the declared-sequence grammar; the legacy
-			// map parser never sees it.
+			// A study path reads the declared-sequence grammar, never the
+			// general-map parser.
 			m.paths = append(m.paths, buildPath(n, resolver, statusByPath, policy))
 			continue
 		}
@@ -424,9 +369,8 @@ func newModel(
 		}
 		return cmp.Compare(a.RelPath, b.RelPath)
 	})
-	// Study paths are indexed before general maps, so a note both a course and
-	// a map place answers with its course first — the reader's own question is
-	// about the course they are walking.
+	// Study paths are indexed first, so a note both a course and a map place
+	// answers with its course.
 	m.placementIndex = make(map[string][]Placement)
 	for i := range m.paths {
 		pathPlacements(m.placementIndex, &m.paths[i])
@@ -459,11 +403,9 @@ func collectNavigationNotes(
 		if status := n.Status(); status != "" {
 			statusByPath[p] = status
 		}
-		// What belongs to the knowledge layer is the vault's own declaration,
-		// not whether a note happens to carry a type. A note without
-		// frontmatter is still something its author wrote and still the newest
-		// thing they changed; filtering on the type field hid exactly those,
-		// and on a folder that declares nothing it hid everything.
+		// Membership is the vault's own declaration, not whether a note happens
+		// to carry a type: a note without frontmatter is still one its author
+		// wrote and still the newest thing they changed.
 		if scope.Includes(p) {
 			knowledgeNotes = append(knowledgeNotes, NoteSummary{
 				Title:    n.Title(),
@@ -480,22 +422,18 @@ func collectNavigationNotes(
 	return statusByPath, mapNotes, knowledgeNotes
 }
 
-// The journal and report projections select by location alone. The same two
-// prefixes also answer "is the reader in the journal / among the reports right
-// now" for the sidebar's drawers, so they are named once here and exposed as
-// predicates — a second copy of either string would let the drawer that opens
-// for a place and the projection that lists it drift apart.
+// The journal and report projections select by location alone, and the sidebar
+// drawers ask the same question, so each prefix is named once and reached
+// through a predicate rather than copied.
 const (
 	journalPrefix = "Diary/"
 	reportsPrefix = "System/reports/"
 )
 
-// InJournal reports whether relPath lives in the journal — the same location
-// signal the journal projection selects its entries by.
+// InJournal reports whether relPath lives in the journal.
 func InJournal(relPath string) bool { return strings.HasPrefix(relPath, journalPrefix) }
 
-// InReports reports whether relPath lives among the reports — the same
-// location signal the report projection selects its entries by.
+// InReports reports whether relPath lives among the reports.
 func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsPrefix) }
 
 // buildJournal selects markdown files below Diary from the scanner's path and
@@ -511,14 +449,10 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 		_, base := splitDir(p)
 		entries = append(entries, JournalEntry{Title: displayName(base), RelPath: p, Modified: mtimes[p]})
 	}
-	// Newest last by the entries' own names, then reversed — the same reading
-	// order every other projection here uses, so a journal drawer and the
-	// folder tree beside it cannot disagree about which entry follows which.
-	// It was the file times, which is a different question from the one a
-	// journal answers: a clone stamps every entry with one moment, and an
-	// entry edited today is not today's entry.
+	// Ordered by the entries' own names, not by file time: a clone stamps every
+	// entry with one moment, and an entry edited today is not today's entry.
 	slices.SortStableFunc(entries, func(a, b JournalEntry) int {
-		return comparePathsForReading(b.RelPath, a.RelPath)
+		return vault.ComparePaths(b.RelPath, a.RelPath)
 	})
 	if len(entries) > limit {
 		entries = entries[:limit]
@@ -569,15 +503,10 @@ type folderBuilder struct {
 	subIdx  map[string]*folderBuilder
 }
 
-// buildFolderTree turns a flat path list, already in the captured
-// generation's reading order, into the top-level folder tree plus the
-// vault-root notes. It mirrors the real
-// directory structure exactly, to whatever depth the vault actually has
-// (Concepts is one domain level deep, Writing/lessons/<domain> is two) —
-// it never invents levels the vault does not have, and never caps them, so
-// every file stays a single click away in the rendered tree, keeping any
-// vault file reachable in at most three clicks. Only the top level is reordered
-// into lifecycle order; deeper folders keep the captured path order.
+// buildFolderTree turns a flat path list, already in the captured reading
+// order, into the top-level folder tree plus the vault-root notes. It mirrors
+// the directory structure to whatever depth the vault has, inventing no level
+// and capping none. Only the top level is reordered into lifecycleOrder.
 func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}
 	for _, p := range paths {
@@ -652,10 +581,8 @@ func displayName(base string) string {
 	return strings.TrimSuffix(base, ".md")
 }
 
-// Label names a file the way every list in this navigation names it, taking
-// the vault-relative path rather than the bare filename. A projection built
-// outside this package labels its rows through here, so one note cannot appear
-// under two different names depending on which list the reader is looking at.
+// Label names a file from its vault-relative path the way every list here names
+// it, so one note cannot appear under two names in two lists.
 func Label(relPath string) string {
 	_, base := splitDir(relPath)
 	return displayName(base)

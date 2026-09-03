@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,25 +17,25 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/search"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-func snapshotSearch(tb testing.TB, idx *search.Index, query string) []search.Result {
+func snapshotSearch(tb testing.TB, idx *lexical.Index, query string) []lexical.Result {
 	tb.Helper()
-	results, err := idx.Search(search.Parse(query))
+	results, _, err := idx.SearchN(lexical.Parse(query), -1)
 	if err != nil {
 		tb.Fatalf("Search(%q) error: %v", query, err)
 	}
 	return results
 }
 
-func assertSearchArtifactPolicy(tb testing.TB, snap *View) {
+func assertSearchArtifactPolicy(tb testing.TB, snap *Generation) {
 	tb.Helper()
 	if got := snapshotSearch(tb, snap.Search(), "status:ready"); len(got) != 0 {
 		tb.Errorf("metadata search returned non-instance template: %+v", got)
@@ -42,13 +43,27 @@ func assertSearchArtifactPolicy(tb testing.TB, snap *View) {
 	if got := snapshotSearch(tb, snap.Search(), "Card"); len(got) != 1 || got[0].RelPath != "System/templates/Card.md" {
 		tb.Errorf("plain search = %+v, want readable template", got)
 	}
-	counts, err := snap.Search().CountByStatus()
-	if err != nil {
-		tb.Fatalf("CountByStatus() error: %v", err)
-	}
+	counts := searchStatusCounts(tb, snap.Search())
 	if counts["ready"] != 0 || counts["draft"] != 1 {
 		tb.Errorf("status counts = %v, want draft instance only", counts)
 	}
+}
+
+// searchStatusCounts folds the index's (type, status) tally down to a
+// status-keyed one, which is the shape these assertions read. The index counts
+// the pair because a status means something different per note type; a test
+// naming one status across every type wants the flattened sum.
+func searchStatusCounts(tb testing.TB, idx *lexical.Index) map[string]int {
+	tb.Helper()
+	pairs, err := idx.CountByTypeStatus()
+	if err != nil {
+		tb.Fatalf("CountByTypeStatus() error: %v", err)
+	}
+	counts := make(map[string]int, len(pairs))
+	for pair, n := range pairs {
+		counts[pair.Status] += n
+	}
+	return counts
 }
 
 func testContract(tb testing.TB, root string) *schema.Contract {
@@ -71,11 +86,11 @@ func testContract(tb testing.TB, root string) *schema.Contract {
 	return contract
 }
 
-func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vault.Reader) {
+func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vaultfs.Reader) {
 	tb.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		tb.Fatalf("vault.Open: %v", err)
+		tb.Fatalf("vaultfs.Open: %v", err)
 	}
 	tb.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -89,7 +104,7 @@ func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store
 	return store, reader
 }
 
-func closeReader(tb testing.TB, reader *vault.Reader) {
+func closeReader(tb testing.TB, reader *vaultfs.Reader) {
 	tb.Helper()
 	if err := reader.Close(); err != nil {
 		tb.Errorf("Reader.Close: %v", err)
@@ -107,7 +122,7 @@ func writeNote(t *testing.T, root, rel, content string) {
 	}
 }
 
-func immutableViewFixture(t *testing.T) (view *View, root string) {
+func immutableViewFixture(t *testing.T) (view *Generation, root string) {
 	t.Helper()
 	root = t.TempDir()
 	writeNote(t, root, "A/Foo.md", "first body\n")
@@ -140,13 +155,13 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 		t.Fatal("Files() returned no captured files")
 	}
 	wantFirstPath := files[0].Path()
-	files[0] = vault.Entry{}
+	files[0] = vaultfs.Entry{}
 	if got := view.Files()[0].Path(); got != wantFirstPath {
 		t.Errorf("Files()[0].Path() after mutation = %q, want %q", got, wantFirstPath)
 	}
 
 	resolution := view.Graph().Resolve("Foo")
-	if resolution.Kind != graph.Ambiguous || len(resolution.Candidates) != 2 {
+	if resolution.Kind != graph.KindAmbiguous || len(resolution.Candidates) != 2 {
 		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", resolution)
 	}
 	resolution.Candidates[0] = "mutated"
@@ -162,29 +177,20 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 	if got := snapshotSearch(t, view.Search(), "Foo")[0].Title; got != "Foo" {
 		t.Errorf("Search(Foo) after mutation starts with title %q, want %q", got, "Foo")
 	}
-	counts, err := view.Search().CountByStatus()
+	counts, err := view.Search().CountByTypeStatus()
 	if err != nil {
-		t.Fatalf("CountByStatus() error = %v", err)
+		t.Fatalf("CountByTypeStatus() error = %v", err)
 	}
-	counts["draft"] = 0
-	counts, err = view.Search().CountByStatus()
+	before := maps.Clone(counts)
+	for pair := range counts {
+		counts[pair] = 0
+	}
+	counts, err = view.Search().CountByTypeStatus()
 	if err != nil {
-		t.Fatalf("CountByStatus() after mutation error = %v", err)
+		t.Fatalf("CountByTypeStatus() after mutation error = %v", err)
 	}
-	if counts["draft"] != 2 {
-		t.Errorf("CountByStatus()[draft] after mutation = %d, want 2", counts["draft"])
-	}
-	allowed, err := view.Search().AllowedPaths(search.Parse("folder:A"))
-	if err != nil {
-		t.Fatalf("AllowedPaths(folder:A) error = %v", err)
-	}
-	delete(allowed, "A/Foo.md")
-	allowed, err = view.Search().AllowedPaths(search.Parse("folder:A"))
-	if err != nil {
-		t.Fatalf("AllowedPaths(folder:A) after mutation error = %v", err)
-	}
-	if _, ok := allowed["A/Foo.md"]; !ok {
-		t.Error("AllowedPaths(folder:A) lost A/Foo.md after caller mutation")
+	if diff := cmp.Diff(before, counts); diff != "" {
+		t.Errorf("CountByTypeStatus() after caller mutation (-before +after):\n%s", diff)
 	}
 
 	slot, ok := view.Slots().Lookup("lesson-l01")
@@ -224,8 +230,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if !requestA.ArtifactPolicy().Available() {
 		t.Error("request-captured ArtifactPolicy changed while the response was in flight")
 	}
-	if _, err := requestA.Search().CountByStatus(); err != nil {
-		t.Errorf("request-captured Search.CountByStatus() error = %v, want stable authority", err)
+	if _, err := requestA.Search().CountByTypeStatus(); err != nil {
+		t.Errorf("request-captured Search.CountByTypeStatus() error = %v, want stable authority", err)
 	}
 	// Notes are answered before files, and the contract is a vault file whose
 	// characters a reader can open, so it joins the text corpus and can share a
@@ -238,8 +244,8 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if requestB.ArtifactPolicy().Available() {
 		t.Error("next ArtifactPolicy capture remained available after its source changed")
 	}
-	if _, err := requestB.Search().CountByStatus(); !errors.Is(err, search.ErrMetadataUnavailable) {
-		t.Errorf("next Search.CountByStatus() error = %v, want ErrMetadataUnavailable", err)
+	if _, err := requestB.Search().CountByTypeStatus(); !errors.Is(err, lexical.ErrMetadataUnavailable) {
+		t.Errorf("next Search.CountByTypeStatus() error = %v, want ErrMetadataUnavailable", err)
 	}
 	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
 		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Status != "" {
@@ -253,12 +259,12 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	// than left to be inferred from the two halves above.
 	for _, tt := range []struct {
 		name string
-		view *View
+		view *Generation
 	}{
 		{name: "captured before the source changed", view: requestA},
 		{name: "captured after the source changed", view: requestB},
 	} {
-		_, countErr := tt.view.Search().CountByStatus()
+		_, countErr := tt.view.Search().CountByTypeStatus()
 		if got, want := tt.view.ArtifactPolicy().Available(), countErr == nil; got != want {
 			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers counts = %t; "+
 				"one request would combine two disagreeing authorities", tt.name, got, want)
@@ -274,12 +280,12 @@ type recordingSource struct {
 	fail  map[string]int
 }
 
-func (s *recordingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
+func (s *recordingSource) ScanAvailable(ctx context.Context) (vaultfs.Scan, error) {
 	s.scans++
 	return s.Source.ScanAvailable(ctx)
 }
 
-func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
+func (s *recordingSource) ReadFile(ctx context.Context, entry vaultfs.Entry) ([]byte, error) {
 	path := entry.Path()
 	s.reads[path]++
 	if s.fail[path] > 0 {
@@ -309,7 +315,7 @@ patterns:
 `)
 	writeNote(t, root, "Diagrams/example.png", "not really an image")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +368,7 @@ func TestRescanRetriesTransientReadWithoutMetadataChange(t *testing.T) {
 	const path = "Concepts/Alpha.md"
 	writeNote(t, root, path, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,7 +407,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 	root := t.TempDir()
 	const relPath = "Concepts/Alpha.md"
 	writeNote(t, root, relPath, "---\ntitle: Alpha\ntype: concept\n---\nold body\n")
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +468,7 @@ func TestNewBuildsSnapshot(t *testing.T) {
 	if got := snapshotSearch(t, snap.Search(), "kafka"); len(got) == 0 {
 		t.Error("kafka not found in the freshly built snapshot")
 	}
-	if got := snap.Graph().Resolve("Alpha"); got.Kind != graph.Unique {
+	if got := snap.Graph().Resolve("Alpha"); got.Kind != graph.KindUnique {
 		t.Errorf("graph.Resolve(Alpha).Kind = %v, want Unique", got.Kind)
 	}
 	if got := snap.Navigation().KnowledgeNotes(); len(got) != 1 || got[0].Modified.IsZero() {
@@ -559,7 +565,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	store, _ := newTestStore(t, root, contract)
 
 	first := store.Current()
-	if len(first.Navigation().Paths()) != 1 || first.Navigation().ArtifactDiagnostic() != "" || first.Navigation().NavigationDiagnostic() != "" {
+	if len(first.Navigation().Paths()) != 1 || first.Navigation().ArtifactClosure().Diagnostic() != "" || first.Navigation().NavigationClosure().Diagnostic() != "" {
 		t.Fatalf("initial navigation = %+v, want one available path", first.Navigation())
 	}
 	if !first.ArtifactPolicy().IsNonInstance("System/templates/Card.md") {
@@ -577,7 +583,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if got == first {
 		t.Fatal("rescan did not publish a new snapshot after the contract file appeared")
 	}
-	if len(got.Navigation().Paths()) != 0 || got.Navigation().ArtifactDiagnostic() == "" || got.Navigation().NavigationDiagnostic() != "" {
+	if len(got.Navigation().Paths()) != 0 || got.Navigation().ArtifactClosure().Diagnostic() == "" || got.Navigation().NavigationClosure().Diagnostic() != "" {
 		t.Errorf("rescanned navigation = %+v, want artifact-dependent projection unavailable", got.Navigation())
 	}
 	if got.ArtifactPolicy().Available() || got.ArtifactPolicy().IsNonInstance("System/templates/Card.md") {
@@ -586,7 +592,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if result := snapshotSearch(t, got.Search(), "Card"); len(result) != 1 || result[0].RelPath != "System/templates/Card.md" {
 		t.Errorf("plain lexical search after artifact drift = %+v, want locally readable template", result)
 	}
-	if _, err := got.Search().Search(search.Parse("status:ready")); err == nil {
+	if _, _, err := got.Search().SearchN(lexical.Parse("status:ready"), -1); err == nil {
 		t.Error("metadata search succeeded under source-stale artifact policy")
 	}
 }
@@ -607,10 +613,10 @@ func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 	if snap.ArtifactPolicy().Available() {
 		t.Fatal("Snapshot.ArtifactPolicy().Available() = true, want no held declaration")
 	}
-	if snap.Navigation().NavigationDiagnostic() != "" || snap.Navigation().ArtifactDiagnostic() != "" {
-		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationDiagnostic(), snap.Navigation().ArtifactDiagnostic())
+	if snap.Navigation().NavigationClosure().Diagnostic() != "" || snap.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationClosure().Diagnostic(), snap.Navigation().ArtifactClosure().Diagnostic())
 	}
-	if snap.Navigation().InstanceProjectionsClosed() {
+	if snap.Navigation().ArtifactClosure().Closed() {
 		t.Error("instance projections closed for a folder that never claimed governance")
 	}
 	if len(snap.Navigation().Paths()) != 0 || len(snap.Navigation().Maps()) != 0 {
@@ -636,9 +642,9 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 
 	root := t.TempDir()
 	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+		t.Fatalf("vaultfs.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -657,7 +663,7 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	}
 	snap := store.Current()
 
-	if !snap.Navigation().InstanceProjectionsClosed() {
+	if !snap.Navigation().ArtifactClosure().Closed() {
 		t.Error("instance projections stayed open under a contract that could not be read")
 	}
 	if got := len(snap.Navigation().KnowledgeNotes()); got != 1 {
@@ -712,10 +718,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				nil,
 				scan,
 				discardLogger(),
-				contract.NavigationRoles(),
-				contract.KnowledgeScope(),
-				contract.ArtifactPolicy(),
-				contract.ArticleLanguage(),
+				contract.Capabilities(contract.Governance()),
 				contract,
 			)
 			if err != nil {
@@ -750,7 +753,7 @@ func TestBuildViewIndexesTextFilesAndSkipsTheRest(t *testing.T) {
 	writeNote(t, root, "Notes/huge.txt", strings.Repeat("findable body ", (render.MaxSourceBytes/14)+1))
 
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -779,7 +782,7 @@ func TestBuildViewStillResolvesWikilinksToFiles(t *testing.T) {
 	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -819,7 +822,7 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "notes.txt", "plain text\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -865,7 +868,7 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "Concepts/Base.md", "---\ntitle: Base\ntype: concept\n---\nbase\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -950,7 +953,7 @@ func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1024,7 +1027,7 @@ func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
 	const unreadable = "Concepts/Alpha.md"
 	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha as first read\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1139,7 +1142,7 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	)
 	writeNote(t, root, carried, "---\ntitle: Carried\ntype: concept\n---\nthe words read before the file shut\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1195,6 +1198,17 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
 		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
 	}
+	// The carried copy has to answer everywhere the note it replaces did. Its
+	// own page says the words are searchable, and a generation that said so
+	// while leaving them out of the index would answer "nothing found" about
+	// text it is showing on screen at the same moment.
+	if !kept.Searchable {
+		t.Fatalf("the carried copy says its words are not searchable: %+v", kept)
+	}
+	found := snapshotSearch(t, degraded.Search(), "the words read before the file shut")
+	if len(found) != 1 || found[0].RelPath != carried {
+		t.Errorf("searching the carried copy's own words = %+v, want the note whose page is showing them", found)
+	}
 	if unread, ok := degraded.Note(never); ok {
 		t.Errorf("a file the folder has never had a reading of was published with a body: %+v", unread)
 	}
@@ -1218,7 +1232,7 @@ func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
 	const unreadable = "Concepts/Alpha.md"
 	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1269,7 +1283,7 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1356,7 +1370,7 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1479,7 +1493,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	const failing = "Concepts/Alpha.md"
 	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1525,7 +1539,7 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	oversize := "sentences:\n" + strings.Repeat("  - text: rarespelunker\n", (render.MaxSourceBytes/24)+64)
 	writeNote(t, root, "System/slots/L01.yaml", oversize)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1534,7 +1548,7 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := store.Current().Search().Search(search.Parse("rarespelunker"))
+	results, _, err := store.Current().Search().SearchN(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -1557,7 +1571,7 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (rarespelunker) >>\nendobj\n%%EOF\n")
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1566,7 +1580,7 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := store.Current().Search().Search(search.Parse("rarespelunker"))
+	results, _, err := store.Current().Search().SearchN(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -1596,7 +1610,7 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 	}
 	writeNote(t, root, "huge.md", huge)
 	contract := testContract(t, root)
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1622,7 +1636,7 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 		t.Error("a note under the cap reports itself unsearchable")
 	}
 
-	results, err := view.Search().Search(search.Parse(needle))
+	results, _, err := view.Search().SearchN(lexical.Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}

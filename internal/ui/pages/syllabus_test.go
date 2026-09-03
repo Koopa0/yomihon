@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -343,9 +345,9 @@ func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Pa
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -542,37 +544,207 @@ func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
 }
 
 // TestMarkerWrittenDividesEveryGrammarRule pins the total division behind
-// the empty-course page's two explanations: for every rule the grammar
-// declares, whether it implies the author actually wrote a sequence marker.
-// A rule outside the division fails loudly rather than guessing, because
-// either guess prints a false sentence to somebody — and the same probe pins
-// that loudness.
+// the empty-course page's explanations: for every rule the grammar declares,
+// whether it implies the author actually wrote a sequence marker.
+//
+// The expectation is keyed by rule and its keys are compared against the
+// grammar's own list, so a rule declared later arrives here uncovered and this
+// test says so. That is where a new rule has to be caught, because the page
+// itself does not abort on one: the grammar owns the set and may grow it, and a
+// course page that crashed on a rule it had not met would be the reporter
+// breaking on the news. Such a rule reads as neither verdict — both of those
+// are claims about what the author wrote, and one of them would be false.
 func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 	t.Parallel()
 
-	want := map[string]bool{
-		sequence.RuleRoleMissing:        false,
-		sequence.RuleEntryOutsideBranch: false,
-		sequence.RuleEntryMultiTarget:   false,
-		sequence.RuleEntryNoncanonical:  false,
-		sequence.RuleRoleInvalid:        true,
-		sequence.RuleRoleDuplicate:      true,
-		sequence.RuleRoleMisplaced:      true,
-		sequence.RuleRoleConflict:       true,
-		sequence.RuleRoleOnEntry:        true,
-		sequence.RuleLocalOrphan:        true,
-		sequence.RuleNestingTooDeep:     true,
+	want := map[sequence.Rule]markerVerdict{
+		sequence.RuleRoleMissing:        markerNotWritten,
+		sequence.RuleEntryOutsideBranch: markerNotWritten,
+		sequence.RuleEntryMultiTarget:   markerNotWritten,
+		sequence.RuleEntryNoncanonical:  markerNotWritten,
+		sequence.RuleRoleInvalid:        markerWritten,
+		sequence.RuleRoleDuplicate:      markerWritten,
+		sequence.RuleRoleMisplaced:      markerWritten,
+		sequence.RuleRoleConflict:       markerWritten,
+		sequence.RuleRoleOnEntry:        markerWritten,
+		sequence.RuleLocalOrphan:        markerWritten,
+		sequence.RuleNestingTooDeep:     markerWritten,
 	}
-	for rule, expect := range want {
-		if got := markerWritten(rule); got != expect {
-			t.Errorf("markerWritten(%q) = %t, want %t", rule, got, expect)
+	declared := sequence.Rules()
+	if len(declared) == 0 {
+		t.Fatal("the grammar declares no rules, so this division covers nothing")
+	}
+	for _, rule := range declared {
+		expect, classified := want[rule]
+		if !classified {
+			t.Errorf("the grammar declares %q and this division does not classify it: decide whether it implies a written marker and add it here", rule)
+			continue
 		}
+		if got := markerVerdictFor(rule); got != expect {
+			t.Errorf("markerVerdictFor(%q) = %d, want %d", rule, got, expect)
+		}
+	}
+	for rule := range want {
+		if !slices.Contains(declared, rule) {
+			t.Errorf("this division classifies %q, which the grammar no longer declares", rule)
+		}
+	}
+	if got := markerVerdictFor("path.never_declared"); got != markerUnknownRule {
+		t.Errorf("markerVerdictFor(an undeclared rule) = %d, want markerUnknownRule: neither answer about the author's file is evidenced by a rule name nobody here recognises", got)
+	}
+}
+
+// TestAnUnexplainedRuleClaimsNothingAboutTheAuthor holds the third empty-course
+// sentence to what it must not say. The page reaches it when the grammar
+// reports a rule it has not been told about, and the two sentences it would
+// otherwise choose between are both assertions about a file this page has not
+// read: that markers are absent, or that markers were written and refused.
+func TestAnUnexplainedRuleClaimsNothingAboutTheAuthor(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		t.Run(string(lang), func(t *testing.T) {
+			t.Parallel()
+
+			var page bytes.Buffer
+			view := PathView{Title: "A path", RelPath: "Maps/p.md", NoCourse: markerUnknownRule}
+			if err := Syllabus(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &page); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			body := page.String()
+			if !strings.Contains(body, wording.NoCourseUnexplained.In(lang)) {
+				t.Errorf("the page does not say it has no explanation; want %q", wording.NoCourseUnexplained.In(lang))
+			}
+			for name, claim := range map[string]wording.Phrase{
+				"no marker was written": wording.NoCourseIntro,
+				"a marker was refused":  wording.NoCourseMarkerFaultIntro,
+			} {
+				if strings.Contains(body, claim.In(lang)) {
+					t.Errorf("the page claims %s about a note it read no rule for", name)
+				}
+			}
+		})
+	}
+}
+
+// TestAnUnknownRuleDoesNotSilenceAWrittenMarker holds the order the two
+// verdicts are read in. A path can report several rules at once, and one that
+// says a marker was written is the one claim the page can make from what the
+// grammar reported: an unrecognised rule beside it is not evidence against it.
+func TestAnUnknownRuleDoesNotSilenceAWrittenMarker(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name  string
+		rules []sequence.Rule
+		want  markerVerdict
+	}{
+		{name: "a written marker among rules nobody here knows", rules: []sequence.Rule{"path.never_declared", sequence.RuleRoleInvalid}, want: markerWritten},
+		{name: "an unknown rule beside one that implies no marker", rules: []sequence.Rule{sequence.RuleRoleMissing, "path.never_declared"}, want: markerUnknownRule},
+		{name: "rules that all imply no marker", rules: []sequence.Rule{sequence.RuleRoleMissing, sequence.RuleEntryNoncanonical}, want: markerNotWritten},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := nav.Path{Title: "A path", RelPath: "Maps/p.md"}
+			for _, rule := range tt.rules {
+				path.Diagnostics = append(path.Diagnostics, sequence.Diagnostic{Rule: rule})
+			}
+			if got := BuildPathView(&path, nil).NoCourse; got != tt.want {
+				t.Errorf("NoCourse = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestACourseReportsAnItemItCouldNotRead holds the page against dropping
+// something silently. A branch lists rows and nested branches; a value that is
+// neither is a fault, and a course page that quietly skipped it would show a
+// list one item shorter than the one its author wrote, with nothing anywhere
+// saying so. The page reports and never repairs, so the row keeps its place and
+// says what happened.
+func TestACourseReportsAnItemItCouldNotRead(t *testing.T) {
+	t.Parallel()
+
+	branch := PathBranchView{
+		Heading: "Part",
+		Items: []PathItemView{
+			{Entry: &PathEntryView{Text: "L01", Kind: nav.EntryResolved, Href: "/notes/L01.md", Number: 1}},
+			{},
+			{Entry: &PathEntryView{Text: "L02", Kind: nav.EntryResolved, Href: "/notes/L02.md", Number: 2}},
+		},
+	}
+	runs := branch.Runs(wording.ZhHant)
+	faults := 0
+	for _, run := range runs {
+		if run.Fault != "" {
+			faults++
+		}
+	}
+	if faults != 1 {
+		t.Fatalf("Runs() reported %d faults for one unreadable item, want 1: %+v", faults, runs)
 	}
 
-	defer func() {
-		if recover() == nil {
-			t.Error("markerWritten() answered for a rule the grammar never declared")
+	view := PathView{Title: "Course", Branches: []PathBranchView{branch}}
+	var buf bytes.Buffer
+	if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render syllabus: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, wording.PathItemUnreadable.In(wording.ZhHant)) {
+		t.Errorf("the course page drops an item it could not read instead of saying so; html = %q", html)
+	}
+	for _, want := range []string{">L01<", ">L02<"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the rows either side of the unreadable item are missing %q; html = %q", want, html)
 		}
-	}()
-	markerWritten("path.never_declared")
+	}
+}
+
+// TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation settles which of
+// the two things a course page can say goes first. The invitation asks whether
+// this is the reader's first time on the path and offers the note that
+// explains it; the diagnostic says the note declared no structure and names
+// the markers that would declare some. Both were rendered on an empty course,
+// invitation first — so the page welcomed a reader into a course and then told
+// them the course was not there. The diagnostic is the honest thing to lead
+// with, and the invitation belongs to a path that has something to walk.
+func TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation(t *testing.T) {
+	t.Parallel()
+
+	render := func(t *testing.T, view PathView) string {
+		t.Helper()
+		var out bytes.Buffer
+		if err := Syllabus(view, layouts.Chrome{}).Render(t.Context(), &out); err != nil {
+			t.Fatalf("render syllabus: %v", err)
+		}
+		return out.String()
+	}
+	base := PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}
+	walked := base
+	walked.Parts, walked.Entries = 1, 1
+	walked.Branches = []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}}
+
+	for _, tt := range []struct {
+		name  string
+		view  PathView
+		wants bool
+	}{
+		{"a path with a declared course invites the reader into it", walked, true},
+		{"a path with none does not", base, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			html := render(t, tt.view)
+			if got := strings.Contains(html, `class="y-syl-guide"`); got != tt.wants {
+				t.Errorf("the invitation is present = %v, want %v; html = %q", got, tt.wants, html)
+			}
+		})
+	}
+
+	// The page still says something when the invitation goes: an empty course
+	// that lost both would be a title over nothing.
+	if html := render(t, base); !strings.Contains(html, `class="y-syl-nocourse"`) {
+		t.Errorf("the empty course page carries no explanation of why it is empty; html = %q", html)
+	}
 }

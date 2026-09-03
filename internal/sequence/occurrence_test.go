@@ -61,7 +61,7 @@ func TestTargetSpanIsTheWrittenLink(t *testing.T) {
 func TestTargetSpanSeparatesTwoWritingsOfOneName(t *testing.T) {
 	t.Parallel()
 	doc := Parse("## Main {sequence=primary}\n\n- [[Lesson]]\n- [[Lesson]]\n", 1)
-	entries := doc.Groups[0].Entries()
+	entries := doc.Groups[0].entries()
 	if len(entries) != 2 {
 		t.Fatalf("entries = %d, want 2", len(entries))
 	}
@@ -148,7 +148,7 @@ func onlyEntry(t *testing.T, doc Document) *Candidate {
 	t.Helper()
 	var found []*Candidate
 	for _, g := range doc.Groups {
-		found = append(found, g.Entries()...)
+		found = append(found, g.entries()...)
 	}
 	if len(found) != 1 {
 		t.Fatalf("entries = %d, want 1", len(found))

@@ -2,6 +2,7 @@ package judge
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,47 +15,52 @@ import (
 
 // The three subcommands — check, coverage, exists — run as stateless actions:
 // a process opens the selected vault once, captures its complete file domain,
-// prints, and exits. There is no server, daemon, or persistent store behind
-// them. Each runner takes already-parsed options and returns the bytes to print
-// and the process exit code, so the binary's main only wires arguments in and
-// the exit code out, and every exit-code decision is exercised by a test.
-//
-// Exit codes match the frozen contract the pipelines depend on: 0 clean, 1 a
-// gate hit or a "does not exist", 2 a tool error. A tool error is returned as a
-// non-nil error, which the binary reports and turns into exit 2.
+// prints, and exits. Each runner takes already-parsed options and returns the
+// bytes to print and the process exit code, so the binary's main only wires
+// arguments in and the exit code out. Those codes are the frozen contract the
+// pipelines depend on: 0 clean, 1 a gate hit or a "does not exist", 2 a tool
+// error, which a runner reports as a non-nil error.
 
 // ruleIDs is every rule a finding can carry. A --deny value is validated
 // against it so a typo fails loudly instead of silently disabling the gate.
-// The study-path rules are the grammar's own vocabulary, so they enter through
-// its exported enumeration rather than as a copy: a rule the grammar adds is
-// deniable here without this file changing.
-var ruleIDs = slices.Concat([]string{
-	"link.title_not_alias",
-	"link.broken",
-	"link.section_missing",
-	"link.block_missing",
-	"collision.alias",
-	"provenance.unresolved",
-	"map.disk_mismatch",
-	"map.disk_unlisted",
-	"link.broken.path",
-	"schema.enum",
-	"schema.required",
-	"schema.unknown_key",
-	"schema.slug",
-	"schema.domain_folder",
-	"schema.legacy_tag",
-	"schema.provenance",
-	"schema.frontmatter",
-	"schema.unmatched_knowledge_dir",
-	"collision.name",
-	predecessorNotArchivedRule,
-	archivedNavigationRule,
-	// The authoring contract's own rules. schema.language is emitted but was
-	// never listed here, so this list is kept honest by a test that compares it
-	// against what the rules actually emit.
-	"schema.language",
-}, sequence.Rules())
+var ruleIDs = allRuleIDs()
+
+// allRuleIDs lists the rules this package decides for itself, then appends the
+// study-path rules from the grammar that names them. The grammar's half is
+// asked for rather than copied, so a rule it gains later can still be gated on
+// by name instead of being silently undeniable.
+func allRuleIDs() []string {
+	ids := []string{
+		"link.title_not_alias",
+		"link.broken",
+		"link.section_missing",
+		"link.block_missing",
+		"collision.alias",
+		"provenance.unresolved",
+		"map.disk_mismatch",
+		"map.disk_unlisted",
+		"link.broken.path",
+		"schema.enum",
+		"schema.required",
+		"schema.unknown_key",
+		"schema.slug",
+		"schema.domain_folder",
+		"schema.legacy_tag",
+		"schema.provenance",
+		"schema.frontmatter",
+		"schema.unmatched_knowledge_dir",
+		"collision.name",
+		predecessorNotArchivedRule,
+		archivedNavigationRule,
+		// The authoring contract's own rules. This list has to match what the
+		// rules emit, in both directions.
+		"schema.language",
+	}
+	for _, rule := range sequence.Rules() {
+		ids = append(ids, string(rule))
+	}
+	return ids
+}
 
 // Format is the output format of a subcommand.
 type Format int
@@ -69,6 +75,22 @@ const (
 	// format; coverage and exists fall back to the human view.
 	FormatMarkdown
 )
+
+// String names a format with the spelling ParseFormat accepts, so a message
+// and the flag a reader would type are the same word. A value outside the three
+// constants has no spelling and panics rather than inventing one.
+func (f Format) String() string {
+	switch f {
+	case FormatJSON:
+		return "json"
+	case FormatHuman:
+		return "human"
+	case FormatMarkdown:
+		return "md"
+	default:
+		panic("judge: unknown Format: " + strconv.Itoa(int(f)))
+	}
+}
 
 // ParseFormat maps a --format value to a Format, reporting false for a value
 // that is none of json, human, or md.
@@ -118,8 +140,11 @@ type preparedCommand struct {
 	action *action
 }
 
+// finish re-validates the contract authority and closes the observation, once.
+// The action field is the latch: a payload whose observation has already been
+// finished cannot be published a second time on an authority nobody rechecked.
 func (p *preparedCommand) finish() error {
-	if p == nil || p.action == nil {
+	if p.action == nil {
 		return errVaultScan
 	}
 	a := p.action
@@ -131,8 +156,8 @@ func (p *preparedCommand) finish() error {
 // print and the exit code: 1 when a finding gates, 0 otherwise. An unknown
 // --deny token, an unreadable baseline, or a scan failure is returned as an
 // error, which the caller turns into a tool-error exit.
-func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareCheck(o)
+func RunCheck(ctx context.Context, o *CheckOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareCheck(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -142,17 +167,17 @@ func RunCheck(o *CheckOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareCheck(o *CheckOptions) (preparedCommand, error) {
-	return prepareCheckWithHooks(o, actionHooks{})
+func prepareCheck(ctx context.Context, o *CheckOptions) (preparedCommand, error) {
+	return prepareCheckWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareCheckWithHooks(o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
+func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
 	for _, d := range o.Deny {
 		if !isSeverityKeyword(d) && !slices.Contains(ruleIDs, d) {
 			return preparedCommand{}, fmt.Errorf("unknown --deny %q; use a severity (error|warn|info) or a rule id", d)
 		}
 	}
-	a, err := openAction(o.Root, hooks)
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -184,7 +209,7 @@ func prepareCheckWithHooks(o *CheckOptions, hooks actionHooks) (preparedCommand,
 	case FormatMarkdown:
 		stdout = []byte(markdownReport(findings))
 	default:
-		panic("judge: unknown Format: " + strconv.Itoa(int(o.Format)))
+		panic("judge: unknown Format: " + o.Format.String())
 	}
 	exit := 0
 	if gated(findings, o.Deny) {
@@ -202,8 +227,8 @@ type CoverageOptions struct {
 // RunCoverage computes and renders coverage. It always exits 0 — coverage
 // reports state, it never gates. A scan or serialization failure is returned as
 // an error.
-func RunCoverage(o *CoverageOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareCoverage(o)
+func RunCoverage(ctx context.Context, o *CoverageOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareCoverage(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -213,12 +238,12 @@ func RunCoverage(o *CoverageOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareCoverage(o *CoverageOptions) (preparedCommand, error) {
-	return prepareCoverageWithHooks(o, actionHooks{})
+func prepareCoverage(ctx context.Context, o *CoverageOptions) (preparedCommand, error) {
+	return prepareCoverageWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareCoverageWithHooks(o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
-	a, err := openAction(o.Root, hooks)
+func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -248,8 +273,8 @@ type ExistsOptions struct {
 // a match exists and 1 when none does, so a caller can gate a
 // write-if-absent on the exit code alone. A scan or serialization failure is
 // returned as an error.
-func RunExists(o *ExistsOptions) (stdout []byte, exit int, err error) {
-	prepared, err := prepareExists(o)
+func RunExists(ctx context.Context, o *ExistsOptions) (stdout []byte, exit int, err error) {
+	prepared, err := prepareExists(ctx, o)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -259,12 +284,12 @@ func RunExists(o *ExistsOptions) (stdout []byte, exit int, err error) {
 	return prepared.stdout, prepared.exit, nil
 }
 
-func prepareExists(o *ExistsOptions) (preparedCommand, error) {
-	return prepareExistsWithHooks(o, actionHooks{})
+func prepareExists(ctx context.Context, o *ExistsOptions) (preparedCommand, error) {
+	return prepareExistsWithHooks(ctx, o, actionHooks{})
 }
 
-func prepareExistsWithHooks(o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
-	a, err := openAction(o.Root, hooks)
+func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionHooks) (preparedCommand, error) {
+	a, err := openAction(ctx, o.Root, hooks)
 	if err != nil {
 		return preparedCommand{}, err
 	}
@@ -287,12 +312,10 @@ func prepareExistsWithHooks(o *ExistsOptions, hooks actionHooks) (preparedComman
 	return preparedCommand{stdout: stdout, exit: exit, action: a}, nil
 }
 
-// gated reports whether any finding reaches the deny gate. A --deny token is
-// either a severity keyword or a rule id, and the two coexist: a severity
-// keyword gates any finding at or above the lowest denied severity — so
-// denying error gates every error without naming each schema rule — while a
-// rule id gates a finding of that rule, but only at warn or above, so an
-// info-level tracked forward-reference never gates through its rule id.
+// gated reports whether any finding reaches the deny gate. A severity keyword
+// gates any finding at or above the lowest denied severity; a rule id gates a
+// finding of that rule, but only at warn or above, so an info-level tracked
+// forward-reference never gates through its rule id.
 func gated(findings []Finding, deny []string) bool {
 	threshold, hasThreshold := minDeniedSeverity(deny)
 	for i := range findings {
@@ -344,13 +367,10 @@ func isSeverityKeyword(s string) bool {
 }
 
 // parseBaseline collects the fingerprints from a prior run's JSONL, for a
-// delta. The file is held to what this binary itself writes: every non-blank
-// line must be a JSON object carrying a string fingerprint whose value starts
-// with the current algorithm-version prefix. Anything less stops the run with
-// the offending line's number — a skipped line would subtract less than the
-// caller believes and report old findings as new, and a whole file of
-// foreign-version fingerprints would subtract nothing at all while looking
-// honored. An empty file is a valid, empty baseline.
+// delta. Every non-blank line must be a JSON object carrying a string
+// fingerprint starting with the current algorithm-version prefix; anything less
+// stops the run with the offending line's number, because a skipped line would
+// subtract less than the caller believes. An empty file is a valid baseline.
 func parseBaseline(jsonl string) (map[string]bool, error) {
 	set := make(map[string]bool)
 	lineNo := 0
@@ -384,25 +404,7 @@ func parseBaseline(jsonl string) (map[string]bool, error) {
 // retainNew drops findings whose fingerprint is already in the baseline,
 // leaving only what this run newly introduced.
 func retainNew(findings []Finding, baseline map[string]bool) []Finding {
-	out := findings[:0]
-	for i := range findings {
-		if !baseline[findings[i].Fingerprint] {
-			out = append(out, findings[i])
-		}
-	}
-	return out
-}
-
-// marshalWire encodes v as a compact JSON object and a trailing newline, the
-// on-wire form for coverage and exists. It matches the JSONL encoder's two
-// departures from the encoder's defaults: HTML characters are left unescaped,
-// and the two line-separator code points are carried as raw UTF-8.
-func marshalWire(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	return unescapeLineSeparators(buf.Bytes()), nil
+	return slices.DeleteFunc(findings, func(f Finding) bool {
+		return baseline[f.Fingerprint]
+	})
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 func writeNavFixture(t *testing.T, root, rel, content string) {
@@ -38,9 +39,9 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
+		t.Fatalf("vaultfs.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -145,9 +146,9 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 	writeNavFixture(t, root, mapPath, string(mapBytes))
 	writeNavFixture(t, root, "System/reports/audit.md", "report\n")
 
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+		t.Fatalf("vaultfs.Open: %v", err)
 	}
 	scan, err := reader.ScanComplete(t.Context())
 	if err != nil {
@@ -224,9 +225,9 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		t.Fatalf("Chtimes captured: %v", err)
 	}
 
-	reader, err := vault.Open(root)
+	reader, err := vaultfs.Open(root)
 	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+		t.Fatalf("vaultfs.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -288,7 +289,7 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 	resolvedBranches := []Branch{{
 		Heading: "Shelf",
 		Level:   2,
-		Entries: []Entry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
+		Entries: []MapEntry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
 	}}
 	wantPaths := []pathShape{{
 		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path", Planned: 3,
@@ -387,7 +388,7 @@ func TestNewOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	if len(model.Maps()) != 1 || len(model.Maps()[0].Branches) != 1 {
 		t.Fatalf("New Maps = %+v, want one general-map branch", model.Maps())
 	}
-	wantEntries := []Entry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
+	wantEntries := []MapEntry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
 	if diff := cmp.Diff(wantEntries, model.Maps()[0].Branches[0].Entries); diff != "" {
 		t.Errorf("New general-map entries mismatch (-want +got):\n%s", diff)
 	}
@@ -505,15 +506,15 @@ map_types = ["moc"]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			model := capturedModel(t, root, tt.roles, schema.KnowledgeScope{}, tt.policy, nil)
-			if tt.wantNavigation == "" && model.NavigationDiagnostic() != "" {
-				t.Errorf("NavigationDiagnostic = %q, want exactly empty while artifact policy is unavailable", model.NavigationDiagnostic())
-			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationDiagnostic(), tt.wantNavigation) {
-				t.Errorf("NavigationDiagnostic = %q, want substring %q", model.NavigationDiagnostic(), tt.wantNavigation)
+			if tt.wantNavigation == "" && model.NavigationClosure().Diagnostic() != "" {
+				t.Errorf("NavigationClosure().Diagnostic() = %q, want exactly empty while artifact policy is unavailable", model.NavigationClosure().Diagnostic())
+			} else if tt.wantNavigation != "" && !strings.Contains(model.NavigationClosure().Diagnostic(), tt.wantNavigation) {
+				t.Errorf("NavigationClosure().Diagnostic() = %q, want substring %q", model.NavigationClosure().Diagnostic(), tt.wantNavigation)
 			}
-			if tt.wantArtifact == "" && model.ArtifactDiagnostic() != "" {
-				t.Errorf("ArtifactDiagnostic = %q, want exactly empty while navigation roles are unavailable", model.ArtifactDiagnostic())
-			} else if tt.wantArtifact != "" && !strings.Contains(model.ArtifactDiagnostic(), tt.wantArtifact) {
-				t.Errorf("ArtifactDiagnostic = %q, want substring %q", model.ArtifactDiagnostic(), tt.wantArtifact)
+			if tt.wantArtifact == "" && model.ArtifactClosure().Diagnostic() != "" {
+				t.Errorf("ArtifactClosure().Diagnostic() = %q, want exactly empty while navigation roles are unavailable", model.ArtifactClosure().Diagnostic())
+			} else if tt.wantArtifact != "" && !strings.Contains(model.ArtifactClosure().Diagnostic(), tt.wantArtifact) {
+				t.Errorf("ArtifactClosure().Diagnostic() = %q, want substring %q", model.ArtifactClosure().Diagnostic(), tt.wantArtifact)
 			}
 			if len(model.Paths()) != 0 || len(model.Maps()) != 0 {
 				t.Errorf("degraded navigation = %d paths, %d maps; want unavailable", len(model.Paths()), len(model.Maps()))
@@ -540,18 +541,15 @@ func TestUngovernedFolderProjectsOverTheEmptyDeclaredSet(t *testing.T) {
 	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
 	writeNavFixture(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: draft\n---\nbody\n")
 
-	roles, _, policy, _ := schema.Ungoverned().Capabilities(nil)
-	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	capabilities := (*schema.Contract)(nil).Capabilities(schema.Ungoverned())
+	model := capturedModel(t, root, capabilities.Navigation, schema.KnowledgeScope{}, capabilities.Artifacts, nil)
 
-	if model.NavigationDiagnostic() != "" || model.ArtifactDiagnostic() != "" {
+	if model.NavigationClosure().Diagnostic() != "" || model.ArtifactClosure().Diagnostic() != "" {
 		t.Errorf("ungoverned diagnostics = navigation %q artifact %q, want both silent",
-			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
 	}
 	if model.NavigationClosure().Closed() || model.ArtifactClosure().Closed() {
 		t.Error("ungoverned projections are closed; an undeclared set is empty, not unanswerable")
-	}
-	if model.InstanceProjectionsClosed() {
-		t.Error("InstanceProjectionsClosed() = true for a folder that never claimed governance")
 	}
 	// Nothing declared an exclusion, so the template is an ordinary readable
 	// note rather than a governed artifact carved out of the corpus.
@@ -587,21 +585,21 @@ func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
 	// could not be read: unresolved, not zero. Deriving them here rather than
 	// hand-building them is the point — a consumer that reached for the zero
 	// value instead would conclude that nothing was ever excluded.
-	roles, _, policy, _ := schema.Unreadable(errors.New("toml: line 42: expected a key separator")).Capabilities(nil)
-	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	capabilities := (*schema.Contract)(nil).Capabilities(schema.Unreadable(errors.New("toml: line 42: expected a key separator")))
+	model := capturedModel(t, root, capabilities.Navigation, schema.KnowledgeScope{}, capabilities.Artifacts, nil)
 
 	if !model.NavigationClosure().Closed() || !model.ArtifactClosure().Closed() {
 		t.Error("an unreadable contract left a projection open; its declared sets are unknown, not empty")
 	}
-	if model.NavigationDiagnostic() == "" {
+	if model.NavigationClosure().Diagnostic() == "" {
 		t.Error("a closed projection says nothing; a surface that can only report through this one would have to invent an answer")
 	}
-	if model.NavigationDiagnostic() != model.ArtifactDiagnostic() {
+	if model.NavigationClosure().Diagnostic() != model.ArtifactClosure().Diagnostic() {
 		t.Errorf("one cause produced two sentences: navigation %q artifact %q",
-			model.NavigationDiagnostic(), model.ArtifactDiagnostic())
+			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
 	}
-	if !strings.Contains(model.NavigationDiagnostic(), "line 42") {
-		t.Errorf("the closure does not carry the parse error: %q", model.NavigationDiagnostic())
+	if !strings.Contains(model.NavigationClosure().Diagnostic(), "line 42") {
+		t.Errorf("the closure does not carry the parse error: %q", model.NavigationClosure().Diagnostic())
 	}
 	if got := len(model.KnowledgeNotes()); got != 1 {
 		t.Errorf("KnowledgeNotes = %d, want 1: plain reading survives an unreadable contract", got)
@@ -728,7 +726,7 @@ func resolver(t *testing.T, paths ...string) *graph.Index {
 
 // TestParseBranchesGoShape covers the pipe-format Go map shape: H2/H3
 // headings "slug | English | Chinese" (the English column becomes the
-// label) and "- [[Entry]]" bullets, with prose lines (範圍/★) between
+// label) and "- [[MapEntry]]" bullets, with prose lines (範圍/★) between
 // headings that must NOT become entries, and a trailing part with no
 // entries that must be pruned away.
 func TestParseBranchesGoShape(t *testing.T) {
@@ -769,7 +767,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 				{
 					Heading: "Text as Bytes",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Status: "draft"},
 						{Text: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
 					},
@@ -777,7 +775,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 				{
 					Heading: "Alignment",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "Entry C", Target: "Entry C", RelPath: "L/Entry C.md"},
 					},
 				},
@@ -849,7 +847,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		{
 			Heading: "Kana warm-up (order = lines)",
 			Level:   2,
-			Entries: []Entry{
+			Entries: []MapEntry{
 				{Text: "P01 Kana", Target: "P01 Kana", RelPath: "jp/P01 Kana.md", Status: "draft"},
 			},
 		},
@@ -860,7 +858,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 				{
 					Heading: "Decode",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Status: "draft"},
 						{Text: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Status: "draft"},
 					},
@@ -868,7 +866,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 				{
 					Heading: "Verbs",
 					Level:   3,
-					Entries: []Entry{
+					Entries: []MapEntry{
 						{Text: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus},
 					},
 				},
@@ -913,7 +911,7 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 				{
 					Heading: "Module",
 					Level:   3,
-					Entries: []Entry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
+					Entries: []MapEntry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
 				},
 			},
 		},
@@ -1129,12 +1127,12 @@ func TestPlacements(t *testing.T) {
 			Title: "Go", RelPath: "Maps/go-path.md",
 			Branches: []Branch{
 				{Heading: "Part A", Level: 2, Subbranches: []Branch{
-					{Heading: "Module 1", Level: 3, Entries: []Entry{
+					{Heading: "Module 1", Level: 3, Entries: []MapEntry{
 						{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
 						{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 					}},
 				}},
-				{Heading: "Part B", Level: 2, Entries: []Entry{
+				{Heading: "Part B", Level: 2, Entries: []MapEntry{
 					{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 				}},
 			},
@@ -1142,7 +1140,7 @@ func TestPlacements(t *testing.T) {
 		{
 			Title: "JP", RelPath: "Maps/jp-path.md",
 			Branches: []Branch{
-				{Heading: "Unit 1", Level: 2, Entries: []Entry{
+				{Heading: "Unit 1", Level: 2, Entries: []MapEntry{
 					{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
 				}},
 			},
@@ -1269,13 +1267,13 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 	if degraded.KnowledgeScoped() {
 		t.Error("KnowledgeScoped() = true on a degraded view; the layer is the refused contract's own claim")
 	}
-	if degraded.ArtifactDiagnostic() != "artifact unavailable" {
-		t.Errorf("ArtifactDiagnostic = %q, want %q", degraded.ArtifactDiagnostic(), "artifact unavailable")
+	if degraded.ArtifactClosure().Diagnostic() != "artifact unavailable" {
+		t.Errorf("ArtifactClosure().Diagnostic() = %q, want %q", degraded.ArtifactClosure().Diagnostic(), "artifact unavailable")
 	}
-	if !degraded.InstanceProjectionsClosed() {
-		t.Error("InstanceProjectionsClosed() = false after WithoutInstanceProjections; a withheld projection must stay distinguishable from an empty one")
+	if !degraded.ArtifactClosure().Closed() {
+		t.Error("ArtifactClosure().Closed() = false after WithoutInstanceProjections; a withheld projection must stay distinguishable from an empty one")
 	}
-	if original.InstanceProjectionsClosed() {
+	if original.ArtifactClosure().Closed() {
 		t.Error("WithoutInstanceProjections() closed the source model")
 	}
 	if diff := cmp.Diff(original.Folders(), degraded.Folders()); diff != "" {
@@ -1388,6 +1386,29 @@ func mutateModelProjections(model *Model) {
 	placements[0].Headings[0] = "mutated"
 	_, siblings := model.Siblings("Writing/Lessons/Lesson.md")
 	siblings[0].Name = "mutated"
+}
+
+// One course asked for by name has to come back under the same rule as the
+// whole list: the model is read by every request at once, so what a page holds
+// while it renders must be its own.
+func TestOneCourseAskedForByNameIsTheCallersOwn(t *testing.T) {
+	t.Parallel()
+	model := immutableModelFixture()
+
+	got := model.Path("Maps/Path.md")
+	if got == nil {
+		t.Fatal("Path(Maps/Path.md) = nil, want the fixture's course")
+	}
+	got.Title = "mutated"
+	got.Planned = -1
+
+	again := model.Path("Maps/Path.md")
+	if again == nil || again.Title != "Path" || again.Planned != 2 {
+		t.Errorf("Path(Maps/Path.md) after caller mutation = %+v, want the original course", again)
+	}
+	if other := model.Path("Maps/Map.md"); other != nil {
+		t.Errorf("Path(Maps/Map.md) = %+v, want nil: a general map is not a course", other)
+	}
 }
 
 func TestModelReturnsIndependentProjections(t *testing.T) {
@@ -1586,4 +1607,28 @@ func groupShapes(groups []*PathGroup) []groupShape {
 		out = append(out, shape)
 	}
 	return out
+}
+
+// A folder page shows what one folder holds: its files, and the folders inside
+// it. Both halves come from one call, so they cannot be in two orders — a
+// reader who numbered their weeks would find the notes in reading order and
+// the folders below them shuffled, on one screen.
+func TestAFolderPageOrdersItsSubfoldersTheWayItOrdersItsNotes(t *testing.T) {
+	t.Parallel()
+	model := &Model{dirNotes: map[string][]NoteRef{
+		"Writing/第9週":  {{Name: "a", RelPath: "Writing/第9週/a.md"}},
+		"Writing/第10週": {{Name: "b", RelPath: "Writing/第10週/b.md"}},
+	}}
+
+	_, subfolders, ok := model.Directory("Writing")
+	if !ok {
+		t.Fatal("Directory(Writing) reported no such folder")
+	}
+	want := []NoteRef{
+		{Name: "第9週", RelPath: "Writing/第9週"},
+		{Name: "第10週", RelPath: "Writing/第10週"},
+	}
+	if diff := cmp.Diff(want, subfolders); diff != "" {
+		t.Errorf("Directory(Writing) subfolder order mismatch (-want +got):\n%s", diff)
+	}
 }

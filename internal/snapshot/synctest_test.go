@@ -7,13 +7,15 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/search"
+	"github.com/koopa0/yomihon/internal/lexical"
 )
 
 // TestRunScannerTicksAndStops pins only the scanner loop's clock, cancellation,
 // and goroutine behavior. Filesystem rebuilding belongs to ordinary tests:
 // system calls are not durably blocking inside a synctest bubble.
 func TestRunScannerTicksAndStops(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan struct{})
@@ -75,18 +77,20 @@ func TestViewConcurrentReadersCannotMutateGeneration(t *testing.T) {
 					folders := request.Navigation().Folders()
 					folders[0].Name = "mutated"
 
-					results, err := request.Search().Search(search.Parse("Foo"))
+					results, _, err := request.Search().SearchN(lexical.Parse("Foo"), -1)
 					if err != nil {
 						t.Errorf("Search(Foo) error = %v", err)
 						continue
 					}
 					results[0].Title = "mutated"
-					counts, err := request.Search().CountByStatus()
+					counts, err := request.Search().CountByTypeStatus()
 					if err != nil {
-						t.Errorf("CountByStatus() error = %v", err)
+						t.Errorf("CountByTypeStatus() error = %v", err)
 						continue
 					}
-					counts["draft"] = 0
+					for pair := range counts {
+						counts[pair] = 0
+					}
 
 					slot, ok := request.Slots().Lookup("lesson-l01")
 					if !ok {

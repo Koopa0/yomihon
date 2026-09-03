@@ -106,7 +106,7 @@ func TestCoverageMountsOnContractMapTypes(t *testing.T) {
 	write(t, root, "Concepts/Slice.md", "---\ntitle: Slice\ntype: concept\nbased_on:\n  - \"[[Go Atlas]]\"\n---\n\nBody.\n")
 	write(t, root, "Atlases/Go Atlas.md", "---\ntitle: Go Atlas\ntype: atlas\n---\n\n- [[Slice]]\n")
 
-	got, exit, err := RunCoverage(&CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -131,7 +131,7 @@ func TestCoverageWithholdsTheRouteFromAnUndeclaredType(t *testing.T) {
 	write(t, root, schema.ContractRelPath, atlasContract)
 	write(t, root, "Concepts/Brief.md", "---\ntitle: Brief\ntype: research-brief\n---\n\nBody.\n")
 
-	got, _, err := RunCoverage(&CoverageOptions{Root: root, Format: FormatJSON})
+	got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -154,7 +154,7 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 	write(t, root, "Notes/Alpha.md", "---\ntitle: Alpha\ntype: note\n---\n\nBody.\n")
 	write(t, root, "Atlases/Go Atlas.md", "---\ntitle: Go Atlas\ntype: atlas\n---\n\n- [[Alpha]]\n")
 
-	got, exit, err := RunCoverage(&CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -167,7 +167,7 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
 
-	human, _, err := RunCoverage(&CoverageOptions{Root: root, Format: FormatHuman})
+	human, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatHuman})
 	if err != nil {
 		t.Fatalf("RunCoverage(human) error = %v", err)
 	}
