@@ -1,8 +1,8 @@
 // Package render answers three questions about one vault file, in one place so
 // every face of the program answers them alike: how a note reads, what words it
-// contributes to a search, and what kind of file it is at all. It is
-// fault-tolerant over note content — it renders what it can, reports the rest
-// through Diagnostics, and never repairs a note.
+// contributes to a search, and what kind of file it is. It reports what it
+// cannot render rather than repairing it, and authored HTML is inert display
+// input: the ruby subset survives, and executable markup is shown as text.
 package render
 
 import (
