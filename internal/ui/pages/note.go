@@ -270,6 +270,22 @@ func (f faceState) token() string {
 	panic("pages: unknown write-face state: " + strconv.Itoa(int(f)))
 }
 
+// showsStatusFace reports whether the write face has anything to show about
+// this note. Both faces ask it — the rail panel and the bottom bar are one
+// answer shown in two places — and each asks it itself rather than trusting
+// whoever draws it, so a caller cannot draw one of them in a state where it
+// has nothing to say.
+//
+// A folder that governs nothing has no lifecycle, so neither face belongs on
+// any page it serves. A frontmatter fault suppresses them for a different
+// reason: no status was parsed, so there is nothing to report and nothing to
+// act on. A note outside the governed set stays named through both, because
+// that classification comes from its path and holds whatever its frontmatter
+// says.
+func (v *NoteView) showsStatusFace() bool {
+	return v.Governed && (v.Diagnostic == "" || v.NonInstance)
+}
+
 // showsFlipReceipt reports whether this reading has a change to state.
 func (v *NoteView) showsFlipReceipt() bool {
 	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status

@@ -103,13 +103,21 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 	}
 }
 
-// drawsNothing names the recordings that are meant to be empty. The bottom bar
-// stays away from an ungoverned folder, which has no lifecycle to control, and
-// from a note whose frontmatter could not be read, where no status was parsed
-// to act on.
+// drawsNothing names the recordings that are meant to be empty. Both status
+// faces stay away from an ungoverned folder, which has no lifecycle to control,
+// and from a note whose frontmatter could not be read, where no status was
+// parsed to act on.
+//
+// The rail panel's two entries used to hold a full panel each, byte for byte
+// the same as one another, because the condition that keeps it away lived in
+// its caller: the recording drew a component the page never draws in those
+// states, so it locked nothing and could not tell the two apart. The condition
+// is the panel's own now, as it always was the bar's.
 var drawsNothing = map[string]bool{
-	"statusbar-ungoverned":             true,
-	"statusbar-frontmatter-diagnostic": true,
+	"statusbar-ungoverned":               true,
+	"statusbar-frontmatter-diagnostic":   true,
+	"statuspanel-ungoverned":             true,
+	"statuspanel-frontmatter-diagnostic": true,
 }
 
 // recordedChrome is one fixed request's chrome, so the recording says nothing

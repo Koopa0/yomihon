@@ -271,9 +271,7 @@ templ articleHead(v NoteView) {
 // every note, whatever the outline's length.
 templ rightRail(v NoteView) {
 	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(v.Lang) }>
-		if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
-			@statusPanel(v)
-		}
+		@statusPanel(v)
 		if len(v.TOC) > 0 {
 			<nav aria-label={ wording.OnThisPage.In(v.Lang) }>
 				<div class="ui-side__label">{ wording.OnThisPage.In(v.Lang) }</div>
@@ -417,42 +415,44 @@ templ inlineAids(v NoteView) {
 // one. The fixed-bottom status bar is the second status face. The legal set
 // is only what the schema contract returns — never a fabricated key.
 templ statusPanel(v NoteView) {
-	{{ face := statusFace(&v) }}
-	<section class="y-statuspanel" data-status-state={ face.token() }>
-		if face == faceNonInstance {
-			<p class="y-statuspanel__notice">{ wording.NonInstanceReason.In(v.Lang) }</p>
-		} else {
-			<div class="y-statuspanel__head">
-				<div class="y-statuspanel__row">
-					<span class="ui-side__label">{ wording.StatusLabel.In(v.Lang) }</span>
-				</div>
-				if v.Status != "" {
-					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
-				}
-			</div>
-			switch face {
-				case faceWriteUnavailable:
-					<p class="y-statuspanel__notice">
-						@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
-					</p>
-				case faceNoFrontmatter:
-					<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
-				case faceStatusUnknown:
-					@statusUnknownFlag(v, "y-statuspanel__notice")
-				case faceStatusUnreadable:
-					@statusUnreadableFlag(v, "y-statuspanel__notice")
-				case faceNoTransitions:
-					<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
-					<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v) }</p>
-				default:
-					@transitionEffectLine("y-statuspanel__notice", v.Lang)
-					<div class="y-statuspanel__forms">
-						@legalTransitionForms(v)
+	if v.showsStatusFace() {
+		{{ face := statusFace(&v) }}
+		<section class="y-statuspanel" data-status-state={ face.token() }>
+			if face == faceNonInstance {
+				<p class="y-statuspanel__notice">{ wording.NonInstanceReason.In(v.Lang) }</p>
+			} else {
+				<div class="y-statuspanel__head">
+					<div class="y-statuspanel__row">
+						<span class="ui-side__label">{ wording.StatusLabel.In(v.Lang) }</span>
 					</div>
+					if v.Status != "" {
+						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					}
+				</div>
+				switch face {
+					case faceWriteUnavailable:
+						<p class="y-statuspanel__notice">
+							@browserDiagnostic(wording.WriteFaceUnavailable.In(v.Lang), v.WriteDiagnostic)
+						</p>
+					case faceNoFrontmatter:
+						<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(v.Lang) }</p>
+					case faceStatusUnknown:
+						@statusUnknownFlag(v, "y-statuspanel__notice")
+					case faceStatusUnreadable:
+						@statusUnreadableFlag(v, "y-statuspanel__notice")
+					case faceNoTransitions:
+						<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
+						<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v) }</p>
+					default:
+						@transitionEffectLine("y-statuspanel__notice", v.Lang)
+						<div class="y-statuspanel__forms">
+							@legalTransitionForms(v)
+						</div>
+				}
+				@schemaNotices(v)
 			}
-			@schemaNotices(v)
-		}
-	</section>
+		</section>
+	}
 }
 
 // schemaNotices states what the schema made of this note's frontmatter. The
@@ -616,7 +616,7 @@ templ diagnostics(v NoteView) {
 // of frontmatter. The y-sealbar class names are kept: the layout they carry
 // predates this bar being a plain control surface.
 templ statusBar(v NoteView) {
-	if v.Governed && (v.Diagnostic == "" || v.NonInstance) {
+	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
 		<div class="y-sealbar" data-status-state={ face.token() }>
 			switch face {
