@@ -52,9 +52,8 @@ func allRuleIDs() []string {
 		"collision.name",
 		predecessorNotArchivedRule,
 		archivedNavigationRule,
-		// The authoring contract's own rules. schema.language is emitted but was
-		// never listed here, so this list is kept honest by a test that compares it
-		// against what the rules actually emit.
+		// The authoring contract's own rules. This list has to match what the
+		// rules emit, in both directions.
 		"schema.language",
 	}
 	for _, rule := range sequence.Rules() {
