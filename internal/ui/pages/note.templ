@@ -128,9 +128,9 @@ func freshnessAttrs(v NoteView, lang wording.Lang) templ.Attributes {
 // and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
 // what it found, and a human edits the file.
 //
-// Transitions, WriteDiagnostic, NonInstance, and NoFrontmatter drive the rail
-// status panel and the fixed-bottom status bar, the reading page's two status
-// faces.
+// Transitions, WriteDiagnostic, NonInstance, OutsideKnowledgeScope, and
+// NoFrontmatter drive the rail status panel and the fixed-bottom status bar,
+// the reading page's two status faces.
 type NoteView struct {
 	Title   string
 	RelPath string
@@ -224,6 +224,11 @@ type NoteView struct {
 	NonInstance         bool
 	WriteDiagnostic     string
 	NoFrontmatter       bool
+	// OutsideKnowledgeScope is set for a note the write face reaches no
+	// further than reading: it sits outside the knowledge layer the contract's
+	// scan.knowledge_dirs declares, so its transition set is empty for that
+	// reason and not because the schema defines nothing onward.
+	OutsideKnowledgeScope bool
 	// FlippedFrom is the status the transition form said it was leaving, when
 	// this reading is the one a successful flip redirected to. The address
 	// only carries the name: before handing the value over, the handler checks
@@ -941,7 +946,9 @@ templ inlineAids(v NoteView) {
 // transition (the PRG pattern, no JS dependency) — a single press for a
 // target the reader can walk back from, a two-step confirm for a no-return
 // one. The fixed-bottom status bar is the second status face. The legal set
-// is only what the schema contract returns — never a fabricated key.
+// is only what the schema contract returns — never a fabricated key — and an
+// empty set is stated by its reason: the knowledge layer that withheld it, or
+// the schema that defines nothing onward.
 templ statusPanel(v NoteView) {
 	<section class="y-statuspanel" data-status-state={ statusState(v) }>
 		if v.NonInstance {
@@ -967,8 +974,12 @@ templ statusPanel(v NoteView) {
 				case v.Status == "":
 					@statusUnreadableFlag(v, "y-statuspanel__notice")
 				case len(v.Transitions) == 0:
-					<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
-					<p class="y-statuspanel__notice">{ frontmatterDoorLine(v) }</p>
+					if v.OutsideKnowledgeScope {
+						<p class="y-statuspanel__notice">{ wording.OutsideKnowledgeScope.In(v.Lang) }</p>
+					} else {
+						<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(v.Lang) }</p>
+						<p class="y-statuspanel__notice">{ frontmatterDoorLine(v) }</p>
+					}
 				default:
 					@transitionEffectLine("y-statuspanel__notice", v.Lang)
 					<div class="y-statuspanel__forms">
@@ -1216,7 +1227,11 @@ templ statusBar(v NoteView) {
 				case len(v.Transitions) == 0:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
-					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(v.Lang) }{ frontmatterDoorLine(v) }</p>
+					if v.OutsideKnowledgeScope {
+						<p class="y-sealbar__notice">{ wording.OutsideKnowledgeScope.In(v.Lang) }</p>
+					} else {
+						<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(v.Lang) }{ frontmatterDoorLine(v) }</p>
+					}
 				default:
 					if v.Status != "" {
 						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>

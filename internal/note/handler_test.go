@@ -3527,7 +3527,12 @@ func TestShowOffersTransitionsWhateverTheOwnerLists(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+	// The note sits inside the knowledge layer the contract declares, which is
+	// where the lifecycle reaches a note at all.
+	if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
+		t.Fatalf("make the knowledge directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Writing", "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
 	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
@@ -3552,7 +3557,7 @@ func TestShowOffersTransitionsWhateverTheOwnerLists(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, contract)
-	code, body := get(t, srv.URL+"/notes/Note.md")
+	code, body := get(t, srv.URL+"/notes/Writing/Note.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET note status = %d, want 200", code)
 	}
@@ -3565,6 +3570,60 @@ func TestShowOffersTransitionsWhateverTheOwnerLists(t *testing.T) {
 	}
 	if strings.Contains(page, "接下來的狀態轉換由其他 owner 持有") {
 		t.Error("page still words an owner boundary that no longer exists")
+	}
+}
+
+// TestShowNamesTheLayerThatWithheldTheControls holds the reading page to the
+// truth about an empty transition set. A note outside the knowledge layer the
+// contract declares is offered nothing, and the page has to say that this is
+// why: the sentence for a schema that defines nothing onward would be false
+// here, because the contract does define moves from draft for this note's
+// type. Both status faces carry the sentence, counted rather than found,
+// because the bar is the only face at the widths that drop the rail. The same
+// bytes inside the layer keep their forms, so the path is the whole difference.
+func TestShowNamesTheLayerThatWithheldTheControls(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	body := "---\ntitle: L05\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	const outside = "System/agent-guides/L05.md"
+	const inside = "Writing/lessons/japanese/L05.md"
+	for _, rel := range []string{outside, inside} {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(full), err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", full, err)
+		}
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+	layer := wording.OutsideKnowledgeScope.In(wording.ZhHant)
+
+	code, page := get(t, srv.URL+"/notes/"+outside)
+	if code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200", outside, code)
+	}
+	page = html.UnescapeString(page)
+	if got := strings.Count(page, layer); got != 2 {
+		t.Errorf("the layer sentence appears %d times on the page outside the layer, want 2: one per status face", got)
+	}
+	if strings.Contains(page, wording.NoLegalTransitions.In(wording.ZhHant)) {
+		t.Error("the page claims the schema defines nothing onward, for a note the layer withheld")
+	}
+	if strings.Contains(page, `name="to"`) {
+		t.Error("the page offers a transition form outside the knowledge layer")
+	}
+
+	code, page = get(t, srv.URL+"/notes/"+inside)
+	if code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200", inside, code)
+	}
+	page = html.UnescapeString(page)
+	if !strings.Contains(page, `name="to" value="ready"`) {
+		t.Error("the same note inside the layer lost its transition form")
+	}
+	if strings.Contains(page, layer) {
+		t.Error("the page inside the layer names the layer as withholding anything")
 	}
 }
 

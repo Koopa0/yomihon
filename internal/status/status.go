@@ -42,6 +42,11 @@ var (
 	// ErrNonInstance means the requested path is a readable artifact rather
 	// than a governed note instance.
 	ErrNonInstance = errors.New("status: target is not a governable artifact")
+	// ErrOutsideKnowledgeScope means the requested path is a note the lifecycle
+	// never reaches: it lies outside the directories the contract's
+	// scan.knowledge_dirs names as the knowledge layer, and the state machine
+	// runs only there.
+	ErrOutsideKnowledgeScope = errors.New("status: target is outside the knowledge layer scan.knowledge_dirs declares")
 	// ErrInvalidPath means a status request did not name a local vault-relative
 	// slash path.
 	ErrInvalidPath = errors.New("status: invalid vault-relative path")
@@ -348,15 +353,68 @@ func (v View) WriteDiagnostic() string {
 	return ""
 }
 
+// ungoverned reports why the lifecycle does not reach the note at rel, or nil
+// when it does. Two questions are asked in turn and stay two: a path under a
+// declared artifact directory is not a note instance at all, while a note
+// outside the directories scan.knowledge_dirs declares is an instance the
+// contract never placed under its state machine. The reading page and the
+// write path both ask here, so what one offers is exactly what the other
+// accepts, and the scope they consult is the contract's own — the same one
+// the navigation draws its knowledge layer from.
+//
+// A contract that declares no knowledge_dirs draws no boundary, and the scope
+// then includes every path: nothing was excluded, so nothing is refused here.
+// That is the declared meaning of silence rather than an opening — a
+// declaration that is present and malformed is refused when the contract
+// loads, and no contract carrying one reaches this predicate.
+func ungoverned(policy schema.ArtifactPolicy, scope schema.KnowledgeScope, rel string) error {
+	if policy.IsNonInstance(rel) {
+		return ErrNonInstance
+	}
+	if !scope.Includes(rel) {
+		return ErrOutsideKnowledgeScope
+	}
+	return nil
+}
+
+// WhyUngoverned reports why the lifecycle does not reach the note at relPath
+// — the refusal Flip would return before reading it — or nil when it does. A
+// reading page whose transition set came back empty asks it, so the page can
+// say which it was: a note the knowledge layer withheld, or a note the schema
+// defines nothing onward from. A closed view reaches nothing and says so
+// through Diagnostic, and a path the write face cannot name is no note at
+// all; both answer nil here rather than inventing a reason about the note.
+func (v View) WhyUngoverned(relPath string) error {
+	relPath, named := noteName(relPath)
+	if !named || !v.available() {
+		return nil
+	}
+	return ungoverned(v.policy, v.contract.KnowledgeScope(), relPath)
+}
+
+// noteName is the vault-relative name the write face would use for relPath,
+// and whether it can name one at all: a path it cannot normalize is no note,
+// so there is nothing to explain about it.
+func noteName(relPath string) (string, bool) {
+	rel, _, err := normalizeRelPath(relPath)
+	if err != nil {
+		return "", false
+	}
+	return rel, true
+}
+
 // Transitions returns the from-list-legal target statuses from current in
 // contract order. The lifecycle rows' owner lists are declarative data and
 // never subtract from the answer. The published status is never among the
 // results: it records a completed publication, which no interactive control
-// can attest, so Flip would refuse it. It is pure over the captured view.
+// can attest, so Flip would refuse it. A note the lifecycle does not reach —
+// under a declared artifact directory, or outside the knowledge layer
+// scan.knowledge_dirs declares — gets none, by the same test Flip applies. It
+// is pure over the captured view.
 func (v View) Transitions(relPath, noteType, current string) []string {
 	relPath, _, err := normalizeRelPath(relPath)
 	if err != nil || v.Closed() || v.WriteDiagnostic() != "" || noteType == "" || current == "" ||
-		v.policy.IsNonInstance(relPath) {
+		ungoverned(v.policy, v.contract.KnowledgeScope(), relPath) != nil {
 		return nil
 	}
 	var legal []string
@@ -691,17 +749,19 @@ func (w *Writer) validateWriteTarget(rel, relSlash string) error {
 	if err != nil {
 		return err
 	}
-	if policy.IsNonInstance(relSlash) {
-		return ErrNonInstance
-	}
 	// The reading scan defines a note as a file whose path ends in ".md" and
 	// carries no dot-prefixed component: it does not descend into a hidden
 	// directory and does not serve a hidden file. The write face applies the
 	// whole of that definition before touching the file, so a resource
 	// carrying note-shaped frontmatter cannot acquire a note-lifecycle
-	// transition for something the reading face never shows.
+	// transition for something the reading face never shows. It is asked
+	// before the lifecycle's reach is, because whether a file is a note at
+	// all comes before which folder the note sits in.
 	if !vault.IsMarkdown(relSlash) || vault.OutsideScan(relSlash) {
 		return ErrNonInstance
+	}
+	if err := ungoverned(policy, w.contract.KnowledgeScope(), relSlash); err != nil {
+		return err
 	}
 	return w.targetSpelledAsRequested(rel, relSlash)
 }

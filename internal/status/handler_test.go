@@ -194,6 +194,38 @@ func TestHandlerNonInstance(t *testing.T) {
 	}
 }
 
+// TestHandlerRefusesANoteOutsideTheKnowledgeLayer holds the write face to the
+// layer the contract declares: a note whose bytes, identity and transition are
+// in every other way acceptable is refused unchanged when it sits outside
+// scan.knowledge_dirs — on the same page and with the same code as a template,
+// under its own sentence rather than the template's.
+func TestHandlerRefusesANoteOutsideTheKnowledgeLayer(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	srv := newHandlerServer(t, newWriter(t, root, loadContract(t)))
+
+	const outside = "System/agent-guides/L05.md"
+	body := lessonContent("draft")
+	writeVaultFile(t, root, outside, body)
+
+	code, _, page := postStatus(t, srv, url.Values{
+		"path":             {outside},
+		"from":             {"draft"},
+		"to":               {schema.SealStatus},
+		"content_identity": {formIdentity(body)},
+	})
+	if code != http.StatusUnprocessableEntity {
+		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
+	}
+	if !strings.Contains(page, wording.OutsideKnowledgeScope.In(wording.ZhHant)) {
+		t.Errorf("body = %q, want the knowledge-layer explanation", page)
+	}
+	if strings.Contains(page, wording.NonInstanceReason.In(wording.ZhHant)) {
+		t.Errorf("body = %q, states the template sentence for a note the layer refused", page)
+	}
+	assertVaultFileUnchanged(t, root, outside, body)
+}
+
 func TestHandlerArtifactPolicyUnavailable(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
