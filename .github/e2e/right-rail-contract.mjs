@@ -1,6 +1,9 @@
 // Behavior lock for the wide reading rail. A long table of contents, the
 // status controls, and diagnostics retain their full content height; the rail
-// is the one vertical scroller that makes each focus target reachable.
+// is the one vertical scroller that makes each focus target reachable. It also
+// holds the order the reader meets them in: the note's own shape, then what
+// leads to it from elsewhere in the vault, and the ruling last — a small verb
+// beside the reading rather than the frame around it.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the long-TOC diagnostic fixture), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -9,7 +12,8 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SITE = 'rail-content-reachable';
-const SITES = [SITE];
+const ORDER_SITE = 'reading-precedes-the-ruling';
+const SITES = [SITE, ORDER_SITE];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -21,6 +25,7 @@ class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
 const fail = (message) => { throw new LockFired(SITE, `FAIL right-rail-contract: ${message}`); };
+const failOrder = (message) => { throw new LockFired(ORDER_SITE, `FAIL right-rail-contract: ${message}`); };
 const broken = (message) => { throw new ProbeBroken(`BROKEN right-rail-contract: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED right-rail-contract: ${message}`); };
 
@@ -44,10 +49,29 @@ const restoreChildShrink = async (page) => {
   };
 };
 
+// Appends to the product's own stylesheet, landing outside the layer it
+// declares, so the rule outranks what it stands in for without an importance
+// flag. The rail is a column flex container, so an order of -1 lifts the panel
+// back above the reading without moving one byte of the document.
+const rulingFirst = async (page) => {
+  let seen = 0;
+  await page.route('**/static/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    seen += 1;
+    await route.fulfill({ response, body: `${original}\n.y-rail-right .y-statuspanel{order:-1}\n` });
+  });
+  return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
+};
+
 const MUTATIONS = {
   'restore-child-shrink': {
     target: SITE,
     apply: restoreChildShrink,
+  },
+  'put-the-ruling-first': {
+    target: ORDER_SITE,
+    apply: rulingFirst,
   },
 };
 
@@ -145,7 +169,7 @@ try {
         flexShrink: getComputedStyle(child).flexShrink,
       })),
     }));
-    if (shape.children.length !== 4) broken(`the fixture has ${shape.children.length} rail children, want status, TOC, cited-by, and diagnostics`);
+    if (shape.children.length !== 4) broken(`the fixture has ${shape.children.length} rail children, want the outline, cited-by, diagnostics, and the status panel`);
     if (shape.overflowY !== 'auto' || shape.scrollHeight <= shape.clientHeight) {
       broken(`the fixture does not exercise one overflowing rail at 1600×${height}: ${JSON.stringify(shape)}`);
     }
@@ -182,11 +206,32 @@ try {
     for (let i = 0; i < await statusControls.count(); i += 1) {
       await assertTarget(statusControls.nth(i), `status control ${i + 1}`, height);
     }
-    // Focus order follows the visual order, which puts the status panel first:
-    // the rail is its own scroll container, so an outline of any length used to
-    // push the transition controls below the window with no way to scroll to
-    // them from the article. Walking the whole chain — every control, then into
-    // the outline — locks both the panel's internal order and its handoff.
+    // What the reader meets, and in which order. The rail is its own scroll
+    // container, so whatever sits at the top is what is seen there without
+    // scrolling: the note's own shape, then what leads to it, and the ruling
+    // last. Measured where each block is painted rather than where it is
+    // written, because a stylesheet can reorder a flex column without moving a
+    // byte of the document.
+    const tops = await rail.evaluate((element) => {
+      const top = (selector) => {
+        const found = element.querySelector(selector);
+        return found ? found.getBoundingClientRect().top + element.scrollTop : null;
+      };
+      return { outline: top('nav .y-toc__list'), cited: top('.y-citedby'), ruling: top('.y-statuspanel') };
+    });
+    for (const [name, value] of Object.entries(tops)) {
+      if (value === null) broken(`the fixture has no ${name} block, so the order it stands in proves nothing`);
+    }
+    if (!(tops.outline < tops.cited)) {
+      failOrder(`what leads to this note is painted above the note's own shape at 1600×${height}: ${JSON.stringify(tops)}`);
+    }
+    if (!(tops.cited < tops.ruling)) {
+      failOrder(`the ruling is painted above what leads to this note at 1600×${height}: ${JSON.stringify(tops)}; the verb has taken the frame's place`);
+    }
+
+    // Walking every control in the panel locks its own internal order, and
+    // walking on out of the outline locks that the reading hands downward
+    // rather than being reached last.
     await statusControls.first().focus();
     for (let i = 1; i < await statusControls.count(); i += 1) {
       await page.keyboard.press('Tab');
@@ -195,10 +240,16 @@ try {
         fail(`Tab order did not reach status control ${i + 1} at 1600×${height}`);
       }
     }
+    await tocLinks.last().focus();
     await page.keyboard.press('Tab');
-    const reachedOutline = await tocLinks.first().evaluate((element) => document.activeElement === element);
-    if (!reachedOutline) {
-      fail(`Tab order did not continue from the status controls into the outline at 1600×${height}`);
+    const wentOn = await rail.evaluate((element) => {
+      const active = document.activeElement;
+      if (!element.contains(active)) return 'left the rail';
+      const list = element.querySelector('.y-toc__list');
+      return list.contains(active) ? 'stayed inside the outline' : '';
+    });
+    if (wentOn) {
+      failOrder(`Tab from the end of the outline ${wentOn} at 1600×${height}, so the reading does not hand on to the rest of the rail`);
     }
     const diagnosticPaint = await diagnostics.first().evaluate((element) => {
       element.scrollIntoView({ block: 'center' });
@@ -215,7 +266,7 @@ try {
     await page.close();
   }
 
-  console.log('PASS right-rail-contract: long TOC, status controls, and diagnostics remain reachable at 1600×768 and 1600×900');
+  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, and every block stays reachable at 1600×768 and 1600×900');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

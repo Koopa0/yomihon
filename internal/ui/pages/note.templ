@@ -229,13 +229,15 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	<div class="y-seam" aria-hidden="true"></div>
 }
 
-// The status panel comes before the outline. The rail is its own scroll
-// container, so an outline of any length would push the panel past the bottom
-// of the window; ordering it first pins it a fixed distance from the rail's
-// top, whatever the outline's length.
+// ============================ RIGHT RAIL ============================
+// Reading leads and the ruling closes: the note's own shape, then what leads
+// to it from elsewhere in the vault, then the status panel. The panel used to
+// open the rail so a long outline could not push it past the bottom of the
+// window, which put the page's smallest verb above both of the things the
+// reader came to the rail for. It is reached by scrolling the rail, like
+// everything else in it.
 templ rightRail(v NoteView, lang wording.Lang) {
 	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(lang) }>
-		@statusPanel(v, lang)
 		if len(v.TOC) > 0 {
 			<nav aria-label={ wording.OnThisPage.In(lang) }>
 				<div class="ui-side__label">{ wording.OnThisPage.In(lang) }</div>
@@ -244,6 +246,7 @@ templ rightRail(v NoteView, lang wording.Lang) {
 		}
 		@citedBy(v, lang)
 		@diagnostics(v, lang)
+		@statusPanel(v, lang)
 	</aside>
 }
 
@@ -468,7 +471,7 @@ templ transitionForm(v NoteView, t Transition, lang wording.Lang) {
 		<input type="hidden" name="content_identity" value={ v.ContentIdentity }/>
 		if t.NoReturn {
 			<details class="y-statusconfirm">
-				<summary class="y-xbtn y-statusconfirm__summary">{ t.To }</summary>
+				<summary class="y-xbtn y-statusconfirm__summary" aria-label={ wording.NoReturnSummaryBefore.In(lang) + t.To + wording.NoReturnSummaryAfter.In(lang) }>{ t.To }</summary>
 				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(lang) }{ t.To }{ wording.NoReturnTargetAfter.In(lang) }</p>
 				<button class="y-xbtn y-statusconfirm__submit" type="submit" { schemaNoticesRef(&v)... }>{ wording.ConfirmSetBefore.In(lang) }{ t.To }{ wording.ConfirmSetAfter.In(lang) }</button>
 			</details>

@@ -134,8 +134,8 @@ const MUTATIONS = {
         expected: 1,
       },
       {
-        needle: 'class="y-homesearch" method="get" action="/search" role="search"',
-        replacement: 'class="y-homesearch" method="get" action="/search" role="search" data-live-search-form',
+        needle: 'class="y-homesearch" method="get" action="/search"',
+        replacement: 'class="y-homesearch" method="get" action="/search" data-live-search-form',
         expected: 1,
       },
       {
@@ -144,8 +144,8 @@ const MUTATIONS = {
         expected: 1,
       },
       {
-        needle: '<button type="submit" class="y-xbtn">搜尋</button></form></section>',
-        replacement: '<button type="submit" class="y-xbtn">搜尋</button></form><p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p><div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div></section>',
+        needle: '<button type="submit" class="y-xbtn">搜尋</button></form></search></section>',
+        replacement: '<button type="submit" class="y-xbtn">搜尋</button></form></search><p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p><div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div></section>',
         expected: 1,
       },
     ], 'Home plain search'),

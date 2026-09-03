@@ -24,7 +24,14 @@ templ File(v FileView, c layouts.Chrome) {
 							</div>
 						case FileImage:
 							<div class="y-prose">
-								<img src={ templ.URL(rawHref(v.RelPath)) } alt={ v.Title }/>
+								// The picture is the whole page, so it is the largest
+								// thing the reader is waiting for and the browser is
+								// told to fetch it ahead of everything else. Decoding
+								// synchronously keeps the page from painting once
+								// without it and again with it. Nothing here is ever
+								// off-screen, so deferring the load would only delay
+								// the one thing the reader came for.
+								<img src={ templ.URL(rawHref(v.RelPath)) } alt={ v.Title } fetchpriority="high" decoding="sync"/>
 							</div>
 						case FilePDF:
 							<iframe class="y-fileframe" src={ templ.URL(rawHref(v.RelPath)) } title={ v.Title }></iframe>
