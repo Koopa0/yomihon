@@ -1,0 +1,10 @@
+package layouts
+
+import "github.com/koopa0/yomihon/internal/wording"
+
+// LiveSearchStatus is the announcement region the live-search script writes
+// into; the labels it speaks with travel on the element, so every surface that
+// carries the region carries them.
+templ LiveSearchStatus(lang wording.Lang) {
+	<p class="y-live-search__status" data-live-search-status data-live-search-countone={ wording.LiveSearchCountOne.In(lang) } data-live-search-countmany={ wording.LiveSearchCountMany.In(lang) } data-live-search-offline={ wording.LiveSearchOffline.In(lang) } role="status" aria-live="polite" aria-atomic="true"></p>
+}
