@@ -1,13 +1,9 @@
 package render
 
-// This file wraps every GFM table in a horizontally scrollable container, so a
-// table wider than the reading column scrolls inside its own box instead of
-// stretching the article across the page. It overrides only goldmark's table
-// element renderer — the header, row, and cell renderers stay goldmark's own —
-// by registering at a priority that wins goldmark's "lowest number registered
-// last overwrites" rule, the same mechanism the code-block highlighter uses.
-// The element stays a real <table> rather than a CSS display change, so the
-// table's role survives in the accessibility tree.
+// Every GFM table is wrapped in a horizontally scrollable container, so a table
+// wider than the reading column scrolls in its own box rather than stretching the
+// article. Only the table element renderer is overridden; the element stays a
+// real <table>, so its role survives in the accessibility tree.
 
 import (
 	"github.com/yuin/goldmark"
@@ -31,9 +27,8 @@ func (tableWrapRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) 
 }
 
 // renderWrappedTable emits goldmark's own <table> open and close nested in the
-// scroll container. The reading pipeline enables no attribute parser, so a
-// table node never carries HTML attributes; the open tag is therefore the bare
-// <table> goldmark itself would write here.
+// scroll container. The pipeline enables no attribute parser, so the open tag is
+// the bare <table> goldmark itself would write.
 func renderWrappedTable(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	var err error
 	if entering {

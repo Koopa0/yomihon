@@ -17,17 +17,13 @@ type Result struct {
 	Snippet string
 
 	// Alias is the name that answered the query when it was not the title, in
-	// the note's own spelling, and empty otherwise. The row shows a title; a
-	// reader who typed one of a note's other names has to be able to see why
-	// this note came back, or the hit is as unexplained as one reached only
-	// through its path.
+	// the note's own spelling, and empty otherwise. The row shows a title, so
+	// without it a reader who typed another name sees no reason for the hit.
 	Alias string
 
-	// NoteType is the note's own declared type, carried beside Status because
-	// which values a status may take is declared per type: a value one type
-	// allows is a fault on another, and the pair is the only form of the
-	// question the contract can answer. It is blanked with Status whenever the
-	// entry may not answer metadata projections.
+	// NoteType is the note's own declared type, carried beside Status because a
+	// status value is declared per type. It is blanked with Status when the entry
+	// may not answer metadata projections.
 	NoteType string
 
 	// File marks a hit that is not a note but a vault file read as characters.
@@ -38,48 +34,24 @@ type Result struct {
 
 const (
 	// snippetBefore/snippetAfter bound the snippet window around the earliest
-	// matched-token offset, counted in characters the reader sees rather than
-	// in bytes. As a byte budget it paid out by script: a Han character costs
-	// three bytes, so the same numbers bought a reader of Chinese roughly a
-	// third of the context they bought a reader of English — and the notes hurt
-	// most were the long ones, which is where a reader searching their own
-	// writing most needs to see the sentence around the hit.
+	// matched-token offset, counted in characters the reader sees. A byte budget
+	// paid out by script, buying a reader of Chinese a third of the context.
 	snippetBefore = 40
 	snippetAfter  = 160
 )
 
 // SearchN runs a parsed query against the index and returns results in the final
-// deterministic order, six groups concatenated: a note's title hits (every
-// token in TitleFold) first, then a note's body hits (every token in PlainFold,
-// not already a title hit), then the same two groups over vault files that are
-// not notes, and last the path-only hits — entries whose tokens matched nothing
-// but where they live — notes again before files. Because entries are kept in
-// the vault's reading order, each group already carries it, so concatenation is
-// the whole order — no sort call.
+// deterministic order, six groups concatenated: a note's title hits, a note's
+// body hits, the same two over vault files that are not notes, then the
+// path-only hits, notes again before files. Entries are kept in the vault's
+// reading order, so each group carries it and no sort is needed, and every text
+// hit outranks every path-only hit.
 //
-// Notes come before files under each kind of evidence, and every text hit
-// outranks every path-only hit: matched words are a better answer than a
-// matching address. So the text hits a vault of notes alone produces open the
-// list this returns, with files appended to them and path-only hits trailing
-// everything found by content. Widening what can be found must never move what
-// could already be found.
-//
-// An empty query (no tokens and no filters) returns nothing. A pure-filter
-// query is legal: with no tokens the title-bucket token test is vacuously true,
-// so every filter match lands in the title bucket, in reading order.
-// Metadata filters exclude non-instance artifacts. If the artifact policy was
-// declared and could not be honoured, a query containing such a filter returns
-// ErrMetadataUnavailable with the contract diagnostic; text and folder queries
-// continue against the complete readable corpus. A vault that never declared
-// one excludes nothing, so those filters run over raw frontmatter.
-//
-// At most limit results are materialized; a negative limit materializes them
-// all, which is what a caller wanting the whole answer asks for. total reports
-// how many hits the query truly has. The tail beyond limit is counted but
-// never built — a snippet is the per-hit cost, and skipping it is what keeps a
-// broad query's work proportional to the page rather than to the vault. The
-// kept results are exactly the opening stretch of the unbounded answer, in the
-// same order.
+// An empty query returns nothing and a pure-filter query lands every match in
+// the title bucket. A metadata filter excludes non-instance artifacts, and
+// returns ErrMetadataUnavailable when the artifact policy was declared and could
+// not be honoured. At most limit results are materialized, a negative limit all
+// of them; total counts every hit, and the tail beyond limit is never built.
 func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err error) {
 	if len(q.tokens) == 0 && len(q.filters) == 0 {
 		return nil, 0, nil
@@ -117,21 +89,14 @@ func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err
 type hit struct {
 	entry        *entry
 	bodyEvidence bool
-	// alias is the name that answered the query when it was not the title,
-	// carried in the note's own spelling. The row shows a title, so without
-	// this a reader who searched for something else finds no trace of what
-	// they typed anywhere on it.
+	// alias is the name that answered the query when it was not the title, in
+	// the note's own spelling, since the row itself shows a title.
 	alias string
 }
 
-// bucket names one answer group. This declaration order is the result order,
-// and it is the only statement of it: ordered() reads the groups as they are
-// declared here, so a group moves by moving its constant.
-//
-// Notes come before files under each kind of evidence, and both kinds of text
-// evidence come before an address: a note whose words match is a better answer
-// than one that merely lives in a folder of that name, so widening what can be
-// found moves nothing that could be found already.
+// bucket names one answer group. This declaration order is the result order and
+// the only statement of it, so a group moves by moving its constant: notes before
+// files under each kind of evidence, and both kinds of text before an address.
 type bucket uint8
 
 const (
@@ -144,10 +109,8 @@ const (
 	bucketCount
 )
 
-// resultBuckets keeps the answer groups apart while one pass over the entries
-// fills them, so the final order is a concatenation rather than a sort:
-// entries are already kept in the vault's reading order, and each group
-// inherits it.
+// resultBuckets keeps the answer groups apart while one pass fills them, so the
+// final order is a concatenation rather than a sort.
 type resultBuckets struct {
 	groups [bucketCount][]hit
 }
@@ -160,11 +123,8 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
 		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence})
 	case aliasAnswering(e, tokens) != "":
-		// A name the note answers to, standing with its title: a link written
-		// to an alias resolves and one written to a title does not, so an
-		// alias is if anything the more direct of the two. The alias that
-		// answered travels with the hit because the row shows the title, and
-		// a reader who typed something else is owed the reason it is here.
+		// An alias stands with the title: a link written to one resolves and a
+		// link written to a title does not.
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
 		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
@@ -174,10 +134,8 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 	}
 }
 
-// add files one hit under the group its evidence and its kind put it in. Each
-// kind of evidence has two groups — one for a note, one for a vault file — and
-// the hit already carries which of the two it is, so the caller names the pair
-// and never chooses between them.
+// add files one hit under the group its evidence and its kind put it in. The hit
+// carries which kind it is, so the caller names the pair and never chooses.
 func (b *resultBuckets) add(note, file bucket, h hit) {
 	g := note
 	if h.entry.isFile {
@@ -194,8 +152,7 @@ func (b *resultBuckets) ordered() []hit {
 
 // aliasAnswering returns the note's own spelling of the first alias that holds
 // every token, or empty when none does. The first is taken because an author
-// listing several has put the one they think of first at the front, and
-// naming all of them would put a list where a reason belongs.
+// listing several puts the one they think of first at the front.
 func aliasAnswering(e *entry, tokens []string) string {
 	if len(tokens) == 0 {
 		return ""
@@ -208,11 +165,9 @@ func aliasAnswering(e *entry, tokens []string) string {
 	return ""
 }
 
-// allContain reports whether hay contains every token (AND). Tokens are already
-// folded and hay is a *Fold field, so this is a literal substring test — a
-// query "%" matches a literal "%", there are no wildcards — except that a run
-// of whitespace inside a token matches any run of whitespace (see
-// phraseIndex). Zero tokens is vacuously true.
+// allContain reports whether hay contains every token (AND). Tokens are folded
+// and hay is a *Fold field, so this is a literal substring test with no wildcards,
+// except that whitespace in a token matches any whitespace. Zero tokens is true.
 func allContain(hay string, tokens []string) bool {
 	for _, t := range tokens {
 		if start, _ := phraseIndex(hay, t, 0); start < 0 {
@@ -222,26 +177,12 @@ func allContain(hay string, tokens []string) bool {
 	return true
 }
 
-// phraseIndex reports the byte range of the first occurrence of token in hay at
-// or after from, treating every run of whitespace inside token as a match for
-// any run of whitespace in hay. start is -1 when token does not occur.
-//
-// The flexibility is what a quoted phrase needs to be answerable here. This
-// vault's prose is hard-wrapped near 80 columns and the indexed text keeps
-// those breaks, so the two words a reader quotes sit on two lines about as
-// often as on one — and demanding the same bytes answered a phrase written
-// verbatim in the vault with nothing, which is the one answer a reader has no
-// way to argue with. Adjacency is still required: the words must be separated
-// by whitespace and nothing else, which is what the quotes asked for.
-//
-// The indexed text separates one block from the next with a single break as
-// well, so a phrase can join the last words of one block to the first words of
-// the next. That is a known cost rather than an oversight: nothing in the
-// stored text tells a wrapped sentence apart from a block boundary, and
-// answering the wrapped sentence is worth the pair of blocks it also joins.
-// A token with no whitespace in it takes the plain substring path it always
-// took, so the ordinary query allocates nothing here; the phrase walk below
-// allocates nothing either, reading both strings in place.
+// phraseIndex reports the byte range of the first occurrence of token in hay at or
+// after from, treating every run of whitespace inside token as a match for any run
+// of whitespace in hay; start is -1 when token does not occur. That flexibility is
+// what lets a quoted phrase be answered at all, since this vault's prose is
+// hard-wrapped and the indexed text keeps the breaks. Adjacency is still required,
+// and one block is parted from the next by a break too, so a phrase can join them.
 func phraseIndex(hay, token string, from int) (start, end int) {
 	if from < 0 || from > len(hay) {
 		return -1, -1
@@ -412,30 +353,15 @@ func runesAfter(s string, off, n int) int {
 }
 
 // snippet returns a one-line window of plain around the earliest matched-token
-// offset.
-//
-// The offset is found on plainFold, the folded copy, and lowercasing does not
-// preserve length: Ⱥ grows from two bytes to three and İ shrinks from two to
-// one. Reused directly as an index into plain it drifts one byte per such
-// character, and once the drift passes the window's own radius the window
-// slides clear of the term entirely — the reader is shown a result whose
-// evidence holds none of what matched, and it is still valid text, so a check
-// on the bytes alone sees nothing wrong. The offset is therefore carried back
-// through the fold's own mapping, the way the marking pass already does.
+// offset. That offset is found on the folded copy, and lowercasing does not
+// preserve length, so it comes back through the fold's own mapping: used directly
+// it drifts until the window slides clear of the term it was placed around.
 func snippet(plain, plainFold string, tokens []string) string {
 	off := sourceOffsetOfFold(plain, earliestOffset(plainFold, tokens))
-	// Neither boundary may be moved past the match it was placed around. When a
-	// boundary lands in a run longer than the budget below, it steps clear of
-	// that run — the opening one forward off its tail, the closing one back off
-	// its head — and a match buried deep enough in one run is stepped over by
-	// both at once, which leaves the opening after the close and the slice
-	// below reversed. A few hundred letters with no break in them is all it
-	// takes: one long identifier, or a hash pasted into a note.
-	// The reach for a sentence start runs first and the whole-word adjustment
-	// last, because the second has to hold whatever the first leaves. Reaching
-	// back after that adjustment silently undid it where no sentence start was
-	// in range, and the window opened on the tail of a decimal or a filename
-	// as though it began the sentence.
+	// Neither boundary may move past the match it was placed around: a match buried
+	// deep in one unbroken run can be stepped over by both at once, reversing the
+	// slice. The sentence-start reach runs first and the whole-word adjustment
+	// last, because the second has to hold whatever the first leaves.
 	opening := sentenceStart(plain, runesBefore(plain, off, snippetBefore), off)
 	start := min(wholeWordStart(plain, opening), off)
 	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), off)
@@ -471,15 +397,9 @@ func earliestOffset(hay string, tokens []string) int {
 const wordEdgeBudget = 24
 
 // wholeWordStart moves a snippet's opening boundary back to the start of a word
-// the window cut into, so a date arrives as 2026-07-30 rather than 026-07-30
-// and a term arrives as B-tree rather than ee. Only runs of ASCII letters and
-// digits are treated this way: those are where a severed run reads as a typo or
-// a wrong number, while CJK prose has no word boundary to respect and cutting
-// between its characters is what a window is expected to do.
-//
-// Moving outward rather than inward is the point. Stepping forward past the
-// fragment leaves the reader "…-07-30", which is honest but still a fragment;
-// stepping back gives them the thing itself.
+// the window cut into, so a date arrives as 2026-07-30 rather than 026-07-30. Only
+// runs of ASCII letters and digits are treated this way, since CJK prose has no
+// word boundary to respect. It moves outward, since forward leaves a fragment.
 func wholeWordStart(s string, i int) int {
 	if i <= 0 || i >= len(s) {
 		return i
@@ -524,54 +444,32 @@ func wholeWordEnd(s string, i int) int {
 }
 
 // isWordByte reports whether b belongs to a run the reader reads as one thing.
-// Hyphen and underscore are in it because the runs that arrive mangled are
-// dates and identifiers — 2026-07-30, B-tree, query-planner — and splitting
-// them at the punctuation would keep only the tail.
+// Hyphen and underscore are in it because the runs that arrive mangled are dates
+// and identifiers, which splitting at the punctuation would cut to their tail.
 func isWordByte(b byte) bool {
 	return b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b == '-' || b == '_'
 }
 
-// sentenceTerminators end a sentence in the scripts this corpus is written in.
-// A comma of either width is not one of them: it separates clauses inside the
-// sentence the window is trying to keep whole.
-//
-// The two halves are treated differently because only one of them is
-// unambiguous. A full-width stop appears in no token and is written with no
-// space after it, so it ends a sentence wherever it stands. An ASCII stop is
-// the same character as the one inside vault-schema.toml, go1.26.4 and
-// 3.14159 — and since the scan takes the last terminator before the window,
-// one of those beat the real sentence end and dropped the very words this
-// reach exists to keep, on exactly the sentences this vault's prose is full
-// of. It therefore ends a sentence only where something other than more of
-// the same word follows it.
+// sentenceTerminators end a sentence in the scripts this corpus is written in; a
+// comma of either width is not among them. A full-width stop appears in no token
+// and ends a sentence wherever it stands, while an ASCII stop is the character
+// inside vault-schema.toml and 3.14159, so it needs white space after it.
 const (
 	sentenceTerminators      = "。！？；.!?;\n"
 	unambiguousTerminators   = "。！？；\n"
 	needsFollowingWhitespace = ".!?;"
 )
 
-// snippetBeforeMax bounds the whole opening side of the window: the boundary
-// may travel back this far from the match, and no further, to reach the start
-// of its sentence. It is the plain window several times over because a real
-// sentence of technical prose runs about a hundred characters and the words
-// that govern it sit at the front — but it is a ceiling, so a note written
-// without terminators cannot turn one result row into the whole note.
+// snippetBeforeMax bounds the whole opening side of the window: the boundary may
+// travel back this far to reach the start of its sentence and no further, so a
+// note written without terminators cannot turn one result row into the note.
 const snippetBeforeMax = 120
 
-// sentenceStart moves a snippet's opening boundary back to the beginning of
-// the sentence it landed inside, when that beginning is within reach.
-//
-// A window placed by counting bytes opens wherever the count falls, and the
-// words a sentence opens with are the ones that decide what it means: 不得,
-// 本段僅限, "this is not recommended". Cut, the predicate stands alone and reads
-// as the instruction — the reader is not merely told less, they are told the
-// opposite. The leading ellipsis is no defence: it says bytes were removed, not
-// that the removed ones reversed the sentence, and nobody scanning a list of
-// results can tell one case from the other.
-//
-// Where no terminator is within reach the window is left exactly where it was,
-// so the cost is bounded by snippetBeforeMax and a page of unbroken prose
-// behaves as it always did.
+// sentenceStart moves a snippet's opening boundary back to the beginning of the
+// sentence it landed inside, when that beginning is within reach. The words a
+// sentence opens with decide what it means — 不得, 本段僅限, "this is not
+// recommended" — and cutting them leaves the predicate reading as the instruction.
+// Where no terminator is in reach the window is left where it was.
 func sentenceStart(plain string, start, off int) int {
 	if start <= 0 {
 		return start
@@ -594,11 +492,9 @@ func sentenceStart(plain string, start, off int) int {
 	return i
 }
 
-// lastSentenceEnd reports the byte just past the last sentence-ending
-// punctuation in plain[limit:start], and whether there was one. An ASCII stop
-// counts only when what follows it is white space or the end of the text,
-// which is what tells a sentence end from the dot inside a filename, a version
-// or a decimal.
+// lastSentenceEnd reports the byte just past the last sentence-ending punctuation
+// in plain[limit:start], and whether there was one. An ASCII stop counts only when
+// white space or the end of the text follows, which excludes a filename's dot.
 func lastSentenceEnd(plain string, limit, start int) (int, bool) {
 	for at := start; at > limit; {
 		j := strings.LastIndexAny(plain[limit:at], sentenceTerminators)
@@ -622,17 +518,10 @@ func lastSentenceEnd(plain string, limit, start int) (int, bool) {
 	return 0, false
 }
 
-// foldWithSourceOffsets lowercases s, and maps every byte position of the
-// folded copy — including one past its end — back to the byte offset in s of
-// the character it came from. The index's fold is NFC then lowercase; this
-// applies the lowercase half alone, which reproduces the index's fold under
-// one precondition: s is already NFC. Every snippet satisfies it, because a
-// snippet is cut from the entry's stored text and the entry stored that text
-// normalized. Lowercasing does not preserve length: Ⱥ grows from two bytes to
-// three, a byte that is not valid UTF-8 becomes the three-byte replacement
-// character, and Turkish İ shrinks from two bytes to one. An offset found in
-// the folded copy therefore cannot index s directly; it has to come back
-// through this mapping.
+// foldWithSourceOffsets lowercases s and maps every byte position of the folded
+// copy, one past its end included, back to the byte offset in s of the character
+// it came from. It applies the lowercase half of the index's fold alone, which
+// reproduces that fold provided s is already NFC, as every snippet is.
 func foldWithSourceOffsets(s string) (fold string, src []int) {
 	var folded strings.Builder
 	folded.Grow(len(s))
@@ -647,15 +536,10 @@ func foldWithSourceOffsets(s string) (fold string, src []int) {
 	return folded.String(), append(src, len(s))
 }
 
-// sourceOffsetOfFold maps one byte offset in the lowercased copy of s back to
-// the byte offset in s of the character that produced it. It answers exactly
-// what foldWithSourceOffsets tabulates, walked to a single position instead of
-// materialized for every byte, because its caller measures a whole note rather
-// than a snippet and a table over one costs eight bytes per byte of it.
-//
-// The two are held to the same answer by a test that compares them position by
-// position; they are one rule with two shapes, and a rule with two shapes is
-// one that drifts.
+// sourceOffsetOfFold maps one byte offset in the lowercased copy of s back to the
+// byte offset in s of the character that produced it. It answers exactly what
+// foldWithSourceOffsets tabulates, walked to one position rather than materialized
+// because its caller measures a whole note. A test holds the two to one answer.
 func sourceOffsetOfFold(s string, foldOff int) int {
 	folded, at := 0, len(s)
 	found := false
@@ -681,24 +565,11 @@ type HitRun struct {
 	Hit  bool
 }
 
-// MarkHits cuts a piece of text into the stretches that matched and the
-// stretches that did not, so the page can show the reader why this result is
-// here.
-//
-// Nothing in it is particular to a snippet. A result can answer a query
-// through any of the names a note is known by, and the row has to be able to
-// say which — so the same cut serves the body excerpt and the path, and will
-// serve any other name that can match without being visible.
-//
-// Matching is done on the same folded form the index matched on, and the runs
-// carry slices of the original text, so what the reader sees is their own note
-// and not a re-cased copy of it. Overlapping matches are merged: two tokens
-// that cover the same words produce one mark rather than nested ones.
-//
-// A match offset lives in the folded copy, and lowercasing does not preserve
-// length, so every offset is carried back through the fold's source mapping
-// before it touches the snippet: covered is marked and the runs are sliced in
-// the snippet's own bytes, never the fold's.
+// MarkHits cuts a piece of text into the stretches that matched and those that did
+// not, so a page can show why a result is here. Nothing in it is particular to a
+// snippet: the same cut serves the body excerpt, the path, and any other name a
+// note can match by. Matching is done on the folded form while the runs carry
+// slices of the original text, and overlapping matches merge into one mark.
 func MarkHits(snippet string, tokens []string) []HitRun {
 	if snippet == "" || len(tokens) == 0 {
 		return nil

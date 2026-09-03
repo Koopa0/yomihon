@@ -12,30 +12,12 @@ import (
 // wrote rather than trying to parse arbitrary HTML.
 var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)(")`)
 
-// resolveAssetHrefs rewrites the local image sources in htmlOut so a browser
-// asks for the bytes instead of for a reading page.
-//
-// Markdown says where an image is relative to the note that mentions it, which
-// is the ordinary way anyone writes one. The reading page lives under /notes/,
-// so a browser resolves `../images/x.png` against that route and lands on
-// another reading page — served, HTML, and not an image. The bytes are on
-// /raw/.
-//
-// noteRelPath is the vault-relative path of the note the sources were written
-// in, which is not always the note being displayed: a transcluded body carries
-// its own directory with it, so it is resolved where it is spliced rather than
-// against its host. A destination that leaves the vault, or that is not
-// vault-local in the first place, is left exactly as it was — this resolves
-// paths, and refusing them belongs to the routes that serve them.
-//
-// That last sentence is also why this reads an emitted <img> rather than an
-// image node. Which note a source was written in is the question, and it has a
-// different answer for each body a page assembles, while every one of those
-// bodies is parsed on its own; a renderer hung on the image node would be asked
-// the question by a document that cannot answer it. Reading what was emitted
-// also means one rule covers both writers of an <img> here — a markdown image
-// and an authored one the inert-markup subset kept — instead of two that agree
-// only while someone keeps them agreeing.
+// resolveAssetHrefs rewrites the local image sources in htmlOut so a browser asks
+// for the bytes instead of for a reading page. noteRelPath is the note the
+// sources were written in, which is not always the note being displayed, since a
+// transcluded body carries its own directory; a destination leaving the vault is
+// left as it was. It reads an emitted <img> rather than an image node because
+// each body is parsed on its own and could not answer which note a source is from.
 func resolveAssetHrefs(htmlOut, noteRelPath string) string {
 	noteDir := pathpkg.Dir(noteRelPath)
 	if noteDir == "." {
@@ -82,10 +64,9 @@ func splitSuffix(src string) (target, suffix string) {
 	return target, suffix
 }
 
-// vaultPath resolves one source against the note's own directory and reports
-// the vault-relative path it names, or false when it names none — a source that
-// climbs past the root is not a vault asset, and answering it here would invent
-// a path no route serves.
+// vaultPath resolves one source against the note's own directory and reports the
+// vault-relative path it names, or false when it names none: a source climbing
+// past the root is not a vault asset.
 func vaultPath(target, noteDir string) (string, bool) {
 	decoded, err := url.PathUnescape(target)
 	if err != nil {

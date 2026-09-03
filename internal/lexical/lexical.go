@@ -1,16 +1,8 @@
 // Package lexical is the vault's in-memory search index and query engine. It
-// holds one entry per note — only the fields a query actually reads, nothing
-// speculative — and answers a deterministic, NFC-folded substring query plus
-// six structured filters. It owns the index and the query; it does not own
-// freshness: the index is one projection in the shared reading generation,
-// rebuilt from the vault on change. There is no database and no persistent
-// state — the truth is the vault files, the index only accelerates.
-//
-// It is deliberately reachable without the reading interface. The generation
-// store builds one of these for every reading generation, so an import of the
-// engine must not drag templates, a page shell or a security header into the
-// build graph of the thing every face reads from. The page that puts a query
-// to it is the search package, and the dependency runs that way only.
+// holds one entry per note and answers a deterministic, NFC-folded substring
+// query plus six structured filters. There is no database: the truth is the
+// vault files and the index only accelerates. It stays reachable without the
+// reading interface, so the search page depends on it and never the reverse.
 package lexical
 
 import (
@@ -27,8 +19,7 @@ import (
 
 // fold is the single definer of "what counts as a match": NFC, then the walk
 // below, applied identically to stored text and to a query token. Case folding
-// lives only here — vault.NormalizeNFC supplies the shared NFC step so there is
-// no second, subtly divergent normalization in the repo.
+// lives only here; vault.NormalizeNFC supplies the shared NFC step.
 func fold(s string) string {
 	var out strings.Builder
 	out.Grow(len(s))
@@ -38,21 +29,11 @@ func fold(s string) string {
 	return out.String()
 }
 
-// foldRunes walks already-NFC text and hands the caller each rune the fold
-// keeps, with the byte offset in s that it came from. It is the whole of what
-// folding does, so that the two things built from it — the folded string, and
-// the folded string with a map back to its source — cannot come to disagree
-// about what a match is.
-//
-// A line break is dropped only when the characters on both of its sides
-// belong to scripts that do not divide words with spaces (writesWithoutSpaces
-// says which). There the break interrupts a phrase the page shows whole, and
-// keeping it would leave that phrase unfindable as the reader sees it.
-// Everywhere else the break is kept: it stands where words were already
-// parted, so it is one more piece of whitespace between them, and dropping it
-// would fuse two words into one nobody wrote. Both sides must qualify — a
-// spaceless character standing beside an English word is still parted from
-// it.
+// foldRunes walks already-NFC text and hands the caller each rune the fold keeps,
+// with the byte offset in s it came from. It is the whole of what folding does, so
+// the folded string and the folded string mapped back to its source cannot
+// disagree about what a match is. A line break is dropped only when the characters
+// on both sides belong to scripts that do not divide their words with spaces.
 func foldRunes(s string, emit func(r rune, at int)) {
 	var prev rune
 	for i, r := range s {
@@ -72,28 +53,19 @@ func nextRune(s string, i int) rune {
 	return 0
 }
 
-// writesWithoutSpaces reports whether a character belongs to a script that
-// does not part its words with spaces, so a line break beside it is a place
-// the text was broken rather than a place its words divide.
-//
-// The test is a property of the script's own writing convention — the
-// distinction Unicode text segmentation (UAX #29) draws for scripts whose
-// word boundaries are not marked by spaces. Han, hiragana and katakana carry
-// it, and are the spaceless scripts this vault is written in besides English.
-// Hangul does not carry it, and its exclusion is that script property rather
-// than a case left for later: modern Korean divides its words with spaces, so
-// the whitespace at a wrapped seam is a real separator, and keeping it is the
-// correct join for Korean text — closing it would fuse two words.
+// writesWithoutSpaces reports whether a character belongs to a script that does
+// not part its words with spaces, the distinction Unicode text segmentation
+// (UAX #29) draws. Han, hiragana and katakana carry it; Hangul does not, because
+// modern Korean divides its words with spaces.
 func writesWithoutSpaces(r rune) bool {
 	return unicode.Is(unicode.Han, r) ||
 		unicode.Is(unicode.Hiragana, r) ||
 		unicode.Is(unicode.Katakana, r)
 }
 
-// Document is the pure, disk-free input to NewIndex: everything the index needs
-// about one vault entry, with PlainText already extracted (render.PlainText for
-// a note, the file's own characters for anything else). Keeping the build pure
-// makes it unit-testable without a vault on disk.
+// Document is the disk-free input to NewIndex: everything the index needs about
+// one vault entry, with PlainText already extracted — render.PlainText for a
+// note, the file's own characters for anything else.
 type Document struct {
 	RelPath  string
 	Title    string
@@ -108,43 +80,30 @@ type Document struct {
 	Aliases   []string
 	PlainText string
 
-	// File marks an entry that is not a note: a vault file yomihon shows as
-	// characters. It carries no frontmatter, so it answers no metadata
-	// projection, and it sorts after every note in a result list — someone
-	// searching a reading tool is looking for what they wrote before they are
-	// looking at what sits beside it.
+	// File marks an entry that is not a note: a vault file shown as characters.
+	// It carries no frontmatter, so it answers no metadata projection, and it
+	// sorts after every note in a result list.
 	File bool
 
 	// FrontmatterUnreadable marks a note whose frontmatter was there and could
-	// not be parsed, which is a different thing from a note that declares
-	// nothing. Both arrive here with every field empty, and a count that
-	// cannot tell them apart has to describe them with one sentence that is
-	// wrong about one of them.
+	// not be parsed, which is not the same as a note that declares nothing. Both
+	// arrive with every field empty, and only this tells them apart.
 	FrontmatterUnreadable bool
 }
 
-// entry is one indexed note. The *Fold copies double the note's text in memory
-// (a few MB across the corpus) to buy a zero-config, allocation-free match at
-// query time — Title/PlainText keep their display form (NFC, original case),
-// the *Fold fields are fold()ed for matching, and the structured field values
-// are stored NFC-but-case-preserving so a filter is an exact selection of a
-// canonical value. There is no content hash: change detection is the
-// scanner's job by mtime.
+// entry is one indexed note. Title and PlainText keep their display form and the
+// *Fold copies are folded for matching, a few extra MB for an allocation-free
+// match; the structured values are NFC but case-preserving, so a filter is exact.
 type entry struct {
 	RelPath string
-	// PathFold is the note's own location, folded the way the text is. A reader
-	// who types the name of a folder standing in their own sidebar and is told
-	// there is nothing there reads that as the search being broken, and three
-	// of them did. Their location is something they wrote; it belongs in what
-	// they can find their notes by.
+	// PathFold is the note's own location, folded the way the text is: a reader
+	// wrote their folder names and expects to find notes by them.
 	PathFold  string
 	Title     string
 	TitleFold string
-	// Aliases are the note's other declared names, held as written and folded
-	// for matching. A link resolves by these and the title is not one of them,
-	// so a note is at least as directly named by an alias as by its title —
-	// which is why a hit on one ranks with a title hit rather than below a
-	// passing mention in someone's prose.
+	// Aliases are the note's other declared names, held as written and folded for
+	// matching. A link resolves by these and not by the title, so a hit on one
+	// ranks with a title hit rather than below a mention in prose.
 	Aliases         []string
 	AliasFolds      []string
 	NoteType        string
@@ -162,13 +121,9 @@ type entry struct {
 	frontmatterUnreadable bool
 }
 
-// Index is the whole in-memory search index: entries kept in the vault's
-// reading order (vault.ComparePaths) so each result bucket inherits that order
-// without a sort call.
-// Read-only once built. Each entry records whether its frontmatter is instance
-// metadata, while the index records whether metadata projections are available
-// at all. Entries are held by pointer so a query iterates 8-byte pointers rather
-// than copying each ~180-byte entry.
+// Index is the whole in-memory search index, entries kept in the vault's reading
+// order so each result bucket inherits it without a sort call, read-only once
+// built. It records whether metadata projections are available at all.
 type Index struct {
 	entries []*entry
 	policy  schema.ArtifactPolicy
@@ -178,10 +133,9 @@ type Index struct {
 // instance metadata while the artifact policy is unavailable.
 var ErrMetadataUnavailable = errors.New("search metadata unavailable")
 
-// metadataUnavailableError carries the whole declaration outcome, not a
-// finished sentence: the reason and the loader's own error are what let the
-// page say why in the language its reader chose. Error stays the operator's
-// line, for a log and for a caller that only prints.
+// metadataUnavailableError carries the declaration outcome rather than a
+// finished sentence, so a page can say why in its reader's language. Error stays
+// the operator's line, for a log and a caller that only prints.
 type metadataUnavailableError struct {
 	claim schema.Claim
 }
@@ -195,9 +149,8 @@ func (e metadataUnavailableError) Unwrap() error {
 }
 
 // MetadataClaim reports the authority claim behind a metadata refusal, so a
-// surface holding one of these errors can write the reason in the language its
-// reader chose rather than printing the operator's line. It answers false for
-// any other error, including a metadata refusal that carries no claim.
+// surface can write the reason in its reader's language. It answers false for
+// any other error, a metadata refusal carrying no claim included.
 func MetadataClaim(err error) (schema.Claim, bool) {
 	unavailable, ok := errors.AsType[metadataUnavailableError](err)
 	if !ok {
@@ -210,15 +163,11 @@ func (idx *Index) metadataUnavailableError() error {
 	return metadataUnavailableError{claim: idx.policy.Claim()}
 }
 
-// NewIndex builds an Index from already-extracted note data and a startup-
-// derived artifact policy, with no disk access. Every document remains in the
-// text and folder corpus; policy marks which entries may answer metadata
-// projections. Entries are sorted into the vault's reading order at build
-// time, which is the sole source of result ordering. docs is expected to carry
-// one entry per RelPath;
-// the sort is stable so that if a caller ever violates that and passes two
-// documents sharing a RelPath, their relative order is at least their input
-// order rather than an unspecified one.
+// NewIndex builds an Index from already-extracted note data and a startup-derived
+// artifact policy, with no disk access. Every document stays in the text and
+// folder corpus; policy marks which entries may answer metadata projections.
+// Entries are sorted into the vault's reading order here, the sole source of
+// result ordering, and the sort is stable for a caller repeating a RelPath.
 func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 	entries := make([]*entry, 0, len(docs))
 	for i := range docs {
@@ -231,11 +180,9 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 	return &Index{entries: entries, policy: policy}
 }
 
-// WithArtifactPolicy returns a read-only functional copy bound to policy. The
-// caller must supply a point-in-time capture of the same artifact authority
-// from which idx was built; the entries remain shared because they are
-// immutable. Snapshot uses this to bind every metadata query in one request to
-// the exact authority capture used by that request's other projections.
+// WithArtifactPolicy returns a read-only copy bound to policy, which has to be a
+// point-in-time capture of the same artifact authority idx was built from, so one
+// request's metadata queries answer to the capture its projections used.
 func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 	if idx == nil {
 		return nil
@@ -276,23 +223,17 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		PlainText:  plain,
 		PlainFold:  fold(plain),
 		isFile:     d.File,
-		// An unclaimed policy excludes nothing, so every readable note answers
-		// metadata queries over its own raw frontmatter. Whether that raw value
-		// may be *presented* as a lifecycle state is a separate question, asked
-		// by the surface that renders it.
-		//
-		// A file has no frontmatter to be an instance of, so it answers no
-		// metadata projection under any policy. That is also what keeps a tally
-		// over a governed vault the same tally it was before files were indexed.
+		// An unclaimed policy excludes nothing, so every readable note answers over
+		// its own raw frontmatter. A file has no frontmatter, so it answers no
+		// metadata projection under any policy.
 		metadataCapable:       !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
 		frontmatterUnreadable: d.FrontmatterUnreadable,
 	}
 }
 
-// DocumentFromNote extracts a Document from a parsed note: the structured fields from
-// frontmatter and PlainText from the render AST. A note with malformed
-// frontmatter (Frontmatter == nil) simply contributes empty structured fields;
-// its body text is still indexed.
+// DocumentFromNote extracts a Document from a parsed note: the structured fields
+// from frontmatter and PlainText from the render AST. A note with malformed
+// frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
 	return Document{
 		RelPath:   n.RelPath,
@@ -310,10 +251,9 @@ func DocumentFromNote(n *vault.Note) Document {
 	}
 }
 
-// DocumentFromFile builds the index entry for a vault file that is not a note.
-// Its title is the file's own name, which is the only name it has, and its whole
-// text is its body — exactly the characters its page shows, so a term found here
-// is a term the reader can find again on the page this hit opens.
+// DocumentFromFile builds the index entry for a vault file that is not a note:
+// its title is the file's own name and its body is its whole text, exactly the
+// characters its page shows.
 func DocumentFromFile(relPath string, data []byte) Document {
 	return Document{
 		RelPath:   relPath,
@@ -336,16 +276,10 @@ type TypeStatus struct {
 	Status string
 }
 
-// CountUnreadableFrontmatter reports how many of the notes this index counts
-// had a frontmatter block that could not be parsed.
-//
-// It answers over exactly the entries CountByTypeStatus answers over, because
-// its whole purpose is to divide that tally's empty bucket: a note whose
-// frontmatter could not be read and a note that simply declares no status both
-// land there, and they are not the same thing to a reader — one has to be
-// repaired before anything about it can be judged, the other may be perfectly
-// legal for its kind. Counting them here rather than at the caller is what
-// keeps the two numbers describing the same population.
+// CountUnreadableFrontmatter reports how many of the notes this index counts had
+// a frontmatter block that could not be parsed. It answers over exactly the
+// entries CountByTypeStatus answers over, because its purpose is to divide that
+// tally's empty bucket, where an unreadable note and a note with no status meet.
 func (idx *Index) CountUnreadableFrontmatter() (int, error) {
 	if !idx.policy.Trustworthy() {
 		return 0, idx.metadataUnavailableError()
@@ -360,12 +294,9 @@ func (idx *Index) CountUnreadableFrontmatter() (int, error) {
 }
 
 // CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
-// in a single pass. It is the primitive the reading page uses to weigh each note's
-// onward transitions against the schema contract without re-reading the vault:
-// the transition rules key on type as well as status, so a tally keyed on
-// status alone does not carry enough. A note missing either field lands in that
-// field's "" bucket. An artifact policy that was declared and could not be
-// honoured returns ErrMetadataUnavailable with its contract diagnostic.
+// in one pass; the pair is the form of the question, because transition rules key
+// on type as well as status. A note missing either field lands in that field's ""
+// bucket. A declared but unhonourable artifact policy returns ErrMetadataUnavailable.
 func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
 	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()
@@ -381,9 +312,8 @@ func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
 }
 
 // StatusHolder is one indexed note's identity beside the lifecycle fields a
-// contract rules on. It is the row form of CountByTypeStatus: the same notes,
-// named rather than tallied, for a caller that has to reach them and not only
-// count them.
+// contract rules on: the row form of CountByTypeStatus, the same notes named
+// rather than tallied.
 type StatusHolder struct {
 	RelPath string
 	Type    string
@@ -391,11 +321,8 @@ type StatusHolder struct {
 }
 
 // StatusHolders lists every metadata-capable note carrying a status, in the
-// index's own reading order, so a caller can rule on each one against the
-// contract and reach the file it found. It applies exactly the tests
-// CountByTypeStatus applies, and returns the same notes that tally counts —
-// a page deriving both a number and a list from one call cannot state a
-// number the list below it does not fill.
+// index's own reading order. It returns exactly the notes CountByTypeStatus
+// tallies, so a page showing both cannot state a number its list does not fill.
 func (idx *Index) StatusHolders() ([]StatusHolder, error) {
 	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()

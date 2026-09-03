@@ -12,10 +12,9 @@ var (
 	quotePrefix         = regexp.MustCompile(`^\s*>\s?`)
 )
 
-// calloutStart reports whether line opens an Obsidian callout block
-// ("> [!type]", optionally followed by "-"/"+" for a foldable
-// <details>) and, if so, its type (lowercased), fold suffix, and any
-// inline title text.
+// calloutStart reports whether line opens an Obsidian callout block, optionally
+// with the "-"/"+" that makes it foldable, and if so its lowercased type, fold
+// suffix, and any inline title text.
 func calloutStart(line string) (typ, fold, title string, ok bool) {
 	m := calloutStartPattern.FindStringSubmatch(line)
 	if m == nil {
@@ -35,15 +34,10 @@ const (
 	bucketQuote
 )
 
-// calloutBucketOf maps a callout type (already lowercased) to its bucket
-// and default English title.
-// bucketUnknown means the type is not recognized — the caller falls back
-// to a plain blockquote and records a Diagnostic.
-//
-// A quotation is its own group, as Obsidian reads the same type: it carries
-// someone's words rather than a remark about the text, and dressing it as an
-// information note told the reader the wrong thing about whose voice follows.
-// "cite" is that type's other spelling.
+// calloutBucketOf maps a lowercased callout type to its bucket and default
+// English title. bucketUnknown means the type is unrecognized and the caller
+// falls back to a plain blockquote. A quotation is its own group, as Obsidian
+// reads it: it carries someone's words rather than a remark about the text.
 func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 	switch typ {
 	case "info", "note", "tip", "hint", "abstract", "summary", "todo":
@@ -89,11 +83,9 @@ func calloutClass(bucket calloutBucket) string {
 	}
 }
 
-// renderCallout renders one already-classified (known-bucket) callout:
-// fold == "-"/"+" becomes a native <details> (closed/open); no suffix
-// becomes a static, tinted div. The body is markdown — it is rendered
-// through render (the same pipeline used at the top level), so nested
-// formatting and nested wikilinks work inside a callout.
+// renderCallout renders one already-classified callout: a fold suffix becomes a
+// native <details>, closed or open, and no suffix a static tinted div. The body
+// goes through the same pipeline as the top level, so nesting works inside it.
 func (r *Pipeline) renderCallout(bucket calloutBucket, defaultTitle, fold, title, body string, allowEmbed embedPolicy, col *collector) string {
 	if title == "" {
 		title = defaultTitle

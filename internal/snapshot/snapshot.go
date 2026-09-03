@@ -1,10 +1,8 @@
-// Package snapshot owns the reading server's coherent vault generations.
-// One scanner observes the rooted vault capability, reads each Markdown file
-// at most once for that generation, builds every derived projection from those
-// captured notes, and publishes one coherent View with an atomic pointer swap.
-// The initial View may omit a source that was unreadable during startup so the
-// reading surface remains available; later incomplete rebuilds retain the last
-// published generation until a complete retry succeeds.
+// Package snapshot owns the reading server's coherent vault generations. One
+// scanner observes the rooted vault capability, reads each markdown file at most
+// once per generation, builds every derived projection from those captured
+// notes, and publishes one generation with an atomic pointer swap. A rebuild
+// that cannot read everything retains the last published generation.
 package snapshot
 
 import (
@@ -29,84 +27,61 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// scanInterval is the reconciliation cadence. It preserves the ruled
-// approximately-two-second freshness bound without a second watcher or file
-// identity model.
+// scanInterval is the reconciliation cadence: about two seconds, with no
+// watcher and no second file-identity model.
 const scanInterval = 2 * time.Second
 
-// maxRetryDelay caps the exponential backoff between full rebuild attempts
-// while a wanted source stays unreadable. The cheap metadata scan still runs
-// every scanInterval, so any visible change — a fixed permission, a new file —
-// retries immediately; the cap bounds only how often an unchanged and still
-// unreadable folder is fully re-read.
+// maxRetryDelay caps the exponential backoff between full rebuild attempts while
+// a wanted source stays unreadable. A metadata-visible change retries at once.
 const maxRetryDelay = time.Minute
 
 // degradeAfter is how many build attempts in a row may come back incomplete —
-// counted from the last generation that read every source it wanted — before
-// the folder publishes what it could read instead of holding the previous
-// generation. The retry schedule puts those attempts about zero, two, and six
-// seconds after the first failure, so the folder starts telling the truth
-// about itself within a few seconds rather than after the schedule has
-// stretched to its one-minute cap. Waiting longer means every note written
-// after one unreadable file is answered with a 404, in a folder that is
-// otherwise entirely fine — for a reading tool that is a worse trade than
-// showing the last copy of the one file that cannot be re-read.
+// counted from the last generation that read every source it wanted — before the
+// folder publishes what it could read instead of holding the previous
+// generation. The retry schedule puts those a few seconds apart, because waiting
+// longer answers every note written since with a 404 in a folder otherwise fine.
 const degradeAfter = 3
 
-// reconcileEvery is the number of scan ticks between unconditional rebuilds.
-// The fast path compares only file identity and metadata, so an in-place edit
-// that preserves inode, mode, size, and mtime is invisible to it; every
-// reconcileEvery-th tick rebuilds without the short-circuit so such an edit is
-// still republished eventually. The trade: those edits can stay stale for up
-// to about five minutes, and a quiescent folder pays one full re-read (about
-// 0.7 CPU-seconds at three thousand notes) per period.
+// reconcileEvery is the number of scan ticks between unconditional rebuilds. The
+// fast path compares only file identity and metadata, so an in-place edit that
+// preserves inode, mode, size and mtime is invisible to it and can stay stale for
+// about five minutes; a quiescent folder pays one full re-read per period.
 const reconcileEvery = 150
 
-// Source is the rooted read capability required to construct a generation.
-// The interface is defined by its only consumer so tests can count scans and
-// reads without weakening vaultfs.Reader's production identity checks.
+// Source is the rooted read capability required to construct a generation. It is
+// defined by its only consumer so a test can count scans and reads.
 type Source interface {
 	ScanAvailable(context.Context) (vaultfs.Scan, error)
 	ReadFile(context.Context, vaultfs.Entry) ([]byte, error)
 }
 
 // Freshness is the published account of how the reading generation relates to
-// the folder on disk. It exists because both degraded states are otherwise
-// invisible: a startup view may omit a source so reading stays available, and
-// a failing rebuild retains the previous generation — in either case the
-// pages would present a partial or stale folder as current and whole. It is
-// assembled at read time from a generation's fixed buildFacts and its owning
-// Store's live liveAttempt; see View.Freshness.
+// the folder on disk. Both degraded states are otherwise invisible: a startup
+// view may omit a source so reading stays available, and a failing rebuild
+// retains the previous generation. It is assembled at read time from a
+// generation's fixed buildFacts and its owning Store's live liveAttempt.
 type Freshness struct {
 	// BuiltAt is when the generation being reported finished building.
 	BuiltAt time.Time
-	// Complete reports whether that generation read every source it wanted.
-	// Startup may publish an incomplete view for availability; a rescan
-	// publishes complete generations only, so a retained stale view keeps
-	// Complete true while Blocked says what is holding the next one.
+	// Complete reports whether that generation read every source it wanted; a
+	// retained stale view keeps it true, and Blocked says what holds the next.
 	Complete bool
 	// Blocked lists the sources that generation never read and the ones the
-	// latest build attempt could not observe or read, with the error each
-	// returned. Empty means the reading surface is whole and current.
+	// latest attempt could not, each with its error. Empty means whole.
 	Blocked []BlockedSource
-	// FailedRetries counts the rebuild attempts that have come back incomplete
-	// in a row behind the generation being reported.
+	// FailedRetries counts the incomplete rebuild attempts in a row behind it.
 	FailedRetries int
-	// LastComplete is when the most recent generation that did read every
-	// source it wanted was built, as that was known when the generation being
-	// reported was published. Zero means no whole read has happened since
-	// startup. It is separate from BuiltAt because a generation may be
-	// published without sources it could not re-read, and "this page is a few
-	// seconds old" and "the folder was last seen whole an hour ago" are then
-	// two different facts, both of which the reader needs.
+	// LastComplete is when the most recent generation that read every source it
+	// wanted was built, as known when the reported generation was published;
+	// zero means no whole read since startup. It is separate from BuiltAt
+	// because "this page is seconds old" and "the folder was last seen whole an
+	// hour ago" are two facts a reader needs.
 	LastComplete time.Time
 }
 
-// buildFacts is one generation's own fixed account of itself: when it
-// finished building, whether it read every source it wanted, the sources it
-// never got, and when a whole read last happened. It is set once when a
-// generation is published and never changes afterward — unlike the owning
-// Store's liveAttempt, which keeps moving while a later build is retried.
+// buildFacts is one generation's own fixed account of itself: when it finished
+// building, whether it read every source it wanted, the sources it never got,
+// and when a whole read last happened. It is set once and never changes.
 type buildFacts struct {
 	builtAt      time.Time
 	complete     bool
@@ -115,27 +90,24 @@ type buildFacts struct {
 }
 
 // liveAttempt is a Store's continuously updated account of its latest rebuild
-// attempt: the sources it currently cannot have, and how many attempts in a
-// row have come back incomplete. Every View published while a liveAttempt is
-// current shares a pointer to the same value, which is how a page serving a
-// retained generation can say the folder has moved on without it.
+// attempt: the sources it currently cannot have, and how many attempts in a row
+// came back incomplete. Every View published while one is current shares a
+// pointer to it, so a page serving a retained generation can say so.
 type liveAttempt struct {
 	blocked       []BlockedSource
 	failedRetries int
 }
 
-// BlockedSource is one vault path a generation build wanted and could not
-// have, and the reason it could not.
+// BlockedSource is one vault path a build wanted, with why it could not have it.
 type BlockedSource struct {
 	Path   string
 	Reason string
 }
 
-// Generation is one immutable reading generation. Every projection is built from the
-// same scan and captured bytes and remains behind read-only package APIs. The
-// artifact policy is a source-bound revocation capability: callers capture it
-// once per request, so contract drift closes later requests without changing a
-// response already being rendered.
+// Generation is one immutable reading generation, every projection built from
+// the same scan and captured bytes. The artifact policy is a source-bound
+// revocation capability: callers capture it once per request, so contract drift
+// closes later requests without changing a response already being rendered.
 type Generation struct {
 	graph          *graph.Index
 	navigation     *nav.Model
@@ -152,43 +124,32 @@ type Generation struct {
 	notes    map[string]Reading
 	markdown *render.Pipeline
 
-	// schemaFindings is what the schema said about each note when this
-	// generation read it. The verdict is reached once here rather than per
-	// request, so a page and the check command answer for the same bytes.
+	// schemaFindings is what the schema said about each note when this generation
+	// read it, reached once so a page and the check command answer for one read.
 	schemaFindings map[string][]judge.Finding
 
-	// titles maps each declared title to every note declaring it, for the one
-	// question the resolver is built not to answer: what a citation written
-	// against a title was reaching for.
+	// titles maps each declared title to every note declaring it, for the question
+	// the resolver is built not to answer.
 	titles map[string][]nav.NoteRef
 
-	// parsed and sidecars are what a later build can fall back on for a source
-	// it can no longer read: the frontmatter and body this generation parsed,
-	// and the practice files a lesson is built from. Both are already held by
-	// this generation's projections, so keeping them addressable by path costs
-	// two maps rather than a second copy of the folder.
+	// parsed and sidecars are what a later build falls back on for a source it can
+	// no longer read; the projections already hold both, so this costs two maps.
 	parsed   map[string]*vault.Note
 	sidecars map[string][]byte
 
 	// built is this generation's own account of itself, fixed when it was
-	// published: when the build finished, whether it read every source it
-	// wanted, and the sources it never got. A response renders the generation
-	// it captured, so these are the facts that belong beside that content even
-	// after a later generation has replaced it.
+	// published, so it stays true beside the content a response captured.
 	built buildFacts
 
 	// freshness points at the owning Store's live account of the latest build
-	// attempt. Unlike every other projection it is deliberately not frozen at
-	// build time: while rebuilds fail, the retained generation is the one being
-	// served, and it is exactly the view that must be able to say the folder
-	// has moved on without it.
+	// attempt. It is deliberately not frozen at build time: while rebuilds fail
+	// the retained generation is the one being served, and it is what has to be
+	// able to say the folder has moved on without it.
 	freshness *atomic.Pointer[liveAttempt]
 }
 
 // Capture returns a request-local View bound to one point-in-time artifact
-// authority. Immutable generation data remains shared; the search index is a
-// shallow functional copy so its metadata operations use that same authority
-// even if the contract changes while the response is being rendered.
+// authority, so a contract change mid-response cannot reach the response.
 func (v *Generation) Capture() *Generation {
 	if v == nil {
 		return nil
@@ -209,8 +170,7 @@ func (v *Generation) Graph() *graph.Index {
 }
 
 // CitedBy returns the notes citing relPath in this generation, sorted by the
-// name each shows. Nothing citing a note is an answer rather than a gap: it is
-// how a note nothing depends on becomes visible.
+// name each shows. Nothing citing a note is an answer rather than a gap.
 func (v *Generation) CitedBy(relPath string) []nav.NoteRef {
 	if v == nil {
 		return nil
@@ -218,15 +178,12 @@ func (v *Generation) CitedBy(relPath string) []nav.NoteRef {
 	return v.backlinks.To(relPath)
 }
 
-// Freshness reports how the generation this view holds relates to the folder
-// on disk right now: when it was built, whether it read everything it wanted,
-// and which sources it or the latest build attempt could not have. The build
-// facts are this generation's own, so a response that captured it is never
-// told a newer generation's build time or completeness beside content it is
-// not showing. The blocked list is the union of what this generation never
-// read and what the attempt running now cannot read, which lets the account
-// name more trouble than the reader is suffering but never less. The returned
-// value is the caller's own copy.
+// Freshness reports how the generation this view holds relates to the folder on
+// disk right now. The build facts are this generation's own, so a response is
+// never told a newer generation's build time beside content it is not showing.
+// The blocked list unions what this generation never read with what the running
+// attempt cannot read, naming more trouble than the reader suffers but never
+// less. The returned value is the caller's own copy.
 func (v *Generation) Freshness() Freshness {
 	if v == nil {
 		return Freshness{}
@@ -253,8 +210,7 @@ func (v *Generation) Freshness() Freshness {
 	return out
 }
 
-// Health returns the whole-folder view of what needs attention in this
-// generation.
+// Health returns this generation's whole-folder view of what needs attention.
 func (v *Generation) Health() Health {
 	if v == nil {
 		return Health{}
@@ -268,17 +224,10 @@ func (v *Generation) AnyCitations() bool {
 }
 
 // TrackedForwardReference reports whether target is a name the vault is
-// deliberately writing toward: it resolves to no file, and some note has
-// declared it as a concept still owed. The vault is written forward — a note
-// lists what it has yet to write and then links those names from wherever they
-// belong — so such a link records intent rather than a fault, and the reading
-// page must not count it as one.
-//
-// Both halves are required, and they are the same two the adjudicator applies
-// in that order. Resolution is asked first because a target that does resolve
-// can still fail to render for reasons that have nothing to do with planning —
-// an embed whose body this generation did not capture, say — and a name-only
-// test would quietly swallow that.
+// deliberately writing toward: it resolves to no file, and some note declared it
+// as a concept still owed, so the link records intent rather than a fault.
+// Resolution is asked first, as the adjudicator asks it, because a target that
+// does resolve can still fail to render for an unrelated reason.
 func (v *Generation) TrackedForwardReference(target string) bool {
 	if v == nil || v.graph == nil {
 		return false
@@ -318,10 +267,8 @@ func (v *Generation) Concepts() lesson.ConceptIndex {
 	return v.concepts
 }
 
-// ArtifactPolicy returns this View's point-in-time artifact authority. Request
-// handlers must call Capture at entry before combining it with other View
-// projections; on that request-local View this method returns the same frozen
-// authority for the whole response.
+// ArtifactPolicy returns this View's point-in-time artifact authority. A handler
+// calls Capture at entry; that View then holds one authority all response long.
 func (v *Generation) ArtifactPolicy() schema.ArtifactPolicy {
 	if v == nil {
 		return schema.ArtifactPolicy{}
@@ -330,14 +277,10 @@ func (v *Generation) ArtifactPolicy() schema.ArtifactPolicy {
 }
 
 // PrivacyPolicy returns this View's egress authority, as the generation that
-// read the contract found it.
-//
-// Nothing this View serves consults it: egress authority governs the
-// adjudication commands, and a page is not one. It travels here so a reader
-// can be told why those commands are unusable, which is a promise the commands
-// themselves make and cannot keep — their output is written for a program, and
-// naming the fault there would quote the vault back out under the very policy
-// that is missing.
+// read the contract found it. Nothing this View serves consults it: egress
+// authority governs the adjudication commands, and a page is not one. It travels
+// here so a reader can be told why those commands are unusable, which their own
+// output cannot say without quoting the vault out under the missing policy.
 func (v *Generation) PrivacyPolicy() schema.PrivacyPolicy {
 	if v == nil {
 		return schema.PrivacyPolicy{}
@@ -345,8 +288,8 @@ func (v *Generation) PrivacyPolicy() schema.PrivacyPolicy {
 	return v.privacyPolicy
 }
 
-// Files returns the regular files captured in this generation, in canonical
-// path order. The returned slice and entries are independent of the View.
+// Files returns this generation's captured regular files in canonical path
+// order. The returned slice and entries are independent of the View.
 func (v *Generation) Files() []vaultfs.Entry {
 	if v == nil {
 		return nil
@@ -377,51 +320,40 @@ func (v *Generation) Note(canonicalPath string) (Reading, bool) {
 	return note, ok
 }
 
-// Render projects Markdown through the resolver and captured transclusion
-// bodies owned by this same generation. Keeping both inputs behind View makes
-// it impossible for a request to combine links from one scan with note bodies
-// from another.
-//
-// relPath is where the body lives in the vault. It is the caller's answer to
-// "relative to what", which every note body needs and which nothing in the
-// body itself supplies.
+// Render projects markdown through the resolver and captured transclusion bodies
+// owned by this same generation, so a request cannot combine links from one scan
+// with note bodies from another. relPath is where the body lives in the vault —
+// the answer to "relative to what", which nothing in the body supplies.
 func (v *Generation) Render(relPath, body string, lang wording.Lang) render.Result {
 	return v.RenderIn("", relPath, body, lang)
 }
 
-// RenderIn is Render for a body that shares a page with another rendered body,
-// naming the region this one occupies so the two cannot both call their first
-// footnote the same thing. The region qualifies footnote ids only — heading
-// ids stay unique within a body rather than across the page.
+// RenderIn is Render for a body sharing a page with another, naming the region
+// this one occupies. It qualifies footnote ids only, not heading ids.
 func (v *Generation) RenderIn(region, relPath, body string, lang wording.Lang) render.Result {
 	if v == nil || v.markdown == nil {
 		return render.Result{}
 	}
-	// The title the page will show, so the renderer can tell a heading that
-	// repeats it from one that is the only thing naming the document.
+	// The title the page will show, so the renderer can spot a heading repeating it.
 	return v.markdown.HTMLIn(region, relPath, v.notes[relPath].Title, body, lang)
 }
 
-// Transclusion returns the immutable body captured for canonicalPath. It is
-// render.Transclusions' consumer-owned capability and deliberately exposes no
-// parsed note or mutable map.
+// Transclusion returns the immutable body captured for canonicalPath, exposing
+// no parsed note and no mutable map.
 func (v *Generation) Transclusion(canonicalPath string) (string, bool) {
 	note, ok := v.Note(canonicalPath)
 	return note.Body, ok
 }
 
-// Store publishes the current View and drives its single reconciliation loop.
-// prev, retry, and the backoff fields are owned by that one loop; Current is
-// safe for concurrent request use.
+// Store publishes the current View and drives its single reconciliation loop,
+// which owns prev, retry and the backoff fields. Current is safe concurrently.
 type Store struct {
 	ptr atomic.Pointer[Generation]
 
 	// fresh is the live account of the latest build attempt: the sources it
-	// could not have and how many attempts in a row have come back incomplete.
-	// It carries no build facts — when a build finished and whether it read
-	// everything belong to a generation, and every published View carries its
-	// own. The reconciliation loop is its only writer; requests read it
-	// through View.Freshness.
+	// could not have and how many attempts in a row came back incomplete. It
+	// carries no build facts — those belong to a generation. The reconciliation
+	// loop is its only writer.
 	fresh atomic.Pointer[liveAttempt]
 
 	source       Source
@@ -429,57 +361,42 @@ type Store struct {
 	now          func() time.Time
 	capabilities schema.Capabilities
 
-	// contract is the folder's own vocabulary, read once when the program
-	// started and unchanged after that — the same reading the capabilities
-	// above were derived from, so nothing here is fresher or staler than they
-	// are. Each build asks it what a note's frontmatter
-	// should have said; nothing writes to it, and no View holds it.
+	// contract is the folder's own vocabulary, read once at startup — the same
+	// reading the capabilities above came from. No View holds it.
 	contract *schema.Contract
 	prev     vaultfs.Scan
 	retry    bool
 
-	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry
-	// loop. While rebuild attempts keep coming back incomplete over an
-	// unchanged file domain, each failure doubles the wait before the next
-	// expensive attempt, up to maxRetryDelay; any metadata-visible change
-	// bypasses the wait and restarts the schedule, so recovery stays as
-	// immediate as the scan interval.
+	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry loop.
+	// While attempts keep coming back incomplete over an unchanged file domain,
+	// each failure doubles the wait up to maxRetryDelay; any metadata-visible
+	// change bypasses the wait and restarts the schedule.
 	consecutiveIncomplete int
 	nextRetry             time.Time
 	incompleteScan        vaultfs.Scan
 
 	// incompleteSincePublish counts the build attempts that have come back
-	// incomplete since the last generation that read everything it wanted, and
-	// it is what decides when the folder stops holding that generation back.
-	// It is a second count rather than a reuse of consecutiveIncomplete
-	// because the two answer different questions: the backoff restarts
-	// whenever the folder changes, since a changed folder deserves an
-	// immediate attempt, while a folder that is being edited would then never
-	// reach a degrade threshold at all — and a folder being edited is exactly
-	// the case degrading exists for. It resets only on a whole read, so once
-	// the threshold is crossed every later incomplete attempt publishes too.
+	// incomplete since the last generation that read everything, and decides
+	// when the folder stops holding that generation back. It is separate from
+	// consecutiveIncomplete because that count restarts whenever the folder
+	// changes, and a folder being edited would then never reach the threshold.
 	incompleteSincePublish int
 
-	// lastComplete is when the last generation that read every source it
-	// wanted was built. A degraded generation carries it so the pages can say
-	// how old the whole picture is rather than implying there has never been
-	// one.
+	// lastComplete is when the last generation that read every source it wanted
+	// was built; a degraded one carries it so a page can say how old that is.
 	lastComplete time.Time
 
 	// sinceRebuild counts scan ticks since the last completed build attempt,
-	// driving the slow reconciliation cycle that catches metadata-invisible
-	// edits.
+	// driving the slow cycle that catches metadata-invisible edits.
 	sinceRebuild int
 }
 
 // New captures and builds the initial generation synchronously. source and log
-// are required wiring; contract may be nil, in which case instance-derived
-// projections are built over the empty declared set while ordinary reading
-// continues. governance is what the folder asserted about its own contract,
-// which a nil contract cannot answer — a folder with no contract and a folder
-// whose contract could not be read both arrive with none, and only the second
-// is a fault. When contract is non-nil, governance must be
-// contract.Governance().
+// are required; a nil contract builds instance-derived projections over the
+// empty declared set while ordinary reading continues. governance is what the
+// folder asserted about its own contract, which a nil contract cannot answer —
+// a folder with no contract and one whose contract could not be read both
+// arrive with none, and only the second is a fault.
 func New(
 	ctx context.Context,
 	source Source,
@@ -523,9 +440,8 @@ func New(
 		view.built.lastComplete = builtAt
 		store.lastComplete = builtAt
 	} else {
-		// Startup publishes an incomplete generation so reading stays
-		// available. It is the first attempt that did not read the folder
-		// whole, and the threshold counts from here.
+		// Startup publishes an incomplete generation so reading stays available,
+		// and it is the first attempt the degrade threshold counts.
 		store.incompleteSincePublish = 1
 	}
 	store.fresh.Store(&liveAttempt{blocked: blocked})
@@ -564,20 +480,17 @@ func (s *Store) rescan(ctx context.Context) {
 		}
 		return
 	}
-	// The metadata comparison cannot see an in-place edit that preserves
-	// inode, mode, size, and mtime, so every reconcileEvery-th tick rebuilds
-	// without the short-circuit. Reconciliation never fires while rebuilds
-	// are failing: the backoff owns the rebuild cadence there, and every
-	// retry attempt is already a full re-read.
+	// The metadata comparison cannot see an in-place edit that preserves inode,
+	// mode, size and mtime, so every reconcileEvery-th tick rebuilds without the
+	// short-circuit. It never fires while rebuilds are failing: the backoff owns
+	// the cadence there, and every retry is already a full re-read.
 	s.sinceRebuild++
 	reconcile := !s.retry && s.sinceRebuild >= reconcileEvery
 	if !s.retry && !reconcile && s.prev.SameFiles(scan) {
 		return
 	}
 	// While rebuilds keep failing over an unchanged file domain, the expensive
-	// attempt waits out its backoff delay. The cheap scan above already ran,
-	// so any metadata-visible change — including the fix that makes the source
-	// readable again — falls through here and retries at once.
+	// attempt waits out its backoff; any visible change falls through and retries.
 	if s.retry && s.now().Before(s.nextRetry) && s.incompleteScan.SameFiles(scan) {
 		return
 	}
@@ -599,19 +512,16 @@ func (s *Store) rescan(ctx context.Context) {
 		}
 		return
 	}
-	// A completed build attempt re-read every file, whether or not it
-	// publishes, so the reconciliation clock restarts here.
+	// A completed attempt re-read every file, so the reconciliation clock restarts.
 	s.sinceRebuild = 0
 	if len(blocked) != 0 {
-		// The attempt is recorded first, so the retry schedule that governs
-		// how often the folder is re-read is the same whether or not this
-		// attempt goes on to publish.
+		// The attempt is recorded first, so the retry schedule is the same
+		// whether or not this attempt goes on to publish.
 		s.noteIncomplete(scan, blocked)
 		s.publishOnceDegraded(candidate, scan, blocked)
 		return
 	}
-	// The attempt record is cleared before the pointer swap so a reader of the
-	// new generation never sees the previous attempt's trouble beside it.
+	// Cleared before the swap, so a reader of the new generation sees no stale trouble.
 	s.fresh.Store(&liveAttempt{})
 	builtAt := s.now()
 	candidate.built = buildFacts{builtAt: builtAt, complete: true, lastComplete: builtAt}
@@ -628,19 +538,11 @@ func (s *Store) rescan(ctx context.Context) {
 }
 
 // publishOnceDegraded publishes an attempt that could not read every source it
-// wanted, once such attempts have outlasted degradeAfter in a row. Retaining
-// the last whole generation is the right answer while a read failure might
-// still be a passing one, so until then this does nothing. Past it, retention
-// has become the more damaging fault of the two: every note written since is
-// answered with a 404, in a folder whose reading surface is otherwise intact,
-// with nothing on the page saying why. What publishes then holds every source
-// that could be read plus the last copy of each one that could not, and its
-// own record says it is not whole and names the sources behind that, so no
-// page presents it as current.
-//
-// The retry state is untouched: the folder keeps trying for a whole read on
-// the same schedule, and every later incomplete attempt publishes too, so work
-// written during the failure appears as soon as the scan sees it.
+// wanted, once such attempts have outlasted degradeAfter in a row. Until then
+// retaining the last whole generation is right; past it, retention is the more
+// damaging fault, since every note written since is answered with a 404 in a
+// folder otherwise intact. What publishes holds the last copy of each source it
+// could not read and records that it is not whole. The retry state is untouched.
 func (s *Store) publishOnceDegraded(candidate *Generation, scan vaultfs.Scan, blocked []BlockedSource) {
 	if s.incompleteSincePublish < degradeAfter {
 		return
@@ -659,11 +561,9 @@ func (s *Store) publishOnceDegraded(candidate *Generation, scan vaultfs.Scan, bl
 
 // noteIncomplete records one incomplete rebuild attempt and schedules the next
 // expensive retry. A failure over a file domain that changed since the last
-// attempt restarts the schedule: the world moved, so this is a new failure
-// rather than the same one again. The attempt's blocked sources and the
-// running failure count go to the live record, which is how the pages serving
-// the retained generation can say the folder has moved on without it; that
-// generation's own build facts are already fixed in the view being served.
+// attempt restarts the schedule: the world moved, so this is a new failure. The
+// blocked sources and the running count go to the live record, which is how a
+// page serving the retained generation can say the folder has moved on.
 func (s *Store) noteIncomplete(scan vaultfs.Scan, blocked []BlockedSource) {
 	if !s.incompleteScan.SameFiles(scan) {
 		s.consecutiveIncomplete = 0
@@ -681,8 +581,7 @@ func (s *Store) noteIncomplete(scan vaultfs.Scan, blocked []BlockedSource) {
 }
 
 // retryDelay is the wait after the nth consecutive incomplete rebuild over an
-// unchanged file domain: one scan interval, doubled per further failure,
-// capped at maxRetryDelay.
+// unchanged file domain: one scan interval, doubled each time, capped.
 func retryDelay(consecutive int) time.Duration {
 	delay := scanInterval
 	for i := 1; i < consecutive; i++ {
@@ -694,12 +593,10 @@ func retryDelay(consecutive int) time.Duration {
 	return delay
 }
 
-// buildView performs one generation build from one completed enumeration. A
-// scan or file-read problem returns that source as blocked so the caller
-// retries; the source itself is taken from previous when that generation read
-// it, and is otherwise omitted. previous is nil at startup, when there is no
-// earlier reading of the folder to fall back on. Cancellation aborts the
-// generation so shutdown never publishes half a build.
+// buildView performs one generation build from one completed enumeration. A scan
+// or file-read problem returns that source as blocked so the caller retries; the
+// source itself is taken from previous when that generation read it, and is
+// otherwise omitted. previous is nil at startup. Cancellation aborts the build.
 func buildView(
 	ctx context.Context,
 	source Source,
@@ -707,15 +604,13 @@ func buildView(
 	scan vaultfs.Scan,
 	log *slog.Logger,
 	//nolint:gocritic // hugeParam: the copy is the point and it replaces four heavier
-	// parameters. One generation builds from one reading of the capabilities;
-	// a pointer would let the reconciliation loop's next revalidation reach a
-	// build already in progress.
+	// parameters. A pointer would let the reconciliation loop's next
+	// revalidation reach a build already in progress.
 	capabilities schema.Capabilities,
 	contract *schema.Contract,
 ) (*Generation, []BlockedSource, error) {
-	// Classification is generation data, so one point-in-time policy must build
-	// every projection. View retains the source-bound handle separately and
-	// Capture rebinds request-time metadata access to the current authority.
+	// Classification is generation data, so one point-in-time policy builds every
+	// projection; Capture rebinds request-time access to the current authority.
 	projectionPolicy := capabilities.Artifacts.Capture()
 	entries := scan.Files()
 	g := newGeneration(len(entries))
@@ -730,8 +625,7 @@ func buildView(
 		note := vault.IsMarkdown(relPath)
 		want := wantedBytes(entry, note)
 		if !note {
-			// A wikilink may point at any vault file, so the resolver is told
-			// about every one of them whether or not its bytes are read.
+			// A wikilink may point at any vault file, read or not.
 			g.resources = append(g.resources, relPath)
 			if !want.read {
 				continue
@@ -764,8 +658,7 @@ func buildView(
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
-		// One unusable sidecar is one lesson without its practice panel, not
-		// the whole feature, so the generation keeps the ones that read.
+		// One unusable sidecar costs one lesson its practice panel, not the rest.
 		log.Warn("slot sidecar unusable in snapshot generation",
 			"path", problem.Source, "problem", problem.Message)
 	}
@@ -800,35 +693,27 @@ func buildView(
 }
 
 // generation is the set of collections one reading of the folder fills, owned
-// together because every one of them is filled from two places: the source
-// this reading opened, and the copy the last generation held for a source it
-// could not. Held apart, the fallback took five of them as parameters and
-// wrote into four more that its signature never named, so the call site could
-// not see what had changed. A projection added here is added to a receiver
-// both paths already have.
+// together because every one is filled from two places: the source this reading
+// opened, and the copy the last generation held for a source it could not. A
+// projection added here is added to a receiver both paths already have.
 type generation struct {
-	// parsed is every note this generation holds, by path — what the resolver
-	// and the navigation model are built from.
+	// parsed is every note this generation holds, by path.
 	parsed map[string]*vault.Note
 	// notes is the same set as a list, in the order the folder was read.
 	notes []*vault.Note
-	// unreadable are the stubs standing for notes with no copy at all, so a
-	// citation to one lands on a file that exists rather than on nothing.
+	// unreadable are stubs, so a citation to one still lands on a file.
 	unreadable []*vault.Note
 	// published is the reading projection each page renders.
 	published map[string]Reading
-	// indexable records, per note, the decision its own entry was judged by,
-	// so the index and the note's page describe the same bytes.
+	// indexable records the decision each note's own entry was judged by.
 	indexable map[string]bool
 	// sidecars are the practice files the lesson parser reads.
 	sidecars map[string][]byte
 	// files are the index documents for vault files that are not notes.
 	files []lexical.Document
-	// resources are every non-note path, whether or not its bytes were read:
-	// a wikilink may point at any of them.
+	// resources are every non-note path, read or not: a wikilink may name any.
 	resources []string
-	// findings are the schema's verdicts, kept only for the notes that drew
-	// one.
+	// findings are the schema's verdicts, kept only for notes that drew one.
 	findings map[string][]judge.Finding
 }
 
@@ -848,8 +733,7 @@ func newGeneration(entries int) *generation {
 }
 
 // captureNote files one note this reading opened into every projection built
-// from a note: the resolver's copy, the list, the index membership its entry
-// was judged by, and the projection its page renders.
+// from a note, down to the index membership its own entry was judged by.
 func (g *generation) captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, indexable bool) {
 	g.parsed[parsed.RelPath] = parsed
 	g.notes = append(g.notes, parsed)
@@ -858,16 +742,10 @@ func (g *generation) captureNote(parsed *vault.Note, data []byte, languages sche
 }
 
 // recordVerdict reaches the schema's verdict for one note and keeps it when
-// there is one, so the build loop stays a loop over notes rather than one that
-// also lints them. A note the schema is content with is left out rather than
-// stored empty: absent and clean read the same at the accessor, and one of
-// them is cheaper.
-//
-// The only fault it can meet is a contract whose slug pattern is written as an
-// expression nothing can compile, and that is one fault in one file rather
-// than a reason to stop reading the folder: it is said once and the build goes
-// on, leaving the note with no verdict rather than the folder with no
-// generation.
+// there is one. A note the schema is content with is left out rather than stored
+// empty; absent and clean read the same at the accessor. The only fault it can
+// meet is a slug pattern nothing can compile, which is said once and leaves that
+// note without a verdict rather than the folder without a generation.
 func (g *generation) recordVerdict(relPath string, data []byte, contract *schema.Contract, log *slog.Logger) {
 	findings, err := judge.LintFrontmatter(relPath, data, contract)
 	if err != nil {
@@ -880,9 +758,7 @@ func (g *generation) recordVerdict(relPath string, data []byte, contract *schema
 }
 
 // carriedGeneration is the reading of the folder a build falls back on, source
-// by source, for the ones it cannot read itself. It holds nothing of its own:
-// the maps belong to the published generation it was taken from, and are read
-// and never written here.
+// by source. Its maps belong to the published generation and are never written.
 type carriedGeneration struct {
 	parsed   map[string]*vault.Note
 	captured map[string]Reading
@@ -890,8 +766,7 @@ type carriedGeneration struct {
 }
 
 // carriedFrom takes the fallback reading from the generation currently
-// published. A nil generation — startup, where the folder has never been read
-// — yields empty maps, so a source that fails its first read is simply absent.
+// published. A nil one yields empty maps, so a first failed read leaves nothing.
 func carriedFrom(previous *Generation) carriedGeneration {
 	if previous == nil {
 		return carriedGeneration{}
@@ -903,11 +778,8 @@ func carriedFrom(previous *Generation) carriedGeneration {
 	}
 }
 
-// carry gives this generation whatever the fallback generation held for a
-// source this reading could not open, choosing by whether that source is a
-// note or a practice file, so the reading loop states the fallback once
-// instead of branching on the kind of source in the middle of its
-// read-failure handling.
+// carry gives this generation whatever the fallback held for a source this
+// reading could not open, by whether that source is a note or a practice file.
 func (g *generation) carry(from carriedGeneration, relPath string, note bool, want bytesWanted) {
 	if note {
 		g.carryNote(from, relPath)
@@ -917,17 +789,11 @@ func (g *generation) carry(from carriedGeneration, relPath string, note bool, wa
 }
 
 // carryNote gives the generation being built the copy of relPath the fallback
-// generation read, marked as one that could not be re-read so the page showing
-// it can say so. Both halves of that copy are required: the parsed note is what
-// the resolver, navigation, and index are built from, and the captured
-// projection is what the reading page renders, and a generation holding one
-// without the other would answer the same question two ways.
-//
-// Without such a copy the note is left out, and the resolver gets a stub in its
-// place: the file exists and a citation naming it lands on it, so the resolver
-// still learns its path even though its bytes are missing. Without the stub,
-// the health page would class every citation to it with the citations whose
-// targets do not exist.
+// generation read, marked as one that could not be re-read. Both halves are
+// required: the resolver, navigation and index are built from the parsed note,
+// and the page renders the captured projection. Without such a copy the note is
+// left out and the resolver gets a stub, so a citation naming it still lands on
+// it rather than joining the citations to files that do not exist.
 func (g *generation) carryNote(from carriedGeneration, relPath string) {
 	lastKnown, lastKnownOK := from.parsed[relPath]
 	captured, capturedOK := from.captured[relPath]
@@ -939,17 +805,13 @@ func (g *generation) carryNote(from carriedGeneration, relPath string) {
 	g.parsed[relPath] = lastKnown
 	g.notes = append(g.notes, lastKnown)
 	g.published[relPath] = captured
-	// The carried copy answers for itself throughout: what the index holds and
-	// what the note's own page says about being searchable describe the same
-	// bytes, which are the last ones read.
+	// The carried copy answers for itself, so the index and the note's own page
+	// describe the same bytes — the last ones read.
 	g.indexable[relPath] = captured.Searchable
 }
 
-// carryFile gives the generation being built the practice file the fallback
-// generation read, when it read one. Any other file that could not be read is
-// simply absent from this generation: it lends the search index its words and
-// nothing else, and its own page reads it from disk at request time rather
-// than from a generation.
+// carryFile gives the generation being built the practice file the fallback read,
+// when it read one. Any other unreadable file is simply absent.
 func (g *generation) carryFile(from carriedGeneration, relPath string, want bytesWanted) {
 	lastKnown, ok := from.sidecars[relPath]
 	if !ok {
@@ -959,8 +821,7 @@ func (g *generation) carryFile(from carriedGeneration, relPath string, want byte
 }
 
 // blockedFromProblems carries the scan's unobservable paths into the build's
-// blocked-source list, so a directory that cannot be opened is reported the
-// same way as a file that cannot be read.
+// blocked-source list, so an unopenable directory reports like an unread file.
 func blockedFromProblems(problems []vaultfs.Problem) []BlockedSource {
 	if len(problems) == 0 {
 		return nil
@@ -976,10 +837,8 @@ func blockedFromProblems(problems []vaultfs.Problem) []BlockedSource {
 	return blocked
 }
 
-// noteBodies iterates the parsed bodies of one generation's notes. The planned
-// index is built from every note the server read, not the narrower corpus the
-// adjudicator harvests: nothing derived here leaves the machine, and the only
-// reader of this page can already open each of those notes directly.
+// noteBodies iterates the parsed bodies of one generation's notes: every note
+// the server read, not the narrower corpus the adjudicator harvests.
 func noteBodies(notes []*vault.Note) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, n := range notes {
@@ -993,50 +852,39 @@ func noteBodies(notes []*vault.Note) iter.Seq[string] {
 	}
 }
 
-// captureFile files one vault entry that is not a note into the projections
-// that can use it: its own parser, if it is a lesson sidecar, and the text
-// corpus, if its bytes are characters.
-//
-// The bytes decide that last question, as they do on the file's own page: a
-// name is not evidence about what is inside a file, and a term found in
-// something the reader will only ever be shown as opaque bytes would point at a
-// page that cannot show it.
+// captureFile files one vault entry that is not a note into the projections that
+// can use it: its own parser, if it is a lesson sidecar, and the text corpus, if
+// its bytes are characters. The bytes decide that last question, as they do on
+// the file's own page, because a name is not evidence about what is inside.
 func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
 	if lesson.IsSlotSidecar(relPath) {
 		g.sidecars[relPath] = data
 	}
-	// indexable carries the decision the entry itself was judged by. A sidecar
-	// is read whatever its size, because a lesson is built from it, and deciding
-	// again from the bytes alone would put a file in the index whose own page
-	// says its contents are not searched.
+	// indexable carries the decision the entry itself was judged by; deciding again
+	// here would index a file whose own page says it is not searched.
 	if !indexable || !render.IsText(data) {
 		return
 	}
 	g.files = append(g.files, lexical.DocumentFromFile(relPath, data))
 }
 
-// bytesWanted is why a generation reads one vault file, and what follows if it
-// cannot.
+// bytesWanted is why a generation reads one vault file, and what follows if not.
 type bytesWanted struct {
 	read      bool
 	indexable bool
 	// holdsBackGeneration means an unread file leaves the reading surface
 	// incomplete, so the generation is retried rather than published. A note and
-	// a sidecar a lesson is built from qualify. Any other file lends the index
-	// its words and nothing else: losing it costs a search hit, while holding the
-	// folder hostage to one permanently unreadable file would stop every later
-	// change from ever being published, silently, at the generation before it.
+	// a lesson's sidecar qualify; any other file only lends the index its words,
+	// and holding the folder to one permanently unreadable file would stop every
+	// later change from ever being published.
 	holdsBackGeneration bool
 }
 
 // wantedBytes decides what this generation needs from one scanned entry.
 func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 	if note {
-		// A note is always read: every file in the folder stays readable, and
-		// its page renders whatever its size. Only the index has a bound, and
-		// it is the one the file page already applies — a note is held three
-		// times over there (its body, and two folded copies for matching), so
-		// it was the one file kind with no ceiling at all.
+		// A note is always read; only the index has a bound, the one the file page
+		// applies, because a note is held there three times over.
 		return bytesWanted{read: true, indexable: withinSourceCap(entry), holdsBackGeneration: true}
 	}
 	sidecar := lesson.IsSlotSidecar(entry.Path())
@@ -1049,9 +897,7 @@ func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 }
 
 // indexDocuments gathers what this generation will answer searches from. A note
-// the generation captured but could not hold in the index is skipped here
-// rather than filtered later, so one place decides what is searchable and the
-// note's own page can state the same fact.
+// too large for the index is skipped here, so one place decides searchability.
 func indexDocuments(
 	notes []*vault.Note,
 	indexable map[string]bool,
@@ -1067,10 +913,9 @@ func indexDocuments(
 }
 
 // readableAsText reports whether a vault file that is not a note is a candidate
-// for the text index: not shown as a picture, not handed to the PDF viewer, and
-// small enough that its own page shows its characters rather than an
-// information card. The predicates are the page's, so one rule holds across
-// both faces — if yomihon shows it to you as text, you can find it.
+// for the text index: not a picture, not a PDF, and small enough that its own
+// page shows its characters. The predicates are the page's, so if yomihon shows
+// a file to you as text you can find it.
 func readableAsText(entry vaultfs.Entry) bool {
 	relPath := entry.Path()
 	return !render.IsPicture(relPath) &&
@@ -1078,9 +923,8 @@ func readableAsText(entry vaultfs.Entry) bool {
 		withinSourceCap(entry)
 }
 
-// withinSourceCap reports whether a file is small enough for its characters to
-// be held. It is the same ceiling the file page shows its own readers, so what
-// yomihon will search and what it will display as text answer to one rule.
+// withinSourceCap reports whether a file is small enough for its characters to be
+// held. It is the ceiling the file page applies, so search and display agree.
 func withinSourceCap(entry vaultfs.Entry) bool {
 	return entry.Size() <= render.MaxSourceBytes
 }

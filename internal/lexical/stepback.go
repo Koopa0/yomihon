@@ -7,29 +7,17 @@ import (
 )
 
 // StepBack is one looser query the empty page may offer: a real search this
-// index has already answered, carried with its count. A suggestion is only
-// ever built from searches that found something — the page once advised a
-// filter that could not match, and the reader followed it into a second empty
-// page wearing the same advice.
+// index has already answered, carried with its count. A suggestion is only ever
+// built from a search that found something.
 type StepBack struct {
 	Query string
 	Count int
 }
 
-// StepBacks proposes ways to loosen a query that found nothing. Three
-// loosenings cover how a zero actually happens here: a quoted phrase demands
-// its words sit together, so the same words are offered without their
-// adjacency; a term is matched as one contiguous run, so a reader who types
-// 20mg misses the note that says 20-40mg — splitting where letters meet
-// digits turns the run into two terms the note does carry; and several terms
-// must all land in one note, so each term is also offered alone. Every
-// candidate is run before it is offered, because a zero here reads as "I
-// never wrote that down", and advice that leads to another zero teaches the
-// reader to distrust the page that gave it.
-//
-// Filter fields ride along unchanged on every candidate: the reader scoped the
-// search deliberately, and loosening the words is not a licence to widen the
-// scope.
+// StepBacks proposes ways to loosen a query that found nothing: a quoted phrase
+// without its adjacency, a term split where letters meet digits so 20mg reaches
+// 20-40mg, and each term alone. Every candidate is run before it is offered, and
+// filter fields ride along unchanged, since loosening words does not widen scope.
 func (idx *Index) StepBacks(raw string) []StepBack {
 	var bare, filters []string
 	quoted := false
@@ -93,12 +81,9 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 	return out
 }
 
-// respellFilter writes a filter back the way a reader would have to type it:
-// the quotes around a value carrying a space are gone by the time a field is
-// split, and a suggestion offering the bare characters would read back as a
-// filter on the first word plus a stray second one. Every suggestion is run
-// before it is offered, so a spelling that parses differently would cost the
-// reader the count as well as the query.
+// respellFilter writes a filter back the way a reader would have to type it. The
+// quotes around a value carrying a space are gone by the time a field is split,
+// and the bare characters would read back as a filter plus a stray word.
 func respellFilter(field string) string {
 	key, value, _ := strings.Cut(field, ":")
 	if strings.IndexFunc(value, unicode.IsSpace) < 0 {
@@ -108,10 +93,8 @@ func respellFilter(field string) string {
 }
 
 // splitDigitLetterRuns rewrites the bare terms with a space wherever an ASCII
-// digit run meets an ASCII letter run, and reports "" when nothing changed or
-// when a split would shed a fragment too short to mean anything — a
-// single-letter term matches half the vault, and a suggestion that hits for
-// that reason is worse than none.
+// digit run meets an ASCII letter run. It reports "" when nothing changed, or
+// when a split would shed a fragment too short to mean anything.
 func splitDigitLetterRuns(bare []string) string {
 	changed := false
 	parts := make([]string, 0, len(bare))
