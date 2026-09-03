@@ -7,11 +7,9 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
-// FolderView is one folder seen whole. The rail has always been able to reach
-// any note, one disclosure at a time; what it cannot do is show a reader
-// everything in one place — a term's lessons in order, a month of entries, a
-// year of them. Three trial readers asked for exactly that, each in the words
-// of their own work, and each of them first tried clicking the breadcrumb.
+// FolderView is one folder seen whole. The rail reaches any note one disclosure
+// at a time; what it cannot do is show everything in one place — a term's
+// lessons in order, a month of entries, a year of them.
 type FolderView struct {
 	// Dir is the folder's vault-relative path; Crumbs are its parents.
 	Dir    string
@@ -24,9 +22,8 @@ type FolderView struct {
 	Sidebar    Sidebar
 }
 
-// Folder lists one folder's contents. It is a reading page, not a file
-// manager: no sizes, no dates, no sorting controls — the captured order, which
-// is the order the folder itself is in.
+// Folder lists one folder's contents. It is a reading page, not a file manager:
+// no sizes, no dates, no sorting controls, just the order the folder is in.
 templ Folder(v FolderView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>

@@ -10,16 +10,8 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// The reading page's own small answers: what a fault is called, what claim
-// the date makes, which attributes a column carries, and which of the write
-// face's states this note is in. They are here rather than beside the markup
-// because Go written inside a template reaches the compiler only as generated
-// output, which every linter in this repository is told to skip.
-
 // diagKindLabel names a rendering diagnostic in the reader's language. A kind
-// without a name here arrives as its raw slug rather than a dead page: the
-// diagnostics exist to report trouble, and the panel failing on an unnamed
-// kind would be the reporter breaking on the news.
+// without a name here arrives as its raw slug rather than a dead page.
 func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagWikilinkBroken:
@@ -53,9 +45,8 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	}
 }
 
-// noteDateLabel names the claim the metarow's date makes: the author's own
-// declared update, or the file's recorded change time when the note declares
-// none a date can be read from.
+// noteDateLabel names the claim the metarow's date makes: the author's declared
+// update, or the file's recorded change time where the note declares none.
 func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	if v.UpdatedFromFile {
 		return wording.FileChangedOn.In(lang)
@@ -63,17 +54,10 @@ func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	return wording.UpdatedOn.In(lang)
 }
 
-// articleLanguageAttrs states an article's language only where the note
-// declared one and the vault contract gave that declaration authority. A note
-// that declared nothing contributes no attribute, so the article inherits the
-// language the surrounding page is written in.
-//
-// Naming a language yomihon does not know would be worse than saying nothing:
-// the undetermined tag is a positive claim that halts inheritance for
-// everything beneath it, and no reader, voice, or font picker is any better
-// off for it. Inheriting is the truthful default for a vault whose prose is
-// Traditional Chinese, and a note written in another language names that
-// language in its own frontmatter.
+// articleLanguageAttrs states an article's language only where the note declared
+// one and the contract gave that declaration authority. A note that declared
+// nothing contributes no attribute and inherits the page's language, because the
+// undetermined tag would halt that inheritance for everything beneath it.
 func articleLanguageAttrs(tag string) templ.Attributes {
 	if tag == "" {
 		return nil
@@ -83,22 +67,15 @@ func articleLanguageAttrs(tag string) templ.Attributes {
 
 // freshnessAttrs marks the reading column as one the client may watch: the path
 // to ask about, the identity of the bytes printed inside it, and the status
-// printed beside the title — the one value the identity leaves out, so without
-// its own stamp a flip on disk would never reach an open page. They sit on the
-// column rather than on the article because the notice they lead to belongs
-// beside the article, not within it. All are withheld when
-// the page is already saying its own words may be behind the file, because two
-// differently worded notices about the same doubt help nobody, and when there is
-// no identity to compare against. Where the attributes are absent the client
-// finds nothing to watch and the page stays exactly as the server sent it.
+// beside the title, which the identity leaves out. They are withheld from a page
+// already saying its words may be behind the file, and from one with no identity
+// to compare against; absent, the client finds nothing to watch.
 func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 	if v.Stale || v.RelPath == "" || v.ContentIdentity == "" {
 		return nil
 	}
-	// The sentences travel with the watch rather than living in the script. The
-	// dictionary is the server's, and a second copy of these words inside a
-	// JavaScript file would be a second place to translate them and a second
-	// place for them to fall out of step.
+	// The sentences travel with the watch rather than living in the script: a
+	// copy there would be a second place to translate them.
 	attrs := templ.Attributes{
 		"data-freshness-path":        v.RelPath,
 		"data-freshness-identity":    v.ContentIdentity,
@@ -113,9 +90,8 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		"data-freshness-gonetitle":   wording.FreshnessHoldGoneTitle.In(lang),
 		"data-freshness-writehold":   wording.FreshnessWriteHold.In(lang),
 	}
-	// The transcluded stamp is absent, not empty, for a page that pulled in
-	// nothing: absence is what keeps that page's polling ask — and the
-	// server's answer to it — exactly as narrow as before the stamp existed.
+	// Absent rather than empty for a page that pulled in nothing, which keeps
+	// that page's polling ask as narrow as it was before the stamp existed.
 	if v.TranscludedIdentity != "" {
 		attrs["data-freshness-embeds"] = v.TranscludedIdentity
 	}
@@ -123,16 +99,9 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 }
 
 // readAloudAttrs carries the read-aloud bar's words to the page that will grow
-// one. The bar itself only exists where the browser can speak, so the browser
-// builds it — and a sentence built there is built in whichever language the
-// script was written in, which for a reader who asked for the other one is the
-// one part of the page that ignored them.
-//
-// They are withheld from a page with nothing to read aloud, on the same
-// condition the script uses to decide whether to build the bar at all: a
-// speak button in the body. The per-sentence buttons carry none of these; the
-// renderer already labels each one, and the script keeps that label to put
-// back rather than carrying a second copy of it.
+// one. The browser builds the bar, and a sentence built there would be in
+// whichever language the script was written in. They are withheld from a page
+// with nothing to read aloud, on the condition the script itself uses.
 func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 	if !strings.Contains(v.BodyHTML, speakButtonMarker) {
 		return nil
@@ -150,9 +119,8 @@ func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 	}
 }
 
-// speakButtonMarker is how a rendered body says it carries a read-aloud
-// control. It is the attribute the renderer writes and the script reads, so
-// asking for it is asking the same question the script asks.
+// speakButtonMarker is the attribute the renderer writes and the script reads,
+// so asking for it asks the same question the script asks.
 const speakButtonMarker = `data-tts="`
 
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
@@ -165,29 +133,23 @@ func (v *NoteView) diagCount() int {
 	return n
 }
 
-// hasAids reports whether this note carries reading aids — a table of
-// contents or any diagnostic. The right rail exists to hold reading aids:
-// when a note has none, the rail's column is dropped entirely and the write
-// face appears in the fixed-bottom status bar instead, so the reader never
-// sits beside a tall gutter holding a lone status card.
+// hasAids reports whether this note carries reading aids. With none, the right
+// rail's column is dropped and the write face moves to the bottom bar, so no
+// reader sits beside a tall gutter holding a lone status card.
 func (v *NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown()
 }
 
 // citedByShown reports whether the answer about what links here means anything
-// on this page — either there are citations, or the library has links at all
-// and their absence is itself the finding. Counting it among the aids matters
-// twice: a rail holding only this block is not an empty rail, and the narrow
-// projection has to carry it. Left out of both, a note whose sole aid was its
-// backlinks lost them at every width, not only the narrow ones.
+// on this page: either there are citations, or the library has links at all and
+// their absence is itself the finding. It counts among the aids, so a rail
+// holding only this block is not an empty one.
 func (v *NoteView) citedByShown() bool {
 	return len(v.CitedBy) > 0 || v.VaultHasLinks
 }
 
-// frontmatterDoorLine is the empty state's honest escape hatch: nothing leads
-// onward from here through this interface, and recovery is a hand edit of the
-// frontmatter — through the editor link the page already carries, when it
-// does. Yomihon states the door; it never walks through it.
+// frontmatterDoorLine is the empty state's escape hatch: recovery is a hand edit
+// of the frontmatter, through the editor link the page carries when it has one.
 func frontmatterDoorLine(v *NoteView, lang wording.Lang) string {
 	if v.ObsidianHref == "" {
 		return wording.EditFrontmatterToRecover.In(lang)
@@ -196,10 +158,8 @@ func frontmatterDoorLine(v *NoteView, lang wording.Lang) string {
 }
 
 // diagnosticAddress spells an address the way its author wrote it. The
-// diagnostic keeps the note name and the part after "#" apart, because other
-// readers match on the name by itself and a joined string matches none of them;
-// putting them back together is a decision about what to show, and it is made
-// here so every panel shows the same thing.
+// diagnostic keeps the note name and the part after "#" apart, so rejoining
+// them is a decision about display, made here so every panel shows the same.
 func diagnosticAddress(d *render.Diagnostic) string {
 	switch {
 	case d.Block != "":
@@ -211,17 +171,11 @@ func diagnosticAddress(d *render.Diagnostic) string {
 	}
 }
 
-// faceState is which state one note puts the write face in. The reading page
-// has two of those faces — the panel in the rail and the bar along the foot,
-// one of which is present at every width — and they offer the same states in
-// the same order. Each was deciding for itself which state it was in, so the
-// rules were written twice and had already drifted: one face grew a chip and a
-// spacer the other's matching branch never got.
-//
-// The states are ordered by which fact overrides which. A note the folder does
-// not govern at all comes first, then a write face that could not be opened,
-// then the three ways a status can fail to be readable, and only then a
-// readable status with or without a move to offer.
+// faceState is which state one note puts the write face in. The rail panel and
+// the bottom bar offer the same states in the same order and read this one
+// answer, so neither keeps rules of its own. The states are ordered by which
+// fact overrides which: ungoverned first, then a face that could not be opened,
+// then the ways a status can fail to be readable, then a readable one.
 type faceState uint8
 
 const (
@@ -255,9 +209,8 @@ func statusFace(v *NoteView) faceState {
 }
 
 // token is the value both faces stamp on themselves for the client and the
-// stylesheet to key off. It is coarser than the state it comes from: what the
-// outside asks is whether this note is one the folder governs, and whether the
-// write face opened at all.
+// stylesheet. It is coarser than the state it comes from: the outside asks only
+// whether the folder governs this note and whether the face opened.
 func (f faceState) token() string {
 	switch f {
 	case faceNonInstance:
@@ -270,18 +223,11 @@ func (f faceState) token() string {
 	panic("pages: unknown write-face state: " + strconv.Itoa(int(f)))
 }
 
-// showsStatusFace reports whether the write face has anything to show about
-// this note. Both faces ask it — the rail panel and the bottom bar are one
-// answer shown in two places — and each asks it itself rather than trusting
-// whoever draws it, so a caller cannot draw one of them in a state where it
-// has nothing to say.
-//
-// A folder that governs nothing has no lifecycle, so neither face belongs on
-// any page it serves. A frontmatter fault suppresses them for a different
-// reason: no status was parsed, so there is nothing to report and nothing to
-// act on. A note outside the governed set stays named through both, because
-// that classification comes from its path and holds whatever its frontmatter
-// says.
+// showsStatusFace reports whether the write face has anything to show about this
+// note. Both faces ask it themselves rather than trusting whoever draws them. A
+// folder that governs nothing has no lifecycle; a frontmatter fault leaves no
+// status to report. A note outside the governed set stays named through both,
+// that classification coming from its path rather than its frontmatter.
 func (v *NoteView) showsStatusFace() bool {
 	return v.Governed && (v.Diagnostic == "" || v.NonInstance)
 }
@@ -291,20 +237,15 @@ func (v *NoteView) showsFlipReceipt() bool {
 	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status
 }
 
-// schemaNoticesID names the block of schema findings so the transition
-// controls can point at it as their description. One note page renders at
-// most one such block — the rail panel's — which is what lets the id be a
-// fixed string.
+// schemaNoticesID names the block of schema findings the transition controls
+// describe themselves by. One page renders at most one such block, which is what
+// lets the id be fixed.
 const schemaNoticesID = "schema-notices"
 
 // schemaNoticesRef is the description a transition submit carries beside the
-// findings: the amber notices reach a sighted reader by sitting next to the
-// buttons, and say nothing to a reader whose control is announced on its own.
-// On a page with findings every submit names the notices block; on a page
-// with none the attribute is absent, so no control describes itself by an
-// element that is not in the document. The bar's controls reference the rail
-// panel's block across the page — both faces render under one guard, so a
-// face never offers a control on a page whose panel is missing.
+// findings, so a control announced on its own still says what the amber notices
+// say to a sighted reader. The attribute is absent on a page with no findings,
+// so no control describes itself by an element that is not in the document.
 func schemaNoticesRef(v *NoteView) templ.Attributes {
 	if len(v.SchemaNotices) == 0 {
 		return nil

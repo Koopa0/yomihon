@@ -5,10 +5,9 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// renderDiagnosticSummary says what one rendering fault means and what the
-// page did about it, in the reader's language. A kind with no sentence here
-// still says something: a panel that went quiet about a fault would be the
-// reporter breaking on the news.
+// renderDiagnosticSummary says what one rendering fault means and what the page
+// did about it, in the reader's language. A kind with no sentence here still
+// says something rather than going quiet about a fault.
 func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagWikilinkBroken:

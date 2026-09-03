@@ -7,18 +7,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// HomeView is the read-only landing surface: dashboard blocks assembled from
-// one vault snapshot, then the rendered vault README. Sidebar carries the
-// shared shell navigation; no mutation form appears in Home.
-//
-// A block whose projection was withheld renders nothing at all: it neither
-// repeats the reason nor states an emptiness it cannot vouch for, because
-// "say nothing" and "say there is nothing" are different sentences. Fault
-// carries that reason once, for the whole page.
-//
-// Governed says whether anything claimed authority over this vault. A folder
-// that claimed none has no lifecycle vocabulary to show, so that block is
-// absent rather than empty or apologetic.
 // homeReadmeRelPath and homeReadmeTitle name the folder's own introduction.
 // Home links to it rather than reprinting it: it is a note, it has a page, and
 // a reader who wants it is one click away.
@@ -27,60 +15,47 @@ const (
 )
 
 // HomeView is everything the landing page shows about a vault at one moment:
-// whether a contract governs it at all, what is wrong with the vault or with
-// this reading of it, and the blocks that answer "what has been happening" —
-// recent notes, the lifecycle distribution, the courses in progress, and a
-// search box. A folder that fills none of them gets a sentence instead.
+// whether a contract governs it, what is wrong with the vault or with this
+// reading of it, and the blocks answering what has been happening. A folder
+// that fills none of them gets a sentence instead. A withheld block renders
+// nothing at all, Fault carrying its reason once for the whole page.
 type HomeView struct {
 	Governed bool
 	Fault    string
-	// PrivacyFault is why the vault contract's egress declaration could not be
-	// used. It is deliberately not folded into Fault: that field explains why a
-	// block on this page is missing, and a refused egress declaration closes no
-	// block here — it closes the commands that judge the vault, which state
-	// nothing themselves because their output is written for a program to read.
+	// PrivacyFault is why the contract's egress declaration could not be used.
+	// It is not folded into Fault, which explains a missing block: a refused
+	// egress declaration closes no block here, only the judging commands, whose
+	// own output is written for a program to read.
 	PrivacyFault string
-	// Degraded states that the vault snapshot behind this page could not read
-	// everything: some sources are blocked, so the content may be incomplete
-	// or held at an older generation. DegradedDetail carries the blocked
-	// paths and their errors as technical detail. Empty means the snapshot is
-	// whole and current, which is the ordinary case.
+	// Degraded states that the snapshot behind this page could not read
+	// everything, so the content may be incomplete or held at an older
+	// generation; DegradedDetail carries the blocked paths and their errors.
 	Degraded       string
 	DegradedDetail string
-	// Subtitle names the content blocks this page actually carries. It is empty
-	// when it would name none of them, because a line under the title promising
-	// sections that are not below it is the same defect as a bordered box with
-	// nothing in it.
+	// Subtitle names the content blocks this page carries, empty where it would
+	// name none: a line promising sections that are not below it is the same
+	// defect as a bordered box with nothing in it.
 	Subtitle string
-	// StandIn is the line that takes the place of the content blocks when this
-	// folder fills none of them. It states what the folder has rather than what
-	// it lacks: a reader who will never write a contract is not missing
-	// anything, and a page implying otherwise is an advertisement.
+	// StandIn replaces the content blocks where this folder fills none. It
+	// states what the folder has rather than what it lacks.
 	StandIn HomeStandIn
 	Recent  []HomeNote
 	// RecentOrdered says the recorded times actually put these in order. A
-	// fresh clone stamps every file with one moment, and the block then leads
-	// with whatever name sorts first under a heading promising recency — so
-	// when the times separate nothing, the block says so instead.
+	// fresh clone stamps every file with one moment, and where the times
+	// separate nothing the block says so rather than promising recency.
 	RecentOrdered bool
 	// RecentScoped says the recent list covers the contract's declared
-	// knowledge layer rather than the whole folder. The block's lede then
-	// names that scope, because the status distribution beside it counts
-	// every indexed note and two true numbers over unstated sets read as a
-	// contradiction.
+	// knowledge layer rather than the whole folder, which the lede then names:
+	// the distribution beside it counts every indexed note.
 	RecentScoped bool
 	Lifecycle    []LifecycleItem
-	// Unstated are the cells for notes the block must account for that carry no
-	// status to be grouped by. They are kept apart from Lifecycle rather than
-	// flagged inside it, so the markup cannot come to dress them as statuses.
+	// Unstated are the cells for notes carrying no status to be grouped by,
+	// kept apart from Lifecycle so the markup cannot dress them as statuses.
 	Unstated []LifecycleItem
 	Paths    []HomePath
 	// ShowRecent, ShowLifecycle and ShowPaths say which blocks this page
-	// carries. Each is one answer, decided where the blocks are gathered and
-	// where the subtitle that names them and the stand-in that replaces them
-	// are decided from the same three values. A template that re-derived them
-	// from the lists and the closure flags would be a second place for the same
-	// question, kept in step by whoever remembered both.
+	// carries, decided once where the subtitle naming them and the stand-in
+	// replacing them are decided from the same three values.
 	ShowRecent    bool
 	ShowLifecycle bool
 	ShowPaths     bool
@@ -89,8 +64,8 @@ type HomeView struct {
 }
 
 // HomeStandIn carries the stand-in line's facts: how much is in this folder and
-// which of it changed last. NewestRelPath is empty for a folder holding no files,
-// the one case with nothing to point at.
+// which of it changed last. NewestRelPath is empty for a folder holding no
+// files, the one case with nothing to point at.
 type HomeStandIn struct {
 	Shown         bool
 	Files         int
@@ -111,18 +86,14 @@ type HomeNote struct {
 	ModifiedAt string
 
 	// StatusOutsideEnum marks a note whose status value the contract does not
-	// declare for this note's type. It is the per-note question, the one the
-	// reading page and the search row ask — deliberately not the distribution
-	// chip's, which speaks for an aggregated value and asks whether any
-	// carrier declares it.
+	// declare for its type — the per-note question the reading page and the
+	// search row ask, not the distribution chip's aggregated one.
 	StatusOutsideEnum bool
 }
 
 // HomePath is one study-path card with its total lesson count. Undetermined
-// marks the zero that is a fault rather than an answer: the note lists
-// things the course grammar could not read, so the card says so instead of
-// looking like an empty course. A path that genuinely plans nothing keeps a
-// bare zero.
+// marks the zero that is a fault rather than an answer: the grammar could not
+// read what the note lists. A path that genuinely plans nothing keeps a zero.
 type HomePath struct {
 	Title        string
 	RelPath      string
@@ -131,8 +102,8 @@ type HomePath struct {
 }
 
 // Home renders the landing page inside the standard shell. The four
-// data-home-block markers are the HTTP smoke sites: each names a block by its
-// invariant, independent of where the layout places it.
+// data-home-block markers name each block by its invariant, independent of
+// where the layout places it.
 templ Home(v HomeView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
@@ -260,15 +231,12 @@ templ Home(v HomeView, c layouts.Chrome) {
 							</form>
 						</section>
 					</div>
-					// The folder's own introduction is a note like any other, and
-					// it has a page. Printing the whole of it here made it most of
-					// the first screen — on one governed vault, seven tenths of
-					// everything the page said — and it is the piece a returning
-					// reader has read most often. A folder without one is not
-					// missing anything: most folders in the world have no README,
-					// and a reading tool whose opening move is an instruction to
-					// go author a file in another program has told the reader to
-					// leave.
+					// The folder's own introduction is a note like any other and
+					// has a page of its own, so this links to it rather than
+					// printing the whole of it into most of the first screen.
+					// A folder without one is not missing anything: a reading
+					// tool whose opening move is an instruction to go author a
+					// file in another program has told the reader to leave.
 					if !v.ReadmeMissing {
 						<p class="y-homereadme" data-home-readme>
 							<a href={ templ.URL(notesHref(homeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
@@ -287,9 +255,8 @@ templ homeBlockHead(id, title, note string) {
 	</header>
 }
 
-// lifecycleChipBody is what every chip shows, whether or not it leads
-// anywhere, so a chip that is not a link cannot drift into looking different
-// from one that is.
+// lifecycleChipBody is what every chip shows, link or not, so a chip that is
+// not a link cannot drift into looking different from one that is.
 templ lifecycleChipBody(it LifecycleItem, lang wording.Lang) {
 	<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
 	<span>{ statusChipLabel(it.Name, lang) }</span>
@@ -300,10 +267,8 @@ templ lifecycleChipBody(it LifecycleItem, lang wording.Lang) {
 }
 
 // unstatedChipBody is what a cell shows when it stands for notes carrying no
-// status. It has no status dot, because there is no status for one to mark.
-// The cell for notes that simply declared none takes its words from the same
-// place a blank status has always taken them, so one sentence serves both
-// rather than two sentences saying it.
+// status. It has no status dot, there being no status for one to mark, and its
+// words come from where a blank status has always taken them.
 templ unstatedChipBody(it LifecycleItem, lang wording.Lang) {
 	if it.Label != "" {
 		<span>{ it.Label }</span>

@@ -6,10 +6,9 @@ import (
 )
 
 // File is the reading page for a vault file that is not a note: the shared
-// header and navigation, the file's own name as the title, and one of four
-// bodies. It carries no right rail — a file has no table of contents and no
-// diagnostics — and no status bar, because the write face reaches only a
-// note's status.
+// chrome, the file's own name as the title, and one of four bodies. It carries
+// no right rail and no status bar, a file having no contents, no diagnostics
+// and no status.
 templ File(v FileView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
@@ -38,8 +37,8 @@ templ File(v FileView, c layouts.Chrome) {
 	}
 }
 
-// fileHead is the file's breadcrumb, name, and byte-level meta — the same shape
-// a note's head takes, without the status chip a file cannot have.
+// fileHead is the file's breadcrumb, name and byte-level meta: the shape a
+// note's head takes, without the status chip a file cannot have.
 templ fileHead(v FileView, lang wording.Lang) {
 	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
 		<div class="y-crumbs">
@@ -60,7 +59,7 @@ templ fileHead(v FileView, lang wording.Lang) {
 }
 
 // fileInfo is what yomihon says when it cannot show a file: what it is, how big
-// it is, and where its bytes are. Honest, not clever.
+// it is, and where its bytes are.
 templ fileInfo(v FileView, lang wording.Lang) {
 	<div class="y-fileinfo">
 		<p class="y-fileinfo__lead">{ wording.NoReaderForFile.In(lang) }</p>

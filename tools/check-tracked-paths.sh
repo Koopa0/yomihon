@@ -1,8 +1,7 @@
 #!/bin/sh
 
 # Repository hygiene: refuse to track credentials, private keys, or derived
-# database stores. This is independent of any release or review process -- a
-# secret or a generated store must never enter history.
+# database stores, so neither can enter history.
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)

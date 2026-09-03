@@ -13,29 +13,29 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// StatusRecoveryView is the truthful browser projection of a failed status
-// change. Changed distinguishes refusals that left the file untouched from
-// failures after the note bytes were replaced; callers must never infer it
-// from copy.
+// StatusRecoveryView is the browser projection of a failed status change.
+// Changed distinguishes a refusal that left the file untouched from a failure
+// after the note bytes were replaced; it is never inferred from copy.
 type StatusRecoveryView struct {
 	Changed         bool
 	Summary         string
 	NextAction      string
 	TechnicalDetail string
 	NotePath        string
-	// NoteIdentity is the hex identity the refused write bound itself to, when
-	// the write got far enough to have one. Where it is present the client may
-	// hold the invitation back to the note until the reading generation holds
-	// at least that version.
+	// NoteIdentity is the hex identity the refused write bound itself to, where
+	// the write got far enough to have one. The client may then hold the
+	// invitation back until the reading generation holds at least that version.
 	NoteIdentity string
-	// ObsidianHref is the obsidian://open URI for the note, already built
-	// and escaped by ObsidianHref. Empty renders no editor link. The repair
-	// a recovery page asks for is always a hand edit, so the page offers
-	// the way to where editing happens.
+	// ObsidianHref is the obsidian://open URI for the note, already built and
+	// escaped. Empty renders no editor link; the repair a recovery page asks
+	// for is always a hand edit.
 	ObsidianHref string
 	Sidebar      Sidebar
 }
 
+// StatusRecovery renders the write face's recovery state in the ordinary
+// reading shell, exposing only GET links: a failed POST is never repeated by a
+// recovery control.
 func StatusRecovery(v StatusRecoveryView, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

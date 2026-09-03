@@ -11,21 +11,16 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// NoteView is everything the reading page needs. Diagnostic (frontmatter YAML)
-// and RenderDiagnostics (dialect passes) are both display-only: yomihon reports
-// what it found, and a human edits the file.
-//
-// Transitions, WriteDiagnostic, NonInstance, and NoFrontmatter drive the rail
-// status panel and the fixed-bottom status bar, the reading page's two status
-// faces.
+// NoteView is everything the reading page needs. Diagnostic and
+// RenderDiagnostics are display-only: yomihon reports what it found, and a
+// human edits the file. Transitions, WriteDiagnostic, NonInstance and
+// NoFrontmatter drive the two status faces.
 type NoteView struct {
 	Title   string
 	RelPath string
-	// Language is what the note is written in, which the note declares and
-	// this does not touch. The language the page's own words are in is not
-	// here: it arrives with the chrome, so one page cannot have two answers
-	// to it — a view that carried its own could disagree with the frame
-	// around it, and every part would still render.
+	// Language is what the note is written in, as the note declares it. The
+	// language the page's own words are in arrives with the chrome, so one
+	// page cannot hold two answers to it.
 	Language string
 	Type     string
 	Status   string
@@ -33,69 +28,51 @@ type NoteView struct {
 	// and escaped by ObsidianHref. Empty renders no editor link.
 	ObsidianHref string
 	Diagnostic   string
-	// Unsearchable is set for a note too large to hold in the index. It renders
-	// like any other; a reader who later searches for a phrase in it would be
-	// told there are no results, which would be untrue of the folder.
+	// Unsearchable is set for a note too large to hold in the index, whose
+	// phrases a later search would report as no results at all.
 	Unsearchable bool
-	// Stale is set when the file itself could not be read while this page was
-	// built, so the words below are the last ones yomihon did read. Nothing
-	// else on the page differs, and a reader comparing it against what they
-	// last wrote would conclude the edit was lost rather than unread.
+	// Stale is set where the file could not be read while this page was built,
+	// so the words below are the last ones read rather than the current ones.
 	Stale bool
 	// Updated is the display date the metarow carries and UpdatedAt its
-	// machine-readable value. The date is the author's declared update when
-	// the frontmatter has a readable one, and the file's recorded change
-	// time otherwise — UpdatedFromFile then picks the label that says so.
-	// Both empty renders no date at all: the one way there is nothing to
-	// show is a file identity this generation could not produce, and a blank
-	// is better than a claim.
+	// machine-readable value: the author's declared update where the
+	// frontmatter has a readable one, the file's recorded change time
+	// otherwise, with UpdatedFromFile picking the label. Both empty renders no
+	// date, a blank being better than a claim.
 	Updated         string
 	UpdatedAt       string
 	UpdatedFromFile bool
 	BodyHTML        string
-	// TitleAnchor is the id the title carries, set when the note opened with a
-	// heading saying the same thing and the renderer dropped it as a
-	// duplicate. A link may be written at that section, and the title is where
-	// its words now live. Empty when the note wrote no such heading — the
-	// title is then a page's name rather than a place in the document, and
-	// giving it an anchor would answer for a section nobody wrote.
+	// TitleAnchor is the id the title carries, set where the renderer dropped a
+	// duplicate opening heading, so a link written at that section still lands.
+	// Empty where the note wrote no such heading: an anchor there would answer
+	// for a section nobody wrote.
 	TitleAnchor string
 
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
-	// foot of the article offers, so a reader walking it — a month of entries,
-	// a course of lessons — can take the next step from where they are reading
-	// rather than from the rail. StepsLabel names that sequence, printed and
+	// foot of the article offers. StepsLabel names that sequence, printed and
 	// spoken alike; StepsCourse says whether it is a course's declared order
 	// rather than folder adjacency, which picks the step words.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
 	StepsLabel  string
 	StepsCourse bool
-	// VaultHasLinks says some note in this folder cites another. Where nothing
-	// does — a folder of dated entries, a shelf of transcripts — an empty
-	// cited-by block on every page is furniture: a reader of three years of
-	// diary entries met the same "nothing cites this" seven hundred times, and
-	// it was true every time and told her nothing. Where the folder does use
-	// links, an empty block is a finding and stays.
+	// VaultHasLinks says some note in this folder cites another. Where none
+	// does, an empty cited-by block on every page is furniture; where the
+	// folder does use links, an empty block is a finding and stays.
 	VaultHasLinks bool
-	// CitedBy are the notes whose text links here. It is the resolver's own
-	// knowledge read backwards, and the reading face's answer to the question a
-	// reader standing on a note actually has: who depends on this. An empty
-	// list is an answer — the note is an island — so the block states that
-	// rather than disappearing.
+	// CitedBy are the notes whose text links here. An empty list is an answer —
+	// the note is an island — so the block states that rather than vanishing.
 	CitedBy []nav.NoteRef
 	TOC     []render.TOCEntry
 
-	// Sidebar is the resolved left navigation for this page: the whole-vault
-	// model plus this note's wayfinding context — its same-directory siblings,
-	// map and folder branches to open, and the entry to mark.
+	// Sidebar is the resolved left navigation for this page.
 	Sidebar Sidebar
 
 	// Governed says whether anything claimed authority over this vault. Both
-	// status faces are absent when it is false: a folder with no contract has no
-	// lifecycle, and a panel announcing that is an apology for a fault that does
-	// not exist. Every other field below is meaningful only under it.
+	// status faces are absent where it is false, a folder with no contract
+	// having no lifecycle, and every field below is meaningful only under it.
 	Governed bool
 
 	Transitions []Transition
@@ -104,42 +81,35 @@ type NoteView struct {
 	// a ruling that was read against content the disk no longer holds.
 	ContentIdentity string
 	// TranscludedIdentity is the render's digest over the excerpts this page
-	// pulled in from other notes, empty when it pulled in none. It rides only
-	// the freshness watch — the transition forms keep carrying the content
-	// identity alone, because a ruling binds the note's own bytes and an
-	// embedded source is not among them.
+	// pulled in, empty where it pulled in none. It rides the freshness watch
+	// alone: a ruling binds the note's own bytes, and an embedded source is not
+	// among them.
 	TranscludedIdentity string
 	NonInstance         bool
 	WriteDiagnostic     string
 	NoFrontmatter       bool
-	// FlippedFrom is the status the transition form said it was leaving, when
-	// this reading is the one a successful flip redirected to. The address
-	// only carries the name: before handing the value over, the handler checks
-	// the contract declares it for this note's type and legalises the move to
-	// the status the note carries now, and then spends the one-time receipt
-	// the completed flip minted server-side. A bookmarked, reloaded, or
-	// hand-typed address finds that receipt already spent — or never minted —
-	// and gets no sentence.
+	// FlippedFrom is the status a successful flip left, on the reading that
+	// flip redirected to. The address carries only the name: the handler
+	// legalises the move against the contract and then spends the one-time
+	// receipt the write minted, so a bookmarked or reloaded address finds that
+	// receipt spent and gets no sentence.
 	FlippedFrom string
-	// FlipNoReturn is set when the change the receipt states is one the
-	// offered controls cannot walk back, so the receipt also says how
-	// recovery happens — the same hand edit of the frontmatter the
-	// zero-transition state names.
+	// FlipNoReturn is set where the offered controls cannot walk the stated
+	// change back, so the receipt also says how recovery happens.
 	FlipNoReturn bool
 
-	// StatusUnknown is set when the note's non-empty status value is not in
-	// the contract's declared list for its type. Both status faces then flag
-	// the value instead of implying the schema defines nothing onward.
+	// StatusUnknown is set where the note's non-empty status is not in the
+	// contract's declared list for its type, which both faces flag rather than
+	// implying the contract defines nothing onward.
 	StatusUnknown bool
 
-	// SchemaNotices is what the schema said about this note's frontmatter,
-	// one sentence per fault, already in the reader's language and already
-	// broken into the words and the note's own text they sit around.
+	// SchemaNotices is what the schema said about this note's frontmatter, one
+	// sentence per fault, already in the reader's language and already split
+	// into the words and the note's own text they sit around.
 	SchemaNotices [][]wording.SchemaPart
 
 	// Concepts are the grammar-concept notes this lesson links to, each
-	// pre-rendered for the in-app concept sheet. Empty for a non-lesson note or a
-	// lesson that references none.
+	// pre-rendered for the concept sheet.
 	Concepts []lesson.ConceptDoc
 }
 
@@ -152,11 +122,10 @@ type Transition struct {
 	NoReturn bool
 }
 
-// Note is the reading page: the article itself in the shared shell, with the
+// Note is the reading page: the article in the shared shell, with the
 // navigation sidebar, whatever aids the note earns on the right, and the status
-// face. It is the surface the whole product is arranged around, so everything
-// it shows is either the note's own bytes rendered faithfully or a diagnostic
-// about them — it repairs nothing.
+// face. Everything it shows is either the note's own bytes rendered faithfully
+// or a diagnostic about them; it repairs nothing.
 templ Note(v NoteView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
 	@layouts.Base(c) {
@@ -181,11 +150,9 @@ templ Note(v NoteView, c layouts.Chrome) {
 	}
 }
 
-// conceptSheet is the in-app grammar-concept drawer: one hidden <template> of
-// rendered content per concept the lesson links to, plus a single shared native
-// <dialog>. lesson.js clones the matching template into the dialog on a trigger
-// click and calls showModal(); with JS off the triggers stay ordinary links to
-// the concept notes, so nothing here renders unless a concept is referenced.
+// conceptSheet is the grammar-concept drawer: one hidden <template> per concept
+// the lesson links to, plus a shared native <dialog> the client clones into.
+// With scripting off the triggers stay ordinary links to the concept notes.
 templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
@@ -218,8 +185,8 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			}
 		</div>
 	}
-	// The anchor goes on the heading the reader can actually see, not on a
-	// hidden marker beside it: a jump has to land on the words it named.
+	// A jump has to land on the words it named, so the anchor goes on the
+	// visible heading rather than a hidden marker beside it.
 	if v.TitleAnchor != "" {
 		<h1 id={ v.TitleAnchor } class="y-title">{ v.Title }</h1>
 	} else {
@@ -231,26 +198,24 @@ templ articleHead(v NoteView, lang wording.Lang) {
 				<span class="ui-type">{ v.Type }</span>
 			}
 			// The date is a fact about the note like its type, so it sits with
-			// the facts, before the links that act. Which label it carries is
-			// which claim it makes: the author's declared update, or the file's
-			// recorded change when the note declares none.
+			// the facts, before the links that act.
 			if v.Updated != "" {
 				<span>{ noteDateLabel(&v, lang) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
 			}
 			if v.RelPath != "" {
 				<span>{ v.RelPath }</span>
-				// The file view has always offered this and the note view never
-				// did, so the one surface where a reader is most likely to ask
-				// "what does the file actually say" was the one with no way to
-				// look. The endpoint was there; only the door was missing.
+				// The reading page is the surface where a reader is most likely
+				// to ask what the file actually says, so it carries the door to
+				// the bytes. The line count is load-bearing: templ emits a
+				// comment's newlines as whitespace between these two links.
 				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
 			}
 			if v.ObsidianHref != "" {
 				// Every repair yomihon reports is a hand edit, so the page
-				// offers the one-click way to where editing happens. The href
-				// is already built and escaped server-side from the vault root
-				// and a route-validated relative path, so it bypasses the URL
-				// sanitizer that would reject its custom scheme.
+				// offers the way to where editing happens. The href is already
+				// built and escaped server-side, so it bypasses the sanitizer
+				// that would reject its custom scheme. The line count is
+				// load-bearing here too, for the whitespace before this link.
 				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
 			}
 		</div>
@@ -264,13 +229,10 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	<div class="y-seam" aria-hidden="true"></div>
 }
 
-// ============================ RIGHT RAIL ============================
-// The status panel comes first, before the outline. The rail is its own scroll
-// container, so an outline of any length pushed the panel past the bottom of
-// the window and scrolling the article moved it not one pixel — the one action
-// this product is built around was, on most notes, somewhere the reader never
-// looked. Ordering it first pins it a fixed distance from the rail's top on
-// every note, whatever the outline's length.
+// The status panel comes before the outline. The rail is its own scroll
+// container, so an outline of any length would push the panel past the bottom
+// of the window; ordering it first pins it a fixed distance from the rail's
+// top, whatever the outline's length.
 templ rightRail(v NoteView, lang wording.Lang) {
 	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(lang) }>
 		@statusPanel(v, lang)
@@ -286,9 +248,8 @@ templ rightRail(v NoteView, lang wording.Lang) {
 }
 
 // citedBy lists the notes whose text links to this one. Nothing is a real
-// answer here and gets said out loud: a note nothing cites is an island, and a
-// block that vanished when the count reached zero would leave the reader
-// unable to tell "no one cites this" from "this interface does not know".
+// answer and is said out loud: a block that vanished at zero would leave a
+// reader unable to tell an island from an interface that does not know.
 templ citedBy(v NoteView, lang wording.Lang) {
 	if v.citedByShown() {
 		@citedByBlock(v, lang)
@@ -315,20 +276,12 @@ templ citedByBlock(v NoteView, lang wording.Lang) {
 	</nav>
 }
 
-// sequenceSteps closes the article with the way onward. A folder of dated
-// entries is a line and a course of lessons is a line; a reader who has
-// finished one wants the next, and until this existed the only way to take that
-// step was back into the rail — a diarist reading a week found herself retyping
-// the same filter seven times to do it.
-//
-// Which line it offers is decided beside the two orders that could answer, and
-// the label says which one arrived, so the arrow never claims an order it is
-// not walking. The label is printed, not only spoken: it once lived in the
-// accessible name alone, and a sighted reader had no way to tell a course's
-// declared order from mere folder adjacency — the two can disagree completely.
-// The step words carry the same fact per link: a course hands over the next
-// lesson, a folder merely the file beside this one. The printed label and the
-// accessible name render one field, so the two can never drift apart.
+// sequenceSteps closes the article with the way onward: a folder of dated
+// entries is a line, and so is a course of lessons. The label says which order
+// arrived, so the arrow never claims one it is not walking, and it is printed
+// rather than only spoken, because a course's declared order and folder
+// adjacency can disagree completely. The printed label and the accessible name
+// render one field, so the two cannot drift apart.
 templ sequenceSteps(v NoteView, lang wording.Lang) {
 	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
 		<nav class="y-steps" aria-label={ v.StepsLabel }>
@@ -351,8 +304,8 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 	}
 }
 
-// tocList is the table-of-contents link list, shared by the right rail and
-// the inline disclosure so the two render one surface, never two variants.
+// tocList is the table-of-contents link list, shared by the right rail and the
+// inline disclosure so the two render one surface.
 templ tocList(v NoteView, lang wording.Lang) {
 	<div class="y-toc__list">
 		for _, h := range v.TOC {
@@ -361,10 +314,8 @@ templ tocList(v NoteView, lang wording.Lang) {
 	</div>
 }
 
-// inlineAids keeps the reading aids reachable at widths where the right rail
-// is hidden: the table of contents as a closed native disclosure at the top
-// of the article, the diagnostics list beneath it. Wide viewports hide this
-// block and show the rail instead; a note with no aids renders nothing here.
+// inlineAids keeps the reading aids reachable at widths where the right rail is
+// hidden. Wide viewports hide this block and show the rail instead.
 templ inlineAids(v NoteView, lang wording.Lang) {
 	if v.hasAids() {
 		<div class="y-inlineaids" lang={ lang.Tag() }>
@@ -377,11 +328,8 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 					@tocList(v, lang)
 				</details>
 			}
-			// At these widths the rail is gone and this block sits between the
-			// title and the first sentence, so an open list of findings is the
-			// last thing the page says before the prose it is about. It folds
-			// like the contents above it: the count is still stated, and what
-			// the note is remains the first thing read.
+			// This block sits between the title and the first sentence, so it
+			// folds like the contents above it and states only its count.
 			if v.diagCount() > 0 {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
@@ -392,9 +340,8 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 					@diagnostics(v, lang)
 				</details>
 			}
-			// What links here is a fact about the library, not a decoration the
-			// narrow layout can drop. It folds like the two above it so the
-			// prose still starts near the top.
+			// A fact about the library rather than a decoration the narrow
+			// layout can drop, so it folds like the two above it.
 			if v.citedByShown() {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
@@ -412,10 +359,9 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 }
 
 // statusPanel is the rail status face: one plain POST form per legal
-// transition (the PRG pattern, no JS dependency) — a single press for a
-// target the reader can walk back from, a two-step confirm for a no-return
-// one. The fixed-bottom status bar is the second status face. The legal set
-// is only what the schema contract returns — never a fabricated key.
+// transition, needing no script — a single press for a target the reader can
+// walk back from, a two-step confirm for a no-return one. The legal set is only
+// what the contract returns, never a fabricated key.
 templ statusPanel(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
@@ -457,14 +403,11 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 	}
 }
 
-// schemaNotices states what the schema made of this note's frontmatter. The
-// switch above chooses one notice about the status; a schema fault is not an
-// alternative to any of those — a note can carry a status worth reporting and
-// a slug worth reporting at once — so these are said alongside, and each names
-// the field it is about rather than the one that happens to be governed here.
-// The block carries the id the transition submits describe themselves by, and
-// it renders only when there is a finding to hold, so the id and every
-// reference to it appear together or not at all.
+// schemaNotices states what the schema made of this note's frontmatter. A
+// schema fault is not an alternative to the status notice above — a note can
+// carry both at once — so these are said alongside, each naming its own field.
+// The block carries the id the transition submits describe themselves by and
+// renders only where there is a finding, so id and references appear together.
 templ schemaNotices(v NoteView, lang wording.Lang) {
 	if len(v.SchemaNotices) > 0 {
 		<div id={ schemaNoticesID }>
@@ -484,20 +427,14 @@ templ schemaNotices(v NoteView, lang wording.Lang) {
 }
 
 // statusUnknownFlag states that the note's status value is outside the
-// contract's declared list. Yomihon only reports the fault — a human edits
-// the file — and the flag replaces the empty-transitions notice, which would
-// otherwise imply the schema defines nothing onward from a value it never
+// contract's declared list. It replaces the empty-transitions notice, which
+// would imply the contract defines nothing onward from a value it never
 // defined.
-// transitionEffectLine states what pressing one of these controls does, on the
-// panel that carries them and before any of them is pressed. A reader deciding
-// whether to press is the only reader this sentence is for; a receipt after the
-// fact reaches them too late, and a control's own tooltip reaches only someone
-// already hovering the thing they have not decided to touch.
-//
-// It is written once and handed the class each status face dresses its quiet
-// notices with, so the rail and the bar cannot come to describe the same button
-// differently. It appears only beside real controls: a face with no legal
-// transition has no button whose effect there would be to state.
+// transitionEffectLine states what pressing one of these controls does, before
+// any of them is pressed: a receipt after the fact reaches that reader too late.
+// It is written once and handed the class each face dresses its quiet notices
+// with, so the rail and the bar cannot describe the same button differently, and
+// it appears only beside real controls.
 templ transitionEffectLine(noticeClass string, lang wording.Lang) {
 	<p class={ noticeClass }>{ wording.TransitionEffect.In(lang) }</p>
 }
@@ -506,28 +443,23 @@ templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
 	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }</p>
 }
 
-// statusUnreadableFlag states that this note's frontmatter yielded no status
-// to govern by. The frontmatter parsed and carries keys, so the diagnostics
-// face has nothing to report and stays away; the status is either absent or
-// written as a shape no single value can be read out of, and the repair is the
-// same either way. The panel used to fall through to the empty-transition
-// notice here, which says the contract defines nothing onward from the note's
-// status — a claim about a status nobody could read.
+// statusUnreadableFlag states that this note's frontmatter yielded no status to
+// govern by. The frontmatter parsed and carries keys, so the diagnostics face
+// has nothing to report; the status is absent or written as a shape no single
+// value can be read out of, and the repair is the same either way.
 templ statusUnreadableFlag(v NoteView, noticeClass string, lang wording.Lang) {
 	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
 }
 
-// transitionForm is one transition control: a plain POST form whose
-// re-rendered status chip after the redirect is the whole confirmation. The
-// hidden content identity states which version of the note the reader saw,
-// so the write face can refuse a press that outlived the content.
+// transitionForm is one transition control: a plain POST form whose re-rendered
+// status chip after the redirect is the whole confirmation. The hidden content
+// identity states which version of the note the reader saw, so the write face
+// can refuse a press that outlived the content.
 //
-// A target the reader could walk back from is a quiet single press. A
-// no-return target — the offered controls lead nowhere that returns to the
-// status the note carries now — keeps its submit behind a closed native
-// disclosure: the first interaction opens the confirm and states what is
-// lost, the second one submits. The disclosure needs no script and no
-// dialog; a reader without JavaScript walks the same two steps.
+// A target the reader can walk back from is a quiet single press; a no-return
+// one keeps its submit behind a closed native disclosure, whose first
+// interaction states what is lost and whose second submits. No script is
+// involved, so a reader without JavaScript walks the same two steps.
 templ transitionForm(v NoteView, t Transition, lang wording.Lang) {
 	<form class="y-statusform" method="post" action="/status">
 		<input type="hidden" name="path" value={ v.RelPath }/>
@@ -555,16 +487,10 @@ templ legalTransitionForms(v NoteView, lang wording.Lang) {
 }
 
 // fragmentSplit states how a link that named a section was read, for a link
-// whose base name resolved to nothing. Its words only hold in that case — they
-// say the missing half is the note, which is false of a link whose note was
-// found and whose section was not, so the caller gates it on the kind rather
-// than on a section name being present. Without it the panel names the shorter
-// half and stops, and a reader looking at a file whose own name carries "#" —
-// sitting in the sidebar, spelled exactly as they typed it — has no way to
-// learn that the mark is an address into a note rather than part of its name.
-// The words are the panel's own: the mark beside the link in the prose says
-// the same thing in the shape a sentence there can take, and neither is the
-// other's only copy.
+// whose base name resolved to nothing. Its words say the missing half is the
+// note, which is false of a link whose note was found and whose section was
+// not, so the caller gates it on the kind rather than on a section name being
+// present.
 templ fragmentSplit(target, section string, lang wording.Lang) {
 	<p class="y-diag__split">
 		{ wording.LinkSplitBefore.In(lang) }<code>{ target }</code>{ wording.LinkSplitBetween.In(lang) }<code>{ section }</code>{ wording.LinkSplitAfter.In(lang) }
@@ -572,8 +498,8 @@ templ fragmentSplit(target, section string, lang wording.Lang) {
 	</p>
 }
 
-// diagnostics is the read-only diagnostics rail: the frontmatter
-// diagnostic and every render diagnostic, amber, stated but never repaired.
+// diagnostics is the read-only diagnostics rail: the frontmatter diagnostic and
+// every render diagnostic, stated but never repaired.
 templ diagnostics(v NoteView, lang wording.Lang) {
 	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {
 		<section>
@@ -613,17 +539,12 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 	}
 }
 
-// ============================ STATUS BAR (≤1280) ============================
-
 // statusBar is the status face at every width where the right rail is absent:
 // narrow viewports hide the rail, and a note with no reading aids drops its
-// column entirely. It mirrors the status panel's states — the current chip
-// with every legal transition and the closed-face notices — so the write
-// face's state always has somewhere to appear. A frontmatter diagnostic
-// suppresses governance state because no status was parsed; a non-instance
-// remains named because that classification comes from its path, independent
-// of frontmatter. The y-sealbar class names are kept: the layout they carry
-// predates this bar being a plain control surface.
+// column. It mirrors the status panel's states, so the write face always has
+// somewhere to appear. A frontmatter diagnostic suppresses governance state,
+// no status having been parsed; a non-instance stays named, that classification
+// coming from its path.
 templ statusBar(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
@@ -659,21 +580,14 @@ templ statusBar(v NoteView, lang wording.Lang) {
 	}
 }
 
-// flipReceipt states the transition this reading arrived from. The redirect
-// after a successful write used to land on the note carrying nothing but the
-// new chip, so the whole confirmation was a coloured word that reads the same
-// whether the press worked, changed nothing, or was somebody else's — and a
-// reader who cannot see the chip was told nothing at all.
+// flipReceipt states the transition this reading arrived from, in words rather
+// than by a recoloured chip a reader may not see at all. It is a live region,
+// and the first thing in the main column, so it reaches a reader on arrival.
 //
-// It is a live region so it reaches a reader on arrival rather than waiting to
-// be found, and it is the first thing in the main column for the same reason.
 // The sentence is doubly gated before it reaches this template: the reported
 // move is one the contract legalises from the status the note carries now, and
-// the write face held an unspent receipt for a flip it recently performed out
-// of that origin — spent by this render. So the sentence appears once, on the
-// reading the redirect lands, and reaching the same address again — from
-// history, from a bookmark, from the back button — states nothing, because
-// there is no longer a write to vouch for it.
+// the write face held an unspent receipt for it, spent by this render. So it
+// appears once, and reaching the same address again states nothing.
 templ flipReceipt(v NoteView, lang wording.Lang) {
 	if v.showsFlipReceipt() {
 		<p class="y-flipreceipt" role="status">

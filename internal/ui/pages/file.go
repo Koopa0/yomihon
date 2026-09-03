@@ -21,19 +21,16 @@ const (
 	FileInfo   FileKind = "info"
 )
 
-// FileView is everything the file page needs. There is no status, no
-// transition, and no diagnostic here: the write face has no opinion about a
-// file that is not a note, and the renderer never inspected one.
-//
-// SourceHTML is set only for FileSource, and holds highlighter output whose
-// every character is already escaped.
+// FileView is everything the file page needs. There is no status, transition or
+// diagnostic: the write face has no opinion about a file that is not a note.
+// SourceHTML is set only for FileSource and holds already-escaped output.
 type FileView struct {
 	Kind    FileKind
 	Title   string
 	RelPath string
 
-	// Size and ContentType describe the bytes, and are shown on the
-	// information page — the one view that can offer nothing but the truth.
+	// Size and ContentType describe the bytes and are shown on the
+	// information page.
 	Size        int64
 	ContentType string
 
@@ -42,13 +39,12 @@ type FileView struct {
 	Sidebar Sidebar
 }
 
-// byteUnits are the steps humanSize climbs. A vault holds documents and
-// pictures, so it never needs a step above a gigabyte.
+// byteUnits are the steps humanSize climbs; a vault never needs one above a
+// gigabyte.
 var byteUnits = []string{"KB", "MB", "GB"}
 
 // humanSize renders a byte count the way a person reads one, keeping the exact
-// figure alongside it: an information page exists to be exact, and "2.4 MB" on
-// its own is a rounding, not a fact.
+// figure alongside it: "2.4 MB" on its own is a rounding, not a fact.
 func humanSize(n int64, lang wording.Lang) string {
 	if n == 1 {
 		return wording.ByteSingular.In(lang)
@@ -83,8 +79,7 @@ func fileKindLabel(kind FileKind, lang wording.Lang) string {
 	}
 }
 
-// withThousands groups a byte count in threes, so a seven-digit figure can be
-// read at a glance rather than counted.
+// withThousands groups a byte count in threes.
 func withThousands(n int64) string {
 	digits := strconv.FormatInt(n, 10)
 	var b strings.Builder
