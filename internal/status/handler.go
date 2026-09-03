@@ -136,6 +136,28 @@ type recovery struct {
 	boundIdentity string
 }
 
+// recoveryForUngoverned answers a note the lifecycle does not reach: a
+// template artifact, or a note in a folder the contract's knowledge layer
+// never named. Both take the same page and code — readable, refused
+// unchanged, repaired by nothing here — and differ only in the opening
+// sentence, because the reason does.
+func recoveryForUngoverned(err error) *recovery {
+	var summary wording.Phrase
+	switch {
+	case errors.Is(err, ErrNonInstance):
+		summary = wording.NonInstanceReason
+	case errors.Is(err, ErrOutsideKnowledgeScope):
+		summary = wording.OutsideKnowledgeScope
+	default:
+		return nil
+	}
+	return &recovery{
+		code:       http.StatusUnprocessableEntity,
+		summary:    summary,
+		nextAction: wording.NotGoverned,
+	}
+}
+
 func recoveryFor(err error) *recovery {
 	if r := recoveryForStatusField(err); r != nil {
 		return r
@@ -144,6 +166,9 @@ func recoveryFor(err error) *recovery {
 		return r
 	}
 	if r := recoveryForIrregularEntry(err); r != nil {
+		return r
+	}
+	if r := recoveryForUngoverned(err); r != nil {
 		return r
 	}
 	switch {
@@ -169,12 +194,6 @@ func recoveryFor(err error) *recovery {
 			technicalDetail: err.Error(),
 			logMessage:      "status artifact policy is unavailable",
 			cause:           err,
-		}
-	case errors.Is(err, ErrNonInstance):
-		return &recovery{
-			code:       http.StatusUnprocessableEntity,
-			summary:    wording.NonInstanceReason,
-			nextAction: wording.NotGoverned,
 		}
 	case errors.Is(err, ErrStale):
 		return &recovery{

@@ -9,6 +9,14 @@ package wording
 // it sits in declares no lifecycle over it, so there is no vocabulary to offer.
 var NonInstanceReason = both("不屬於生命週期治理範圍", "Outside lifecycle governance")
 
+// OutsideKnowledgeScope says why a note the contract never placed under its
+// state machine carries no status control: it sits outside the directories
+// scan.knowledge_dirs declares, and the lifecycle runs only there.
+var OutsideKnowledgeScope = both(
+	"這篇不在契約 scan.knowledge_dirs 宣告的知識層內；yomihon 只在那裡執行狀態機。",
+	"This note is outside the knowledge layer the contract declares in scan.knowledge_dirs; yomihon runs the lifecycle only there.",
+)
+
 // The submitted form could not be read at all.
 var (
 	FormUnreadable     = both("表單內容無法解析。", "The form could not be read.")

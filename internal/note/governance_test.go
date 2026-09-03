@@ -8,18 +8,18 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 )
 
-// TestOneNoteGetsExactlyOneOfThreeGovernanceAnswers pins the fact the reading
-// page acts on before it draws a status face: a note is governed, held outside
-// the lifecycle, or beyond either authority's reach — never two of those and
-// never none.
+// TestOneNoteGetsExactlyOneGovernanceAnswer pins the fact the reading page acts
+// on before it draws a status face: a note is governed, withheld by the declared
+// knowledge layer, held outside the lifecycle, or beyond either authority's
+// reach — never two of those and never none.
 //
-// The two derived answers are checked together with the placement itself,
-// because the page reads them and not the placement, and because their
-// relationship is the whole point: nonInstance is not the negation of
-// instance. A request whose lifecycle or artifact authority has closed is
-// neither, and the row that asserts it here is the one that used to render a
-// governed page for a note nothing could vouch for.
-func TestOneNoteGetsExactlyOneOfThreeGovernanceAnswers(t *testing.T) {
+// The derived answers are checked together with the placement itself, because
+// the page reads them and not the placement, and because their relationship is
+// the whole point: nonInstance is not the negation of instance, and a note the
+// layer withheld is still one. A request whose lifecycle or artifact authority
+// has closed is none of them, and the row that asserts it here is the one that
+// used to render a governed page for a note nothing could vouch for.
+func TestOneNoteGetsExactlyOneGovernanceAnswer(t *testing.T) {
 	t.Parallel()
 
 	contract, err := schema.LoadFile(filepath.Join("testdata", "contract.toml"))
@@ -33,13 +33,14 @@ func TestOneNoteGetsExactlyOneOfThreeGovernanceAnswers(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		lifecycle       status.Authority
-		policy          schema.ArtifactPolicy
-		relPath         string
-		want            governance
-		wantInstance    bool
-		wantNonInstance bool
+		name             string
+		lifecycle        status.Authority
+		policy           schema.ArtifactPolicy
+		relPath          string
+		want             governance
+		wantInstance     bool
+		wantNonInstance  bool
+		wantOutsideLayer bool
 	}{
 		{
 			name:      "both authorities answer and the folder governs the note",
@@ -50,6 +51,15 @@ func TestOneNoteGetsExactlyOneOfThreeGovernanceAnswers(t *testing.T) {
 			name:      "both authorities answer and the folder holds the note outside its lifecycle",
 			lifecycle: open, policy: policy, relPath: "System/templates/lesson.md",
 			want: readableArtifact, wantInstance: false, wantNonInstance: true,
+		},
+		{
+			// The fixture contract declares Writing alone as its knowledge
+			// layer, so this note is one the state machine never reaches. It
+			// stays an instance: the layer says where the lifecycle runs, not
+			// what a note is, and the page still reads its status.
+			name:      "both authorities answer and the declared layer does not reach the note",
+			lifecycle: open, policy: policy, relPath: "System/agent-guides/L05.md",
+			want: outsideKnowledgeLayer, wantInstance: true, wantNonInstance: false, wantOutsideLayer: true,
 		},
 		{
 			name:      "the lifecycle view is closed, so the note is placed nowhere",
@@ -78,6 +88,9 @@ func TestOneNoteGetsExactlyOneOfThreeGovernanceAnswers(t *testing.T) {
 			}
 			if state.nonInstance() != tt.wantNonInstance {
 				t.Errorf("nonInstance() = %v, want %v", state.nonInstance(), tt.wantNonInstance)
+			}
+			if state.outsideLayer() != tt.wantOutsideLayer {
+				t.Errorf("outsideLayer() = %v, want %v", state.outsideLayer(), tt.wantOutsideLayer)
 			}
 		})
 	}

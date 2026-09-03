@@ -13,8 +13,8 @@ import (
 
 // NoteView is everything the reading page needs. Diagnostic and
 // RenderDiagnostics are display-only: yomihon reports what it found, and a
-// human edits the file. Transitions, WriteDiagnostic, NonInstance and
-// NoFrontmatter drive the two status faces.
+// human edits the file. Transitions, WriteDiagnostic, NonInstance,
+// OutsideKnowledgeScope and NoFrontmatter drive the two status faces.
 type NoteView struct {
 	Title   string
 	RelPath string
@@ -88,6 +88,11 @@ type NoteView struct {
 	NonInstance         bool
 	WriteDiagnostic     string
 	NoFrontmatter       bool
+	// OutsideKnowledgeScope is set for a note the write face reaches no further
+	// than reading: it sits outside the layer scan.knowledge_dirs declares, so
+	// its transition set is empty for that reason rather than because the
+	// schema defines nothing onward.
+	OutsideKnowledgeScope bool
 	// FlippedFrom is the status a successful flip left, on the reading that
 	// flip redirected to. The address carries only the name: the handler
 	// legalises the move against the contract and then spends the one-time
@@ -364,7 +369,9 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 // statusPanel is the rail status face: one plain POST form per legal
 // transition, needing no script — a single press for a target the reader can
 // walk back from, a two-step confirm for a no-return one. The legal set is only
-// what the contract returns, never a fabricated key.
+// what the contract returns, never a fabricated key, and an empty set is stated
+// by its reason: the knowledge layer that withheld it, or the schema that
+// defines nothing onward.
 templ statusPanel(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
@@ -391,6 +398,8 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 						@statusUnknownFlag(v, "y-statuspanel__notice", lang)
 					case faceStatusUnreadable:
 						@statusUnreadableFlag(v, "y-statuspanel__notice", lang)
+					case faceOutsideScope:
+						<p class="y-statuspanel__notice">{ wording.OutsideKnowledgeScope.In(lang) }</p>
 					case faceNoTransitions:
 						<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(lang) }</p>
 						<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v, lang) }</p>
@@ -567,6 +576,10 @@ templ statusBar(v NoteView, lang wording.Lang) {
 					@statusUnknownFlag(v, "y-sealbar__notice", lang)
 				case faceStatusUnreadable:
 					@statusUnreadableFlag(v, "y-sealbar__notice", lang)
+				case faceOutsideScope:
+					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					<span class="y-sealbar__spacer"></span>
+					<p class="y-sealbar__notice">{ wording.OutsideKnowledgeScope.In(lang) }</p>
 				case faceNoTransitions:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
