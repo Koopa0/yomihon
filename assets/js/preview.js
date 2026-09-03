@@ -94,8 +94,8 @@ export function initPreview() {
   }
 
   // A hover is a question only once it has been held; a pointer crossing three
-  // links on its way somewhere asked nothing. Reaching a link by keyboard is
-  // already deliberate, so that one opens at once.
+  // links on its way somewhere asked nothing. Tabbing through six of them is
+  // the same crossing made with a keyboard, so it waits the same.
   function schedule(link, delay) {
     if (link === anchored) return;
     // The note the reader is already on has nothing to preview, and a pointer
@@ -128,7 +128,7 @@ export function initPreview() {
   for (const link of links) {
     link.addEventListener('pointerenter', () => schedule(link, openDelay));
     link.addEventListener('pointerleave', release);
-    link.addEventListener('focus', () => schedule(link, 0));
+    link.addEventListener('focus', () => schedule(link, openDelay));
     link.addEventListener('blur', close);
   }
 

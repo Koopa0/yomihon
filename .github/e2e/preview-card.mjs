@@ -56,6 +56,7 @@ const SITES = [
 	'card-opens-on-hover',
 	'card-waits-out-a-passing-pointer',
 	'card-opens-on-focus',
+	'the-keyboard-waits-the-same-as-the-pointer',
 	'card-anchored-to-its-link',
 	'card-shows-the-section-the-link-addressed',
 	'the-card-names-the-note-it-shows',
@@ -157,7 +158,16 @@ const MUTATIONS = {
 	// Reaching a link by keyboard stops asking the question a hover asks.
 	'ignore-the-keyboard': {
 		target: 'card-opens-on-focus',
-		apply: rewriteModule("link.addEventListener('focus', () => schedule(link, 0));", ''),
+		apply: rewriteModule("link.addEventListener('focus', () => schedule(link, openDelay));", ''),
+	},
+	// The keyboard stops waiting, so tabbing through a paragraph of links
+	// throws up one card per link on the way past.
+	'open-on-focus-with-no-delay': {
+		target: 'the-keyboard-waits-the-same-as-the-pointer',
+		apply: rewriteModule(
+			"link.addEventListener('focus', () => schedule(link, openDelay));",
+			"link.addEventListener('focus', () => schedule(link, 0));",
+		),
 	},
 	// The card keeps its content and loses its place: with no anchor it falls
 	// back to the corner of the window, beside nothing.
@@ -466,8 +476,32 @@ try {
 		fail('escape-dismisses-the-card', 'Escape left the card open, so a reader has to move the pointer to get the paragraph under it back');
 	}
 
+	// A passing pointer. The excerpt is already held from the hover above, so
+	// what is being measured here is the wait and not a fetch. It is asked
+	// before the keyboard's own wait, because one constant governs both and
+	// whichever is asked first is the one that reports it. The pointer leaves
+	// the link first: it has been resting on it since the card above opened,
+	// and a pointer that never left never arrives again.
+	await page.mouse.move(4, 4);
+	await settles(page, false, 2000);
+	await section.hover();
+	await page.waitForTimeout(120);
+	proveApplied('card-waits-out-a-passing-pointer', proof);
+	if ((await cardState(page)).open) {
+		fail('card-waits-out-a-passing-pointer', 'the card opened within 120ms of the pointer arriving, so crossing a paragraph of links flashes one for each');
+	}
+	await page.mouse.move(4, 4);
+	await settles(page, false, 2000);
+
 	// The keyboard. Reaching a link is already deliberate, so it opens at once.
 	await section.focus();
+	// The excerpt is already held from the hover above, so what is measured
+	// here is the wait and not a fetch.
+	await page.waitForTimeout(120);
+	proveApplied('the-keyboard-waits-the-same-as-the-pointer', proof);
+	if ((await cardState(page)).open) {
+		fail('the-keyboard-waits-the-same-as-the-pointer', 'the card opened within 120ms of the link taking focus, so tabbing through a paragraph of links throws up one card per link on the way past');
+	}
 	proveApplied('card-opens-on-focus', proof);
 	if (!(await settles(page, true, 4000))) {
 		fail('card-opens-on-focus', `reaching ${JSON.stringify(SECTION_LINK)} by keyboard opened no card, so the feature is a pointer's alone`);
@@ -534,22 +568,6 @@ try {
 	}
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await page.evaluate(() => document.activeElement?.blur());
-	await settles(page, false, 2000);
-
-	// A passing pointer. The excerpt is already held from the hover above, so
-	// what is being measured here is the wait and not a fetch.
-	await page.mouse.move(4, 4);
-	await settles(page, false, 2000);
-	await whole.hover();
-	await page.waitForTimeout(120);
-	proveApplied('card-waits-out-a-passing-pointer', proof);
-	{
-		const state = await cardState(page);
-		if (state.open) {
-			fail('card-waits-out-a-passing-pointer', 'the card opened within 120ms of the pointer arriving, so crossing a paragraph of links flashes one for each');
-		}
-	}
-	await page.mouse.move(4, 4);
 	await settles(page, false, 2000);
 
 	// The two links that must open nothing: one the renderer marked as landing

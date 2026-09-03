@@ -28,6 +28,8 @@ const previewTarget = "---\ntitle: Target\n---\n\n" +
 	"## Addressed\n\n" +
 	previewInsideSentinel + "\n\n" +
 	previewBlockSentinel + " ^marked\n\n" +
+	"A claim the note supports elsewhere[^note].\n\n" +
+	"[^note]: The support, which the card has no way to reach.\n\n" +
 	"## The next one\n\n" +
 	previewAfterSentinel + "\n"
 
@@ -417,6 +419,15 @@ func TestTheCardCarriesNoPlaceAnythingCanBeAddressed(t *testing.T) {
 	}
 	if strings.Contains(card.body, `id="`) {
 		t.Errorf("the card brings a name of its own into the page that opened it:\n%s", card.body)
+	}
+	// And no address reaching one. A footnote number that survives its own
+	// definition's name is a control that looks live, does nothing, and leaves
+	// a fragment in the address bar.
+	if !strings.Contains(page, `href="#`) {
+		t.Fatalf("the note's own page addresses nothing inside itself, so there is nothing for the card to have dropped:\n%s", page)
+	}
+	if strings.Contains(card.body, `href="#`) {
+		t.Errorf("the card carries an address reaching a place inside itself that it no longer has:\n%s", card.body)
 	}
 }
 

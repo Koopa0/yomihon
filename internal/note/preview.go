@@ -96,10 +96,10 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 		Language: n.Language,
 		// Rendered through the same generation the excerpt was cut from, so a
 		// link inside the card resolves against the vault the card is showing.
-		// The ids come off afterwards: the excerpt shares a document with the
-		// page that opened it, and every name it brought would be a second
-		// place answering to one the page already has.
-		BodyHTML: render.StripAnchorIDs(snap.RenderIn(previewRegion, rel, source, lang).HTML),
+		// The places inside it come off afterwards: the excerpt shares a
+		// document with the page that opened it, and every name it brought
+		// would be a second place answering to one the page already has.
+		BodyHTML: render.StripAnchors(snap.RenderIn(previewRegion, rel, source, lang).HTML),
 	}
 	if truncated {
 		view.Notice = wording.PreviewMore.In(lang)

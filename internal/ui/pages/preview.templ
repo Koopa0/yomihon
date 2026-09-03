@@ -7,8 +7,15 @@ package pages
 // boxes. It is a popover in the manual state, so nothing but the client opens
 // or closes it; with no scripting it is never opened, shows nothing, announces
 // nothing, and the link under the pointer stays the ordinary link it was.
+//
+// It is hidden from the accessibility tree rather than merely unannounced. A
+// reader who reaches the end of the document by virtual cursor would otherwise
+// find an unlabelled excerpt sitting there; hiding it makes the feature's own
+// decision true, and is safe only because focus never enters the card — a link
+// losing focus closes it, and a closed popover is not displayed. A change that
+// let focus travel into the card would have to take this attribute off again.
 templ previewCard() {
-	<div class="y-preview" popover="manual" data-preview-card></div>
+	<div class="y-preview" popover="manual" aria-hidden="true" data-preview-card></div>
 }
 
 // PreviewFragment is what the card is filled with: a bare fragment, no page
