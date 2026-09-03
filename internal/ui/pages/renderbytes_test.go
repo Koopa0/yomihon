@@ -151,8 +151,13 @@ func recordedNoteView(model *nav.Model, current string) NoteView {
 		Updated:         "2026-07-10",
 		UpdatedAt:       "2026-07-10",
 		UpdatedFromFile: true,
-		BodyHTML:        "<p>body</p>",
-		TitleAnchor:     "l01",
+		// The prose carries both shapes a wikilink can take, because the page
+		// treats them differently: the resolved one is a link a hover card can
+		// be opened on, and the degraded one is not, so a recording holding
+		// only one of them would lock only half the decision.
+		BodyHTML: `<p>body with <a href="/notes/Concepts/go/C01.md" class="wikilink">C01</a>` +
+			` and <a href="/notes/Concepts/go/C02.md" class="wikilink wikilink-degraded" title="no such section">C02</a></p>`,
+		TitleAnchor: "l01",
 		RenderDiagnostics: []render.Diagnostic{
 			{Kind: render.DiagWikilinkBroken, Target: "Ghost", Section: "Part"},
 			{Kind: render.DiagRenderFailed, Message: "boom"},

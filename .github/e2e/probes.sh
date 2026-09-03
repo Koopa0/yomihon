@@ -32,6 +32,7 @@ probes=(
   "skip-link-contract.mjs|/notes/Notes/alpha.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
+  "preview-card.mjs|/notes/Notes/reading-fidelity.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"

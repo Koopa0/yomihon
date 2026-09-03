@@ -1,0 +1,36 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/wording"
+
+// previewCard is the empty card the reading page carries for one hover at a
+// time: the client fills it from the note the pointer is resting on and opens
+// it beside that link. One card rather than one per link, because only one can
+// ever be open and a page of fifty links would otherwise carry fifty empty
+// boxes. It is a popover in the manual state, so nothing but the client opens
+// or closes it; with no scripting it is never opened, shows nothing, announces
+// nothing, and the link under the pointer stays the ordinary link it was.
+templ previewCard() {
+	<div class="y-preview" popover="manual" data-preview-card></div>
+}
+
+// PreviewFragment is what the card is filled with: a bare fragment, no page
+// around it. The excerpt keeps the language its author wrote it in, which is
+// not always the language of the page showing it, so a reading voice announces
+// it as what it is.
+templ PreviewFragment(v PreviewView, lang wording.Lang) {
+	<div class="y-preview__body" data-preview-body { articleLanguageAttrs(v.Language)... }>
+		if v.BodyHTML != "" {
+			<div class="y-prose">
+				@templ.Raw(v.BodyHTML)
+			</div>
+		}
+		if v.Notice != "" {
+			<p class="y-preview__notice">{ v.Notice }</p>
+			if v.RelPath != "" {
+				<p class="y-preview__more">
+					<a class="y-preview__morelink" href={ templ.SafeURL(notesHref(v.RelPath)) }>{ wording.PreviewOpenNote.In(lang) }</a>
+				</p>
+			}
+		}
+	</div>
+}

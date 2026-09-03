@@ -29,6 +29,8 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // runtime state rather than a fact about a note: whether scripting arrived,
 // whether the voice is available or speaking, whether the drawer is open,
 // whether the outline is mid-travel, what a freshness notice currently says,
+// which link the hover card is currently anchored to — a pointer's position,
+// which no server can know and only the stylesheet acts on —
 // whether a diagram failed to draw, which speaking rate a button stands for on
 // a toolbar the client builds, and the label a speak button wore before the
 // client borrowed it — kept on the button so the client has one fewer copy of
@@ -38,6 +40,7 @@ var clientOwned = []string{
 	"data-js",
 	"data-mermaid-error",
 	"data-nav",
+	"data-preview-open",
 	"data-readaloud-idle",
 	"data-speaking",
 	"data-speech",

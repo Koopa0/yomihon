@@ -1,8 +1,9 @@
 // Package note owns the general reading surface — every route a reader
-// reaches that is not one of the dedicated faces. Register mounts eight of
+// reaches that is not one of the dedicated faces. Register mounts nine of
 // them: Home, one rendered note, one folder, the whole-vault health page, a
 // vault file's raw bytes, the freshness poll a page keeps open on the note it
-// is showing, the language switch every page's footer posts to, and the
+// is showing, the excerpt a hover card shows of the note under the reader's
+// pointer, the language switch every page's footer posts to, and the
 // catch-all that answers a path the vault has nothing at. The last is
 // deliberately last: it exists so no request reaches the router's own
 // fallback, which answers in English and offers nowhere to go.
@@ -126,6 +127,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /freshness/{path...}", h.freshness)
+	mux.HandleFunc("GET /preview/{path...}", h.preview)
 	mux.HandleFunc("GET /{$}", h.home)
 	mux.HandleFunc("GET /health", h.health)
 	mux.HandleFunc("GET /folders/{path...}", h.folder)

@@ -17,6 +17,13 @@ See [[Glass Tide#第三節：失約的燈]] for the lamp,
 [[Glass Tide#Glass Tide]] for the note as a whole — that last one names the
 heading the destination removed as a duplicate of its own title.
 
+A fourth is written at [[Glass Tide#A section nobody wrote]], a name that note
+does not answer to, so it arrives marked as a link that will land somewhere
+other than where it says.
+
+A fifth points out of the vault altogether, at <https://example.invalid/lamps>,
+which is a page this machine can neither read nor preview.
+
 > [!note] A callout with a note of its own
 > The callout is rendered on its own and spliced in, so its footnote[^aside]
 > starts numbering from one just as the host's does.

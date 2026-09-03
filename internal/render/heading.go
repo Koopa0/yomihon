@@ -62,6 +62,22 @@ func headingInnerText(inner string) string {
 	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
 }
 
+// anchorAttribute matches one id attribute in this package's own output, where
+// every attribute value is double-quoted and every quote an author wrote inside
+// one arrived escaped. It is deliberately not a general HTML rule: it reads
+// bytes this package wrote.
+var anchorAttribute = regexp.MustCompile(` id="[^"]*"`)
+
+// StripAnchorIDs returns rendered HTML with every id removed and the markup
+// around them untouched. It is for an excerpt shown beside the page it was
+// fetched for rather than as a page of its own: nothing links into such an
+// excerpt, and while it is on screen each id it carried would be a second
+// element answering to a name the page's own headings and blocks already have,
+// so a fragment naming one would reach whichever came first.
+func StripAnchorIDs(htmlOut string) string {
+	return anchorAttribute.ReplaceAllString(htmlOut, "")
+}
+
 // assignHeadingSlugs walks the final rendered HTML, assigns each h1-h6 a
 // slugify'd id, and collects the table of contents in document order. A repeated
 // base slug bumps a numeric suffix until it lands on an id assigned nowhere

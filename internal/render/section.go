@@ -191,6 +191,30 @@ func headingSlice(body, heading string) (slice string, matches int) {
 	return slice, matches
 }
 
+// Excerpt is the part of body that a link's own fragment addresses: a caret
+// opens a block address, anything else names a section, and an empty fragment
+// asks for the note itself. Obsidian's %% comments come off before any edge is
+// chosen, so a marker cannot span the cut and arrive visible in the excerpt.
+//
+// An address the note does not answer to comes back not found, and the caller
+// says so. Widening to the whole note would answer a question nobody asked —
+// the reader named one place, and being shown a different one without being
+// told reads as the place they named.
+//
+// The fragment is the one an anchor already carries, already folded by the pass
+// that wrote it; nothing here folds a name a second time.
+func Excerpt(body, fragment string) (slice string, found bool) {
+	stripped, _ := stripObsidianComments(body)
+	switch {
+	case strings.HasPrefix(fragment, "^"):
+		return blockSlice(stripped, strings.TrimPrefix(fragment, "^"))
+	case fragment != "":
+		cut, matches := headingSlice(stripped, fragment)
+		return cut, matches > 0
+	}
+	return stripped, true
+}
+
 // headingSourceText reduces a heading's markdown source to the text the page
 // stamps its anchor from. A wikilink contributes what it displays, which is what
 // the rendered heading shows and what a reader copies off the page.

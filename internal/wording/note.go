@@ -161,3 +161,17 @@ var (
 		"這篇的 title 恰好是檔名在空白加 # 處截斷的結果。未加引號的值到那裡就被 YAML 當成註解；若 title 原本要包含 #，用引號寫就能保留。",
 		"This note's title is exactly what its filename becomes when cut at a space followed by #. An unquoted value ends there, where YAML starts a comment; if the title was meant to carry the #, quoting it keeps it.")
 )
+
+// What the hover preview card says in its own voice. The excerpt inside it is
+// the other note's words and passes through untouched; these three are the
+// interface's. The first answers an address with no note behind it, so the card
+// says why it is empty instead of failing to appear — a card that never opens
+// reads as a broken hover. The second closes an excerpt that stops short of the
+// end. The third names the way onward and is the text of the one control the
+// card offers, so a reader met by either report is met by the same way out of
+// it; what the card could not show, the note itself still can.
+var (
+	PreviewNoNote   = both("這個位置沒有可以預覽的筆記。", "There is no note to preview at that address.")
+	PreviewMore     = both("預覽到此為止，筆記後面還有。", "The preview stops here; the note goes on.")
+	PreviewOpenNote = both("開啟整篇筆記", "Open the whole note")
+)
