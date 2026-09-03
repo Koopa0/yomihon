@@ -527,9 +527,6 @@ func FuzzDecodeContractDeterministic(f *testing.F) {
 // foldedKeyContract writes a contract that spells one key twice, differing
 // only in the letters' case, so the decoder's second-chance folded match has
 // two candidates for one field.
-// foldedKeyContract writes a contract that spells one key twice, differing
-// only in the letters' case, so the decoder's second-chance folded match has
-// two candidates for one field.
 //
 // The two non-ASCII shapes are built from their code points rather than typed,
 // because U+017F reads as an f and U+0130 as an I, and a reviewer has to be
