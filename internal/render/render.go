@@ -53,7 +53,8 @@ type Files interface {
 	MissingFile(path string) bool
 }
 
-// DiagnosticKind classifies one rendering-time Diagnostic.
+// DiagnosticKind classifies one Diagnostic. All but one are raised by a pass
+// in this package; DiagTitleTruncatedAtHash says where its own comes from.
 type DiagnosticKind string
 
 const (
@@ -74,6 +75,9 @@ const (
 	// filename becomes when cut where YAML starts a comment in an unquoted value.
 	// It is an observation, not an accusation: a title deliberately written short
 	// in quotes produces the same coincidence, and nothing parsed tells them apart.
+	// No pass here raises it: the coincidence is between a note's frontmatter and
+	// its filename, both of which are read where a note is assembled, so that is
+	// where it is noticed and this is only where it is named.
 	DiagTitleTruncatedAtHash DiagnosticKind = "title-truncated-at-hash"
 	// DiagUnknownCallout means a "> [!type]" callout's type is not one
 	// of the recognized callout types; it was rendered as a plain
@@ -124,10 +128,13 @@ const (
 	DiagRenderFailed DiagnosticKind = "render-failed"
 )
 
-// Diagnostic is one rendering-time note about content the dialect passes could
-// not cleanly handle. Display-only: yomihon reports, it never fixes or rejects.
-// Deciding that something is worth surfacing is a rendering decision, which is
-// why it lives here and not beside the resolver.
+// Diagnostic is one note about content yomihon could read but could not present
+// the way its author probably meant. Display-only: yomihon reports, it never
+// fixes or rejects. Deciding that something is worth surfacing is a rendering
+// decision, which is why the set lives here and not beside the resolver — and
+// why the one kind nothing here raises is declared here too, so that a surface
+// has a single table to look a diagnostic up in and a single set of words to
+// say it with.
 type Diagnostic struct {
 	Kind    DiagnosticKind
 	Target  string // the offending wikilink target / callout type / etc.
