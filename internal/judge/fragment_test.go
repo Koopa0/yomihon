@@ -124,7 +124,17 @@ func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
 		"\n" +
 		"## 收尾 {sequence=primary} ##\n" +
 		"\n" +
-		"words\n"
+		"words\n" +
+		"\n" +
+		// A heading shape inside a fence is code to the parser and to the scan
+		// that cuts an excerpt, and a heading to the generous line reading the
+		// page runs before it claims a section is missing. Only that reading
+		// can name this branch, which is what makes it name it here.
+		"```\n" +
+		"\n" +
+		"只有寬讀認得 {sequence=local}\n" +
+		"---\n" +
+		"```\n"
 	tests := []struct {
 		name string
 		body string
@@ -135,6 +145,9 @@ func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
 		{name: "a role quoted in code is words about the grammar", body: "[[Target#宣告 {sequence=primary}]]\n"},
 		{name: "a run of marks closing the heading is not part of the name either", body: "[[Target#收尾]]\n"},
 		{name: "an excerpt is cut to a branch closed by a run of marks", body: "![[Target#收尾]]\n"},
+		{name: "an excerpt is cut to a branch by the name the course gives it", body: "![[Target#基本觀念]]\n"},
+		{name: "an excerpt is cut to an underlined branch the same way", body: "![[Target#不分先後]]\n"},
+		{name: "only the generous reading finds this branch, and names it the same", body: "[[Target#只有寬讀認得]]\n"},
 		{
 			name: "the declaration is not part of the name",
 			body: "[[Target#基本觀念 {sequence=primary}]]\n",
