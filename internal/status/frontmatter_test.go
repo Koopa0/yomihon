@@ -198,7 +198,7 @@ func TestRewriteStatusLineRefusesAnInvisibleBreakInsideQuotes(t *testing.T) {
 			if len(n.Frontmatter) != 1 {
 				t.Fatalf("the reader read %d keys, want 1; a second key means the break ended the line after all", len(n.Frontmatter))
 			}
-			if got, _ := n.String("status"); got != tt.wantValue {
+			if got, _ := n.Text("status"); got != tt.wantValue {
 				t.Fatalf("the reader's value = %q, want %q", got, tt.wantValue)
 			}
 			if got, err := rewriteStatusLine([]byte(tt.in), "ready"); err == nil {

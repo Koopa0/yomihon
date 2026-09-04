@@ -362,7 +362,7 @@ func (v *exampleVault) frontmatterKeys() map[string]bool {
 func (v *exampleVault) frontmatterValues(key string) map[string]bool {
 	values := map[string]bool{}
 	for _, note := range v.notes {
-		if value, ok := note.String(key); ok {
+		if value, ok := note.Text(key); ok {
 			values[value] = true
 		}
 		for _, value := range note.Strings(key) {

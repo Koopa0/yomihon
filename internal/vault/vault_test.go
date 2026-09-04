@@ -438,14 +438,14 @@ func TestUpdated(t *testing.T) {
 	}
 }
 
-// TestNoteStringAndStrings pins the two frontmatter readers the typed
+// TestNoteTextAndStrings pins the two frontmatter readers the typed
 // accessors are built on: what counts as text, what counts as a list of text,
 // and what a shape that is neither costs. A malformed field costs that field
 // and never the build, so every row asking for a shape the note did not write
 // answers empty rather than an error. The nil-against-empty split in the list
 // reader is deliberate and pinned here: nothing at all when the value is not a
 // list, an empty list when it is a list holding no text.
-func TestNoteStringAndStrings(t *testing.T) {
+func TestNoteTextAndStrings(t *testing.T) {
 	t.Parallel()
 
 	const content = `---
@@ -484,9 +484,9 @@ body
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				got, ok := n.String(tt.key)
+				got, ok := n.Text(tt.key)
 				if got != tt.want || ok != tt.wantOK {
-					t.Errorf("String(%q) = (%q, %t), want (%q, %t)", tt.key, got, ok, tt.want, tt.wantOK)
+					t.Errorf("Text(%q) = (%q, %t), want (%q, %t)", tt.key, got, ok, tt.want, tt.wantOK)
 				}
 			})
 		}
