@@ -18,8 +18,12 @@ import (
 
 // atxHeadingLine matches an ATX heading the way goldmark reads it: up to three
 // spaces of indent, one to six '#' characters, then whitespace. A '#' run glued
-// to text is not a heading in CommonMark and is not one here.
-var atxHeadingLine = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)
+// to text is not a heading in CommonMark and is not one here. The second group
+// is the heading's words, which stop before a closing run of '#': CommonMark
+// reads a trailing run preceded by whitespace as part of the marks, and the
+// rendered heading shows neither the run nor the space before it. A run with no
+// whitespace before it is text, and stays in the words.
+var atxHeadingLine = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`)
 
 // The HTML block start conditions of the CommonMark spec, minus the one for a
 // bare complete tag alone on its line. A block opened by any of these hands its

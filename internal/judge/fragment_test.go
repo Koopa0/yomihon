@@ -100,6 +100,12 @@ func TestFragmentSectionMatchingMirrorsTheReadingPage(t *testing.T) {
 // before stamping the section's id. This face answers about that same page, so
 // a citation naming a branch by the name a reader sees reaches it, and one
 // spelling the declaration out reaches no id the page stamps.
+//
+// A link and an excerpt are answered from different readings of the same note:
+// a link may reach an id either reading found, while an excerpt is cut by the
+// line scan alone. So a branch every reading has to name the same way is cited
+// both ways, and one only the generous reading finds is cited as a link, which
+// is the only address that reaches it.
 func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
 	t.Parallel()
 
@@ -114,7 +120,11 @@ func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
 		"words\n" +
 		"\n" +
 		"不分先後 {sequence=none}\n" +
-		"---\n"
+		"---\n" +
+		"\n" +
+		"## 收尾 {sequence=primary} ##\n" +
+		"\n" +
+		"words\n"
 	tests := []struct {
 		name string
 		body string
@@ -123,6 +133,8 @@ func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
 		{name: "a branch answers to the name the course lists it under", body: "[[Target#基本觀念]]\n"},
 		{name: "an underlined branch declares the same way", body: "[[Target#不分先後]]\n"},
 		{name: "a role quoted in code is words about the grammar", body: "[[Target#宣告 {sequence=primary}]]\n"},
+		{name: "a run of marks closing the heading is not part of the name either", body: "[[Target#收尾]]\n"},
+		{name: "an excerpt is cut to a branch closed by a run of marks", body: "![[Target#收尾]]\n"},
 		{
 			name: "the declaration is not part of the name",
 			body: "[[Target#基本觀念 {sequence=primary}]]\n",
