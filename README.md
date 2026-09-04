@@ -62,6 +62,4 @@ security problems to
 
 ## Licence
 
-[MIT](LICENSE). Redistributed fonts and client assets carry their own licences:
-[`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt) and
-[`assets/js/mermaid/LICENSE`](assets/js/mermaid/LICENSE).
+[MIT](LICENSE).
