@@ -6,7 +6,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 )
 
-// TestHealthIsNotCleanWhileAnyListHasSomethingIn It holds the one sentence this
+// TestHealthIsNotCleanWhileAnyListHasSomethingInIt holds the one sentence this
 // page stakes its credibility on. Whether the folder has nothing to answer for
 // is decided by naming every list, so a list added to the page and not to that
 // decision produces a page that shows findings and says all is well at once.

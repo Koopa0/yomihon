@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -855,4 +856,113 @@ func isContext(expr ast.Expr) bool {
 	}
 	pkg, ok := sel.X.(*ast.Ident)
 	return ok && pkg.Name == "context"
+}
+
+// testNamePattern is a word shaped like a test in this module: the prefix
+// followed by a capital, which is what a reader writing about one types.
+var testNamePattern = regexp.MustCompile(`^Test[A-Z]\w*`)
+
+// everyGoFile lists this module's own source, tests included — which is the one
+// difference from productionFiles, and the reason it exists: the names this
+// check is about are declared and quoted in test files.
+func everyGoFile(t *testing.T) []string {
+	t.Helper()
+
+	var paths []string
+	err := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if p != repoRoot && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "bin" || name == "testdata") {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_templ.go") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(repoRoot, p)
+		if relErr != nil {
+			return relErr
+		}
+		paths = append(paths, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk the repository: %v", err)
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+// TestACommentNamingATestNamesOneThatExists keeps the name written above a test
+// attached to the test underneath it. Renaming one is two edits — the function
+// and the sentence about it — and the second is the one that gets forgotten,
+// leaving a comment describing something the reader then cannot find.
+//
+// The general Go convention, that a doc comment opens with the name it
+// documents, is not what this repository does: test docs here open with prose
+// about the behaviour, deliberately. Checking that would report most of the
+// tree. So the question is the narrow one, and narrow in a second way worth
+// stating: only the first word of a comment line is read, and only where the
+// marker is followed by a space. A dead name written mid-sentence is not
+// reported, and neither is one behind a bare //. That is where the mistake
+// this exists for happens — a name is written at the head of the sentence
+// about it — and widening the reading is a change to make when something gets
+// past it, not before.
+//
+// Existence is asked of the whole module rather than the file's own package. A
+// comment pointing at a sibling package's test is a working reference and says
+// where the property is really held; only a name nothing declares is a dead
+// end.
+func TestACommentNamingATestNamesOneThatExists(t *testing.T) {
+	t.Parallel()
+
+	declared := make(map[string]bool)
+	files := everyGoFile(t)
+	for _, path := range files {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for line := range strings.SplitSeq(string(data), "\n") {
+			if after, ok := strings.CutPrefix(line, "func "); ok {
+				declared[testNamePattern.FindString(after)] = true
+			}
+		}
+	}
+	delete(declared, "")
+	if len(declared) == 0 {
+		t.Fatal("no test was found in the module, so every name below would read as dead")
+	}
+
+	var found []site
+	resolved := 0
+	for _, path := range files {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			comment, ok := strings.CutPrefix(strings.TrimSpace(line), "// ")
+			if !ok {
+				continue
+			}
+			name := testNamePattern.FindString(comment)
+			if name == "" {
+				continue
+			}
+			if declared[name] {
+				resolved++
+				continue
+			}
+			found = append(found, site{path: path, line: i + 1, text: name})
+		}
+	}
+	if resolved == 0 {
+		t.Fatal("no comment in the tree names a test that exists, so this check is comparing against nothing")
+	}
+	report(t, "a comment names a test this module does not declare; rename the sentence with the function, or point it at the test that holds the property", found)
 }

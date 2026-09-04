@@ -1035,8 +1035,8 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 	}
 }
 
-// dirExists reports whether path is an existing directory.
-// TestReadingPageServesOnlyMarkdownNotes pins that /notes serves only .md notes.
+// TestReadingPageNeverExecutesANonNote pins what the reading page does with a
+// file that is not a note.
 // Every file the browse tree lists now opens, so a non-note resource no longer
 // meets a 404 here. The guarantee that 404 was protecting is unchanged and is
 // what this pins: a resource's markup never becomes live markup in this
