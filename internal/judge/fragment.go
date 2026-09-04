@@ -138,7 +138,7 @@ func collectParsedHeadings(body string, into map[string]bool) {
 // page's own patterns for the same scan, kept literal here so the two faces
 // read one line the same way.
 var (
-	atxHeadingText   = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)
+	atxHeadingText   = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`)
 	setextUnderline  = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
 	quotedLinePrefix = regexp.MustCompile(`^ {0,3}>`)
 	listItemPrefix   = regexp.MustCompile(`^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)`)

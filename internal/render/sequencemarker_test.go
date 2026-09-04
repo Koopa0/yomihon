@@ -203,3 +203,69 @@ func TestAnExcerptNamesTheBranchItOpensOn(t *testing.T) {
 		})
 	}
 }
+
+// goldmark reads a run of '#' closing an ATX heading as part of the marks
+// rather than the words, so the page neither shows it nor folds it into the id.
+// Every scan that reads the same heading from its source has to drop it too:
+// a declaration is read at the end of a line, and a closing run left on the end
+// hides it from the scans while the page has already taken it off.
+func TestAClosingRunOfMarksIsNotPartOfTheName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		heading string
+		id      string
+		cited   string
+	}{
+		{
+			name:    "a declared branch closed by a run of marks",
+			heading: "## 範例 {sequence=primary} ##",
+			id:      "範例",
+			cited:   "範例",
+		},
+		{
+			name:    "the closing run need not match the opening one",
+			heading: "## 範例 {sequence=primary} ###",
+			id:      "範例",
+			cited:   "範例",
+		},
+		{
+			name:    "a heading closed by a run and declaring nothing",
+			heading: "## 範例 ##",
+			id:      "範例",
+			cited:   "範例",
+		},
+		{
+			name:    "a mark with no space before it closes nothing, so the role is not at the end",
+			heading: "## 範例 {sequence=primary}#",
+			id:      "範例-sequence-primary",
+			cited:   "範例 {sequence=primary}#",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dest := "# 課程\n\n" + tt.heading + "\n\nBASICTEXT\n\n## 後記\n\nAFTERTEXT\n"
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "Course.md"}}, nil, transclusions{"Course.md": dest})
+
+			page := r.HTML("Course.md", "", dest, wording.ZhHant)
+			if want := `<h2 id="` + tt.id + `">`; !strings.Contains(page.HTML, want) {
+				t.Errorf("the page does not stamp %s\n%s", want, page.HTML)
+			}
+
+			link := r.HTML("note.md", "", "[[Course#"+tt.cited+"]]\n", wording.ZhHant)
+			if want := `href="/notes/Course.md#` + tt.id + `"`; !strings.Contains(link.HTML, want) {
+				t.Errorf("the citation does not address %s\n%s", want, link.HTML)
+			}
+			if messages := fragmentDiagnostics(&link); len(messages) != 0 {
+				t.Errorf("a section the page stamps was reported missing: %q", messages)
+			}
+
+			embed := r.HTML("note.md", "", "![[Course#"+tt.cited+"]]\n", wording.ZhHant)
+			if !strings.Contains(embed.HTML, "BASICTEXT") || strings.Contains(embed.HTML, "AFTERTEXT") {
+				t.Errorf("the excerpt is not the section that was named:\n%s", embed.HTML)
+			}
+		})
+	}
+}
