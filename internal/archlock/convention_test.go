@@ -698,6 +698,46 @@ func TestAContextIsAlwaysTheFirstParameter(t *testing.T) {
 	report(t, "context.Context must be the first parameter", found)
 }
 
+// fragmentAddressing is where a name written after a link's "#" is turned into
+// the id it has to match. It lives in one package because a link and the heading
+// it names have to fold the same way to meet at all.
+const fragmentAddressing = "internal/graph/"
+
+// TestOneOwnerFoldsAFragment keeps the two halves of fragment addressing — the
+// fold that decides which spellings of a name are one name, and the id a page
+// stamps for a section — written once.
+//
+// They were written twice, once for the page and once for the adjudicator, in
+// two packages, under four names, and the copies agreed only because they were
+// typed from each other. A drift between them does not fail anything: the page
+// stamps one id, the adjudicator asks for another, and the reader is told a
+// section is missing from a page that is serving it. The copies are found by the
+// bytes that make them what they are rather than by their names, since a
+// re-introduced copy would be given a new name and nothing else.
+func TestOneOwnerFoldsAFragment(t *testing.T) {
+	t.Parallel()
+
+	for _, spelling := range []struct{ what, bytes string }{
+		{"the fold that decides which spellings of a name are one name", "strings.ToLower(vault.NormalizeNFC("},
+		{"the run of characters a section id collapses", `[^\p{L}\p{N}]+`},
+	} {
+		t.Run(spelling.what, func(t *testing.T) {
+			t.Parallel()
+			written := findLines(t, func(line string) bool { return strings.Contains(line, spelling.bytes) })
+			if len(written) == 0 {
+				t.Fatalf("nothing in the tree writes %q any more, so this check passes for the wrong reason", spelling.bytes)
+			}
+			var elsewhere []site
+			for _, s := range written {
+				if !strings.HasPrefix(s.path, fragmentAddressing) {
+					elsewhere = append(elsewhere, s)
+				}
+			}
+			report(t, "fragment addressing is "+fragmentAddressing+"'s; call it rather than writing a second copy", elsewhere)
+		})
+	}
+}
+
 // TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt keeps one name for one
 // kind of file. The suffix exists for a package that needs an internal and an
 // external test file under the same stem; used anywhere else it distinguishes

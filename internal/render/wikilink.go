@@ -661,8 +661,8 @@ func rawHref(p string) string {
 
 // sectionHref is notesHref plus the place inside the destination a link named.
 // What it returns is a URL, which the attribute it goes into escapes on its own.
-// A section's fragment is built by slugify, the same function that stamps the
-// destination's heading ids; a block address takes precedence when the author
+// A section's fragment is built by the same call that stamps the destination's
+// heading ids; a block address takes precedence when the author
 // wrote both, and is percent-escaped.
 // Only the block scan is authoritative, so a block it cannot find is withdrawn,
 // while a section address always survives and a miss is reported only when a
@@ -694,7 +694,7 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		}
 		return href + "#" + url.PathEscape(blockAnchorID(address)), fragmentPlaced
 	case link.Heading != "":
-		addressed := href + "#" + slugify(link.Heading)
+		addressed := href + "#" + graph.SectionID(link.Heading)
 		body, ok := r.transclusions.Transclusion(relPath)
 		if !ok {
 			return addressed, fragmentPlaced
@@ -948,12 +948,12 @@ func notExpandedNotice(heldBack bool, lang wording.Lang) string {
 // reader a section they can see is not there. Both ways of writing a heading
 // count, an underlined paragraph included.
 func headingAnchorMayExist(body, heading string) bool {
-	want := slugify(heading)
+	want := graph.SectionID(heading)
 	var paragraph []string
 	for line := range strings.SplitSeq(body, "\n") {
 		candidate := withoutQuoteAndListMarkers(line)
 		if m := atxHeadingLine.FindStringSubmatch(candidate); m != nil {
-			if slugify(headingSourceText(m[2], len(m[1]))) == want {
+			if graph.SectionID(headingSourceText(m[2], len(m[1]))) == want {
 				return true
 			}
 			paragraph = nil
@@ -962,7 +962,7 @@ func headingAnchorMayExist(body, heading string) bool {
 		// A row of dashes closing a paragraph underlines it rather than drawing a
 		// rule, which is the order the page reads them in too.
 		if len(paragraph) > 0 && setextUnderline.MatchString(candidate) {
-			if slugify(headingSourceText(strings.Join(paragraph, "\n"), setextLevel(candidate))) == want {
+			if graph.SectionID(headingSourceText(strings.Join(paragraph, "\n"), setextLevel(candidate))) == want {
 				return true
 			}
 			paragraph = nil

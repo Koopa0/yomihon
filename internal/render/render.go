@@ -225,7 +225,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
 	// one that has to move aside.
-	htmlOut, toc := assignHeadingSlugs(res.HTML, titleAnchor)
+	htmlOut, toc := assignHeadingIDs(res.HTML, titleAnchor)
 	res.HTML = resolveAssetHrefs(htmlOut, relPath)
 	res.TOC = toc
 	res.TitleAnchor = titleAnchor
@@ -410,5 +410,5 @@ func removeBodyFirstH1(title, body string) (stripped, anchor string) {
 	if heading != strings.TrimSpace(title) {
 		return body, ""
 	}
-	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), slugify(heading)
+	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(heading)
 }

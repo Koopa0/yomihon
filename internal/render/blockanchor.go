@@ -4,6 +4,8 @@ import (
 	"html"
 	"regexp"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // A block address is the "^name" an author writes at the end of a line to give
@@ -21,7 +23,7 @@ var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^\S+)\z`)
 // address folded the way both kinds of fragment fold, so capitals and Unicode
 // form never keep an address from its marker.
 func blockAnchorID(address string) string {
-	return foldFragment(address)
+	return graph.FoldFragment(address)
 }
 
 // unanchorableLine reports whether a line is one no anchor can survive on, and so
