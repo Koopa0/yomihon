@@ -135,7 +135,7 @@ func recordedChrome() layouts.Chrome {
 		Title:                     "L01",
 		Nonce:                     "response-nonce",
 		Theme:                     "light",
-		Ruby:                      "on",
+		RubyEnabled:               true,
 		TextSize:                  "m",
 		SingleKeyShortcutsEnabled: true,
 		Lang:                      wording.ZhHant,

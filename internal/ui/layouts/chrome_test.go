@@ -63,3 +63,33 @@ func TestChromeFromRequestReadsSingleKeyShortcutPreference(t *testing.T) {
 		})
 	}
 }
+
+// The furigana preference is the one reading preference with no test of how it
+// is read. Its cookie is the only one whose default is on, so the row that
+// matters most is the missing one: a reader who has never touched the control
+// gets the aids, and only the one stored word turns them off.
+func TestChromeFromRequestReadsFuriganaPreference(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name        string
+		cookieValue string
+		want        bool
+	}{
+		{name: "missing leaves the aids on", want: true},
+		{name: "the one word that turns them off", cookieValue: "off", want: false},
+		{name: "on", cookieValue: "on", want: true},
+		{name: "an unknown value leaves them on", cookieValue: "maybe", want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			if tt.cookieValue != "" {
+				r.Header.Set("Cookie", "yomihon_ruby="+tt.cookieValue)
+			}
+			if got := ChromeFromRequest(r, "測試").RubyEnabled; got != tt.want {
+				t.Errorf("RubyEnabled = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
