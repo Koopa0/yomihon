@@ -22,6 +22,9 @@ type Reading struct {
 	Language           string
 	LanguageDiagnostic string
 	HasFrontmatter     bool
+	// StatusNotText is true where the note wrote a status the reader did not
+	// take as text, so Status above is empty for a reason a page can name.
+	StatusNotText bool
 	// Updated is the note's own declared update date, zero when the frontmatter
 	// carries none; the page then falls back to the recorded change time.
 	Updated time.Time
@@ -58,6 +61,7 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		Language:           language,
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.Frontmatter != nil,
+		StatusNotText:      parsed.StatusNotText(),
 		Updated:            parsed.Updated(),
 		ContentIdentity:    vault.ContentIdentity(data),
 		Searchable:         searchable,

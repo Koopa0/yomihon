@@ -107,6 +107,10 @@ type NoteView struct {
 	// contract's declared list for its type, which both faces flag rather than
 	// implying the contract defines nothing onward.
 	StatusUnknown bool
+	// StatusNotText is set where the note wrote a status the reader did not
+	// take as text, so Status is empty for a reason the page can name rather
+	// than reporting the field as one nobody wrote.
+	StatusNotText bool
 
 	// SchemaNotices is what the schema said about this note's frontmatter, one
 	// sentence per fault, already in the reader's language and already split
@@ -406,6 +410,8 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 						<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(lang) }</p>
 					case faceStatusUnknown:
 						@statusUnknownFlag(v, "y-statuspanel__notice", lang)
+					case faceStatusNotText:
+						@statusNotTextFlag(v, "y-statuspanel__notice", lang)
 					case faceStatusUnreadable:
 						@statusUnreadableFlag(v, "y-statuspanel__notice", lang)
 					case faceOutsideScope:
@@ -456,11 +462,18 @@ templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
 }
 
 // statusUnreadableFlag states that this note's frontmatter yielded no status to
-// govern by. The frontmatter parsed and carries keys, so the diagnostics face
-// has nothing to report; the status is absent or written as a shape no single
-// value can be read out of, and the repair is the same either way.
+// govern by, and that the note wrote nothing there to misread: the key is
+// absent, or holds an empty or null value.
 templ statusUnreadableFlag(v NoteView, noticeClass string, lang wording.Lang) {
 	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
+}
+
+// statusNotTextFlag states the other way a status reads as nothing: the note
+// wrote one and YAML handed back a date, a number or another shape instead of
+// text. The value itself is not repeated here — this side never saw the
+// characters the author typed — and the schema findings under it quote them.
+templ statusNotTextFlag(v NoteView, noticeClass string, lang wording.Lang) {
+	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusNotText.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
 }
 
 // transitionForm is one transition control: a plain POST form whose re-rendered
@@ -574,6 +587,8 @@ templ statusBar(v NoteView, lang wording.Lang) {
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
 					@statusUnknownFlag(v, "y-sealbar__notice", lang)
+				case faceStatusNotText:
+					@statusNotTextFlag(v, "y-sealbar__notice", lang)
 				case faceStatusUnreadable:
 					@statusUnreadableFlag(v, "y-sealbar__notice", lang)
 				case faceOutsideScope:
