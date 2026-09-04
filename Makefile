@@ -38,7 +38,7 @@ needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
 }
 endef
 
-.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
+.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -172,6 +172,14 @@ workflow-check:
 # key, or generated database store must never be tracked.
 tracked-paths-check:
 	sh tools/check-tracked-paths.sh
+
+# The agent-facing check command is only ever driven against real vaults by
+# hand; nothing else in this file points it at either fixture vault. Without
+# this, a fixture contract can drift out of the shape check needs — the way
+# .github/e2e/vault once did, silently, until nothing but a person running
+# check by hand would have noticed.
+check-fixtures:
+	sh tools/check-fixtures.sh
 
 gen:
 	go tool templ generate -path internal/ui
@@ -327,7 +335,7 @@ deadcode-check:
 	found=$$(deadcode -test $$list); \
 	[ -z "$$found" ] || { printf '%s\n' "$$found" >&2; echo 'nothing reaches the functions above; delete them or say in the code why they stay' >&2; exit 1; }
 
-verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test convention-check real-vault-build-check workflow-check build-check frontend-check e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
+verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
 
 verify-spec:
 	@test -f tests/test-hooks.sh \
