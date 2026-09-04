@@ -94,3 +94,93 @@ func TestTheTwoRequestEntryPointsAnswerAGoneReaderRatherThanQueue(t *testing.T) 
 		}
 	}
 }
+
+// The writer's lock exists to serialize the read-check-replace window of a
+// flip. Reading a liveness flag is not that window, and neither is re-reading
+// the whole contract and hashing it — work that runs on every page draw, which
+// under the lock made every draw a queue a flip had to wait behind.
+//
+// The observation is taken with the capture parked: the lock has to be free
+// while the contract source is being read, or the read is inside it.
+func TestAuthorityLeavesTheLockFreeWhileItReadsTheContract(t *testing.T) {
+	t.Parallel()
+
+	_, writer := internalVault(t)
+	reading := make(chan struct{})
+	release := make(chan struct{})
+	free := make(chan bool, 1)
+
+	var capturing sync.WaitGroup
+	capturing.Go(func() {
+		authority := writer.authority(authorityHooks{beforeCapture: func() {
+			close(reading)
+			<-release
+		}})
+		if !authority.Governed() {
+			t.Error("the parked capture returned an ungoverned authority")
+		}
+	})
+
+	<-reading
+	if writer.mu.TryLock() {
+		writer.mu.Unlock()
+		free <- true
+	} else {
+		free <- false
+	}
+	close(release)
+	capturing.Wait()
+
+	if !<-free {
+		t.Error("Authority held the writer's lock across the contract read, so every page draw queued a flip behind a file read and a hash")
+	}
+}
+
+// Reading the contract outside the lock means two page draws can read it at
+// once, and one can read it while a flip installs or while the face is being
+// closed. The liveness flag Close writes is the one piece of the writer's own
+// state a reader touches, so the copy that carries it out of the lock is what
+// keeps this quiet: taking the flag without the lock races Close, and the
+// detector says so.
+func TestAuthorityAnswersBesideAFlipAndACloseWithoutRacing(t *testing.T) {
+	t.Parallel()
+
+	root, writer := internalVault(t)
+	path := filepath.Join(root, filepath.FromSlash(heldRel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir note parent: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(internalLesson()), 0o600); err != nil {
+		t.Fatalf("write %s: %v", heldRel, err)
+	}
+
+	var busy sync.WaitGroup
+	for range 8 {
+		busy.Go(func() {
+			for range 50 {
+				// A released face still answers governed; that is the point of
+				// the flag. Either answer is fine here, an unsynchronized read
+				// of it is not.
+				if !writer.Authority().Governed() {
+					t.Error("a concurrent Authority read an ungoverned vault")
+					return
+				}
+			}
+		})
+	}
+	busy.Go(func() {
+		// Which of the flip and the close reaches the lock first is not this
+		// test's business, so a flip that finds the face already gone is one
+		// of the two right answers.
+		if err := writer.Flip(t.Context(), heldRel, "draft", schema.SealStatus, internalLessonIdentity()); err != nil &&
+			!errors.Is(err, ErrClosed) {
+			t.Errorf("Flip() beside concurrent Authority reads = %v", err)
+		}
+	})
+	busy.Go(func() {
+		if err := writer.Close(); err != nil {
+			t.Errorf("Close() beside concurrent Authority reads = %v", err)
+		}
+	})
+	busy.Wait()
+}
