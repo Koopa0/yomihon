@@ -50,11 +50,12 @@ func homeChip(t *testing.T, body, name string) string {
 	return ""
 }
 
-// TestHomeFlagsAStatusOutsideEveryCarriersEnum locks the distribution's
-// honesty: a chip whose status no carrying type declares renders with the
+// TestTheFolderIndexFlagsAStatusOutsideEveryCarriersEnum locks the
+// distribution's honesty: a chip whose status no carrying type declares
+// renders with the
 // same amber flag family the note page uses, and stays a link — flagged,
 // never hidden. A declared status keeps its plain chip.
-func TestHomeFlagsAStatusOutsideEveryCarriersEnum(t *testing.T) {
+func TestTheFolderIndexFlagsAStatusOutsideEveryCarriersEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
 	code, body := get(t, srv.Client(), srv.URL+"/folders")
@@ -257,7 +258,7 @@ func visibleOnly(markup string) string {
 // straight at it saw a colour and nothing else — and a colour is not a
 // statement. The words are on the page now, in the same form the search row
 // and the note page use.
-func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
+func TestAStatusChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
 	code, body := get(t, srv.Client(), srv.URL+"/folders")
@@ -279,7 +280,7 @@ func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
 // The recent list showed a note's status as an ordinary chip whatever the
 // contract said about it, so the value the whole-folder page counts as a fault
 // sat in the recent list looking exactly like every legal one beside it.
-func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
+func TestARecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
 	code, body := get(t, srv.Client(), srv.URL+"/folders")
@@ -312,7 +313,7 @@ func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 // A folder with no contract has no vocabulary to measure against, so the
 // recent list names statuses there without ruling on any of them — the same
 // restraint the search row and the whole-folder page keep.
-func TestHomeRecentRowAccusesNothingWithoutAContract(t *testing.T) {
+func TestARecentRowAccusesNothingWithoutAContract(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, outOfEnumVault(t))
 	code, body := get(t, srv.Client(), srv.URL+"/folders")

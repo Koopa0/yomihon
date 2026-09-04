@@ -375,15 +375,16 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 	}
 }
 
-// TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder is the folder
-// index's twin of the reading page's reconciliation. That page derives its
+// TestTheFolderIndexClosesTheLifecycleBlockForEitherAuthorityCaptureOrder is
+// the folder index's twin of the reading page's reconciliation. That page
+// derives its
 // lifecycle block from the captured write authority and its counts from the
 // snapshot's own artifact capture; the two are sampled at different instants,
 // so whichever
 // was taken first, a block that one authority still allows must close when the
 // other has already stopped answering. Without the second check the page
 // renders a status list counted against exclusions it can no longer read.
-func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T) {
+func TestTheFolderIndexClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T) {
 	t.Parallel()
 
 	for _, snapshotFirst := range []bool{true, false} {
@@ -1343,14 +1344,14 @@ func TestHome(t *testing.T) {
 	}
 }
 
-// TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder pins the same
+// TestTheRecentListOmitsTheStatusChipForAnUngovernedFolder pins the same
 // separation on the folder index that the search results page pins on a hit. An
 // ungoverned folder's notes may still carry a "status:" line — frontmatter is
 // the author's, not the contract's — and the recent list still shows them. What
 // it must not do
 // is render that raw word as a lifecycle chip, which would name a value from a
 // vocabulary nothing here ever declared.
-func TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
+func TestTheRecentListOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -1626,14 +1627,14 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	}
 }
 
-// TestHomeDashboardUsesSnapshotData pins three blocks beyond their site
+// TestEveryBlockIsBuiltFromTheSnapshot pins three blocks beyond their site
 // markers. Recently changed and Lifecycle are read from the folder index: the
 // first is the newest seven typed notes in mtime order, the second links every
 // status the notes carry to a search for it. Study paths is read from the desk,
 // where it states how large a course is rather than how much of it is done. The
 // recent section is scoped by its own section marker, never by whichever block
 // happens to follow it.
-func TestHomeDashboardUsesSnapshotData(t *testing.T) {
+func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n\nDashboard README sentinel.\n"), 0o600); err != nil {
@@ -1746,11 +1747,12 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 }
 
-// TestHomeWithholdsTheLifecycleBlockAndNamesTheCause covers a vault something
-// governs whose artifact declaration yomihon could not honour. The lifecycle
+// TestTheFolderIndexWithholdsTheLifecycleBlockAndNamesTheCause covers a vault
+// something governs whose artifact declaration yomihon could not honour. The
+// lifecycle
 // block cannot be counted honestly, so it is withheld rather than shown empty,
 // and the reason is stated once in the page's own fault node.
-func TestHomeWithholdsTheLifecycleBlockAndNamesTheCause(t *testing.T) {
+func TestTheFolderIndexWithholdsTheLifecycleBlockAndNamesTheCause(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1798,7 +1800,7 @@ func TestHomeWithholdsTheLifecycleBlockAndNamesTheCause(t *testing.T) {
 	}
 }
 
-func TestHomeUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T) {
+func TestTheFolderIndexUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -1917,7 +1919,7 @@ body
 	}
 }
 
-func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
+func TestTheArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -1978,7 +1980,7 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 	}
 }
 
-func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
+func TestANavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
 	t.Parallel()
 	const invalidNavigation = "[navigation]\npath_types = [\"missing-type\"]\nmap_types = []\n"
 	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
@@ -2055,7 +2057,7 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 	}
 }
 
-func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
+func TestAValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
@@ -2088,12 +2090,12 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 	}
 }
 
-// TestHomeWithoutReadmeKeepsDashboardReadOnly pins first-use recovery: the desk
+// TestHomeWithoutAnIntroductionStaysReadOnly pins first-use recovery: the desk
 // still draws its four ways in and its search, an absent introduction costs
 // only the link to it, and neither route creates the missing vault file. This
 // vault declares a lifecycle and holds no notes yet, so every one of the four
 // ways in is empty and says so.
-func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
+func TestHomeWithoutAnIntroductionStaysReadOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	// The contract declares a usable egress policy, because this test is about
@@ -2317,14 +2319,14 @@ owner = ["reviewer"]
 	return contract
 }
 
-// TestHomeLifecycleCountsStatusDistribution pins the folder index's
+// TestTheLifecycleBlockCountsTheStatusDistribution pins the folder index's
 // distribution block to its one source: the snapshot's per-status note counts.
 // Every status at least one note carries gets its chip — whoever the contract
 // says owns the onward step, and terminal values included, because a
 // distribution that hides a bucket disagrees with its own total. A note
 // carrying no status value sits in no bucket, and a vault whose notes carry
 // none renders no block at all.
-func TestHomeLifecycleCountsStatusDistribution(t *testing.T) {
+func TestTheLifecycleBlockCountsTheStatusDistribution(t *testing.T) {
 	t.Parallel()
 
 	type note struct{ path, front string }
@@ -3646,10 +3648,10 @@ func TestShowNamesTheLayerThatWithheldTheControls(t *testing.T) {
 	}
 }
 
-// TestHomeLifecycleBlockDropsTheQueueHeading pins the block's voice: it
+// TestTheLifecycleBlockDropsTheQueueHeading pins the block's voice: it
 // counts statuses, so the heading that claimed a queue may not return. A
 // lesson at draft is the plainest fixture — one status, one note, one chip.
-func TestHomeLifecycleBlockDropsTheQueueHeading(t *testing.T) {
+func TestTheLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -3684,7 +3686,7 @@ func TestHomeLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 	}
 }
 
-// TestHomeLifecycleAccountsForEveryIndexedNote is the structural claim the
+// TestTheLifecycleBlockAccountsForEveryIndexedNote is the structural claim the
 // block makes once it carries cells for notes holding no status: every note
 // the folder counts is somewhere in it. A note that left the block entirely is
 // how a distribution came to disagree with the number of notes it was a
@@ -3694,7 +3696,7 @@ func TestHomeLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 // status, one whose frontmatter cannot be parsed, one carrying no frontmatter
 // at all, and one whose frontmatter reads and states no status. The last two
 // are legal and the second is not, which is why they are not one cell.
-func TestHomeLifecycleAccountsForEveryIndexedNote(t *testing.T) {
+func TestTheLifecycleBlockAccountsForEveryIndexedNote(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -3875,15 +3877,15 @@ func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
 	}
 }
 
-// TestHomeRecentStatesItsKnowledgeScope holds the folder index's two blocks to
-// their own scopes, stated where the reader compares them. The recent list
+// TestTheRecentListStatesItsKnowledgeScope holds the folder index's two blocks
+// to their own scopes, stated where the reader compares them. The recent list
 // shows the declared knowledge folders; the distribution counts every indexed
 // note. On a vault holding one draft inside the layer and one outside, the
 // page used to show one recent note beside "draft 2" with nothing explaining
 // the difference — both numbers true, and the pair reading as a contradiction.
 // Each block now says what it counts, and neither is forced onto the other's
 // set.
-func TestHomeRecentStatesItsKnowledgeScope(t *testing.T) {
+func TestTheRecentListStatesItsKnowledgeScope(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
@@ -3934,13 +3936,13 @@ func TestHomeRecentStatesItsKnowledgeScope(t *testing.T) {
 	}
 }
 
-// TestHomeSingleNoteClaimsNoTimestampTie holds the tie notice to vaults where
+// TestASingleNoteClaimsNoTimestampTie holds the tie notice to vaults where
 // it is true. With one note there is one recorded time and nothing for it to
 // equal, yet the page said "these files carry identical timestamps" — a
 // sentence about files that do not exist. One note is trivially the most
 // recently changed thing, so the ordinary heading stands and the tie sentence
 // stays off the page.
-func TestHomeSingleNoteClaimsNoTimestampTie(t *testing.T) {
+func TestASingleNoteClaimsNoTimestampTie(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	content := "---\ntitle: Only\ntype: writing\nstatus: draft\n---\n\nbody\n"
@@ -3961,11 +3963,11 @@ func TestHomeSingleNoteClaimsNoTimestampTie(t *testing.T) {
 	}
 }
 
-// TestHomeTiedTimesStillSaySoWithinTheirScope pins the tie notice itself: on
+// TestTiedTimesStillSaySoWithinTheirScope pins the tie notice itself: on
 // a knowledge-scoped vault whose files all carry one moment, the block still
 // says the times separate nothing — and now names the scope it lists, since
 // the tie changes nothing about which files these are.
-func TestHomeTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
+func TestTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	stamp := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
@@ -3994,11 +3996,11 @@ func TestHomeTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
 	}
 }
 
-// TestHomeUnscopedVaultClaimsNoKnowledgeLayer holds the scope phrase to
+// TestAnUnscopedVaultClaimsNoKnowledgeLayer holds the scope phrase to
 // vaults that declared one. A folder without a contract lists everything, and
 // a lede naming a knowledge layer there would invent a rule its owner never
 // wrote.
-func TestHomeUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
+func TestAnUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
@@ -4095,11 +4097,11 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	}
 }
 
-// TestHomeUnscopedTieKeepsThePlainNotice completes the lede's four states: a
+// TestAnUnscopedTieKeepsThePlainNotice completes the lede's four states: a
 // folder that declared no knowledge layer and whose files carry one moment
 // gets the tie notice exactly as before, with no scope phrase — every clause
 // of the sentence true of the page it sits on.
-func TestHomeUnscopedTieKeepsThePlainNotice(t *testing.T) {
+func TestAnUnscopedTieKeepsThePlainNotice(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	stamp := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
@@ -4127,7 +4129,7 @@ func TestHomeUnscopedTieKeepsThePlainNotice(t *testing.T) {
 	}
 }
 
-// TestHomeUnreadableContractKeepsTheRecentListUnscoped pins the degradation
+// TestAnUnreadableContractKeepsTheRecentListUnscoped pins the degradation
 // direction for a contract that exists and cannot be parsed. A folder with no
 // contract at all lists everything it holds; a folder whose contract broke
 // used to list nothing — so the vault most in need of repair was the one the
@@ -4137,7 +4139,7 @@ func TestHomeUnscopedTieKeepsThePlainNotice(t *testing.T) {
 // the parse error stays on the page; the recent list is plain reading and
 // stays, with the plain lede, because a knowledge layer this contract declared
 // is a claim nothing can vouch for now.
-func TestHomeUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
+func TestAnUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
@@ -4212,13 +4214,13 @@ func TestHomeUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
 	}
 }
 
-// TestHomeRecentFlagsAStatusOutsideTheSchema is the positive control for the
+// TestTheRecentListFlagsAStatusOutsideTheSchema is the positive control for the
 // out-of-enum chip in a recent row: under a contract that loaded, a value the
 // note's type never declared carries the same phrase the search hit and the
 // distribution chip carry. The bad-contract tests above assert this phrase is
 // absent; this test is what proves that phrase is the one the row would print,
 // so their absence checks cannot pass by hunting for words nothing emits.
-func TestHomeRecentFlagsAStatusOutsideTheSchema(t *testing.T) {
+func TestTheRecentListFlagsAStatusOutsideTheSchema(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
