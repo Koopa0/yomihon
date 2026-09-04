@@ -516,3 +516,44 @@ body
 		}
 	})
 }
+
+// TestStatusNotTextSeparatesAWrittenValueFromNoValue pins the distinction the
+// reading page needs: a note that wrote nothing and a note whose value the
+// reader would not take as text both leave Status empty, and only one of them
+// has something to quote. The cases are what this repository's YAML reader
+// actually returns, checked rather than assumed — "no" is text under the YAML
+// 1.2 core schema, and a page told otherwise would ask its reader to quote a
+// value that needs no quoting.
+func TestStatusNotTextSeparatesAWrittenValueFromNoValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		written string
+		notText bool
+	}{
+		{name: "an unquoted date is a time", written: "status: 2026-08-30", notText: true},
+		{name: "an unquoted integer is a number", written: "status: 12345", notText: true},
+		{name: "an unquoted decimal is a number", written: "status: 1.5", notText: true},
+		{name: "a tilde is null, and null is the same nothing as absent", written: "status: ~"},
+		{name: "a list is not one value, so it is not one that needs quoting", written: "status:\n  - draft"},
+		{name: "a mapping is not one value either", written: "status:\n  draft: yes"},
+		{name: "a quoted date is text", written: `status: "2026-08-30"`},
+		{name: "an ordinary word is text", written: "status: draft"},
+		{name: "no is text under this reader", written: "status: no"},
+		{name: "an empty value is text", written: "status:"},
+		{name: "an absent key wrote nothing to misread", written: "title: only"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse("probe.md", []byte("---\n"+tt.written+"\n---\nbody\n"))
+			if got := n.StatusNotText(); got != tt.notText {
+				t.Errorf("StatusNotText() = %v, want %v (Status() = %q)", got, tt.notText, n.Status())
+			}
+			if tt.notText && n.Status() != "" {
+				t.Errorf("Status() = %q for a value that is not text, want empty", n.Status())
+			}
+		})
+	}
+}

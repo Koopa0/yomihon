@@ -188,6 +188,7 @@ const (
 	faceWriteUnavailable
 	faceNoFrontmatter
 	faceStatusUnknown
+	faceStatusNotText
 	faceStatusUnreadable
 	faceOutsideScope
 	faceNoTransitions
@@ -207,6 +208,8 @@ func statusFace(v *NoteView) faceState {
 		return faceNoFrontmatter
 	case v.StatusUnknown:
 		return faceStatusUnknown
+	case v.Status == "" && v.StatusNotText:
+		return faceStatusNotText
 	case v.Status == "":
 		return faceStatusUnreadable
 	case v.OutsideKnowledgeScope && len(v.Transitions) == 0:
@@ -227,7 +230,8 @@ func (f faceState) token() string {
 		return "non-instance"
 	case faceWriteUnavailable:
 		return "unavailable"
-	case faceNoFrontmatter, faceStatusUnknown, faceStatusUnreadable, faceOutsideScope, faceNoTransitions, faceTransitions:
+	case faceNoFrontmatter, faceStatusUnknown, faceStatusNotText, faceStatusUnreadable,
+		faceOutsideScope, faceNoTransitions, faceTransitions:
 		return "instance"
 	}
 	panic("pages: unknown write-face state: " + strconv.Itoa(int(f)))

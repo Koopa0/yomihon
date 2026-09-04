@@ -97,6 +97,46 @@ func (n *Note) Status() string {
 	return s
 }
 
+// StatusNotText reports that the note wrote a single status value and the YAML
+// reader did not hand it back as text: an unquoted date, number or boolean.
+// Status is empty in that case, the same as for a note that wrote none, and the
+// two are not the same thing to tell a reader — one has nothing to fix and the
+// other has a value that needs quoting.
+//
+// A list or a mapping is deliberately not one of these. The judging side quotes
+// a scalar and says nothing about either of those shapes, so a page claiming
+// they carry a value the diagnostic below would name is a page contradicting the
+// panel under it. They read as no single value, which is what they are.
+//
+// The judging commands read the same file through their own reader, which
+// takes a scalar as the characters the author typed, so they name a value this
+// side cannot. A page that says the status could not be read while the panel
+// under it quotes the status back is describing one field twice, and this is
+// what lets it say which of the two happened instead.
+func (n *Note) StatusNotText() bool {
+	return n.wroteNonText("status")
+}
+
+// wroteNonText reports that key holds one value and that value is not text.
+//
+// Three shapes answer false, each for its own reason. An absent key wrote
+// nothing to misread. An empty one — "status:" with nothing after it — reads as
+// null, which is the same nothing, and a reader told to add quotation marks
+// there would have nothing to put them around. A list or a mapping did write
+// something, but it is not one value, and the sentence this feeds is about a
+// value a reader can put quotes around.
+func (n *Note) wroteNonText(key string) bool {
+	value, present := n.Frontmatter[key]
+	if !present || value == nil {
+		return false
+	}
+	switch value.(type) {
+	case string, []any, map[string]any:
+		return false
+	}
+	return true
+}
+
 // Type is the frontmatter type, empty when absent.
 func (n *Note) Type() string {
 	t, _ := n.Text("type")

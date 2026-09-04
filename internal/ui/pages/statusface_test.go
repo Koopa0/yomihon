@@ -53,6 +53,11 @@ func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 			token: "instance",
 			mark:  wording.StatusOutsideList.In(wording.ZhHant),
 		},
+		faceStatusNotText: {
+			view:  with(func(v *NoteView) { v.StatusNotText = true }),
+			token: "instance",
+			mark:  wording.StatusNotText.In(wording.ZhHant),
+		},
 		faceStatusUnreadable: {
 			view:  with(func(v *NoteView) {}),
 			token: "instance",

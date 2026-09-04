@@ -331,6 +331,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		TranscludedIdentity: result.TranscludedIdentity,
 		NoFrontmatter:       state.noFrontmatter,
 		StatusUnknown:       state.statusUnknown,
+		StatusNotText:       state.statusNotText,
 		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, lang),
 		FlippedFrom:         flippedFrom,
 		// The layer that withheld the transition set, when that is why it is
@@ -524,6 +525,10 @@ type governanceState struct {
 	transitions     []pages.Transition
 	writeDiagnostic string
 	noFrontmatter   bool
+	// statusNotText is set when the note wrote a status the reader did not
+	// take as text, so status above is empty and the page can say which of
+	// the two silences this is.
+	statusNotText bool
 	// statusUnknown is set when the note's non-empty status value is not in
 	// the contract's declared list for its type, so the page can state that
 	// fact instead of implying the schema defines nothing onward from it.
@@ -575,6 +580,7 @@ func (h *Handler) governance(
 		default:
 			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath, lang)
 			if state.writeDiagnostic == "" {
+				state.statusNotText = state.status == "" && n.StatusNotText
 				state.transitions = offeredTransitions(authority, n.RelPath, n.Type, state.status)
 				state.statusUnknown = state.status != "" &&
 					authority.DeclaresStatuses(n.Type) &&

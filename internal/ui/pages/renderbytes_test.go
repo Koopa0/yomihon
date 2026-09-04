@@ -222,6 +222,7 @@ func recordedStatusStates() []struct {
 		{"no-frontmatter", with(func(v *NoteView) { v.NoFrontmatter = true })},
 		{"status-unknown", with(func(v *NoteView) { v.Status = "seed"; v.StatusUnknown = true })},
 		{"status-unreadable", with(func(v *NoteView) { v.ObsidianHref = "obsidian://open?path=x" })},
+		{"status-not-text", with(func(v *NoteView) { v.StatusNotText = true; v.ObsidianHref = "obsidian://open?path=x" })},
 		{"no-transitions", with(func(v *NoteView) { v.Status = "published" })},
 		{"transitions", with(func(v *NoteView) {
 			v.Status = "draft"

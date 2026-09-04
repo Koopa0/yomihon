@@ -88,15 +88,26 @@ var (
 		"不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。",
 		"is not in the schema's declared list. yomihon reports and never repairs; edit the frontmatter directly.",
 	)
-	// The four causes are a complete division of what reaches this sentence,
-	// not a list of the shapes anyone happened to meet: it is said when the
-	// status reads as no non-empty text, and a YAML value fails that by being
-	// absent, by being empty or null, by not being a single value, or by being
-	// a single value that is not text. A fifth cause would have to fall
-	// outside all four.
+	// The three causes are a complete division of what reaches this sentence:
+	// the key is absent, its value is empty or null, or what stands there is not
+	// one value at all. A single value the note did write and the reader did not
+	// take as text has its own sentence below, because the repair differs — that
+	// note needs quotation marks, and one reaching this needs a status.
 	StatusUnreadable = both(
-		"frontmatter 裡讀不出 status 值（缺少、是空的、不是單一值，或不是文字）。yomihon 只陳述，不修復；",
-		"No status value could be read from the frontmatter — it is missing, empty, not a single value, or not text. yomihon reports and never repairs; ",
+		"frontmatter 裡讀不出 status 值（缺少、是空的，或不是單一值）。yomihon 只陳述，不修復；",
+		"No status value could be read from the frontmatter — it is missing, empty, or not a single value. yomihon reports and never repairs; ",
+	)
+	// Said where the note wrote one status value and YAML handed it back as
+	// something other than text: an unquoted date, a number, a boolean. The
+	// judging commands read the same line as the characters the author typed,
+	// so the panel of schema findings under this one quotes the value back.
+	// This sentence is what keeps the two panels describing one field rather
+	// than contradicting each other about whether it is there — which is also
+	// why a list or a mapping is not said this way: nothing quotes those, and
+	// promising a diagnostic that is not there is the same fault reversed.
+	StatusNotText = both(
+		"這篇寫了 status，但那個值不是文字（例如沒加引號的日期或數字），所以這裡拿不到可以判讀的狀態；下面的 schema 診斷引的就是這個值。yomihon 只陳述，不修復；",
+		"This note wrote a status and the value is not text — an unquoted date or number, say — so nothing here can judge by it; the schema diagnostic below quotes the value. yomihon reports and never repairs; ",
 	)
 	StatusValuePrefix = both("狀態值 ", "The status ")
 )
