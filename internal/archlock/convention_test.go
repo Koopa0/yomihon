@@ -567,6 +567,44 @@ func cjk(r rune) bool {
 	return false
 }
 
+// TestTheCJKPredicateAnswersBothWays locks the predicate itself. The checks
+// that use it are looking for something the tree is not supposed to contain, so
+// they are green when it finds nothing and green when it can no longer find
+// anything — a predicate that always answered false would leave every one of
+// them passing, and there is no CJK in the tree to notice its absence.
+//
+// The rows below are the four blocks it claims, one character each, and the
+// scripts that must stay outside it: a check that fired on ordinary Latin text
+// or on the accented letters a European name carries would report every script
+// in the repository.
+func TestTheCJKPredicateAnswersBothWays(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		r    rune
+		want bool
+	}{
+		{"CJK punctuation", '\u3001', true},
+		{"hiragana", 'の', true},
+		{"katakana", 'ハ', true},
+		{"a unified ideograph", '語', true},
+		{"a fullwidth form", '\uff21', true},
+		{"a Latin letter", 'a', false},
+		{"an ASCII digit", '7', false},
+		{"ordinary punctuation", ',', false},
+		{"a letter with a diacritic", 'á', false},
+		{"an emoji, which is not a sentence", '\U0001f600', false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := cjk(tt.r); got != tt.want {
+				t.Errorf("cjk(%q) = %v, want %v", tt.r, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestNoSentenceChoosesALanguageBeforeItsReaderArrives keeps the choice with
 // the surface that knows who is reading. A phrase resolved at package scope, or
 // against a fixed language in a handler, was written for whichever reader the
