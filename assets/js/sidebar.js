@@ -87,7 +87,11 @@ export function initSidebar() {
       return;
     }
     const dir = trimmedFolders.length === 1 ? trimmedFolders[0].dataset.railDir : '';
-    const search = `/search?q=${encodeURIComponent(dir ? `folder:${dir} ${query}` : query)}`;
+    // The folder is quoted because a vault path may hold a space, and the
+    // search grammar ends a bare filter value at the first one: an unquoted
+    // `folder:Module 2` asks for a folder called "Module", finds nothing, and
+    // hands the reader the empty answer this sentence exists to prevent.
+    const search = `/search?q=${encodeURIComponent(dir ? `folder:"${dir}" ${query}` : query)}`;
     partial.replaceChildren();
     // The sentence and the link's words come from the page, in the language
     // its reader asked for. Two forms of the sentence rather than a number

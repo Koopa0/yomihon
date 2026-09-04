@@ -25,7 +25,7 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 		"not-found title":  wording.NothingHere,
 		"freshness notice": wording.FreshnessNewVersion,
 		"raw-file link":    wording.RawFile,
-		"rail heading":     wording.Folders,
+		"folder mode name": wording.Folders,
 	} {
 		if phrase.In(wording.ZhHant) == phrase.In(wording.En) {
 			t.Fatalf("the %s reads the same in both languages, so no assertion below can tell them apart", name)

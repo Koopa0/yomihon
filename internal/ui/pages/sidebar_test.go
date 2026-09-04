@@ -19,27 +19,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-func TestAncestorDirs(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		relPath string
-		want    []string
-	}{
-		{"Concepts/golang/Foo.md", []string{"Concepts", "Concepts/golang"}},
-		{"Inbox/note.md", []string{"Inbox"}},
-		{"a/b/c/d.md", []string{"a", "a/b", "a/b/c"}},
-		{"README.md", nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.relPath, func(t *testing.T) {
-			t.Parallel()
-			if diff := cmp.Diff(tt.want, ancestorDirs(tt.relPath)); diff != "" {
-				t.Errorf("ancestorDirs(%q) mismatch (-want +got):\n%s", tt.relPath, diff)
-			}
-		})
-	}
-}
-
 func TestHereLabel(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -182,17 +161,6 @@ func TestNewSidebarWayfinding(t *testing.T) {
 			t.Errorf("branchOpen(%q, %v) = false, want true", goPath, chain)
 		}
 	}
-	for _, dir := range []string{"Writing", "Writing/lessons", "Writing/lessons/go"} {
-		if !sb.folderOpen(dir) {
-			t.Errorf("folderOpen(%q) = false, want true", dir)
-		}
-	}
-	if sb.folderOpen("Concepts") {
-		t.Error("folderOpen(\"Concepts\") = true, want false (not an ancestor of the current note)")
-	}
-	if !sb.folderTreeOpen() {
-		t.Error("folderTreeOpen() = false, want true (the current note lives in a folder)")
-	}
 	if !sb.current(current) {
 		t.Errorf("current(%q) = false, want true", current)
 	}
@@ -234,7 +202,6 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 		current  string
 		wantDir  string
 		wantHere []nav.NoteRef
-		wantDirs []string
 		wantMap  bool
 	}{
 		{
@@ -245,8 +212,7 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 				{Name: "C01", RelPath: "Concepts/go/C01.md"},
 				{Name: "C02", RelPath: "Concepts/go/C02.md"},
 			},
-			wantDirs: []string{"Concepts", "Concepts/go"},
-			wantMap:  true,
+			wantMap: true,
 		},
 		{
 			name:    "no-frontmatter Sources note",
@@ -256,7 +222,6 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 				{Name: "Other", RelPath: "Sources/articles/Other.md"},
 				{Name: "Raw", RelPath: "Sources/articles/Raw.md"},
 			},
-			wantDirs: []string{"Sources", "Sources/articles"},
 		},
 	}
 	for _, tt := range tests {
@@ -277,11 +242,6 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.wantHere, sb.Here); diff != "" {
 				t.Errorf("Here mismatch (-want +got):\n%s", diff)
-			}
-			for _, dir := range tt.wantDirs {
-				if !sb.folderOpen(dir) {
-					t.Errorf("folderOpen(%q) = false, want true", dir)
-				}
 			}
 			if !sb.current(tt.current) {
 				t.Errorf("current(%q) = false, want true", tt.current)
@@ -311,9 +271,6 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 	for _, want := range []string{
 		`data-chain data-key="paths"`,
 		`data-chain data-key="map:Maps/Go path.md"`,
-		`data-chain data-key="dir:Writing/lessons/go"`,
-		`data-chain data-key="folders"`,
-		`data-key="dir:Concepts"`,
 		`data-filter-empty`,
 		`yomihon.nav`,
 		`<script nonce="response-nonce">`,
@@ -322,8 +279,8 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 			t.Errorf("rendered sidebar is missing %q", want)
 		}
 	}
-	if strings.Contains(html, `data-chain data-key="dir:Concepts"`) {
-		t.Error("dir:Concepts carries data-chain, but it is not an ancestor of the current note")
+	if strings.Contains(html, `data-key="dir:`) {
+		t.Error("the rail still keeps a folder disclosure; the folder it is in is a shelf now, not a tree")
 	}
 }
 
@@ -347,7 +304,6 @@ func TestSidebarContentGrouping(t *testing.T) {
 		`data-map-tree="Maps/Reading map.md"`,
 		`href="/notes/Maps/Reading%20map.md"`,
 		`>開啟地圖</a>`,
-		`>C01</a>`,
 		`data-key="journal"`,
 		`data-sidebar-journal-entry>2026-07-10</a>`,
 		`data-sidebar-journal-entry>2026-07-09</a>`,
@@ -545,13 +501,30 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 	if strings.Contains(paths, `href="/notes/System/templates/Template%20target.md"`) || strings.Contains(paths, "ui-status--ready") {
 		t.Error("sidebar Paths turns a non-instance warning into a linked or status-bearing entry")
 	}
+	// A non-instance artifact is still an ordinary file to read. The rail no
+	// longer lists the whole vault, so the place that offers it is the folder
+	// it sits in, which a reader inside that folder has beside them.
+	var inFolder bytes.Buffer
+	if err := sidebar(NewSidebar(model, "System/templates/Template map.md"), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &inFolder); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	_, here, found := strings.Cut(inFolder.String(), `<nav class="y-here"`)
+	if !found {
+		t.Fatal("the rail shows no folder listing for a note inside one")
+	}
+	here, _, _ = strings.Cut(here, "</nav>")
 	for _, want := range []string{
-		`href="/notes/System/templates/Template%20map.md">Template map</a>`,
+		`href="/notes/System/templates/Template%20map.md"`,
 		`href="/notes/System/templates/Template%20target.md">Template target</a>`,
 	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("sidebar Folders is missing readable non-instance artifact %q", want)
+		if !strings.Contains(here, want) {
+			t.Errorf("the folder holding a non-instance artifact does not offer it: %q", want)
 		}
+	}
+	// The warning belongs to the course that named the file, not to the folder
+	// it sits in: there it is one file among its neighbours.
+	if strings.Contains(here, ">非治理項目</span>") {
+		t.Error("the folder listing repeats the course's warning about a file in it")
 	}
 }
 
@@ -605,9 +578,6 @@ func TestNewSidebarNoCurrentNote(t *testing.T) {
 
 	if sb.mapOpen("Maps/Go path.md") {
 		t.Error("mapOpen = true with no current note, want false")
-	}
-	if sb.folderTreeOpen() {
-		t.Error("folderTreeOpen = true with no current note, want false")
 	}
 	if len(sb.Here) != 0 {
 		t.Errorf("Here = %v with no current note, want empty", sb.Here)

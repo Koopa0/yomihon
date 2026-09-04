@@ -32,7 +32,6 @@ type Sidebar struct {
 	Steps        []nav.Neighbors
 	openMaps     map[string]bool
 	openBranches map[string]bool
-	openFolders  map[string]bool
 }
 
 // NewSidebar resolves the left navigation for one page; currentPath is empty for
@@ -51,7 +50,6 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 		CurrentPath:  currentPath,
 		openMaps:     map[string]bool{},
 		openBranches: map[string]bool{},
-		openFolders:  map[string]bool{},
 	}
 	if model == nil || currentPath == "" {
 		return sb
@@ -75,10 +73,6 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 		sb.openMaps[currentPath] = true
 	}
 
-	// Expand the folder branches on the path down to the current note.
-	for _, dir := range ancestorDirs(currentPath) {
-		sb.openFolders[dir] = true
-	}
 	return sb
 }
 
@@ -111,13 +105,6 @@ func (s *Sidebar) mapOpen(relPath string) bool { return s.openMaps[relPath] }
 func (s *Sidebar) branchOpen(mapRelPath string, headings []string) bool {
 	return s.openBranches[branchKey(mapRelPath, headings)]
 }
-
-// folderOpen reports whether a folder is an ancestor of the current note.
-func (s *Sidebar) folderOpen(relPath string) bool { return s.openFolders[relPath] }
-
-// folderTreeOpen reports whether the folder tree should start open — true when
-// the current note lives in a folder, so its branch is revealed by default.
-func (s *Sidebar) folderTreeOpen() bool { return len(s.openFolders) > 0 }
 
 // currentAttr marks the entry the reader is on with aria-current="page" and
 // contributes nothing otherwise.
@@ -179,30 +166,6 @@ func disclosureAttrs(key string, chain bool) templ.Attributes {
 // the folder: it owes the reader where they are and what is either side.
 const railWindow = 24
 
-// windowAround trims a folder's file list to the neighbourhood of the current
-// file, and reports how many it left out. A folder within the window is
-// returned whole, so the common case carries no elision at all.
-func windowAround(files []nav.NoteRef, currentPath string) (window []nav.NoteRef, trimmed int) {
-	if len(files) <= railWindow {
-		return files, 0
-	}
-	at := slices.IndexFunc(files, func(n nav.NoteRef) bool { return n.RelPath == currentPath })
-	if at < 0 {
-		return files[:railWindow], len(files) - railWindow
-	}
-	start := max(0, at-railWindow/2)
-	end := min(len(files), start+railWindow)
-	start = max(0, end-railWindow)
-	return files[start:end], len(files) - (end - start)
-}
-
-// TreeFiles returns the files a folder's branch lists inline, and how many it
-// left for the folder's own page. The branch holding the note being read keeps
-// that note in view.
-func (s *Sidebar) TreeFiles(f *nav.Folder) (shown []nav.NoteRef, trimmed int) {
-	return windowAround(f.Notes, s.CurrentPath)
-}
-
 // Breadcrumb names each folder above a file, with the path that reaches it, so a
 // reader can climb out of where they are.
 func Breadcrumb(relPath string) []nav.NoteRef {
@@ -240,28 +203,6 @@ func childChain(chain []string, heading string) []string {
 // control character that never appears in a heading.
 func branchKey(mapRelPath string, headings []string) string {
 	return mapRelPath + "\x1f" + strings.Join(headings, "\x1f")
-}
-
-// ancestorDirs lists the directory chain from the vault root down to the file at
-// relPath: "Concepts/golang/Foo.md" yields ["Concepts", "Concepts/golang"]. A
-// vault-root file has no folder ancestors.
-func ancestorDirs(relPath string) []string {
-	i := strings.LastIndexByte(relPath, '/')
-	if i < 0 {
-		return nil
-	}
-	dir := relPath[:i]
-	var dirs []string
-	for start := 0; start <= len(dir); {
-		next := strings.IndexByte(dir[start:], '/')
-		if next < 0 {
-			dirs = append(dirs, dir)
-			break
-		}
-		dirs = append(dirs, dir[:start+next])
-		start += next + 1
-	}
-	return dirs
 }
 
 // CapabilityFault is one closed navigation projection stated in the rail: what
