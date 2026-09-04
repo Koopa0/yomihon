@@ -37,7 +37,7 @@ func (anyTitle) TitledBy(string) []string { return nil }
 // it — at the margin it ends the list instead and opens a block of its own.
 func TestACalloutBodyClosesEveryBlockAnEmptyLineDoesNotEnd(t *testing.T) {
 	t.Parallel()
-	r := New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{})
+	r := New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{}, holdsEverything{})
 
 	cases := []struct {
 		name   string
@@ -185,7 +185,7 @@ func TestEveryBlockKindIsRecognisedByTheScanThatMustCloseIt(t *testing.T) {
 // example of a citation into a citation, which is editing the note.
 func TestACalloutShowsAnIndentedWikilinkAsWritten(t *testing.T) {
 	t.Parallel()
-	r := New(graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Notes/Real Note.md"}}, nil), noBodies{}, anyTitle{})
+	r := New(graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Notes/Real Note.md"}}, nil), noBodies{}, anyTitle{}, holdsEverything{})
 
 	body := strings.Join([]string{
 		"> [!note] Aside",
@@ -241,7 +241,7 @@ func TestAnIndentedCodeLineOpensNoBlock(t *testing.T) {
 // margin below an indented one opens an empty block rather than closing it.
 func TestAnUnclosedBlockAtTheEndOfANoteIsLeftAlone(t *testing.T) {
 	t.Parallel()
-	r := New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{})
+	r := New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{}, holdsEverything{})
 
 	for _, tc := range []struct{ name, body string }{
 		{"a fence inside a list item", "- item\n  ```go\n  code"},
