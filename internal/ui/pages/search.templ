@@ -184,13 +184,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 							<span class="y-result__title">{ r.Title }</span>
 							<span class="y-result__meta">
 								if len(r.PathRuns) > 0 {
-									for _, run := range r.PathRuns {
-										if run.Hit {
-											<mark>{ run.Text }</mark>
-										} else {
-											{ run.Text }
-										}
-									}
+									@hitRuns(r.PathRuns)
 								} else {
 									{ r.RelPath }
 								}
@@ -209,25 +203,13 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 									<span class="y-result__sep" aria-hidden="true">·</span>
 									<span class="y-result__alias">
 										{ wording.ResultAliasLabel.In(lang) }
-										for _, run := range r.AliasRuns {
-											if run.Hit {
-												<mark>{ run.Text }</mark>
-											} else {
-												{ run.Text }
-											}
-										}
+										@hitRuns(r.AliasRuns)
 									</span>
 								}
 							</span>
 							if len(r.SnippetRuns) > 0 {
 								<span class="y-result__snippet">
-									for _, run := range r.SnippetRuns {
-										if run.Hit {
-											<mark>{ run.Text }</mark>
-										} else {
-											{ run.Text }
-										}
-									}
+									@hitRuns(r.SnippetRuns)
 								</span>
 							} else if r.Snippet != "" {
 								<span class="y-result__snippet">{ r.Snippet }</span>
@@ -274,4 +256,20 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 			</div>
 		}
 	</div>
+}
+
+// hitRuns writes one piece of a result — its path, an alias, or the body
+// excerpt — with the stretches the query found marked and the rest plain. The
+// three share this component because the whitespace templ keeps around a loop
+// depends on what follows it, and the path's own copy was putting a space on
+// either side of every mark: "Maps/ yomihon .md" is not the name of any file.
+// Here the runs are the whole component, so nothing stands between them.
+templ hitRuns(runs []SnippetRun) {
+	for _, run := range runs {
+		if run.Hit {
+			<mark>{ run.Text }</mark>
+		} else {
+			{ run.Text }
+		}
+	}
 }

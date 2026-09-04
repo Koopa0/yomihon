@@ -83,3 +83,53 @@ func TestSearchResultsFragmentCarriesNoHeading(t *testing.T) {
 		t.Errorf("the fragment lost the result list; html = %q", html)
 	}
 }
+
+// A row's path, alias and excerpt are each one string cut into the stretches
+// the query matched and the stretches it did not. Rendered, they have to read
+// back as that same string: a path shown as "Maps/ yomihon .md" names no file,
+// and a reader comparing the row against their own folders is told the wrong
+// thing. The multi-word case carries the finding, because a match that ends the
+// string shows one stray space where a match with words on both sides shows
+// two.
+func TestSearchResultMarkedRunsIntroduceNoSpacing(t *testing.T) {
+	t.Parallel()
+
+	view := SearchView{
+		Query: "yomihon",
+		Total: 1,
+		Results: []SearchResult{{
+			RelPath: "Lessons/Building yomihon from source.md",
+			Title:   "Building yomihon from source",
+			PathRuns: []SnippetRun{
+				{Text: "Lessons/Building "},
+				{Text: "yomihon", Hit: true},
+				{Text: " from source.md"},
+			},
+			AliasRuns: []SnippetRun{
+				{Text: "building "},
+				{Text: "yomihon", Hit: true},
+				{Text: " from source"},
+			},
+			SnippetRuns: []SnippetRun{
+				{Text: "how to build "},
+				{Text: "yomihon", Hit: true},
+				{Text: " from source"},
+			},
+		}},
+	}
+	var buf bytes.Buffer
+	if err := SearchResults(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render search results: %v", err)
+	}
+	html := buf.String()
+
+	for _, want := range []string{
+		`<span class="y-result__meta">Lessons/Building <mark>yomihon</mark> from source.md`,
+		`<span class="y-result__alias">別名: building <mark>yomihon</mark> from source</span>`,
+		`<span class="y-result__snippet">how to build <mark>yomihon</mark> from source</span>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("a marked run was not written back as its own string:\nwant %q\n  in %s", want, html)
+		}
+	}
+}
