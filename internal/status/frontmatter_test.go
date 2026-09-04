@@ -80,6 +80,14 @@ func TestRewriteStatusLineKeepsEverythingOnTheLineButTheValue(t *testing.T) {
 			in:   "---\r\nstatus: draft # why\r\n---\r\nbody\r\n",
 			want: "---\r\nstatus: ready # why\r\n---\r\nbody\r\n",
 		},
+		{
+			// The comment already ends the value, so a break further along the
+			// line falls outside it and both readings still agree where it
+			// stops. The guard against these characters is that narrow.
+			name: "a line break inside a trailing comment does not widen the value",
+			in:   "---\nstatus: draft # note\u2028tags: x\n---\nbody\n",
+			want: "---\nstatus: ready # note\u2028tags: x\n---\nbody\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,6 +109,14 @@ func TestRewriteStatusLineKeepsEverythingOnTheLineButTheValue(t *testing.T) {
 // write refuses and the note keeps its bytes. Replacing the whole line would
 // still read back as the target status, which is why these shapes were being
 // rewritten into something their author never wrote.
+//
+// The last shapes here are the same disagreement in the reverse direction. The
+// YAML reader ends a line at U+0085, U+2028 and U+2029 as readily as at a
+// newline, and this scan ends it only at a newline, so a value carrying one
+// reaches past what the reader calls the value and into what the reader calls
+// the next line — a key, or a comment line of the author's own. Replacing that
+// run deletes it, and the note still reads back as the target status, so
+// nothing downstream notices.
 func TestRewriteStatusLineRefusesAShapeItCannotPreserve(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -117,6 +133,11 @@ func TestRewriteStatusLineRefusesAShapeItCannotPreserve(t *testing.T) {
 		{name: "no value at all", in: "---\nstatus:\n---\nbody\n"},
 		{name: "no space after the colon is not a mapping", in: "---\nstatus:draft\n---\nbody\n"},
 		{name: "an unterminated quote", in: "---\nstatus: \"draft\n---\nbody\n"},
+		{name: "U+0085 ends the line and the next key would go with it", in: "---\nstatus: draft\u0085tags:\n---\nbody\n"},
+		{name: "U+2028 ends the line and the next key would go with it", in: "---\nstatus: draft\u2028tags:\n---\nbody\n"},
+		{name: "U+2029 ends the line and the next key would go with it", in: "---\nstatus: draft\u2029tags:\n---\nbody\n"},
+		{name: "a break before a comment line would delete the author's words", in: "---\nstatus: draft\u2028# the reason I set it\n---\nbody\n"},
+		{name: "a break inside quotes disagrees the same way", in: "---\nstatus: \"draft\u2028tags:\"\n---\nbody\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
