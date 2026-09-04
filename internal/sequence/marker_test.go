@@ -63,3 +63,58 @@ func TestHeadingNameLeavesALevelOneHeadingWhole(t *testing.T) {
 		t.Errorf("no report quotes %q, so nothing depends on it staying visible: %+v", heading, doc.Diagnostics)
 	}
 }
+
+// A heading that is nothing but a declaration has no words behind it, and a
+// page cannot show a reader nothing: with the declaration off it would print a
+// blank heading, list a blank row in the contents, and answer only to the name
+// every nameless heading shares. So the line stays as written. This is the one
+// shape where the page's name for a branch and the course's part company, and
+// it parts because the course has no name to list, not because the two read
+// the line differently.
+func TestAHeadingThatIsOnlyADeclarationKeepsItsLine(t *testing.T) {
+	t.Parallel()
+
+	headings := []string{
+		"{sequence=primary}",
+		"　{sequence=primary}",
+	}
+	for _, heading := range headings {
+		t.Run(heading, func(t *testing.T) {
+			t.Parallel()
+			if got := HeadingName(heading, 2); got != heading {
+				t.Errorf("HeadingName(%q, 2) = %q, want the heading as written", heading, got)
+			}
+			doc := Parse("## "+heading+"\n\n- [[L01]]\n", 1)
+			if len(doc.Groups) != 1 {
+				t.Fatalf("the parse opened %d branches, want one", len(doc.Groups))
+			}
+			if doc.Groups[0].Name != "" {
+				t.Errorf("the course calls that branch %q; this rule exists because it has no name", doc.Groups[0].Name)
+			}
+		})
+	}
+}
+
+// A branch's name ends with the author's last word. The space they left in
+// front of the declaration is spacing, and a name carrying it would fold to
+// the same id anyway while every report quoting it showed the gap. Until now
+// only a reading-page test noticed the trim, and the page is not where the
+// rule lives.
+func TestABranchNameEndsWithItsLastWord(t *testing.T) {
+	t.Parallel()
+
+	headings := []string{
+		"基本觀念 {sequence=primary}",
+		"基本觀念   {sequence=primary}",
+		"基本觀念\t{sequence=primary}",
+		"基本觀念 \t {sequence=primary}",
+	}
+	for _, heading := range headings {
+		t.Run(heading, func(t *testing.T) {
+			t.Parallel()
+			if got, want := HeadingName(heading, 2), "基本觀念"; got != want {
+				t.Errorf("HeadingName(%q, 2) = %q, want %q", heading, got, want)
+			}
+		})
+	}
+}

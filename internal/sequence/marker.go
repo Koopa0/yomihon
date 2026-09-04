@@ -20,6 +20,12 @@ const (
 // the name — the author is told about that one, and a report quoting words the
 // page does not show cannot be acted on.
 //
+// A declaration that is the whole heading stays as well: with it off the
+// heading has no words at all, so a reader would meet a blank row in the
+// contents and could address the section only by the name every nameless
+// heading shares. The course lists such a branch unnamed, having no name to
+// list, while the page shows the line the author typed.
+//
 // The line may be a heading's markdown source or the inner markup its rendered
 // form carries, because a role is read only as the last thing on its line: a
 // marker the author quoted in code keeps a closing backtick or a closing tag
@@ -31,6 +37,9 @@ func HeadingName(line string, level int) string {
 		return line
 	}
 	name, _, _ := readMarker(line, markerSpans(line))
+	if strings.TrimSpace(name) == "" {
+		return line
+	}
 	return name
 }
 
