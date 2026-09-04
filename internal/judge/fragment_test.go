@@ -1,6 +1,8 @@
 package judge
 
 import (
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -634,5 +636,31 @@ func TestExtractKeepsTheFragmentBesideTheTarget(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, links, cmp.AllowUnexported(wikiLink{})); diff != "" {
 		t.Errorf("extractWikilinks mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// The generous line scan reads a heading with the reading page's own pattern,
+// kept literal in this package so the two faces read one line the same way.
+// Until now nothing compared the two copies: they agreed because they were
+// typed together, which is not a mechanism. The group numbering is what each
+// side leans on — the marks give the level, the second group is the words a
+// branch is named from — so a change made on one side alone would send this
+// face looking at a different half of the line than the page it answers about,
+// and the symptom is a fragment reported missing from a page that serves it.
+func TestTheGenerousScanReadsAHeadingTheWayThePageDoes(t *testing.T) {
+	t.Parallel()
+
+	const path = "../render/section.go"
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	declaration := regexp.MustCompile("(?m)^var atxHeadingLine = regexp\\.MustCompile\\(`([^`]*)`\\)$")
+	m := declaration.FindSubmatch(source)
+	if m == nil {
+		t.Fatalf("%s no longer declares atxHeadingLine as one literal, so this test compares nothing", path)
+	}
+	if got, want := atxHeadingText.String(), string(m[1]); got != want {
+		t.Errorf("this face reads a heading with %q; %s reads one with %q", got, path, want)
 	}
 }
