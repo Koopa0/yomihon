@@ -483,11 +483,11 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 	for st.i < len(st.lines) {
 		switch {
 		case st.inFence:
-			r.scanFenceLine(st, col)
+			scanFenceLine(st, col)
 		// While an HTML block is still running, every line belongs to it: a fence
 		// marker or a callout opener inside one is raw text, not the start of
 		// anything, so neither pass may claim it.
-		case st.htmlEnd == "" && r.tryOpenFence(st):
+		case st.htmlEnd == "" && tryOpenFence(st):
 			// handled: either entered a fence, or fully consumed a
 			// mermaid block — see tryOpenFence.
 		case st.htmlEnd == "" && r.tryConsumeCallout(st, allowEmbed, col):
@@ -610,7 +610,7 @@ func (st *preprocessState) trackHTMLBlock(line string) {
 
 // scanFenceLine handles one line while st.inFence is true: it either closes the
 // fence or is fence content, checked once for a risky-looking pattern.
-func (r *Pipeline) scanFenceLine(st *preprocessState, col *collector) {
+func scanFenceLine(st *preprocessState, col *collector) {
 	line := st.lines[st.i]
 	switch {
 	case fenceCloses(line, st.fenceByte):
@@ -629,13 +629,13 @@ func (r *Pipeline) scanFenceLine(st *preprocessState, col *collector) {
 // tryOpenFence opens a fence at the current line and reports whether the line was
 // a fence opener. A ```mermaid fence is instead consumed whole by consumeMermaid,
 // never left open for scanFenceLine.
-func (r *Pipeline) tryOpenFence(st *preprocessState) bool {
+func tryOpenFence(st *preprocessState) bool {
 	marker, info, ok := fenceOpen(st.lines[st.i])
 	if !ok {
 		return false
 	}
 	if strings.EqualFold(info, "mermaid") {
-		r.consumeMermaid(st, marker)
+		consumeMermaid(st, marker)
 		return true
 	}
 	// A close of this scan's own writing has to look like the opener: as many
@@ -658,7 +658,7 @@ func (r *Pipeline) tryOpenFence(st *preprocessState) bool {
 // reader without scripting sees, and URL-encoded in data-mermaid-code, whose
 // charset needs no further attribute escaping. The browser side decodes that
 // attribute and replaces the content with the rendered diagram.
-func (r *Pipeline) consumeMermaid(st *preprocessState, marker byte) {
+func consumeMermaid(st *preprocessState, marker byte) {
 	st.i++
 	start := st.i
 	for st.i < len(st.lines) && !fenceCloses(st.lines[st.i], marker) {
